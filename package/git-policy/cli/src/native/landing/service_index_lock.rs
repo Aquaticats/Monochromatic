@@ -41,12 +41,15 @@
 //! ```
 
 use crate::service_index_attempts::{Placing, wait_and_place};
+use crate::service_index_claim::{abandoned_here, keep_abandoned};
+use crate::service_index_prestage::{Slot, put_slots, take_carrying, take_slots};
+use crate::service_index_refused_lock::{Refused, keep_remembered, remembered_here};
 use crate::wait_ceilings::LANDING_LOCK_CEILING;
 use crate::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::service_index_prestage::{Prestaged, take};
+use crate::service_index_prestage::Prestaged;
 pub use crate::service_index_found::{WaitNotes, describe_lock};
 pub use crate::service_index_hold::{IndexLock, Record};
 pub use crate::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_marker};
@@ -271,7 +274,9 @@ pub fn acquire(index: &Path, seq: u64, announce: &dyn Announcer) -> Result<Index
 /// As `acquire`.
 pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Announcer, holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LANDING_LOCK_CEILING, announce, &mut notes, None);
+    let mut memory: TheLockWaitsMemory = carry_the_lock_waits_memory();
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LANDING_LOCK_CEILING, announce, &mut notes, None, &mut memory);
+    keep_the_lock_waits_memory(memory);
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -305,12 +310,101 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, not
 /// As `acquire`,
 /// and `IndexInUse` when the lock was still held at the ceiling.
 pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+    let mut memory: TheLockWaitsMemory = carry_the_lock_waits_memory();
+    let taken: Result<IndexLock, LockFailure> = acquire_carrying(index, seq, ceiling, announce, notes, &mut memory);
+    keep_the_lock_waits_memory(memory);
+    return taken;
+}
+
+/// What:
+///  The landing's own memory of a lock wait:
+/// the markers made ahead it may still take,
+/// the foreign lock an earlier commit gave up on,
+/// and the claims it placed whose answer could not be read back.
+/// Why:
+///   Every one of them is the landing's,
+/// kept in its task's state
+/// (`landing_state_carried_by_its_task.rs`),
+/// and a job of the blocking pool cannot read or write that state.
+/// So the task that asks for the lock carries this into the job and keeps what the job answers,
+/// and the acquisition is one implementation for both callers
+/// (`acquire_carrying` is the job's,
+/// `acquire_noting_wait_within` the caller's).
+/// What a memory that is lost costs is its own:
+/// a marker made ahead is staged cold again,
+/// a memory of a refused lock leaves the next commit a full wait for the same file,
+/// and a claim that is lost stays beside the lock until a later reclaim judges it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const memory = carryTheLockWaitsMemory(); const held = acquireCarrying(index, seq, ceiling, announce, notes, memory); keepTheLockWaitsMemory(memory)
+/// ```
+#[derive(Default)]
+pub(crate) struct TheLockWaitsMemory {
+    /// The markers made ahead,
+    /// one for each batch after the one that made them.
+    pub(crate) prestaged: Vec<Slot>,
+    /// The foreign lock the last commit gave up on,
+    /// with how long the commits that waited for it waited in all.
+    pub(crate) refused: Option<Refused>,
+    /// The claims placed beside a stale lock whose answer could not be read back,
+    /// with the marker text each was written from.
+    pub(crate) abandoned: Vec<(PathBuf, String)>,
+}
+
+/// What:
+///  Takes the landing's memory of its lock waits out of its state.
+/// Why:
+///   The state belongs to the task,
+/// and the job that waits for the lock is another thread;
+/// the memory travels between them as a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const memory = { prestaged: takeSlots(), refused: rememberedHere(), abandoned: abandonedHere() }
+/// ```
+pub(crate) fn carry_the_lock_waits_memory() -> TheLockWaitsMemory {
+    return TheLockWaitsMemory { prestaged: take_slots(), refused: remembered_here(), abandoned: abandoned_here() };
+}
+
+/// What:
+///  Keeps what a lock wait answered as the landing's memory.
+/// Why:
+///   The caller is the landing's task,
+/// which is the one owner of its state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepTheLockWaitsMemory(memory)
+/// ```
+pub(crate) fn keep_the_lock_waits_memory(memory: TheLockWaitsMemory) {
+    put_slots(memory.prestaged);
+    keep_remembered(memory.refused);
+    keep_abandoned(memory.abandoned);
+}
+
+/// What:
+///  `acquire_noting_wait_within` with the landing's memory carried rather than read from its state,
+/// which is what a job of the blocking pool calls.
+/// Why:
+///   The wait for a foreign `index.lock` is what a landing must not do on a worker,
+/// and everything it remembers between waits is the landing's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = acquireCarrying(index, seq, ceiling, announce, notes, memory)
+/// ```
+///
+/// # Errors
+///
+/// As `acquire_noting_wait_within`.
+pub(crate) fn acquire_carrying(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes, memory: &mut TheLockWaitsMemory) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, removing the markers it cannot use,
     //  and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
-    let prepared: Option<Prestaged> = take(index, seq);
+    let prepared: Option<Prestaged> = take_carrying(&mut memory.prestaged, index, seq);
     notes.staging = preparing.elapsed();
-    return acquire_placing(&SYSTEM, index, seq, ceiling, announce, notes, prepared);
+    return acquire_placing(&SYSTEM, index, seq, ceiling, announce, notes, prepared, memory);
 }
 
 /// `acquire` with the calls of `platform`.
@@ -321,7 +415,10 @@ pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, ann
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, LANDING_LOCK_CEILING, announce, &mut WaitNotes::default(), None);
+    let mut memory: TheLockWaitsMemory = carry_the_lock_waits_memory();
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(platform, index, seq, LANDING_LOCK_CEILING, announce, &mut WaitNotes::default(), None, &mut memory);
+    keep_the_lock_waits_memory(memory);
+    return taken;
 }
 
 /// `acquire_on` that gives up on a foreign holder after `ceiling`,
@@ -332,7 +429,10 @@ pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn An
 /// As `acquire_on`,
 /// and `IndexInUse` when the lock was still held at the ceiling.
 pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None);
+    let mut memory: TheLockWaitsMemory = carry_the_lock_waits_memory();
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None, &mut memory);
+    keep_the_lock_waits_memory(memory);
+    return taken;
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
@@ -344,6 +444,7 @@ fn acquire_placing(
     announce: &dyn Announcer,
     notes: &mut WaitNotes,
     prestaged: Option<Prestaged>,
+    memory: &mut TheLockWaitsMemory,
 ) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
@@ -390,6 +491,7 @@ fn acquire_placing(
         &mut watch,
         announce,
         notes,
+        memory,
     );
     notes.placing = placing_began.elapsed();
     let removing_began: std::time::Instant = std::time::Instant::now();

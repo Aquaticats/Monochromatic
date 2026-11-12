@@ -65,6 +65,10 @@ pub mod service_reply;
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
 
+/// The records a landing writes into its batch's journal,
+/// as a task of the runtime awaits them.
+pub mod service_journal_writes_awaited;
+
 /// The text form of a batch intent:
 /// written and parsed.
 pub mod service_journal_intent_text_and_parse;

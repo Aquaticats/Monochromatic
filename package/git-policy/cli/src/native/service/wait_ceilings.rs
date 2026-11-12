@@ -523,6 +523,44 @@ pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
 ///  commit that outlasts it is one a person runs again.
 pub const COMMIT_OWN_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the journal write step of one batch runs:
+/// the `journal_ms` of 1,302 landings of the service journal (2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z),
+/// which holds the intent's durable write and the start record beside it.
+/// The 99th percentile was 3,792 ms and the longest 40,188 ms,
+/// and the same figures are why a temporary file of the journal is given ten minutes before it is taken for the remains of a
+/// killed write (`service_journal.rs`,
+/// `TEMPORARY_GRACE`).
+/// Read once:
+/// the log names no later population of journal writes.
+pub const LONGEST_JOURNAL_WRITE: Duration = Duration::from_millis(40_188);
+
+/// The longest a landing waits for one record of its batch's journal:
+/// the intent,
+/// the start record,
+/// the record of the batch's scratch reference,
+/// the removal of one,
+/// and the copy of the conclusion state.
+///  Why:
+///   Each of them is a file the landing writes into the journal directory before its branch moves
+/// (`service_journal.rs`,
+/// `service_scratch_ref_marker_of_a_batch.rs`,
+/// `conclusion_state_copy.rs`),
+/// and the owner's rule is "nothing should ever wait forever or indefinitely":
+/// a write that waits in the kernel on a disk that stopped answering would hold the landing with no end,
+/// and the intent is what a person's commit waits for.
+/// The measurement is the journal write step's own,
+/// which holds the intent's flush and the start record:
+/// `LONGEST_JOURNAL_WRITE`,
+/// five times that in whole minutes,
+/// so a write the log ever recorded lands well inside it,
+/// and the owner's "Commits should never fail."
+/// is kept for every write that finished at all.
+/// Limit:
+/// a write that outlasts this bound ends its landing,
+/// which answers a failure and keeps nothing of the batch on the branch;
+/// the commit's objects stay on its side reference for the person to run the commit again.
+pub const JOURNAL_WRITE_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(LONGEST_JOURNAL_WRITE.as_millis() as u64 * CEILING_MARGIN as u64));
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.

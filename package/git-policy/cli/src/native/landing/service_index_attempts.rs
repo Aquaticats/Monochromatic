@@ -26,8 +26,9 @@ use crate::index_lock_evidence::{
 };
 use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
-use crate::service_index_refused_lock::{forget, recall, remember};
-use crate::service_index_placement::{Placed, Platform, Reclaimed, log_placement_failure, place_lock, reclaim};
+use crate::service_index_refused_lock::{recall_in, remember_in};
+use crate::service_index_placement::{Placed, Platform, Reclaimed, log_placement_failure, place_lock, reclaim_carrying};
+use crate::service_index_lock::TheLockWaitsMemory;
 use crate::service_index_reclaim::{foreign_words, stale_lock_words, unjudged_words};
 use crate::service_index_staging::refresh_age;
 use crate::service_index_unheld_removal::{Unheld, remove_if_unheld, told_words};
@@ -214,7 +215,7 @@ pub(crate) struct Placing<'a> {
 
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
-pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<Placed, LockFailure> {
+pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Announcer, notes: &mut WaitNotes, memory: &mut TheLockWaitsMemory) -> Result<Placed, LockFailure> {
     let Placing { staged, held, marker, lock, lock_name, index, ceiling } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
@@ -232,7 +233,8 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         refresh_age(held);
         match place_lock(platform, staged, marker, lock) {
             Ok(placed) => {
-                forget();
+                // The lock is this landing's: the memory of one that outlasted an earlier wait names nothing now.
+                memory.refused = None;
                 return Ok(placed);
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -241,7 +243,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                 //  release is waited for like a foreign one, and so is a stale lock another reclaimer is removing (the watch
                 //  wakes when it is gone, and the notice timer looks again if that reclaimer died). A lock that cannot be
                 //  removed ends the wait: more waiting would not change that.
-                match reclaim(platform, lock) {
+                match reclaim_carrying(platform, lock, &mut memory.abandoned) {
                     Reclaimed::Removed | Reclaimed::Changed => continue,
                     Reclaimed::Stuck => return Err(LockFailure { code: FailureCode::Unavailable }),
                     Reclaimed::Busy => busy = true,
@@ -274,7 +276,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         notes.looks += 1;
         // A lock that is the very file an earlier commit already waited a whole ceiling for is not waited for again: the commits queued
         //  behind one blocked landing would otherwise each wait their own ceiling, one after another, for the same file.
-        let earlier: Option<Duration> = if notes.looks == 1 { recall(lock) } else { None };
+        let earlier: Option<Duration> = if notes.looks == 1 { recall_in(memory.refused, lock) } else { None };
         if earlier.is_some() {
             already_waited = earlier;
         }
@@ -315,7 +317,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         //  indefinitely"); then the wait ends, naming the blocker, and the batch is withdrawn by the caller.
         if at_ceiling && proof != Proved::Gone {
             let held_against_commits: Duration = waited + already_waited.unwrap_or(Duration::ZERO);
-            remember(lock, held_against_commits);
+            memory.refused = remember_in(lock, held_against_commits);
             announce.announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), held_against_commits.as_secs(), COMMIT_NOT_MADE)));
             if let Some(earlier_wait) = already_waited {
                 announce.announce(Announce::Waiting(earlier_commit_line(earlier_wait.as_secs())));

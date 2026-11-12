@@ -340,12 +340,12 @@ fn keep_the_slots(state: &LandingState, slots: Vec<Slot>) {
 /// Takes the service's pre-staged markers out of the landing's state:
 /// the state `prestaged_markers` of `landing_state_carried_by_its_task.rs` is per landing,
 /// because only the landing takes locks and lands batches.
-fn take_slots() -> Vec<Slot> {
+pub(crate) fn take_slots() -> Vec<Slot> {
     return on_the_landing_state((), take_the_slots);
 }
 
 /// Puts the pre-staged markers back into the landing's state.
-fn put_slots(slots: Vec<Slot>) {
+pub(crate) fn put_slots(slots: Vec<Slot>) {
     on_the_landing_state(slots, keep_the_slots);
 }
 
@@ -543,13 +543,33 @@ fn let_go_of_unused(slot: Slot) {
 /// const ready = await prestage.take(index, seq) // Prestaged | undefined
 /// ```
 pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
+    let mut slots: Vec<Slot> = take_slots();
+    let made: Option<Prestaged> = take_carrying(&mut slots, index, seq);
+    put_slots(slots);
+    return made;
+}
+
+/// What:
+///  `take` with the markers made ahead carried rather than read from a landing's state.
+/// Why:
+///   A job of the blocking pool cannot read the landing's state,
+/// so the task that asks for the lock carries the slots into the job and keeps them when it answers
+/// (`service_index_lock.rs`,
+/// `TheLockWaitsMemory`).
+/// A slot the clock of a control waits on stays the same object on its way in and out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ready = takeCarrying(slots, index, seq) // Prestaged | undefined
+/// ```
+pub(crate) fn take_carrying(slots: &mut Vec<Slot>, index: &Path, seq: u64) -> Option<Prestaged> {
     let lock: PathBuf = lock_path_of(index);
-    let slots: Vec<Slot> = take_slots();
+    let waiting: Vec<Slot> = std::mem::take(slots);
     #[cfg(test)]
     COMMIT_WAITING.store(true, std::sync::atomic::Ordering::SeqCst);
     let mut kept: Vec<Slot> = Vec::new();
     let mut mine: Option<Slot> = None;
-    for slot in slots {
+    for slot in waiting {
         if slot.lock == lock && slot.seq >= seq {
             if slot.seq == seq && mine.is_none() {
                 mine = Some(slot);
@@ -567,7 +587,7 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
         }
     }
     let Some(asked_for) = mine else {
-        put_slots(kept);
+        *slots = kept;
         return None;
     };
     if !asked_for.work.is_finished() {
@@ -575,10 +595,10 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
         //  this is on the commit's path. The marker stays in the slots, so it is removed once it is finished and no file is
         //  left behind.
         kept.push(asked_for);
-        put_slots(kept);
+        *slots = kept;
         return None;
     }
-    put_slots(kept);
+    *slots = kept;
     let made: Prestaged = made_marker(asked_for.work)?;
     forget_made_ahead(made.staged.as_path());
     if !still_there(&made) {

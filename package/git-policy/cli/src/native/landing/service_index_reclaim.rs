@@ -41,7 +41,7 @@
 //! ```
 
 use crate::service_index_lock::lock_path_of;
-use crate::service_index_claim::{Claim, ClaimHold, take_claim};
+use crate::service_index_claim::{Claim, ClaimHold, take_claim_carrying};
 use crate::service_index_marker::{LOCK_MARKER, MARKER_VERSION, Marked, holder_is_elsewhere, holder_is_gone, marker_of_file};
 use crate::service_index_placement::{Platform, SYSTEM};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -162,6 +162,23 @@ pub fn remove_stale(index: &Path, seq: u64) {
 /// const outcome = reclaimIf(platform, lock, isStale) // 'removed' | 'changed' | 'busy' | 'kept' | 'stuck'
 /// ```
 pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Reclaimed {
+    let mut abandoned: Vec<(PathBuf, String)> = crate::service_index_claim::abandoned_here();
+    let answer: Reclaimed = reclaim_if_carrying(platform, lock, is_stale, &mut abandoned);
+    crate::service_index_claim::keep_abandoned(abandoned);
+    return answer;
+}
+
+/// What:
+///  `reclaim_if` with the landing's abandoned claims carried rather than read from its state.
+/// Why:
+///  A reclaim of a job of the blocking pool cannot read the landing's state,
+/// and a claim whose placement is not known must still be removed by that same landing's next attempt.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = reclaimIfCarrying(platform, lock, isStale, abandoned)
+/// ```
+pub(crate) fn reclaim_if_carrying(platform: &Platform, lock: &Path, is_stale: StaleMark, abandoned: &mut Vec<(PathBuf, String)>) -> Reclaimed {
     let file: std::fs::File = match open_to_judge(lock) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Reclaimed::Removed,
@@ -188,7 +205,7 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Recl
     }
     crate::service_fault::reach("reclaim-judged");
     // The exclusion this reclaimer is under until it is done.
-    let claim: ClaimHold = match take_claim(platform, lock, &marked) {
+    let claim: ClaimHold = match take_claim_carrying(platform, lock, &marked, abandoned) {
         Claim::Held(held) => held,
         Claim::Busy => return Reclaimed::Busy,
         Claim::Unjudged { file: in_the_way, marked: theirs } => {

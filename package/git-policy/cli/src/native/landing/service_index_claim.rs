@@ -163,7 +163,8 @@ fn escaped_byte(byte: u8) -> String {
 
 /// What:
 ///  Remembers a claim file that may have been made,
-/// for the next attempt of this thread to remove.
+/// in the list of the landing that made it or of the job that stands in for one,
+/// for the next attempt of that landing to remove.
 /// Why:
 ///  A claim whose placement is not known would block every reclaimer if it stayed.
 ///
@@ -171,8 +172,8 @@ fn escaped_byte(byte: u8) -> String {
 /// ```ts
 /// abandoned.push([path, text]);
 /// ```
-fn remember_abandoned(path: PathBuf, text: String) {
-    on_the_landing_state((path, text), keep_abandoned_claim);
+fn remember_abandoned(claims: &mut Vec<(PathBuf, String)>, path: PathBuf, text: String) {
+    claims.push((path, text));
 }
 
 /// What:
@@ -314,9 +315,9 @@ fn text_of(path: &Path) -> std::io::Result<Option<String>> {
     };
 }
 
-/// Adds a claim to the landing's abandoned ones.
-fn keep_abandoned_claim(state: &LandingState, claim: (PathBuf, String)) {
-    state.abandoned_claims.borrow_mut().push(claim);
+/// Keeps `claims` as the landing's abandoned ones.
+fn keep_the_abandoned_claims(state: &LandingState, claims: Vec<(PathBuf, String)>) {
+    *state.abandoned_claims.borrow_mut() = claims;
 }
 
 /// Takes the landing's abandoned claims out of its state.
@@ -324,8 +325,31 @@ fn take_abandoned_claims(state: &LandingState, (): ()) -> Vec<(PathBuf, String)>
     return state.abandoned_claims.take();
 }
 
+/// What:
+///  The claims this landing placed whose placement could not be read back,
+/// taken out of its state.
+/// Why:
+///   A job of the blocking pool cannot read the landing's state,
+/// so the task that asks it for a reclaim carries these into the job and keeps them when it answers
+/// (`service_index_lock.rs`,
+/// `TheLockWaitsMemory`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const abandoned = abandonedHere()
+/// ```
+pub(crate) fn abandoned_here() -> Vec<(PathBuf, String)> {
+    return on_the_landing_state((), take_abandoned_claims);
+}
+
+/// Keeps `claims` as the ones this landing may still have made.
+pub(crate) fn keep_abandoned(claims: Vec<(PathBuf, String)>) {
+    on_the_landing_state(claims, keep_the_abandoned_claims);
+}
+
 /// Removes the claims this landing abandoned
-/// (the state `abandoned_claims` of `landing_state_carried_by_its_task.rs`:
+/// (the state `abandoned_claims` of `landing_state_carried_by_its_task.rs`,
+/// or the list a job of the blocking pool carries for it:
 /// claims whose placement answered with an error and which could not be read back to be recognised,
 /// with the marker text each was written from;
 /// per landing,
@@ -339,13 +363,13 @@ fn take_abandoned_claims(state: &LandingState, (): ()) -> Vec<(PathBuf, String)>
 /// and is forgotten;
 /// one that still
 ///  cannot be read stays on the list for the next attempt.
-fn resolve_abandoned() {
-    let pending: Vec<(PathBuf, String)> = on_the_landing_state((), take_abandoned_claims);
+fn resolve_abandoned(claims: &mut Vec<(PathBuf, String)>) {
+    let pending: Vec<(PathBuf, String)> = std::mem::take(claims);
     for (path, text) in pending {
         match text_of(path.as_path()) {
             Ok(Some(found)) if found == text => remove_claim(path.as_path()),
             Ok(_) => {}
-            Err(_) => remember_abandoned(path, text),
+            Err(_) => remember_abandoned(claims, path, text),
         }
     }
 }
@@ -398,12 +422,21 @@ fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
 /// return allBelowDead(slot) ? held : (remove(slot), 'busy')
 /// ```
 pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
+    let mut abandoned: Vec<(PathBuf, String)> = abandoned_here();
+    let claim: Claim = take_claim_carrying(platform, lock, marked, &mut abandoned);
+    keep_abandoned(abandoned);
+    return claim;
+}
+
+/// `take_claim` with the landing's abandoned claims carried rather than read from its state,
+/// for the reclaim of a job of the blocking pool.
+pub(crate) fn take_claim_carrying(platform: &Platform, lock: &Path, marked: &Marked, abandoned: &mut Vec<(PathBuf, String)>) -> Claim {
     // Lock kept: two reclaimers of one stale lock must not both unlink its name, and no system call unlinks a name only if it
     //  still names a given file. The claim is a file placed whole beside the lock, named from the stale lock's marker; the hold
     //  is a few system calls long, is one file per reclaimer (never the repository or the directory), and a dead reclaimer's
     //  claim is passed over, never waited for, because its maker's marker says it is gone.
     let key: String = claim_key(marked);
-    resolve_abandoned();
+    resolve_abandoned(abandoned);
     // The batch field of a claim's marker is a token of this attempt alone: a placement whose answer was lost (an error after a
     //  link or rename took effect, as a network file system can answer) is told from another attempt's claim by the whole text.
     let token: u64 = match attempt_token() {
@@ -443,7 +476,7 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
                         //  the next attempt of this thread removes it if it is there, so a claim of a running process is not
                         //  left to block every reclaimer.
                         crate::service_error!("the claim file {} of a reclaim cannot be read back ({error}); the next attempt resolves it", path.display());
-                        remember_abandoned(path.clone(), marker.clone());
+                        remember_abandoned(abandoned, path.clone(), marker.clone());
                         break Claim::Busy;
                     }
                 }

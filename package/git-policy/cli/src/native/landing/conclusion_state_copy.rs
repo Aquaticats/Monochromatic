@@ -27,10 +27,12 @@
 //! const copy = await keepConclusionState(cleanup, journal, seq); await dropConclusionState(journal, seq);
 //! ```
 
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::conclusion_cleanup::{CONCLUSION_COPY_DIRECTORY, CONCLUSION_STATE_FILES};
 use crate::private_storage::{create_private_directory_all, remove_tree};
 use crate::service_journal::batch_path;
 use crate::service_protocol::Cleanup;
+use crate::wait_ceilings::JOURNAL_WRITE_CEILING;
 use std::path::{Path, PathBuf};
 
 /// The extension of the folder that holds one batch's copy.
@@ -182,8 +184,60 @@ pub fn keep_of_intent(cleanup: Option<&Cleanup>, journal: &Path, seq: u64, repos
     return keep(named, journal, seq, repository);
 }
 
+/// What:
+///  `keep_of_intent` for a caller that is a task of the runtime:
+/// the same copy,
+/// as a job of the blocking pool,
+/// awaited no longer than `JOURNAL_WRITE_CEILING`.
+/// Why:
+///   The copy reads a tree and writes another,
+/// which waits in the kernel on a disk or a mount that stopped answering;
+/// a task that made it would hold a worker the runtime needs,
+/// and the branch may not move before the copy is there.
+/// A copy that did not run or gave no answer is answered as one that could not be made,
+/// which the cleanup reads as "no conclusion state was copied" and removes nothing on:
+/// the person's merge,
+/// cherry-pick or revert state stays where it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await keepOfIntentAwaiting(cleanup, journal, seq)
+/// ```
+pub async fn keep_of_intent_awaiting(cleanup: Option<&Cleanup>, journal: &Path, seq: u64) -> Option<PathBuf> {
+    let job: TheConclusionStateOfABatch = TheConclusionStateOfABatch { cleanup: cleanup.cloned(), journal: journal.to_path_buf(), seq };
+    return match run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, job, keep_the_conclusion_state_of_a_batch).await {
+        TheAnswerOfAJobAwaited::Ran(kept) => kept,
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("batch {seq}: the copy of the conclusion state was not made, because the system refused a thread for the step that makes it; nothing of the person's is removed, because a cleanup compares a copy that is not there and removes nothing");
+            None
+        }
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("batch {seq}: the copy of the conclusion state was not made in time, so a cleanup of that batch removes nothing; nothing of the person's is taken");
+            None
+        }
+    };
+}
+
+/// The conclusion state one batch of a landing keeps beside its intent.
+pub(crate) struct TheConclusionStateOfABatch {
+    cleanup: Option<Cleanup>,
+    journal: PathBuf,
+    seq: u64,
+}
+
+/// The copy of a batch's conclusion state,
+/// made as one job of the blocking pool.
+fn keep_the_conclusion_state_of_a_batch(job: TheConclusionStateOfABatch) -> Option<PathBuf> {
+    return keep_of_intent(job.cleanup.as_ref(), job.journal.as_path(), job.seq);
+}
+
 /// Removes one batch's copy;
 /// a copy that cannot be removed stays where it is.
 pub fn remove(journal: &Path, seq: u64) {
     let _removed = remove_tree(path_of(journal, seq).as_path());
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "conclusion_state_copy_tests.rs"]
+mod tests;

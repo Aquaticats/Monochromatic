@@ -43,7 +43,7 @@ use std::path::Path;
 ///  Unmeasured:
 ///  the count is the smallest that lets one wait which ended be finished by a read and one write after it,
 ///  and another attempt would multiply the wait of a write the disk makes slow on every try.
-const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
+pub(crate) const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
 
 /// What:
 ///  Writes the side reference `name` at `tip`,
@@ -336,7 +336,7 @@ pub(crate) fn keep_on_a_side_ref_only_if_free(git: &GitContext, repository: &Pat
 /// ```ts
 /// const refusedWordsOf = (output) => output.stderr.trim() || `git update-ref ended with ${output.code ?? 'no exit status'}`
 /// ```
-fn refused_words_of(output: &GitOutput) -> String {
+pub(crate) fn refused_words_of(output: &GitOutput) -> String {
     let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
     if !words.is_empty() {
         return words;
@@ -362,10 +362,26 @@ fn refused_words_of(output: &GitOutput) -> String {
 /// await keepOnASideRef(git, repository, seq, tip); return `kept at refs/cli-git/kept/${seq}`
 /// ```
 pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
-    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
-    if keep_on_a_side_ref(git, repository, seq, tip).is_some() {
+    return the_line_of_an_unlanded_commit(seq, keep_on_a_side_ref(git, repository, seq, tip).is_none());
+}
+
+/// What:
+///  The line that tells the person where the commit built for them is kept,
+/// or that it could not be kept at all.
+/// Why:
+///   The synchronous face and the awaited one keep a commit the same way,
+/// so both say where it is in the same words;
+/// a copy of the sentence in each face could name a reference the other one did not keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = theLineOfAnUnlandedCommit(seq, kept)
+/// ```
+pub(crate) fn the_line_of_an_unlanded_commit(seq: u64, kept: bool) -> String {
+    if !kept {
         return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
+    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
     return format!(
         "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
     );
@@ -440,43 +456,6 @@ pub(crate) async fn run_awaiting(git: &GitContext, repository: &Path, arguments:
     return run_words_awaiting(git, repository, words.as_slice(), input).await;
 }
 
-/// What:
-///  The failure one Git step of a landing stands for.
-/// Why:
-///  A step ended at its ceiling,
-/// or by the service's stop,
-/// is told apart from every other failure,
-/// and its
-///  sentence is kept for the answer;
-/// the commit it belongs to is kept on a side ref and not made
-///  (`land_batch_timed`).
-/// Both faces read the failure through this one function,
-/// so neither can answer a step Git could
-///  not run with another code.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function failureOf(error) { if (isCeiling(error) || isEndedByStop(error)) { onTheLandingState(error.message, keepTheCeilingStep); return 'stepTooSlow'; } return 'unavailable'; }
-/// ```
-fn failure_of(error: std::io::Error) -> FailureCode {
-    if crate::child_watch::is_ceiling(&error) || crate::child_watch::is_ended_by_stop(&error) {
-        on_the_landing_state(error.to_string(), keep_the_ceiling_step);
-        return FailureCode::StepTooSlow;
-    }
-    return FailureCode::Unavailable;
-}
-
-/// What:
-///  `run` for a command line that is not all UTF-8,
-///  which the reflog message of a commit whose message is not UTF-8 needs.
-/// Why:
-///   The message is one argument of `git update-ref -m`,
-/// so its bytes reach Git as they are and no text conversion can change them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// git(['update-ref', '-m', message, '--stdin'], { input: transaction })
-/// ```
 pub(crate) fn run_words(git: &GitContext, repository: &Path, arguments: &[std::ffi::OsString], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
     return run_words_answered(run_git(git, &words_request(repository, arguments, input)));
 }
@@ -524,8 +503,33 @@ fn words_request(repository: &Path, arguments: &[std::ffi::OsString], input: Opt
 fn run_words_answered(answered: std::io::Result<GitOutput>) -> Result<GitOutput, FailureCode> {
     return match answered {
         Ok(output) => Ok(output),
-        Err(error) => Err(failure_of(error)),
+        Err(error) => Err(the_failure_of_a_step(&error)),
     };
+}
+
+/// What:
+///  The failure a landing answers for a Git step that could not be run.
+/// Why:
+///   A step ended at its ceiling,
+/// or by the service's stop,
+/// is told apart from every other failure,
+/// and its sentence is kept
+///  for the answer;
+/// the commit it belongs to is kept on a side ref and not made (`land_batch_timed`).
+/// Both faces of every step answer this through one function,
+/// so a synchronous caller and a task cannot answer one ending
+///  two ways.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const code = theFailureOfAStep(error) // StepTooSlow | Unavailable
+/// ```
+pub(crate) fn the_failure_of_a_step(error: &std::io::Error) -> FailureCode {
+    if crate::child_watch::is_ceiling(error) || crate::child_watch::is_ended_by_stop(error) {
+        on_the_landing_state(error.to_string(), keep_the_ceiling_step);
+        return FailureCode::StepTooSlow;
+    }
+    return FailureCode::Unavailable;
 }
 
 /// Keeps the sentence of a step that was ended at its ceiling.

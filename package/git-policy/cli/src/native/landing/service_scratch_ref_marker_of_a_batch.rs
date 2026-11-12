@@ -34,13 +34,15 @@
 //! await record(worktree, seq); /* the import moves the scratch ref */ await forget(seq); // and, at a restart: for (const record of records) await clearAfterDroppedBatch(record.repository, record.seq)
 //! ```
 
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::service_instance::instance_of;
 use crate::service_journal::{OPEN_EXTENSION, SCRATCH_EXTENSION, batch_path};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, clear_after_dropped_batch};
+use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, clear_after_a_failed_landing_awaiting, clear_after_dropped_batch, clear_after_dropped_batch_awaiting};
 use crate::path_bytes_in_records as path_bytes;
 use crate::transaction_git::GitContext;
+use crate::wait_ceilings::JOURNAL_WRITE_CEILING;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
@@ -227,6 +229,187 @@ fn batch_number_of_record(record: &(u64, PathBuf)) -> u64 {
 }
 
 /// What:
+///  `record_scratch_ref` for a caller that is a task of the runtime:
+/// the same record,
+/// as a job of the blocking pool,
+/// awaited no longer than `JOURNAL_WRITE_CEILING`.
+/// Why:
+///   The record is written beside the journal before the batch's commits are imported,
+/// so its write waits on a disk that may have stopped answering;
+/// a task that wrote it would hold a worker the runtime needs.
+/// A record that did not run or gave no answer is said as one that could not be written:
+/// a kill before the intent then leaves the batch's side reference with nothing to find it by,
+/// which is the same cost as a power loss that loses the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordScratchRefAwaiting(journal, seq, repository, gitDir)
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+pub(crate) async fn record_scratch_ref_awaiting(journal: &Path, seq: u64, repository: &Path, git_dir: &Path) {
+    let job: (PathBuf, u64, PathBuf, PathBuf) = (journal.to_path_buf(), seq, repository.to_path_buf(), git_dir.to_path_buf());
+    match run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, job, record_the_scratch_ref_of_a_batch).await {
+        TheAnswerOfAJobAwaited::Ran(()) => {}
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => crate::service_warn!(
+            "batch {seq}: the record of its scratch reference was not written, so a kill before its intent would leave that reference with nothing to find it by"
+        ),
+    }
+}
+
+/// The record of a batch's scratch reference,
+/// written as one job of the blocking pool.
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+fn record_the_scratch_ref_of_a_batch(job: (PathBuf, u64, PathBuf, PathBuf)) {
+    let (journal, seq, repository, git_dir) = job;
+    record_scratch_ref(journal.as_path(), seq, repository.as_path(), git_dir.as_path());
+}
+
+/// What:
+///  `forget_scratch_ref` for a caller that is a task of the runtime:
+/// the same removal,
+/// as a job of the blocking pool.
+/// Why:
+///   The removal waits on the disk as the write does;
+/// a record that cannot be removed is the answer the synchronous face gives already,
+/// and a record left where it is is tried again by the next restart's sweep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await forgetScratchRefAwaiting(journal, seq)
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+pub(crate) async fn forget_scratch_ref_awaiting(journal: &Path, seq: u64) {
+    let job: (PathBuf, u64) = (journal.to_path_buf(), seq);
+    match run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, job, forget_the_scratch_ref_of_a_batch).await {
+        TheAnswerOfAJobAwaited::Ran(()) => {}
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("batch {seq}: the record of its scratch reference could not be removed, so a later restart sweeps it again");
+        }
+    }
+}
+
+/// The record of a batch's scratch reference,
+/// removed as one job of the blocking pool.
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+fn forget_the_scratch_ref_of_a_batch(job: (PathBuf, u64)) {
+    let (journal, seq) = job;
+    forget_scratch_ref(journal.as_path(), seq);
+}
+
+/// What:
+///  `end_scratch_ref_record` for a caller that is a task of the runtime:
+/// the failed landing's side reference is settled with awaited Git,
+/// and the record goes as a job of the blocking pool.
+/// Why:
+///   The landing's end is where the batch's reference and this record are decided together,
+/// so both faces must decide them the same way;
+/// a task cannot start the Git the settling asks for (`transaction_git_awaiting.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!failure || await clearAfterAFailedLandingAwaiting(context, requests, seq) === 'removed') await forgetScratchRefAwaiting(journal, seq)
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+pub(crate) async fn end_scratch_ref_record_awaiting(context: &LandContext, requests: &[CommitRequest], seq: u64, failure: Option<&FailureCode>) {
+    if failure.is_some() && clear_after_a_failed_landing_awaiting(context, requests, seq).await == ScratchRefRemoval::Left {
+        return;
+    }
+    forget_scratch_ref_awaiting(context.journal.as_path(), seq).await;
+}
+
+/// What:
+///  The records one sweep may act on:
+/// those without an intent beside them,
+/// whose worktree the record proves and whose instance the sweep is for.
+/// Why:
+///   A record that cannot be read,
+/// one of a batch whose intent names its worktree already and one of another instance are all said where they are learned,
+/// and the sweep removes nothing on any of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settleable = records(journal).filter(([seq, path]) => !openIntent(seq) && mine(decode(read(path))))
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+fn the_records_this_sweep_may_settle(job: (PathBuf, Option<String>)) -> Vec<(u64, PathBuf, PathBuf)> {
+    let (journal, instance) = job;
+    let mut settling: Vec<(u64, PathBuf, PathBuf)> = Vec::new();
+    for (seq, path) in records(journal.as_path()) {
+        // An intent names the batch's own worktree and its recovery settles the reference; a record beside it is that
+        //  recovery's to remove.
+        if batch_path(journal.as_path(), seq, OPEN_EXTENSION).exists() {
+            continue;
+        }
+        let read: Option<String> = std::fs::read_to_string(path.as_path()).ok();
+        let Some((repository, git_dir)) = read.as_deref().and_then(decode) else {
+            crate::service_warn!("batch {seq}: the record {} of its scratch reference cannot be read, so nothing is removed", path.display());
+            continue;
+        };
+        // A journal several worktrees' services share is swept only for the instance named.
+        if let Some(named) = instance.as_deref()
+            && instance_of(git_dir.as_path()) != named
+        {
+            continue;
+        }
+        settling.push((seq, path, repository));
+    }
+    return settling;
+}
+
+/// The records a sweep settled,
+/// removed as one job of the blocking pool.
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+fn remove_the_settled_records(paths: Vec<PathBuf>) {
+    for path in paths {
+        let _removed = std::fs::remove_file(path.as_path());
+    }
+}
+
+/// What:
+///  `clear_recorded_scratch_refs` for a caller that is a task of the runtime:
+/// the same sweep,
+/// with its listing and its removals as jobs of the blocking pool
+/// and its Git awaited.
+/// Why:
+///   This is the one thing that reaches a reference whose batch was killed between its import and its intent,
+/// and it runs while the service starts,
+/// so its reads must not hold a worker and its Git cannot run on one.
+/// A listing that did not run or gave no answer leaves every reference and every record where they are,
+/// which the next restart tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const record of await recordsToSweep(context, instance)) if (await clearAfterDroppedBatchAwaiting(git, record.repository, record.seq) === 'removed') await removeRecords([record.path])
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
+pub(crate) async fn clear_recorded_scratch_refs_awaiting(context: &LandContext, instance: Option<&str>) {
+    let job: (PathBuf, Option<String>) = (context.journal.clone(), instance.map(String::from));
+    let settling: Vec<(u64, PathBuf, PathBuf)> = match run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, job, the_records_this_sweep_may_settle).await {
+        TheAnswerOfAJobAwaited::Ran(found) => found,
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the records of the journal's scratch references could not be read in time, so no reference of a dropped batch is removed by this start");
+            return;
+        }
+    };
+    let mut settled: Vec<PathBuf> = Vec::new();
+    for (seq, path, repository) in settling {
+        let git: GitContext = context.git.clone();
+        if clear_after_dropped_batch_awaiting(&git, repository.as_path(), seq).await == ScratchRefRemoval::Removed {
+            settled.push(path);
+        }
+    }
+    if settled.is_empty() {
+        return;
+    }
+    match run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, settled, remove_the_settled_records).await {
+        TheAnswerOfAJobAwaited::Ran(()) => {}
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the records of the references this start settled could not be removed in time, so a later restart sweeps them again");
+        }
+    }
+}
+
+/// What:
 ///  Clears the scratch reference of every batch a record in `journal` names and no intent does,
 /// keeping the commit it holds first,
 /// then removes the record.
@@ -278,3 +461,8 @@ pub(crate) fn clear_recorded_scratch_refs(context: &LandContext, instance: Optio
 #[cfg(test)]
 #[path = "service_scratch_ref_marker_of_a_batch_tests.rs"]
 mod tests;
+
+/// Controls for the awaited records of a batch's scratch reference stay out of the release executable.
+#[cfg(test)]
+#[path = "service_scratch_ref_marker_of_a_batch_awaiting_tests.rs"]
+mod awaiting_tests;
