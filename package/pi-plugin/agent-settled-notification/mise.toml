@@ -1,5 +1,22 @@
 [tasks.build]
-extends = "build"
+description = "Build the extension, then refuse a bundle that asks for anything at run time besides node's own modules"
+run = ["mise run build:js", "mise run check:bundle-imports"]
+
+[tasks."check:bundle-imports"]
+description = "Refuse a built bundle that asks for a package at run time, which Pi loads only where that package is beside it"
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+const { readFile } = await import('node:fs/promises')
+const { lodgedImportsIn } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'src/bundle-imports.ts')).href)
+const bundle = 'dist/final/node/index.mjs'
+const lodged = lodgedImportsIn({ bundle: await readFile(bundle, 'utf8') })
+if (lodged.length > 0) {
+  console.error(`the built bundle ${bundle} asks for ${lodged.join(', ')} at run time, so Pi loads it only where that package is beside it. A workspace package belongs inside the bundle: run mise exec -- pnpm install --offline --frozen-lockfile in the checkout, then build again.`)
+  process.exit(1)
+}
+console.log(`${bundle}: nothing asked for at run time besides node own modules`)
+"""
 
 [tasks."build:js"]
 extends = "build:js"
