@@ -1039,7 +1039,7 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and that other branch need not still sit on the commit:
    one that committed again names the same commit in an older line;
    the one move the merge itself makes in the branch it ran in is no witness,
-   so a fast-forward lands nothing that proves a reset branch made the tip;
+   so a fast-forward merge of that tip never counts against the branch that made it;
    a branch merely made at a commit records no commit before its first reflog line,
    so a tip another branch was created at still holds this branch's work;
    a branch moved onto a commit this one made keeps the worktree,
