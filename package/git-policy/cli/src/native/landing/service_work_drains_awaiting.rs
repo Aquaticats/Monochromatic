@@ -181,7 +181,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
 
 /// `drain_common_records_planned_awaiting` with the ceiling of its look for the common directory given,
 /// so a control can reach that look's bound in a moment (`service_work_drains_awaiting_tests.rs`).
-pub(crate) async fn drain_common_records_within_awaiting<H: WorkHandlers + ?Sized>(
+pub(crate) async fn drain_common_records_within_awaiting<H: WorkHandlers + Sync + ?Sized>(
     ceiling: Duration,
     git_dir: &Path,
     handlers: &H,
