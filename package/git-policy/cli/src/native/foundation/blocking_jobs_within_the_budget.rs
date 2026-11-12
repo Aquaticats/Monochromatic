@@ -506,6 +506,32 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 }
 
 /// What:
+///  `run_a_job_once_awaited_no_longer_than`'s job,
+/// from a place of the bound this call already holds,
+/// awaited no longer than `ceiling`.
+/// Why:
+///   Two callers start from a place (one that waited for it and one that found it free),
+/// and the job and the wait for it are the same for both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await aPlaceAwaitedNoLongerThan(ceiling, place, job)
+/// ```
+async fn a_place_awaited_no_longer_than<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(
+    ceiling: Duration,
+    place: tokio::sync::OwnedSemaphorePermit,
+    job: J,
+) -> TheAnswerOfAJobAwaited<T> {
+    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {
+        Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
+        // Only a refusal that promised the job will not run leaves the state as it was.
+        Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
+        Ok(Err(_started_anyway)) => TheAnswerOfAJobAwaited::NoAnswer,
+        Err(_outlasted_its_ceiling) => TheAnswerOfAJobAwaited::NoAnswer,
+    };
+}
+
+/// What:
 ///  Run `job` as a job of the blocking pool,
 /// with a place of the process's bound held while it runs,
 /// awaiting the place no longer than `ceiling` and then the job no longer than another `ceiling`.
@@ -537,13 +563,35 @@ pub async fn run_a_job_once_awaited_no_longer_than<T: Send + 'static, J: FnOnce(
     };
     #[cfg(test)]
     drop(_asking);
-    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {
-        Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
-        // Only a refusal that promised the job will not run leaves the state as it was.
-        Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
-        Ok(Err(_started_anyway)) => TheAnswerOfAJobAwaited::NoAnswer,
-        Err(_outlasted_its_ceiling) => TheAnswerOfAJobAwaited::NoAnswer,
+    return a_place_awaited_no_longer_than(ceiling, place, job).await;
+}
+
+/// What:
+///  Run `job` as a job of the blocking pool while a place of the process's bound is free now,
+/// awaiting it no longer than `ceiling`,
+/// and answer that no job ran when every place is taken.
+/// Why:
+///   A job whose answer is a saving rather than the only way to the answer
+/// (an in-process read that a Git start answers as well,
+/// `transaction_git_awaiting.rs`)
+/// may not make its caller wait for a place:
+/// a round that holds the bound for minutes would then delay the commit that asked,
+/// for a step it does not need.
+/// The read still runs on a thread of the pool and never on a worker of the runtime,
+/// and "no place now" tells the caller what the reader's own silence tells it: ask Git.
+/// A control reaches that answer by holding the place
+/// (`parallel_test_support::hold_the_only_place`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runAJobIfAPlaceIsFreeWithin(ceiling, job); // 'notRun' when every place is taken
+/// ```
+pub async fn run_a_job_if_a_place_is_free_within<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T> {
+    let Ok(place) = Arc::clone(&budget().places).try_acquire_owned() else {
+        // Every place is taken, so this job does not run and its caller has the answer another way.
+        return TheAnswerOfAJobAwaited::NotRun;
     };
+    return a_place_awaited_no_longer_than(ceiling, place, job).await;
 }
 
 /// What:

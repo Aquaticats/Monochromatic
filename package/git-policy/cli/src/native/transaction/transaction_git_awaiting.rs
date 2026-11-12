@@ -30,6 +30,11 @@
 //! and the watched run itself is worded once
 //! (`push/child_watch_step_bounds_and_errors.rs`,
 //! `ending_of_a_watched_step`).
+//! The in-process answer is theirs as well,
+//! but only this face reads it as a job of the blocking pool with a ceiling of its own
+//!  (`in_process_answer_awaiting`):
+//! its readers walk the file system, and a worker of the runtime inside that walk would hold the tasks that
+//!  would end its wait.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -45,6 +50,11 @@ use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, may_be_re
 use crate::transaction_git_step_bounds::step_bound;
 /// An in-process answer to an exact read-only command line.
 use crate::repo_read_hook::try_request;
+/// The place the in-process read takes when one of the bound's is free,
+/// and the answer that says it did not run.
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_if_a_place_is_free_within};
+/// The longest that read may take before Git answers the same command line.
+use crate::wait_ceilings::IN_PROCESS_ANSWER_CEILING;
 /// The watched run for a caller that is a task of the runtime.
 use crate::child_watch_output_watched_on_the_runtime::output_watched_within_for_a_stop_awaiting;
 /// The bound a step that is never ended is left running at,
@@ -62,6 +72,41 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 /// What:
+///  The in-process answer to a request,
+/// read as a job of the process's blocking pool when one of its places is free,
+/// and awaited no longer than `IN_PROCESS_ANSWER_CEILING`,
+/// or nothing at all when the readers have no answer or no place was free.
+/// Why:
+///   The readers walk the file system,
+/// including the real path of the repository's own directory,
+/// which waits in the kernel on a store that stopped answering,
+/// and a worker of the runtime inside that read cannot be ended by any timer:
+/// no ceiling can fire while the future is not polled
+/// (the review of `259f83cbab`, the route's fallback repeating its own layout reading in process,
+/// on the worker, outside every ceiling).
+/// So the read runs on a thread of the pool,
+/// and its absence is the same nothing the readers answer with when they decline a command line:
+/// Git starts, and the step's own watch and ceiling end a start that does not answer.
+///   The answer is a saving rather than the only way to it,
+/// so the job also waits for no place:
+/// a round holding the bound would otherwise delay a commit for a step the commit does not need,
+/// and a busy pool is answered by Git in the time a Git start takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = await inProcessAnswerAwaiting(context, request); // undefined: start Git
+/// ```
+async fn in_process_answer_awaiting(context: &GitContext, request: &GitRequest) -> Option<GitOutput> {
+    // The job owns what it reads, so nothing of the request is borrowed across the pool's thread.
+    let question: (GitContext, GitRequest) = (context.clone(), request.clone());
+    return match run_a_job_if_a_place_is_free_within(IN_PROCESS_ANSWER_CEILING, move || { return try_request(&question.0, &question.1); }).await {
+        TheAnswerOfAJobAwaited::Ran(answered) => answered,
+        // No place was free, or the job outlasted its ceiling and may still be inside a read nobody can end: Git answers.
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => None,
+    };
+}
+
+/// What:
 ///  Run one request and capture its output,
 /// whatever its exit code,
 /// awaiting every wait of it on the runtime.
@@ -71,7 +116,10 @@ use std::time::Duration;
 /// a step that is ended at its ceiling has
 ///  its pipes read on the runtime,
 /// and the child's end is awaited through its pidfd.
-///  The in-process answer and the timing marks are the synchronous face's,
+///  The in-process answer is asked first, as on the synchronous face,
+/// but as a job of the blocking pool and with a ceiling of its own
+/// (`in_process_answer_awaiting`),
+/// and the timing marks are the synchronous face's,
 /// so the two cannot differ in what they record.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,7 +128,7 @@ use std::time::Duration;
 /// ```
 pub async fn run_git_awaiting(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some(answered) = try_request(context, request) {
+    if let Some(answered) = in_process_answer_awaiting(context, request).await {
         return Ok(answered);
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());

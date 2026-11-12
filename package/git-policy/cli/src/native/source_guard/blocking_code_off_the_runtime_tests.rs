@@ -448,6 +448,7 @@ const POOL_CALLS: &[&str] = &[
     "run_blocking_job(",
     "run_blocking_job_within_the_budget(",
     "run_awaiting_blocking_job(",
+    "run_a_job_if_a_place_is_free_within(",
 ];
 
 /// Whether a line hands a closure to the blocking pool,

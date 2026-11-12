@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::landing_state_carried_by_its_task::in_a_landing_task;
+use crate::parallel_test_support::ONE_PLACE;
 use crate::test_support::{fixture, git_context, remove, repository};
 use std::path::PathBuf;
 
@@ -209,5 +210,81 @@ fn a_branch_write_of_the_landing_asked_of_the_synchronous_face_inside_the_runtim
     .expect("the runtime")
     .expect("rev-parse of the ref the write moved");
     assert_eq!(String::from_utf8_lossy(moved.stdout.as_slice()).trim(), commit);
+    remove(root.as_path());
+}
+
+/// The word the stand-in Git of the control below answers with,
+/// which no reader ever writes.
+const ANSWERED_BY_GIT: &str = "/answered-by-git";
+
+/// The stand-in Git of the control below:
+/// it answers the one question the readers ask a real Git with a system configuration path of its own,
+/// and every other command line with `ANSWERED_BY_GIT`.
+const GIT_THAT_ANSWERS_WITH_A_MARKER: &str = "#!/bin/sh\nif [ \"$1\" = \"var\" ]; then printf '/nonexistent/etc/gitconfig\\n'; exit 0; fi\nprintf '/answered-by-git\\n'\nexit 0\n";
+
+/// What:
+///  The in-process answer is read as a job of the process's blocking pool,
+///  so a pool with no free place leaves the answer to Git,
+///  and the request still ends.
+/// Why:
+///   The readers walk the file system and read the repository's real path,
+/// which waits in the kernel on a store that stopped answering,
+/// and a worker of the runtime inside that read cannot be ended by any timer:
+/// the request never returns at all
+/// (the review of `259f83cbab`,
+/// the route's fallback repeating its own reading in process,
+/// on the worker,
+/// outside every ceiling).
+/// The answer is a saving rather than the only way to it,
+/// so no commit may wait for a place of the pool to have it.
+/// The one place of this process's bound is held here,
+/// and the Git the request names is a stand-in whose answer is a word no reader writes,
+/// so the two answers can be told apart.
+#[test]
+fn a_busy_pool_leaves_the_in_process_answer_to_git() {
+    let root: PathBuf = fixture("transaction-git-awaiting-in-process-off-the-worker");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let stand_in: PathBuf = root.join("git-that-answers-with-a-marker");
+    crate::test_support::executable(stand_in.as_path(), GIT_THAT_ANSWERS_WITH_A_MARKER.as_bytes());
+    let mut context: GitContext = git_context();
+    context.real_git = stand_in;
+    let request: GitRequest = GitRequest::new(repo.as_path(), &["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"]);
+    // The budget is made here, with the one place this control then holds.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    // Positive control: with the place free the readers answer, so only a reader can answer this command line.
+    let read: GitOutput = crate::lazy_runtime::run_on_runtime(async {
+        return run_git_awaiting(&context, &request).await;
+    })
+    .expect("the runtime")
+    .expect("the readers answer the commit's name");
+    assert_ne!(
+        answer(read.stdout.as_slice()),
+        ANSWERED_BY_GIT,
+        "positive control: the readers answer this line, so a started Git is the only other answer there is"
+    );
+    // The place is held, so the read cannot be a job, and the same request goes to Git.
+    let (started, has_started) = std::sync::mpsc::channel::<()>();
+    let (release, waits) = std::sync::mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let answer = crate::lazy_runtime::run_on_runtime(crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = started.send(());
+            let _held = waits.recv();
+        }))
+        .expect("the holder's runtime");
+        answer.expect("the holder's job");
+    });
+    assert!(has_started.recv_timeout(crate::parallel_test_support::PATIENCE).is_ok(), "the one place of the process's bound is held");
+    let busy: std::io::Result<GitOutput> = crate::lazy_runtime::run_on_runtime(async {
+        return run_git_awaiting(&context, &request).await;
+    })
+    .expect("the runtime");
+    let _let_go = release.send(());
+    holder.join().expect("the holder");
+    let answered: GitOutput = busy.expect("Git answers a command line the readers may answer, and this Git starts");
+    assert_eq!(
+        answer(answered.stdout.as_slice()),
+        ANSWERED_BY_GIT,
+        "the in-process read ran on this worker, where a store that did not answer would hold it for good"
+    );
     remove(root.as_path());
 }

@@ -501,6 +501,24 @@ pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the awaited Git runner waits for the in-process readers before it starts Git instead:
+/// a quarter of a second.
+/// Why:
+///   The readers answer a read-only command line from the files and save one Git start,
+/// and the runner a task awaits reads them as a job of the blocking pool
+/// (`transaction_git_awaiting.rs`,
+/// `in_process_answer_awaiting`).
+/// A read that has not answered is worth abandoning rather than waiting for:
+/// a Git start answers the same question,
+/// and the owner's rule that a commit adds no more than 5,000 ms leaves no room for a saving to hold one.
+///  Measured:
+/// the slowest in-process answer on record is `for-each-ref` over this repository's 1,442 refs at 13.7 ms
+/// (`SPEC.md`,
+/// "A ref listing past a measured count is left to Git"),
+/// and `git for-each-ref` on the same repository started in 3.8 ms,
+/// so a quarter of a second is 18 times the slowest measured answer and leaves the start it saves the room to run.
+pub const IN_PROCESS_ANSWER_CEILING: Duration = Duration::from_millis(250);
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.

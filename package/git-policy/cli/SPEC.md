@@ -6096,6 +6096,26 @@ recorded
 beside the value;
 no margin is chosen here.
 
+##### An in-process read is a job of the pool
+
+A read-only command line the in-process readers answer costs no Git process,
+and the runner a task of the runtime awaits asks them first
+(`src/native/transaction/transaction_git_awaiting.rs`).
+Those readers walk the file system,
+including the real path of the repository's own directory,
+so the awaited runner asks them in a job of the process's blocking pool and never on the worker that polls the
+runtime:
+a store that stopped answering that walk would hold the worker for good,
+and no timer on it could end the read
+(the review of `259f83cbab`,
+the route's fallback after its own bounded reading gave no answer).
+The job is awaited no longer than `IN_PROCESS_ANSWER_CEILING` (a quarter of a second),
+and takes a place of the pool only when one is free at that moment,
+because the answer is a saving rather than the only way to it:
+a pool with every place taken is answered the way the readers' own silence is,
+by starting Git,
+whose watch and ceiling end a step that does not answer.
+
 #### Every wait has a bound
 
 A bound is only a bound where the wait can be reached by the timer that is meant to end it,
