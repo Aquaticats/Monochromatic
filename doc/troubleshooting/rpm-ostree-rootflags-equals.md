@@ -63,8 +63,8 @@ Txn KernelArgs on /org/projectatomic/rpmostree1/default failed: No karg 'rootfla
 
 The installed `rpm-ostree kargs --help` lists key deletion and argument append separately.
 The replacement attempt failed;
-the combined deletion and append transaction is in progress.
-Read-only inspection with `rpm-ostree kargs` succeeded before the change.
+the combined deletion and append transaction completed with exit status `0`.
+Read-only inspection with `rpm-ostree kargs` succeeded before and after the change.
 
 The source selection was opened with `agent-browser`.
 The rendered page contained the parser branch and diagnostic,
@@ -76,7 +76,7 @@ The selected workaround removes the existing `rootflags` key and appends its ful
 in the same `rpm-ostree kargs` invocation:
 
 ```text
-# Submitted configuration command, pending completion
+# Verified configuration command
 rpm-ostree kargs --delete=rootflags --append=rootflags=subvol=root,user_subvol_rm_allowed,compress=zstd:3,noatime
 ```
 
@@ -86,7 +86,8 @@ and user-subvolume-removal options.
 It moves the argument to the end of the argument list.
 Deleting the key would remove every value associated with it,
 so this host was first checked to have a single `rootflags` value.
-The other kernel arguments must be compared after completion.
+The post-change comparison found every other administrator kernel argument unchanged.
+The generated OSTree deployment locator also matched its original value.
 
 ## Installed access-time policy at 2026-11-12T22:53:11Z
 
@@ -136,13 +137,34 @@ Both versions produced the same existing `/home` ordering error,
 noncanonical-path warning,
 and unprivileged swapfile-inspection warnings.
 
-The policy covers the configured local disk mounts.
+The policy covers the configured local disk mounts in the host mount namespace.
 Kernel virtual filesystems,
 RAM filesystems,
 application-managed cloud mounts,
 and future manual mount commands are outside this verified coverage.
 No reboot was performed.
-The saved boot argument still requires final verification.
+
+## Persistence verified at 2026-11-12T23:00:46.900Z
+
+The saved boot argument is:
+
+```text
+# rpm-ostree kargs, verified after successful staging
+rootflags=subvol=root,user_subvol_rm_allowed,compress=zstd:3,noatime
+```
+
+`persistence-result.json` records the successful comparison.
+The installed `/etc/fstab` matches the verified candidate and remains root-owned with mode `0644`.
+Every inspected disk mount retained its other VFS flags and filesystem-specific options.
+`systemctl show` also reports loaded mount units with `noatime`
+for `/var`,
+`/var/home`,
+`/boot`,
+and `/boot/efi`.
+The existing OSTree administrator-configuration merge is documented in
+[the configuration persistence record](rpm-ostree-inotify-persistence.md).
+Persistence was checked through saved configuration and boot arguments,
+without restarting the machine.
 
 ## What does not work
 
