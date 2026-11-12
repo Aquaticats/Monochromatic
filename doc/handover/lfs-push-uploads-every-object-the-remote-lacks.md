@@ -83,6 +83,9 @@ with `--all` for each.
 
 ## Commits
 
+- `7915f885a3` merge(main):
+  `0.6.1-alpha.13` into the branch,
+  no conflict.
 - `afb0e3e198` fix(git-policy-cli):
   the upload plan asks the destination and
   Git,
@@ -162,6 +165,103 @@ Builds used:
 `wrapper-final` (`6177af8a3b`),
 both `mise run //package/git-policy/cli:native:build`.
 
+## Verification after the merge into `0.6.1-alpha.13`
+
+`main` moved to release `0.6.1-alpha.13` (merge `157d07cd3b`,
+twenty-one finished branches),
+and the branch was merged into it at `7915f885a3` with no conflict:
+Git merged every file on its own,
+`src/native/lfs/mod.rs` keeping both the new module and `main`'s
+`lfs_command_line_configuration`.
+
+`main` holds neither fix:
+`reads_as_true` and `tracking_trusted` are still in its `lfs_upload_plan.rs`
+(at its own lines 404 and 457),
+so nothing was fixed twice.
+
+Against the build of the merge,
+with the disposable fixtures and local bare remotes the audit used:
+
+- both audit reproductions exit `1` when pointed at `wrapper-before`
+  (`objectPresentAtChangedRemote: false`,
+  `sideObjectPresent: false`)
+  and exit `0` with the object present when pointed at the merge's build
+  (`1/1` and `2/2` objects uploaded).
+- the family probe prints the same table as `family-final.txt`.
+- `-c remote.origin.mirror=2` exits `1` before and `0` after.
+- `remote.pushDefault` and a second scenario of two URLs
+  (the fetch saw only the first) show the same split as the table:
+  before,
+  a push to two URLs put the object on one of them only
+  (`nextObjectAtFirst: false`);
+  after,
+  both hold it.
+- `probe-shallow.sh`:
+  before,
+  the push that follows a moved URL exits `0`
+  and publishes `main` on the second server with the object absent;
+  after,
+  `git-lfs` stops at `(missing) big.bin`,
+  the push exits `2`,
+  and no ref is published.
+- `probe-residual-cases.ts` still shows the open case below.
+- `mise run //package/git-policy/cli:native:clippy`:
+  no warning.
+- `mise run //package/git-policy/cli:native:test:host -- lfs`:
+  `109 tests run: 109 passed, 7329 skipped`,
+  naming `lfs_destination_confirms_tracking_refs::tests::*`
+  and the three plan controls.
+- `mise run //package/git-policy/cli:native:test:binary:host -- lfs`:
+  `54 tests run: 54 passed, 1030 skipped` on a second run.
+  The first run failed
+  `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`
+  on `first waited for the other` after a 10 s wait on `git update-index`;
+  it passed alone and in that second run,
+  and
+  `doc/handover/cli-git-rust-implementation.md` already records that control
+  failing under contention.
+- the package linter is red at the merge for 46 errors in 30 files,
+  none on a line this branch wrote:
+  the two `SPEC.md` findings sit on text `main` carries unchanged
+  (its lines 16620 and 16710),
+  and the `lfs_command_line_configuration.rs` finding is `main`'s file.
+- what a push asks,
+  traced with `strace -f -e trace=execve`
+  (`runs/trace-*/trace.log`):
+  `for-each-ref --format=%(objectname)%09%(symref)%09%(refname) refs/remotes/origin`
+  and `ls-remote --heads origin` are the two the fix adds,
+  beside the `remote get-url --push --all`,
+  `push --dry-run --porcelain`,
+  `rev-list` and `git-lfs push` the wrapper already ran.
+- cost on a fixture whose remote already holds 300 LFS objects,
+  12 alternating rounds of a push that adds one object:
+  before `min 22 / median 91 / max 193 ms`,
+  after `min 26 / median 93 / max 100 ms`;
+  a push that adds no object `47/48/49` against `53/54/54 ms`;
+  the plan that sends the whole history `124/117` medians.
+  The two questions alone:
+  `for-each-ref` `2/3/4 ms`,
+  `ls-remote --heads` `4/5/6 ms` against a local bare remote
+  (one round trip against a network one).
+
+The runs behind these are under
+`/var/home/user/temp/agent/lfs-plan-uploads-merge`:
+`changed-*`,
+`mirror-*`,
+`family-merged.txt`,
+`shallow-*`,
+`residual-after.log`,
+`cmdline-mirror-*`,
+`pushdefault-*`,
+`trace-after.log`,
+`cost-merged.log`,
+`unit-merged.log`,
+`binary-merged-2.log`,
+`clippy-merged.log`,
+`lint-merged.log`,
+and `unit-before-mine.log` (the five controls failing against
+`02a9416b39`'s three plan files).
+
 ## Open work
 
 - The plan's evidence is about the destination's git commits,
@@ -189,12 +289,21 @@ both `mise run //package/git-policy/cli:native:build`.
   publishing pointers (`probe-shallow.sh`).
   `lfs.allowincompletepush` remains the
   documented way through.
-- The package linter (`native` tree scope) is red at `02a9416b39` for 25 findings
-  in files this branch does not touch (`worktree_copying`,
+- The package linter is red at the branch's start for 25 findings
+  and at the merge into `0.6.1-alpha.13` for 46 errors in 30 files,
+  in files or on text this branch does not touch
+  (`worktree_copying`,
   `merge`,
   `landing`,
-  `binary_merge_*`);
+  `binary_merge_*`,
+  and `main`'s own lines of `SPEC.md`);
   the branch adds none.
+- `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`
+  failed once of two full binary LFS runs after the merge
+  (`first waited for the other` after a 10 s wait on `git update-index`)
+  and passed alone and in the second run;
+  it is the contention-sensitive control
+  `doc/handover/cli-git-rust-implementation.md` already tracks.
 - Nothing under `doc/decision/` was read or written as a decision;
   this branch
   makes no owner decision.
