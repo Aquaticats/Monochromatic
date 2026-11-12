@@ -1956,16 +1956,17 @@ fn the_record_of_a_binding_is_published_without_flushing() {
     remove(root.as_path());
 }
 
-/// A reaping that removed nothing flushes nothing;
-/// one that removed a dead owner's stage flushes the directory whose entries changed.
+/// A reaping that removed nothing flushes nothing,
+/// and one that removed a dead owner's stage flushes nothing either.
 ///
-/// The flush is the directory's,
-/// so an add that found other adds' live claims paid a filesystem commit for no removal at all:
-/// measured 2026-11-11 as 4,617 ms of one add and 4,619,
-/// 13,792 and 13,886 ms of three others,
-/// out of the `recover` step of five concurrent adds.
+/// A flush of the journal root is a commit of the whole filesystem on the path of every command of the
+/// repository, and what the removals settle is the wrapper's own bookkeeping of a command that died:
+/// its absence costs a repeated notice and never a byte of a person's. `SPEC.md`, "Local durability follows
+/// what the remote already holds", states it for every removal the recovery makes, and an add that found other
+/// adds' live claims paid a filesystem commit for no removal at all before: measured 2026-11-11 as 4,617 ms of
+/// one add and 4,619, 13,792 and 13,886 ms of three others, out of the `recover` step of five concurrent adds.
 #[test]
-fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
+fn a_reaping_flushes_no_directory_whether_it_changed_one_or_not() {
     let (root, common, destination) = scene("claim-reap-flush");
     // A live owner's claim is the shape concurrent adds leave for each other: nothing of it is removed.
     let live: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &current_copy_owner().expect("owner")).expect("claim");
@@ -1986,7 +1987,7 @@ fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
     let removed: Vec<String> = reap_abandoned_stages(dead_common.as_path()).expect("reap");
     assert!(removed.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "the dead owner's stage is removed: {removed:?}");
     assert!(!container.exists(), "the stage is gone");
-    assert_eq!(take_directory_syncs(), vec![std::fs::canonicalize(journal_root(dead_common.as_path())).expect("canonical")], "the directory whose entries changed is flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the removal is published and flushed by nobody");
     remove(dead_root.as_path());
 }
 
@@ -2294,6 +2295,12 @@ fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf
     let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
     let container: PathBuf = claim.container().to_path_buf();
+    // The repository subvolume was made in the transaction that still runs, and a subvolume made there reports
+    // that transaction as its generation until the transaction ends; a snapshot made before the end carries the
+    // same id, so the record's "followed" transaction and the snapshot's creation transaction could not be told
+    // apart. Every repository outside this control has been committed many times, so the control commits once,
+    // and the kill it stages is the one a person's repository can really leave.
+    crate::fs_btrfs_test_support::commit_the_filesystem(repo.as_path());
     // The record comes first, and then the creation: the kill follows the ioctl and comes before the identity is read.
     let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), common.as_path());
     record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), origin.as_ref()).expect("the record of the creation");
