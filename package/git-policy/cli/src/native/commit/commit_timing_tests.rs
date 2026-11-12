@@ -65,6 +65,7 @@ const LANDING_SYNC_INDEX_MS: u64 = 7;
 /// two of one name,
 /// so a sum and its count both show.
 const LAYOUT_MS: u64 = 7;
+const LAYOUT_CHILDREN_MS: u64 = 3;
 const CAPTURE_MS: u64 = 11;
 /// How many stretches the controls say were dropped.
 const PREPARE_PARTS_DROPPED: usize = 3;
@@ -76,6 +77,7 @@ const ROUTE_MS: u64 = 5;
 /// so a sum and its count both show.
 const BRANCH_MS: u64 = 19;
 const SHADOW_LINKS_MS: u64 = 23;
+const SHADOW_LINKS_CHILDREN_MS: u64 = 1207;
 /// How many stretches of the build the controls say were dropped.
 const BUILD_PARTS_DROPPED: usize = 2;
 
@@ -134,15 +136,15 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.gate = Duration::from_millis(GATE_MS);
     timing.handoff = Duration::from_millis(HANDOFF_MS);
     timing.prepare_parts = vec![
-        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
-        PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS) },
-        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS), children: Duration::from_millis(LAYOUT_CHILDREN_MS) },
+        PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS), children: Duration::ZERO },
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS), children: Duration::from_millis(LAYOUT_CHILDREN_MS) },
     ];
     timing.prepare_parts_dropped = PREPARE_PARTS_DROPPED;
     timing.build_parts = vec![
-        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS) },
-        PreparePart { name: String::from("shadow links"), took: Duration::from_millis(SHADOW_LINKS_MS) },
-        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS) },
+        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS), children: Duration::ZERO },
+        PreparePart { name: String::from("shadow links"), took: Duration::from_millis(SHADOW_LINKS_MS), children: Duration::from_millis(SHADOW_LINKS_CHILDREN_MS) },
+        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS), children: Duration::ZERO },
     ];
     timing.build_parts_dropped = BUILD_PARTS_DROPPED;
     timing.outside = OutsideThePhases {
@@ -217,14 +219,18 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     assert_eq!(value["stderrMs"], STANDARD_ERROR_MS);
     assert_eq!(value["prepareParts"]["layout"]["ms"], LAYOUT_MS * 2);
     assert_eq!(value["prepareParts"]["layout"]["calls"], 2);
+    assert_eq!(value["prepareParts"]["layout"]["childrenMs"], LAYOUT_CHILDREN_MS * 2);
     assert_eq!(value["prepareParts"]["capture"]["ms"], CAPTURE_MS);
     assert_eq!(value["prepareParts"]["capture"]["calls"], 1);
+    assert_eq!(value["prepareParts"]["capture"]["childrenMs"], 0);
     assert_eq!(value["preparePartsDropped"], PREPARE_PARTS_DROPPED);
     // The build's stretches are stated under their own name, so a build's figure is never read as a preparation's.
     assert_eq!(value["buildParts"]["branch"]["ms"], BRANCH_MS * 2);
     assert_eq!(value["buildParts"]["branch"]["calls"], 2);
+    assert_eq!(value["buildParts"]["branch"]["childrenMs"], 0);
     assert_eq!(value["buildParts"]["shadow links"]["ms"], SHADOW_LINKS_MS);
     assert_eq!(value["buildParts"]["shadow links"]["calls"], 1);
+    assert_eq!(value["buildParts"]["shadow links"]["childrenMs"], SHADOW_LINKS_CHILDREN_MS);
     assert_eq!(value["buildPartsDropped"], BUILD_PARTS_DROPPED);
     let phases: u64 = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
         .iter()
