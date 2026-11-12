@@ -488,6 +488,59 @@ pub fn flavor_words(flavor: BuiltFlavor) -> String {
 }
 
 /// What:
+///  What a caller can do about a worker here and now:
+///  whether one can run a task,
+///  and whether a build that outlasted its deadline is still on its way.
+/// Why:
+///   One cell in this module changes under a running process, the build that missed its deadline and arrived late,
+/// and a caller that reads it once per question can describe an arrival it has passed:
+/// "no worker yet" and then "no build coming" is a build that arrived between the two reads,
+///  so a caller that cannot do its work without a worker gives up while one is there
+/// (the review of 2026-11-12T09:34-05:00 found that pair ending a commit service with status 4).
+/// Both answers read at one moment always agree about the arrival.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = workerAnswers(); // { canRun, aBuildIsComing }, read at one moment
+/// ```
+struct WorkerAnswers {
+    /// Whether a task of this process's runtime runs on a worker thread of its own.
+    can_run: bool,
+    /// Whether a build that outlasted its deadline is still on its way,
+    /// which is the one state a caller can usefully wait in.
+    a_build_is_coming: bool,
+}
+
+/// What:
+///  Reads both questions about a worker,
+///  building the process's runtime at the first need as the first caller always did.
+/// Why:
+///   The two answers belong to one reading,
+/// and `spawn_on_runtime_within` decides with both of them,
+/// so the reading lives here and no caller asks the two questions one after the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = workerAnswers();
+/// ```
+fn the_worker_answers() -> WorkerAnswers {
+    // The one cell that can change under this call, read once: an arrival is seen by both answers or by neither.
+    let arrived_late: bool = the_late_runtime().is_some();
+    let built: Option<BuiltFlavor> = match RUNTIME.get_or_init(build_for_this_process) {
+        Ok(built) => Some(built.flavor),
+        Err(_no_runtime) => None,
+    };
+    // `built_flavor` names the stand-in a control can stand in for; with no control it is the flavor read just above.
+    let a_build_is_coming: bool = !arrived_late && built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    #[cfg(test)]
+    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
+        // A control's stand-in for a system that refuses every thread: no task of this process runs, whatever a build would bring.
+        return WorkerAnswers { can_run: false, a_build_is_coming };
+    }
+    return WorkerAnswers { can_run: arrived_late || matches!(built, Some(BuiltFlavor::MultiThread { .. })), a_build_is_coming };
+}
+
+/// What:
 ///  Whether a task of this process's runtime runs on a worker thread of its own.
 /// Why:
 ///  A watcher runs beside a thread that is blocked in a read or a wait,
@@ -504,14 +557,7 @@ pub fn flavor_words(flavor: BuiltFlavor) -> String {
 /// const tasksRun = runtime.workerCount > 0;
 /// ```
 pub fn tasks_can_run() -> bool {
-    #[cfg(test)]
-    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
-        return false;
-    }
-    return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || the_late_runtime().is_some(),
-        Err(_no_runtime) => the_late_runtime().is_some(),
-    };
+    return the_worker_answers().can_run;
 }
 
 /// What:
@@ -624,13 +670,15 @@ where
 /// a build that failed,
 /// and a plan of the current-thread runtime have nothing coming,
 /// and waiting there spends the person's command on a state no wait can change.
+/// It is one of the two answers of `the_worker_answers`,
+/// so no caller reads it beside the worker question and gets two different moments.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const coming = builtFlavor()?.kind === 'late' && lateRuntime === undefined;
 /// ```
 pub fn a_build_is_still_on_its_way() -> bool {
-    return built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline) && the_late_runtime().is_none();
+    return the_worker_answers().a_build_is_coming;
 }
 
 /// How often `await_a_worker_within` asks whether the late build arrived:
@@ -675,8 +723,8 @@ pub fn await_a_worker_within(within: Duration) -> bool {
 /// ending the service at the deadline
 ///  failed the commits of a person whose machine was slow to give the process its threads.
 /// A runtime nothing will bring is never waited for:
-/// `a_build_is_still_on_its_way` is the question,
-/// and the caller is told at once that nothing watches.
+/// whether a worker runs now and whether a build is still on its way are one reading of the state,
+/// so a build that arrives as the caller asks cannot make the first answer say no worker yet and the second say no build coming.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -687,7 +735,8 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    if !tasks_can_run() && !(a_build_is_still_on_its_way() && await_a_worker_within(within)) {
+    let answers: WorkerAnswers = the_worker_answers();
+    if !answers.can_run && !(answers.a_build_is_coming && await_a_worker_within(within)) {
         return None;
     }
     return spawn_on_runtime(future);
@@ -708,10 +757,7 @@ where
 /// const ready = builtFlavor()?.kind === 'multi' || lateRuntime !== undefined;
 /// ```
 pub fn has_workers() -> bool {
-    return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || the_late_runtime().is_some(),
-        Err(_) => the_late_runtime().is_some(),
-    };
+    return the_worker_answers().can_run;
 }
 
 /// Whether the build that missed its deadline has arrived;
