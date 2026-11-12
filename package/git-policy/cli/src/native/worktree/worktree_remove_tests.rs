@@ -24,7 +24,7 @@ fn forced_plan_for(target: &Path) -> RemovePlan {
 /// the removal ran to its end.
 fn served_plan(repo: &Path, plan: &RemovePlan) -> bool {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path() }) == RemoveOutcome::Removed;
+    return remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None }) == RemoveOutcome::Removed;
 }
 
 /// Whether the wrapper served the removal of `target` typed as its real path.

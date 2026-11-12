@@ -1104,17 +1104,26 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    because a merge of another branch brings every branch sitting on its commits along;
    a repository that keeps no reflog for that branch proves nothing about it,
    so its worktree is examined as it was before this rule;
-   a branch moved onto a commit another branch had already moved onto holds no commit of its own either,
-   which is the state `git reset --hard main` leaves in a task worktree;
+   a branch moved onto a commit another branch's own reflog names holds no commit of its own either,
+   which is the state `git reset --hard main` leaves in a task worktree,
+   and that other branch need not still sit on the commit:
+   one that committed again names the same commit in an older line;
+   the one move the merge itself makes in the branch it ran in is no witness,
+   so a fast-forward merge of that tip never counts against the branch that made it;
    a branch merely made at a commit records no commit before its first reflog line,
    so a tip another branch was created at still holds this branch's work;
    a branch moved onto a commit this one made keeps the worktree,
-   because Git records no owner of a commit;
+   because Git records no owner of a commit,
+   and a landed worktree whose tip another branch's history passed through stays the same way,
+   with the notice saying so;
 - the worktree does not hold another worktree this repository registers,
    whose files and whose own record a removal would take with it,
-   and the registrations are read again as the removal runs,
+   and the registrations are read again inside the removal,
+   in the moment the destroy follows,
    so a worktree a command adds inside it while the sweep works keeps it too,
    and the commit service reads them again immediately before it destroys the worktree;
+   what no look can keep is an add that lands between that last look and the destroy,
+   which is the window Git's own removal takes for every write and lock in the tree it deletes;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1222,6 +1231,11 @@ A worktree whose records could not all be copied stays,
 A commit a reference lock held in that worktree is kept the same way,
  on `refs/cli-git/kept/<batch>` of this repository,
  before anything is removed.
+A held record this program cannot read still names its batch in its own file name,
+ so the commit behind it is read from the worktree's per-worktree reference and kept there too,
+ and the record is named with the path it is at;
+ when nothing can be read for such a record,
+ the worktree stays and the notice says which record and where.
 
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,
