@@ -196,8 +196,21 @@ qwen4 reviews, what went wrong with them:
   With `b4c8c9fc1f` on `main` the driver leaves a 429 to Pi's own retry, as the owner decided.
   The pool stays at the owner's 18; what the plan's quota carries is not known and is watched.
 
-Still open from the agents' own questions: `git clean` dry runs inside a `!git clean` alias measure the wrong subtree
-(a possible loss the shared-remote agent found and left); gates unique per process; the commit service twice not reporting a commit it had made.
+Started after the fix agents, 21:20 to 21:25:
+
+- Round 252, the second qwen4 look at the landed-sweep change (`7533b7202d`), with the one question named:
+  does the service's own removal keep a commit held for the worktree. Its brief tells the reviewer to keep its review file true at every moment.
+- Round 253, `fix/wg-lifecycle-branch-made-fit-to-merge` on the `wg` integration branch: the two lint tasks, the README, the flaky suite,
+  the stale assertion (applied, not run: it needs `sudo`), and whether `MONOCHROMATIC_WARN=false` or `MONOCHROMATIC_LOG_CONSOLE=off`
+  silences the start warning, which the owner decided has no toggle. No tunnel command, no deploy.
+- Round 254, `fix/git-policy-cli-clean-inside-a-shell-alias-is-measured-where-git-runs-it` on the shared-remote findings branch:
+  the gap that branch's agent found and left, a `!git clean` alias run below the worktree top measured from the wrong directory.
+
+No Pi process of the earlier `wg` run was left (checked with `ps` at 21:21).
+Pushes on alpha.11: the three merges and the handover commits of 21:09 to 21:19 were all on the remote at 21:19 with no hand push.
+
+Still open from the agents' own questions: gates unique per process; the commit service twice not reporting a commit it had made
+(the gate-and-install agent saw "The commit service has not said where this commit stands yet" and pushed by hand).
 
 ### The fourth cull pass (2026-11-11T20:50:00-05:00)
 
