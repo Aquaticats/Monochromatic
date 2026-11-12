@@ -417,3 +417,50 @@ fn a_built_commit_survives_a_prune_when_the_write_of_its_scratch_reference_is_le
     assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
     assert!(lines.iter().any(|line| { return line.contains(kept.as_str()); }), "the person is told where the commit is kept: {lines:?}");
 }
+
+/// What:
+///  The scratch reference another command wrote between the read and the removal is not removed.
+/// Why:
+///  The removal read the reference as naming the batch's commit and proved that commit kept elsewhere;
+///  a command that wrote its own commit there in between made a reference that is the only thing naming it,
+///  so a removal that deletes the name anyway makes `git gc` take that commit
+///  (the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeScratchAfterTheKeptRead({ commit: competing }); expect(await clearAfterDroppedBatch(repo, 1)).toEqual('left'); expect(revParse(scratchRef(1))).toBe(competing)
+/// ```
+#[test]
+fn a_scratch_reference_another_command_wrote_after_the_read_is_not_removed() {
+    let world: World = world("service-land-side-ref-scratch-written-in-between");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let competing_built: CommitRequest = built_request(&world, "competing", "competing.txt", &[base.as_str()]);
+    let competing: String = competing_built.commit.clone().expect("the competing commit");
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().expect("the commit Git built");
+    let scratch: String = scratch_ref(1);
+    let kept: String = kept_ref(1);
+    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), commit.as_str()]);
+    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", kept.as_str(), commit.as_str()]);
+    let entered: PathBuf = world.root.join("kept-read-answered");
+    let program: PathBuf = world.root.join("git-that-writes-the-scratch-name-after-the-read");
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{invocations}'\ncase \" $* \" in\n  *\" rev-parse --verify --quiet refs/cli-git/kept/1 \"*)\n    if [ ! -e '{entered}' ]; then\n      : > '{entered}'\n      '{real}' \"$@\"\n      answered=$?\n      '{real}' -c core.logAllRefUpdates=false update-ref --no-deref refs/worktree/cli-git-service/1 '{competing}'\n      exit $answered\n    fi;;\nesac\nexec '{real}' \"$@\"\n",
+        invocations = side_ref_git_invocations(&world).display(),
+        entered = entered.display(),
+        real = crate::test_support::REAL_GIT,
+        competing = competing,
+    );
+    std::fs::write(&program, script.as_str()).expect("the program");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let git_context: GitContext = GitContext { real_git: program, ..world.context.git.clone() };
+    let removal: ScratchRefRemoval = clear_after_dropped_batch(&git_context, world.repo.as_path(), 1);
+    let scratch_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
+    let scratch_still: String = String::from_utf8_lossy(scratch_read.stdout.as_slice()).trim().to_string();
+    git(world.repo.as_path(), &["gc", "--prune=now"]);
+    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", competing.as_str()]);
+    remove(world.root.as_path());
+    assert_eq!(removal, ScratchRefRemoval::Left, "the scratch name is taken, so it is not removed");
+    assert_eq!(scratch_still, competing, "the scratch reference another command wrote is not removed");
+    assert!(surviving.status.success(), "the commit that other command wrote survives a maintenance that drops what no reference names");
+}

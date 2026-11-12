@@ -443,7 +443,9 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
             crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
         }
     }
-    if write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]) {
+    // The old value is the one just read: a reference another command wrote in between is never removed, because the commit it
+    //  names may be the only thing naming it (the owner's rule "never discard user data").
+    if write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str(), tip.as_str()]) {
         crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
         return ScratchRefRemoval::Removed;
     }
@@ -518,7 +520,9 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
             crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
         }
     }
-    if write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]).await {
+    // The old value is the one just read: a reference another command wrote in between is never removed, because the commit it
+    //  names may be the only thing naming it (the owner's rule "never discard user data").
+    if write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str(), tip.as_str()]).await {
         crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
         return ScratchRefRemoval::Removed;
     }
