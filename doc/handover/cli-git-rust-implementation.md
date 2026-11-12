@@ -135,6 +135,245 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner on what "never discard user data" means, and on deleting after a merge (2026-11-12, about 10:33, typed while the answers of 10:32:10 were being recorded)
+
+The owner's message, whole:
+
+"I do want to say "never discard user data" means to block potentially destructive commands with a --no-enforce-* opt-out, not that we save everything myself.
+And wthe merge + delete one - the delete should still be able to delete async because the wrapper has the data of what is there and what is not there and what is pushed and what is local."
+
+What it settles:
+
+- The rule's meaning:
+  a command that could destroy a person's data is refused,
+  and the person runs it anyway with the guard's `--no-enforce-*` option.
+  It does not mean that the wrapper saves a copy of everything and lets the command run.
+  This session had read it the other way since 2026-11-11
+  (the recorded reason "a refusal only moves the same loss to `rm -rf`" was used to turn refusals into saved copies),
+  and briefed agents that way:
+  the discard guard,
+  abort and skip,
+  the exempt repository,
+  the fast-forward carry.
+- The removal of a landed branch's worktree stays asynchronous.
+  Its safety comes from what the wrapper already knows:
+  what was there,
+  what was not,
+  what is pushed and what exists only locally.
+  The fix makes the deferred deletion check against that knowledge;
+  it does not move the deletion back into the merge.
+
+What it leaves to ask,
+because two answers given five minutes earlier chose the saving behaviour as it was put to the owner
+("Ship as built" for the discard guard at 10:27:45,
+"Save and go on" for abort and skip at 10:32:10):
+whether those two become refusals with an option,
+and how far the meaning reaches into work in flight.
+Asked through the question tool in the same turn.
+
+#### The owner's answers of 2026-11-12T10:35:07-05:00 to those three questions
+
+- The discard guard,
+  when a command would overwrite or delete a file that exists nowhere else:
+  "Refuse with opt-out (Recommended)".
+  This replaces "Ship as built" of 10:27:45.
+  The command is refused and names the file;
+  `--no-enforce-<rule>` runs it as real Git would,
+  with no copy.
+  The finished branch (`2f6ac5f6f0`) is reworked before it ships.
+- Abort and skip,
+  when they would discard work that exists nowhere else:
+  "Refuse with opt-out (Recommended)".
+  This replaces "Save and go on" of 10:32:10.
+- How far the meaning reaches:
+  "Redirect everything".
+  The option as it was put:
+  the agents in flight are told to protect by refusing with a `--no-enforce-*` opt-out,
+  to add no new saved copies and to keep existing refusals;
+  "and agents are also started to turn shipped save-and-continue behaviour into refusals with an opt-out".
+  The shipped behaviour named in the question:
+  `clean` saving a nested repository it would delete,
+  and a merge carrying a person's uncommitted edits.
+  The cost named in the question:
+  commands that work today start being refused,
+  and it is a large change to make without looking at each case.
+
+What stays as answered and is not touched by this:
+`git clean -fX` and `-fx` of ignored files delete,
+exit 0 and are logged ("Keep allow and log", 10:27:45);
+a batch whose scratch reference cannot be proven is committed and says so (10:27:45);
+a commit against a service that does not answer fails with a clear message (10:32:10);
+a merge step hung in an LFS download is ended before the branch write (10:32:10).
+
+The existing opt-outs the wrapper documents
+(`package/git-policy/cli/README.md`):
+`--no-enforce-worktree`,
+`--no-enforce-worktree-branch`,
+`--no-enforce-security`,
+`--no-enforce-final-newline`,
+`--no-enforce-bulk-add`,
+and the generic `--no-enforce-<policy-id>` (`SPEC.md`,
+"Generic `--no-enforce-<policy-id>` escapes").
+
+#### What this session got wrong, and what it changes
+
+- Since 2026-11-11 this session briefed agents to turn refusals into a saved copy and a command that runs,
+  citing a sentence of the record ("a refusal only moves the same loss to `rm -rf`") as if it were the owner's rule.
+  The rule is the owner's sentence in this section.
+  Every brief and note from now on states it in these words:
+  a command that could destroy a person's data is refused and names what it would destroy,
+  and the guard's `--no-enforce-*` option runs it as real Git would;
+  the wrapper keeps no copy.
+- Proposed for `package/git-policy/cli/SPEC.md`,
+  where a reader of the package meets it
+  (a rule about one package goes in that package's documents):
+  a section "What never discarding a person's data means" with the owner's sentence,
+  the list of guards and their opt-outs,
+  and the three recorded exceptions listed here.
+  It is written by the agent that inventories the shipped behaviour (round 296).
+
+#### What was culled, reframed and started on these answers (2026-11-12T10:45:00-05:00)
+
+Culled:
+
+- `mode-a-person-set-survives-a-merge-that-changes-the-file-1` (round 291),
+  stopped at about 10:38 with its launcher,
+  twenty-five minutes after it started.
+  Its task extended the merge's carry,
+  which is now to become a refusal.
+  Its branch holds nothing to keep.
+- The branch `fix/git-policy-cli-commit-is-made-when-the-service-stops-reading-or-answering` (`3b33af6478`) is superseded as a whole.
+  It is kept until round 296's agent has taken what it learned about where the request write blocks.
+
+Reframed by a note at about 10:38,
+each delivery to be checked by its feed at the next pass:
+
+- `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards-1`:
+  refuse with the opt-out,
+  take out what saves,
+  and decide whether the exemption should lift this guard at all.
+- `clean-counts-no-force-as-git-does-and-saves-a-repository-made-while-it-saves-1`:
+  a clean that would delete a nested repository is refused with the opt-out;
+  nothing is moved aside;
+  two of its three findings have nothing left to fix.
+- `fast-forward-merge-and-pull-carry-what-a-diverged-merge-carries-2`:
+  add no carry,
+  keep the two refusals,
+  make the fast-forward path refuse where the diverged path refuses,
+  and report now.
+- `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts-1`
+  and `held-commit-is-kept-again-before-a-landed-worktree-is-destroyed-in-process-1`:
+  the removal stays deferred and is made safe by checking against what the wrapper knows;
+  no fix makes a merge wait for it.
+
+Started,
+round 296,
+at 10:44:
+
+- `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`,
+  on `main`:
+  first an inventory of every place where the wrapper saves and goes on for a typed command
+  (`doc/planning/cli-git-save-and-go-on-behaviours-and-their-refusals.md`),
+  then the plain cases converted,
+  one commit each.
+  It stops before the merge's carry and writes a plan for it,
+  because every agent here merges through it daily;
+  the owner sees that plan before the carry changes.
+  It also writes the rule into `SPEC.md`.
+- `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file`,
+  on the discard-guard branch `2f6ac5f6f0`:
+  the six blind spots stay closed,
+  the saving is replaced by refusing,
+  the `read-tree -m -u` hole is closed,
+  the `--f` forms are judged as the options they abbreviate.
+- `abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+  on the second-pass branch `7cd39662bf`:
+  the same,
+  and the read that hangs on a FIFO.
+- `lfs-url-is-shown-and-only-a-recognised-secret-in-it-is-masked`,
+  on `cda54f2d9e`:
+  item 1.9 as the owner decided it,
+  with the list of what is recognised written down and what is not said plainly.
+- `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`,
+  on `main`:
+  item 1.10 as the owner decided it;
+  every step toward the service bounded,
+  a working service never taken for a stopped one,
+  and a service that wakes after the failure makes no commit.
+
+The digest of the removal fixes and the second merge
+(`~/temp/agent/digest-2026-11-12T1018-removal-and-second-merge/digest.md`):
+
+- The removal fixes brought onto `main` (`f941f71d77`):
+  three losses shown through the built wrapper before and after
+  (a link at a pool name made `git worktree remove` delete a file outside the registration,
+  a pool member destroyed inside the person's command,
+  a detached nested worktree sent to `btrfs subvolume delete`).
+  Ready after:
+  one conflict against pass 17's branch in `worktree_remove_hand_over.rs`,
+  a re-run of Clippy and the removal tests on the merged tree,
+  and its review (queued).
+- The second merge (`5c579487c5`):
+  not ready.
+  Its controls are red at the tip
+  (blamed on issue 6287 without proof),
+  two end-to-end cases were left hanging or wrong and not run again,
+  and two of its messages point a person at removing a file.
+  The LFS download that never answers is shown ended at about 155 s with nothing left running,
+  which is the behaviour the owner confirmed at 10:32:10.
+  It needs a continuation after issue 6287's fix is in its base.
+
+### The owner's answers of 2026-11-12T10:32:10-05:00, through the question tool: four decisions taken under delegation, two confirmed and two overturned
+
+The item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
+Each had been decided by this session while the owner was away, with the veto open.
+
+- Item 1.7,
+  abort and skip:
+  "Save and go on (Recommended)".
+  Confirmed:
+  `--skip` saves the hand resolution it discards and goes on,
+  content that stands only in the index is saved and the abort goes on,
+  a refusal stays only for content that cannot be read or written,
+  and the saved paths are compared again a bounded number of rounds before Git starts.
+  The branches leave the hold-out list when the third pass is done
+  (the read that hangs on a FIFO).
+- Item 1.8,
+  a merge step hung in an LFS download:
+  "End it before the write (Recommended)".
+  Confirmed:
+  ended where the branch has not been written yet,
+  otherwise owned until it ends;
+  "Never cut a branch write" holds for the write itself.
+- Item 1.9,
+  what a push prints of an LFS URL:
+  "Mask recognised secrets only".
+  Overturned.
+  This session's decision had been to hide user information,
+  path,
+  query and fragment.
+  The owner's:
+  a URL is shown,
+  and only what is recognised as a secret in it is masked.
+  The cost was stated in the question:
+  a secret of a shape the mask does not know is printed.
+  The branch `fix/git-policy-cli-review-findings-lfs-output-masks-every-secret` (`cda54f2d9e`) has to be changed before it can go anywhere.
+- Item 1.10,
+  a commit when the commit service has stopped reading or answering:
+  "Fail with a clear message".
+  Overturned.
+  This session's decision had been a second way of making the commit that needs no service.
+  The owner's:
+  one way of making a commit;
+  when the service does not answer,
+  the commit fails after a wait and says so clearly.
+  The branch `fix/git-policy-cli-commit-is-made-when-the-service-stops-reading-or-answering` (`3b33af6478`) is superseded as a whole;
+  what an audit found still stands and still has to be fixed:
+  one case fails only after 10.1 s,
+  the other blocks in the request write with no bound.
+
+Thirty items of that list are still to ask.
+
 ### The owner's answers of 2026-11-12T10:27:45-05:00, through the question tool: four of the parked questions
 
 Each question as asked is in the session's transcript;
