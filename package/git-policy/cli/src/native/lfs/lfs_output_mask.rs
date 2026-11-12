@@ -1,21 +1,38 @@
 //! What:
-//!  Hide every secret-shaped part of the URLs in the text the wrapper relays from `git-lfs` and from Git:
-//! the userinfo,
+//!  What the wrapper shows of a URL in the text it relays from `git-lfs` and from Git:
+//! the scheme,
+//! the host and its port,
 //! the path,
-//! the query and the fragment.
+//! the query and the fragment as they are,
+//! with the user information and every part [`lfs_output_mask_shapes`] recognizes as a secret replaced by
+//!  `<credentials>`.
 //! Why:
-//!  An `lfs.url` can carry its token in three places,
-//! and `git-lfs` names the URL it used in its errors:
-//! `https://user:token@host/...` carries one in its userinfo,
-//! `https://host/<token>/lfs` one in a path segment,
-//! and `https://host/lfs?token=<token>` one in its query.
-//! The wrapper relays that text to the caller's terminal and,
+//!  An `lfs.url` can carry its token in three places:
+//! `https://user:token@host/...` in its user information,
+//! `https://host/<token>/lfs` in a path segment,
+//! and `https://host/lfs?token=<token>` in its query.
+//! `git-lfs` names the URL it used in its errors,
+//! the wrapper relays that text to the caller's terminal and,
 //! for the auto-push,
-//! records
-//!  it in files,
-//! so every one of those places is replaced at the one place where the text leaves the wrapper
+//! records it in files,
+//! so the places that can carry a token are what this module reads
 //! (owner,
 //! "Never print or commit secrets").
+//!  The owner decided on 2026-11-12T10:32:10-05:00 (item 1.9 of `doc/handover/cli-git-rust-implementation.md`)
+//! what to do about the tension between that rule and a reader who needs the path:
+//! "Mask recognised secrets only".
+//! A URL is shown,
+//! and what is recognized as a secret in it is masked.
+//! The cost was stated in the question and is the limit written here:
+//!  a secret of a shape no rule knows is printed.
+//! This module replaced an earlier rule that hid the path,
+//! the query and the fragment whole,
+//! and before that one that kept a plain lowercase label.
+//! The rules that recognize a secret,
+//! each with the documentation its shape comes from,
+//! are in [`lfs_output_mask_shapes`];
+//! this module reads the parts of a URL and applies them.
+//!
 //!  The authority of a URL ends at the first `/`,
 //! `?`,
 //! `#`,
@@ -23,8 +40,7 @@
 //! quote,
 //! angle bracket,
 //! backtick or white space,
-//! and its
-//!  userinfo ends at the last `@` before that,
+//! and its user information ends at the last `@` before that,
 //! so an `@` in a path,
 //! a query or a bracketed IPv6 host is left alone.
 //! The rest of the URL ends at the first `\`,
@@ -32,24 +48,25 @@
 //! angle bracket,
 //! backtick,
 //! white space or control character.
-//!  What a URL keeps is its scheme,
-//! its host and its port,
-//! the separators `/`,
-//! `?`,
-//! `#`,
-//! `&` and `=`,
-//! and the punctuation that ends it in a sentence:
-//! every path segment,
-//! every query and fragment key and every value is the mask,
-//! so a person still reads which server answered and whether the URL carried a path,
-//! a query or a fragment.
-//! Nothing in the shape of a word tells a token from a name a person reads,
-//! so a plain lowercase word is hidden as well:
-//! a token made of lowercase letters alone reads exactly as `lfs` or `objects` does,
-//! and a rule that kept those kept the token too.
-//! An empty segment (the one before a leading `/`,
-//! after a trailing `/`,
-//! or between two) carries nothing and stays empty.
+//! The user information is always hidden:
+//! a URL that carries a user and a password there carries them as a secret,
+//! and nothing in its bytes can tell a user's name from a token.
+//!
+//!  What is not recognized, and is therefore printed,
+//! is written here as the limit of that decision:
+//!
+//!  - a secret shorter than the run rules below,
+//! such as a six-character access code in a path;
+//!  - a secret made of ordinary words that names nothing,
+//! such as `?ref=bluebird`, because no rule can tell it from a branch name;
+//!  - a secret in a host name,
+//! such as `https://<token>.example.invalid/`, because the host is the one part of a URL a person must read
+//!  and no issuer we know puts a secret there;
+//!  - a credential of a shape no rule here names,
+//! such as a new token format of a host this package has not read the documentation of;
+//!  - the first bytes of a token when an output is cut inside it,
+//! shorter than the rule that would recognize it.
+//!
 //!  The head of an output kept at its size cap is masked as the head of a longer text it is:
 //! a URL that reaches the end of what was kept may go on past it,
 //! so an authority with no `@` that runs to that end is hidden whole
@@ -57,58 +74,48 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const masked = text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\/?#\\\s"'<>`]*@/gi, '$1<credentials>@'); // then mask the path, query and fragment
+//! const masked = maskUrlSecrets(text) // 'https://user:secret@host/tokenvalue/lfs?token=abc'
+//!                                     // -> 'https://<credentials>@host/<credentials>/lfs?token=<credentials>'
 //! ```
 
-/// What replaces the userinfo of a URL and every other secret-shaped part of it.
-pub const CREDENTIALS_MASK: &str = "<credentials>";
+/// The rules that recognize a secret in one part of a URL or one word of a line,
+/// with the documentation each shape comes from.
+#[path = "lfs_output_mask_shapes.rs"]
+mod shapes;
 
-/// What:
-///  The part of a destination that names the server a person must recognize:
-/// the host and its port,
-/// with any userinfo left out.
-/// Why:
-///   A refusal that says which server asked for a login is actionable,
-/// and one that repeats the destination as typed would carry the token of an
-///  `lfs.url` written with one.
-/// A destination with no URL authority (a remote name,
-/// a local path,
-/// `file://`) has no host to name,
-///  and answers nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function hostOf(destination: string): string | undefined
-/// ```
-pub fn host_of(destination: &str) -> Option<String> {
-    // The mask this module writes stands where the userinfo was, and its angle brackets end a URL's authority, so it is
-    //  removed first: `https://lfs:<credentials>@host` names `host`, not `lfs:`.
-    let stripped: String = destination.replace(CREDENTIALS_MASK, "");
-    // `as_bytes()` lends the text as raw bytes, so the rules below match what a URL really holds.
-    let bytes: &[u8] = stripped.as_bytes();
-    let separator: usize = next_separator(bytes, 0)?;
-    // A separator that follows no scheme character is a path, not a URL.
-    if separator == 0 || !ends_scheme(bytes[separator - 1]) {
-        return None;
-    }
-    let authority_start: usize = separator + SCHEME_SEPARATOR.len();
-    let authority_end: usize = authority_end_of(bytes, authority_start);
-    let authority: &[u8] = &bytes[authority_start..authority_end];
-    // The host begins after the last `@`, so a user and a token are never part of it.
-    let host_start: usize = match authority.iter().rposition(is_at_sign) {
-        Some(offset) => offset + 1,
-        None => 0,
-    };
-    let host: &[u8] = &authority[host_start..];
-    if host.is_empty() {
-        return None;
-    }
-    // `from_utf8_lossy` reads a host that is not UTF-8 without failing; a host name is text in practice.
-    return Some(String::from_utf8_lossy(host).into_owned());
-}
+use self::shapes::{holds_a_secret, is_a_credential, names_a_secret, scheme_credential_in, follows_a_word_byte};
+
+//region The mask and the bytes that end a URL
+
+/// What replaces the user information of a URL and every part of it that is recognized as a secret.
+pub const CREDENTIALS_MASK: &str = "<credentials>";
 
 /// The separator between a URL's scheme and its authority.
 const SCHEME_SEPARATOR: &[u8] = b"://";
+
+/// What:
+///  How many lowercase hexadecimal characters an LFS object's name has:
+/// the 256-bit hash the batch API calls its `oid`.
+/// Why:
+///   An object's name is not a secret:
+/// it is a hash of the object's own bytes,
+/// it is how a person names the object a failed upload lost,
+/// and LFS writes it in a path segment
+/// (`docs/api/batch.md` of git-lfs,
+/// "`oid` - String OID of the LFS object",
+/// and this repository's own server,
+/// which answers a batch with `href` of `<origin>/<oid>`,
+/// `package/config/lfs-r2-worker/src/batch.ts`,
+/// "const href = `${origin}/${oid}`").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const OBJECT_ID_BYTES = 64
+/// ```
+const OBJECT_ID_BYTES: usize = 64;
+
+/// The name of the namespace an object's name sits in when an LFS server puts it there.
+const OBJECTS_SEGMENT: &[u8] = b"objects";
 
 /// Whether a byte can end a scheme,
 /// so that the separator after it starts a URL's authority.
@@ -132,7 +139,7 @@ fn ends_url(byte: u8) -> bool {
     return byte.is_ascii_whitespace() || byte.is_ascii_control() || matches!(byte, b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`');
 }
 
-/// Whether a byte is the `@` that ends the userinfo of a URL.
+/// Whether a byte is the `@` that ends the user information of a URL.
 /// `&u8` borrows the byte,
 /// as `rposition` hands it over.
 fn is_at_sign(byte: &u8) -> bool {
@@ -186,7 +193,7 @@ fn ends_a_sentence(byte: &&u8) -> bool {
     return matches!(**byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\'');
 }
 
-/// Whether an offset into an authority is a byte for the userinfo,
+/// Whether an offset into an authority is a byte for the user information,
 /// which needs at least one byte before it.
 fn is_not_the_first(offset: &usize) -> bool {
     return *offset > 0;
@@ -226,43 +233,97 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
     return text.len();
 }
 
+//endregion
+
+//region The parts of a URL
+
 /// What:
-///  Append one path segment,
-/// a query key or a fragment key:
-/// nothing when it is empty,
-/// and the mask otherwise.
+///  Append one path segment:
+/// as it is when it holds no secret,
+/// [`CREDENTIALS_MASK`] when it does,
+/// and nothing when it is empty.
 /// Why:
-///   An empty segment (the one before a leading `/`,
+///   A segment is the part of a URL a person most needs after the host:
+/// `owner/repo.git/info/lfs` says which repository the push went to,
+/// and `objects/batch` says which call failed,
+/// so a segment is shown unless a rule recognizes a secret in it.
+/// An empty segment (the one before a leading `/`,
 /// after a trailing `/`,
-/// or between two) carries nothing,
-/// and a segment that carries anything is hidden whole:
-/// nothing in the shape of a word tells a token from a name a person reads,
-/// and a token made of lowercase letters alone reads as [`CREDENTIALS_MASK`]'s neighbours `lfs` and `objects`
-/// do.
+/// or between two) carries nothing and stays empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// masked.push(segment === '' ? '' : '<credentials>')
+/// masked.push(segment === '' ? '' : holdsSecret(segment) ? '<credentials>' : segment)
 /// ```
-fn push_hidden_segment(segment: &[u8], masked: &mut Vec<u8>) {
+fn push_masked_segment(segment: &[u8], after_objects: bool, is_last: bool, masked: &mut Vec<u8>) {
     if segment.is_empty() {
         return;
     }
-    masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+    if is_an_object_id(segment, after_objects, is_last) {
+        masked.extend_from_slice(segment);
+        return;
+    }
+    if holds_a_secret(segment) {
+        masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+        return;
+    }
+    masked.extend_from_slice(segment);
 }
 
-/// Append the path of a URL with every segment hidden.
+/// What:
+///  Whether a path segment is an LFS object's name,
+/// which is shown though its shape is a run of hexadecimal characters.
+/// Why:
+///   The mask hides a run of 32 or more hexadecimal characters,
+/// and an object's name is 64 of them,
+/// so without this rule the one thing a person needs to see of a failed object upload is hidden.
+/// The name is recognized by where the batch API puts it, not by its shape:
+/// it is a whole segment of exactly [`OBJECT_ID_BYTES`] lowercase hexadecimal characters,
+/// directly after a segment named `objects`,
+/// or the last segment of the path,
+/// which is where a content-addressed store puts the object it names
+/// (this repository's server answers `<origin>/<oid>`,
+/// and an S3-compatible bucket answers `<bucket>/<oid>`).
+///  A secret written as a whole path segment of exactly that shape in one of those two places is shown
+/// with it:
+/// no rule can tell the two apart, and this module resolves that in favour of the object's name,
+/// which is the reading the owner gave the mask ("the thing a person needs to see").
+/// The same 64 characters in a query value,
+/// in a fragment,
+/// or in the middle of a path are hidden.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isAnObjectId(segment, afterObjects, isLast) {
+///   return (afterObjects || isLast) && /^[0-9a-f]{64}$/.test(segment)
+/// }
+/// ```
+fn is_an_object_id(segment: &[u8], after_objects: bool, is_last: bool) -> bool {
+    if !after_objects && !is_last {
+        return false;
+    }
+    if segment.len() != OBJECT_ID_BYTES {
+        return false;
+    }
+    return segment.iter().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(byte); });
+}
+
+/// Append the path of a URL with each of its secret-shaped segments masked.
 fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
+    let mut after_objects: bool = false;
     loop {
         match path.get(from..).and_then(next_slash) {
             Some(offset) => {
-                push_hidden_segment(&path[from..from + offset], masked);
+                let segment: &[u8] = &path[from..from + offset];
+                push_masked_segment(segment, after_objects, false, masked);
+                after_objects = segment == OBJECTS_SEGMENT;
                 masked.push(b'/');
                 from += offset + 1;
             }
             None => {
-                push_hidden_segment(path.get(from..).unwrap_or_default(), masked);
+                let segment: &[u8] = path.get(from..).unwrap_or_default();
+                push_masked_segment(segment, after_objects, true, masked);
                 return;
             }
         }
@@ -270,21 +331,24 @@ fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
 }
 
 /// What:
-///  Append a query or fragment with every key and every value hidden.
+///  Append a query or fragment with the value of every setting that names a secret hidden,
+/// and every value of a recognized shape hidden,
+/// showing the keys and the separators.
 /// Why:
-///   A value is a secret wherever it sits:
-/// `?token=`,
-/// `?sig=` and a bare token with no `=` are all hidden,
-/// and a key is hidden too,
-/// because a token can be written as the name of a setting,
-/// and a lowercase word is what both a token and a name look like.
-///  The separators stay,
-/// so a person still reads whether the URL carried a query or a fragment,
-/// and how many settings it held.
+///   The name of a setting is what says whether its value is a secret:
+/// `?token=` and `?X-Amz-Signature=` hide their values whatever the values look like,
+/// while `?ref=main` keeps a value a person reads,
+/// so the mask hides the value and keeps the name,
+/// which is the part that tells a person what the URL carried.
+/// A value of a recognized shape is hidden under any name,
+/// and a key that is itself a token of a recognized shape is hidden too,
+/// because a token can be written as the name of a setting.
+/// A setting with no `=` is a value with no name,
+/// and is hidden when its shape is a secret's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// values.split('&').map((chunk) => { const [key, value] = chunk.split('='); return value === undefined ? mask : `${mask}=${mask}` }).join('&')
+/// chunks.map((chunk) => chunk.includes('=') ? `${maskKey(key)}=${maskValue(key, value)}` : maskBare(chunk)).join('&')
 /// ```
 fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
@@ -296,15 +360,7 @@ fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
             },
             None => (&[], None),
         };
-        match chunk.iter().position(is_equals_sign) {
-            Some(equals) => {
-                push_hidden_segment(&chunk[..equals], masked);
-                masked.push(b'=');
-                masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
-            }
-            None if !chunk.is_empty() => masked.extend_from_slice(CREDENTIALS_MASK.as_bytes()),
-            None => {}
-        }
+        push_masked_setting(chunk, masked);
         match separator {
             Some(offset) => {
                 masked.push(b'&');
@@ -315,17 +371,48 @@ fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
     }
 }
 
+/// Append one query or fragment setting with the part of it that is a secret masked.
+fn push_masked_setting(chunk: &[u8], masked: &mut Vec<u8>) {
+    let Some(equals) = chunk.iter().position(is_equals_sign) else {
+        if chunk.is_empty() {
+            return;
+        }
+        if holds_a_secret(chunk) {
+            masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+            return;
+        }
+        masked.extend_from_slice(chunk);
+        return;
+    };
+    let key: &[u8] = &chunk[..equals];
+    let value: &[u8] = &chunk[equals + 1..];
+    if is_a_credential(key) {
+        masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+    } else {
+        masked.extend_from_slice(key);
+    }
+    masked.push(b'=');
+    if value.is_empty() {
+        return;
+    }
+    if names_a_secret(key) || is_a_credential(value) {
+        masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+        return;
+    }
+    masked.extend_from_slice(value);
+}
+
 /// What:
 ///  The punctuation that ends a URL written in a sentence,
 /// and that is printed after the mask,
 /// as in `(https://host/plain)` or `https://host/lfs,` .
 /// Why:
-///   A closing bracket or a comma cannot be told from a token's last byte,
+///   A closing bracket or a comma cannot be told from a URL's own last byte,
 /// and printing it as it stands costs nothing:
-/// the segment it follows is hidden whole,
+/// a segment that ends in it is shown whole or hidden whole,
 /// so the most a reader learns from it is that punctuation was there.
 ///  A URL that really ends with such a byte keeps it,
-/// with everything before it masked as before.
+/// with everything before it read as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -371,10 +458,14 @@ fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
     }
 }
 
+//endregion
+
+//region The one pass
+
 /// Where the text a mask is applied to ended.
 /// Why:
 ///   A text cut at a size cap can end inside a URL,
-/// and a URL cut before the `@` that ends its userinfo reads as a host,
+/// and a URL cut before the `@` that ends its user information reads as a host,
 /// so the last URL of a cut text is classified differently from the last URL of a whole one.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TextEnd {
@@ -386,14 +477,17 @@ enum TextEnd {
 
 /// What:
 ///  The text with the secrets of every URL in it replaced by [`CREDENTIALS_MASK`]:
-/// the userinfo,
-/// every path segment,
-/// and every query and fragment key and value.
+/// the user information,
+/// and every path segment,
+/// query key and query value,
+/// fragment key and fragment value that a rule recognizes,
+/// plus every credential after a `Bearer`,
+/// `Basic` or `RemoteAuth` word.
 /// Why:
 ///   One pass over the bytes:
 /// each search starts where the previous URL ended,
-/// so the work is linear however many
-///  URLs a line holds.
+/// so the work is linear however many URLs a line holds,
+/// and each part of a URL is decoded and read a constant number of times.
 /// Bytes outside the URLs are copied unchanged,
 /// whatever their encoding.
 ///
@@ -410,13 +504,13 @@ pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
 /// cut at a size cap.
 /// Why:
 ///   A text cut at a cap can end inside a URL,
-/// and a URL cut before the `@` that ends its userinfo has no userinfo for the rule above:
+/// and a URL cut before the `@` that ends its user information has no user information for the rule above:
 /// `https://user:<token>` would read as a host and be relayed whole.
 /// An authority that reaches the end of a cut text and holds no `@` is therefore hidden whole,
 /// host included,
 /// because no byte of it can be told from a user and a token.
 ///  A URL whose authority ended inside the text is read as in [`mask_url_secrets`]:
-/// its userinfo is the text up to the last `@` of that authority,
+/// its user information is the text up to the last `@` of that authority,
 /// which the cut kept.
 ///
 /// In TS you'd write (pseudocode):
@@ -440,32 +534,66 @@ fn mask_url_secrets_in(text: &[u8], end: TextEnd) -> Vec<u8> {
             search_from = authority_end;
             continue;
         }
-        // The userinfo runs to the last `@` of the authority, and needs at least one byte before it.
+        // The user information runs to the last `@` of the authority, and needs at least one byte before it.
         let userinfo_end: Option<usize> = text[authority_start..authority_end]
             .iter()
             .rposition(is_at_sign)
             .filter(is_not_the_first);
-        // A cut can end inside a userinfo, before its `@`, so an authority that reaches the end of a cut text without
-        //  one is hidden whole: it may be a user and a token, and its bytes cannot be told from a host's.
+        // A cut can end inside user information, before its `@`, so an authority that reaches the end of a cut text
+        //  without one is hidden whole: it may be a user and a token, and its bytes cannot be told from a host's.
         if end == TextEnd::Cut && authority_end == text.len() && userinfo_end.is_none() {
-            masked.extend_from_slice(&text[copied..authority_start]);
+            push_text_with_scheme_credentials(text, copied, authority_start, &mut masked);
             masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
             return masked;
         }
-        if let Some(offset) = userinfo_end {
-            masked.extend_from_slice(&text[copied..authority_start]);
-            masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
-            copied = authority_start + offset;
+        push_text_with_scheme_credentials(text, copied, authority_start, &mut masked);
+        match userinfo_end {
+            Some(offset) => {
+                masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+                // The copied bytes go on at the `@` that ended the user information, so the host follows whole.
+                copied = authority_start + offset;
+            }
+            None => copied = authority_start,
         }
-        // The host and its port stay, and the path, query and fragment follow with their secrets masked.
+        // The host, its port, the path and the rest of the URL follow with their secrets masked.
         let url_end: usize = url_end_of(text, authority_end);
         masked.extend_from_slice(&text[copied..authority_end]);
         push_masked_rest(&text[authority_end..url_end], &mut masked);
         copied = url_end;
         search_from = url_end;
     }
-    masked.extend_from_slice(&text[copied..]);
+    push_text_with_scheme_credentials(text, copied, text.len(), &mut masked);
     return masked;
+}
+
+/// What:
+///  Append the text between two URLs with the credential of every `Bearer`,
+/// `Basic` or `RemoteAuth` word masked.
+/// Why:
+///   These words carry a credential outside a URL as well as inside one:
+/// a batch response's `header` object holds `"Authorization":"Bearer <token>"`,
+/// and an error that echoes it would print the token whole.
+/// Only the text between URLs is read here,
+/// because a URL's own parts are read by the rules above.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pushTextWithSchemeCredentials(text, from, to, masked)
+/// ```
+fn push_text_with_scheme_credentials(text: &[u8], from: usize, to: usize, masked: &mut Vec<u8>) {
+    let mut copied: usize = from;
+    let mut search: usize = from;
+    while search < to {
+        let after_a_word: bool = search > 0 && follows_a_word_byte(text[search - 1]);
+        let Some((start, end)) = scheme_credential_in(&text[search..to], after_a_word) else {
+            break;
+        };
+        masked.extend_from_slice(&text[copied..search + start]);
+        masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+        copied = search + end;
+        search = copied;
+    }
+    masked.extend_from_slice(&text[copied..to]);
 }
 
 /// The same for text:
@@ -479,10 +607,58 @@ pub fn mask_url_secrets_text(text: &str) -> String {
     return String::from_utf8_lossy(mask_url_secrets(text.as_bytes()).as_slice()).into_owned();
 }
 
+//endregion
+
+//region The host a destination names
+
+/// What:
+///  The part of a destination that names the server a person must recognize:
+/// the host and its port,
+/// with any user information left out.
+/// Why:
+///   A refusal that says which server asked for a login is actionable,
+/// and one that repeats the destination as typed would carry the token of an
+///  `lfs.url` written with one.
+/// A destination with no URL authority (a remote name,
+/// a local path,
+/// `file://`) has no host to name,
+///  and answers nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hostOf(destination: string): string | undefined
+/// ```
+pub fn host_of(destination: &str) -> Option<String> {
+    // The mask this module writes stands where the user information was, and its angle brackets end a URL's
+    //  authority, so it is removed first: `https://lfs:<credentials>@host` names `host`, not `lfs:`.
+    let stripped: String = destination.replace(CREDENTIALS_MASK, "");
+    // `as_bytes()` lends the text as raw bytes, so the rules below match what a URL really holds.
+    let bytes: &[u8] = stripped.as_bytes();
+    let separator: usize = next_separator(bytes, 0)?;
+    // A separator that follows no scheme character is a path, not a URL.
+    if separator == 0 || !ends_scheme(bytes[separator - 1]) {
+        return None;
+    }
+    let authority_start: usize = separator + SCHEME_SEPARATOR.len();
+    let authority_end: usize = authority_end_of(bytes, authority_start);
+    let authority: &[u8] = &bytes[authority_start..authority_end];
+    // The host begins after the last `@`, so a user and a token are never part of it.
+    let host_start: usize = match authority.iter().rposition(is_at_sign) {
+        Some(offset) => offset + 1,
+        None => 0,
+    };
+    let host: &[u8] = &authority[host_start..];
+    if host.is_empty() {
+        return None;
+    }
+    // `from_utf8_lossy` reads a host that is not UTF-8 without failing; a host name is text in practice.
+    return Some(String::from_utf8_lossy(host).into_owned());
+}
+
 /// What:
 ///  Every server a text names,
 /// in the order it names them,
-/// each as its host and port with any userinfo left out.
+/// each as its host and port with any user information left out.
 /// Why:
 ///   A refusal that says which server asked for a login is actionable,
 /// and the program's own words name it:
@@ -498,8 +674,8 @@ pub fn mask_url_secrets_text(text: &str) -> String {
 /// function hostsIn(text: string): string[]
 /// ```
 pub fn hosts_in(text: &str) -> Vec<String> {
-    // The mask this module writes stands where the userinfo was, and its angle brackets end a URL's authority, so it is
-    //  removed first: `https://lfs:<credentials>@host` names `host`, not `lfs:`.
+    // The mask this module writes stands where the user information was, and its angle brackets end a URL's
+    //  authority, so it is removed first: `https://lfs:<credentials>@host` names `host`, not `lfs:`.
     let stripped: String = text.replace(CREDENTIALS_MASK, "");
     // `as_bytes()` lends the text as raw bytes, so every URL in it is scanned by the rules below.
     let bytes: &[u8] = stripped.as_bytes();
@@ -532,6 +708,10 @@ pub fn hosts_in(text: &str) -> Vec<String> {
     return hosts;
 }
 
+//endregion
+
+//region A stream read in chunks
+
 /// How long a word with no end is held before it is hidden whole.
 /// Why:
 ///   A stream that never ends a word would otherwise grow this value without bound.
@@ -541,8 +721,8 @@ pub const LONGEST_HELD_WORD: usize = 64 * 1024;
 ///  The mask of a stream, kept across the reads a relay makes of a child's output.
 /// Why:
 ///   A relay reads a stream in chunks, and a chunk ends wherever the kernel had bytes:
-/// a URL cut at a chunk's end can end before the `@` that ends its userinfo,
-/// and a fragment masked on its own would read as a host.
+/// a URL cut at a chunk's end can end before the `@` that ends its user information,
+/// and a fragment read on its own would read as a host.
 /// So the bytes after the last byte that ends a URL are held back,
 /// everything before them is masked and handed over,
 /// and the next chunk is masked with the held bytes in front of it.
@@ -603,11 +783,14 @@ impl UrlMaskingStream {
         if self.held.len() > LONGEST_HELD_WORD {
             let long: Vec<u8> = std::mem::take(&mut self.held);
             if next_separator(long.as_slice(), 0).is_none() {
-                // A word with no scheme carries no URL, so it is handed over as it stands and nothing follows it that needs hiding.
+                // A word with no scheme carries no URL, so it is handed over as it stands.
                 shown.extend_from_slice(long.as_slice());
             } else {
-                shown.extend_from_slice(mask_url_secrets_cut(long.as_slice()).as_slice());
-                self.swallowing = true;
+                let hidden: Vec<u8> = mask_url_secrets_cut(long.as_slice());
+                // The rest of the word is dropped only when this mask hid something in it: a word that hid nothing may go
+                //  on being read, and a word whose middle was hidden may not be written unmasked afterwards.
+                self.swallowing = hidden.as_slice() != long.as_slice();
+                shown.extend_from_slice(hidden.as_slice());
             }
         }
         return shown;
@@ -625,6 +808,8 @@ impl UrlMaskingStream {
         return mask_url_secrets_cut(held.as_slice());
     }
 }
+
+//endregion
 
 /// Masking is controlled in the test module.
 #[cfg(test)]
