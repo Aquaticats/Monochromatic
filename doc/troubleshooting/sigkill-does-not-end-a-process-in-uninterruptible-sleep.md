@@ -25,6 +25,19 @@ so on 2026-11-11 an ordinary commit no longer fails in a disk wait,
 and the line about a stop the kernel has not released is said once.
 The other answers below stay unbuilt,
 as the record of what he chose over.
+AMENDED 2026-11-12 again,
+after the review of `0076cb74ed`
+(`/var/home/user/temp/agent/reviews/commit-does-not-fail-when-its-scratch-commit-stalls/review.md`):
+the stand-aside is one decision the two enforcers of the ceiling share
+(`commit/scratch_step_stall_decided_once.rs`),
+a look that could not be made decides nothing and is made again
+instead of being read as "not held",
+the words of a stop are taken whole from the enforcer that ended the step
+(`commit/scratch_step_stop_record.rs`),
+and only the wait that owns the child prints the line about the wait,
+so it is said once.
+Its three findings were reproduced in the crate at `0076cb74ed`,
+and the controls that hold them are named under workaround 1.
 
 ## Symptom
 
@@ -159,6 +172,36 @@ So the claim rests on the documented kernel behaviour and on the crate's own
 code,
 not on a reproduction here.
 
+One arrangement *was* measured on 2026-11-12,
+because it needs no privilege and no mount:
+the cgroup v2 `io` controller on this host is delegated to the user manager,
+and a scope that carries
+`IOWriteBandwidthMax=/dev/mapper/crypt_sda 102400`
+(a property `systemd-run --user --scope` accepts)
+puts every write of that scope to the encrypted volume at 100 KB/s.
+`dd if=/dev/zero of=<file> bs=4096 count=2048 oflag=direct` in such a scope
+was in state `D` in `/proc/<pid>/stat` for the whole 11.4 seconds it was sampled,
+so a true disk wait is reachable for a bounded time,
+only the scope's own I/O is throttled,
+and no other command on the host slows down.
+That arrangement does not reach the scratch `git commit` of a real commit:
+the step runs inside the commit *service* process
+(`landing/service_native.rs` calls `run_native_commit`),
+not in the command that asks for the commit.
+The command's own timing record says so
+(`scratchSteps` is empty for a commit the service landed),
+and the service is a unit of its own,
+so throttling the invoking command's scope throttles none of the step's writes.
+Throttling the service unit's cgroup would reach it,
+and that was not done:
+on this host every repository's service is a unit of the same manager,
+the probe's unit could not be told apart from another repository's by anything in
+its unit text,
+and a limit written in the wrong one slows another session's commit.
+The gate container could make the same arrangement reach the step,
+by running the wrapper and its service in one throttled cgroup,
+and it has not been tried there.
+
 ## Verified workarounds
 
 Each is a change to the wrapper,
@@ -181,17 +224,26 @@ and the fourth was rejected.
     on 2026-11-11 two ordinary commits failed that way in this repository,
     their steps held for 37,153 and 47,978 ms under a 16,332 ms ceiling,
     and the second one landed when the same command was run again.
-    Both enforcers of the ceiling ask one look whether the kernel holds a process of the
-    step (`commit/scratch_step_look_below.rs`,
-    `the_kernel_holds_the_step`),
-    the ceiling stands aside once for such a step,
+    Both enforcers of the ceiling read one decision about the step
+    (`commit/scratch_step_stall_decided_once.rs`),
+    so neither can end it at the usual ceiling after the other has stood aside,
+    and the first stand-aside keeps its bound;
+    a look that found the kernel holding a process of the step makes that decision
+    (`commit/scratch_step_look_below.rs`,
+    `what_the_look_says`),
+    one that found none has the usual ceiling end the step,
+    and one that could not be made decides nothing:
+    the ceiling stays armed, the look is made again,
+    and a step nothing can be learned about is ended at the bound it is waited for
+    instead of at the usual ceiling;
+    the ceiling stands aside once for a held step,
     and the step is waited for to `SCRATCH_COMMIT_STEP_STALL_CEILING`
     (`service/wait_ceilings.rs`,
     300,000 ms,
     five times the ceiling and 6.2 times the slower step the kernel ever held here),
     which an ordinary slow disk never reaches.
     One line,
-    said by the wait that owns the step,
+    said by the wait that owns the step and by no other enforcer,
     says the ceiling stood aside,
     how long the step has lasted,
     the process the kernel is holding and the bound the step now runs under;
@@ -199,7 +251,10 @@ and the fourth was rejected.
     (`stallCeilingMs`),
     so a slow step that landed is told from one that was stopped;
     a step the kernel holds past that bound is ended as any step at its ceiling is,
-    and the stop's words say it was already waited for.
+    and the stop's words say it was already waited for;
+    the words are taken whole from the enforcer that ended the step
+    (`commit/scratch_step_stop_record.rs`),
+    and name the bound that really ended it, never one a ceiling stood aside for.
     Another bound is never needed:
     no commit is built twice,
     no scratch state of a stopped attempt is left behind,
@@ -220,8 +275,18 @@ and the fourth was rejected.
       `a_step_the_kernel_never_releases_is_ended_at_the_bound_it_is_waited_for`,
       `a_step_the_kernel_holds_that_ends_after_the_bound_is_reported_by_its_own_status`;
       `commit/native_commit_waiting_notice_tests.rs`:
-      `the_ceiling_stands_aside_for_a_step_the_kernel_holds`),
-      each of which fails with the stand-aside taken out.
+      `the_ceiling_stands_aside_for_a_step_the_kernel_holds`,
+      `the_ceiling_that_stood_aside_prints_no_line_of_its_own`;
+      `commit/scratch_step_stall_decided_once_tests.rs`:
+      every control of the one decision;
+      `commit/scratch_step_stop_record_tests.rs`:
+      `a_stop_the_wait_ended_at_the_usual_ceiling_names_the_usual_bound`;
+      `commit/commit_preparation_tests.rs`:
+      `a_scratch_commit_whose_ceiling_look_failed_lands_when_the_step_ends`,
+      `a_ceiling_that_stood_aside_is_not_undone_by_the_other_enforcer`),
+      each of which fails with the stand-aside taken out,
+      and the last three of which failed at `0076cb74ed` for the three findings of the
+      review of that commit.
 2.  **Say what is happening,
     keep waiting.**
     BUILT 2026-11-10,
