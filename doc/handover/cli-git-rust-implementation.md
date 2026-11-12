@@ -135,6 +135,80 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner's answers of 2026-11-12T11:58:45-05:00, through the question tool: removal and ignored files, a kept commit, the LFS record, local-only branches
+
+The dialog was opened after 11:46:35 and the answers were read at 11:58:45.
+Each pick is quoted as the owner gave it.
+
+#### Worktree removal and ignored files (item 1.2 of the consolidated list)
+
+- Asked:
+  an unforced `git worktree remove`, and the automatic removal of a worktree whose branch has landed,
+  delete files that exist only in that worktree and that Git ignores, as real Git does,
+  and remove a worktree while a process works inside it;
+  which behaviour is wanted under the rule restated at 10:33.
+- The owner: "Delete ignored, spare busy (Recommended)".
+- So:
+  ignored files are deleted as real Git does and each deletion is logged
+  (the same answer as "Keep allow and log" for `git clean -fX`);
+  a worktree with a live process inside is refused, naming the process, with a `--no-enforce-*` opt-out.
+- Not answered by this pick:
+  the unforced removal that deletes a nested worktree with its untracked file.
+  The restated rule decides it (an untracked file is a person's data: refuse, name it, opt-out),
+  adopted here, open to veto.
+
+#### A commit the commit service still holds when its worktree is removed
+
+- Asked:
+  whether the reference `refs/cli-git/kept/...`, written to keep such a commit before the removal,
+  is a saved copy the restated rule rules out.
+- The owner, in their own words: "Keep the reference, auto prune by size and age."
+- So:
+  the reference stays as built, and the wrapper prunes `refs/cli-git/kept/` by itself, by size and by age.
+  The owner named no values;
+  the agent that builds the pruning proposes them from a measurement of this repository's kept references,
+  and the values are put to the owner before a release carries them.
+
+#### The LFS push fix and its record file
+
+- Asked:
+  what may happen to `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`,
+  which the fix writes into `push-programs.json` in the repository's Git directory.
+- The owner: "Memory only (Recommended)".
+- So:
+  the two command lines go to the commit service with each request and are held in memory, never written;
+  a push the service must retry after its own restart, without them,
+  stops with a message that says what to run.
+
+#### Branches that exist only on this machine (item 1.4)
+
+- The owner: "Push them as they are (Recommended)".
+- The dry run of `~/temp/agent/scratch-scripts/push-branches-the-remote-lacks.ts` at about 11:59 named exactly eleven
+  (log `~/temp/agent/gate/branches-the-remote-lacks-2026-11-12T1159.log`):
+  `e2e-trace-diagnosis-20261101`,
+  `feat/cli-git-worktree-copy` (38 commits past the remote's copy),
+  `issue-150-isolated-dts`,
+  `research/depot-platform-buildkit-20261018`,
+  `research/depot-runtime-base-20261018`,
+  `research/depot-runtime-orchestration-20261018`,
+  `research/depot-sdk-custom-runtime-20261018`,
+  `spike/linter-closure-static`,
+  `translation-repair-prerebase-backup`,
+  `trial/depot-logger-remainder-20261016`,
+  `trial/depot-pi-host-20261016`.
+- The push, never forced, was started at about 12:00
+  (log `~/temp/agent/gate/push-local-only-branches-2026-11-12T1200.log`);
+  its result is recorded when it ends.
+
+#### The cleaning of unused worktrees, ended
+
+- The unit `clean-build-trees-of-unused-pi-worktrees-1138` ended before 11:49:32.
+  Two of the sixty-eight worktrees held a build tree:
+  `pi-mode-a-person-set-survives-a-merge-that-changes-the-file` ("Removed 4610 files, 5.4GiB total")
+  and `pi-review-findings-removal-with-a-nested-subvolume-round-231` ("Removed 6724 files, 6.7GiB total").
+  The other sixty-six gave back about 500 bytes each.
+- Free space after it: 113 GiB at 11:49:32, 111 GiB at 11:58:45.
+
 ### Free space falls while the build-folder cleaner removes nothing; relink notices; four digested runs (2026-11-12T11:44:02-05:00)
 
 #### Free space on the build volume
