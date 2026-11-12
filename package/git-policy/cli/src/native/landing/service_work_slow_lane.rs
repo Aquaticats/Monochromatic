@@ -38,6 +38,7 @@
 //! const lane = SlowLane.start(handlers, busy); lane.ask(wake); // for await (const wake of inbox) await drainSlow(wake.gitDir)
 //! ```
 
+use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
@@ -238,7 +239,16 @@ async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir:
         crate::service_log!("{line}");
     }
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    return drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
+    let deferred: Option<Duration> = drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
+    // An item that answered `Retry` keeps its claim and is looked at again when that claim runs out, and nothing wakes the
+    //  lane for it: an item claimed after the round's own reading of claim expiries had no timer, and a removal then waited
+    //  for a command nobody ran (an audit of the release changeover, finding 3). The lane asks when its own claims run out,
+    //  so the look that retries them is its own.
+    let claim: Option<Duration> = crate::service_work_storage_awaited::next_claim_expiry_awaiting(work_directory(git_dir).as_path(), &ClaimTime::read(), CLAIM_LEASE).await;
+    return match (deferred, claim) {
+        (Some(one), Some(other)) => Some(one.min(other)),
+        (one, other) => one.or(other),
+    };
 }
 
 /// Controls for the lane stay out of the release executable.

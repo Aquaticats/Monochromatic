@@ -596,3 +596,54 @@ fn a_removal_waits_for_the_trash_the_lane_is_inside() {
     remove(trash_world.root.as_path());
     remove(removal_world.root.as_path());
 }
+
+/// Handlers that answer one verdict for every slow kind,
+/// so a control can state what a slow item says without running it.
+struct Answering {
+    /// What every slow kind answers.
+    verdict: Verdict,
+}
+
+impl WorkHandlers for Answering {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return self.verdict.clone();
+    }
+
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return self.verdict.clone();
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return self.verdict.clone();
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return self.verdict.clone();
+    }
+}
+
+/// What:
+///  A slow item that answered `Retry` is looked at again when its own claim runs out,
+///  with no command and no other wake.
+/// Why:
+///  A `Retry` keeps the claim, and the lease is what returns the record to `pending`.
+///  A slow item claimed after the round's own reading of claim expiries had no timer at all,
+///  so a removal that answered `Retry` waited for a command nobody ran
+///  (an audit of the release changeover,
+///  finding 3).
+///  The lane's own answer is what makes the look happen, and this control reads it instead of waiting out a
+///  lease.
+#[test]
+fn a_slow_item_that_retries_names_when_the_lane_looks_again() {
+    let world: World = world("slow-lane-retry-names-a-look", &[(WorkKind::Trash, "3333333333333333333333333333333333333333")]);
+    let answering: Answering = Answering { verdict: Verdict::Retry(String::from("the volume is busy")) };
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(world.common.as_path(), &answering, HOUSEKEEPING_OF_ONE_ROUND));
+    let Some(wait) = left else { panic!("the lane names when to look again for the item it retried") };
+    assert!(
+        wait <= crate::service_work::CLAIM_LEASE + crate::service_retry::RETRY_SLACK,
+        "and never later than the claim it kept runs out: {wait:?}"
+    );
+    assert!(!names_in(&world, DONE).iter().any(|name| { return name.starts_with("trash-"); }), "the record is not settled by a retry");
+    remove(world.root.as_path());
+}
