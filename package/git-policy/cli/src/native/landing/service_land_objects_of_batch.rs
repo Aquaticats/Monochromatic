@@ -21,7 +21,9 @@ use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};
 use std::path::{Path, PathBuf};
 use crate::service_land_git_steps_and_import_stream::{ASideRefWrite, commits_from_marks, import_stream, keep_on_the_scratch_reference, run};
+use crate::service_land_settings::Settings;
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
+use crate::side_reference_written_here::{SideReferenceWrite, SideReferenceWritePlan, write_side_reference};
 
 /// What:
 ///  Makes the commits a batch lands:
@@ -45,8 +47,7 @@ pub(crate) fn objects_of_batch(
     old: &str,
     batch: &[&CommitRequest],
     amended_parents: &[String],
-    plain_history: bool,
-    import_fsync: Option<&str>,
+    settings: &Settings<'_>,
 ) -> Result<(Vec<String>, String), FailureCode> {
     let repository: &Path = first.repository.as_path();
     let unborn: bool = is_zero_object(first.base.as_str());
@@ -56,7 +57,7 @@ pub(crate) fn objects_of_batch(
         //  commit has the branch tip first (a merge conclusion has the merged commits after it).
         // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
         //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
-        let read: Option<BuiltCommit> = if plain_history { read_commit(first.common_dir.as_path(), built) } else { None };
+        let read: Option<BuiltCommit> = if settings.plain_history { read_commit(first.common_dir.as_path(), built) } else { None };
         let (named_itself, parents): (bool, Vec<String>) = match &read {
             Some(commit) => (true, commit.parents.clone()),
             None => {
@@ -103,7 +104,21 @@ pub(crate) fn objects_of_batch(
         //  A step a stop ended is the landing's own ending, and it keeps its code so that the commit is kept beside it
         //  (`service_land.rs`, `keep_what_an_ended_step_built`).
         record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
-        return match keep_on_the_scratch_reference(git, repository, scratch, built) {
+        // The reference is the wrapper's own name, and a Git start for one rename is time the person waits on for nothing.
+        //  The write is taken here only where it is provably Git's; every other repository answers `LeftToGit` and Git writes
+        //  the reference exactly as it did before, its refusals in its own words (`side_reference_written_here.rs`).
+        let here: Option<ASideRefWrite> = match settings.side_reference {
+            SideReferenceWritePlan::LeftToGit => None,
+            SideReferenceWritePlan::Here(mark) => match write_side_reference(first.git_dir.as_path(), scratch, built, mark) {
+                SideReferenceWrite::Written => Some(ASideRefWrite::Written),
+                SideReferenceWrite::LeftToGit => None,
+            },
+        };
+        let written: ASideRefWrite = match here {
+            Some(done) => done,
+            None => keep_on_the_scratch_reference(git, repository, scratch, built),
+        };
+        return match written {
             ASideRefWrite::Written => Ok((vec![built.to_string()], built.to_string())),
             ASideRefWrite::Refused(words) => {
                 crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");
@@ -119,7 +134,7 @@ pub(crate) fn objects_of_batch(
         let marks_argument: String = format!("--export-marks={}", marks.display());
         // The `core.fsync` of the import is a global option of this one start; it reaches the `unpack-objects` child too, where
         //  it names the same loose-object flush the repository has.
-        let fsync_setting: String = match import_fsync {
+        let fsync_setting: String = match settings.import_fsync {
             Some(value) => format!("core.fsync={value}"),
             None => String::new(),
         };
@@ -128,7 +143,7 @@ pub(crate) fn objects_of_batch(
         //  (`service_scratch_ref_marker_of_a_batch.rs`).
         record_scratch_ref(journal, seq, first.repository.as_path(), first.git_dir.as_path());
         let mut import_arguments: Vec<&str> = Vec::new();
-        if import_fsync.is_some() {
+        if settings.import_fsync.is_some() {
             import_arguments.extend(["-c", fsync_setting.as_str()]);
         }
         import_arguments.extend(["fast-import", "--done", marks_argument.as_str()]);
@@ -148,3 +163,8 @@ pub(crate) fn objects_of_batch(
         Ok((made, last))
     };
 }
+
+/// Controls for the objects a batch lands and the side reference that keeps them stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_objects_of_batch_tests.rs"]
+mod tests;

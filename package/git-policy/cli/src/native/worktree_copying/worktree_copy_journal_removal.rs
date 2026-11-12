@@ -13,7 +13,6 @@
 
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::parallel_budget::{HostResources, sliced_workers};
-use crate::private_storage::sync_directory;
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::write_journal;
@@ -124,9 +123,9 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
     remove_stage(pending.journal.stage_container.as_path())?;
     remove_file_if_present(pending.path.as_path())?;
     remove_unfinished_writes(pending.path.as_path())?;
-    if let Some(parent) = pending.path.parent() {
-        sync_directory(parent).map_err(raw_failure_of)?;
-    }
+    // Nothing waits to make the removals durable: a power cut that returns a settled journal returns a copy nothing
+    // resumes and no byte of a person's, and the next command settles it again (`SPEC.md`, "The records an add writes
+    // for itself").
     return Ok(());
 }
 

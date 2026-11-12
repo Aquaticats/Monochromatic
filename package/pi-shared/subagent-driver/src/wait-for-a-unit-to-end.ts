@@ -13,12 +13,34 @@ import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import type { RunCommand, } from './run-command.ts';
 
 /**
- The state a unit is in once it has ended, which every state other than `active` and `activating` answers.
+ The states a unit is in while it is running, changing or being reloaded: a unit in one of them has not ended.
  */
 const RUNNING_STATES: ReadonlySet<string> = new Set<string>([
   'active',
   'activating',
+  'deactivating',
+  'reloading',
+  'refreshing',
 ]);
+
+/**
+ Says whether a unit is still running, from the state systemd answered.
+
+ A state of its own, such as `inactive` or `failed`, is a unit that has ended; an empty answer names no state at all, and a caller
+ that ends processes by this answer must not take it for one.
+
+ @param state - the state systemd answered, or empty text when it answered nothing
+
+ @returns whether the unit is running
+
+ @example
+ ```ts
+ const running = unitStateIsRunning({ state: 'active', },);
+ ```
+ */
+export function unitStateIsRunning({ state, }: { readonly state: string },): boolean {
+  return RUNNING_STATES.has(state,);
+}
 
 /**
  Minutes between two looks at the unit's state, which is one.

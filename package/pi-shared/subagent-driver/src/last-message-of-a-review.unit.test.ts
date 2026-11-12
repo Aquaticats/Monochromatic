@@ -20,10 +20,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  DEFAULT_REVIEWS_FOLDER_IN_HOME,
   SAVED_REVIEW_NOTE,
-  SessionFileUnreadableError,
   lastAssistantTextIn,
   newestRunOf,
+  runNameOfAReview,
   parseSaveReviewOptions,
   saveTheLastMessage,
 } from '../dist/final/node/index.mjs';
@@ -124,15 +125,15 @@ await describe({
           name: 'reads the highest-numbered run folder of a review that has a summary, and skips one that has none',
           fn: async () => {
             await using folder = await makeFolder();
-            await mkdir(join(folder.path, 'kimi-review-a-round-1-3',), { recursive: true, },);
-            await writeFile(join(folder.path, 'kimi-review-a-round-1-3', 'summary.json',), '{}',);
-            await mkdir(join(folder.path, 'kimi-review-a-round-10-1',), { recursive: true, },);
-            await mkdir(join(folder.path, 'kimi-review-a-round-9-2',), { recursive: true, },);
-            await writeFile(join(folder.path, 'kimi-review-a-round-9-2', 'summary.json',), '{}',);
+            await mkdir(join(folder.path, `${runNameOfAReview({ review: 'a-round-1', },)}-3`,), { recursive: true, },);
+            await writeFile(join(folder.path, `${runNameOfAReview({ review: 'a-round-1', },)}-3`, 'summary.json',), '{}',);
+            await mkdir(join(folder.path, `${runNameOfAReview({ review: 'a-round-1', },)}-10`,), { recursive: true, },);
+            await mkdir(join(folder.path, `${runNameOfAReview({ review: 'a-round-9', },)}-2`,), { recursive: true, },);
+            await writeFile(join(folder.path, `${runNameOfAReview({ review: 'a-round-9', },)}-2`, 'summary.json',), '{}',);
             expect(await newestRunOf({
               runsFolder: folder.path,
               review: 'a-round-9',
-            },),).toEqual({ run: 'kimi-review-a-round-9-2', },);
+            },),).toEqual({ run: `${runNameOfAReview({ review: 'a-round-9', },)}-2`, },);
             expect(await newestRunOf({
               runsFolder: folder.path,
               review: 'nothing-round',
@@ -156,7 +157,7 @@ await describe({
             /**
              The run's folder.
              */
-            const runFolder = join(folder.path, 'runs', 'kimi-review-a-round-1-3',);
+            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'a-round-1', },)}-3`,);
             await mkdir(join(folder.path, 'runs',), { recursive: true, },);
             await mkdir(runFolder, { recursive: true, },);
             await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
@@ -176,7 +177,7 @@ await describe({
               saved: true,
               line: `a-round-1: saved its last message as review.md (${String('a finding that matters'.length,) } characters)`,
             },);
-            expect(await readFile(join(reviewFolder, 'a-round-1', 'review.md',), 'utf8',),).toBe(`<!-- ${SAVED_REVIEW_NOTE} kimi-review-a-round-1-3 -->\n\na finding that matters\n`,);
+            expect(await readFile(join(reviewFolder, 'a-round-1', 'review.md',), 'utf8',),).toBe(`<!-- ${SAVED_REVIEW_NOTE} ${runNameOfAReview({ review: 'a-round-1', },)}-3 -->\n\na finding that matters\n`,);
           },
         },),
         it({
@@ -210,7 +211,7 @@ await describe({
             /**
              The run's folder, whose summary names a session file nobody wrote.
              */
-            const runFolder = join(folder.path, 'runs', 'kimi-review-b-round-1-1',);
+            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'b-round-1', },)}-1`,);
             await mkdir(runFolder, { recursive: true, },);
             await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
               endReason: 'idle',
@@ -222,31 +223,24 @@ await describe({
               review: 'b-round-1',
             },).then(function lineOf(saved,): string {
               return saved.line;
-            },),).toContain('no review.md and an empty last message in kimi-review-b-round-1-1',);
+            },),).toContain(`no review.md and an empty last message in ${runNameOfAReview({ review: 'b-round-1', },)}-1`,);
           },
         },),
         it({
-          name: 'refuses a run whose summary names no session file, naming the file to read',
+          name: 'answers a line, rather than ending the command, for a run whose summary names no session file: a run that never started Pi has no last message',
           fn: async () => {
             await using folder = await makeFolder();
             /**
              The run's folder, whose summary names no session.
              */
-            const runFolder = join(folder.path, 'runs', 'kimi-review-c-round-1-1',);
+            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'c-round-1', },)}-1`,);
             await mkdir(runFolder, { recursive: true, },);
-            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({ endReason: 'idle', },),);
-            try {
-              await saveTheLastMessage({
-                runsFolder: join(folder.path, 'runs',),
-                reviewFolder: folder.path,
-                review: 'c-round-1',
-              },);
-            }
-            catch (error) {
-              expect(error,).toBeInstanceOf(SessionFileUnreadableError,);
-              return;
-            }
-            throw new Error('a summary that names no session produced a review file',);
+            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({ endReason: 'pi-exited', },),);
+            expect((await saveTheLastMessage({
+              runsFolder: join(folder.path, 'runs',),
+              reviewFolder: folder.path,
+              review: 'c-round-1',
+            },)).line,).toContain('names no readable session',);
           },
         },),
       ],
@@ -263,7 +257,7 @@ await describe({
             ],),).toEqual({
               reviews: ['a-round-1', 'b-round-2',],
               runsFolder: join(process.env.HOME ?? '', 'temp', 'agent', 'pi-runs',),
-              reviewFolder: join(process.env.HOME ?? '', 'temp', 'agent', 'kimi-reviews',),
+              reviewFolder: join(process.env.HOME ?? '', 'temp', 'agent', DEFAULT_REVIEWS_FOLDER_IN_HOME.at(-1) ?? '',),
             },);
             expect(parseSaveReviewOptions([
               '--review=a-round-1',

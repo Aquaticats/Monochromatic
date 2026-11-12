@@ -26,8 +26,11 @@
 //! the processor time everything below had used at the last look,
 //! and how many looks found one of them in uninterruptible sleep (`D`),
 //! which is a stalled disk or a processor it is not given rather than work,
-//! and how many looks could not be made at all,
-//! which is a `/proc` that refused the read rather than a step that ended.
+//! how many looks could not be made at all,
+//! which is a `/proc` that refused the read rather than a step that ended,
+//! and the moment a ceiling stood aside for a step the kernel held,
+//! with the bound the step then ran under,
+//! so a commit whose step was slow and landed is told from one whose ceiling ended it.
 //!  The time a program below the step is credited is measured at the look's interval,
 //! so a program that starts and ends between two looks is not seen at all:
 //! the figure is a lower bound of the time it ran.
@@ -94,6 +97,15 @@ pub struct ScratchStepFacts {
     /// How long the step had lasted when the notice ended it,
     /// and nothing when the step ended by itself.
     pub stopped_after: Option<Duration>,
+    /// How long the step had lasted when its ceiling came for a step the kernel held in a disk wait,
+    /// and nothing when no ceiling stood aside for it.
+    ///  A step the kernel holds is slow and not stuck,
+    ///  so its ceiling stands aside once and the step runs under `stall_ceiling` instead.
+    pub held_after_ceiling: Option<Duration>,
+    /// The bound the step ran under once its ceiling stood aside for a disk wait:
+    /// `wait_ceilings::SCRATCH_COMMIT_STEP_STALL_CEILING`,
+    /// and nothing when the ceiling never stood aside.
+    pub stall_ceiling: Option<Duration>,
     /// How long the notice's own join took after the step ended:
     /// its lines are written from its thread,
     /// so a writing that waits for its reader is this figure and not the step's.
@@ -149,6 +161,8 @@ impl ScratchStepFacts {
             ceiling,
             armed: false,
             stopped_after: None,
+            held_after_ceiling: None,
+            stall_ceiling: None,
             notice: Duration::ZERO,
             wrote: Duration::ZERO,
             lines_dropped: 0,
@@ -256,15 +270,17 @@ fn seen_json(program: &SeenProgram) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, belowUnlisted, belowUnended, blindLooks, blockedLooks })
+/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, heldAfterCeilingMs, stallCeilingMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, belowUnlisted, belowUnended, blindLooks, blockedLooks })
 /// ```
 fn facts_json(facts: &ScratchStepFacts) -> String {
     let names: Vec<String> = facts.below.iter().map(seen_json).collect();
     return format!(
-        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"belowUnlisted\":{},\"belowUnended\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
+        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"heldAfterCeilingMs\":{},\"stallCeilingMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"belowUnlisted\":{},\"belowUnended\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
         millis(facts.ceiling),
         facts.armed,
         millis(facts.stopped_after),
+        millis(facts.held_after_ceiling),
+        millis(facts.stall_ceiling),
         facts.notice.as_millis(),
         facts.wrote.as_millis(),
         facts.lines_dropped,

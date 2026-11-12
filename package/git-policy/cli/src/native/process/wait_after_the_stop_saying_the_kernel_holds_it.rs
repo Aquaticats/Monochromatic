@@ -2,31 +2,29 @@
 //!  The wait for a step whose ceiling's `SIGKILL` did not end it:
 //!  the step is reaped here,
 //!  and while the kernel has not released it,
-//!  a line says so,
+//!  one line says so,
 //!  naming the process the kernel is holding.
 //! Why:
 //!   A process inside an uninterruptible call makes no transition until that call returns,
 //!  so its `SIGKILL` stays pending
 //!  (`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`)
 //!  and the commit waits for the kernel rather than for its own ceiling.
-//!  The owner chose that wait and asked for it to be said
-//!  (2026-11-10,
-//!  "Keep waiting and say so"),
-//!  so the command keeps saying it for as long as the wait lasts:
-//!  a person who sees the line once and then a silent terminal reads the silence as a hang.
+//!  The owner chose that wait (2026-11-10,
+//!  "Keep waiting and say so") and the line is said once:
+//!  a person who met the same sentence three times in one failed commit read nothing new the second time,
+//!  and the command has already said how long the step lasted before it stopped it.
 //!  The words come from the step the commit runs (`commit/scratch_step_held_by_the_kernel.rs`),
 //!  and this wait says them because this wait is the one that lasts:
 //!  the notice thread that also ends a step may never have been started,
 //!  and a thread the system refused cannot say anything at all.
-//!  The line is handed to the writer thread of the command's notice
-//!  (`HeldStepWords::lines`),
+//!  The line is handed to the writer thread of the command's notice,
 //!  never written here:
 //!  a reader that stopped reading holds that thread,
 //!  and it must never hold the wait.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const status = await untilReaped(owned, waitedAtTheStop, words); // says the held process on each look
+//! const status = await untilReaped(owned, waitedAtTheStop, lines); // says the held process once
 //! ```
 
 /// The child this wait owns,
@@ -38,7 +36,7 @@ use std::process::ExitStatus;
 /// Where the line goes:
 /// the writer thread of the command's notice,
 /// and what a queue that would not take it says.
-use std::sync::mpsc::{SyncSender, TrySendError};
+use std::sync::mpsc::SyncSender;
 /// Time spans.
 use std::time::Duration;
 
@@ -67,29 +65,8 @@ use std::time::Duration;
 pub(crate) const AFTER_THE_STOP: Duration = Duration::from_millis(250);
 
 /// What:
-///  Where a wait that must say why it lasts hands its line,
-///  and how often it says the line again while the wait lasts.
-/// Why:
-///   The words and the sink belong to the command that knows what its step is,
-///  and the timing belongs to the wait that lasts,
-///  so the wait is given them and asks nothing else.
-///  The interval is the notice's own,
-///  so the person reads the same rhythm they read before the ceiling came.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type HeldStepWords = { lines: SyncSender<string>; againEvery: number };
-/// ```
-pub struct HeldStepWords<'a> {
-    /// The queue the command's writer thread takes its lines from.
-    pub lines: &'a SyncSender<String>,
-    /// How long the wait goes between two lines while the kernel holds the step.
-    pub again_every: Duration,
-}
-
-/// What:
 ///  Wait for `owned` to be reaped,
-///  saying while it lasts that the kernel has not released the process it stopped.
+///  saying once that the kernel has not released the process it stopped.
 /// Why:
 ///  This is the wait the ceiling leaves behind when its `SIGKILL` did not end the step,
 ///  and it is the only wait that can say so:
@@ -97,18 +74,19 @@ pub struct HeldStepWords<'a> {
 ///  the step is the child this value owns,
 ///  and this value keeps waiting whatever the notice's own thread did.
 ///  A line is dropped rather than waited for when the writer cannot take it,
-///  because a reader that stopped reading must never hold this wait.
+///  because a reader that stopped reading must never hold this wait,
+///  and a line it could not take is tried again at the next look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const status = await untilReaped(owned, waited, { lines, againEvery });
+/// const status = await untilReaped(owned, waited, lines);
 /// ```
 ///
 /// # Errors
 ///
 /// The error of a wait the system failed.
-pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words: Option<HeldStepWords<'_>>) -> std::io::Result<ExitStatus> {
-    let Some(the_words) = words else {
+pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, lines: Option<&SyncSender<String>>) -> std::io::Result<ExitStatus> {
+    let Some(queue) = lines else {
         return owned.wait().await;
     };
     let Some(step) = i32::try_from(owned.id()).ok() else {
@@ -116,6 +94,7 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
     };
     // The step was found held by the look after the stop, so the line that follows is made from a look taken after the pause.
     let mut seen_held: bool = false;
+    let mut said: bool = false;
     let mut pause: Duration = Duration::ZERO;
     loop {
         tokio::select! {
@@ -124,17 +103,13 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
             () = tokio::time::sleep(pause) => {}
         }
         match the_look(step) {
-            TheLook::Held(held) if seen_held => {
+            // What: The one line that says the kernel has not released the step.
+            // Why:  A line the writer could not take is tried again at the next look rather than counted as said,
+            //       and one it took is never said a second time: one stop is one sentence, not three.
+            TheLook::Held(held) if seen_held && !said => {
                 let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(crate::scratch_step_held_by_the_kernel::HeldByTheKernel { step, waited, held });
-                // What: A line the writer could not take is said again as soon as it can take one.
-                // Why:  The queue holds one line, and an older advisory line may be sitting in it while the writer
-                //       holds the one before; a whole notice interval later is a wait that looked stuck to anyone who
-                //       was reading (finding 3 of the 2026-11-10 review of the held-step notice).
-                //       The copy that was not taken is not lost: it is said again, so it is not counted as a drop.
-                pause = match the_words.lines.try_send(line) {
-                    Ok(()) => the_words.again_every,
-                    Err(TrySendError::Full(_untaken) | TrySendError::Disconnected(_untaken)) => AFTER_THE_STOP,
-                };
+                said = queue.try_send(line).is_ok();
+                pause = AFTER_THE_STOP;
             }
             TheLook::Held(_held) => {
                 seen_held = true;
