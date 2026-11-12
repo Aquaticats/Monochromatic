@@ -1361,7 +1361,7 @@ fn another_client_moves_the_remote_past(stage: &Stage) -> String {
 ///  the retry could never clear,
 /// because the local branch is behind the remote and every later push of it is refused the same way.
 #[test]
-fn a_matching_push_whose_remote_moved_past_the_commit_leaves_no_record_and_no_plan() {
+fn a_matching_push_whose_remote_moved_past_the_commit_keeps_no_failure_record_and_no_plan() {
     let stage: Stage = stage_without_a_hook("push-matching-remote-moved-past");
     // The commit this push sends is published, and another client then commits on top of it on the remote.
     git(stage.repo.as_path(), &["push", "--quiet", "origin", "main:main"]);

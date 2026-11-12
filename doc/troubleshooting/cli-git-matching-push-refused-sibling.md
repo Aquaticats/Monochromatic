@@ -80,7 +80,7 @@ Two ordinary sources of a ref that holds the commit as an ancestor broke it:
   which is a child of that commit.
 
 Both left the person a record saying the remote might not have the commit about a commit the remote
-had (`a_matching_push_whose_remote_moved_past_the_commit_leaves_no_record_and_no_plan`,
+had (`a_matching_push_whose_remote_moved_past_the_commit_keeps_no_failure_record_and_no_plan`,
 `a_matching_push_whose_remote_moved_past_the_commit_still_proves_the_delivery`,
 `a_matching_push_whose_branch_moved_past_the_captured_commit_still_proves_the_delivery`).
 The proof asks whether the ref holds the commit,
