@@ -442,6 +442,13 @@ each with its margin:
 - `START_CEILING` 60 s:
   58 times the slowest observed start (1.04 s).
   `START_WAIT` 10 s keeps its earlier citation.
+- `RUNTIME_BUILD_PATIENCE` 60 s:
+  the service's wait for the build of its own multi-thread runtime once that build has outlasted `BUILD_DEADLINE` (1 s),
+  equal to `START_CEILING` so a service never ends a start a client is still waiting for;
+  it is held only while a build that missed its deadline is still on its way,
+  a build the system refused is not waited for at all,
+  and the service says on its log what the wait is for while it lasts
+  (`src/native/service/wait_ceilings.rs`).
 - `SERVICE_HOLD_CEILING` 600 s:
   five times the longest observed service hold (119.7 s).
   It is also the bound of the whole rerun
