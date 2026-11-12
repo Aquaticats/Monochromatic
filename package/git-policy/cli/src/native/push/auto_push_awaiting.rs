@@ -20,8 +20,8 @@
 //! ```
 
 use crate::auto_push::{
-    AutoPushOutcome, AutoPushResult, PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES, Planned, REFERENCE_LOCK_REFUSAL, Sent,
-    TAG, held_back_result, push_arguments, pushed_tracking_ref, reported, skipped_with, source_of,
+    AutoPushOutcome, AutoPushResult, PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES, Planned, REFERENCE_LOCK_REFUSAL, Refspec, Sent,
+    TAG, held_back_result, moved_past_the_pin, push_arguments, pushed_tracking_ref, refspec_of, reported, skipped_with, source_of,
 };
 use crate::auto_push_destination::{NamedPush, named_push_awaiting};
 use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
@@ -132,6 +132,30 @@ async fn upstream_of_awaiting(git: &PushGit, short: &str) -> Result<Option<Strin
 }
 
 /// What:
+///  Whether the branch still names `commit`,
+///  awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   A matching push leaves the refspec to Git,
+///  and the one push that would give a branch its upstream names the branch,
+///  so both ask the branch what it names now,
+///  and the synchronous face asks the same question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const branchNamesThePin = async ({ gitPath, cwd }, branchRef, commit) => (await gitText(gitPath, ['rev-parse', '--verify', '--quiet', `${branchRef}^{commit}`], { cwd })) === commit;
+/// ```
+async fn branch_names_the_pin_awaiting(git: &PushGit, branch_ref: &str, commit: &str) -> Result<bool, SingleFlightError> {
+    let asked: String = format!("{branch_ref}^{{commit}}");
+    let arguments: Vec<OsString> = ["rev-parse", "--verify", "--quiet", asked.as_str()].iter().map(OsString::from).collect();
+    let output = run_query_awaiting(git, &arguments).await?;
+    if output.code != Some(0) {
+        // The branch names no commit at all, so it does not name this one.
+        return Ok(false);
+    }
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim() == commit);
+}
+
+/// What:
 ///  Push a landed commit's branch once,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
@@ -168,16 +192,23 @@ pub async fn push_once_awaiting(
     let Some(pinned) = source_of(&stop, &sent, sent_up_to) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };
-    // Git sets a branch's upstream only from a refspec that names a branch, and a push of a commit gives the branch none
-    //  (measured with Git 2.56.0: `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves
-    //  `branch.new.merge` unset). The one push that gives a branch its upstream therefore sends the branch, and every other push
-    //  sends the commit that push was allowed to send.
-    let source: String = match set_upstream {
-        true => pushed_ref.clone(),
-        false => pinned,
+    // Two pushes ask the branch what it names now: a matching one, which leaves the refspec to Git, and the one that would give
+    //  the branch its upstream, because Git sets an upstream only from a refspec that names a branch (measured with Git 2.56.0:
+    //  `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves `branch.new.merge` unset).
+    //  Both may name the branch only while it still names the commit this push may send.
+    let names_the_pin: bool = match sent.targets.is_empty() || set_upstream {
+        true => branch_names_the_pin_awaiting(git, pushed_ref.as_str(), pinned.as_str()).await?,
+        false => false,
     };
+    // A matching push names no refspec at all, so Git resolves the branch itself and sends whatever it names by then: a commit that
+    //  landed after the reading has no verdict in it, and its own gate may still keep it local. Nothing is sent while the branch has
+    //  moved past the commit this push may send, and the retry plan tries the branch again.
+    if sent.targets.is_empty() && !names_the_pin {
+        return Ok(moved_past_the_pin(pushed_ref.as_str(), err));
+    }
+    let refspec: Refspec = refspec_of(pinned.as_str(), pushed_ref.as_str(), names_the_pin);
     let pushing_whole: bool = stop == WhereThePushStops::Nothing;
-    let arguments: Vec<String> = push_arguments(source.as_str(), &sent, set_upstream);
+    let arguments: Vec<String> = push_arguments(refspec.source.as_str(), &sent, refspec.set_upstream);
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
     debug(TAG, &format!("pushing {sent_up_to} with {argument_views:?} on {pushed_ref}"));
     let mut attempt: PushAttempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
@@ -203,8 +234,8 @@ pub async fn push_once_awaiting(
             Some(named) => named,
             None => of.to_owned(),
         };
-        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), source.as_str()).await {
-            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
+        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), pinned.as_str()).await {
+            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), pinned.as_str());
         }
     }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would

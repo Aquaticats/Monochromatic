@@ -12,7 +12,6 @@ import {
   TYPESCRIPT_CHECK_PARALLEL,
 } from './daily-update-check-bounds.ts';
 import {
-  firstErrorOf,
   NO_ERROR_IN_OUTPUT,
 } from './daily-update-first-error.ts';
 import { oneAfterAnother, } from './daily-update-one-after-another.ts';
@@ -88,7 +87,7 @@ export async function runOneCheck({
     /**
      First error of a failed check, or the sentinel when it printed none.
      */
-    const found = status === 'failed' ? firstErrorOf(outcome.outputHead,) : NO_ERROR_IN_OUTPUT;
+    const found = status === 'failed' ? outcome.firstError ?? NO_ERROR_IN_OUTPUT : NO_ERROR_IN_OUTPUT;
     log(`check ${status} in ${outcome.seconds} s: ${check.package} ${check.task}${
       found === NO_ERROR_IN_OUTPUT ? '' : ` (${found.code === '' ? found.message : found.code})`
     }`,);

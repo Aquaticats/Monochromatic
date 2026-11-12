@@ -22,10 +22,21 @@ const ENTRIES: usize = 4;
 /// and a trash that took every place of it is what the waiting path must survive.
 const TWO_PLACES: usize = 2;
 
-/// The one place a trash's removals leave free for the steps that answer a client
+/// The one place a trash's removals leave free:
+/// the place the round keeps for the steps that answer a client
 /// (`places_a_round_may_take`),
-/// which a control that wants `n` removals in flight gives on top of `n`.
+/// and the place the process keeps out of slow work
+/// (`SLOW_WORK_RESERVE`),
+/// which are the same place of the same budget,
+/// so a control that wants `n` removals in flight gives one on top of `n`.
 const ONE_PLACE_FOR_A_CLIENT: usize = 1;
+
+/// The room `n` removals in flight need on top of `n`:
+/// whichever of the two reserves above is the larger,
+/// because both are taken out of the one budget the removals share.
+fn a_place_over(n: usize) -> usize {
+    return n.saturating_add(ONE_PLACE_FOR_A_CLIENT.max(crate::blocking_jobs_within_the_budget::SLOW_WORK_RESERVE));
+}
 
 /// A host large enough that neither the CPUs nor the memory bound a removal of `ENTRIES` entries.
 const LARGE_HOST: HostResources = HostResources { parallelism: ENTRIES * 8, memory_available: None };
@@ -61,8 +72,9 @@ fn remove_with(held: &Arc<File>, root: &Path, manifest: &Arc<TrashManifest>, hos
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
-    // The removals never take every place of the pool, so the control gives them the one they leave free on top.
-    let _room: usize = room_for("the_entries_are_removed_side_by_side", ENTRIES + ONE_PLACE_FOR_A_CLIENT);
+    // The removals never take every place of the pool, so the control gives them the one they leave free on top: the
+    //  place the round keeps for a client, which is the place the process keeps out of slow work as well.
+    let _room: usize = room_for("the_entries_are_removed_side_by_side", a_place_over(ENTRIES));
     let (root, held, manifest) = trash_with_entries("trash-entries-overlap");
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ENTRIES));
     let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -118,8 +130,9 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let allowed: usize = worker_budget(&BudgetRequest { items: ENTRIES, per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < ENTRIES, "the control needs a bound between one and the entries: {allowed}");
     // The removals reach that bound only when the process itself allows as many at once, and they never take every place of
-    //  the pool, so the control gives them the one they leave free on top.
-    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed + ONE_PLACE_FOR_A_CLIENT);
+    //  the pool, so the control gives them the one they leave free on top: the place the round keeps for a client, which
+    //  is the place the process keeps out of slow work as well.
+    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", a_place_over(allowed));
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     // The patience bounds only how long a run that never reaches the bound waits before it fails.

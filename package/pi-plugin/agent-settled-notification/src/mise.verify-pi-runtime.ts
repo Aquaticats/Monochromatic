@@ -11,6 +11,8 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+
 import {
   createEventBus,
   discoverAndLoadExtensions,
@@ -46,6 +48,16 @@ const AGENT_DIRECTORY_PREFIX = 'pi-agent-settled-notification-loader-check-';
  Pi lifecycle event whose handler must reach the desktop-notification boundary.
  */
 const AGENT_SETTLED_EVENT = 'agent_settled';
+
+/**
+ Milliseconds this verifier waits for the background delivery before it reports.
+
+ The settlement hook deliberately returns before the desktop answers, so a
+ verifier that printed its result immediately would race the delivery it just
+ started. Twenty real deliveries measured on this host at load average 81 to 96
+ took 20 to 3 060 ms, so this grace covers every one of them.
+ */
+const DELIVERY_GRACE_MS = 4_000;
 
 //endregion Constants
 
@@ -125,10 +137,16 @@ async function verifyPiLoader(): Promise<string> {
   if (handler === undefined)
     throw new Error(`missing ${AGENT_SETTLED_EVENT} handler`,);
 
-  await handler(
+  /**
+   Value the settlement hook returned, which must not be a delivery promise.
+   */
+  const hookResult = handler(
     createAgentSettledEvent({ aborted: false, },),
     createExtensionContext(),
   );
+  if (hookResult !== undefined)
+    throw new Error('loaded settlement hook waited for the desktop instead of starting delivery in the background',);
+  await wait(DELIVERY_GRACE_MS,);
 
   return 'agent-settled-notification Pi-loader verification passed';
 }

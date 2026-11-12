@@ -147,6 +147,11 @@ export {
 } from './daily-update-lock.ts';
 export { runCommandBounded, } from './daily-update-command.ts';
 export {
+  keepFirstError,
+  MAXIMUM_LINE_CHARACTERS,
+  runCheckBounded,
+} from './daily-update-check-command.ts';
+export {
   CHECK_PASS_DEADLINE_MS,
   RUST_CHECK_PARALLEL,
   TYPESCRIPT_CHECK_PARALLEL,
@@ -166,6 +171,8 @@ export { publishIssues, } from './daily-update-issue-publish.ts';
 export {
   causeOf,
   firstErrorOf,
+  firstErrorScan,
+  type FirstErrorScan,
   NO_ERROR_IN_OUTPUT,
 } from './daily-update-first-error.ts';
 export {

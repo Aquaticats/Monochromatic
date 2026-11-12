@@ -12,7 +12,6 @@ import { spawn, } from 'node:child_process';
 import {
   mkdir,
   readdir,
-  readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
@@ -20,12 +19,14 @@ import {
   env,
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
-import { errorCodeOf, } from './error-code-of.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import {
-  fieldsOf,
-  isRecord,
-} from './read-pi-fields.ts';
+  StartRefusedError,
+  startRefusalsIn,
+} from './checks-before-a-start.ts';
+import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
+import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import { nextRunNumber, } from './next-run-number.ts';
 import {
   NO_WORKTREE_BRANCH,
@@ -51,16 +52,7 @@ import {
 } from './turn-cap-of-finished-runs.ts';
 import { unitCommandOf, } from './unit-command-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
-import {
-  makeWorktree,
-  removeWorktree,
-  worktreeOutcomeOf,
-} from './worktree-of-a-run.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
+import { makeWorktree, } from './worktree-of-a-run.ts';
 
 /**
  How git is asked a question in this command.
@@ -70,14 +62,7 @@ const git = gitRunnerOf(runCommandWithChildProcess,);
 /**
  The top of the checkout this command runs in, which is where a run's worktree is made unless the caller names another checkout.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.
@@ -162,136 +147,35 @@ async function sizedTurnCap(): Promise<number> {
 }
 
 /**
- Reads why a run ended from the summary it wrote.
-
- @param folder - the run's folder
-
- @returns the end reason, or nothing when no summary is there
-
- @example
- ```ts
- const reason = await endReasonIn('/runs/a-1');
- ```
+ Every reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no run
+ folder and no unit, and spends no provider slot on a run that could not have worked.
  */
-async function endReasonIn(folder: string,): Promise<{ readonly endReason?: string }> {
-  try {
-    /**
-     The summary, which the driver writes whole and last.
-     */
-    const shown = await readFile(
-      join(
-        folder,
-        'summary.json',
-      ),
-      'utf8',
-    );
-    /**
-     What the run's summary holds, of any shape.
-     */
-    const summary: unknown = JSON.parse(shown,);
-    if (!isRecord(summary,)) {
-      throw new Error(`the summary of ${folder} is no JSON object, so why that run ended cannot be read`,);
-    }
-    /**
-     Why that run ended, as its summary says.
-     */
-    const { endReason, } = fieldsOf(summary,);
-    return ((typeof endReason) === 'string') ? { endReason, } : {};
-  }
-  catch (error) {
-    // A run that wrote no summary ended before the driver could write one, so there is no end reason to weigh, and the file's own
-    // absence is what says so.
-    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
-      throw error;
-    }
-    return {};
-  }
+const refusals = await startRefusalsIn({
+  promptFile: options.promptFile,
+  git,
+  checkoutFolder: options.checkoutFolder,
+  base: options.base,
+  run: runCommandWithChildProcess,
+  runName: options.name,
+},);
+if (refusals.length > 0) {
+  throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
 }
 
 /**
- Says whether the worktree's HEAD is a branch, which a removal needs: a detached HEAD's commits may be reachable from this
- worktree alone.
-
- @returns whether the worktree's HEAD is a branch
-
- @example
- ```ts
- const onABranch = await onABranchNow();
- ```
+ The `PATH` the session's own processes get, which a systemd unit does not inherit from the shell that started this command.
  */
-async function onABranchNow(): Promise<boolean> {
-  if (readOnlyInMain) {
-    return false;
-  }
-  /**
-   What git answered about the worktree's HEAD.
-   */
-  const answered = await runCommandWithChildProcess({
-    command: 'git',
-    words: [
-      'symbolic-ref',
-      '--quiet',
-      'HEAD',
-    ],
-    folder: worktree,
-  },);
-  return (answered.status === 0) && (answered.stdout
-    .trim()
-    !== '');
-}
-
-/**
- Reads the worktree's git status, when a removal turns on it.
-
- @param endReason - why the run ended, or nothing when it wrote no summary
-
- @param onABranch - whether the worktree's HEAD is a branch
-
- @returns how status ended and what it printed, or the same fields as a status nobody needed
-
- @example
- ```ts
- const status = await statusOf({ endReason: 'idle', onABranch: true, });
- ```
- */
-async function statusOf({
-  endReason,
-  onABranch,
-}: {
-  readonly endReason?: string;
-  readonly onABranch: boolean;
-}): Promise<{
-  readonly status: number;
-  readonly statusText: string
-}> {
-  if (
-    readOnlyInMain
-      || (!onABranch)
-      || ((endReason !== 'idle') && (endReason !== 'stop-file'))
-  ) {
-    return {
-      status: 0,
-      statusText: '',
-    };
-  }
-  /**
-   What git said about the worktree's files.
-   */
-  const shown = await runCommandWithChildProcess({
-    command: 'git',
-    words: [
-      '--no-optional-locks',
-      'status',
-      '--porcelain=v1',
-      '--untracked-files=normal',
-    ],
-    folder: worktree,
-  },);
-  return {
-    status: shown.status,
-    statusText: shown.stdout,
-  };
-}
+const pathOfMiseEnvironment = await requiredOutputOf({
+  run: runCommandWithChildProcess,
+  command: 'mise',
+  words: [
+    'exec',
+    '--',
+    'printenv',
+    'PATH',
+  ],
+  folder: options.checkoutFolder,
+},);
 
 if (!readOnlyInMain) {
   console.log(await makeWorktree({
@@ -299,7 +183,30 @@ if (!readOnlyInMain) {
     checkoutFolder: options.checkoutFolder,
     worktree,
     branch: options.branch,
+    base: options.base,
   },),);
+}
+
+try {
+  console.log(`git: ${await refuseUnlessTheWrapperAnswersGit({
+    run: runCommandWithChildProcess,
+    sessionPath: pathOfMiseEnvironment,
+    workingFolder: worktree,
+  },)} answers as the policy wrapper`,);
+}
+catch (error) {
+  // Issue 1768: a session whose git is the system binary never runs the wrapper, so this run is refused before anything is
+  // started rather than started without the policies, the guards against discarding work and the automatic push. The check
+  // refuses with an error of this package's own, whose message says everything a reader needs; any other failure is not a
+  // refusal and is left as the uncaught error it is.
+  if (!Error.isError(error,)) {
+    throw error;
+  }
+  console.error(`${options.name}: refusing to start: ${error.message}`,);
+  process.exit(1,);
+}
+
+if (!readOnlyInMain) {
   /**
    What linking the worktree's dependencies answered.
    */
@@ -337,17 +244,7 @@ const unit = unitCommandOf({
   memory: options.memory,
   taskCount: options.taskCount,
   wallSeconds: options.wallSeconds,
-  pathOfMiseEnvironment: await requiredOutputOf({
-    run: runCommandWithChildProcess,
-    command: 'mise',
-    words: [
-      'exec',
-      '--',
-      'printenv',
-      'PATH',
-    ],
-    folder: options.checkoutFolder,
-  },),
+  pathOfMiseEnvironment,
   home: env.HOME ?? '',
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
@@ -415,35 +312,28 @@ const status = (waited.ended === 'the-unit-ended')
 console.log(`${options.name}: unit ${waited.ended} with status ${String(status,)}; run folder ${runFolder}; worktree ${worktree}`,);
 
 /**
- Why the run ended, or nothing when it wrote no summary.
+ What finishing the run answered, which is the status this command exits with.
  */
-const { endReason, } = await endReasonIn(runFolder,);
-
-/**
- Whether the worktree's HEAD is a branch.
- */
-const onABranch = await onABranchNow();
-
-/**
- What is to be done with the worktree.
- */
-const outcome = worktreeOutcomeOf({
+const finished = await finishTheRun({
+  runName: options.name,
+  runFolder,
+  runsFolder: options.runsFolder,
+  wallSeconds: options.wallSeconds,
   readOnlyInMain,
-  ...(endReason === undefined ? {} : { endReason, }),
-  onABranch,
-  ...await statusOf({
-    ...(endReason === undefined ? {} : { endReason, }),
-    onABranch,
-  },),
+  worktree,
+  checkoutFolder: options.checkoutFolder,
+  processFolder: env.PI_RUNS_PROCESS_FOLDER ?? '/proc',
+  commandLine: argv.slice(2,),
+  launcherEntry: argv[1] ?? '',
+  wakesSoFar: Number(env.PI_RUN_WAKES ?? '0',),
+  environment: env,
+  unitStatus: status,
+  git,
+  run: runCommandWithChildProcess,
+  report: function report(line,) {
+    console.log(line,);
+  },
+  wait: waitBetweenLooks,
+  now: Date.now,
 },);
-if (outcome.action === 'keep') {
-  console.log(`${options.name}: ${outcome.line}`,);
-}
-if (outcome.action === 'remove') {
-  console.log(`${options.name}: ${await removeWorktree({
-    git,
-    checkoutFolder: options.checkoutFolder,
-    worktree,
-  },)}`,);
-}
-process.exitCode = status;
+process.exitCode = finished.status;

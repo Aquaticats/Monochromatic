@@ -19,15 +19,19 @@ export {
   NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
   OPENCODE_GO,
-  POOL_OF_A_RUN_NAMING_NO_POOL,
+  POOL_LIMITS_VARIABLE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   PROVIDER_POOLS,
-  type PoolMembership,
-  type ProviderPool,
   QWEN_PLAN_DEEPSEEK,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
+  type PoolMembership,
+  PoolLimitsError,
+  type ProviderPool,
+  limitsIn,
   membershipOf,
   poolNamed,
+  poolsARunOfThatNameCouldHold,
+  poolsWithTheseLimits,
   poolTakesNoNewRun,
 } from './pool-limits.ts';
 export {
@@ -35,6 +39,8 @@ export {
   type PoolTallies,
   firstDefaultPoolWithRoom,
   poolHasRoom,
+  poolsHeldBy,
+  roomIn,
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';
@@ -102,6 +108,22 @@ export {
 } from './session-file-of-a-run.ts';
 export { nextRunNumber, } from './next-run-number.ts';
 export {
+  CHECKOUT_MARKER,
+  CheckoutNotFoundError,
+  checkoutFolderOf,
+} from './checkout-of-a-command.ts';
+export {
+  StartRefusedError,
+  baseProblemIn,
+  nameProblemIn,
+  promptProblemIn,
+  startRefusalsIn,
+} from './checks-before-a-start.ts';
+export {
+  ENTRY_REASON_CHARACTERS,
+  reasonInFailedStart,
+} from './reason-in-a-failed-start.ts';
+export {
   type FinishedRunTurns,
   NO_FINISHED_RUN,
   RUNS_OF_ONE_KIND_TO_TRUST,
@@ -119,6 +141,7 @@ export {
   unitCommandOf,
 } from './unit-command-of-a-run.ts';
 export {
+  BASE_OF_A_RUN_NAMING_NONE,
   type GitRunner,
   GitCommandFailedError,
   type WorktreeOutcome,
@@ -145,11 +168,13 @@ export {
   BATCH_DEFAULT_MEMORY,
   BATCH_DEFAULT_TASK_COUNT,
   BATCH_DEFAULT_WALL_SECONDS,
+  BATCH_ENTRY_FIELDS,
   BATCH_RETRY_PERIOD_SECONDS,
   BATCH_STAGGER_MILLISECONDS,
+  BatchListError,
   type BatchEntry,
   ENTRY_LINE_CHARACTERS,
-  ENTRY_OUTPUT_TAIL_CHARACTERS,
+  ENTRY_OUTPUT_KEPT_CHARACTERS,
   type StartedEntry,
   batchEntriesIn,
   entryLineOf,
@@ -176,6 +201,16 @@ export {
   GIT_TIMEOUT_SECONDS,
   gitRunnerOf,
 } from './git-command.ts';
+export {
+  GIT_WRAPPER_PREFLIGHT_TIMEOUT_MILLISECONDS,
+  GitWrapperPreflightError,
+  WRAPPER_COMMAND,
+  refuseUnlessTheWrapperAnswersGit,
+} from './git-wrapper-preflight.ts';
+export {
+  NO_SUCH_PROGRAM,
+  programOnAPath,
+} from './program-on-a-path.ts';
 export { siblingCommandEntry, } from './sibling-command-entry.ts';
 export {
   type TailKeeper,
@@ -193,7 +228,6 @@ export { optionIn, } from './option-in.ts';
  `save-the-final-message-of-a-review-that-wrote-no-review-file.ts`.
  */
 export {
-  REVIEW_FILE_NAME,
   SAVED_REVIEW_NOTE,
   type SavedReview,
   lastAssistantTextIn,

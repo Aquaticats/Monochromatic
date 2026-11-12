@@ -1,6 +1,5 @@
 /**
  Verifies the built agent-settled notification extension at its package boundary.
- 
  @module
  */
 
@@ -34,13 +33,33 @@ const AGENT_SETTLED_EVENT = 'agent_settled';
 const EXPECTED_COMMAND = 'notify-send';
 
 /**
- Static title sent to the local desktop-notification service.
+ Title sent to the local desktop-notification service.
  */
 const EXPECTED_TITLE = 'Pi agent finished';
+
+/**
+ Working folder the verifier reports for the settled agent, so the payload must name it.
+ */
+const VERIFIED_AGENT_FOLDER = '/verification/settled-agent-folder';
 
 //endregion Constants
 
 //region Types
+
+/**
+ One notification request observed at the injected desktop boundary.
+ */
+type ObservedInvocation = {
+  /**
+   Executable the extension asked for.
+   */
+  readonly command: string;
+
+  /**
+   Arguments the extension passed outside shell syntax.
+   */
+  readonly args: readonly string[];
+};
 
 /**
  Shape exported by the built extension package.
@@ -52,17 +71,21 @@ type AgentSettledNotificationModule = {
   readonly default: ExtensionFactory;
 
   /**
-   Registration helper with injectable delivery boundary.
+   Registration helper with an injectable delivery boundary.
    */
   readonly registerAgentSettledNotification: (
     registration: {
       readonly pi: ExtensionAPI;
-      readonly invoke: (invocation: {
-        readonly command: string;
-        readonly args: readonly string[];
-      },) => Promise<void>;
+      readonly deliver: (
+        parts: { readonly invocation: ObservedInvocation },
+      ) => Promise<void>;
     },
-  ) => void;
+  ) => {
+    /**
+     Waits for the deliveries the registration started in the background.
+     */
+    readonly settled: () => Promise<void>;
+  };
 };
 
 //endregion Types
@@ -71,11 +94,11 @@ type AgentSettledNotificationModule = {
 
 /**
  Narrows an imported module to the built extension's public shape.
- 
+
  @param value - imported module namespace
- 
- @returns whether module exposes the default factory and injectable registration helper
- 
+
+ @returns whether the module exposes the default factory and the injectable registration helper
+
  @example
  ```ts
  isAgentSettledNotificationModule(await import('../dist/final/node/index.mjs'));
@@ -94,11 +117,11 @@ function isAgentSettledNotificationModule(
 
 /**
  Verifies built extension registration and delivery behavior without touching the real desktop.
- 
+
  @returns verification result text
- 
- @throws when built export, lifecycle registration, or delivery payload is incorrect
- 
+
+ @throws when the built export, the lifecycle registration or the delivery payload is incorrect
+
  @example
  ```ts
  console.log(await verifyBuiltExtension());
@@ -137,21 +160,18 @@ async function verifyBuiltExtension(): Promise<string> {
    */
   const deliveryHarness = createFakePiHarness();
   /**
-   Command invocations observed at the operating-system boundary.
+   Notification requests observed at the operating-system boundary.
    */
-  const invocations: {
-    readonly command: string;
-    readonly args: readonly string[];
-  }[] = [];
-  mod.registerAgentSettledNotification({
+  const invocations: ObservedInvocation[] = [];
+  /**
+   Registration whose background deliveries this verifier waits for.
+   */
+  const registration = mod.registerAgentSettledNotification({
     pi: deliveryHarness.api,
-    invoke: function captureNotification(
-      invocation: {
-        readonly command: string;
-        readonly args: readonly string[];
-      },
+    deliver: function captureNotification(
+      parts: { readonly invocation: ObservedInvocation },
     ): Promise<void> {
-      invocations.push(invocation,);
+      invocations.push(parts.invocation,);
       return Promise.resolve();
     },
   },);
@@ -163,10 +183,16 @@ async function verifyBuiltExtension(): Promise<string> {
     handlersByEvent: deliveryHarness.handlersByEvent,
     event: AGENT_SETTLED_EVENT,
   },);
-  await handler(
+  /**
+   Value the settlement hook returned, which must not be a delivery promise.
+   */
+  const hookResult = handler(
     createAgentSettledEvent({ aborted: false, },),
-    createExtensionContext(),
+    createExtensionContext({ cwd: VERIFIED_AGENT_FOLDER, },),
   );
+  if (hookResult !== undefined)
+    throw new Error('built settlement hook waited for the desktop instead of starting delivery in the background',);
+  await registration.settled();
 
   /**
    Sole notification boundary invocation produced by one settled event.
@@ -182,8 +208,16 @@ async function verifyBuiltExtension(): Promise<string> {
     throw new Error(`expected notification title ${EXPECTED_TITLE}, received ${invocation.args
       .at(1,)
       ?? '<none>'}`,);
+  /**
+   Body the extension sent, which must name the agent folder.
+   */
+  const sentBody = invocation.args
+    .at(-1,)
+    ?? '';
+  if (!sentBody.includes(VERIFIED_AGENT_FOLDER))
+    throw new Error(`expected the notification body to name ${VERIFIED_AGENT_FOLDER}, received ${sentBody === '' ? '<none>' : sentBody}`,);
 
-  return 'agent-settled-notification extension verified: one notify-send request after agent_settled';
+  return 'agent-settled-notification extension verified: one notify-send request naming the agent folder after agent_settled';
 }
 
 //endregion Verification

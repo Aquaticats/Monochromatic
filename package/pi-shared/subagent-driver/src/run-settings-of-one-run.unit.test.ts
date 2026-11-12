@@ -20,6 +20,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   type CommandOutput,
+  BASE_OF_A_RUN_NAMING_NONE,
   IDLE_SECONDS_OF_A_RUN,
   GitCommandFailedError,
   NEURALWATT_STANDARD,
@@ -419,9 +420,13 @@ await describe({
       name: makeWorktree.name,
       children: [
         it({
-          name: 'adds a worktree on the branch it names when the branch exists, and starts one from main when it does not',
+          name: 'adds a worktree on the branch it names when the branch exists, and starts one at the base it names when the branch is new',
           fn: async () => {
             await using folder = await makeFolder();
+            /**
+             The commit a branch that does not exist yet starts at.
+             */
+            const base = 'fix/a-reviewed-branch';
             /**
              A git that says the branch exists, then makes the worktree.
              */
@@ -431,7 +436,8 @@ await describe({
               checkoutFolder: folder.path,
               worktree: join(folder.path, '.claude', 'worktrees', 'pi-a',),
               branch: 'feat/a',
-            },),).toBe('worktree add: status 0',);
+              base,
+            },),).toContain('existing branch feat/a',);
             expect(existing.asked[1]?.words,).toEqual([
               'worktree',
               'add',
@@ -439,17 +445,18 @@ await describe({
               'feat/a',
             ],);
             /**
-             A git that says the branch is new, then makes the worktree from main.
+             A git that says the branch is new, then makes the worktree.
              */
             const fresh = standInGit([answered(1, ''), answered(0, ''),],);
-            await makeWorktree({
+            expect(await makeWorktree({
               git: fresh.git,
               checkoutFolder: folder.path,
               worktree: join(folder.path, '.claude', 'worktrees', 'pi-b',),
               branch: 'feat/b',
-            },);
+              base,
+            },),).toContain(`new branch feat/b at ${base}`,);
             expect(fresh.asked[1]?.words,).toContain('-b',);
-            expect(fresh.asked[1]?.words.at(-1),).toBe('main',);
+            expect(fresh.asked[1]?.words.at(-1),).toBe(base,);
           },
         },),
         it({
@@ -470,6 +477,7 @@ await describe({
               checkoutFolder: folder.path,
               worktree,
               branch: 'feat/a',
+              base: BASE_OF_A_RUN_NAMING_NONE,
             },),).toBe('worktree: already there',);
             expect(git.asked,).toEqual([],);
           },
@@ -488,6 +496,7 @@ await describe({
               checkoutFolder: folder.path,
               worktree: empty,
               branch: 'feat/a',
+              base: BASE_OF_A_RUN_NAMING_NONE,
             },);
             /**
              A folder holding a file a person wrote.
@@ -501,6 +510,7 @@ await describe({
                 checkoutFolder: folder.path,
                 worktree: held,
                 branch: 'feat/b',
+                base: BASE_OF_A_RUN_NAMING_NONE,
               },);
             }
             catch (error) {
@@ -525,6 +535,7 @@ await describe({
                 checkoutFolder: folder.path,
                 worktree: join(folder.path, 'pi-a',),
                 branch: 'feat/a',
+                base: BASE_OF_A_RUN_NAMING_NONE,
               },);
             }
             catch (error) {
@@ -687,6 +698,7 @@ await describe({
             expect(options,).toEqual({
               name: 'copy-route',
               branch: 'feat/copy-route',
+              base: BASE_OF_A_RUN_NAMING_NONE,
               promptFile: '/runs/prompt.md',
               cpuPercent: 800,
               memory: '12G',
@@ -707,6 +719,7 @@ await describe({
               commandLine: [
                 '--name=a',
                 '--branch=none',
+                '--base=fix/a-reviewed-branch',
                 '--prompt=p.md',
                 '--cpu=8',
                 '--memory=1G',
@@ -725,6 +738,7 @@ await describe({
             },),).toEqual({
               name: 'a',
               branch: NO_WORKTREE_BRANCH,
+              base: 'fix/a-reviewed-branch',
               promptFile: 'p.md',
               cpuPercent: 8,
               memory: '1G',

@@ -28,15 +28,20 @@ import {
   BYTES_IN_A_GIBIBYTE,
   FREE_SPACE_FLOOR_BYTES,
   LAUNCHER_ENTRY_NAMES,
+  NEURALWATT_DEEPSEEK_FLEX,
+  NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
   NO_POOL_HAS_ROOM,
   NO_SLOT_EXIT_STATUS,
+  OPENCODE_GO,
+  POOL_LIMITS_VARIABLE,
   PROVIDER_POOLS,
   type ProviderPool,
   firstDefaultPoolWithRoom,
   freeSpaceFloorTextOf,
   freeSpaceTextOf,
   poolTakesNoNewRun,
+  roomIn,
   talliesOf,
 } from '../dist/final/node/index.mjs';
 
@@ -167,7 +172,7 @@ function expectCountsLine({
   const entries = (summary ?? '').split(', ',);
   expect(entries.length,).toBe(PROVIDER_POOLS.length,);
   for (const [index, pool,] of PROVIDER_POOLS.entries()) {
-    expect(entries[index],).toBe(`${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(pool.limit,)}`,);
+    expect(entries[index],).toBe(`${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(roomIn(pool,),)}`,);
   }
   expect(room,).toBe(freeSpaceTextOf({
     volume: BUILD_VOLUME,
@@ -271,17 +276,19 @@ async function writeStandIns({
   folder,
   units,
   execStart,
+  execStartFails = false,
 }: {
   readonly folder: string;
   readonly units: string;
   readonly execStart: string;
+  readonly execStartFails?: boolean;
 }): Promise<void> {
   await writeProgram({
     folder,
     name: 'systemctl',
     body: [
       'case "$*" in',
-      `  *--property=ExecStart*) printf '%s\\n' "${execStart}" ;;`,
+      `  *--property=ExecStart*) ${execStartFails ? String.raw`printf '%s\n' 'No such unit' >&2; exit 1` : `printf '%s\\n' "${execStart}"`} ;;`,
       `  *list-units*) printf '%s' "${units}" ;;`,
       '  *) exit 0 ;;',
       'esac',
@@ -292,6 +299,8 @@ async function writeStandIns({
     name: 'git',
     body: [
       'case "$*" in',
+      // The policy namespace help is what the launcher asks for before it starts a session, and only the wrapper answers it.
+      `  *'monochromatic-git-policy-cli --help'*) printf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]' ;;`,
       `  *'rev-parse --show-toplevel'*) printf '%s\\n' "$FAKE_CHECKOUT" ;;`,
       `  *'rev-parse --verify'*) exit 0 ;;`,
       `  *'worktree add'*) mkdir --parents "$FAKE_CHECKOUT/.claude/worktrees/pi-copy-route" ;;`,
@@ -358,6 +367,8 @@ async function writeProcess({
 
  @param words - the gate's own words
 
+ @param poolLimits - the limits the gate is told to use, when a test sets one
+
  @returns the status and both streams
 
  @example
@@ -368,9 +379,11 @@ async function writeProcess({
 async function runTheGate({
   folder,
   words,
+  poolLimits,
 }: {
   readonly folder: BareFolder;
   readonly words: readonly string[];
+  readonly poolLimits?: string;
 }): Promise<{
   readonly status: number;
   readonly stdout: string;
@@ -402,6 +415,7 @@ async function runTheGate({
         FAKE_EXEC_START: '',
         PI_RUNS_PROCESS_FOLDER: folder.processes,
         PI_RUNS_FREE_SPACE_BYTES: folder.freeSpaceBytes,
+        ...(poolLimits === undefined ? {} : { [POOL_LIMITS_VARIABLE]: poolLimits, }),
       },
       encoding: 'utf8',
       timeout: 60_000,
@@ -584,6 +598,10 @@ await describe({
           turns: 40,
         },),);
         /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
          What the gate answered.
          */
         const ran = await runTheGate({
@@ -597,6 +615,7 @@ await describe({
             '--memory=1G',
             '--tasks=100',
             '--wall=600',
+            `--checkout-folder=${folder.path}`,
           ],
         },);
         expect(ran.status,).toBe(0,);
@@ -667,6 +686,10 @@ await describe({
           execStart: '',
         },);
         /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
          What the gate answered for a runs folder with no finished run.
          */
         const ran = await runTheGate({
@@ -680,10 +703,88 @@ await describe({
             '--memory=1G',
             '--tasks=100',
             '--wall=600',
+            `--checkout-folder=${folder.path}`,
           ],
         },);
         expect(ran.status,).not.toBe(0,);
         expect(ran.stderr,).toContain('--turn-cap is required',);
+      },
+    },),
+    it({
+      name: 'closes and reopens a pool from the environment alone, which is how a spent weekly quota is set aside',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         The counts as the gate ships them, with the pool the owner set aside closed.
+         */
+        const closed = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+        },);
+        expect(closed.status,).toBe(0,);
+        expectCountsLine({
+          line: closed.stdout.trim(),
+          counts: new Map(),
+          freeSpaceBytes: folder.freeSpaceBytes,
+        },);
+        /**
+         The room a caller gives the set-aside pool, which is another open pool's own limit rather than a number of the test's.
+         */
+        const reopenedRoom = NEURALWATT_DEEPSEEK_FLEX.limit;
+        /**
+         The counts with that pool reopened by the caller, and another pool closed in its place.
+         */
+        const reopened = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+          poolLimits: `${OPENCODE_GO.name}=${String(reopenedRoom,)},${NEURALWATT_STANDARD.name}=0`,
+        },);
+        expect(reopened.status,).toBe(0,);
+        expect(reopened.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(reopenedRoom,)}`,);
+        expect(reopened.stdout.trim(),).toContain(`${NEURALWATT_STANDARD.name} 0/0`,);
+        /**
+         What a limits setting the gate cannot read answers with, so a mistyped pool name is never counted as a closed pool.
+         */
+        const refused = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+          poolLimits: 'no-such-pool=1',
+        },);
+        expect(refused.status,).not.toBe(0,);
+        expect(refused.stderr,).toContain('no-such-pool',);
+      },
+    },),
+    it({
+      name: 'counts a unit whose own command line could not be read in every pool it could be running on, saying which it could not read',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: 'pi-copy-route.service x\n',
+          execStart: '',
+          execStartFails: true,
+        },);
+        /**
+         What the gate answered.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+        },);
+        expect(ran.status,).toBe(0,);
+        expectCountsLine({
+          line: ran.stdout.trim(),
+          counts: new Map(PROVIDER_POOLS.map(function heldOnce(pool,) {
+            return [pool.name, 1,] as const;
+          },),),
+          freeSpaceBytes: folder.freeSpaceBytes,
+        },);
+        expect(ran.stderr,).toContain('pool of unit pi-copy-route.service not read',);
       },
     },),
   ],

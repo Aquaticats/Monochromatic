@@ -595,9 +595,21 @@ Resuming its session with a short deadline and the order to report recovered the
 ## Retrying a failed attempt, read 2026-11-09T08:05:00+00:00
 
 Pi retries a failed assistant turn itself,
-and this machine does not:
-the owner's `~/.pi/agent/settings.json` holds `"retry": {"enabled": false}`,
+and this machine did not on that day:
+the owner's `~/.pi/agent/settings.json` held `"retry": {"enabled": false}`,
 so one transient provider failure ends a run.
+
+The file was read again at 2026-11-11T22:33:00+00:00 and held
+`retry.enabled` true,
+`retry.maxRetries` 8,
+`retry.baseDelayMs` 1000 and
+`retry.provider.maxRetryDelayMs` 0,
+while the runs of that evening reported `maxAttempts` 3 and delays of 1 s, 2 s and 4 s in each `auto_retry_start`.
+So a run here now meets a 429 only after Pi's retry has finished with it,
+and the driver leaves every 429 to that retry,
+answering with its own attempts only the model errors that are no 429
+(`package/pi-shared/subagent-driver/README.md`, "Which layer retries what").
+
 The settings `docs/settings.md` names in Pi 1.5.0 are
 `retry.enabled` (`true` by default),
 `retry.maxRetries` (3),

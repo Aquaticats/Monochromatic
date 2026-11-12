@@ -49,6 +49,30 @@ fn finds_the_first_executable_in_search_order() {
     remove(&root);
 }
 
+/// What:
+///  A program a relative search path entry names is the absolute file the lookup found.
+/// Why:
+///   An entry without a leading slash means a directory of the working directory the lookup happens in,
+/// and every repair starts its tool in the worktree and never in that directory,
+/// so a relative program path names the worktree's own directory to the child:
+/// the tool the add resolved is then never started,
+/// and the worktree keeps the copied links the repair exists to rewrite.
+#[test]
+fn a_relative_search_entry_names_the_file_the_lookup_found() {
+    let root: PathBuf = fixture("finds-relative-entry");
+    let bin: PathBuf = root.join("bin");
+    std::fs::create_dir_all(bin.as_path()).expect("bin");
+    executable(bin.join("tool").as_path(), b"#!/bin/sh\nexit 0\n");
+    let started: PathBuf = std::env::current_dir().expect("the directory this control started in");
+    std::env::set_current_dir(root.as_path()).expect("the fixture is the directory the lookup happens in");
+    let found: Option<PathBuf> = find_program("tool", Some(std::ffi::OsStr::new("bin")));
+    std::env::set_current_dir(started.as_path()).expect("leave the fixture");
+    let named: PathBuf = found.expect("the program the relative entry names");
+    assert!(named.is_absolute(), "the child would read {} from its own directory", named.display());
+    assert_eq!(named, root.join("bin/tool"));
+    remove(&root);
+}
+
 /// A name that is absent,
 /// a file that is not executable and an absent search path are all "not found".
 #[test]

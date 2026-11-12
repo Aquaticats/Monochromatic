@@ -130,19 +130,19 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 /// ```ts
 /// const wait = await drain(gitDir, handlers, readClaimTime())
 /// ```
-pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Option<Duration> {
+pub fn drain(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime) -> Option<Duration> {
     return drain_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
 /// `drain` with the lease given,
 /// so a test can use a short one.
-pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub fn drain_with_lease(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration) -> Option<Duration> {
     return drain_with_renewal(git_dir, handlers, now, lease, Renewal::Timed);
 }
 
 /// `drain_with_lease` with the way its claims are kept fresh given,
 /// so a control can drive the renewal itself.
-pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
+pub fn drain_with_renewal(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
     return drain_planned_with(git_dir, handlers, now, lease, renewal, &Retrying::none()).wait;
 }
 
@@ -151,7 +151,7 @@ pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
 /// and the changes the drain asks of the retry plan are
 /// given back with the wait,
 /// for the service loop to apply.
-pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, retrying: &Retrying) -> Drained {
+pub fn drain_planned(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, retrying: &Retrying) -> Drained {
     return drain_planned_with(git_dir, handlers, now, CLAIM_LEASE, Renewal::Timed, retrying);
 }
 
@@ -169,7 +169,7 @@ pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTim
 /// ```ts
 /// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
 /// ```
-pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
+pub fn drain_planned_with(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
     return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
@@ -204,13 +204,13 @@ pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
 /// ```ts
 /// const wait = await drainCommonRecords(linkedGitDir, handlers, now)
 /// ```
-pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Option<Duration> {
+pub fn drain_common_records(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime) -> Option<Duration> {
     return drain_common_records_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
 /// `drain_common_records` with the lease given,
 /// so a test can use a short one.
-pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration) -> Option<Duration> {
     return drain_common_records_planned(git_dir, handlers, now, lease, &Retrying::none()).wait;
 }
 
@@ -235,7 +235,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// ```ts
 /// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
 /// ```
-pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
+pub fn drain_common_records_planned(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
     return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
@@ -643,7 +643,7 @@ impl WorkHandlers for GitHandlers {
     fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             let held: WorkItem = item.clone();
-            return match crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
+            return match crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
                 Ok(verdict) => verdict,
                 // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
                 Err(reason) => Verdict::Retry(format!("the snapshot ahead of {} did not run ({reason})", item.repository.display())),

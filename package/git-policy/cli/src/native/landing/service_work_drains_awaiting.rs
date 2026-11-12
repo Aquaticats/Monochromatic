@@ -68,7 +68,7 @@ use std::time::{Duration, Instant};
 /// ```ts
 /// await drainPlannedAwaiting(dir, handlers, now, retrying, kinds)
 /// ```
-pub async fn drain_planned_awaiting<H: WorkHandlers + ?Sized>(
+pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     now: &ClaimTime,
@@ -89,7 +89,7 @@ pub async fn drain_planned_awaiting<H: WorkHandlers + ?Sized>(
 /// ```ts
 /// await drainPlannedWithAwaiting(dir, handlers, now, lease, renewal, retrying)
 /// ```
-pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
+pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     now: &ClaimTime,
@@ -107,7 +107,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
         // The worktree the plans of this directory name, which is how a Git directory that moved is told from a repository
         //  that was deleted.
         let worktree: Option<PathBuf> = worktree_named_by(retrying, git_dir);
-        return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::TheMountTable::default()) {
+        return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::the_mounts()) {
             crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable),
             crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone).await,
         };
@@ -167,7 +167,7 @@ fn worktree_named_by(retrying: &Retrying, git_dir: &Path) -> Option<PathBuf> {
 /// ```ts
 /// await drainCommonRecordsPlannedAwaiting(dir, handlers, now, lease, retrying)
 /// ```
-pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
+pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     now: &ClaimTime,
@@ -211,7 +211,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
 /// ```ts
 /// await runDuePushRetriesAwaiting(gitDir, handlers, candidates, replanning)
 /// ```
-pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, candidates: &[Due], replanning: &mut Replanning) {
+pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, candidates: &[Due], replanning: &mut Replanning) {
     for due in candidates {
         if due.git_dir != git_dir {
             continue;

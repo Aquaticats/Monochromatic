@@ -372,6 +372,13 @@ Found while choosing meow's cache key hash and measuring it on a second machine:
   `pmset -g therm` is the one-shot form
 - [`rustix` configures `fs::fadvise` out on Apple targets](rustix-apple-fadvise-gate.md)
 
+### Rust nightlies and the daily update's checks
+
+- [A Rust nightly extends a Clippy lint to a match that rebuilds `Option::map`](clippy-manual-map-on-a-match.md),
+  a fix-forward break that is never a reason to pin the nightly back
+- [Cargo prints hundreds of loop warnings before its first compiler line](cargo-loop-warnings-before-the-first-error.md),
+  behind which the daily update's report used to lose the check's first error
+
 ## Quick Links
 
 For common issues:

@@ -176,6 +176,61 @@ fn kill_then_fold(point: KillPoint<'_>) {
     std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
 }
 
+/// What:
+///  An earlier program that named this worktree's journal through a link another command removed after the program started
+///  holds the fold,
+/// so no saved name is moved under a live writer.
+/// Why:
+///   The fold is the one place that moves the earlier release's saved data,
+/// and the process look is its only guard:
+/// a socket of an earlier unit stays listening for good,
+/// so the fold cannot wait for one.
+/// The link resolved when the program started and is gone now,
+/// so the word the program carries no longer shows the folder it named,
+/// while that folder is there,
+/// and the same command line names this worktree's instance.
+/// Kimi K3.1 Pro found this by reading the kind of look the fold makes
+/// (the same false negative as the settling control in
+/// `package/git-policy/cli/src/native/landing/earlier_batches_settled_on_request_tests.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlinkSync(sharedJournal, link); startProgram(['--journal', `${link}/${instance}`, '--git', git, '--instance', instance]); unlinkSync(link); expect(foldKeptNames(...).held).toBe('InstanceHelperRuns')
+/// ```
+#[cfg(unix)]
+#[test]
+fn an_earlier_program_whose_journal_word_a_removed_link_no_longer_resolves_holds_the_fold() {
+    let mut world: World = world("held-removed-link");
+    let root: PathBuf = world.git_dir.parent().expect("root").to_path_buf();
+    let instance: String = instance_of(world.git_dir.as_path());
+    let state: PathBuf = root.join("state");
+    let per_instance: PathBuf =
+        crate::earlier_service_journal_adopted::earlier_journals_in_state(state.as_path(), instance.as_str()).per_instance;
+    std::fs::create_dir_all(per_instance.as_path()).expect("the earlier journal");
+    world.surroundings.state_dir = Some(state);
+    let shared: PathBuf = per_instance.parent().expect("the shared journal").to_path_buf();
+    let link: PathBuf = root.join("a-link-to-the-state-folder");
+    std::os::unix::fs::symlink(shared.as_path(), link.as_path()).expect("the link the program starts with");
+    let spelled: String = link.join(instance.as_str()).display().to_string();
+    let process: PathBuf = world.surroundings.proc_root.join("4242");
+    std::fs::create_dir_all(process.as_path()).expect("process");
+    let mut bytes: Vec<u8> = Vec::new();
+    for word in ["/p/cli-git-native", "--journal", spelled.as_str(), "--git", "/usr/bin/git", "--instance", instance.as_str()] {
+        bytes.extend(word.as_bytes());
+        bytes.push(0);
+    }
+    std::fs::write(process.join("cmdline"), bytes).expect("command line");
+    std::fs::remove_file(link.as_path()).expect("another command removes the link after the program started");
+    assert!(per_instance.is_dir(), "the writer's journal is there");
+    assert!(!Path::new(spelled.as_str()).exists(), "the spelling the program carries no longer resolves");
+    let report: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut NeverStopped);
+    assert_eq!(report.held, Some(Hold::InstanceHelperRuns), "the live writer was missed, so its names would be moved: {report:?}");
+    assert!(report.outcomes.is_empty(), "nothing is moved while it runs");
+    assert_eq!(std::fs::read_to_string(world.git_dir.join(PUSH_TRIGGER_LOG.earlier)).expect("earlier"), "earlier-push\n");
+    assert!(world.git_dir.join(DATA_FOLDER.earlier).exists(), "the earlier data stays where it is");
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
 /// With no earlier program running,
 /// every name that exists twice is folded and nothing is held or reported.
 #[test]

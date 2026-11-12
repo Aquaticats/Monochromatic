@@ -1,7 +1,8 @@
 //! What:
 //!  The service's work that can take minutes:
 //! a lane of its own,
-//! one repository at a time and one step at a time,
+//! one repository at a time,
+//! and inside one work directory one item per worktree at a time and different worktrees' items side by side,
 //!  beside the round that serves the person's pushes.
 //! Why:
 //!  A round holds the after-commit work until it ends,
@@ -20,11 +21,17 @@
 //! so it runs here and the round is left with the pushes
 //!  (`PUSH_KINDS` and `SLOW_KINDS` in `service_work_handlers_replanning_and_acceptance.rs`).
 //! One lane per service,
-//! so one repository's trash is still emptied one at a time
-//! (`worktree_trash_dispose.rs`),
-//! and the claims are the drain's own:
+//! so one repository's records are drained by one task and a worktree's items are never taken twice;
+//! inside that drain the items of different worktrees run beside each other
+//! (`service_work_items_side_by_side.rs`),
+//! and one worktree's trashes keep their turn
+//! (`worktree_trash_dispose.rs`).
+//! The claims are the drain's own:
 //! the lane claims `SLOW_KINDS` and the round claims `PUSH_KINDS`,
 //! so the two never take each other's records and no lock is needed.
+//! What a person waits for is kept free of the lane's queue as well:
+//! every storage step of these kinds asks through the gate that leaves one blocking place to the round
+//! (`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -191,7 +198,7 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// ```ts
 /// await drainSlow(gitDir); if (bareCommon(gitDir)) await drainSlow(common)
 /// ```
-pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
+pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
     let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping).await;
     let Some(common) = common_directory_of(git_dir) else { return own };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
@@ -221,7 +228,7 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_d
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
 /// ```
-async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
+async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
     return drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
 }
