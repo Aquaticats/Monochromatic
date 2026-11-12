@@ -276,6 +276,8 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     if let Err(failure) = promote_the_push(handoff, landed) {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
+    // AUDIT PATCH (push-delivery, not part of the product): a SIGKILL point between the promotion and the wake.
+    crate::service_fault::reach("after-promote");
     let handing_over: Instant = Instant::now();
     let handed = hand_over(handoff, landed, &mut stderr);
     timing.handoff += handing_over.elapsed();
