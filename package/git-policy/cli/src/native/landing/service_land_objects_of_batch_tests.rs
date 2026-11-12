@@ -78,7 +78,7 @@ fn a_repository_with_a_built_commit(name: &str) -> (PathBuf, String, String, Com
         repository: repo.clone(),
         common_dir: common.clone(),
         git_dir: common.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: base.clone(),
         changes: Vec::new(),
         message: String::new(),
