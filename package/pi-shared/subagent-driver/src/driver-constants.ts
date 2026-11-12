@@ -4,7 +4,10 @@
  @module
  */
 
-import type { RunFailure, } from './driver-types.ts';
+import type {
+  PiRetryGaveUp,
+  RunFailure,
+} from './driver-types.ts';
 
 /**
  Set in Pi's environment. A driver that finds it was started by a Pi the driver runs, and refuses, so an agent cannot start
@@ -92,26 +95,35 @@ export const STOP_FILE_NAME = 'stop';
 export const NO_RUN_FAILURE: RunFailure = Object.freeze({ failed: false, });
 
 /**
+ What the driver knows of Pi's own automatic retry before Pi says anything of it, so a caller reads one shape rather than a
+ nullish member.
+ */
+export const NO_PI_RETRY_GAVE_UP: PiRetryGaveUp = Object.freeze({ gaveUp: false, });
+
+/**
  What the summary says when the model reported an error and said nothing about it.
  */
 export const MODEL_ERROR_WITHOUT_TEXT = 'the model reported an error and said nothing about it';
 
 /**
  How many attempts the driver makes after a model error another attempt may fix, chosen to match the `retry.maxRetries` default
- Pi's own automatic retry uses (`docs/settings.md` in Pi 1.5.0) rather than guessed here.
+ Pi's own automatic retry uses (`docs/settings.md` in Pi 1.5.0) rather than guessed here. It bounds only the errors the driver
+ owns: a 429, in any form, is Pi's own retry's to answer.
  */
 export const MODEL_ERROR_RETRY_CAP = 3;
 
 /**
  Seconds before the first attempt after a model error, doubling with each attempt, chosen to match the `retry.baseDelayMs`
- default Pi's own automatic retry uses (`docs/settings.md` in Pi 1.5.0).
+ default Pi's own automatic retry uses (`docs/settings.md` in Pi 1.5.0), so the two layers back off alike. It shapes only the
+ errors the driver owns, which a 429 is not.
  */
 export const MODEL_ERROR_RETRY_BASE_SECONDS = 2;
 
 /**
  Longest wait before one attempt after a model error, chosen to match the `retry.maxAgentDelayMs` default Pi's own automatic
  retry uses (`docs/settings.md` in Pi 1.5.0). It bounds a provider that names an hour of backoff, and it bounds the growth of a
- delay that doubles, so no run waits longer than this for one attempt.
+ delay that doubles, so no run waits longer than this for one attempt. It shapes only the errors the driver owns, and a 429 is
+ one it leaves to Pi.
  */
 export const MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS = 60_000;
 

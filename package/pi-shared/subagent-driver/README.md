@@ -49,6 +49,52 @@ and each offers the step it owns:
 Each has a `mise` task of its own name under
 `//package/pi-shared/subagent-driver:`.
 
+### The git a session would run
+
+A session whose `git` resolves to the system binary never runs this repository's Git policy wrapper,
+so it commits past every policy,
+past the guards against discarding work,
+and without the automatic push after each commit.
+The wrapper cannot notice its own absence:
+`git --version` prints the same text either way.
+So the launchers ask before a session starts
+([issue 1768](https://github.com/Aquaticat/Monochromatic/issues/1768),
+`doc/troubleshooting/git-policy-wrapper-launcher-path.md`).
+They resolve `git` on the `PATH` the session would get,
+the way the session's own commands resolve it,
+in the folder the session would work in,
+and then ask that program for its policy namespace help:
+`git monochromatic-git-policy-cli --help` prints that help only when the wrapper answers it.
+
+The question is bounded at ten seconds,
+well above the 72 ms it took in this checkout on 2026-11-11,
+because a session starts unattended and nothing here waits forever.
+A program that does not answer is refused as well as one that answers wrongly.
+
+`start-pi-run-in-a-worktree` asks after it has made the worktree and before it links dependencies,
+so a refused launch has started no unit, written no run folder and linked nothing,
+and it exits 1 saying:
+
+- the path of the `git` the session would run,
+- what that program answered,
+- and the fix: the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
+  which `mise run toolchain:install` makes,
+  and that folder has to come before the system one on the session's `PATH`.
+
+A worktree it made stays as it is:
+the refusal line names that folder,
+and nothing here removes a worktree that may be an earlier run's.
+
+`drive-pi-subagent` asks the same question of the environment it is about to hand Pi,
+in the working folder it was given,
+before Pi starts and before it writes the run folder.
+That is what covers a unit a coordinator started by hand rather than through the launcher above.
+
+What this does not decide:
+whether `git-lfs` resolves, which the same incident also needed;
+and work the launcher does before the check (its own `git worktree add`) runs with the launcher's own `PATH`,
+which a protected session already sets.
+
 ### The provider pools
 
 A pool is how many runs one provider account answers at once,
@@ -302,6 +348,8 @@ each written as `--name=value`:
   how long the driver stays up for a steering message after Pi comes to rest.
 - `--turn-cap`:
   how many model turns the run may start.
+  An attempt of Pi's own automatic retry is a turn too,
+  so a cap that leaves no room for Pi's retry budget ends a run as `turn-cap`.
 - `--session`:
   a session file to resume.
   It stays one argument,
@@ -314,11 +362,14 @@ each written as `--name=value`:
   and zero is allowed:
   a run with no attempts ends on its first error,
   as the driver did before it retried anything.
+  It bounds no 429 at all:
+  a rate limit, a concurrency limit and a quota are Pi's own retry's to answer.
 - `--retry-base-seconds`:
   the wait before the first attempt after a model error,
   two seconds by default,
   which is the `retry.baseDelayMs` default Pi's own automatic retry uses.
   The wait doubles with each attempt and never passes a minute.
+  It shapes only the errors the driver owns, which a 429 is not.
 - `--pi-argument`:
   one more word for Pi's command line.
   Repeat it for more words.
@@ -332,7 +383,10 @@ and the feed's last write,
 each with a limit of its own,
 so a run ends even when Pi answers nothing at the end.
 
-`pi` must be on `PATH`.
+`pi` must be on `PATH`,
+and the `git` this session would run must be this repository's policy wrapper,
+which the driver asks before it starts Pi
+(see the section "The git a session would run").
 
 ## Files a run writes
 
@@ -346,8 +400,9 @@ so a run ends even when Pi answers nothing at the end.
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   `modelError` carries what the model said when the run ended on it,
+  `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
-  and `retries` and `rateLimitErrors` count what the run retried and what it met of the failures the
+  and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
 - `stderr.log`:
   Pi's standard error.
@@ -459,7 +514,11 @@ or `feedProblem` does when the feed could not be written.
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.
 `modelErrorAttempts` says how many attempts the run made at it,
+which is the turn Pi made plus each attempt the driver sent after it,
 and the driver's own message names that count too.
+`piRetryGaveUp` is there when Pi's own automatic retry reported giving up on that error,
+which is how a 429 reads:
+it says how many attempts Pi's retry made and what Pi said when it stopped.
 An error an automatic retry recovers from is not one:
 the run still ends `idle`,
 because the reply after it succeeded.
@@ -528,33 +587,120 @@ and four runs were still waiting 90 to 91 seconds after Pi started when the old 
 Each of the three still stops counting silence while Pi reports a compaction,
 and the run's wall clock still ends them.
 
-## What the driver retries, and what it leaves alone
+## Which layer retries what
 
-A run whose provider fails once ends as it would have before,
-unless the failure is one another attempt can fix.
-The driver reads that from the error Pi reports,
+The run has two retry layers,
+and a 429 is Pi's.
+The owner, 2026-11-11: "It's Pi's native retry's responsibility to deal with 429s."
+
+### Pi's own automatic retry, inside one turn
+
+Pi retries a failed turn before it settles on it,
+so the driver meets a 429 only after Pi's own attempts have finished.
+What Pi retries is `isRetryableAssistantError`,
+and how long it waits is `retryDelayMs`,
+both in `@earendil-works/pi-ai/dist/utils/retry.js` in Pi 1.5.2:
+
+- a `429` is retried,
+  with the rate-limit, "rate.?limit" and "too many requests" wording that carries it:
+  a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count;
+- the overload, `5xx`, timeout, dropped-connection and interrupted-stream texts are retried beside it;
+- a quota, a plan and a billing limit are not,
+  even when a provider sends one as a `429`:
+  nothing refills those inside a turn, so Pi leaves them to the run;
+- a context overflow is not,
+  because Pi compacts the session instead.
+
+The settings that bound Pi's retry are Pi's own, and the driver reads none of them:
+`retry.enabled` (true by default),
+`retry.maxRetries` (3),
+`retry.baseDelayMs` (2000) and
+`retry.maxAgentDelayMs` (60000),
+with each delay doubling from the base and never passing the largest delay
+(`docs/settings.md` in Pi 1.5.2).
+What a machine's runs really do is what its own settings say:
+the run of 2026-11-11 reported `maxAttempts` 3 and delays of 1 s, 2 s and 4 s,
+which is a base of one second,
+and the same file held `retry.maxRetries` 8 and `retry.baseDelayMs` 1000 when it was read that evening.
+So Pi's budget here is wider than its defaults, and wider than it was for that run,
+and the driver neither reads it nor keeps a copy of it.
+
+The provider-level `retry.provider.*` group is a third layer, off by default (`retry.provider.maxRetries` 0),
+and this machine disables its delay limit;
+nothing in the driver depends on it either.
+
+Pi reports that retry to an RPC client:
+`auto_retry_start` before each wait,
+`auto_retry_end` with `success: true` when a later reply worked,
+and `auto_retry_end` with `success: false` and a `finalError` when it gave up
+(`docs/json.md` in Pi 1.5.2).
+Only after that does Pi settle on the failed message,
+which is the state the driver reads.
+
+Each attempt is a turn of its own,
+so Pi's retry budget is spent from `--turn-cap` as well as from the run's wall clock:
+the feed of a run on 2026-11-11 shows Pi's three retries as turns 34 to 37 of one driver prompt.
+A cap that leaves no room for Pi's retry budget therefore ends a 429 run as `turn-cap`,
+before the error Pi's retry gave up on can settle.
+
+### A 429, in any form, is left to Pi
+
+The driver neither re-prompts a 429 nor waits one out,
+whether the provider sent a rate limit, a concurrency limit or a quota.
+A 429 counts wherever the text names it whole,
+even behind a word (`HTTP 429: upstream request failed`),
+while the same digits inside a longer number are a count, a request number or a stated limit, and no status.
+Once Pi settles on one, the run ends `model-error` on the next look,
+with that error's own text standing:
+
+- `modelError` in `summary.json` carries what the 429 said,
+  word for word and cut to no length;
+- `piRetryGaveUp` carries what Pi itself reported when it stopped retrying:
+  how many attempts it made, and its `finalError` text;
+- `rateLimitErrors` counts every failed attempt Pi made at it,
+  because the coordinator measures those apart from other failures;
+- `feed.jsonl` holds Pi's `auto_retry_end` line,
+  and a `problem` line naming the hand-off;
+- the driver's own message names the layers:
+  `The Pi run ended with "model-error" after 1 attempt, and Pi's own automatic retry gave up on it after 3 attempts.`
+
+The 429 stands rather than being retried inside the run
+because the limit it names resets outside the run:
+a concurrency limit at another caller leaving, a quota at the start of a day or a week.
+A run left standing is what the coordinator resumes later,
+which no attempt made seconds later would do.
+
+A run whose 429 Pi's own retry recovered ends as it did before:
+`idle`, with the reply that worked,
+no `retry` line,
+and `rateLimitErrors` counting the failed attempts it took.
+
+### The driver's own retry, for what Pi leaves alone
+
+A model error that is not a 429 is the driver's, and it reads it from the error Pi reports,
 in the shape the providers write it:
 
-- another attempt is made for a provider server error (a `5xx` status),
+- another attempt is made for a provider server error (a `5xx` status or overload wording),
   a request timeout,
   a dropped connection,
-  or a rate limit such as HTTP 429;
+  or a stream that broke part way;
 - the run ends on the first error for everything else,
   because another attempt reaches the same answer:
   a missing key or credential,
   an unknown provider or model,
   a context overflow,
-  an abort the coordinator asked for,
-  and a quota or plan limit nothing refills.
+  and an abort the coordinator asked for.
+
+One case stays as it was, and costs a retry of Pi's as well as one of the driver's:
+an error that names no 429 keeps the attempt it had,
+even when its own words name a rate limit,
+so `503 Service Unavailable: rate limit exceeded` is answered by the driver as it always was.
+Only a 429 itself is left to Pi.
 
 A status is read only where the error text starts with one,
 which is where a response writes it:
 `400 Bad Request: max_tokens must not exceed 500` states a limit on the request,
 and the `500` in it is no server status.
-A rate limit is decided before the words about credentials,
-because a rate limit names what it limited:
-`429 Too many requests for this API key` is about the key being asked too often,
-not about a key that is wrong.
 
 A shape the driver does not recognise is left alone,
 which is how such a run ended before this existed:
@@ -629,6 +775,8 @@ so a stop file cannot make it read as finished.
 `rateLimitErrors` counts the model errors that named a rate limit or a quota,
 whether or not another attempt could fix them,
 because those are measured apart from other failures.
+It counts each failed attempt of Pi's own retry,
+so a 429 that Pi's retry spent three attempts on adds four to it.
 
 Pi has a per-run switch of its own,
 the `set_auto_retry` RPC command,

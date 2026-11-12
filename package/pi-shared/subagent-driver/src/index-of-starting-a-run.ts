@@ -195,6 +195,16 @@ export {
   GIT_TIMEOUT_SECONDS,
   gitRunnerOf,
 } from './git-command.ts';
+export {
+  GIT_WRAPPER_PREFLIGHT_TIMEOUT_MILLISECONDS,
+  GitWrapperPreflightError,
+  WRAPPER_COMMAND,
+  refuseUnlessTheWrapperAnswersGit,
+} from './git-wrapper-preflight.ts';
+export {
+  NO_SUCH_PROGRAM,
+  programOnAPath,
+} from './program-on-a-path.ts';
 export { siblingCommandEntry, } from './sibling-command-entry.ts';
 export {
   type TailKeeper,
