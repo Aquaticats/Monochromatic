@@ -132,10 +132,25 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
 /// ```
 #[test]
 fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
-    for (value, words, command) in [
-        ("!git", vec!["fixup", "reset", "--hard"], GuardedCommand::ResetHard),
-        ("!git reset", vec!["fixup", "--hard"], GuardedCommand::ResetHard),
-        ("!git clean", vec!["fixup", "-fdx"], GuardedCommand::CleanIgnored),
+    for (value, words, shell, command) in [
+        (
+            "!git",
+            vec!["fixup", "reset", "--hard"],
+            vec!["reset", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            "!git reset",
+            vec!["fixup", "--hard"],
+            vec!["reset", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            "!git clean",
+            vec!["fixup", "-fdx"],
+            vec!["clean", "-fdx"],
+            GuardedCommand::CleanIgnored,
+        ),
     ] {
         let walked: GuardedForwarded = decided(&[("fixup", value)], words.as_slice());
         assert_eq!(
@@ -144,7 +159,55 @@ fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
             "{value} {words:?}"
         );
         assert_eq!(walked.arguments, args(words.as_slice()), "{value}: Git receives the caller's own words");
+        assert_eq!(
+            walked.decided_words,
+            args(shell.as_slice()),
+            "{value}: the rules read the command the shell runs"
+        );
     }
+}
+
+/// What:
+///  The words the guard decided about are the ones the rules read:
+///  the command inside a `!` alias's shell,
+///  an ordinary alias's expansion,
+///  and the caller's own words for a built-in.
+/// Why:
+///  The flags and paths of a clean decide what it deletes,
+///  and a rule that read the alias name instead saw a clean with no `-ffdX`
+///  and no `-e` pattern:
+///  it measured nothing,
+///  saved nothing,
+///  and Git deleted a nested repository and an untracked file unsaved.
+///  A `!` alias carries the caller's words into the shell after its own (`git.c:401` to `git.c:402`),
+///  so both halves are read here even though Git receives only the alias word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['spring', '!git clean -Xf']], words: ['spring', '-e', 'notes.txt'] })
+/// //   => { decidedWords: ['clean', '-Xf', '-e', 'notes.txt'], arguments: ['spring', '-e', 'notes.txt'] }
+/// ```
+#[test]
+fn the_words_the_guard_decided_about_are_the_ones_a_rule_reads() {
+    let aliased: GuardedForwarded = decided(&[("spring", "!git clean -Xf")], &["spring", "-e", "notes.txt"]);
+    assert_eq!(
+        aliased.decision,
+        LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnoredOnly)
+    );
+    assert_eq!(aliased.decided_words, args(&["clean", "-Xf", "-e", "notes.txt"]));
+    assert_eq!(aliased.arguments, args(&["spring", "-e", "notes.txt"]));
+    // An ordinary alias is replaced by its expansion, so the words Git receives are the words the rules read.
+    let ordinary: GuardedForwarded = decided(&[("wipe", "reset --hard")], &["wipe"]);
+    assert_eq!(ordinary.decided_words, args(&["reset", "--hard"]));
+    assert_eq!(ordinary.decided_words, ordinary.arguments);
+    // So is a command the caller names itself.
+    let direct: GuardedForwarded = decided(&[], &["clean", "-ffdX"]);
+    assert_eq!(direct.decided_words, args(&["clean", "-ffdX"]));
+    assert_eq!(direct.decided_words, direct.arguments);
+    // A shell the guard cannot read names no command, so it carries the caller's own words and changes nothing.
+    let unread: GuardedForwarded = decided(&[("moves", "!cd sub && git clean -ffdX")], &["moves"]);
+    assert_eq!(unread.decision, LinkedWorktreeDecision::Pass);
+    assert_eq!(unread.decided_words, args(&["moves"]));
 }
 
 /// What the guard cannot read is left to Git and to the shell,

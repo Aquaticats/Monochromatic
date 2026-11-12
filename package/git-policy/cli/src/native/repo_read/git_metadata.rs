@@ -186,7 +186,33 @@ pub fn run_metadata_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
-    return run_metadata_git_within(real_git, arguments, overlay, READ_CEILING);
+    return run_metadata_git_without_within(real_git, arguments, overlay, &[], READ_CEILING);
+}
+
+/// What:
+///  Run real Git with captured output and no standard input,
+///  in a directory of the caller's choosing,
+///  under `READ_CEILING`.
+///       `std::io::Result<T>` is `Result<T, std::io::Error>`.
+/// Why:
+///   A measurement made on behalf of a command must start where that command starts:
+///  Git reads a command's prefix from the directory it was started in,
+///  so `-C <directory>` reaches the same place and measures from another,
+///  and a clean's dry run started through `-C` names different paths than the clean deletes.
+///  The in-process readers answer from this process's own directory,
+///  so none of them is asked here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runMetadataGitIn(realGit, directory, args, overlay): Promise<MetadataOutput>;
+/// ```
+pub fn run_metadata_git_in(
+    real_git: &Path,
+    directory: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> std::io::Result<MetadataOutput> {
+    return run_metadata_git_without_within_in(real_git, Some(directory), arguments, overlay, &[], READ_CEILING);
 }
 
 /// What:
@@ -227,7 +253,7 @@ pub fn run_metadata_git_within(
     overlay: &[(OsString, OsString)],
     ceiling: Duration,
 ) -> std::io::Result<MetadataOutput> {
-    return run_metadata_git_without_within(real_git, arguments, overlay, &[], ceiling);
+    return run_metadata_git_without_within_in(real_git, None, arguments, overlay, &[], ceiling);
 }
 
 /// What:
@@ -248,10 +274,46 @@ pub fn run_metadata_git_without_within(
     remove: &[&str],
     ceiling: Duration,
 ) -> std::io::Result<MetadataOutput> {
+    return run_metadata_git_without_within_in(real_git, None, arguments, overlay, remove, ceiling);
+}
+
+/// What:
+///  The one start every metadata query goes through:
+///  real Git with captured output,
+///  no standard input,
+///  the given variables removed,
+///  the given ceiling,
+///  and a directory of its own when the caller named one.
+///  `Option<&Path>` is that directory,
+///  and nothing for this process's own.
+/// Why:
+///   A query must never consume the caller's stdin (which belongs to the forwarded command)
+///  or write to the caller's streams,
+///  and it must not outlast its ceiling;
+///  a query about another directory has to start Git there,
+///  and every other query keeps the start it always had.
+///  The in-process readers answer from this process's own directory and read the
+///  environment this start would,
+///  so they answer only when no directory moved the start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runMetadataGitWithoutWithinIn(realGit, directory, args, overlay, remove, ceiling): Promise<MetadataOutput>;
+/// ```
+fn run_metadata_git_without_within_in(
+    real_git: &Path,
+    directory: Option<&Path>,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    remove: &[&str],
+    ceiling: Duration,
+) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process, and the readers keep that answer
     //  whatever this start removes: they read the pathspec magic of the names the wrapper wrote and no pathspec mode at
-    //  all, so a mode that reaches the start is the one case where their answer would differ from Git's.
-    if !crate::conflict_side_modes::a_mode_reaches_the_start(overlay, remove)
+    //  all, so a mode that reaches the start is the one case where their answer would differ from Git's. A start in
+    //  another directory is no such case and no such answer: those readers read this process's own directory.
+    if directory.is_none()
+        && !crate::conflict_side_modes::a_mode_reaches_the_start(overlay, remove)
         && let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice())
     {
         return Ok(answered);
@@ -267,6 +329,10 @@ pub fn run_metadata_git_without_within(
     // const output = await spawnWatched(command, { waitingFor: subject, ceiling });
     // ```
     let mut command: std::process::Command = git_command(real_git, arguments, overlay, StartOwner::Wrapper);
+    // The directory the measurement belongs to, when it is not the one this process stands in.
+    if let Some(found) = directory {
+        command.current_dir(found);
+    }
     for name in remove {
         command.env_remove(name);
     }

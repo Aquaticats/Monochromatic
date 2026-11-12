@@ -20,6 +20,8 @@ use crate::command_options::{
 };
 /// The captured answer of a query Git ran.
 use crate::git_metadata::MetadataOutput;
+/// The caller's global options without the `-C` chain the dry run replaces with one directory.
+use crate::global_arguments::without_directory_changes;
 use crate::command_options_query::{
     WrapperFlags, is_enabled, positional_tokens, split_wrapper_flags, value_bytes,
 };
@@ -38,6 +40,8 @@ use crate::command_options_query::{
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
+use std::path::{Path, PathBuf};
 
 /// The fact the reading of a clean's own dry run names when it fails.
 /// Why:
@@ -202,10 +206,44 @@ pub fn parse_clean_region(
 }
 
 /// What:
-///  The `git clean` arguments that make Git print exactly what this clean would delete,
+///  One `git clean --dry-run` of a clean,
+///  as the pair that measures it:
+///  the directory the clean runs in,
+///  and the arguments Git reads there.
+///  A `struct` is a record with named fields.
+///  `PathBuf` is an owned filesystem path of raw bytes.
+/// Why:
+///   Git reads a command's prefix from the directory it was started in,
+///  so these arguments mean one thing started here and another started there,
+///  and a clean the person's `!` alias runs starts at the top of the working tree
+///  (`git.c:388` to `git.c:407`),
+///  not where the wrapper stands.
+///  Keeping the two in one value is what stops a caller from starting the query anywhere else,
+///  which measured a narrower subtree and let a clean delete a nested repository unsaved;
+///  `-C` cannot stand in for the directory,
+///  because it reaches the same place and measures from the caller's own.
+///  `arguments` carries every fact of the clean and no `-C` of the caller's
+///  (`without_directory_changes`),
+///  so Git moves once, here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CleanDryRun = { runIn: string; arguments: string[] };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CleanDryRun {
+    /// The directory the clean runs in, where the query starts Git.
+    pub run_in: PathBuf,
+    /// The arguments of the dry run, read from `run_in`.
+    pub arguments: Vec<OsString>,
+}
+
+/// What:
+///  The dry run that makes Git print exactly what this clean would delete,
 ///  or nothing
 ///  when Git would refuse the region.
-///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens,
+///  and `&Path` the directory the clean runs in.
 /// Why:
 ///  `-e`/`--exclude` adds its patterns to the ignore rules the clean applies,
 /// and the worktree status
@@ -221,15 +259,16 @@ pub fn parse_clean_region(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
+/// function cleanDryRunArguments(globalPrefix: string[], region: string[], runIn: string): CleanDryRun | undefined;
 /// ```
-pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, true, DryRunForces::AsTyped);
+pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString], run_in: &Path) -> Option<CleanDryRun> {
+    return dry_run_arguments(global_prefix, region, run_in, true, DryRunForces::AsTyped);
 }
 
 /// What:
 ///  The same dry run without the patterns the clean's own `-e`/`--exclude` tokens add to its ignore rules.
-///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens,
+///  and `&Path` the directory the clean runs in.
 /// Why:
 ///  A pattern can pull into a clean a path the worktree itself does not ignore,
 ///  and the difference between
@@ -238,10 +277,10 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
+/// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[], runIn: string): CleanDryRun | undefined;
 /// ```
-pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, false, DryRunForces::AsTyped);
+pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString], run_in: &Path) -> Option<CleanDryRun> {
+    return dry_run_arguments(global_prefix, region, run_in, false, DryRunForces::AsTyped);
 }
 
 /// What:
@@ -268,7 +307,8 @@ enum DryRunForces {
 /// What:
 ///  The same dry run written with exactly one `-f`,
 ///  the force count at which Git keeps every nested repository it meets.
-///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens,
+///  and `&Path` the directory the clean runs in.
 /// Why:
 ///  Git removes a nested repository only with a second `-f` (`builtin/clean.c`,
 ///  `if (force > 1) rm_flags = 0`),
@@ -278,33 +318,49 @@ enum DryRunForces {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function cleanDryRunArgumentsKeepingNestedRepositories(globalPrefix: string[], region: string[]): string[] | undefined;
+/// function cleanDryRunArgumentsKeepingNestedRepositories(globalPrefix: string[], region: string[], runIn: string): CleanDryRun | undefined;
 /// ```
-pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, true, DryRunForces::One);
+pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsString], region: &[OsString], run_in: &Path) -> Option<CleanDryRun> {
+    return dry_run_arguments(global_prefix, region, run_in, true, DryRunForces::One);
 }
 
 /// What:
-///  The dry-run arguments of one clean,
+///  The dry run of one clean,
 /// with or without its own exclusion patterns,
+///  started where the clean itself starts,
 ///  and with the force count one of the two readings writes.
 ///  `bool` says whether the patterns are written.
+///  `&Path` borrows that directory,
+///  which every caller passes absolute.
 /// Why:
 ///  Every reading is the same command,
 ///  so they share one builder and differ in one step each;
 ///  a second copy of the
 ///  rebuild would drift from this one.
+///  A clean can delete from a directory the wrapper does not stand in:
+///  Git changes to the top of the working tree before it runs the shell of a `!` alias
+///  (`git.c:388` to `git.c:407`),
+///  which is where the command inside it measures its prefix from,
+///  so a dry run started in the caller's directory measures a narrower subtree than the clean deletes
+///  (`SPEC.md`, the paragraph beginning "A clean in a linked worktree that deletes ignored files").
+///  The caller's `-C` chain is left out of the arguments and the directory is carried beside them,
+///  because `-C` reaches the same directory and measures from the one Git was started in:
+///  `git -C <top> clean -ffdX` from a subdirectory names `./ignored.log` and refuses to remove the
+///  working directory,
+///  while the same clean started at the top names the subdirectory and removes it,
+///  which is what the nested command deletes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean, forces: DryRunForces): string[] | undefined;
+/// function dryRunArguments(globalPrefix: string[], region: string[], runIn: string, withExclusions: boolean, forces: DryRunForces): CleanDryRun | undefined;
 /// ```
 fn dry_run_arguments(
     global_prefix: &[OsString],
     region: &[OsString],
+    run_in: &Path,
     with_exclusions: bool,
     written_forces: DryRunForces,
-) -> Option<Vec<OsString>> {
+) -> Option<CleanDryRun> {
     // The region Git refuses is nothing to ask about; the `?` is that refusal.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
@@ -323,7 +379,7 @@ fn dry_run_arguments(
             exclusions.push(value_bytes(region, value));
         }
     }
-    let mut arguments: Vec<OsString> = global_prefix.to_vec();
+    let mut arguments: Vec<OsString> = without_directory_changes(global_prefix);
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
@@ -351,7 +407,7 @@ fn dry_run_arguments(
     for index in positional_tokens(&parsed, region.len()) {
         arguments.push(region[index].clone());
     }
-    return Some(arguments);
+    return Some(CleanDryRun { run_in: run_in.to_path_buf(), arguments });
 }
 
 /// What:

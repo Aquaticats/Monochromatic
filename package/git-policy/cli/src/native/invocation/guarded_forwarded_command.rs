@@ -50,25 +50,42 @@ use std::path::PathBuf;
 
 /// What:
 ///  The guard's decision,
-///  the arguments it decided about and,
+///  the words it decided about,
+///  the arguments Git receives and,
 ///  for a `!` alias,
 ///  the directory its shell runs in.
 ///  A `struct` is a record with named fields.
 /// Why:
 ///   A caller that records what it decided has to name the command Git will run,
 /// which for an alias is the
-///  expansion and not the alias name,
-///  and a caller that resolves a relative path of that command needs the directory Git
-///  starts its shell in.
+///  expansion and not the alias name;
+///  a caller that reads the flags and paths of that command needs the words the decision was
+///  made on,
+///  which are not the words Git receives for a `!` alias;
+///  and a caller that resolves a relative path of that
+///  command needs the directory Git starts its shell in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type GuardedForwarded = { decision: LinkedWorktreeDecision; args: string[]; shellDirectory?: string };
+/// type GuardedForwarded = { decision: LinkedWorktreeDecision; decidedWords: string[]; args: string[]; shellDirectory?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GuardedForwarded {
     /// What the guard decides about the command Git will run.
     pub decision: LinkedWorktreeDecision,
+    /// What:
+    ///  The words the guard decided about:
+    ///  the caller's own for a built-in word or a pass,
+    ///  the expansion for an alias Git runs in place of the word,
+    ///  and the words the shell of a `!` alias runs.
+    /// Why:
+    ///   A `!` alias's shell runs a Git command whose flags and paths Git appends the caller's
+    ///  own words to,
+    ///  and the wrapper forwards the caller's words unchanged,
+    ///  so `arguments` names the alias while this names the command inside it;
+    ///  a policy that reads the flags or paths of the command Git runs reads them here,
+    ///  or it judges a command nobody runs.
+    pub decided_words: Vec<OsString>,
     /// The arguments Git receives:
     ///  the caller's own,
     ///  or the alias expansion the wrapper forwards.
@@ -110,6 +127,7 @@ pub fn decide_guarded_forwarded(
     let Some((word, region)) = command_tokens(arguments) else {
         return GuardedForwarded {
             decision: LinkedWorktreeDecision::Pass,
+            decided_words: arguments.to_vec(),
             arguments: arguments.to_vec(),
             shell_directory: None,
         };
@@ -118,6 +136,7 @@ pub fn decide_guarded_forwarded(
     if is_git_builtin(word.as_encoded_bytes()) {
         return GuardedForwarded {
             decision: decide_guarded_word(word.as_encoded_bytes(), region),
+            decided_words: arguments.to_vec(),
             arguments: arguments.to_vec(),
             shell_directory: None,
         };
@@ -132,6 +151,7 @@ pub fn decide_guarded_forwarded(
         let Some(shell_command) = &resolved.shell_command else {
             return GuardedForwarded {
                 decision: LinkedWorktreeDecision::Pass,
+                decided_words: arguments.to_vec(),
                 arguments: arguments.to_vec(),
                 shell_directory: None,
             };
@@ -139,12 +159,15 @@ pub fn decide_guarded_forwarded(
         let Some((shell_word, shell_region)) = command_tokens(shell_command.as_slice()) else {
             return GuardedForwarded {
                 decision: LinkedWorktreeDecision::Pass,
+                decided_words: arguments.to_vec(),
                 arguments: arguments.to_vec(),
                 shell_directory: None,
             };
         };
         return GuardedForwarded {
             decision: decide_guarded_word(shell_word.as_encoded_bytes(), shell_region),
+            // The shell runs this command, so its flags and paths are the ones the rules read.
+            decided_words: shell_command.clone(),
             arguments: arguments.to_vec(),
             // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
             shell_directory: shell_run_directory(context, arguments),
@@ -153,12 +176,15 @@ pub fn decide_guarded_forwarded(
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
         return GuardedForwarded {
             decision: LinkedWorktreeDecision::Pass,
+            decided_words: arguments.to_vec(),
             arguments: arguments.to_vec(),
             shell_directory: None,
         };
     }
     return GuardedForwarded {
         decision: decide_guarded_word(resolved.word(), resolved.region()),
+        // An ordinary alias is replaced by its expansion, which is also what Git receives.
+        decided_words: resolved.arguments.clone(),
         arguments: resolved.arguments,
         shell_directory: None,
     };

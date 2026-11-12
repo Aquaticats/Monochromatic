@@ -2139,6 +2139,9 @@ The rule is:
   the clean as typed and the same clean without the patterns are printed by Git,
   and the command is refused while only the patterns call a path ignored,
   because that path is an untracked file the clean would lose.
+  Both dry runs start where the clean runs,
+  which is the top of the working tree for a clean a `!` alias starts,
+  so a pattern that reaches a file above the directory you stood in is still measured.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
@@ -2232,6 +2235,16 @@ with no guard:
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
 An alias the guard reads is still forwarded as you wrote it,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it.
+What the rules read is the command inside the shell,
+its flags and its paths included,
+and what they read a relative path from,
+and measure on its behalf,
+is the top of the working tree Git starts that shell in,
+which is not the directory you stood in.
+A clean an alias runs is therefore measured over what it really deletes:
+an untracked file an `-e` pattern names above you,
+and a nested repository above you,
+are kept or refused before Git runs.
 
 Two commands are never rejected and always leave one audit line (outcome `logged`,
 with `writtenBeforeGitRuns` `true`,

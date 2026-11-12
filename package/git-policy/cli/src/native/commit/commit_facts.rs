@@ -22,6 +22,8 @@ use crate::candidate_error::CandidateError;
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// Rule facts.
 use crate::repository_facts::RepositoryFacts;
+/// The pair that makes one clean dry run: its directory and its arguments.
+use crate::command_clean::CleanDryRun;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
@@ -125,12 +127,12 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        return self.inner.clean_deleted_paths(arguments);
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_deleted_paths(dry_run);
     }
 
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        return self.inner.clean_dry_run_lines_with_one_force(arguments);
+    fn clean_dry_run_lines_with_one_force(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_dry_run_lines_with_one_force(dry_run);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -192,12 +194,12 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        return (**self).clean_deleted_paths(arguments);
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_deleted_paths(dry_run);
     }
 
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        return (**self).clean_dry_run_lines_with_one_force(arguments);
+    fn clean_dry_run_lines_with_one_force(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_dry_run_lines_with_one_force(dry_run);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
