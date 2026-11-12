@@ -275,6 +275,31 @@ fn every_in_progress_marker_is_refused_where_git_keeps_it() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A bisect that was killed before it opened its log is refused,
+///  in the main Git directory and in a linked worktree's administrative directory.
+/// Why:
+///  `git bisect start` writes `BISECT_START`, then `BISECT_NAMES`,
+/// and opens `BISECT_LOG` only after both
+///  (measured with Git 2.56 under `strace`),
+///  so a process killed between those writes leaves a bisect in progress whose only mark is a file written before the kill,
+///  and a preflight that knew only the log migrated the checkout with that bisect still unfinished.
+#[test]
+fn a_bisect_killed_before_its_log_is_refused() {
+    let (parent, layout) = checkout("preflight-bisect-killed");
+    let admin: PathBuf = layout.root.join(".git/worktrees/linked");
+    std::fs::create_dir_all(admin.as_path()).expect("admin directory");
+    for directory in [layout.root.join(".git"), admin.clone()] {
+        let start: PathBuf = directory.join("BISECT_START");
+        std::fs::write(start.as_path(), b"main\n").expect("the file Git writes before its log");
+        let found: Vec<Refusal> = migrate_refusals(&PlainPlatform::new(), &layout, &empty_journal(&layout));
+        assert_eq!(found.len(), 1, "{}: {found:?}", start.display());
+        assert!(found[0].cause.contains("BISECT_START"), "{found:?}");
+        std::fs::remove_file(start.as_path()).expect("remove the mark");
+    }
+    remove(parent.as_path());
+}
+
 /// The migration's own locks (the main one and a linked worktree's) are accepted when they hold the journal's token,
 /// and
 ///  no other lock is:
