@@ -313,6 +313,70 @@ fn a_lock_a_gone_git_left_does_not_end_a_merge() {
 /// ```ts
 /// const side = /saved on (\S+)/.exec(stderr)?.[1];
 /// ```
+/// The carried refs the wrapper keeps in `repo`.
+fn carried_refs(fixture: &Fixture, repo: &Path) -> Vec<String> {
+    let listed: String = git_text(fixture, repo, &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]);
+    return listed.lines().map(|line| { return line.trim().to_owned(); }).filter(|name| { return !name.is_empty(); }).collect();
+}
+
+/// What:
+///  A merge saved behind a live foreign `index.lock` while the worktree holds an edit to a path the merge changes
+///  finishes once,
+///  and then leaves no ref and no record behind.
+/// Why:
+///  The save writes two records that name one capture of the person's bytes:
+/// the merge's own,
+/// and the one that says the checkout is still to be finished.
+/// Each record's finish must be able to let the capture go,
+/// or the person is left with refs and records nothing will ever remove,
+/// and a notice on every later command
+/// (the alpha.14 audit's finding 3).
+/// The edit is to `f.txt`,
+/// a path the merge changes,
+/// which is what makes the merge capture anything at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('f.txt', 'mine\n'); await mergeBehindLiveLock(); rm(lock); await wrapped(['status']);
+/// expect(carriedRefs()).toEqual([]); expect(keptRefs()).toEqual([]); expect(records()).toEqual([]);
+/// const later = await wrapped(['diff', '--stat']); expect(later.stderr).not.toContain('finished');
+/// ```
+#[test]
+fn a_saved_merge_that_carries_an_edit_leaves_no_ref_and_no_record_behind() {
+    let fixture: Fixture = fixture("merge-saved-carry-cleanup");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    std::fs::write(repo.join("f.txt"), b"my own edit of a file the merge changes\n").expect("the person's edit");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(lock.as_path(), b"").expect("a running program's lock");
+    std::fs::write(repo.join(".git/index~pid.lock"), format!("pid {}\n", std::process::id())).expect("the PID file of this process, which runs");
+    let saved = super::commit::run_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
+    assert_eq!(saved.code, Some(0), "the merge is saved, not failed: {said}");
+    assert!(said.contains("saved on refs/cli-git/kept/"), "the side ref is named: {said}");
+    let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side_ref_of(said.as_str()).as_str()]).trim().to_owned();
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()).len(), 2, "the merge and its save are both recorded");
+    assert_eq!(carried_refs(&fixture, repo.as_path()).len(), 1, "the edit is kept on a carried ref");
+    std::fs::remove_file(lock.as_path()).expect("the holder lets go");
+    let _pid = std::fs::remove_file(repo.join(".git/index~pid.lock"));
+    // The next command finishes the merge, once.
+    let finished = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    let result: String = String::from_utf8_lossy(&finished.stderr).into_owned();
+    assert_eq!(finished.code, Some(0), "{result}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch holds the saved merge");
+    let file: Vec<u8> = std::fs::read(repo.join("f.txt")).expect("the person's file");
+    let carried: String = String::from_utf8_lossy(file.as_slice()).into_owned();
+    assert!(carried.contains("my own edit of a file the merge changes"), "the edit is carried: {carried}");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "no record stays: {result}");
+    assert_eq!(kept_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the side ref goes: {result}");
+    assert_eq!(carried_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the carried ref goes: {result}");
+    // A read-only command afterwards says nothing about a merge: nothing is left to finish and nothing to retry.
+    let later = super::commit::run_commit(&fixture, repo.as_path(), &["diff", "--stat"]);
+    let quiet: String = String::from_utf8_lossy(&later.stderr).into_owned();
+    assert!(!quiet.contains("finished an interrupted merge") && !quiet.contains("could not be removed"), "no merge is spoken of any more: {quiet}");
+    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    remove_settled(&fixture);
+}
+
 fn side_ref_of(said: &str) -> String {
     // Every wait notice can say the merge is saved on a ref of its own, so the line is read at the ref it names.
     let (_, rest) = said.split_once("saved on refs/").expect("the line names the side ref");
