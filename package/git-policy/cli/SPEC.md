@@ -4227,6 +4227,15 @@ of which the two that rewrite link layouts in place are the service's work whene
   rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
   so no build that starts at once finds artifacts Cargo would call fresh:
   it finds no build directory and compiles everything itself, which is correct and only slower.
+  The marker is one file beside the staging name (`<staging name>.owner`),
+  and it says what it claims:
+  which repair began, which build directory it staged, and which add began it.
+  An add believes a marker only when it can place it and the staging copy it names stands beside it;
+  a marker written for another build directory came here inside a copy and claims nothing here,
+  and one of this build directory with no staging copy beside it is a marker whose rename never
+  happened,
+  so the repair runs again in both cases rather than being skipped.
+  A file this job did not write at either name is somebody's and is never removed.
   The filling then cleans that staged copy and publishes it back with the rename that never replaces,
   so a worktree that built in the meantime keeps what it made.
   The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:

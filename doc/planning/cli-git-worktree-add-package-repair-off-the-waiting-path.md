@@ -466,6 +466,232 @@ the relink's own failures and retries are another session's work
 (`fix/git-policy-cli-relink-of-a-new-worktree-does-not-fail-on-pnpm-and-is-not-given-up`),
 and changing the wait under it would collide.
 
+### What an add without a service answers today (measured 2026-11-12, branch tip plus this fix)
+
+Three adds of a fixture the size of this repository,
+with no commit service reachable:
+`${HOME}/temp/agent/pkgrepair-repair-off-the-path/base`,
+a btrfs subvolume holding a clone of this repository,
+a `target/` directory in every tracked workspace,
+a built external build directory for its tiny workspace,
+and a `node_modules` copied from a worktree so the pnpm lane has the stale links a copy carries.
+Each run has its own `HOME`, `XDG_RUNTIME_DIR`, `CARGO_HOME`, `RUSTUP_HOME` and a
+`DBUS_SESSION_BUS_ADDRESS` naming no socket,
+and the wrapper is the release build of this branch.
+Adds and numbers
+(the first three are the measurement; the fourth re-ran the same shape to read a full stderr):
+
+- run 1: wall 50,141 ms, `totalMs` 49,839, `repairPnpm` 7,104, `repairCargo` 671, `copyIgnored`
+  21,424, `cargoMetadataWorktree` 1,345 over 36 reads, `cargoMetadataSource` 712 over 36;
+- run 2: wall 17,354 ms, `totalMs` 16,407, `repairPnpm` 11,991, `repairCargo` 1,153,
+  `copyIgnored` 516, `cargoMetadataWorktree` 684, `cargoMetadataSource` 2,195;
+- run 3: wall 15,554 ms, `totalMs` 15,489, `repairPnpm` 12,909, `repairCargo` 503,
+  `copyIgnored` 19,036, `cargoMetadataWorktree` 760, `cargoMetadataSource` 1,163;
+- run 4: wall 10,323 ms, `totalMs` 10,279, `repairPnpm` 4,484, `repairCargo` 876,
+  `snapshotIoctl` 4,161, `copyIgnored` 0.3, and no "still needs one step" line, so the relink
+  succeeded.
+
+Every one of them ran no `cargo clean` at all, and every one is inside the owner's 60 s bound.
+The largest is the one whose ignored-state copy took 21.4 s and whose pnpm took 7.1 s.
+
+What that says about the 72,850 ms above:
+that number came from a fixture whose `pnpm` **slept** 62 seconds, not from a measured pnpm run.
+The real pnpm of this machine relinked these fixtures in 4.5 to 12.9 s,
+so the inline relink is not, by itself, what breaks the bound on a repository of this size.
+What breaks it is a pnpm whose own run is longer than the add has left,
+which a cold store, a slow disk or a loaded machine can produce,
+and only then does the tool's 600 s window stand where the bound should.
+
+An earlier three runs of the same script are not part of this measurement:
+they used a disposable `HOME` with no pnpm cache or store, so `pnpm --offline` refused in 0.8 to
+5.9 s with `ERR_PNPM_NO_OFFLINE_META` and the add answered 40,529, 3,356 and 34,480 ms while
+doing no relink at all.
+Their logs are what showed the fixture needed the person's caches.
+
+### What each option would cost and gain, by this reading
+
+- Giving the inline fallback the add's remaining budget as its quiet window and ceiling:
+  it would bound this path by construction, and a slow pnpm would end with the tool's own line and
+  the command to run. It costs a second, smaller number beside the 600 s in
+  `src/native/service/wait_ceilings.rs`, because `RepairEnvironment::limits()` is one value for the
+  pnpm, toolchain and Cargo lanes, so the smaller bound has to be threaded to the fallback alone
+  (`relink_here` in `src/native/repair/package_repair.rs`), and the budget left has to come from the
+  add's own start time. It would also cut a pnpm that legitimately needs longer on a cold store:
+  these fixtures took 4.5 to 12.9 s, and a first install against an empty store takes far more.
+- Leaving the relink to the service and printing the command instead:
+  the add would never wait for pnpm, and the wait for a service is already bounded
+  (`HAND_OVER_GREETING_WAIT`, two seconds). It costs the correctness-of-location `SPEC.md` keeps for
+  a session with no service manager: every worktree added there would keep the source's links until
+  a person runs the command.
+- Leaving it as it is and recording the exception:
+  it costs nothing to build, and the bound it leaves unheld is narrower than the 72.85 s figure
+  suggested, because the real pnpm here relinked in 4.5 to 12.9 s.
+
+The ranking above is unchanged by this reading: the first, then the second, then the third.
+No option is chosen here.
+
+## A marker a copy carries, and a repair that ran again
+
+A review of this branch on 2026-11-12 found that the marker could travel inside the ignored-state
+copy and be read in the next worktree as a claim on names it says nothing about,
+and that the add then skipped the repair in silence.
+A second review weighed it as a defect new with this change,
+rare,
+and deleting nothing
+(`/var/home/user/temp/agent/digest-2026-11-12T1054-reviews/digest.md`,
+"Review 4").
+
+The sequence, all of it on a disposable fixture under its own `HOME` and `XDG_RUNTIME_DIR`:
+
+1. An add of worktree `W` is killed between the marker's write and the rename that moves the
+   copied build state aside. `W` keeps `ws/target` and the marker, has no staging copy, and has no
+   record, because the hand-over never ran.
+2. A worktree `W2` is added from `W`. The ignored-state copy carries `ws/target` and the marker,
+   because the staging patterns live in `info/exclude`.
+3. `W2`'s add found the marker, found no staging copy, and answered `Staged::Nothing`,
+   which `repair_workspace_awaiting` turned into `Done::Skipped`:
+   the copied build state stayed where a build calls it fresh, no record named it, no service would
+   ever clean it, and the add printed nothing about it.
+   Reproduction 2 of that review measured a build then answering `Finished ... in 0.00s` without
+   compiling and printing the source checkout's path.
+
+The kill window was hit live through the built wrapper, not simulated:
+`strace --follow-forks --trace=rename --inject=rename:signal=KILL:when=1` with
+`--trace-path` naming the build directory the rename takes.
+`--trace-path` matches the first path argument of a `rename` and resolves symlinks,
+so the path to give it is the build directory being moved, not the staging name it moves to
+(the run is `${HOME}/temp/agent/worktree-add-carried-marker/reproduce_carried_marker.ts`).
+
+Before the fix, the add of `W2` printed no repair line at all, and the script's own summary was:
+
+```text
+[step 1] aftermath: target=true marker=true staging=false records=0
+[step 2] carriedTarget=true carriedMarker=true staging=false records naming W2=0 cargo runs in W2=1
+RESULT: repair skipped in silence = true; positive control stages = true
+```
+
+The positive control is the same add from the same killed worktree with the marker taken away,
+which staged the state and wrote the record.
+
+### The fix
+
+The marker now says what it claims, as JSON after a fixed lead:
+`repair` (which repair began), `to` (which build directory it staged), and `begunBy` (which add
+began it, as its process and the moment it asked).
+An add believes a marker only when it can place it and the thing it claims is standing there:
+
+- a marker that names this build directory with the staging copy beside it means the state is
+  already out of the worktree, so the add hands the workspace over and the filling's clean is the
+  rest of the repair;
+- a marker that names this build directory with no staging copy beside it is a marker whose rename
+  never happened, or one a filling published, and the repair runs again;
+- a marker that names another build directory came here inside a copy, so it is taken back and the
+  repair runs again over what this worktree holds;
+- a file this job did not write is never removed, and the add says what to run instead.
+
+Where a copy carried another worktree's staged copy as well as a build directory,
+the older copy of the same tree goes and this worktree's own state is what the filling cleans.
+Where the copy carried a staged copy and no build directory, that staged copy is the only one and is
+cleaned and published itself.
+
+After the fix, the same script answers:
+
+```text
+[step 2] carriedTarget=false carriedMarker=true staging=true records naming W2=1 cargo runs in W2=1
+[control] add W3 (marker taken away): exit=0 staged=true records naming W3=1
+RESULT: repair skipped in silence = false; positive control stages = true
+```
+
+and the add prints the line naming the state it moved aside.
+
+### The controls, shown failing first
+
+Two of them ran against the code before the fix and answered the skip:
+
+```text
+repair::package_repair_prewarm_job::tests::a_marker_a_copy_carried_from_another_worktree_never_skips_the_repair
+  assertion `left == right` failed: the copied state is staged instead of skipped
+    left: Nothing
+   right: Staged(".../worktree-build.monochromatic-prewarm")
+
+repair::package_repair_prewarm_job::tests::a_marker_whose_rename_never_happened_stages_the_state_again
+  assertion `left == right` failed: the state is staged again rather than skipped
+    left: Nothing
+   right: Staged(".../worktree-build.monochromatic-prewarm")
+```
+
+A third covers a copy that carried a staging copy as well as a build directory,
+and the existing controls of the marker are unchanged:
+a named pipe at the marker name still never holds the filling,
+a person's file at that name is still never removed,
+and a staging name another writer holds is still refused.
+
+## The exclude patterns the copy can leave visible
+
+The same review found two names the staging patterns do not cover:
+the marker itself after a `write_all` that a full disk cut short
+(only the first pattern lands, and the later check tests only that first one),
+and the `.partial` file `write_then_publish` creates beside the marker before it publishes it.
+Both aftermaths are real, and both are visible in `git status`.
+Whether a person can reach the wrong result the review names, a bulk `git add -A` carrying the
+wrapper's internals into a commit, was measured through the built wrapper rather than real Git:
+
+```text
+[part A] wrapper git status --porcelain: "?? ws/target.monochromatic-prewarm.owner\n"
+[part A] wrapper git add -A: exit=1  add-explicit/bulk-add-rejected
+[part B] wrapper git add -A: exit=1  add-explicit/bulk-add-rejected
+[control 1] wrapper git add -A of an ordinary untracked file: exit=1  add-explicit/bulk-add-rejected
+[control 2] wrapper git add -- ws/target.monochromatic-prewarm.owner: exit=0  (staged)
+```
+
+The probe is `${HOME}/temp/agent/worktree-add-carried-marker/probe_exclude_reach.ts`.
+The wrapper refuses every bulk stage, so a person's `git add -A` cannot carry those files;
+the control shows the refusal is the guard and not a quirk of the fixture.
+Naming the exact file stages it, and `--no-enforce-bulk-add` bypasses the guard deliberately,
+so the residual is a person who reads `git status` and types the wrapper's internal name.
+That is not the review's sequence, so the code is left as it is and this records the limit:
+a torn append or a kill can still show one of those names in the person's `git status`.
+
+## A relink the service gave up on, seen under load (2026-11-12)
+
+Between 11:08 and 11:23 this repository added about seventeen worktrees while some forty agents
+worked,
+and eight of them were told, by a commit about something else,
+that their package state "was not relinked after 3 tries".
+The commit service of the main checkout
+(`monochromatic-git-policy-cli@f30a114aaabc977cf77309db0f77f1ee.service`)
+logged every one of those attempts,
+and each attempt failed the same way:
+
+```text
+the package state of <worktree> could not be relinked: toolchain: 1 launcher records still name
+another lock file Run `mise run toolchain:install` to finish it now.; this is tried again when its
+claim runs out
+```
+
+So the lane that failed was the toolchain's, not pnpm's,
+and each try left exactly one launcher record naming another lock file
+(`stale_launch_records`, `src/native/repair/package_repair_toolchain.rs:87`).
+The work record keeps `tries: 3` and no reason
+(`.git/monochromatic-git-policy-cli/work/failed/relink-*`),
+and the notice carries none either:
+`words_for` names every tool the record asked for, not the one that failed,
+so a person is told that something failed three times and nothing about what.
+The stale record was transient:
+when this was written every `.launch` file of one of those eight worktrees named its own
+`toolchain.lock.json`.
+
+This branch changes none of that:
+who is told, when they are told, and what happens after a try fails are the relink's own paths
+(`package_repair_relink_job.rs`, `package_repair_relink_notice.rs`),
+and only the prewarm record this branch writes is touched here.
+The add that was still running 339 seconds into an add at 11:23,
+with `cargo` children,
+is the installed release,
+which still runs the add's 34 `cargo clean` calls ("The no-service fallback exceeds the add's
+bound" above);
+the adds measured below on this branch start no `cargo clean` at all.
+
 ## The controls
 
 Each control failed before the change and passes after it.
