@@ -137,7 +137,7 @@ fn a_missing_program_is_refused_before_anything_starts_unless_the_upload_is_bypa
     let refused: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
     let stderr: String = stderr_of(&refused);
     assert_eq!(refused.code, Some(1), "{stderr}");
-    assert!(stderr.contains("was not found in any directory of PATH"), "{stderr}");
+    assert!(stderr.contains("was not found in the folders this push searches"), "{stderr}");
     assert!(!stderr.contains("Writing objects") && !stderr.contains("To "), "nothing started: {stderr}");
     let bypassed: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "--no-verify", "origin", "main"]);
     assert_eq!(bypassed.code, Some(0), "{}", stderr_of(&bypassed));

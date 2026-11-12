@@ -389,6 +389,21 @@ Read-only commands,
   which scans itself;
   a clone whose `.git/lfs` lacks an old object then
    refuses the push with `git-lfs`'s words instead of publishing pointers nobody can fill.
+  The folders the search reads are the push's own list:
+  a typed push reads its command's environment,
+  and a push the commit service runs reads the list the shell that committed recorded at
+   `<git-dir>/monochromatic-git-policy-cli/push-programs.json` (its `PATH` and the variables that name `ssh`,
+   `GIT_SSH`,
+  `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`,
+  and `GIT_EXEC_PATH`),
+  because the service takes the environment the user manager started it with.
+  A push refused for want of `git-lfs` names the program,
+  the folders it searched and where that list came from;
+  the service never asks for a login,
+  so no askpass program is carried,
+  and a credential helper is found
+   through the carried `PATH` and the repository's configuration.
   When `git-lfs push` fails,
   the wrapper does not run it again,
   whatever the cause.

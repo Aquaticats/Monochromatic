@@ -29,7 +29,9 @@ fn a_push_is_refused_only_when_the_program_is_missing() {
     executable(full.join("git-lfs").as_path(), b"#!/bin/sh\n");
     let region: Vec<OsString> = words(&["origin", "main"]);
     let refusal: String = lfs_refusal(&[], region.as_slice(), path_environment(&empty).as_slice()).expect("refused");
-    assert_eq!(refusal, missing_program_message());
+    let search: crate::lfs_pre_push::ProgramSearch = crate::lfs_pre_push::ProgramSearch::of(path_environment(&empty).as_slice());
+    assert_eq!(refusal, missing_program_message(&search));
+    assert!(refusal.contains(&empty.display().to_string()), "the refusal names the folder it searched: {refusal}");
     assert_eq!(lfs_refusal(&[], region.as_slice(), path_environment(&full).as_slice()), None);
     assert!(lfs_refusal(&[], region.as_slice(), &[]).is_some(), "an unset PATH finds nothing");
     remove(root.as_path());

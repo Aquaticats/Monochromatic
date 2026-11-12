@@ -1059,6 +1059,52 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
     remove(repo.root.as_path());
 }
 
+/// What:
+///  A push the service runs searches the program list the client that committed recorded,
+///  and its marker names that record.
+/// Why:
+///   The service takes the environment the manager started it with,
+///   which the person cannot see or change;
+///   a push must find the programs the shell that committed would,
+/// and a refusal must say which list it searched.
+#[test]
+fn the_service_push_searches_the_list_the_client_recorded() {
+    let repo: Repo = repo("service-push-program-search");
+    let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
+    let item: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let record: PathBuf = crate::service_client_program_search::record_path(repo.common.as_path());
+
+    // No client recorded anything: the service's own list is the one searched, and the marker says where a record would be.
+    let without: PushGit = handlers.push_git(&item);
+    assert_eq!(
+        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_client_program_search::MISSING_VARIABLE),
+        Some(record.clone().into_os_string()),
+        "a push with no record names the place one would be"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_client_program_search::RECORD_VARIABLE),
+        None,
+        "and claims no record it does not have"
+    );
+
+    // A record the shell left: its list is searched, and the marker names the record.
+    let shell_path: OsString = OsString::from("/opt/git-lfs/bin:/usr/bin");
+    let shell: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), shell_path.clone())];
+    crate::service_client_program_search::write(repo.common.as_path(), shell.as_slice()).expect("the record is written");
+    let with: PushGit = handlers.push_git(&item);
+    assert_eq!(
+        crate::child_environment::environment_value(with.environment.as_slice(), "PATH"),
+        Some(shell_path),
+        "the push searches the shell's list, not the manager's"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(with.environment.as_slice(), crate::service_client_program_search::RECORD_VARIABLE),
+        Some(record.into_os_string()),
+        "and the marker names the record it came from"
+    );
+    remove(repo.root.as_path());
+}
+
 /// The listings a drain of `count` pushes of one branch costs,
 /// with every item settled.
 fn listings_of_a_drain(count: usize) -> usize {

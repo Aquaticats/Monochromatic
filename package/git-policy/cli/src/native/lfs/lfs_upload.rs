@@ -48,7 +48,7 @@ use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{failed_message, find_program, missing_program_message};
+use crate::lfs_pre_push::{ProgramSearch, failed_message, find_program, missing_program_message};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{
@@ -311,7 +311,7 @@ pub fn run_upload_interactive(
 ) -> Option<i32> {
     let Some(program) = find_program(environment_value(environment, "PATH").unwrap_or_default().as_os_str()) else {
         // Terminal output error: the exit status already carries the refusal.
-        let _written = diagnostics.write_all(missing_program_message().as_bytes());
+        let _written = diagnostics.write_all(missing_program_message(&ProgramSearch::of(environment)).as_bytes());
         return Some(1);
     };
     if plan.submodules {
@@ -352,7 +352,7 @@ pub fn run_upload_interactive(
                 }
                 Err(CaptureError::Start) => {
                     // Terminal output error: see above.
-                    let _written = diagnostics.write_all(missing_program_message().as_bytes());
+                    let _written = diagnostics.write_all(missing_program_message(&ProgramSearch::of(environment)).as_bytes());
                     return Some(1);
                 }
                 Err(CaptureError::Guard(why)) => {
@@ -428,13 +428,13 @@ pub fn submodule_notice() -> String {
 /// ```
 pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
     let Some(commands) = upload_commands(git, plan) else {
-        return Ok(Some(missing_program_attempt()));
+        return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice()))));
     };
     for (remote, command) in commands {
         let attempt: PushAttempt =
             match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
                 Ok(finished) => finished,
-                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
+                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice())))),
                 Err(other) => return Err(other),
             };
         if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
@@ -468,13 +468,13 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
         .await
         .map_err(refused_job)?
     else {
-        return Ok(Some(missing_program_attempt()));
+        return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice()))));
     };
     for (remote, command) in commands {
         let attempt: PushAttempt =
             match crate::bounded_push::run_bounded_push_awaiting(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()).await {
                 Ok(finished) => finished,
-                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
+                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice())))),
                 Err(other) => return Err(other),
             };
         if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {

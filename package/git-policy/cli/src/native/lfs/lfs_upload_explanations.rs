@@ -177,8 +177,8 @@ pub fn guard_failed_message(why: &str) -> String {
 /// ```ts
 /// ({ exitCode: 1, output: missingProgramMessage().trimEnd() })
 /// ```
-pub fn missing_program_attempt() -> PushAttempt {
-    return PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() };
+pub fn missing_program_attempt(search: &crate::lfs_pre_push::ProgramSearch) -> PushAttempt {
+    return PushAttempt { exit_code: 1, output: missing_program_message(search).trim_end().to_owned() };
 }
 
 /// What:

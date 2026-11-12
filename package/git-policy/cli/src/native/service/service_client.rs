@@ -150,6 +150,21 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
 /// ```
 pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let began: Instant = Instant::now();
+    // What: The program search list of this shell, left where the service that pushes reads it.
+    // Why: The service takes the environment the manager started it with, which the person cannot see or change; the shell
+    //  that commits is the only process that knows what its own `PATH` resolves, and the push may run after this command exits.
+    //  A record that cannot be written is not a reason to fail the commit: the service then searches its own list and its
+    //  refusal says that no record was there.
+    if let Err(why) = crate::service_client_program_search::write(request.git_dir.as_path(), std::env::vars_os().collect::<Vec<(std::ffi::OsString, std::ffi::OsString)>>().as_slice()) {
+        debug(
+            TAG,
+            format!(
+                "the program search list of this shell could not be recorded at {} ({why}), so the service searches its own; a push it cannot upload will say so",
+                crate::service_client_program_search::record_path(request.git_dir.as_path()).display()
+            )
+            .as_str(),
+        );
+    }
     // The signals a waiting commit answers are watched only while it waits: a Ctrl-C before the commit exists, or after it
     //  landed, keeps the ending it has, and the actions that were in place come back with the watch.
     let stop_watch: crate::service_client_interrupted::StopWatch = crate::service_client_interrupted::watch_for_a_stop();

@@ -155,6 +155,10 @@ pub mod service_main;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// The program search list the shell that commits leaves for the service that pushes,
+/// and the record the service reads before every push.
+pub mod service_client_program_search;
+
 /// The words a waiting command is told about its own wait.
 pub mod service_client_waiting_words;
 

@@ -352,7 +352,9 @@ fn a_missing_git_lfs_blocks_the_push_and_names_the_remedies() {
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
-    assert!(stderr.contains("`git-lfs` was not found in any directory of PATH"), "{stderr}");
+    assert!(stderr.contains("`git-lfs` was not found in the folders this push searches"), "{stderr}");
+    assert!(stderr.contains(&fixture.root.join("bin").display().to_string()), "the refusal names the folders it searched: {stderr}");
+    assert!(stderr.contains("The list is this command's own `PATH`"), "{stderr}");
     assert!(stderr.contains("install Git LFS"), "{stderr}");
     assert!(stderr.contains("git lfs uninstall"), "{stderr}");
     remove_settled(&fixture);
@@ -503,5 +505,36 @@ fn a_failing_upload_blocks_the_reconcile_push_of_an_auto_push() {
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
     super::support::settle_service_work(world.repo.as_path());
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), rival_tip);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The push a commit's service runs finds `git-lfs` the way the shell that committed does,
+///  though the service was started with a PATH that holds no folder with the program in it.
+/// Why:
+///   The service takes the environment the user manager started it with (`monochromatic-git-policy-cli@.service`),
+///   and on 2026-11-12 that PATH held no folder `git-lfs` is installed in while the person's shell had one:
+///   two runs' pushes were refused for a program their own shell could start,
+/// and the person could neither see
+///   nor change the list the service searched.
+#[test]
+fn a_commit_whose_service_lacks_the_shells_path_finds_git_lfs_through_the_shells_search_list() {
+    let fixture: Fixture = fixture("lfs-service-path");
+    let world: World = world(&fixture, true, Some(0));
+    // The manager gave the service a PATH with no folder of `git-lfs`; the shell that commits has the fixture's bin.
+    super::support::give_service_environment(&fixture, "PATH", "/usr/bin:/bin");
+    std::fs::write(world.repo.join("first.bin"), b"first\n").expect("fixture file");
+    let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=first", "--", "first.bin"]);
+    super::support::settle_service_work(world.repo.as_path());
+    let stderr: String = stderr_of(&landed);
+    let report: String = super::support::push_report(world.repo.as_path(), &stderr);
+    let tip: String = ref_of(&fixture, world.repo.as_path(), "refs/heads/main");
+    let recorded: Vec<Run> = runs(&world);
+    assert_eq!(
+        ref_of(&fixture, world.origin.as_path(), "refs/heads/main"),
+        tip,
+        "the service's push published the commit, running the git-lfs the committing shell has: {report} {recorded:?}"
+    );
+    assert_eq!(recorded.len(), 1, "one upload ran for the push: {report} {recorded:?}");
     remove_settled(&fixture);
 }

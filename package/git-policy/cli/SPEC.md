@@ -9948,6 +9948,33 @@ The step:
   one stat per `PATH` directory finds `git-lfs`;
   when it is absent the wrapper prints the
   install-or-remove explanation and exits with status 1.
+  Which folders that search reads is the push's own list.
+  A typed push reads the environment of that command.
+  A push the commit service runs reads the list the client that made the commit recorded beside the work records,
+  `<git-dir>/monochromatic-git-policy-cli/push-programs.json`
+  (its `PATH`,
+  `GIT_EXEC_PATH`,
+  `GIT_SSH`,
+  `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`),
+  which every commit refreshes before it submits:
+  the service takes the environment the user manager started it with,
+  and the person committing can neither see that list nor change it
+  (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
+  and two runs' commits landed while their pushes were refused for a program their own shell could start).
+  A client that recorded no list,
+  or a record this release cannot read,
+  leaves the service searching its own `PATH`,
+  and the refusal says that.
+  The refusal names the program,
+  every folder of the list it searched,
+  and where that list came from,
+  so a person can tell the manager's list from their own.
+  The record carries no askpass program:
+  the service's pushes carry the never-prompt pair by the owner's decision
+  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
+  so an askpass variable would be overwritten anyway;
+  a credential helper is found through the carried `PATH` and the repository's configuration,
+  and the service runs real Git by the absolute path its unit passes (`--git`).
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,
@@ -16657,7 +16684,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16747,7 +16775,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.

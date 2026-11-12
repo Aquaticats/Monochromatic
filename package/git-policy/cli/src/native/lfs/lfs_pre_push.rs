@@ -267,28 +267,156 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 }
 
 /// What:
-///  The refusal printed when `git-lfs` is not on `PATH`.
+///  The folders a push's children find their programs in,
+///  and where that list came from.
+/// Why:
+///   A push typed in a shell searches that shell's `PATH`,
+/// and a push the commit service runs searches the list it was given:
+/// the shell's,
+///  which the client records,
+/// or its own,
+/// which the user manager fixed at the service's start.
+/// A refusal that names only `PATH` leaves the person
+///  unable to tell which list was searched or how to change it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramSearch {
+    /// The `PATH` the push's children receive.
+    pub path: OsString,
+    /// Where that list came from.
+    pub source: ProgramSearchSource,
+}
+
+/// What:
+///  Where a push's program search list came from.
+/// Why:
+///   The refusal says it,
+/// so a person learns whether their own shell was searched or the service's list,
+/// and which
+///  one to change.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProgramSearchSource {
+    /// The environment of the command that is pushing.
+    ThisCommand,
+    /// The record the client that made the commit left,
+    /// at this path.
+    ClientRecord(std::path::PathBuf),
+    /// The service's own environment,
+    /// because no client record was at this path.
+    ServiceEnvironment {
+        /// Where the client that made the commit would have left its list.
+        missing_record: std::path::PathBuf,
+    },
+}
+
+impl ProgramSearch {
+    /// What:
+    ///  The list the given environment holds,
+    ///  and where it came from,
+    /// read from the markers a service's push carries.
+    /// Why:
+    ///   Only the service composes a push environment out of a record it read or did not find,
+    /// so it marks which one that was,
+    /// and every other push searches the environment of its own command.
+    /// The refusal then names the list it really searched,
+    /// never one of another push.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const source = env[RECORD_VARIABLE] ? { kind: 'clientRecord', path: env[RECORD_VARIABLE] }
+    ///   : env[MISSING_VARIABLE] ? { kind: 'serviceEnvironment', missing: env[MISSING_VARIABLE] } : { kind: 'thisCommand' };
+    /// ```
+    pub fn of(environment: &[(OsString, OsString)]) -> ProgramSearch {
+        let record: Option<OsString> = crate::child_environment::environment_value(environment, crate::service_client_program_search::RECORD_VARIABLE);
+        let missing: Option<OsString> = crate::child_environment::environment_value(environment, crate::service_client_program_search::MISSING_VARIABLE);
+        let source: ProgramSearchSource = match (record, missing) {
+            (Some(path), _) => ProgramSearchSource::ClientRecord(std::path::PathBuf::from(path)),
+            (None, Some(path)) => ProgramSearchSource::ServiceEnvironment { missing_record: std::path::PathBuf::from(path) },
+            (None, None) => ProgramSearchSource::ThisCommand,
+        };
+        return ProgramSearch { path: crate::child_environment::environment_value(environment, "PATH").unwrap_or_default(), source };
+    }
+
+    /// What:
+    ///  The folders the list names,
+    ///  as one line,
+    ///  an empty entry standing for the current directory as `PATH` reads it.
+    /// Why:
+    ///   The refusal must name what was searched,
+    /// and `PATH` itself is not a list of folders a person can read at a glance.
+    fn folders(&self) -> String {
+        let mut names: Vec<String> = Vec::new();
+        for folder in std::env::split_paths(self.path.as_os_str()) {
+            let shown: String = if folder.as_os_str().is_empty() { String::from(".") } else { folder.display().to_string() };
+            names.push(shown);
+        }
+        return if names.is_empty() { String::from("none (the list is empty)") } else { names.join(", ") };
+    }
+
+    /// What:
+    ///  Where the searched list came from,
+    ///  in words that say what the person could change.
+    /// Why:
+    ///   The list is the whole question:
+    /// a push that fails on the service's list would succeed on the shell's.
+    fn origin(&self) -> String {
+        return match &self.source {
+            ProgramSearchSource::ThisCommand => String::from("The list is this command's own `PATH`"),
+            ProgramSearchSource::ClientRecord(path) => format!(
+                "The list is the `PATH` recorded at {} by the client that made this commit, so it is the list the shell that committed searched",
+                path.display()
+            ),
+            ProgramSearchSource::ServiceEnvironment { missing_record } => format!(
+                "No `PATH` this release can read was recorded at {} by the client that made the commit, so this push searched the service's own `PATH`, which the manager that started the service fixed; the shell that made the commit may hold `{LFS_PROGRAM}` anyway",
+                missing_record.display()
+            ),
+        };
+    }
+
+    /// What:
+    ///  Where the person can put the program so the same push finds it.
+    /// Why:
+    ///  A remedy that names a list the person cannot change sends them nowhere.
+    fn remedy(&self) -> String {
+        return match &self.source {
+            ProgramSearchSource::ThisCommand => String::from("on this command's `PATH`"),
+            ProgramSearchSource::ClientRecord(_) => String::from("on the `PATH` of the shell that commits"),
+            ProgramSearchSource::ServiceEnvironment { .. } => {
+                String::from("on the `PATH` of the shell that commits, then push by hand once (`git push`), which records that list")
+            }
+        };
+    }
+}
+
+/// What:
+///  The refusal printed when `git-lfs` is not in the folders the push searches.
 /// Why:
 ///   Without the program the objects cannot be uploaded,
 /// and pushing anyway would publish pointers the server cannot
 ///  serve;
-/// every valid way forward is named,
+/// the refusal names the program,
+/// the folders that were searched and where that list came from,
+/// and every valid way
+///  forward,
 /// including leaving LFS if the repository does not need it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ...`
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ... not found in ${search.folders()}; ${search.origin()} ...`
 /// ```
-pub fn missing_program_message() -> String {
+pub fn missing_program_message(search: &ProgramSearch) -> String {
     return format!(
         "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
          keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large \
          files the pushed commits point to before it publishes the pointer files, but `{LFS_PROGRAM}` was not found in \
-         any directory of PATH. Pushing without that upload would publish pointers whose content the LFS server does \
-         not have. Ways forward: install Git LFS so that `{LFS_PROGRAM}` is on PATH and push again; or, if this \
+         the folders this push searches: {folders}. {origin}. Pushing without that upload would publish pointers whose content the LFS server does \
+         not have. Ways forward: put the folder that holds `{LFS_PROGRAM}` {remedy} and push again; or install Git LFS so that a folder the list \
+         names holds it; or, if this \
          repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the `filter.lfs.*` \
          and `lfs.*` keys); or accept pointers without objects for this push with `git push --no-verify` and upload \
-         the objects later with `git lfs push --all <remote>` once Git LFS is installed.\n"
+         the objects later with `git lfs push --all <remote>` once Git LFS is installed.\n",
+        folders = search.folders(),
+        origin = search.origin(),
+        remedy = search.remedy(),
     );
 }
 

@@ -37,7 +37,7 @@ pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting
 pub use crate::service_work_drains_awaiting::{drain_common_records_planned_awaiting, drain_planned_awaiting, drain_planned_with_awaiting};
 use crate::auto_push::push_once_awaiting;
 use crate::auto_push_single_flight::PushGit;
-use crate::child_environment::{environment_with_overlay, service_child_overlay};
+use crate::child_environment::environment_with_overlay;
 use crate::config_snapshot::read_config_snapshot_awaiting;
 /// The synchronous configuration read,
 /// which only the control that builds the push's Git without the runtime asks.
@@ -328,7 +328,7 @@ impl GitHandlers {
     fn push_git(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
         let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
-            self.push_environment_of();
+            self.push_environment_of(item.git_dir.as_path());
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
@@ -351,7 +351,7 @@ impl GitHandlers {
     async fn push_git_awaiting(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
         let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
-            self.push_environment_of();
+            self.push_environment_of(item.git_dir.as_path());
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot_awaiting(&self.context, cwd.as_path()).await.as_ref().is_none_or(uses_lfs),
@@ -360,31 +360,26 @@ impl GitHandlers {
         };
     }
 
-    /// What every Git child of a push receives,
-    /// and the overlay the service adds to it.
+    /// What:
+    ///  The environment every Git child of a push receives,
+    ///  built where the two faces of the push share it.
     /// Why:
-    ///   Both faces of the push Git build their environment here,
-    /// so the two cannot hand Git different variables.
-    ///  Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on,
-    /// which names the owner of a lock
-    ///  that a stopped push leaves behind;
-    /// the service's own environment does not turn it on.
-    /// The overlay also says never to ask for
-    ///  a login (`never_prompt_overlay`):
-    /// the host's askpass program is in this environment,
-    /// and a dialog nobody answers is a push that waits.
+    ///   The shell's list is laid over the service's own,
+    /// because the service takes the environment the user manager started it
+    ///  with,
+    /// which the person committing can neither see nor change
+    /// (`service_work_push_environment`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const [inherited, overlay] = pushEnvironmentOf();
+    /// const [inherited, overlay] = pushEnvironmentOf(item.gitDir);
     /// ```
-    fn push_environment_of(&self) -> (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) {
-        #[cfg_attr(not(test), expect(unused_mut, reason = "only a test adds variables"))]
-        let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+    fn push_environment_of(&self, git_dir: &Path) -> (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) {
         #[cfg(test)]
-        inherited.extend(self.push_environment.iter().cloned());
-        let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = service_child_overlay(inherited.as_slice());
-        return (inherited, overlay);
+        let extra: &[(std::ffi::OsString, std::ffi::OsString)] = self.push_environment.as_slice();
+        #[cfg(not(test))]
+        let extra: &[(std::ffi::OsString, std::ffi::OsString)] = &[];
+        return crate::service_work_push_environment::push_environment_of(extra, git_dir);
     }
 }
 

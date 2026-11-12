@@ -360,7 +360,8 @@ fn a_failing_or_missing_upload_stops_with_the_explanation() {
     let empty: PathBuf = root.join("empty");
     std::fs::create_dir(&empty).expect("empty directory");
     let (missing_code, missing) = run(root.as_path(), &[empty.as_path()], &[], &plan());
-    assert_eq!((missing_code, missing), (Some(1), missing_program_message()));
+    let empty_path: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), empty.clone().into_os_string())];
+    assert_eq!((missing_code, missing), (Some(1), missing_program_message(&ProgramSearch::of(empty_path.as_slice()))));
     remove(root.as_path());
 }
 
