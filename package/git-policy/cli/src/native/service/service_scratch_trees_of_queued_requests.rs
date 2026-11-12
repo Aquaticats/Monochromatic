@@ -49,10 +49,16 @@ static HELD: Mutex<Vec<(String, OsString)>> = Mutex::new(Vec::new());
 ///  Records the tree the request `id` named,
 ///  in place of any tree an earlier send of the same request named.
 /// Why:
-///   A command whose answer was lost prepares again,
-///  and the attempt it sends next names a tree of its own:
-///  the attempt it left is its own to release,
-///  and keeping both would keep a tree no request lands on.
+///   A command told to prepare again sends the same identity with a new attempt's tree,
+///  and that answer ended the landing of the attempt it left,
+///  which gave that tree back
+///  (`remove_the_trees`,
+/// `service_server.rs`):
+///  keeping both would keep a tree no request lands on.
+///  A request whose answer was lost is sent again with the identity and the tree it already had
+///  (`submit_loop`,
+/// `service_client.rs`),
+///  so its note replaces itself and the tree its queued landing reads stays held.
 ///  A path with no file name in it names no tree of a scratch place and is not recorded.
 ///
 /// In TS you'd write (pseudocode):

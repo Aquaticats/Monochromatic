@@ -125,6 +125,29 @@ fn place_of(collected: &[PathBuf], common_dir: &Path) -> Option<usize> {
 }
 
 /// What:
+///  The directory whose collection one caller claimed,
+///  given back when the collection ends,
+///  a panic inside the collection included.
+/// Why:
+///  A directory whose thread ended without giving its claim back is one this service never collects again,
+///  and a sweep calls the one decision that removes an entry,
+///  which asks the record of the trees the requests hold:
+///  the claim is therefore given back by the drop of this value,
+///  never by a line the end of the collection must reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { sweep(dir); } finally { release(dir); }
+/// ```
+struct Claimed(PathBuf);
+
+impl Drop for Claimed {
+    fn drop(&mut self) {
+        release(self.0.as_path());
+    }
+}
+
+/// What:
 ///  Starts the collection of one repository's scratch directory,
 ///  beside the landing loop,
 ///  unless that same directory is already being collected by this service.
@@ -147,17 +170,19 @@ pub fn start(common_dir: &Path) {
     let owned: PathBuf = common_dir.to_path_buf();
     let named: String = common_dir.display().to_string();
     let started = spawn_named("repository-scratch-sweep", move || {
+        // The directory is given back however this collection ends, so one refused listing or a panic in a removal does not
+        //  stop every later collection of it.
+        let claimed: Claimed = Claimed(owned.clone());
         // A control holds this collection at its beginning, on the thread that runs it, so "while it collects" is a state
         //  and not a duration.
         #[cfg(test)]
         crate::service_fault::hooks::run_on_any_thread(collection_point(owned.as_path()).as_str());
-        // The directory is given back however the collection ends, so one refused listing does not stop every later one.
         let removed: usize = sweep_repository_scratch(owned.as_path());
-        release(owned.as_path());
         crate::diagnostic_log::debug(
             "repositoryScratchSweep",
             format!("collected {} stale entries of the repository scratch directory of {named}", removed).as_str(),
         );
+        drop(claimed);
     });
     if let Err(error) = started {
         release(common_dir);

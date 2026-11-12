@@ -13,8 +13,9 @@
 //! ```
 
 /// The collection under control,
+/// what claims a directory for it,
 /// and the point a control holds one repository's collection at.
-use super::{collection_point, start};
+use super::{claim, collection_point, release as release_the_directory, start};
 use crate::command_test_support::{fixture, remove};
 use crate::service_fault::hooks::{HoldOnAnyThread, hold_on_any_thread};
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
@@ -177,4 +178,34 @@ fn a_collection_of_one_repository_does_not_stop_the_collection_of_another() {
     assert!(wait_until_gone(stale_a.as_path()), "A's collection ends and takes its own entry");
     remove(root_a.as_path());
     remove(root_b.as_path());
+}
+
+/// What:
+///  One directory is collected once,
+///  however many landings ask for it while it is being collected,
+///  and a directory whose collection ended is collectable again.
+/// Why:
+///  Two collections of one scratch directory remove the same entries,
+///  and a claim that was never given back would leave that repository without a collection for the rest of the service's
+///  life.
+///  The claim is asked directly here,
+///  because the two threads of a held collection and a second landing are a state no duration can show.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(claim(a)).toBe(true); expect(claim(a)).toBe(false); expect(claim(b)).toBe(true); release(a); expect(claim(a)).toBe(true);
+/// ```
+#[test]
+fn one_directory_is_claimed_once_and_given_back_once() {
+    let first: PathBuf = fixture("repository-scratch-claim");
+    let second: PathBuf = fixture("repository-scratch-claim-other");
+    assert!(claim(first.as_path()), "the first landing of a directory collects it");
+    assert!(!claim(first.as_path()), "a second landing of the same directory leaves the collection to the first");
+    assert!(claim(second.as_path()), "a landing of another directory collects its own");
+    release_the_directory(first.as_path());
+    assert!(claim(first.as_path()), "the directory is collectable again once its collection is over");
+    release_the_directory(first.as_path());
+    release_the_directory(second.as_path());
+    remove(first.as_path());
+    remove(second.as_path());
 }
