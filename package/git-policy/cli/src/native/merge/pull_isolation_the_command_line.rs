@@ -11,7 +11,8 @@
 //! line or the settings say so;
 //!  reading the command line exactly is what decides
 //!  whether the wrapper may run the halves itself,
-//!  so the options, the plan and its reader live together,
+//!  so the options,
+//! the plan and its reader live together,
 //!  in a file
 //!  the pull that runs them imports.
 //!
@@ -98,7 +99,8 @@ pub struct PullPlan {
 ///  that could move the checked-out branch (it holds a colon).
 ///  `--ff-only` is read here and passed to the merge half,
 ///  and a pull whose fetched head cannot fast-forward is left to
-///  native Git whole, so its own refusal is the answer.
+///  native Git whole,
+/// so its own refusal is the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

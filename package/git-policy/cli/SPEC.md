@@ -4663,7 +4663,8 @@ so no merge tree is computed and no merge commit is made,
 `--ff-only`'s promise that the branch only ever moves forward holds,
 and `merge.ff=only` behaves the same way,
 while a merge that cannot fast-forward stays native Git's own refusal
-(exit 128, nothing changed).
+(exit 128,
+nothing changed).
 The person's message travels to the Git child that moves the branch,
 because it is what Git words its line and its reflog entry from
 (`Fast-forward (no commit created; -m option ignored)`);

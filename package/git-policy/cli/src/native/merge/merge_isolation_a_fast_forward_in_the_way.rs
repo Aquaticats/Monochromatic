@@ -15,14 +15,24 @@
 //! and replaces a file standing at an ancestor of a path it adds with a directory.
 //!  The wrapper carried all of that over a merge that creates a commit and handed every fast-forward to native Git,
 //!  so one worktree with one set of unsaved work was treated two ways depending on whether the other side happened to be
-//!  strictly ahead, which a person cannot see beforehand (`SPEC.md`,
+//!  strictly ahead,
+//! which a person cannot see beforehand (`SPEC.md`,
 //!  "Merges and commits never fail";
 //!  "Carry edits forward").
 //!  The ordinary case stays native Git's:
 //! a worktree whose paths the merge writes hold nothing
 //!  of the person's is handed to Git at once,
-//!  so the question costs one `git status` and a `stat` of each written
-//!  path and of each directory on the way to it
+//!  so the question costs two Git starts and a `stat` of each written path and
+//!  of each directory on the way to it:
+//!  one `git status`,
+//!  which answers the tracked,
+//!  untracked and ignored entries at once,
+//!  and one listing of the index marks,
+//!  which no status
+//!  answers.
+//!  Measured on a worktree of this repository's size,
+//!  that is 21 ms on a quiet host and 78 ms under the
+//!  heavy load the first run saw
 //!  (`doc/troubleshooting/cli-git-merge-fast-forward-carries.md`).
 //!
 //! In TS you'd write (pseudocode):
@@ -94,7 +104,8 @@ pub enum FastForward {
 ///  fast-forward is native Git's,
 ///  whose refusal and advice are its own,
 ///  so neither is a reason to stop the command here.
-///  A merge that must make a commit (`--no-ff`, `merge.ff=false`) is no fast-forward either,
+///  A merge that must make a commit (`--no-ff`,
+/// `merge.ff=false`) is no fast-forward either,
 ///  whichever
 ///  way the branch stands,
 ///  and a merge that cannot fast-forward while `--ff-only` or `merge.ff=only` forbids a merge commit is

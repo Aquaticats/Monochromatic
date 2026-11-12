@@ -647,7 +647,8 @@ fn diverged_with_a_hidden_edit(name: &str, mark: &str) -> (PathBuf, PathBuf) {
 /// Why:
 ///   `rev-list --parents` prints the commit and then its parents,
 ///  so the count of its fields says what a fast-forward
-///  promises: no merge commit was made.
+///  promises:
+/// no merge commit was made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -689,7 +690,8 @@ fn a_fast_forwarded_branch(name: &str) -> (PathBuf, PathBuf) {
 ///  which this repository's ignore rules cover.
 /// Why:
 ///   An ignored untracked file at a path the incoming commit adds is the file native Git's fast-forward
-///  overwrites without a word, which is the loss the carry closed.
+///  overwrites without a word,
+/// which is the loss the carry closed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -744,7 +746,9 @@ fn a_fast_forward_with_nothing_unsaved_is_native_gits() {
 ///  while the same
 ///  merge of a diverged branch carries the edit;
 ///  the owner's answer "Carry edits forward" and "Manual merge should never fail
-///  too." are what the fast-forward shape owed as well (`SPEC.md`, "Carry edits forward").
+///  too."
+/// are what the fast-forward shape owed as well (`SPEC.md`,
+/// "Carry edits forward").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -778,7 +782,9 @@ fn a_fast_forward_over_an_unsaved_edit_is_carried() {
 ///  work at the same path cannot be kept or lost depending on whether the other side is strictly ahead
 ///  (owner's rule
 ///  "never discard user data";
-///  `SPEC.md`, "Carry edits forward", which names the ignored untracked files of the
+///  `SPEC.md`,
+/// "Carry edits forward",
+/// which names the ignored untracked files of the
 ///  person's).
 ///
 /// In TS you'd write (pseudocode):
@@ -838,7 +844,8 @@ fn a_fast_forward_over_an_edit_an_index_mark_hides_is_carried() {
 /// Why:
 ///  `--ff-only` states that the branch may move only by a fast-forward;
 ///  carrying the person's work does not
-///  break that promise, because the branch still moves to the incoming commit alone,
+///  break that promise,
+/// because the branch still moves to the incoming commit alone,
 ///  and a merge that would make a
 ///  commit has to keep Git's own refusal (`fatal: Not possible to fast-forward`,
 ///  exit 128).
@@ -858,14 +865,14 @@ fn an_ff_only_fast_forward_is_carried_and_a_diverged_one_is_native_gits() {
     assert_eq!(parents_of_the_head(repo.as_path()), 1, "no merge commit was made");
     assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("the person's own line"), "the edit is carried");
     remove(parent.as_path());
-    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("ff-only-diverged");
-    std::fs::write(repo.join("keep.txt"), b"a commit main has and feature does not\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
-    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let refused: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "--ff-only", "feature"], &[]);
+    let (diverged_parent, diverged_repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("ff-only-diverged");
+    std::fs::write(diverged_repo.join("keep.txt"), b"a commit main has and feature does not\n").expect("file");
+    git(diverged_repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    let head: String = git_text(diverged_repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: IsolatedMerge = attempted(diverged_repo.as_path(), Route::Direct, &["merge", "--no-edit", "--ff-only", "feature"], &[]);
     assert_eq!(refused, IsolatedMerge::Forward { notice: None }, "the refusal is native Git's, with its own words");
-    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was changed");
-    remove(parent.as_path());
+    assert_eq!(git_text(diverged_repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was changed");
+    remove(diverged_parent.as_path());
 }
 
 /// What:
@@ -881,7 +888,8 @@ fn an_ff_only_fast_forward_is_carried_and_a_diverged_one_is_native_gits() {
 ///  a directory and the person's file cannot share one path,
 ///  so the merge keeps its own content there and the
 ///  person's entry is kept beside it
-///  (`SPEC.md`, the copies a merge keeps beside a path).
+///  (`SPEC.md`,
+/// the copies a merge keeps beside a path).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -924,8 +932,8 @@ fn an_entry_at_an_ancestor_of_an_added_path_is_kept_whole_in_both_shapes() {
         let kept: Vec<String> = std::fs::read_dir(repo.as_path())
             .expect("the worktree")
             .flatten()
-            .filter(|entry| entry.file_name().to_string_lossy().starts_with(".cli-git-recovery"))
-            .map(|entry| std::fs::read_to_string(entry.path()).unwrap_or_default())
+            .filter(|entry| { return entry.file_name().to_string_lossy().starts_with(".cli-git-recovery"); })
+            .map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); })
             .collect();
         assert_eq!(kept.len(), 1, "{label}: one copy waits beside the path, and it holds the person's bytes: {kept:?}");
         assert!(kept[0].contains("PERSON-MARKER 7f3a"), "{label}: {kept:?}");

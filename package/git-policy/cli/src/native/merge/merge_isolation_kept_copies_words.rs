@@ -50,7 +50,10 @@ pub(crate) fn say_the_copy_stays<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy
         "A merge set it aside for"
     };
     // A directory standing at the path is what a merge puts there when it writes a path below it.
-    let a_directory: bool = std::fs::symlink_metadata(copy.location.as_path()).map(|found| found.is_dir()).unwrap_or(false);
+    let a_directory: bool = match std::fs::symlink_metadata(copy.location.as_path()) {
+        Ok(found) => found.is_dir(),
+        Err(_absent) => false,
+    };
     if a_directory {
         let _said = out.write_all(
             format!(

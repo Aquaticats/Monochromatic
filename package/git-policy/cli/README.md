@@ -3103,7 +3103,8 @@ Now the merge runs and the person's work is carried across it:
   says the merge was made,
   and says that no later command puts it back while a directory stands there;
   a copy whose bytes the entry at the path still holds is a duplicate and goes.
-  A named pipe, a socket or a device there is refused with the other special files below,
+  A named pipe,
+  a socket or a device there is refused with the other special files below,
   because it holds no bytes a copy can keep.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
@@ -3386,8 +3387,9 @@ one `git status` over them,
 which lists the ignored ones too,
 the edits an `assume-unchanged` or `skip-worktree` entry hides,
 and a `stat` of each such path and of each directory on the way to it.
-That question costs about twenty milliseconds on a worktree of this repository's size
-(`doc/troubleshooting/cli-git-merge-fast-forward-carries.md`),
+That question is two Git starts,
+about twenty milliseconds on a worktree of this repository's size on a quiet host and about eighty under the load it
+was first measured at (`doc/troubleshooting/cli-git-merge-fast-forward-carries.md`),
 and a fast-forward whose paths hold nothing of yours is still native Git's,
 handed over at once.
 
@@ -3399,16 +3401,24 @@ A merge that cannot fast-forward is native Git's own refusal,
 `fatal: Not possible to fast-forward, aborting.` under `--ff-only`,
 with nothing changed and its own advice printed.
 What you read is Git's own line about the step,
-`Updating a..b`, `Fast-forward`, the diffstat,
+`Updating a..b`,
+`Fast-forward`,
+the diffstat,
 and `Fast-forward (no commit created; -m option ignored)` with a message,
 and the reflog entry native Git writes is the same.
 The message typed travels to the Git child that moves the branch;
-`-q`, `--stat` and `--no-stat` do not,
+`-q`,
+`--stat` and `--no-stat` do not,
 because no Git run the wrapper starts carries an option that only hides what Git prints,
 and the stat settings hide the diffstat here instead
 (`src/native/merge/merge_isolation_the_fast_forward_child.rs`).
 Everything else about a carried fast-forward is the carry the section above describes,
-path by path.
+path by path;
+an entry standing at an ancestor of a path the merge writes is kept whole beside it there too,
+and the two entries no copy can hold are refused as they are in every other shape:
+a directory standing where the merge puts a file,
+and a named pipe,
+a socket or a device.
 
 A `git pull` stated to merge decides the same way after its fetch:
 a fast-forward with nothing in its way goes through the plain `git merge FETCH_HEAD` child,
@@ -3429,7 +3439,9 @@ Each with its cause:
   names the path and the files below it,
   and changes nothing;
   an ignored directory is refused the same way,
-  which is not native Git's own answer, measured, and the copies a merge keeps beside a path cannot hold a directory.
+  which is not native Git's own answer,
+  measured,
+  and the copies a merge keeps beside a path cannot hold a directory.
   An index that holds unmerged entries is native Git's whole,
   which refuses such a checkout itself.
 - A named pipe,
@@ -3440,8 +3452,12 @@ Each with its cause:
   so the merge stops with every such path named before anything is written,
   and the entry is left in your checkout as it was.
   Move it out of the way and run the merge again.
-- An `--ff-only` merge, or one under `merge.ff=only`, that cannot fast-forward:
-  native Git's own refusal, exit 128, with nothing changed.
+- An `--ff-only` merge,
+  or one under `merge.ff=only`,
+  that cannot fast-forward:
+  native Git's own refusal,
+  exit 128,
+  with nothing changed.
 - A merge whose commit cannot be kept on a side ref while the lock stays held:
   the command is refused with status 2,
   changes nothing and leaves the lock.

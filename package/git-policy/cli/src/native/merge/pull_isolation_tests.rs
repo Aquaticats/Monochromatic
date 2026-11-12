@@ -149,7 +149,9 @@ fn the_rebase_setting_is_read_the_way_git_reads_it() {
 ///  an ignored file at a path the incoming commit adds,
 ///  or an unsaved edit at one it changes,
 ///  is the work the carry
-///  keeps, and the pull owed it the same answer a typed `git merge` gives (`SPEC.md`, "Carry edits forward").
+///  keeps,
+/// and the pull owed it the same answer a typed `git merge` gives (`SPEC.md`,
+/// "Carry edits forward").
 ///  `--ff-only` keeps Git's own refusal when the merge cannot fast-forward,
 ///  so that pull stays native Git's
 ///  whole after its idempotent fetch.
@@ -233,7 +235,8 @@ fn a_clone_with_an_upstream_commit(name: &str, ignored: Option<&str>) -> (PathBu
 ///  and otherwise whether that merge goes through the isolated merge.
 /// Why:
 ///   The control reads the one decision the pull adds to a typed merge,
-///  and the fetch it makes is the real one, from a bare
+///  and the fetch it makes is the real one,
+/// from a bare
 ///  origin in the fixture.
 ///
 /// In TS you'd write (pseudocode):

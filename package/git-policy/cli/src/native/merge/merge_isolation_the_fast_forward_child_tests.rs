@@ -35,7 +35,8 @@ fn printed() -> Vec<u8> {
 ///   The message decides Git's line and reflog entry about a fast-forward,
 ///  while `-q`,
 ///  `--stat` and
-///  `--no-stat` are not given to a run the wrapper starts (`README.md`, "No `--quiet` on the wrapper's own Git runs").
+///  `--no-stat` are not given to a run the wrapper starts (`README.md`,
+/// "No `--quiet` on the wrapper's own Git runs").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -37,8 +37,8 @@ fn the_batches_cover_every_path_once_under_the_bound() {
         .collect();
     let spans: Vec<(usize, usize)> = batches(many.as_slice());
     assert!(spans.len() > 1, "a list of this size is asked in more than one start");
-    assert_eq!(spans.first().map(|(start, _)| *start), Some(0), "the first start begins at the first path");
-    assert_eq!(spans.last().map(|(_, end)| *end), Some(many.len()));
+    assert_eq!(spans.first().map(|(start, _)| { return *start; }), Some(0), "the first start begins at the first path");
+    assert_eq!(spans.last().map(|(_, end)| { return *end; }), Some(many.len()));
     let mut next: usize = 0;
     for (start, end) in spans {
         assert_eq!(start, next, "the ranges cover the list in order");

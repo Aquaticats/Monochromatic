@@ -154,12 +154,14 @@ impl Session {
     pub fn run_arguments(&self, arguments: &[OsString]) -> Result<GitOutput, String> {
         let mut request: GitRequest = GitRequest::new::<&str>(Path::new("."), &[]);
         request.arguments = arguments.to_vec();
+        // The failure names the command the words stand for, which is the first of them.
+        let named: &[u8] = match arguments.first() {
+            Some(one) => one.as_encoded_bytes(),
+            None => &[],
+        };
         return match run_git(&self.context, &request) {
             Ok(output) => Ok(output),
-            Err(error) => Err(format!(
-                "git {} could not start: {error}",
-                String::from_utf8_lossy(arguments.first().map_or(&[][..], |one| one.as_encoded_bytes()))
-            )),
+            Err(error) => Err(format!("git {} could not start: {error}", String::from_utf8_lossy(named))),
         };
     }
 

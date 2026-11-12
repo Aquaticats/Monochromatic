@@ -8,11 +8,13 @@
 //!  A merge the wrapper completes for a merge commit moves the checkout with
 //! `git merge --ff-only --no-edit <merge>`
 //!  and prints the words of a merge commit itself,
-//!  because Git's own line about that step ("Updating a..b", "Fast-forward")
+//!  because Git's own line about that step ("Updating a..b",
+//! "Fast-forward")
 //!  is about
 //!  the wrapper's step and not about the merge the person asked for.
 //!  A merge that fast-forwards is that step:
-//!  native Git writes `Updating a..b`, `Fast-forward`,
+//!  native Git writes `Updating a..b`,
+//! `Fast-forward`,
 //!  and the
 //!  diffstat with its create,
 //!  delete and mode lines,
@@ -24,9 +26,11 @@
 //!  sets writes the same line and the same reflog entry as `git merge --no-edit -m <text> <branch>`,
 //!  so the person's
 //!  message goes to that child.
-//!  The person's `-q`, `--stat` and `--no-stat` are not handed to it:
+//!  The person's `-q`,
+//! `--stat` and `--no-stat` are not handed to it:
 //! no Git run the wrapper starts
-//!  carries `--quiet` or another option that only hides what Git prints (`README.md`, "No `--quiet` on the
+//!  carries `--quiet` or another option that only hides what Git prints (`README.md`,
+//! "No `--quiet` on the
 //!  wrapper's own Git runs"),
 //!  and the diffstat is hidden here instead,
 //!  by printing the first two lines of what Git said
@@ -48,7 +52,8 @@ use crate::merge_isolation_carry_reads::path_argument;
 use std::ffi::OsString;
 
 /// How many lines of Git's own words about a fast-forward come before its diffstat:
-/// `Updating a..b`, then `Fast-forward` with the note about an ignored `-m`.
+/// `Updating a..b`,
+/// then `Fast-forward` with the note about an ignored `-m`.
 const THE_HEADER_LINES: usize = 2;
 
 /// What:

@@ -18,7 +18,8 @@
 //!  and at the paths it writes it overwrites an ignored untracked file of the person's without a word and
 //!  refuses their unsaved edit,
 //!  which no person can foresee from whether the other side happens to be strictly ahead
-//!  (`SPEC.md`, "Carry edits forward"),
+//!  (`SPEC.md`,
+//! "Carry edits forward"),
 //!  so that shape is carried the same way (`merge_isolation_a_fast_forward_in_the_way.rs`).
 //!  So the merge tree comes from `git merge-tree --write-tree`,
 //! the commit from `git commit-tree`,
