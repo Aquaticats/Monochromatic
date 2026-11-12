@@ -1216,6 +1216,13 @@ from the main checkout or from any linked worktree:
 it finds the main checkout by reading
  `.git` itself.
 It takes minutes on a large checkout and there is no time limit on it.
+It leaves out every `.cli-git-worktree-copy-` directory at any depth,
+because each is another command's stage
+ container,
+which holds another worktree's ignored state,
+credentials included,
+and which that command removes at its own path;
+a pass that left one out says how many.
 One command at a time works on a checkout:
 it owns the checkout through a claim file beside the journal
  (`.cli-git-migrate-<name>.owner.<generation>`),
@@ -1491,6 +1498,13 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   Then it creates
   `<path>.cli-git-converting` as a subvolume and records its identity,
   copies the worktree into it with cloned data,
+  leaving
+  out every `.cli-git-worktree-copy-` directory (another command's stage container,
+  which holds another worktree's
+  ignored state,
+  credentials included,
+  and which the command filling it removes at its own path) and saying how many it
+  left out,
   takes the
   administrative directory's `index.lock` with its own token only for the rest (the long copy runs without it),
   proves the
@@ -1517,6 +1531,18 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   link target) or is missing there,
   or when it contains a subvolume or a mount point,
   which this command does not delete.
+  A directory
+  named `.cli-git-worktree-copy-` at any depth is not compared,
+  and neither is a folder that holds nothing but such
+  containers:
+  no copy carries one,
+  it belongs to the command filling it,
+  and a container that appears after the proof
+  would otherwise keep the old tree on every run.
+  A folder that holds anything else,
+  and an empty one,
+  is
+  compared as any other entry.
   Nothing is ever copied from the old tree into the installed one,
   so an edit made to the
   installed worktree is never overwritten;

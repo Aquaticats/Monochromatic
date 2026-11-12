@@ -20,6 +20,12 @@
 //! the owner,
 //! the group and the carried extended attributes are
 //!  compared,
+//! another command's stage container in the old tree is not compared at all:
+//! no copy carries it,
+//! it belongs to the command filling it,
+//! and it holds another worktree's ignored state,
+//! credentials included,
+//! so demanding it kept the old tree on every run.
 //!
 //!  The old tree's own top directory is compared like any entry,
 //! and so is a named pipe or a socket,
@@ -50,6 +56,8 @@
 
 use crate::subvolume_sync_attrs::carried_attributes_equal;
 use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
+use crate::worktree_copy_prune::names_a_private_stage;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
@@ -204,6 +212,47 @@ fn missing_entry(kind: std::fs::FileType, inside: &Path, old: &Path) -> String {
 }
 
 /// What:
+///  Whether every entry below `directory` is another command's stage container,
+///  directly or through a
+///  directory that holds nothing else,
+/// with at least one container.
+/// Why:
+///   A stage container made after the proving pass lies in a directory the installed tree may never have
+/// had (the
+///  container and the folder above it were made in the same moment),
+/// so the first entry the comparison found
+///  missing was that folder and the container below it was never reached;
+/// the run kept the old tree and asked the person
+///  to settle a version that exists on one side only.
+/// A folder that also holds anything else is a real
+///  difference and is reported,
+/// and an empty one is compared as it stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsOnlyStageContainers('./.claude/worktrees'); // true when nothing but `.cli-git-worktree-copy-<id>` is below it
+/// ```
+fn holds_only_stage_containers(directory: &Path) -> std::io::Result<bool> {
+    let mut found: bool = false;
+    let mut pending: Vec<PathBuf> = vec![directory.to_path_buf()];
+    while let Some(open) = pending.pop() {
+        for item in std::fs::read_dir(&open)? {
+            let entry: std::fs::DirEntry = item?;
+            if names_a_private_stage(entry.file_name().as_bytes()) {
+                found = true;
+                continue;
+            }
+            let metadata: std::fs::Metadata = std::fs::symlink_metadata(entry.path())?;
+            if !metadata.file_type().is_dir() {
+                return Ok(false);
+            }
+            pending.push(entry.path());
+        }
+    }
+    return Ok(found);
+}
+
+/// What:
 ///  The first way the old tree at `old` is not held by the installed tree at `installed`,
 /// or nothing when it is held whole.
 /// Why:
@@ -258,13 +307,25 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
         for item in std::fs::read_dir(old.join(&relative))? {
             let entry: std::fs::DirEntry = item?;
             let inside: PathBuf = relative.join(entry.file_name());
+            // Another command's stage container is no state of the old tree: it belongs to the one command filling it, which
+            // removes it at its own path, and no copy carries it. Demanding it here kept the old tree on every run.
+            if names_a_private_stage(inside.as_os_str().as_bytes()) {
+                continue;
+            }
             let before: std::fs::Metadata = std::fs::symlink_metadata(old.join(&inside))?;
             if before.dev() != device {
                 return Ok(Some(format!("{} is a subvolume or a mount point inside the old tree, which this command does not delete", inside.display())));
             }
             let after: std::fs::Metadata = match std::fs::symlink_metadata(installed.join(&inside)) {
                 Ok(found) => found,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside)))),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    // A folder that holds nothing but another command's stage containers exists in the old tree because a stage
+                    // arrived there after the proving pass; no copy carries it, and keeping the old tree over it refuses for good.
+                    if before.file_type().is_dir() && holds_only_stage_containers(old.join(&inside).as_path())? {
+                        continue;
+                    }
+                    return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside))));
+                }
                 Err(error) => return Err(error),
             };
             if before.file_type() != after.file_type() {

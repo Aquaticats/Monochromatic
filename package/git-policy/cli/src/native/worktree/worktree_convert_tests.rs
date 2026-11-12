@@ -737,7 +737,8 @@ fn btrfs_a_stage_container_is_left_out_of_the_new_subvolume() {
     std::fs::set_permissions(container.join("payload/credentials"), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("a credential's mode");
     let (verdict, lines) = run(&LinuxPlatform::default(), worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
-    assert!(!worktree.join(".claude").exists(), "no part of the stage container reaches the new subvolume");
+    assert!(std::fs::symlink_metadata(worktree.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543")).is_err(), "no part of the stage container reaches the new subvolume");
+    assert_eq!(std::fs::read_dir(worktree.join(".claude/worktrees")).expect("the folder above it, copied empty").count(), 0);
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(), "the old tree is gone");
     assert_nothing_left(worktree.as_path());
     remove(parent.as_path());

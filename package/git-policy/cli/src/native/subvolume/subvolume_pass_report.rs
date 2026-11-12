@@ -7,7 +7,9 @@
 //! permission bits,
 //! times and
 //!  extended attributes the kernel refused,
-//! and the destination entries it kept or left out.
+//! the destination entries it kept or left out,
+//! and another command's stage containers it never
+//!  entered.
 //! Why:
 //!  The migration and the conversion run the same pass over the same statistics,
 //! and a person reading either
@@ -64,6 +66,12 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
     }
     if stats.recopied > 0 {
         lines.push(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied));
+    }
+    if stats.stage_containers_left_out > 0 {
+        lines.push(format!(
+            "{label}: left out {} directory(ies) named `.cli-git-worktree-copy-`: each is another command's stage and holds another worktree's ignored state, and its own command removes it",
+            stats.stage_containers_left_out
+        ));
     }
     return lines;
 }

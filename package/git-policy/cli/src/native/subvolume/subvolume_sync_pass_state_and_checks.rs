@@ -116,6 +116,10 @@ pub struct SyncStats {
     pub conflicts: Vec<PathBuf>,
     /// Files that changed while they were copied and had to be copied again.
     pub recopied: u64,
+    /// Another command's stage containers the pass never entered;
+    /// a container holds another worktree's ignored state,
+    /// and nothing names it in the destination.
+    pub stage_containers_left_out: u64,
     /// Source entries the destination lacks that were left out because they are older than `created_since`;
     /// relative paths.
     pub left_out: Vec<PathBuf>,

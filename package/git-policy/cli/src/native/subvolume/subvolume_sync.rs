@@ -32,6 +32,11 @@
 //!  Every entry is written under a temporary name in its directory and renamed over its name when complete,
 //! so a kill
 //!  never leaves a half-written file at a name a later pass would take for a newer one.
+//! Another command's stage container is left out at any depth:
+//! it holds another worktree's ignored state,
+//!  credentials
+//! included,
+//! and nothing names it in the destination.
 //! The destination is reached
 //!  through open directory descriptors (`subvolume_anchor.rs`),
 //! so a directory replaced by a link during the pass
@@ -51,9 +56,11 @@ use crate::subvolume_anchor::Anchor;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync_attrs::preserve_on_descriptor;
+use crate::worktree_copy_prune::names_a_private_stage;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 pub use crate::subvolume_sync_pass_state_and_checks::{SyncOptions, SyncStats};
@@ -142,6 +149,12 @@ impl Pass<'_> {
             if self.options.excluded.contains(&relative.join(entry.file_name())) {
                 continue;
             }
+            // Another command's stage container is no state of the source, whatever the options: its payload is a full copy of
+            // another worktree's ignored state, made while its own copy runs, and nothing names it in the destination.
+            if names_a_private_stage(relative.join(entry.file_name()).as_os_str().as_bytes()) {
+                self.stats.stage_containers_left_out += 1;
+                continue;
+            }
             match vanished_is_counted(entry.metadata(), &mut self.stats.vanished) {
                 Ok(Some(metadata)) => children.push((entry.file_name(), metadata)),
                 Ok(None) => {}
@@ -175,6 +188,10 @@ impl Pass<'_> {
                 continue;
             }
             if self.options.excluded.contains(&relative.join(item.file_name())) {
+                continue;
+            }
+            // A container in the destination belongs to the command filling it as well, so this pass never deletes one.
+            if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_bytes()) {
                 continue;
             }
             remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;

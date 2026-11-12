@@ -205,7 +205,9 @@ fn a_same_size_edit_before_the_proving_pass_is_still_a_difference() {
 
 /// What:
 ///  Another command's stage container in the old tree is not a difference,
-///  and a name that merely begins with its prefix is.
+///  a folder that holds nothing but
+///  containers is not one either,
+/// and a name that merely begins with the prefix is.
 /// Why:
 ///   An `add` stages the ignored state it fills in a `.cli-git-worktree-copy-<id>` directory beside its destination,
 /// and one that was killed leaves it in the worktree it was filling.
@@ -213,6 +215,9 @@ fn a_same_size_edit_before_the_proving_pass_is_still_a_difference() {
 ///  into the installed tree,
 /// so demanding it kept the old tree on every run and asked the person to settle a version
 ///  that exists on one side only.
+/// A container made after the proving pass brings the folder above it with it,
+/// and that
+///  folder is missing from the installed tree too.
 #[test]
 fn a_stage_container_of_another_command_is_not_a_difference() {
     let (root, old, installed) = twin_trees("compare-stage-container");
@@ -227,6 +232,16 @@ fn a_stage_container_of_another_command_is_not_a_difference() {
     std::fs::write(&lookalike, b"notes\n").expect("a file whose name merely holds the prefix");
     let found: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
     assert!(found.contains("cli-git-worktree-copy-notes.md"), "{found}");
+    std::fs::remove_file(&lookalike).expect("remove it again");
+    std::fs::remove_dir_all(installed.join(".claude")).expect("the installed tree holds no folder above the container");
+    std::fs::create_dir(old.join("empty-dir")).expect("an empty folder of the person's own");
+    let empty: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(empty.contains("empty-dir") && empty.contains("missing"), "{empty}");
+    std::fs::remove_dir(old.join("empty-dir")).expect("remove it again");
+    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "a folder holding nothing but a stage container is not a difference");
+    std::fs::write(old.join(".claude/worktrees/kept.txt"), b"a person's file\n").expect("a real entry beside the container");
+    let real: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(real.contains(".claude") && real.contains("missing"), "{real}");
     remove(root.as_path());
 }
 

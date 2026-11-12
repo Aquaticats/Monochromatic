@@ -161,8 +161,11 @@ fn another_commands_stage_container_is_left_out_of_a_pass() {
     std::fs::create_dir_all(&container).expect("the stage container");
     std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
     let stats: SyncStats = run(source.as_path(), destination.as_path(), COPY);
-    assert!(!destination.join(".claude").exists(), "nothing of the stage container is copied");
+    assert!(std::fs::symlink_metadata(destination.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543")).is_err(), "nothing of the stage container is copied");
+    assert_eq!(std::fs::read_dir(destination.join(".claude/worktrees")).expect("the folder above it, copied empty").count(), 0);
+    assert_eq!(stats.stage_containers_left_out, 1, "the pass says how many containers it left out");
     let proved: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None });
+    assert_eq!(proved.stage_containers_left_out, 1);
     assert_eq!((proved.files_copied, proved.deleted), (0, 0), "the proving pass finds nothing to do");
     remove(parent.as_path());
 }

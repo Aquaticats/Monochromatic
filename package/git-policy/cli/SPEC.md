@@ -1750,6 +1750,20 @@ the times and the extended attributes the kernel refused,
 the destination entries it kept,
 and any
 file that changed while it was copied and was copied again.
+Another command's stage container is left out of every pass of the tree walk (`subvolume_sync.rs`),
+which the
+migration and the rollback use as well:
+the rule is a component of the relative path,
+so a
+container is left out at any depth,
+and the pass counts the containers it never entered and says how many.
+The container
+belongs to the one add or copy filling it,
+holds another worktree's ignored state,
+credentials included,
+and nothing
+in the converted worktree names it,
+so carrying it would leave that state in a worktree on another branch for good.
 A pass that could not carry an entry refuses before the swap:
 a file this user cannot read,
 and a
@@ -1806,6 +1820,20 @@ which is not deleted).
 The old tree's own top directory is compared like any entry,
 and so is a named pipe or a socket,
 whose kind decides only that nothing else about it is compared.
+An entry named `.cli-git-worktree-copy-` at any depth is not compared,
+and neither is a folder that holds nothing but
+such containers:
+no pass carries one,
+it belongs to the one command filling it,
+which removes it at its own path,
+and a
+container that arrives after the proving pass would otherwise keep the old tree on every run.
+A folder that also
+holds anything else,
+and an empty one,
+is compared as any other entry,
+so a person's own work in that folder is never
+lost.
 The last four are compared because a change of one of them leaves the size and the
 modification time alone,
 so nothing else in this comparison can see it,
