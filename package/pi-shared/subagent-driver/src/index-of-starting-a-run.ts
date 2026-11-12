@@ -118,6 +118,12 @@ export {
   reasonInFailedStart,
 } from './reason-in-a-failed-start.ts';
 export {
+  PI_STANDARD_ERROR_TAIL_BYTES,
+  PI_STANDARD_ERROR_TAIL_LINES,
+  type PiStandardErrorTail,
+  lastOfPiStandardError,
+} from './last-of-pi-standard-error.ts';
+export {
   type FinishedRunTurns,
   NO_FINISHED_RUN,
   RUNS_OF_ONE_KIND_TO_TRUST,
