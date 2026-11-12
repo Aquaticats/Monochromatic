@@ -89,6 +89,28 @@ fn still_loaded(unit: &str) -> ClientFailure {
 }
 
 /// What:
+///  What a call to `unload_instance` came to.
+/// Why:
+///   The caller may write the record of what the manager read only when it was watched dropping this worktree's units;
+/// a question the manager could not answer leaves them as they were,
+/// and a record written then would tell every later
+///  commit the manager read texts it never read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Unloaded = { dropped: true } | { dropped: false };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Unloaded {
+    /// The manager was asked and holds neither of this worktree's units,
+    /// so its next start reads the files as they are now.
+    Dropped,
+    /// The manager could not be asked,
+    /// so nothing was dropped and nothing about what it holds is known.
+    NotAsked,
+}
+
+/// What:
 ///  Stops this worktree's service and socket units and waits until the manager no longer holds them.
 /// Why:
 ///   Until it holds neither,
@@ -109,7 +131,7 @@ fn still_loaded(unit: &str) -> ClientFailure {
 /// ```ts
 /// await unloadInstance(host, manager) // throws when the manager keeps the unit
 /// ```
-pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
+pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<Unloaded, ClientFailure> {
     let instance: &str = host.instance.as_str();
     let service: String = service_unit_instance(instance);
     let socket: String = socket_unit_instance(instance);
@@ -126,7 +148,7 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                 "the service manager could not say whether it holds this worktree's service unit ({service}): {}; the commit goes on without unloading it, and the next commit asks again",
                 describe(&error)
             );
-            return Ok(());
+            return Ok(Unloaded::NotAsked);
         }
     };
     let socket_state: Option<String> = match manager.active_state(socket.as_str()) {
@@ -136,11 +158,11 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                 "the service manager could not say whether it holds this worktree's socket unit ({socket}): {}; the commit goes on without unloading it, and the next commit asks again",
                 describe(&error)
             );
-            return Ok(());
+            return Ok(Unloaded::NotAsked);
         }
     };
     if service_state.is_none() && socket_state.is_none() {
-        return Ok(());
+        return Ok(Unloaded::Dropped);
     }
     // A service that runs is asked to leave by itself before anything is stopped, so the batch it holds is finished.
     if !matches!(&service_state, Some(state) if is_at_rest(state.as_str())) {
@@ -154,7 +176,7 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
         Err(CallError::Manager { name, .. }) if name == crate::systemd_dbus::NO_SUCH_UNIT => {}
         Err(error) => return Err(refusal(error)),
     }
-    return wait_until_dropped(manager, [service.as_str(), socket.as_str()].as_slice());
+    return wait_until_dropped(manager, [service.as_str(), socket.as_str()].as_slice()).map(|()| { return Unloaded::Dropped; });
 }
 
 /// Waits until the manager reports the unit `unit` at rest or not held,

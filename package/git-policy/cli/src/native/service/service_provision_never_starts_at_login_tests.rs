@@ -245,12 +245,17 @@ fn an_earlier_releases_enabling_link_is_removed() {
 #[test]
 fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit_and_for_no_reload() {
     let allowed: [&str; 6] = ["reset-failed", "start", "restart", "stop", "stop-alone", "state"];
+    // What: The calls of every run, counted together.
+    // Why:  A run that found everything as it would write it asks nothing at all, which is the fast path this release added;
+    //       the list is still checked against the calls a run that does have work to do makes.
+    let mut asked: usize = 0;
     for (machine, _before, _after, calls) in runs() {
-        assert!(!calls.is_empty(), "the run asked the manager for something");
         for call in &calls {
             let verb: &str = call.split(' ').next().unwrap_or("");
             assert!(allowed.contains(&verb), "{call}: not a call that provisioning may make");
         }
+        asked += calls.len();
         remove(machine.root.as_path());
     }
+    assert!(asked > 0, "one of the runs asked the manager something, so the list is checked against real calls");
 }

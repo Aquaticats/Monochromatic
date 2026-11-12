@@ -13,7 +13,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type ProvisionHost = { runtimeDir: string; userUnitDir?: string; bus: string; serviceBinary: string; git: string; instance: string; retirementWait: number };
-//! interface Manager { reload(): void; start(unit: string): void; stop(unit: string): void; activeState(unit: string): string | undefined }
+//! interface Manager { within(wait: number): void; resetFailed(unit: string): void; start(unit: string): void; stop(unit: string): void; stopAlone(unit: string): void; activeState(unit: string): string | undefined; listen(unit: string): string[] | undefined }
 //! ```
 
 use crate::service_messages::{ClientFailure, Platform};

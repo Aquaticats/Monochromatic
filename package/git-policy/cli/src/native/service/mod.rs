@@ -203,10 +203,6 @@ pub mod service_provision_refusals_before_the_wait;
 /// which tells an installation it runs from files a kill left behind.
 pub mod service_provision_loaded_unit_texts;
 
-/// The link the units start the commit service's program through,
-/// which is the same in every release and every build of one.
-pub mod service_provision_program_pointer;
-
 /// The line a commit prints when the service manager has not answered its provisioning within a moment.
 pub mod service_provision_slow_manager_notice;
 

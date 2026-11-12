@@ -79,9 +79,9 @@ fn a_call_without_arguments_has_the_specified_layout() {
         &[],
     );
     assert_eq!(encode_call(1, &RESET_FAILED_UNIT, &[]), wanted);
-    // The numbers worked out by hand from the specification: 34, 33, 41 and 15 bytes of fields at offsets 16, 56, 96 and 144.
-    assert_eq!(wanted.len(), 160);
-    assert_eq!(u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]), 143);
+    // The numbers worked out by hand from the specification: 34, 33, 43 and 24 bytes of fields at offsets 16, 56, 96 and 144.
+    assert_eq!(wanted.len(), 168);
+    assert_eq!(u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]), 152);
 }
 
 /// A call with two strings carries their signature and the strings,

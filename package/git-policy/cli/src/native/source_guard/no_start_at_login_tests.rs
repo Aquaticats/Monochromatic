@@ -222,6 +222,8 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
 /// The wrapper's client of the manager calls only the members on the list:
 /// every `member: "..."` of a target in the release
 ///  sources is on it.
+/// A reload is what that list is there to keep out,
+/// so a test beside it names the absence directly too.
 #[test]
 fn the_manager_is_called_only_with_the_members_on_the_list() {
     let root: PathBuf = native_root();
@@ -241,4 +243,46 @@ fn the_manager_is_called_only_with_the_members_on_the_list() {
     assert!(called.len() >= ALLOWED_MEMBERS.len() - 1, "the client's targets are found: {called:?}");
     let outside: Vec<&String> = called.iter().filter(|name| { return !ALLOWED_MEMBERS.contains(&name.as_str()); }).collect();
     assert!(outside.is_empty(), "members outside the list: {outside:?}");
+}
+
+/// What:
+///  No release code line asks the manager to read every unit it holds,
+/// on any path:
+/// no `Reload` member,
+/// no `DaemonReload` and no
+///  `reload` call.
+/// Why:
+///   A reload holds the manager's own event loop for a time that grows with every unit it holds,
+/// and on 2026-11-12 one
+///  of those, 139,770 ms long,
+/// expired the desktop's reply to its window manager and ended the session
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+/// The list above refuses the member;
+/// this names the absence wherever it would come back,
+/// including a manager of a control's own and a helper that
+///  spells the call some other way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(releaseCodeLines().filter((line) => /Reload|"reload"/.test(line))).toEqual([]);
+/// ```
+#[test]
+fn no_release_code_line_makes_the_manager_read_every_unit_it_holds() {
+    let root: PathBuf = native_root();
+    let mut found: Vec<String> = Vec::new();
+    for relative in files_below(root.as_path(), &["rs"]) {
+        if is_test_file(relative.as_str()) {
+            continue;
+        }
+        let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
+        for (number, line) in code_lines(text.as_str()) {
+            if line.contains("Reload") || line.contains("\"reload\"") {
+                found.push(format!("{relative}:{number}: {line}"));
+            }
+        }
+    }
+    assert_eq!(found, Vec::<String>::new(), "nothing of this wrapper may make the manager read every unit it holds");
+    // What: The list the members are checked against is the reason a `Reload` member cannot be added, so it is checked
+    //       while the absence is.
+    assert!(!ALLOWED_MEMBERS.iter().any(|member| { return member.contains("Reload"); }), "a reload is no member this wrapper may call: {ALLOWED_MEMBERS:?}");
 }

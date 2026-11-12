@@ -119,6 +119,10 @@ fn stand_in_restart(_bus: &Path, unit: &str) -> bool {
     manager.asked.push(format!("restart {unit}"));
     manager.wedged = false;
     manager.state = Some(String::from("active"));
+    // What: A restart starts the program the unit names, which is this release's.
+    // Why:  The stand-in greets with another release only while a control says so, and a restart is the manager's own stop and
+    //       start of the unit, so the program the unit names answers from then on.
+    manager.release = None;
     return true;
 }
 
@@ -339,6 +343,83 @@ fn a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_
     assert!(asked().is_empty(), "nothing of the manager was asked for: {:?}", asked());
     done.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the service's thread");
+}
+
+/// What:
+///  A service of another release that is still there at the bound it was given is ended once,
+/// said once,
+/// and waited
+///  for again,
+/// so the commit lands instead of ending with nothing committed.
+/// Why:
+///   That bound is the commit's,
+/// and a service finishing a batch or a push it planned to try again outlasts it;
+/// a commit that
+///  ended there left the person's change uncommitted (five of six changes of release in the two-build reproduction of
+///  2026-11-12,
+/// 10,032 to 10,052 ms of a wait that then failed, and 1 of 16 on another agent's fixture).
+/// Ending the
+///  unit is what lets the manager start the program this release installs,
+/// because the unit names the program link and not an
+///  executable (`service_instance.rs`,
+/// `program_link`).
+/// It is ended once only:
+/// a unit the manager starts from a text an upgrade left behind comes back as the other
+///  release,
+/// and the next commit's provisioning is what repairs that (`service_provision_instance_unloaded.rs`).
+/// The call
+///  is this worktree's own unit's,
+/// so nothing here makes the manager read every unit it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```
+/// expect(await reachCurrent(anotherReleaseThatOutlastsTheBound)).toBeDefined(); expect(asked()).toEqual(['restart ' + unit]);
+/// ```
+#[test]
+fn a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_once() {
+    let socket: String = address("client-reach-other-release-ends");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.asked.clear();
+        manager.release = Some(String::from("another-release"));
+    }
+    let done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let serving_done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&done);
+    let serving = std::thread::spawn(move || {
+        let _set = listener.set_nonblocking(true);
+        let began: std::time::Instant = std::time::Instant::now();
+        while !serving_done.load(std::sync::atomic::Ordering::Relaxed) && began.elapsed() < Duration::from_secs(30) {
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    // The release the service answers with, which the stand-in's restart changes to this release's.
+                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(manager_release()) });
+                    line.push('\n');
+                    let _sent = stream.write_all(line.as_bytes());
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    // What: The bound the commit grants the retiring service, and the ceiling it then waits under.
+    // Why:  Both are short so this control reads them in well under a second.
+    settings.start_wait = Duration::from_millis(300);
+    settings.start_ceiling = Duration::from_millis(3000);
+    let mut notices: Vec<u8> = Vec::new();
+    let mut announced: bool = false;
+    let reader = reach_current(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect("the service of another release is ended and the program of this release answers");
+    drop(reader);
+    let said: String = String::from_utf8_lossy(&notices).into_owned();
+    assert_eq!(said.matches("has not stopped after").count(), 1, "said once: {said}");
+    assert!(said.contains(unit.as_str()) && said.contains("this commit goes on"), "{said}");
+    assert_eq!(asked().iter().filter(|call| { return call.starts_with("restart "); }).count(), 1, "ended once: {:?}", asked());
+    done.store(true, std::sync::atomic::Ordering::Relaxed);
+    serving.join().expect("the service's thread");
+    MANAGER.lock().expect("lock").release = None;
 }
 
 /// What:
