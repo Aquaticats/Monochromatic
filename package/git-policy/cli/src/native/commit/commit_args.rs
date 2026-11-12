@@ -375,9 +375,10 @@ fn names_selection_control(token: &str) -> bool {
 /// Why:
 ///   `-im` and `-ip` carry `-i` or `-p` beside other flags,
 /// and those already ran against the private index.
-///  A letter with an attached value (`-S<keyid>`) ends the search:
-/// its value is the person's and is kept whole,
-/// so a key that spells `i` or `p` never disappears.
+///  A letter that takes a value (`-m<text>`,
+///  `-S<keyid>`) ends the search:
+/// what follows it is the person's value and is kept whole,
+/// so a message or key that spells `i` or `p` never disappears.
 fn without_selection_letters(token: &str) -> Option<String> {
     if !token.starts_with('-') || token.starts_with("--") || token.len() < 2 {
         return None;
