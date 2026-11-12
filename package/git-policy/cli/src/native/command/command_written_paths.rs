@@ -34,6 +34,31 @@ use crate::command_reset::{RESET_TABLE, ResetMode, parse_reset_region};
 use crate::rule_linked_worktree::GuardedCommand;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
+/// `OsStr`/`Path` are borrowed operating-system text and paths.
+use std::path::Path;
+
+/// What:
+///  Which pathspecs a form reads from a file are matched against:
+///  a tree, or the index.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///   `git checkout <revision> --pathspec-from-file=<file>` writes the tree's paths that the file's
+///  pathspecs match,
+///  while a `checkout` with no revision and a `restore` with no source write the index's,
+///  and the two readings ask Git different questions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PathspecTarget = { kind: 'tree'; revision?: string } | { kind: 'index' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PathspecTarget {
+    /// The tree the form names,
+    ///  or `HEAD` when it names none.
+    Tree(Option<OsString>),
+    /// The paths the index holds.
+    Index,
+}
 
 /// What:
 ///  Which of the worktree's entries at a written path Git writes over:
@@ -104,6 +129,35 @@ pub enum WrittenPaths {
         ///  and nothing for every path of the index.
         pathspecs: Vec<OsString>,
     },
+    /// The paths the index holds,
+    ///  written below a directory the form names.
+    IndexUnderPrefix {
+        /// The paths the form names,
+        ///  and nothing for every path of the index.
+        pathspecs: Vec<OsString>,
+        /// The directory they are written below.
+        prefix: OsString,
+    },
+    /// The exact paths a form writes,
+    ///  which no tree or index query names.
+    Paths {
+        /// The paths the form writes.
+        paths: Vec<OsString>,
+    },
+    /// The paths of the tree or the index that the pathspecs of `--pathspec-from-file` match.
+    PathspecFile {
+        /// What the pathspecs are matched against.
+        target: PathspecTarget,
+        /// The file the form reads them from,
+        ///  as the form spelled it.
+        file: OsString,
+        /// Whether the file separates them with NUL bytes instead of line ends.
+        nul_separated: bool,
+        /// The directory the file's name is relative to,
+        ///  which is the shell's for a command a `!` alias runs
+        ///  and the command's own otherwise.
+        directory: Option<OsString>,
+    },
     /// The paths of every tree a `git read-tree -u` names,
     ///  each below the prefix the form writes them under.
     ReadTree {
@@ -136,8 +190,11 @@ impl WrittenPaths {
             WrittenPaths::Tree { entries: WrittenEntries::OnlyIgnored, .. } => "tree-of-ignored-entries",
             WrittenPaths::MatchingTree { .. } => "matching-tree",
             WrittenPaths::Index { .. } => "index",
+            WrittenPaths::IndexUnderPrefix { .. } => "index-under-a-prefix",
+            WrittenPaths::Paths { .. } => "paths",
             WrittenPaths::ReadTree { entries: WrittenEntries::EveryEntry, .. } => "read-tree-trees",
             WrittenPaths::ReadTree { entries: WrittenEntries::OnlyIgnored, .. } => "read-tree-trees-of-ignored-entries",
+            WrittenPaths::PathspecFile { .. } => "pathspec-file",
         };
     }
 }
@@ -166,7 +223,7 @@ impl WrittenPaths {
 /// ```ts
 /// function writtenPaths(command: GuardedCommand, region: string[]): WrittenPaths | undefined;
 /// ```
-pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<WrittenPaths> {
+pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
     match command {
         GuardedCommand::ResetHard => {
             // `--soft` and `--mixed` write no worktree file; `--merge` and `--keep` write the tree but refuse an
@@ -181,17 +238,124 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
                 _ => None,
             };
         }
-        GuardedCommand::CheckoutPaths => return checkout_written_paths(region),
+        GuardedCommand::CheckoutPaths => return checkout_written_paths(region, shell_directory),
         GuardedCommand::SwitchForce => {
             return Some(WrittenPaths::Tree {
                 revision: first_positional(region, SWITCH_TABLE),
                 entries: WrittenEntries::EveryEntry,
             });
         }
-        GuardedCommand::RestoreWorktree => return restore_written_paths(region),
+        GuardedCommand::RestoreWorktree => return restore_written_paths(region, shell_directory),
         GuardedCommand::ReadTree => return read_tree_written_paths(region),
+        GuardedCommand::Move => return move_written_paths(region),
+        GuardedCommand::CheckoutIndex => return checkout_index_written_paths(region),
         _ => return None,
     }
+}
+
+/// What:
+///  The paths a forced `git mv` writes,
+///  which are its destination and, when the destination is a directory Git moves into,
+///  the name each source takes inside it.
+///  `&[OsString]` borrows the tokens after the subcommand.
+/// Why:
+///  `git mv --force` writes over whatever stands at the destination,
+///  untracked or ignored alike,
+///  and the destination is a path no index or tree query names.
+///  Everything after `--` is a path,
+///  and before it every token that is no option of `mv` is one,
+///  none of which takes a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function moveWrittenPaths(region: string[]): WrittenPaths | undefined;
+/// ```
+fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+    let mut words: Vec<&OsString> = Vec::<&OsString>::new();
+    let mut after_dash_dash: bool = false;
+    for token in region {
+        let written: &[u8] = token.as_encoded_bytes();
+        if !after_dash_dash && written == b"--" {
+            after_dash_dash = true;
+            continue;
+        }
+        if !after_dash_dash && written.len() > 1 && written[0] == b'-' {
+            continue;
+        }
+        words.push(token);
+    }
+    let Some(destination) = words.last() else {
+        return None;
+    };
+    let mut paths: Vec<OsString> = vec![(*destination).clone()];
+    for source in words.iter().take(words.len().saturating_sub(1)) {
+        let bytes: &[u8] = source.as_encoded_bytes();
+        let name: &[u8] = match bytes.iter().rposition(|byte| return *byte == b'/') {
+            Some(slash) => &bytes[slash + 1..],
+            None => bytes,
+        };
+        let mut inside: Vec<u8> = destination.as_encoded_bytes().to_vec();
+        inside.push(b'/');
+        inside.extend(name);
+        paths.push(OsString::from(String::from_utf8_lossy(inside.as_slice()).into_owned()));
+    }
+    return Some(WrittenPaths::Paths { paths });
+}
+
+/// What:
+///  The paths a forced `git checkout-index` writes:
+///  the index's paths the form names, or all of them with `-a`/`--all`,
+///  each below the directory `--prefix` names when it names one.
+///  `&[OsString]` borrows the tokens after the subcommand.
+/// Why:
+///  `git checkout-index --force` writes over whatever stands at those paths,
+///  and with `--prefix` it writes them below a directory no index query names,
+///  which is where the worktree entry in the way is found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkoutIndexWrittenPaths(region: string[]): WrittenPaths | undefined;
+/// ```
+fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+    let names: &[&str] = crate::command_discard::CHECKOUT_INDEX_LONG_OPTIONS;
+    let mut all: bool = false;
+    let mut prefix: Option<OsString> = None;
+    let mut pathspecs: Vec<OsString> = Vec::<OsString>::new();
+    let mut at: usize = 0;
+    while at < region.len() {
+        let written: &[u8] = region[at].as_encoded_bytes();
+        at += 1;
+        if written == b"--" {
+            pathspecs.extend(region[at..].iter().cloned());
+            break;
+        }
+        if written.len() > 1 && written[0] == b'-' && !written.starts_with(b"--") {
+            if written.contains(&b'a') {
+                all = true;
+            }
+            continue;
+        }
+        if spells_long(written, "all", names) {
+            all = true;
+            continue;
+        }
+        if spells_long(written, "prefix", names) {
+            match written.iter().position(|byte| return *byte == b'=') {
+                Some(equals) => prefix = Some(OsString::from(String::from_utf8_lossy(&written[equals + 1..]).into_owned())),
+                None => prefix = region.get(at).cloned(),
+            }
+            continue;
+        }
+        if written.starts_with(b"--") {
+            continue;
+        }
+        pathspecs.push(region[at - 1].clone());
+    }
+    let named: Vec<OsString> = if all { Vec::<OsString>::new() } else { pathspecs };
+    return Some(match prefix {
+        Some(directory) => WrittenPaths::IndexUnderPrefix { pathspecs: named, prefix: directory },
+        None => WrittenPaths::Index { pathspecs: named },
+    });
 }
 
 /// What:
@@ -265,8 +429,13 @@ fn read_tree_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 /// ```ts
 /// function checkoutWrittenPaths(region: string[]): WrittenPaths | undefined; // throws-free
 /// ```
-fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+fn checkout_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
     let parsed: ParsedOptions = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok()?;
+    // A form that reads its pathspecs from a file reaches paths no token names, so the file is where the
+    //  written paths are read.
+    if let Some((file, nul_separated)) = pathspec_file(region) {
+        return Some(pathspec_file_written_paths(region, file, nul_separated, shell_directory));
+    }
     let names: Vec<&OsString> = positional_tokens(&parsed, region.len())
         .into_iter()
         .filter_map(|index| return region.get(index))
@@ -313,11 +482,22 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 /// ```ts
 /// function restoreWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
-fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+fn restore_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
     if restores_index_only(region) {
         return None;
     }
     let source: Option<OsString> = restore_source(region);
+    if let Some((file, nul_separated)) = pathspec_file(region) {
+        return Some(WrittenPaths::PathspecFile {
+            target: match source {
+                Some(revision) => PathspecTarget::Tree(Some(revision)),
+                None => PathspecTarget::Index,
+            },
+            file,
+            nul_separated,
+            directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
+        });
+    }
     let pathspecs: Vec<OsString> = restore_pathspecs(region);
     return Some(match source {
         Some(revision) => WrittenPaths::MatchingTree { revision: Some(revision), pathspecs },
@@ -448,6 +628,88 @@ fn restore_pathspecs(region: &[OsString]) -> Vec<OsString> {
         paths.push(region[at - 1].clone());
     }
     return paths;
+}
+
+/// What:
+///  The file a region reads its pathspecs from,
+///  and whether it separates them with NUL bytes,
+///  written in either spelling Git's own table accepts.
+/// Why:
+///  `--pathspec-from-file <file>`, `--pathspec-from-file=<file>` and the abbreviations Git accepts
+///  are one option,
+///  and `--pathspec-file-nul` decides how its entries are separated.
+///  A file named here reaches paths no other word of the command names,
+///  so a reading that ignores it asks about nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathspecFile = (region) => scan(region, ['pathspec-from-file', 'pathspec-file-nul']);
+/// ```
+fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
+    let names: [&str; 2] = ["pathspec-from-file", "pathspec-file-nul"];
+    let mut file: Option<OsString> = None;
+    let mut nul_separated: bool = false;
+    let mut at: usize = 0;
+    while at < region.len() {
+        let written: &[u8] = region[at].as_encoded_bytes();
+        at += 1;
+        if written == b"--" {
+            break;
+        }
+        if spells_long(written, "pathspec-file-nul", &names) {
+            nul_separated = true;
+            continue;
+        }
+        if !spells_long(written, "pathspec-from-file", &names) {
+            continue;
+        }
+        match written.iter().position(|byte| return *byte == b'=') {
+            Some(equals) => file = Some(OsString::from(String::from_utf8_lossy(&written[equals + 1..]).into_owned())),
+            None => file = region.get(at).cloned(),
+        }
+    }
+    return file.map(|named| return (named, nul_separated));
+}
+
+/// What:
+///  The written paths of a form that reads its pathspecs from a file,
+///  matched against the tree it names or against the index when it names none.
+/// Why:
+///  A `checkout <revision> --pathspec-from-file=<file>` writes the tree's paths the file names,
+///  and a form with no revision writes the index's,
+///  which is the same pair the named-path forms ask about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fromFile = (region, file, nul, shell) => ({ kind: 'pathspec-file', target: revision(region) ?? 'index', file, nul, shell });
+/// ```
+fn pathspec_file_written_paths(
+    region: &[OsString],
+    file: OsString,
+    nul_separated: bool,
+    shell_directory: Option<&Path>,
+) -> WrittenPaths {
+    // The tree-ish is the last word that is neither an option nor the file's name.
+    let parsed: Option<ParsedOptions> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok();
+    let mut revision: Option<OsString> = None;
+    if let Some(parsed) = parsed {
+        for index in positional_tokens(&parsed, region.len()) {
+            if let Some(token) = region.get(index)
+                && token.as_encoded_bytes() != file.as_encoded_bytes()
+            {
+                revision = Some(token.clone());
+            }
+        }
+    }
+    return WrittenPaths::PathspecFile {
+        target: match revision {
+            Some(named) => PathspecTarget::Tree(Some(named)),
+            None => PathspecTarget::Index,
+        },
+        file,
+        nul_separated,
+        directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
+    };
 }
 
 /// What:

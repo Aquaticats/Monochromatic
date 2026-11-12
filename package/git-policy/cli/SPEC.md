@@ -16375,6 +16375,13 @@ an untracked file,
 an ignored file,
 and the work inside a nested repository at such a path are all work a person made.
 Every one of them is refused,
+ignored files included:
+that is the brief this branch answers
+(a command that overwrites a file nothing else holds is refused, and an ignored file is one of those),
+and it is recorded here as a decision the owner has not restated since 2026-11-12T12:26:24,
+where the wrapper refuses what real Git refuses and keeps nothing by itself;
+the other reading for ignored files is to let real Git write them and log the command as `git clean -fX`
+does, which costs the ignored file and keeps the wrapper from refusing a command over work it never saw.
 and the refusal names each entry (five of them, then a count),
 says in one sentence why the command would lose them,
 says that nothing in the worktree changed,
@@ -16600,6 +16607,30 @@ merge and keep modes,
 and the index's own paths for a restore without a source write a whole tree,
 read with `git ls-tree -r -z --name-only <revision>`,
 `HEAD` when the form names no tree.
+Three more readings complete the table,
+each measured on this host with native Git 2.56.0:
+a forced `git mv` writes its destination and, when that destination is a directory Git moves into,
+the name each source takes inside it
+(`git mv --force a.txt b.txt` over an untracked `b.txt` replaces it at exit 0);
+a forced `git checkout-index` writes the index's paths it names,
+or all of them with `-a`/`--all`,
+each below the directory `--prefix` names when it names one
+(`--prefix=<directory>/ --all` over an untracked file there replaces it at exit 0);
+and a form that reads its pathspecs from a file
+(`--pathspec-from-file <file>`,
+`--pathspec-from-file=<file>`,
+with `--pathspec-file-nul` deciding the separator)
+writes the tree's or the index's paths those pathspecs match,
+which no other word of the command names.
+The file is read here, the way Git reads it:
+line ends or NUL bytes, a carriage return dropped,
+each entry passed to `ls-tree`/`ls-files` as a pathspec so its magic means what Git means by it,
+and a file that cannot be read is a `fact-unavailable` refusal rather than an empty answer.
+`--pathspec-from-file=-` reads standard input in Git,
+which a guard cannot read without consuming it,
+so that spelling is refused with the reason and the opt-out,
+and a person who means it passes `--no-enforce-worktree`:
+the choice is recorded here because Git's own reading is the only other way to learn those paths.
 The three reset modes differ in which of the worktree's entries they write over,
 measured on this host with native Git 2.56.0:
 `--hard` writes over or deletes every entry at those paths,

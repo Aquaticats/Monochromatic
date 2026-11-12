@@ -43,6 +43,13 @@ pub enum DirtyScope {
     Tracked,
     /// Tracked changes and untracked files that are not ignored.
     TrackedAndUntracked,
+    /// Tracked changes,
+    ///  and the edits a `skip-worktree` mark hides from every status,
+    ///  which a form that writes named paths over them replaces
+    ///  (measured on this host with native Git 2.56.0:
+    ///  `checkout <tree> -- <path>` and `restore --source <tree> -- <path>` write over such an edit,
+    ///  while `reset --hard` and `checkout --force` keep the file the mark names).
+    TrackedAndSkipWorktreeEdits,
 }
 
 /// What:
@@ -68,7 +75,7 @@ pub fn dirty_query_arguments(global_prefix: &[OsString], scope: DirtyScope) -> V
         arguments.push(OsString::from(token));
     }
     arguments.push(OsString::from(match scope {
-        DirtyScope::Tracked => "--untracked-files=no",
+        DirtyScope::Tracked | DirtyScope::TrackedAndSkipWorktreeEdits => "--untracked-files=no",
         DirtyScope::TrackedAndUntracked => "--untracked-files=normal",
     }));
     return arguments;

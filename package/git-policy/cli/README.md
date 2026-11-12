@@ -2408,6 +2408,17 @@ The rule is:
   and names the file instead.
   Nothing is lost when nothing would be replaced,
   and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
+- A forced `git mv` and a forced `git checkout-index` write paths no other word of the command names,
+  the destination and the index's paths under `--prefix`:
+   an untracked file there is refused the same way,
+   and the refusal names it.
+  A command that reads its pathspecs from a file
+  (`--pathspec-from-file <file>` or `--pathspec-from-file=<file>`,
+  with `--pathspec-file-nul` deciding the separator) is read from that file,
+  which is the only place its paths are written;
+  `--pathspec-from-file=-` reads standard input in Git,
+  which the wrapper cannot read without consuming it,
+  so that spelling is refused with the reason and the opt-in below.
 - A forced `git checkout -f`,
   a forced `git switch -f`, a `git reset --hard`,
   `git reset --merge`,

@@ -318,6 +318,7 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
         facts: form.facts,
         command: form.command,
         region: form.region,
+        shell_directory: form.shell_directory,
     }) {
         Ok(found) => found,
         // A listing Git could not read says nothing about what the command writes over, so it stops the command.

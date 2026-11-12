@@ -58,6 +58,9 @@ pub(crate) struct ScriptedFacts {
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
+    /// The answer to `uncommitted_paths`,
+    /// whatever the scope.
+    pub(crate) uncommitted: Result<Vec<String>, String>,
     /// The answer to `staged_selection`,
     /// whatever the pathspecs.
     pub(crate) selection: Result<StagedSelection, String>,
@@ -114,6 +117,11 @@ impl RepositoryFacts for ScriptedFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         self.asked.push(format!("dirty:{scope:?}"));
         return self.dirty.clone();
+    }
+
+    fn uncommitted_paths(&mut self, scope: DirtyScope) -> Result<Vec<String>, String> {
+        self.asked.push(format!("uncommitted:{scope:?}"));
+        return self.uncommitted.clone();
     }
 
     fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
@@ -297,6 +305,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         sequencer: Ok(SequencerState::NotInProgress),
         abort_discard: Ok(AbortDiscard::NothingWaiting),
         dirty: Ok(false),
+        uncommitted: Ok(Vec::<String>::new()),
         selection: Ok(StagedSelection {
             selected: 0,
             repository: 1,

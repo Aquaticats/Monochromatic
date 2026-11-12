@@ -264,6 +264,26 @@ pub fn repository_stash_message(command: GuardedCommand) -> String {
 /// function dirtyWorktreeMessage({ command }): string;
 /// ```
 pub fn dirty_worktree_message(command: GuardedCommand) -> String {
+    return dirty_worktree_message_naming(command, &[]);
+}
+
+/// What:
+///  The same rejection with the paths the worktree holds that the command would destroy,
+///  each named up to the bound and the rest counted.
+///  `&[String]` borrows them;
+///  an empty list says the reading did not answer, and the text names no path then.
+/// Why:
+///   The rule is that a refusal names what it would destroy:
+///  a person acts on a path,
+///  not on the kind of change,
+///  and a path they recognise is what tells them whether the command was meant.
+///  The reading runs only on the refusal path, so a command that runs pays nothing for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const message = (command, paths) => `... has uncommitted ${what}${names(paths)}: ${risk}. ${instead} ${HATCH_ADVICE}`;
+/// ```
+pub fn dirty_worktree_message_naming(command: GuardedCommand, paths: &[String]) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     let what: &str = match command {
         GuardedCommand::Clean => "changes to tracked files or untracked files",
@@ -276,9 +296,39 @@ pub fn dirty_worktree_message(command: GuardedCommand) -> String {
         _ => "changes to tracked files",
     };
     return format!(
-        "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}: {risk}. \
-         {instead} {HATCH_ADVICE}"
+        "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}{}: {risk}. \
+         {instead} {HATCH_ADVICE}",
+        named_paths(paths)
     );
+}
+
+/// What:
+///  The paths a rejection names between parentheses,
+///  each in backticks,
+///  with a count of the rest past the bound,
+///  and nothing when the reading answered with no path.
+/// Why:
+///  A worktree holding thousands of changed paths would otherwise print a list nobody reads,
+///  and a reading that did not answer must not claim the worktree holds nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = (paths) => paths.length === 0 ? '' : ` (${paths.slice(0, 5).map((p) => '`' + p + '`').join(', ')}${rest ? ` and ${rest} more` : ''})`;
+/// ```
+fn named_paths(paths: &[String]) -> String {
+    if paths.is_empty() {
+        return String::new();
+    }
+    let mut named: Vec<String> = Vec::<String>::with_capacity(SHARED_PATHS_NAMED.min(paths.len()));
+    for path in paths.iter().take(SHARED_PATHS_NAMED) {
+        named.push(format!("`{path}`"));
+    }
+    let rest: usize = paths.len().saturating_sub(named.len());
+    let and_more: String = match rest {
+        0 => String::new(),
+        _ => format!(" and {rest} more"),
+    };
+    return format!(" ({}{and_more})", named.join(", "));
 }
 
 /// What:

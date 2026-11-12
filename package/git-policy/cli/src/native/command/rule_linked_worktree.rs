@@ -325,8 +325,49 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
         GuardedCommand::Clean => {
             return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked));
         }
+        // A form that writes the paths its own words name writes over an edit the `skip-worktree` mark hides,
+        //  while a whole-tree write keeps the file that mark names; measured with native Git 2.56.0 and recorded
+        //  on `DirtyScope::TrackedAndSkipWorktreeEdits`.
+        //  `--ignore-skip-worktree-bits` is the person telling Git to ignore the mark, and Git then writes the file
+        //  the mark named, which is their own decision.
+        GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree => {
+            let written: Option<crate::command_written_paths::WrittenPaths> =
+                crate::command_written_paths::written_paths(command, region, None);
+            let names_a_tree: bool = matches!(
+                written,
+                Some(crate::command_written_paths::WrittenPaths::MatchingTree { revision: Some(_), .. })
+            );
+            if names_a_tree && !ignores_skip_worktree_bits(region) {
+                return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndSkipWorktreeEdits));
+            }
+            return Some(DirtyQuestion::Worktree(DirtyScope::Tracked));
+        }
         _ => return Some(DirtyQuestion::Worktree(DirtyScope::Tracked)),
     }
+}
+
+/// What:
+///  Whether a `checkout` or `restore` region tells Git to ignore the `skip-worktree` mark.
+/// Why:
+///  `--ignore-skip-worktree-bits` is the person asking for the file the mark hides to be written,
+///  so the mark is no loss that form causes;
+///  refusing then would go beyond what Git does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ignores = (region) => region.some((word) => word === '--ignore-skip-worktree-bits');
+/// ```
+fn ignores_skip_worktree_bits(region: &[OsString]) -> bool {
+    for token in region {
+        let written: &[u8] = token.as_encoded_bytes();
+        if written == b"--" {
+            return false;
+        }
+        if written == b"--ignore-skip-worktree-bits" {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

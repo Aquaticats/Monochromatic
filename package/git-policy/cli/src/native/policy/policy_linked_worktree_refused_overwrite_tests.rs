@@ -27,6 +27,7 @@ fn ask(command: GuardedCommand, region: &[&str], in_the_way: Result<Vec<String>,
         facts: &mut facts,
         command,
         region: tokens.as_slice(),
+        shell_directory: None,
     });
     return (answer, facts.asked);
 }

@@ -15,8 +15,11 @@
 //!  A marked edit is a tracked edit like any other,
 //!  so it gets exactly what the same edit gets without the mark,
 //!  which is what reading it here restores.
-//!  `skip-worktree` is not read:
-//!  Git keeps that file, so no discarding form loses it.
+//!  `skip-worktree` is read only when the caller asks:
+//!  Git keeps that file for a whole-tree write (`reset --hard`, `checkout --force`),
+//!  and writes over it for a form that names paths
+//!  (`checkout <tree> -- <path>`, `restore --source <tree> -- <path>`),
+//!  measured on this host with native Git 2.56.0.
 //!  The marks are listed once,
 //!  and the worktree entries of those paths alone are compared,
 //!  so a worktree that marks thousands of files costs one listing and one stat each,
@@ -48,8 +51,11 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const isMarked = (tag: string) => tag.length === 1 && tag === tag.toLowerCase();
 /// ```
-fn is_marked(tag: &[u8]) -> bool {
-    return tag.len() == 1 && tag[0].is_ascii_lowercase();
+fn is_marked(tag: &[u8], skip_worktree_too: bool) -> bool {
+    if tag.len() != 1 {
+        return false;
+    }
+    return tag[0].is_ascii_lowercase() || (skip_worktree_too && tag[0] == b'S');
 }
 
 /// What:
@@ -67,8 +73,12 @@ fn is_marked(tag: &[u8]) -> bool {
 /// ```ts
 /// function editsTheStatusHides(facts, worktreeRoot): Promise<string[]>; // throws
 /// ```
-pub(super) fn edits_the_status_hides(facts: &mut GitFacts, worktree_root: &Path) -> Result<Vec<String>, String> {
-    let marked: Vec<Vec<u8>> = marked_paths(facts)?;
+pub(super) fn edits_the_status_hides(
+    facts: &mut GitFacts,
+    worktree_root: &Path,
+    skip_worktree_too: bool,
+) -> Result<Vec<String>, String> {
+    let marked: Vec<Vec<u8>> = marked_paths(facts, skip_worktree_too)?;
     if marked.is_empty() {
         return Ok(Vec::<String>::new());
     }
@@ -92,7 +102,7 @@ pub(super) fn edits_the_status_hides(facts: &mut GitFacts, worktree_root: &Path)
 /// ```ts
 /// function markedPaths(facts): Promise<Buffer[]>; // throws
 /// ```
-fn marked_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
+fn marked_paths(facts: &mut GitFacts, skip_worktree_too: bool) -> Result<Vec<Vec<u8>>, String> {
     let mut arguments: Vec<OsString> = facts.global_prefix.clone();
     for token in ["--no-optional-locks", "ls-files", "-v", "-z", "--full-name"] {
         arguments.push(OsString::from(token));
@@ -107,7 +117,7 @@ fn marked_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
         let Some(space) = entry.iter().position(|byte| return *byte == b' ') else {
             continue;
         };
-        if !is_marked(&entry[..space]) {
+        if !is_marked(&entry[..space], skip_worktree_too) {
             continue;
         }
         marked.push(entry[space + 1..].to_vec());

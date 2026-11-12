@@ -37,6 +37,8 @@ use crate::repository_facts::RepositoryFacts;
 use crate::rule_linked_worktree::GuardedCommand;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
 
 /// What:
 ///  Everything one question is asked with:
@@ -49,7 +51,7 @@ use std::ffi::OsString;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WrittenOverRequest<'a> = { facts; command; region };
+/// type WrittenOverRequest<'a> = { facts; command; region; shellDirectory };
 /// ```
 pub(crate) struct WrittenOverRequest<'a> {
     /// The facts every question is asked.
@@ -59,6 +61,10 @@ pub(crate) struct WrittenOverRequest<'a> {
     /// The tokens after the subcommand,
     ///  as the guard decided about them.
     pub(crate) region: &'a [OsString],
+    /// The directory the shell of a `!` alias runs in,
+    ///  when the form is the command that shell runs;
+    ///  nothing for a direct command and an ordinary alias.
+    pub(crate) shell_directory: Option<&'a Path>,
 }
 
 /// What:
@@ -85,7 +91,7 @@ pub(crate) fn entries_a_form_would_write_over(request: WrittenOverRequest<'_>) -
     ) {
         return Ok(Vec::<String>::new());
     }
-    let Some(written): Option<WrittenPaths> = written_paths(request.command, request.region) else {
+    let Some(written): Option<WrittenPaths> = written_paths(request.command, request.region, request.shell_directory) else {
         return Ok(Vec::<String>::new());
     };
     return request.facts.paths_in_the_way(&written);

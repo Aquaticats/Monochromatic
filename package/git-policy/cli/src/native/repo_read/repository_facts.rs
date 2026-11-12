@@ -55,7 +55,7 @@ use crate::command_written_paths::WrittenPaths;
 ///  which names the nested repositories that force keeps.
 /// The answer one `git add` selection question gives.
 use crate::rule_add_explicit::StagedSelection;
-use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
+use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments, nul_separated_paths};
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
@@ -118,6 +118,11 @@ pub trait RepositoryFacts {
     fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String>;
     /// Whether the worktree holds uncommitted state of the given scope.
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String>;
+    /// The paths the worktree holds uncommitted state at,
+    ///  in the given scope,
+    ///  so a refusal names what it would destroy.
+    /// Asked only after `worktree_dirty` answered yes.
+    fn uncommitted_paths(&mut self, scope: DirtyScope) -> Result<Vec<String>, String>;
     /// The worktree's ignored files whose paths the given revision's tree also tracks,
     /// asked for a
     ///  forced checkout,
@@ -478,12 +483,63 @@ impl RepositoryFacts for GitFacts {
         }
         // An edit to a path the index marks assume-unchanged is a tracked edit that no status prints, and a
         //  discarding form overwrites it all the same; it gets exactly what the same edit gets without the mark.
+        //  A skip-worktree edit is read only where Git writes over it, which the scope says.
         let location: RepositoryLocation = self.location()?;
         let Some(root) = crate::worktree_identity::worktree_root(&location.identity) else {
             return Ok(false);
         };
-        let hidden: Vec<String> = crate::repository_facts_edits_the_status_hides::edits_the_status_hides(self, root)?;
+        let hidden: Vec<String> = crate::repository_facts_edits_the_status_hides::edits_the_status_hides(
+            self,
+            root,
+            matches!(scope, DirtyScope::TrackedAndSkipWorktreeEdits),
+        )?;
         return Ok(!hidden.is_empty());
+    }
+
+    fn uncommitted_paths(&mut self, scope: DirtyScope) -> Result<Vec<String>, String> {
+        let mut arguments: Vec<OsString> = dirty_query_arguments(self.global_prefix.as_slice(), scope);
+        // A NUL between the entries keeps a name Git had to quote exact.
+        arguments.insert(self.global_prefix.len() + 3, OsString::from("-z"));
+        let output: MetadataOutput = self.query(arguments, "the paths the worktree holds changes at")?;
+        if !output.success {
+            return Err(format!(
+                "Git could not read the paths the worktree holds changes at: {}",
+                String::from_utf8_lossy(output.stderr.as_slice()).lines().next().unwrap_or_default().trim()
+            ));
+        }
+        let mut paths: Vec<String> = Vec::<String>::new();
+        let mut renames_the_previous_entry: bool = false;
+        for entry in nul_separated_paths(output.stdout.as_slice()) {
+            // Each entry is `<XY> <path>`, and the old name of a rename follows its new one.
+            let (status, rest): (&[u8], &[u8]) = match entry.split_at_checked(3) {
+                Some((head, tail)) => (head, tail),
+                None => continue,
+            };
+            let path: String = String::from_utf8_lossy(rest).into_owned();
+            if renames_the_previous_entry {
+                renames_the_previous_entry = false;
+                continue;
+            }
+            renames_the_previous_entry = matches!(status.get(0), Some(b'R' | b'C'));
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+        // The edits a mark hides are paths the status never names, and a form that writes over them loses them.
+        let location: RepositoryLocation = self.location()?;
+        if let Some(root) = crate::worktree_identity::worktree_root(&location.identity) {
+            let hidden: Vec<String> = crate::repository_facts_edits_the_status_hides::edits_the_status_hides(
+                self,
+                root,
+                matches!(scope, DirtyScope::TrackedAndSkipWorktreeEdits),
+            )?;
+            for path in hidden {
+                if !paths.contains(&path) {
+                    paths.push(path);
+                }
+            }
+        }
+        return Ok(paths);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {

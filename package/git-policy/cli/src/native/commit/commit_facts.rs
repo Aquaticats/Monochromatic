@@ -130,6 +130,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.worktree_dirty(scope);
     }
 
+    fn uncommitted_paths(&mut self, scope: DirtyScope) -> Result<Vec<String>, String> {
+        return self.inner.uncommitted_paths(scope);
+    }
+
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
@@ -199,6 +203,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         return (**self).worktree_dirty(scope);
+    }
+
+    fn uncommitted_paths(&mut self, scope: DirtyScope) -> Result<Vec<String>, String> {
+        return (**self).uncommitted_paths(scope);
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {

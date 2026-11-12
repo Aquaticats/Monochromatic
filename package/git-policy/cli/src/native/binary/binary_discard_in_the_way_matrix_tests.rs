@@ -576,3 +576,340 @@ fn put_the_file_under_the_prefix(linked: &Path, arguments: &[&str]) {
     std::fs::remove_file(linked.join("b.txt")).expect("the file at the tree's own path");
     std::fs::write(linked.join("sub/b.txt"), PRECIOUS).expect("the person's file under the prefix");
 }
+
+//region The alpha.14 audit's findings
+
+/// A `skip-worktree` edit is the file Git keeps for a whole-tree write and writes over for a form that names
+/// its paths (measured on this host with native Git 2.56.0),
+/// so exactly those path forms are refused,
+/// the forms Git keeps the file for are let through,
+/// and the opt-out leaves what real Git leaves.
+#[test]
+fn a_skip_worktree_edit_is_refused_where_git_writes_over_it() {
+    for (index, arguments, written_over) in [
+        (1, vec!["checkout", "other", "--", "a.txt"], true),
+        (2, vec!["restore", "--source", "other", "--", "a.txt"], true),
+        (3, vec!["reset", "--hard"], false),
+        (4, vec!["checkout", "--force"], false),
+        (5, vec!["read-tree", "--reset", "-u", "HEAD"], false),
+        (6, vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], false),
+    ] {
+        let label: String = format!("discard-skip-worktree-{index}");
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = marked(label.as_str(), Some("skip-worktree"));
+        let kept_before: bool = still_where_it_was(linked.as_path(), "a.txt", EDIT);
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        let kept: bool = still_where_it_was(linked.as_path(), "a.txt", EDIT)
+            || still_where_it_was(linked.as_path(), "b.txt", EDIT);
+        if written_over {
+            assert!(refused_by_the_guard(&observed), "{arguments:?} was not refused: {}", stderr_of(&observed));
+            assert!(kept, "{arguments:?} lost the edit while refusing");
+            assert!(stderr_of(&observed).contains("a.txt"), "{arguments:?}: {}", stderr_of(&observed));
+            let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+                marked(format!("{label}-hatch").as_str(), Some("skip-worktree"));
+            let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+            let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+                marked(format!("{label}-direct").as_str(), Some("skip-worktree"));
+            let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+            assert_eq!(
+                state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+                state_after(&direct_fixture, direct_linked.as_path(), &direct),
+                "{arguments:?} under the opt-out differs from real Git"
+            );
+            remove(&direct_fixture);
+            remove(&hatch_fixture);
+        } else {
+            // Git keeps the file for this form, so the guard must not refuse it.
+            let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+                marked(format!("{label}-direct").as_str(), Some("skip-worktree"));
+            let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+            let git_kept: bool = still_where_it_was(direct_linked.as_path(), "a.txt", EDIT);
+            assert!(!refused_by_the_guard(&observed), "{arguments:?} was refused where real Git keeps the file (exit {:?}): {}", direct.code, stderr_of(&observed));
+            assert!(git_kept, "the control needs real Git to keep the file for {arguments:?}");
+            remove(&direct_fixture);
+        }
+        assert!(kept_before, "the fixture must hold the edit before the form runs");
+        remove(&fixture);
+    }
+}
+
+/// A form that names paths writes over an edit the `skip-worktree` mark hides,
+/// so the question the guard asks about a linked worktree reads that mark,
+/// and the whole-tree forms ask the tracked state alone.
+#[test]
+fn the_skip_worktree_mark_is_read_only_for_the_forms_that_write_over_it() {
+    for (arguments, skip_worktree_edits) in [
+        (vec!["checkout", "other", "--", "a.txt"], true),
+        (vec!["restore", "--source", "other", "--", "a.txt"], true),
+        (vec!["checkout", "--force", "other"], false),
+        (vec!["reset", "--hard"], false),
+        (vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], false),
+        (vec!["restore", "a.txt"], false),
+    ] {
+        let command: git_policy_cli::rule_linked_worktree::GuardedCommand = if arguments[0] == "restore" {
+            git_policy_cli::rule_linked_worktree::GuardedCommand::RestoreWorktree
+        } else {
+            git_policy_cli::rule_linked_worktree::GuardedCommand::CheckoutPaths
+        };
+        let words: Vec<std::ffi::OsString> = arguments.iter().skip(1).map(std::ffi::OsString::from).collect();
+        let asked: Option<git_policy_cli::rule_linked_worktree::DirtyQuestion> =
+            git_policy_cli::rule_linked_worktree::dirty_question(command, words.as_slice());
+        let expected: git_policy_cli::rule_linked_worktree::DirtyQuestion =
+            git_policy_cli::rule_linked_worktree::DirtyQuestion::Worktree(if skip_worktree_edits {
+                git_policy_cli::rule_worktree_dirty::DirtyScope::TrackedAndSkipWorktreeEdits
+            } else {
+                git_policy_cli::rule_worktree_dirty::DirtyScope::Tracked
+            });
+        assert_eq!(asked, Some(expected), "{arguments:?}");
+    }
+}
+
+/// The opt-out gives what real Git gives for a `checkout` or `switch` over an ignored file the target branch
+/// tracks: `--no-overwrite-ignore` is not added for that call,
+/// so the command switches where real Git switches instead of stopping.
+#[test]
+fn the_opt_out_switches_where_real_git_switches_over_an_ignored_file() {
+    for (index, arguments) in [
+        (1, vec!["checkout", "tracks"]),
+        (2, vec!["switch", "tracks"]),
+        (3, vec!["checkout", "--detach", "tracks"]),
+        (4, vec!["switch", "--discard-changes", "tracks"]),
+        (5, vec!["checkout", "--force", "tracks"]),
+    ] {
+        let label: String = format!("discard-opt-out-ignored-{index}");
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared_with_an_ignored_tracked_file(label.as_str());
+        let before: Vec<String> = worktree_state(linked.as_path());
+        let refused: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        // Whatever the wrapper answers, the file is untouched and the branch has not moved.
+        assert_eq!(worktree_state(linked.as_path()), before, "{arguments:?} changed the worktree: {}", stderr_of(&refused));
+        let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+            prepared_with_an_ignored_tracked_file(format!("{label}-hatch").as_str());
+        let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+        let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+            prepared_with_an_ignored_tracked_file(format!("{label}-direct").as_str());
+        let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+        if index <= 5 {
+            assert_eq!(
+                state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+                state_after(&direct_fixture, direct_linked.as_path(), &direct),
+                "{arguments:?} under the opt-out differs from real Git: {}",
+                stderr_of(&passed)
+            );
+        }
+        remove(&direct_fixture);
+        remove(&hatch_fixture);
+        remove(&fixture);
+    }
+}
+
+/// A linked worktree whose ignored `.env` holds the person's value while `tracks` tracks that path.
+fn prepared_with_an_ignored_tracked_file(name: &str) -> (Fixture, PathBuf, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b".env\n").expect("ignore rules");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("the ignored file");
+    return (fixture, repo, linked);
+}
+
+/// The advice a refusal prints runs as printed:
+/// the command it names, with the opt-out, leaves what real Git leaves,
+/// and no refusal asks for a patch `git diff` makes,
+/// which holds no staged edit, no staged new file and no untracked file.
+#[test]
+fn the_advice_a_refusal_prints_runs_as_printed() {
+    // The path form's advice is the exact command, so it is taken from the message and run.
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared("discard-advice-run", InTheWay::Ignored);
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["reset", "--hard", "other"]);
+    let said: String = stderr_of(&refused);
+    let printed: &str = said
+        .split("run `")
+        .nth(1)
+        .and_then(|rest| return rest.split('`').next())
+        .unwrap_or_default();
+    assert!(printed.starts_with("git "), "the refusal prints no command: {said}");
+    let words: Vec<&str> = printed.split(' ').skip(1).collect();
+    let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) = prepared("discard-advice-hatch", InTheWay::Ignored);
+    let passed: Observed = run_wrapped(&hatch_fixture, hatch_linked.as_path(), words.as_slice());
+    let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) = prepared("discard-advice-direct", InTheWay::Ignored);
+    let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), &["reset", "--hard", "other"]);
+    assert_eq!(
+        state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+        state_after(&direct_fixture, direct_linked.as_path(), &direct),
+        "the command the refusal prints left something else: {}",
+        stderr_of(&passed)
+    );
+    remove(&direct_fixture);
+    remove(&hatch_fixture);
+    remove(&fixture);
+    // Every refusal text a linked-worktree form prints is free of the patch advice that saves nothing.
+    for command in git_policy_cli::rule_linked_worktree::GuardedCommand::ALL {
+        for text in [
+            git_policy_cli::rule_linked_worktree::dirty_worktree_message(command),
+            git_policy_cli::rule_linked_worktree::main_worktree_message(command),
+        ] {
+            assert!(!text.contains("backup.patch"), "{command:?} advises a patch that saves nothing: {text}");
+        }
+    }
+}
+
+//endregion
+
+//region The paths no other word of the command names
+
+/// A forced `git mv` writes its destination,
+/// and a forced `git checkout-index --prefix` writes the index's paths below a directory,
+/// so an untracked file or a directory there is refused and named,
+/// and the opt-out leaves exactly what real Git leaves.
+#[test]
+fn a_destination_no_word_names_is_refused_and_named() {
+    for (index, arguments, person_path) in [
+        (1, vec!["mv", "--force", "a.txt", "kept.txt"], "kept.txt"),
+        (2, vec!["mv", "--f", "a.txt", "kept.txt"], "kept.txt"),
+        (3, vec!["checkout-index", "--force", "--prefix=.", "-a"], "kept.txt"),
+    ] {
+        let label: String = format!("discard-destination-{index}");
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = tracked_pair(label.as_str());
+        std::fs::write(linked.join("kept.txt"), PRECIOUS).expect("the person's file at the destination");
+        let before: Vec<String> = worktree_state(linked.as_path());
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(refused_by_the_guard(&observed), "{arguments:?} was not refused: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("kept.txt"), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), person_path, PRECIOUS), "{arguments:?} lost the file");
+        assert_eq!(worktree_state(linked.as_path()), before, "{arguments:?} wrote something before refusing");
+        let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+            tracked_pair(format!("{label}-hatch").as_str());
+        std::fs::write(hatch_linked.join("kept.txt"), PRECIOUS).expect("the person's file at the destination");
+        let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+        let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+            tracked_pair(format!("{label}-direct").as_str());
+        std::fs::write(direct_linked.join("kept.txt"), PRECIOUS).expect("the person's file at the destination");
+        let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+        assert_eq!(
+            state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+            state_after(&direct_fixture, direct_linked.as_path(), &direct),
+            "{arguments:?} under the opt-out differs from real Git"
+        );
+        remove(&direct_fixture);
+        remove(&hatch_fixture);
+        remove(&fixture);
+    }
+}
+
+/// A repository with two small tracked files and a linked worktree on its own branch.
+fn tracked_pair(name: &str) -> (Fixture, PathBuf, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("tracked file");
+    std::fs::write(repo.join("b.txt"), b"bee\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt", "b.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    return (fixture, repo, linked);
+}
+
+/// A form that reads its pathspecs from a file writes the paths that file names,
+/// so the ignored file the review's session lost is refused and named,
+/// and the opt-out leaves what real Git leaves.
+#[test]
+fn a_pathspec_file_names_the_files_the_guard_refuses() {
+    for (index, arguments) in [
+        (1, vec!["restore", "--source=other", "--pathspec-from-file", "list.txt"]),
+        (2, vec!["restore", "--source=other", "--pathspec-from-file=list.txt"]),
+        (3, vec!["checkout", "other", "--pathspec-from-file", "list.txt"]),
+        (4, vec!["checkout", "other", "--pathspec-from-file=list.txt"]),
+    ] {
+        let label: String = format!("discard-pathspec-file-{index}");
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared(label.as_str(), InTheWay::Ignored);
+        std::fs::write(linked.join("list.txt"), b"b.txt\n").expect("the file of paths");
+        let before: Vec<String> = worktree_state(linked.as_path());
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(refused_by_the_guard(&observed), "{arguments:?} was not refused: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("b.txt"), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS), "{arguments:?} lost the file");
+        assert_eq!(worktree_state(linked.as_path()), before, "{arguments:?} wrote something");
+        let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+            prepared(format!("{label}-hatch").as_str(), InTheWay::Ignored);
+        std::fs::write(hatch_linked.join("list.txt"), b"b.txt\n").expect("the file of paths");
+        let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+        let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+            prepared(format!("{label}-direct").as_str(), InTheWay::Ignored);
+        std::fs::write(direct_linked.join("list.txt"), b"b.txt\n").expect("the file of paths");
+        let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+        assert_eq!(
+            state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+            state_after(&direct_fixture, direct_linked.as_path(), &direct),
+            "{arguments:?} under the opt-out differs from real Git"
+        );
+        remove(&direct_fixture);
+        remove(&hatch_fixture);
+        remove(&fixture);
+    }
+    // A NUL-separated file names the same path, and standard input cannot be read by the guard.
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared("discard-pathspec-file-nul", InTheWay::Ignored);
+    std::fs::write(linked.join("nul-list.txt"), b"b.txt\0").expect("the NUL-separated file");
+    let nul: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["restore", "--source=other", "--pathspec-file-nul", "--pathspec-from-file=nul-list.txt"],
+    );
+    assert!(refused_by_the_guard(&nul), "the NUL-separated file was not read: {}", stderr_of(&nul));
+    assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS), "{}", stderr_of(&nul));
+    let stdin: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["restore", "--source=other", "--pathspec-from-file=-"],
+    );
+    assert!(refused_by_the_guard(&stdin), "standard input was not refused: {}", stderr_of(&stdin));
+    assert!(
+        stderr_of(&stdin).contains("could not read the pathspecs"),
+        "the refusal says why: {}",
+        stderr_of(&stdin)
+    );
+    remove(&fixture);
+}
+
+/// A name that is not UTF-8 below an ignored directory Git reports collapsed is named exactly,
+/// without a lossy conversion standing between the listing and the worktree entry.
+#[cfg(unix)]
+#[test]
+fn a_name_that_is_not_utf8_is_found_and_refused() {
+    use std::os::unix::ffi::OsStringExt;
+    let fixture: Fixture = fixture("discard-non-utf8-name");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"ignored/\n").expect("ignore rules");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::create_dir_all(repo.join("ignored")).expect("directory on the branch");
+    let tracked_name: std::ffi::OsString = std::ffi::OsString::from_vec(vec![b'b', 0xff, b'.', b't', b'x', b't']);
+    std::fs::write(repo.join("ignored").join(tracked_name.as_os_str()), b"from other\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &[OsStr::new("add"), OsStr::new("--force"), OsStr::new("--"), OsStr::new("ignored")]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=other"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::create_dir_all(linked.join("ignored")).expect("the ignored directory");
+    std::fs::write(linked.join("ignored").join(tracked_name.as_os_str()), PRECIOUS).expect("the person's file");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["reset", "--hard", "other"]);
+    assert!(refused_by_the_guard(&observed), "{}", stderr_of(&observed));
+    assert_eq!(
+        std::fs::read(linked.join("ignored").join(tracked_name.as_os_str())).expect("the person's file"),
+        PRECIOUS,
+        "{}",
+        stderr_of(&observed)
+    );
+    assert!(stderr_of(&observed).contains("b"), "the refusal names the file: {}", stderr_of(&observed));
+    remove(&fixture);
+}
+
+//endregion

@@ -101,16 +101,19 @@ fn a_chunk_that_is_no_header_names_nothing() {
     assert!(after_stat_lines(b"  ctime: 1:2\n").is_none());
 }
 
-/// Only a single lower-case tag is the mark;
+/// Only a single lower-case tag is the assume-unchanged mark,
 /// an upper-case tag is an entry Git looks at,
-/// and a `skip-worktree` entry keeps its file.
+/// and `skip-worktree` (`S`) is a mark only where the caller asks for it,
+/// because Git keeps that file for a whole-tree write and writes over it for a path form.
 #[test]
-fn only_the_assume_unchanged_tag_is_a_mark() {
-    assert!(is_marked(b"h"));
-    assert!(!is_marked(b"H"));
-    assert!(!is_marked(b"S"));
-    assert!(!is_marked(b"hh"));
-    assert!(!is_marked(b""));
+fn the_assume_unchanged_tag_is_a_mark_and_skip_worktree_only_when_asked() {
+    assert!(is_marked(b"h", false));
+    assert!(is_marked(b"h", true));
+    assert!(!is_marked(b"H", true));
+    assert!(!is_marked(b"S", false));
+    assert!(is_marked(b"S", true));
+    assert!(!is_marked(b"hh", true));
+    assert!(!is_marked(b"", true));
 }
 
 /// A tracked edit whose path the index marks assume-unchanged is named,
@@ -125,21 +128,21 @@ fn a_marked_edit_is_named_and_an_unmarked_one_is_not() {
     assert!(status.stdout.is_empty(), "the mark must hide the edit from the status: {status:?}");
     let mut marked_facts: GitFacts = facts_in(repository.as_path());
     assert_eq!(
-        edits_the_status_hides(&mut marked_facts, repository.as_path()),
+        edits_the_status_hides(&mut marked_facts, repository.as_path(), false),
         Ok(vec![String::from("tracked.txt")])
     );
     // A marked path that still holds the index's bytes is no edit, so nothing is named.
     std::fs::write(repository.join("tracked.txt"), b"one\n").expect("the committed bytes");
     let mut unchanged_facts: GitFacts = facts_in(repository.as_path());
     assert_eq!(
-        edits_the_status_hides(&mut unchanged_facts, repository.as_path()),
+        edits_the_status_hides(&mut unchanged_facts, repository.as_path(), false),
         Ok(Vec::<String>::new())
     );
     // A touched path whose bytes are unchanged is no edit either: the bytes decide, not the clock.
     std::fs::write(repository.join("tracked.txt"), b"one\n").expect("the committed bytes again");
     let mut touched_facts: GitFacts = facts_in(repository.as_path());
     assert_eq!(
-        edits_the_status_hides(&mut touched_facts, repository.as_path()),
+        edits_the_status_hides(&mut touched_facts, repository.as_path(), false),
         Ok(Vec::<String>::new())
     );
     remove(root.as_path());

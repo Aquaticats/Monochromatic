@@ -15,7 +15,7 @@
 //! //   === { kind: 'matching-tree', revision: 'other', pathspecs: ['b.txt'] }
 //! ```
 
-use super::{WrittenEntries, WrittenPaths, written_paths};
+use super::{PathspecTarget, WrittenEntries, WrittenPaths, written_paths};
 use crate::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsString;
 
@@ -88,7 +88,7 @@ fn a_read_tree_writes_the_trees_it_names_below_its_prefix() {
         (vec!["-u", "--reset"], None),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::ReadTree, words(values.as_slice()).as_slice()),
+            written_paths(GuardedCommand::ReadTree, words(values.as_slice()).as_slice(), None),
             expected,
             "{values:?}"
         );
@@ -111,7 +111,7 @@ fn a_reset_writes_the_tree_it_names() {
         (vec!["other"], None),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::ResetHard, words(values.as_slice()).as_slice()),
+            written_paths(GuardedCommand::ResetHard, words(values.as_slice()).as_slice(), None),
             expected,
             "{values:?}"
         );
@@ -132,7 +132,7 @@ fn a_checkout_writes_what_its_own_words_name() {
         (vec!["other", "b.txt"], matching(Some("other"), &["b.txt"])),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::CheckoutPaths, words(values.as_slice()).as_slice()),
+            written_paths(GuardedCommand::CheckoutPaths, words(values.as_slice()).as_slice(), None),
             expected,
             "{values:?}"
         );
@@ -149,7 +149,7 @@ fn a_forced_switch_writes_the_whole_tree() {
         (vec!["--force"], tree(None)),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::SwitchForce, words(values.as_slice()).as_slice()),
+            written_paths(GuardedCommand::SwitchForce, words(values.as_slice()).as_slice(), None),
             expected,
             "{values:?}"
         );
@@ -173,7 +173,7 @@ fn a_restore_writes_the_paths_it_names_over() {
         (vec!["--st", "--", "b.txt"], None),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice()),
+            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice(), None),
             expected,
             "{values:?}"
         );
@@ -194,6 +194,127 @@ fn the_other_forms_write_no_tree_path() {
         GuardedCommand::CheckoutIndex,
         GuardedCommand::Stash,
     ] {
-        assert_eq!(written_paths(command, words(&["--force", "other"]).as_slice()), None, "{command:?}");
+        assert_eq!(written_paths(command, words(&["--force", "other"]).as_slice(), None), None, "{command:?}");
+    }
+}
+
+/// A forced `mv` writes its destination and the name each source takes inside a directory destination,
+/// which are paths no tree or index query names.
+#[test]
+fn a_forced_move_writes_its_destination() {
+    let cases: [(Vec<&str>, Vec<&str>); 4] = [
+        (vec!["--force", "a.txt", "b.txt"], vec!["a.txt", "b.txt"]),
+        (vec!["-f", "a.txt", "dir/b.txt"], vec!["a.txt", "dir/b.txt"]),
+        (vec!["--force", "a.txt", "dir"], vec!["a.txt", "dir", "dir/a.txt"]),
+        (vec!["--force", "a.txt", "--", "b.txt"], vec!["a.txt", "b.txt"]),
+    ];
+    for (values, expected) in cases {
+        let answer: Option<WrittenPaths> = written_paths(GuardedCommand::Move, words(values.as_slice()).as_slice(), None);
+        match answer {
+            Some(WrittenPaths::Paths { paths }) => {
+                let mut shown: Vec<String> = paths.iter().map(|path| return path.to_string_lossy().into_owned()).collect();
+                shown.sort();
+                let mut wanted: Vec<String> = expected.iter().map(|path| return String::from(*path)).collect();
+                wanted.sort();
+                assert_eq!(shown, wanted, "{values:?}");
+            }
+            other => panic!("{values:?} read as {other:?}"),
+        }
+    }
+}
+
+/// A forced `checkout-index` writes the index's paths, all of them with `-a`,
+/// and each below the directory `--prefix` names.
+#[test]
+fn a_forced_checkout_index_writes_the_index_below_its_prefix() {
+    let cases: [(Vec<&str>, Option<WrittenPaths>); 5] = [
+        (vec!["--force", "-a"], Some(WrittenPaths::Index { pathspecs: Vec::new() })),
+        (vec!["-f", "--all"], Some(WrittenPaths::Index { pathspecs: Vec::new() })),
+        (vec!["--force", "a.txt"], Some(WrittenPaths::Index { pathspecs: words(&["a.txt"]) })),
+        (
+            vec!["--force", "--prefix=out/", "-a"],
+            Some(WrittenPaths::IndexUnderPrefix {
+                pathspecs: Vec::new(),
+                prefix: OsString::from("out/"),
+            }),
+        ),
+        (
+            vec!["--force", "--prefix", "out/", "-a"],
+            Some(WrittenPaths::IndexUnderPrefix {
+                pathspecs: Vec::new(),
+                prefix: OsString::from("out/"),
+            }),
+        ),
+    ];
+    for (values, expected) in cases {
+        assert_eq!(
+            written_paths(GuardedCommand::CheckoutIndex, words(values.as_slice()).as_slice(), None),
+            expected,
+            "{values:?}"
+        );
+    }
+}
+
+/// A form that reads its pathspecs from a file names paths no token does,
+/// in every spelling Git accepts,
+/// matched against the tree it names or against the index when it names none.
+#[test]
+fn a_pathspec_file_is_read_in_every_spelling() {
+    let from_a_file: fn(PathspecTarget, &str, bool) -> Option<WrittenPaths> = |target, file, nul_separated| {
+        return Some(WrittenPaths::PathspecFile {
+            target,
+            file: OsString::from(file),
+            nul_separated,
+            directory: None,
+        });
+    };
+    let cases: [(GuardedCommand, Vec<&str>, Option<WrittenPaths>); 8] = [
+        (
+            GuardedCommand::RestoreWorktree,
+            vec!["--source=other", "--pathspec-from-file", "list.txt"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false),
+        ),
+        (
+            GuardedCommand::RestoreWorktree,
+            vec!["--source=other", "--pathspec-from-file=list.txt"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false),
+        ),
+        (
+            GuardedCommand::RestoreWorktree,
+            vec!["--pathspec-from-file", "list.txt"],
+            from_a_file(PathspecTarget::Index, "list.txt", false),
+        ),
+        (
+            GuardedCommand::RestoreWorktree,
+            vec!["--source=other", "--pathspec-file-nul", "--pathspec-from-file=list.txt"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", true),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["other", "--pathspec-from-file", "list.txt"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["--pathspec-from-file=list.txt"],
+            from_a_file(PathspecTarget::Index, "list.txt", false),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["--pathspec-file-nul", "--pathspec-from-file=list.txt", "other"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", true),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["--force", "other"],
+            tree(Some("other")),
+        ),
+    ];
+    for (command, values, expected) in cases {
+        assert_eq!(
+            written_paths(command, words(values.as_slice()).as_slice(), None),
+            expected,
+            "{command:?} {values:?}"
+        );
     }
 }

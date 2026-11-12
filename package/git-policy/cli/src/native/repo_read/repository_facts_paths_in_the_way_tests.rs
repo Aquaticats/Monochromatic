@@ -12,19 +12,34 @@
 //! // outermostEntries([Buffer.from('a/b'), Buffer.from('a'), Buffer.from('ab')]) === ['a', 'ab']
 //! ```
 
-use super::{entries_the_form_would_lose, outermost_entries, related};
+use super::{entries_the_form_would_lose, outermost_entries, stands_where_the_form_writes};
 use crate::command_test_support::{fixture, remove};
 
-/// Git prints a directory the worktree holds whole as one entry ending in a separator,
-/// and that entry stands where every path at or below it is written.
+/// The paths as the reading sorts them.
+fn written(paths: &[&[u8]]) -> Vec<Vec<u8>> {
+    let mut sorted: Vec<Vec<u8>> = paths.iter().map(|path| return path.to_vec()).collect();
+    sorted.sort();
+    sorted.dedup();
+    return sorted;
+}
+
+/// An entry stands where a written path stands,
+/// below one,
+/// or above one,
+/// and a name that merely starts the same letters stands nowhere.
 #[test]
-fn a_collapsed_directory_entry_holds_the_paths_below_it() {
-    assert!(related(b"nested/file.txt", b"nested/"));
-    assert!(related(b"nested", b"nested/"));
-    assert!(related(b"nested/", b"nested/file.txt"));
-    assert!(related(b"nested/", b"nested/"));
-    assert!(!related(b"nested/file.txt", b"nested2/"));
-    assert!(!related(b"nest", b"nested/"));
+fn a_written_path_holds_the_entries_at_below_and_above_it() {
+    let asked: Vec<Vec<u8>> = written(&[b"nested/file.txt", b"a/b.txt", b"b.txt"]);
+    assert!(stands_where_the_form_writes(asked.as_slice(), b"a/b.txt"), "at a written path");
+    assert!(stands_where_the_form_writes(asked.as_slice(), b"nested/file.txt/deeper.txt"), "below one");
+    assert!(stands_where_the_form_writes(asked.as_slice(), b"nested"), "above one");
+    assert!(stands_where_the_form_writes(asked.as_slice(), b"a"), "an ancestor of one");
+    assert!(!stands_where_the_form_writes(asked.as_slice(), b"nested2"), "a name that only starts alike");
+    assert!(!stands_where_the_form_writes(asked.as_slice(), b"nest"), "a shorter name that is no ancestor");
+    assert!(
+        stands_where_the_form_writes(asked.as_slice(), b"a/b.txt/inside.txt"),
+        "below a written path as well"
+    );
 }
 
 /// A directory kept whole holds everything below it,

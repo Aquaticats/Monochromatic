@@ -31,8 +31,9 @@ use super::repository_facts::GitFacts;
 ///  and which entries at those paths Git writes over.
 use crate::command_written_paths::{WrittenEntries, WrittenPaths};
 /// The paths the form writes,
-///  each with each directory on the way to it.
-use crate::repository_facts_written_paths::paths_the_tree_writes;
+///  each with each directory on the way to it,
+///  and one byte-exact path built from Git's bytes.
+use crate::repository_facts_written_paths::{path_from_bytes, paths_the_tree_writes};
 /// The trait that answers where the command runs.
 use crate::repository_facts::RepositoryFacts;
 /// The captured-query runner's output type.
@@ -67,10 +68,15 @@ use std::path::{Path, PathBuf};
 /// function pathsInTheWay(facts, written): Promise<string[]>; // throws
 /// ```
 pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<String>, String> {
-    let asked: Vec<Vec<u8>> = paths_the_tree_writes(facts, written)?;
+    let mut asked: Vec<Vec<u8>> = paths_the_tree_writes(facts, written)?;
     if asked.is_empty() {
         return Ok(Vec::<String>::new());
     }
+    // Sorted once, every worktree entry is placed among the written paths by two searches instead of by a
+    //  comparison against each of them: a worktree holding thousands of untracked entries met twenty thousand
+    //  written paths one at a time before this.
+    asked.sort();
+    asked.dedup();
     let mut found: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     // Two answers, one question: what is untracked and what is ignored, each asked once over the whole worktree
     //  because Git matches thousands of literal pathspecs far more slowly than it lists the entries itself.
@@ -80,7 +86,7 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
     for ignored in listings(written) {
         let output: MetadataOutput = facts.query(worktree_entry_query(facts.global_prefix.as_slice(), *ignored), "the files this command writes over")?;
         for entry in worktree_entries_from_answer(&output)? {
-            if !asked.iter().any(|path| return related(path.as_slice(), entry.as_slice())) {
+            if !stands_where_the_form_writes(asked.as_slice(), entry.as_slice()) {
                 continue;
             }
             found.push(entry);
@@ -191,7 +197,7 @@ fn the_entry_the_form_replaces(root: &Path, directory: &[u8], written: &[u8]) ->
     for (index, component) in components.iter().enumerate() {
         current.push(b'/');
         current.extend(component.iter());
-        let full: PathBuf = root.join(String::from_utf8_lossy(current.as_slice()).into_owned());
+        let full: PathBuf = root.join(path_from_bytes(current.as_slice()).as_os_str());
         let Ok(metadata) = std::fs::symlink_metadata(full.as_path()) else {
             // Git creates this entry and everything below it, so no bytes of the person's go.
             return None;
@@ -217,7 +223,7 @@ fn the_entry_the_form_replaces(root: &Path, directory: &[u8], written: &[u8]) ->
 /// const isADirectory = (root, path) => lstatSync(join(root, path)).isDirectory();
 /// ```
 fn is_a_directory(root: &Path, path: &[u8]) -> bool {
-    let full: PathBuf = root.join(String::from_utf8_lossy(path).into_owned());
+    let full: PathBuf = root.join(path_from_bytes(path).as_os_str());
     return std::fs::symlink_metadata(full.as_path()).is_ok_and(|metadata| return metadata.file_type().is_dir());
 }
 
@@ -244,23 +250,45 @@ fn listings(written: &WrittenPaths) -> &'static [bool] {
 
 /// What:
 ///  Whether one worktree entry stands where the form writes:
-///  at the written path,
-///  below it,
-///  or above it,
+///  at a written path,
+///  below one,
+///  or above one,
 ///  which is the case of a directory the tree needs a file inside of.
+///  `&[Vec<u8>]` borrows the written paths, sorted and without duplicates.
 /// Why:
-///   `--directory` collapses a directory the worktree holds whole into one entry (`nested/`),
-///  and that entry holds every written path inside it,
-///  so its trailing separator is not part of the comparison;
-///  an entry deeper than a written path is the file the form writes over;
+///  A directory the tree needs a file inside of is found by the range of names that start with it and a
+///  separator,
+///  a path written below a directory by asking whether each of its ancestors is written,
 ///  and a name that merely starts the same letters names nothing either way.
+///  Both searches walk a sorted list instead of every written path,
+///  which is what keeps a worktree holding thousands of untracked entries cheap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const related = (asked, entry) => asked === entry || holds(asked, entry) || holds(entry, asked);
+/// const stands = (asked, entry) => asked.includes(entry) || asked.some((p) => p.startsWith(entry + '/'))
+///   || ancestors(entry).some((a) => asked.includes(a));
 /// ```
-fn related(asked: &[u8], entry: &[u8]) -> bool {
-    return asked == entry || holds(asked, entry) || holds(entry, asked);
+fn stands_where_the_form_writes(asked: &[Vec<u8>], entry: &[u8]) -> bool {
+    if asked.binary_search_by(|path| return path.as_slice().cmp(entry)).is_ok() {
+        return true;
+    }
+    // The entry is a directory above a written path: some written path starts with it and a separator.
+    let mut inside: Vec<u8> = entry.to_vec();
+    inside.push(b'/');
+    let from: usize = asked.partition_point(|path| return path.as_slice() < inside.as_slice());
+    if asked.get(from).is_some_and(|path| return path.starts_with(inside.as_slice())) {
+        return true;
+    }
+    // The entry is below a written path: one of its ancestors is written.
+    let mut at: usize = 0;
+    while let Some(found) = entry[at..].iter().position(|byte| return *byte == b'/') {
+        let slash: usize = at + found;
+        if asked.binary_search_by(|path| return path.as_slice().cmp(&entry[..slash])).is_ok() {
+            return true;
+        }
+        at = slash + 1;
+    }
+    return false;
 }
 
 /// What:
