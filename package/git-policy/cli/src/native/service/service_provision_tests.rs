@@ -775,13 +775,27 @@ fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_m
     remove(machine.root.as_path());
 }
 
-/// A timeout outside the retirement wait is still the manager not answering.
+/// What:
+///  A call that runs out of its exchange is a manager that did not answer in the time it was given,
+///  and the record and the person both name that,
+///  never a computer that cannot start the service.
+/// Why:
+///   A bus that answered nothing in one exchange says nothing about whether a manager is there,
+///  and three of the seven stopped records of 2026-11-12 spent twenty seconds in exactly that exchange
+///  while the person read that this computer cannot start the commit service on demand:
+///  the bound that ran out is the cause,
+///  and a record that says `no-activation` for it sends the reader after a manager that may be there all along.
 #[test]
 fn a_call_that_times_out_outside_the_retirement_wait_is_a_manager_that_does_not_answer() {
     let machine: Machine = machine("provision-timeout-lib");
     let mut recorder: Recorder = Recorder::default();
     *recorder.failure.lock().expect("lock") = Some(CallError::TimedOut);
-    assert_eq!(provision_with(&machine.host, &mut recorder), Err(ClientFailure::NoActivation(platform_without_manager())));
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the manager answered nothing");
+    assert!(!matches!(&failure, ClientFailure::NoActivation(_)), "a bus that answered nothing is no proof that no manager is there: {failure:?}");
+    assert_eq!(crate::service_messages::failure_code(&failure), "manager-did-not-answer", "the record names the bound that ran out: {failure:?}");
+    let said: String = render(&failure);
+    assert!(said.contains("did not answer"), "the person is told what happened: {said}");
+    assert!(said.contains(EXCHANGE_WAIT.as_secs().to_string().as_str()), "the words name the time one exchange is given: {said}");
     remove(machine.root.as_path());
 }
 
