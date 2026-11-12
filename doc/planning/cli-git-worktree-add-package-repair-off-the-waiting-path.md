@@ -872,3 +872,22 @@ this document and the package `README.md` finishes with no finding at this commi
   Moving the source read into the service would add 36 workspace resolutions per add to the queue
   that commits share,
   which is why it stays in the add.
+
+- The reads the repair makes.
+  An audit of 0.6.1-alpha.14 (R2-A) found reads in this repair with no deadline,
+  and showed them through a built wrapper with a fault that pauses one read for ever:
+  a launcher record, a `Cargo.lock`, and the prewarm tree copy.
+  Reproduced here without a fault,
+  on the toolchain lane's launcher-record read,
+  by holding the one `open` of that record for 600 s with `LD_PRELOAD`
+  (`${HOME}/temp/agent/worktree-add-carried-marker/reproduce_unbounded_record_read.ts`):
+  the add waited 90,008 ms and was killed by the run, and its last lines named the wrong step
+  ("still copying the ignored files") while it waited in the toolchain repair.
+  A named pipe at that name is refused (the read is guarded by a regular-file check),
+  so the unbounded case is a storage read that stalls, which no userspace check can see.
+  No bound is added here:
+  a bound for a blocking read needs the read in a process the wrapper can kill,
+  and moving these reads there is a design change of its own.
+  The marker read this change adds is the safer shape of the same class:
+  it opens with `O_NONBLOCK`, reads only a regular file, and stops at a byte limit,
+  so a pipe or a link at that name cannot hold it.
