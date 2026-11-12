@@ -114,52 +114,75 @@ fn directories_of(path: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-/// `pub fn list_trees(base: &Path) -> Vec<Tree>` lists every tree under a build base in both layouts.
+/// `pub fn list_trees(base: &Path, deadline: &Deadline) -> Option<Vec<Tree>>` lists every tree under a build base in both
+/// layouts,
+/// and answers nothing when the deadline passed before the listing finished.
 /// Why:
 /// The shard directories (two characters) and the keyed directory are the only children it reads;
 /// the trash directory and anything else is not a tree.
+/// A listing of a loaded disk is not free:
+/// it reads a directory per shard and one per shard's children,
+/// and the deadline has to reach between them,
+/// or a pass spends its bound finding out what it would have judged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function listTrees(base: string): Tree[]
+/// export function listTrees(base: string, deadline: Deadline): Tree[] | undefined
 /// ```
-pub fn list_trees(base: &Path) -> Vec<Tree> {
+pub fn list_trees(base: &Path, deadline: &Deadline) -> Option<Vec<Tree>> {
     let mut trees: Vec<Tree> = Vec::new();
     for child in directories_of(base) {
+        if deadline.passed() {
+            return None;
+        }
         let name: String = name_of(&child);
         if name == KEYED_DIRECTORY {
             for toolchain in directories_of(&child) {
                 let toolchain_name: String = name_of(&toolchain);
                 for shard in directories_of(&toolchain) {
                     for tree in directories_of(&shard) {
+                        if deadline.passed() {
+                            return None;
+                        }
                         trees.push(Tree { path: tree, kind: TreeKind::Keyed(toolchain_name.clone()) });
                     }
                 }
             }
         } else if name.len() == 2 && all_hex(&name) {
             for tree in directories_of(&child) {
+                if deadline.passed() {
+                    return None;
+                }
                 trees.push(Tree { path: tree, kind: TreeKind::Legacy });
             }
         }
     }
-    return trees;
+    return Some(trees);
 }
 
 /// What:
-/// `pub fn profile_dirs_of(tree: &Path) -> Vec<PathBuf>` finds the profile directories of a tree:
-/// the directories that hold a Cargo lock file.
+/// `pub fn profile_dirs_of(tree: &Path, deadline: &Deadline) -> Option<Vec<PathBuf>>` finds the profile directories of a
+/// tree:
+/// the directories that hold a Cargo lock file,
+/// and answers nothing when the deadline passed before the walk finished.
 /// Why:
 /// They are what the locks are taken on.
 /// The walk stops at a profile directory and never enters its working directories.
+/// A tree reaches four levels deep with a directory per triple and per build script,
+/// so the walk is a chain of reads under the one read they share,
+/// and a pass that cannot finish the walk of one tree has to leave that tree for the next pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function profileDirsOf(tree: string): string[]
+/// export function profileDirsOf(tree: string, deadline: Deadline): string[] | undefined
 /// ```
-pub fn profile_dirs_of(tree: &Path) -> Vec<PathBuf> {
+pub fn profile_dirs_of(tree: &Path, deadline: &Deadline) -> Option<Vec<PathBuf>> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut stack: Vec<(PathBuf, usize)> = vec![(tree.to_path_buf(), 0)];
     while let Some((directory, depth)) = stack.pop() {
+        if deadline.passed() {
+            return None;
+        }
         let mut has_lock: bool = false;
         for lock_name in LOCK_FILE_NAMES {
             if directory.join(lock_name).exists() {
@@ -182,7 +205,7 @@ pub fn profile_dirs_of(tree: &Path) -> Vec<PathBuf> {
         }
     }
     found.sort();
-    return found;
+    return Some(found);
 }
 
 /// What:
@@ -224,7 +247,7 @@ fn newest_in(directory: &Path, newest: &mut i64) {
 pub fn last_activity(tree: &Path, deadline: &Deadline) -> Option<i64> {
     let mut newest: i64 = 0;
     newest_in(tree, &mut newest);
-    for profile in profile_dirs_of(tree) {
+    for profile in profile_dirs_of(tree, deadline)? {
         newest_in(&profile, &mut newest);
         for name in INSIDE_PROFILE {
             newest_in(&profile.join(name), &mut newest);
@@ -299,22 +322,29 @@ fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf> {
 }
 
 /// What:
-/// `pub fn workspace_of(tree: &Path) -> Workspace` says which workspace a tree was built for.
+/// `pub fn workspace_of(tree: &Path, deadline: &Deadline) -> Option<Workspace>` says which workspace a tree was built for,
+/// and answers nothing when the deadline passed before the answer was known.
 /// Why:
 /// The ledger is authoritative;
 /// the dependency information is a lead;
 /// otherwise nothing identifies the tree.
+/// The walk for a lead is hundreds of reads in a build tree,
+/// so a pass whose bound is spent spends it here,
+/// and a tree it did not finish reading is a tree the next pass judges first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function workspaceOf(tree: string): Workspace
+/// export function workspaceOf(tree: string, deadline: Deadline): Workspace | undefined
 /// ```
-pub fn workspace_of(tree: &Path) -> Workspace {
+pub fn workspace_of(tree: &Path, deadline: &Deadline) -> Option<Workspace> {
     if let Some(root) = read_ledger(tree) {
-        return Workspace::Known(root);
+        return Some(Workspace::Known(root));
     }
     let mut files: Vec<PathBuf> = Vec::new();
-    for profile in profile_dirs_of(tree) {
+    for profile in profile_dirs_of(tree, deadline)? {
+        if deadline.passed() {
+            return None;
+        }
         for package in directories_of(&profile.join("build")) {
             for unit in directories_of(&package) {
                 if let Ok(entries) = fs::read_dir(unit.join("out")) {
@@ -338,9 +368,12 @@ pub fn workspace_of(tree: &Path) -> Workspace {
         }
     }
     for file in files.iter().take(LEAD_FILES) {
+        if deadline.passed() {
+            return None;
+        }
         if let Some(lead) = lead_in(tree, file) {
-            return Workspace::Lead(lead);
+            return Some(Workspace::Lead(lead));
         }
     }
-    return Workspace::Unidentified;
+    return Some(Workspace::Unidentified);
 }

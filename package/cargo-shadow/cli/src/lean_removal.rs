@@ -43,7 +43,7 @@ use rustix::process::geteuid;
 use rustix::fs::{CWD, RenameFlags, renameat_with};
 
 /// Device and inode.
-use crate::lean_identity::{Identity, identity_of};
+use crate::lean_identity::{Deadline, Identity, identity_of};
 /// The final component of a path as text.
 use crate::lean_text::name_of;
 
@@ -80,6 +80,13 @@ pub struct Deleted {
     pub modes_added: Vec<PathBuf>,
     /// One reason for each part of the entry that stayed.
     pub remaining: Vec<String>,
+    /// Whether the deadline stopped the walk before the entry was gone.
+    /// Why it is its own field:
+    /// what a deadline leaves is neither a failure nor a partly removed entry in the sense of a directory this user may not
+    /// empty:
+    /// the rest was already judged and claimed into the trash,
+    /// and the next pass finishes it.
+    pub cut: bool,
 }
 
 /// Why an item was not removed.
@@ -328,6 +335,10 @@ struct Walk<'a> {
     /// The files already counted,
     /// so a file with several hard links is counted once.
     seen: &'a mut std::collections::HashSet<Identity>,
+    /// The instant after which the walk leaves the rest for the next pass.
+    deadline: &'a Deadline,
+    /// Whether the deadline has stopped this walk.
+    cut: bool,
 }
 
 /// What:
@@ -343,6 +354,13 @@ struct Walk<'a> {
 /// function deleteEntry(path: string, walk: Walk): void
 /// ```
 fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
+    if walk.cut {
+        return;
+    }
+    if walk.deadline.passed() {
+        walk.cut = true;
+        return;
+    }
     let metadata: fs::Metadata = match fs::symlink_metadata(path) {
         Ok(found) => found,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return,
@@ -394,7 +412,7 @@ fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
 }
 
 /// What:
-/// `pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<Deleted, Refusal>` deletes a claimed entry after
+/// `pub fn delete_claimed(claimed: &Path, judged: Identity, deadline: &Deadline) -> Result<Deleted, Refusal>` deletes a claimed entry after
 /// checking its identity once more,
 /// and reports what it removed.
 /// Why:
@@ -403,14 +421,14 @@ fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function deleteClaimed(claimed: string, judged: Identity): Deleted  // throws Refusal
+/// export function deleteClaimed(claimed: string, judged: Identity, deadline: Deadline): Deleted  // throws Refusal
 /// ```
-pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<Deleted, Refusal> {
-    return delete_claimed_as(claimed, judged, geteuid().as_raw());
+pub fn delete_claimed(claimed: &Path, judged: Identity, deadline: &Deadline) -> Result<Deleted, Refusal> {
+    return delete_claimed_as(claimed, judged, geteuid().as_raw(), deadline);
 }
 
 /// What:
-/// `pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32) -> Result<Deleted, Refusal>` deletes a
+/// `pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32, deadline: &Deadline) -> Result<Deleted, Refusal>` deletes a
 /// claimed entry as the given user.
 /// Why:
 /// The directory whose mode a removal may change is the one this user owns,
@@ -418,9 +436,9 @@ pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<Deleted, Refus
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number): Deleted  // throws Refusal
+/// export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number, deadline: Deadline): Deleted  // throws Refusal
 /// ```
-pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32) -> Result<Deleted, Refusal> {
+pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32, deadline: &Deadline) -> Result<Deleted, Refusal> {
     let found: Identity = match identity_of(claimed) {
         Ok(identity) => identity,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Err(Refusal::Gone(claimed.to_path_buf())),
@@ -430,8 +448,11 @@ pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32)
         return Err(Refusal::Changed { path: claimed.to_path_buf(), judged, found });
     }
     let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
-    let mut walk: Walk<'_> = Walk { this_uid, deleted: Deleted::default(), seen: &mut seen };
+    let mut walk: Walk<'_> = Walk { this_uid, deleted: Deleted::default(), seen: &mut seen, deadline, cut: false };
     delete_entry(claimed, &mut walk);
+    if walk.deleted.cut {
+        walk.deleted.remaining.push(format!("the deadline passed while deleting it, and what is left of it stays in {} for the next pass to finish", claimed.display()));
+    }
     return match walk.deleted.remaining.is_empty() {
         true => Ok(walk.deleted),
         false => Err(Refusal::PartlyRemoved { path: claimed.to_path_buf(), deleted: walk.deleted }),
@@ -448,6 +469,8 @@ pub struct TrashSweep {
     pub modes_added: Vec<PathBuf>,
     /// One reason for each entry it could not finish removing.
     pub failures: Vec<String>,
+    /// Whether the deadline stopped the sweep with claims still in the trash.
+    pub cut: bool,
 }
 
 /// What one finished deletion adds to a sweep.
@@ -460,7 +483,7 @@ impl TrashSweep {
 }
 
 /// What:
-/// `pub fn empty_trash(trash: &Path) -> TrashSweep` deletes what an earlier run claimed into this trash directory and did not
+/// `pub fn empty_trash(trash: &Path, deadline: &Deadline) -> TrashSweep` deletes what an earlier run claimed into this trash directory and did not
 /// finish deleting (it was stopped between the move and the delete),
 /// and reports what it freed and what it could not finish.
 /// Why:
@@ -473,12 +496,16 @@ impl TrashSweep {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function emptyTrash(trash: string): TrashSweep
+/// export function emptyTrash(trash: string, deadline: Deadline): TrashSweep
 /// ```
-pub fn empty_trash(trash: &Path) -> TrashSweep {
+pub fn empty_trash(trash: &Path, deadline: &Deadline) -> TrashSweep {
     let mut sweep: TrashSweep = TrashSweep::default();
     let Ok(entries) = fs::read_dir(trash) else { return sweep };
     for entry in entries.flatten() {
+        if deadline.passed() {
+            sweep.cut = true;
+            break;
+        }
         let judged: Identity = match identity_of(&entry.path()) {
             Ok(found) => found,
             Err(error) => {
@@ -486,7 +513,7 @@ pub fn empty_trash(trash: &Path) -> TrashSweep {
                 continue;
             }
         };
-        match delete_claimed(&entry.path(), judged) {
+        match delete_claimed(&entry.path(), judged, deadline) {
             Ok(deleted) => sweep.add(deleted),
             Err(Refusal::Gone(_)) => {}
             Err(Refusal::PartlyRemoved { deleted, .. }) => {

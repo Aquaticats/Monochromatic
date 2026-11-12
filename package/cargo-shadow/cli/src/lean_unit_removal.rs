@@ -268,7 +268,7 @@ pub fn apply_removals(
         outcome.bytes = bytes_of_removals(&first, deadline);
         return outcome;
     }
-    let guarded: Guarded = match guard_profile(profile, environment) {
+    let guarded: Guarded = match guard_profile(profile, environment, deadline) {
         Guard::Ready(ready) => ready,
         Guard::Skip(reason) => {
             outcome.skipped = Some(reason);
@@ -284,7 +284,7 @@ pub fn apply_removals(
         }
     };
     let trash: PathBuf = profile.join(TRASH_DIRECTORY_NAME);
-    let sweep = empty_trash(&trash);
+    let sweep = empty_trash(&trash, deadline);
     if !sweep.modes_added.is_empty() {
         emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
     }
@@ -292,7 +292,7 @@ pub fn apply_removals(
     let claimed: Vec<Claimed> = claim_all(&guarded, &second, &trash, &mut outcome, log);
     drop(guarded);
     for entry in claimed {
-        match delete_claimed(&entry.target, entry.identity) {
+        match delete_claimed(&entry.target, entry.identity, deadline) {
             Ok(deleted) => {
                 outcome.bytes += deleted.bytes;
                 if let Some(line) = entry.line {

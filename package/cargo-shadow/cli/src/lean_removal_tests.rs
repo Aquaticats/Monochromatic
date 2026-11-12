@@ -8,6 +8,7 @@ use std::{fs, os::unix::fs::{MetadataExt, PermissionsExt}, path::{Path, PathBuf}
 
 use rustix::process::geteuid;
 
+use crate::lean_identity::Deadline;
 use crate::lean_removal::{Deleted, Item, Refusal, claim_into_trash, delete_claimed, delete_claimed_as, item_of, modes_named, widened_mode};
 
 /// The modes a claimed tree of this issue holds:
@@ -31,7 +32,7 @@ fn an_item_is_claimed_and_deleted_and_its_bytes_are_reported() {
     let item: Item = item_of(&path).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     assert!(!path.exists());
-    let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
+    let deleted: Deleted = delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::from_secs(60))).expect("delete");
     assert!(deleted.bytes >= 8192, "{}", deleted.bytes);
     assert!(deleted.modes_added.is_empty(), "a writable tree needs no mode change: {deleted:?}");
     assert!(!claimed.exists());
@@ -61,7 +62,7 @@ fn a_claimed_entry_that_changed_before_the_unlink_is_not_deleted() {
     fs::remove_dir(&claimed).expect("another owner removes it");
     fs::create_dir_all(&claimed).expect("and a different entry takes the name");
     fs::write(claimed.join("precious"), b"user data").expect("data");
-    let outcome = delete_claimed(&claimed, item.identity);
+    let outcome = delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::from_secs(60)));
     assert!(matches!(outcome, Err(Refusal::Changed { .. })), "{outcome:?}");
     assert!(claimed.join("precious").exists());
 }
@@ -86,7 +87,7 @@ fn a_symbolic_link_is_removed_as_a_link_and_its_target_stays() {
     std::os::unix::fs::symlink(&target, &link).expect("link");
     let item: Item = item_of(&link).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    delete_claimed(&claimed, item.identity).expect("delete");
+    delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::from_secs(60))).expect("delete");
     assert!(target.join("data").exists(), "the link's target is untouched");
 }
 
@@ -129,7 +130,7 @@ fn a_claimed_tree_whose_directory_this_user_may_not_write_is_still_removed_whole
             let (tree, below) = closed_tree(root.path(), mode, depth);
             let item: Item = item_of(&tree).expect("identity");
             let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-            let deleted: Deleted = match delete_claimed(&claimed, item.identity) {
+            let deleted: Deleted = match delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::from_secs(60))) {
                 Ok(deleted) => deleted,
                 Err(refusal) => panic!("mode {mode:04o} at depth {depth}: {refusal}"),
             };
@@ -154,7 +155,7 @@ fn a_symbolic_link_inside_a_claimed_tree_that_names_a_closed_directory_outside_i
     std::os::unix::fs::symlink(&outside, &link).expect("link");
     let item: Item = item_of(&tree).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
+    let deleted: Deleted = delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::from_secs(60))).expect("delete");
     assert!(!claimed.exists(), "the claimed tree is gone");
     assert_eq!(fs::symlink_metadata(&outside).expect("the outside directory").mode() & 0o7777, 0o500, "the mode of a directory outside the claimed tree is as it was");
     assert!(outside.join("kept").exists(), "what lies outside the claimed tree is untouched");
@@ -176,7 +177,7 @@ fn a_closed_directory_of_another_user_stays_and_the_removal_says_so() {
     fs::set_permissions(&theirs, fs::Permissions::from_mode(0o500)).expect("mode");
     let item: Item = item_of(&tree).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    let deleted: Deleted = match delete_claimed_as(&claimed, item.identity, somebody_else) {
+    let deleted: Deleted = match delete_claimed_as(&claimed, item.identity, somebody_else, &Deadline::after(std::time::Duration::from_secs(60))) {
         Err(Refusal::PartlyRemoved { deleted, .. }) => deleted,
         other => panic!("a directory of another user is a partial removal: {other:?}"),
     };
@@ -200,6 +201,7 @@ fn the_display_of_a_partial_removal_says_what_went_and_what_stayed() {
             bytes: 4096,
             modes_added: vec![PathBuf::from("/base/.cargo-shadow-trash/1-2-0-tree/closed")],
             remaining: vec![String::from("/base/.cargo-shadow-trash/1-2-0-tree/theirs is owned by uid 70 and the removal runs as uid 1000, so its mode 0500 was not changed")],
+            cut: false,
         },
     };
     let text: String = refusal.to_string();

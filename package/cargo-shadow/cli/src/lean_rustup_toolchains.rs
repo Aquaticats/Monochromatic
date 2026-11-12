@@ -30,7 +30,7 @@ use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, Path
 /// The proof and the identity.
 use crate::lean_identity::{Deadline, Identity, identity_of};
 /// Imports the names this file uses from `crate::lean_proc_scan`.
-use crate::lean_proc_scan::{ScanReport, scan_processes};
+use crate::lean_proc_scan::scan_processes;
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
 /// Named reads of directory entries.
@@ -321,7 +321,9 @@ fn judge(
     if now - modified <= grace_seconds {
         return ToolchainVerdict::Keep(format!("installed or changed {} s ago, within the grace period of {grace_seconds} s", now - modified));
     }
-    let scan: ScanReport = scan_processes(proc_root, &[toolchain.path.as_path()], &[], own_pid);
+    let Some(scan) = scan_processes(proc_root, &[toolchain.path.as_path()], &[], own_pid, deadline) else {
+        return ToolchainVerdict::Keep(String::from("the deadline passed while scanning the processes"));
+    };
     if let Some(used) = scan.blocks(&toolchain.path) {
         return ToolchainVerdict::Keep(format!("pid {} uses {} as {}", used.pid, used.path.display(), used.how));
     }

@@ -259,10 +259,10 @@ pub fn sweep_run_records(
     for record in &records {
         total += record.bytes;
     }
-    let scan: ScanReport = if dry_run { ScanReport::default() } else { scan_processes(&environment.proc_root, &[directory], &[], environment.own_pid) };
+    let scanned: Option<ScanReport> = if dry_run { Some(ScanReport::default()) } else { scan_processes(&environment.proc_root, &[directory], &[], environment.own_pid, deadline) };
     let trash: PathBuf = directory.join(TRASH_DIRECTORY_NAME);
     if !dry_run {
-        let sweep = empty_trash(&trash);
+        let sweep = empty_trash(&trash, deadline);
         if !sweep.modes_added.is_empty() {
             emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
         }
@@ -286,6 +286,12 @@ pub fn sweep_run_records(
             total = total.saturating_sub(record.bytes);
             continue;
         }
+        let Some(scan) = &scanned else {
+            // The scan did not finish inside the deadline, so no record of this directory may be removed:
+            // a record some process still has open is exactly what an unfinished scan cannot rule out.
+            emit(log, format!("kept every record of {}: the deadline passed while scanning the processes, so nothing was removed", directory.display()));
+            return outcome;
+        };
         if let Some(used) = scan.blocks(&record.path) {
             outcome.kept_in_use += 1;
             emit(log, format!("kept run record {}: pid {} uses {} as {}", record.path.display(), used.pid, used.path.display(), used.how));
@@ -299,7 +305,7 @@ pub fn sweep_run_records(
             }
         };
         match claim_into_trash(&item, &trash, 0) {
-            Ok(claimed) => match delete_claimed(&claimed, item.identity) {
+            Ok(claimed) => match delete_claimed(&claimed, item.identity, deadline) {
                 Ok(deleted) => {
                     emit(log, format!(
                         "removed run record {} (device {} inode {}): {why}; proof: {}{}",

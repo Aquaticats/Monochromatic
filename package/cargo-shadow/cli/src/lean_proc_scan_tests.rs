@@ -22,7 +22,8 @@ use std::{fs, os::unix::fs::PermissionsExt, path::{Path, PathBuf}, process::{Chi
 use crate::lean_proc_scan::{ProcessUse, ScanReport, other_uids_can_reach, scan_processes};
 use crate::test_scratch::scratch;
 /// Device and inode of a fixture entry.
-use crate::lean_identity::{Identity, identity_of};
+use crate::lean_identity::{Deadline, Identity, identity_of};
+use std::time::Duration;
 /// Making the links a fixture procfs is written with.
 use std::os::unix::fs::symlink;
 
@@ -113,7 +114,7 @@ fn a_kernel_thread_and_an_ended_process_cannot_hold_an_entry() {
     add_process(&proc_root, 11, &status_text("S (sleeping)", 0, true));
     add_process(&proc_root, 12, &status_text("Z (zombie)", own_uid(), false));
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     assert_eq!((report.inert, report.unreadable), (2, 0), "{report:?}");
     assert!(report.blocks(&root).is_none(), "a kernel thread or an ended process blocked an entry: {report:?}");
@@ -128,7 +129,7 @@ fn a_process_of_this_user_that_cannot_be_read_is_the_residue_the_proof_names() {
     let root: PathBuf = make_root(scratch_root.path(), true);
     add_process(&proc_root, 21, &status_text("S (sleeping)", own_uid(), false));
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     assert_eq!((report.inert, report.unreadable, report.unreadable_reaching), (0, 1, 0), "{report:?}");
     assert!(report.blocks(&root).is_none(), "this user's own undumpable process was dropped, not reported: {report:?}");
@@ -145,7 +146,7 @@ fn a_process_of_another_user_that_can_reach_the_entry_is_counted_and_named() {
     let root: PathBuf = make_root(scratch_root.path(), true);
     add_process(&proc_root, 31, &status_text("S (sleeping)", ANOTHER_USER, false));
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     assert_eq!((report.inert, report.unreadable, report.unreadable_reaching), (0, 1, 1), "{report:?}");
     assert!(report.blocks(&root).is_none(), "a process the scan never saw was read as a use: {report:?}");
@@ -161,7 +162,7 @@ fn a_process_of_another_user_the_path_denies_is_not_counted_as_reaching_it() {
     let root: PathBuf = make_root(scratch_root.path(), false);
     add_process(&proc_root, 41, &status_text("S (sleeping)", ANOTHER_USER, false));
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     assert!(!other_uids_can_reach(&root), "the fixture was meant to be behind a directory no other user may enter");
     assert_eq!((report.unreadable, report.unreadable_reaching), (1, 0), "{report:?}");
@@ -181,7 +182,7 @@ fn a_process_working_under_the_entry_still_blocks_it() {
     let child: Child = Command::new("sleep").arg("120").current_dir(&record).spawn().expect("start sleep");
     let _holder: Holder = Holder { child };
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     let blocker: &ProcessUse = report.blocks(&record).expect("the process using the record was not seen");
     assert_eq!(blocker.how, "cwd", "{blocker:?}");
@@ -258,7 +259,7 @@ fn a_root_spelled_through_a_symbolic_link_holds_the_program_a_process_runs_under
     add_own_namespace(&proc_root, "mnt:[fixture]");
     add_visible_process(&proc_root, 51, "mnt:[fixture]", scratch_root.path(), &program);
 
-    let report: ScanReport = scan_processes(&proc_root, &[linked_root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[linked_root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     let blocker: &ProcessUse = report.blocks(&linked_root).expect("a program run under the linked root was read as no use");
     assert_eq!(blocker.how, "exe", "{blocker:?}");
@@ -277,7 +278,7 @@ fn a_program_run_in_another_mount_namespace_blocks_the_root_spelled_the_same_way
     add_own_namespace(&proc_root, "mnt:[here]");
     add_visible_process(&proc_root, 61, "mnt:[a container]", scratch_root.path(), &program);
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &[], -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     assert_eq!(report.foreign_namespace, 1, "{report:?}");
     let blocker: &ProcessUse = report.blocks(&root).expect("a program run in another mount namespace was read as no use");
@@ -304,7 +305,7 @@ fn a_process_in_another_mount_namespace_holding_a_build_lock_blocks_every_entry_
     symlink(&lock, entry.join("fd").join("3")).expect("a descriptor on the lock");
     let identities: [Identity; 1] = [identity_of(&lock).expect("the lock's identity")];
 
-    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &identities, -1);
+    let report: ScanReport = scan_processes(&proc_root, &[root.as_path()], &identities, -1, &Deadline::after(Duration::from_secs(60))).expect("the scan finished before its deadline");
 
     let blocker: &ProcessUse = report.blocks(&root.join("build").join("fixture-0123456789abcdef")).expect("a container's build lock blocked no entry");
     assert_eq!(blocker.how, "identity", "{blocker:?}");

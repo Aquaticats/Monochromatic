@@ -46,10 +46,11 @@ fn collect(base: &Path, retired: &[&str], dry_run: bool) -> Vec<TreeOutcome> {
 
 /// Runs the collection and keeps the log lines it wrote.
 fn collect_reporting(base: &Path, retired: &[&str], dry_run: bool) -> (TreeCollection, Vec<String>) {
-    let trees: Vec<Tree> = list_trees(base);
+    let deadline: Deadline = Deadline::after(Duration::from_secs(60));
+    let trees: Vec<Tree> = list_trees(base, &deadline).expect("the listing finished");
     let retired_set: HashSet<String> = retired.iter().map(|name| { return (*name).to_string(); }).collect();
     let mut log: Vec<String> = Vec::new();
-    let collection: TreeCollection = collect_idle_trees(&trees, &[], base, &retired_set, &POLICY, &real_environment(), NOW, dry_run, &Deadline::after(Duration::from_secs(60)), &mut log);
+    let collection: TreeCollection = collect_idle_trees(&trees, None, base, &retired_set, &POLICY, &real_environment(), NOW, dry_run, &deadline, &mut log);
     return (collection, log);
 }
 
@@ -91,7 +92,7 @@ fn a_tree_whose_workspace_exists_is_kept_however_idle() {
     fs::create_dir_all(&alive).expect("workspace");
     let tree: PathBuf = aged_tree(&base, "ab/00000000000002", &alive, 90 * DAY);
     let outcomes = collect(&base, &[], false);
-    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)));
+    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep { .. }));
     assert!(tree.exists());
 }
 
@@ -100,7 +101,7 @@ fn a_tree_within_its_idle_period_is_kept() {
     let root = scratch();
     let base: PathBuf = root.path().join("base");
     let tree: PathBuf = aged_tree(&base, "ab/00000000000003", &root.path().join("gone"), DAY);
-    assert!(matches!(verdict_of(&collect(&base, &[], false), &tree), TreeVerdict::Keep(_)));
+    assert!(matches!(verdict_of(&collect(&base, &[], false), &tree), TreeVerdict::Keep { .. }));
     assert!(tree.exists());
 }
 
@@ -161,7 +162,7 @@ fn a_tree_nothing_identifies_waits_for_the_longer_idle_period() {
     let old: PathBuf = make_tree(&base, "ab/00000000000007", None);
     age_everything(&old, NOW - 20 * DAY);
     let outcomes = collect(&base, &[], false);
-    assert!(matches!(verdict_of(&outcomes, &young), TreeVerdict::Keep(_)));
+    assert!(matches!(verdict_of(&outcomes, &young), TreeVerdict::Keep { .. }));
     assert!(matches!(verdict_of(&outcomes, &old), TreeVerdict::Removed { .. }));
     assert!(young.exists() && !old.exists());
 }
@@ -176,7 +177,7 @@ fn a_retired_toolchains_tree_goes_even_when_its_workspace_exists_and_a_current_o
     let current_tree: PathBuf = aged_tree(&base, "toolchain/nightly-new/ab/00000000000008", &alive, 5 * DAY);
     let outcomes = collect(&base, &["nightly-old"], false);
     assert!(matches!(verdict_of(&outcomes, &retired_tree), TreeVerdict::Removed { .. }), "{outcomes:?}");
-    assert!(matches!(verdict_of(&outcomes, &current_tree), TreeVerdict::Keep(_)));
+    assert!(matches!(verdict_of(&outcomes, &current_tree), TreeVerdict::Keep { .. }));
 }
 
 #[test]
@@ -187,7 +188,7 @@ fn a_tree_that_holds_another_trees_workspace_is_kept_until_that_one_goes() {
     let inner_workspace: PathBuf = outer.join("package").join("crate-0.1.0");
     let inner: PathBuf = aged_tree(&base, "ab/0000000000000a", &inner_workspace, 5 * DAY);
     let first = collect(&base, &[], false);
-    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(ref why) if why.contains("lies inside")), "{first:?}");
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep { reason: ref why, .. } if why.contains("lies inside")), "{first:?}");
     assert!(matches!(verdict_of(&first, &inner), TreeVerdict::Removed { .. }));
     let second = collect(&base, &[], false);
     assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Removed { .. }), "{second:?}");
@@ -218,9 +219,9 @@ fn a_lead_from_dependency_information_is_judged_by_whether_its_source_exists() {
         fs::write(out.join("alpha.d"), format!("{}/alpha.d: {}\n", tree.display(), source.display())).expect("dependency information");
         age_everything(tree, NOW - 60 * DAY);
     }
-    assert!(matches!(workspace_of(&kept), Workspace::Lead(_)));
+    assert!(matches!(workspace_of(&kept, &Deadline::after(Duration::from_secs(60))), Some(Workspace::Lead(_))));
     let outcomes = collect(&base, &[], false);
-    assert!(matches!(verdict_of(&outcomes, &kept), TreeVerdict::Keep(_)), "{outcomes:?}");
+    assert!(matches!(verdict_of(&outcomes, &kept), TreeVerdict::Keep { .. }), "{outcomes:?}");
     assert!(matches!(verdict_of(&outcomes, &removed), TreeVerdict::Removed { .. }));
 }
 
@@ -231,11 +232,11 @@ fn trees_are_listed_in_both_layouts_and_the_trash_is_not_a_tree() {
     let legacy: PathBuf = make_tree(&base, "ab/00000000000001", None);
     let keyed: PathBuf = make_tree(&base, "toolchain/nightly-x/cd/00000000000002", None);
     fs::create_dir_all(base.join(".cargo-shadow-trash").join("x")).expect("trash");
-    let trees: Vec<Tree> = list_trees(&base);
+    let trees: Vec<Tree> = list_trees(&base, &Deadline::after(Duration::from_secs(60))).expect("the listing finished");
     assert_eq!(trees.len(), 2);
     assert!(trees.contains(&Tree { path: legacy.clone(), kind: TreeKind::Legacy }));
     assert!(trees.contains(&Tree { path: keyed, kind: TreeKind::Keyed(String::from("nightly-x")) }));
-    assert_eq!(profile_dirs_of(&legacy), vec![legacy.join("debug")]);
+    assert_eq!(profile_dirs_of(&legacy, &Deadline::after(Duration::from_secs(60))), Some(vec![legacy.join("debug")]));
 }
 
 #[test]
@@ -248,9 +249,9 @@ fn a_dependency_token_the_read_cut_in_two_is_no_lead_and_names_no_gone_source() 
     // One path longer than the read: whatever the read keeps of it is a prefix of a path, not a path.
     fs::write(out.join("alpha.d"), format!("{}/alpha.d: /gone/{}\n", tree.display(), "z".repeat(6_000))).expect("dependency information");
     age_everything(&tree, NOW - 2 * DAY);
-    assert_eq!(workspace_of(&tree), Workspace::Unidentified);
+    assert_eq!(workspace_of(&tree, &Deadline::after(Duration::from_secs(60))), Some(Workspace::Unidentified));
     let outcomes = collect(&base, &[], false);
-    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
+    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep { .. }), "{outcomes:?}");
     assert!(tree.exists());
 }
 
@@ -304,12 +305,12 @@ fn a_retired_tree_is_kept_while_its_record_guards_a_live_workspace_inside_anothe
     fs::write(&important, b"live user source\n").expect("the live workspace's file");
     let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000011", &live, 5 * DAY);
     let first: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
-    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(ref why) if why.contains("lies inside")), "{first:?}");
-    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep(_)), "the record that guards {} is not thrown away with its tree: {first:?}", outer.display());
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep { reason: ref why, .. } if why.contains("lies inside")), "{first:?}");
+    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep { .. }), "the record that guards {} is not thrown away with its tree: {first:?}", outer.display());
     assert!(retired.exists() && important.exists(), "{first:?}");
     // The second pass has the same records to work from, so it makes the same decision.
     let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
-    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "a later pass keeps the tree the live workspace lies inside: {second:?}");
+    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep { .. }), "a later pass keeps the tree the live workspace lies inside: {second:?}");
     assert!(important.exists(), "the live workspace's file is user data and must never be removed by a pass over idle trees: {second:?}");
 }
 
@@ -330,15 +331,15 @@ fn a_workspace_behind_a_directory_this_user_may_not_search_is_not_a_gone_one() {
     close(&closed, 0o000);
 
     let first: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
-    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(_)), "{first:?}");
-    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep(_)), "the ledger that names a workspace this user may not look for is not thrown away with its tree: {first:?}");
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep { .. }), "{first:?}");
+    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep { .. }), "the ledger that names a workspace this user may not look for is not thrown away with its tree: {first:?}");
 
     close(&closed, 0o700);
     assert_eq!(fs::read_to_string(&important).expect("the live workspace's file survived the first pass"), "live user source\n");
     close(&closed, 0o000);
 
     let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
-    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "{second:?}");
+    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep { .. }), "{second:?}");
     close(&closed, 0o700);
     assert!(important.exists(), "a pass over idle trees never removes a live workspace: {second:?}");
 }
@@ -356,7 +357,7 @@ fn a_tree_whose_workspace_cannot_be_shown_to_be_gone_is_kept() {
     close(&closed, 0o000);
     let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
     close(&closed, 0o700);
-    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
+    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep { .. }), "{outcomes:?}");
     assert!(tree.exists());
 }
 
@@ -375,7 +376,7 @@ fn a_pipe_ledger_in_an_earlier_tree_does_not_hold_the_pass_past_its_deadline() {
     let collection_base: PathBuf = base.clone();
     let collection: TreeCollection = within(move || {
         let mut log: Vec<String> = Vec::new();
-        return collect_idle_trees(&[later_tree], &[earlier_tree], &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::ZERO), &mut log);
+        return collect_idle_trees(&[earlier_tree, later_tree], None, &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::ZERO), &mut log);
     });
     assert_eq!(collection.judged, 0, "no tree is judged after the deadline: {collection:?}");
     assert!(collection.outcomes.is_empty(), "{collection:?}");
@@ -397,10 +398,11 @@ fn a_pipe_dependency_file_is_no_lead_and_does_not_hold_the_pass() {
     let tree_outcome_path: PathBuf = tree.clone();
     let collection_base: PathBuf = base.clone();
     let collection: TreeCollection = within(move || {
+        let deadline: Deadline = Deadline::after(Duration::from_secs(60));
         let mut log: Vec<String> = Vec::new();
-        return collect_idle_trees(&list_trees(&collection_base), &[], &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::from_secs(60)), &mut log);
+        return collect_idle_trees(&list_trees(&collection_base, &deadline).expect("the listing finished"), None, &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &deadline, &mut log);
     });
-    assert!(matches!(verdict_of(&collection.outcomes, &tree_outcome_path), TreeVerdict::Keep(_)), "{collection:?}");
+    assert!(matches!(verdict_of(&collection.outcomes, &tree_outcome_path), TreeVerdict::Keep { .. }), "{collection:?}");
     assert!(tree.exists());
 }
 

@@ -46,7 +46,7 @@ fn every_mechanism_the_command_line_names_is_in_the_order() {
 
 #[test]
 fn a_partly_removed_tree_is_counted_apart_from_a_removed_one_and_a_skipped_one() {
-    let tally: TreeTally = TreeTally { judged: 3, given: 10, removed: 1, bytes: 1 << 30, partly: 1, partly_bytes: 1 << 29, kept: 1, skipped: 0 };
+    let tally: TreeTally = TreeTally { judged: 3, given: 10, removed: 1, bytes: 1 << 30, partly: 1, partly_bytes: 1 << 29, kept: 1, kept_in_use: 1, skipped: 0, ..TreeTally::default() };
     let line: String = tally.line("removed");
     assert!(line.contains("3 of 10 trees judged"), "{line}");
     assert!(line.contains("removed 1 (1.00 GiB by disk blocks)"), "{line}");
@@ -122,10 +122,10 @@ fn the_units_pass_continues_after_the_recorded_profile_directory() {
         let context = RunContext { options: &options, deadline: Deadline::after(deadline), environment: &environment, checkouts: &checkouts, pinned: &pinned, base: Some(&base), rustup_home: root.path(), progress: &progress };
         return run_mechanism(Mechanism::Units, &context);
     };
-    // The deadline is already gone, so nothing is judged and the position it started at is kept.
+    // The deadline is already gone, so even the listing does not finish:
+    // nothing is judged and the position it started at is kept.
     let cut: MechanismReport = run_with(Some(earlier_profile.clone()), Duration::from_secs(0));
-    assert!(cut.lines.iter().any(|line| { return line.contains("0 of 1 profile directories read"); }), "{:?}", cut.lines);
-    assert!(cut.lines.iter().any(|line| { return line.contains("this pass started after") && line.contains(&earlier_profile.display().to_string()); }), "{:?}", cut.lines);
+    assert!(cut.lines.iter().any(|line| { return line.contains("the deadline passed while listing the profile directories"); }), "{:?}", cut.lines);
     assert_eq!(cut.resume_after, Some(earlier_profile), "a pass cut before its first profile keeps the position it started at");
     // The record already names the last profile, so there is nothing left and the next run starts at the front.
     let exhausted: MechanismReport = run_with(Some(later_profile), Duration::from_secs(120));

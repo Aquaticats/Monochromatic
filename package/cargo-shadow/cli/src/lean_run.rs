@@ -46,7 +46,7 @@ use crate::lean_guard::GuardEnvironment;
 /// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::Deadline;
 /// Imports the names this file uses from `crate::lean_run_trees`.
-use crate::lean_run_trees::{tree_report, trees_in_order};
+use crate::lean_run_trees::tree_report;
 /// Imports the names this file uses from `crate::lean_keyed_folder`.
 use crate::lean_keyed_folder::configured_base;
 /// Imports the names this file uses from `crate::lean_policy`.
@@ -190,36 +190,50 @@ fn say(summary: &mut Vec<String>, lines: Vec<String>) {
 }
 
 /// What:
-/// `fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u64)>` lists every profile directory the sweep and the size caps reach,
-/// each with the cap that applies to it.
+/// `fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf], deadline: &Deadline) -> Option<Vec<(PathBuf, u64)>>` lists every profile
+/// directory the sweep and the size caps reach,
+/// each with the cap that applies to it,
+/// and answers nothing when the deadline passed before the listing finished.
 /// Why:
 /// Mechanisms B and E read the same directories with the same caps,
 /// in the checkout's own `target/` directories and in the host build base,
 /// and the list is sorted so a recorded position names the same place on the next run.
+/// The listing itself is the longest fixed cost of that pass:
+/// measured 2026-11-10,
+/// 880 s to walk 68,755 profile directories,
+/// so it obeys the deadline like everything else.
+/// A listing the deadline cut is not judged at all:
+/// a sorted list that is missing its tail is not the list a recorded position indexes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unitProfiles(base: string | undefined, checkouts: string[]): [string, number][]
+/// function unitProfiles(base: string | undefined, checkouts: string[], deadline: Deadline): [string, number][] | undefined
 /// ```
-fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u64)> {
+fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf], deadline: &Deadline) -> Option<Vec<(PathBuf, u64)>> {
     let mut profiles: Vec<(PathBuf, u64)> = Vec::new();
     for checkout in checkouts {
         for target in target_directories(checkout) {
-            for profile in profile_dirs_of(&target) {
+            if deadline.passed() {
+                return None;
+            }
+            for profile in profile_dirs_of(&target, deadline)? {
                 profiles.push((profile, IN_TREE_PROFILE_CAP_BYTES));
             }
         }
     }
     if let Some(found) = base {
-        for tree in list_trees(found) {
-            for profile in profile_dirs_of(&tree.path) {
+        for tree in list_trees(found, deadline)? {
+            if deadline.passed() {
+                return None;
+            }
+            for profile in profile_dirs_of(&tree.path, deadline)? {
                 profiles.push((profile, HOST_PROFILE_CAP_BYTES));
             }
         }
     }
     profiles.sort_by(by_profile);
     profiles.dedup_by(same_profile);
-    return profiles;
+    return Some(profiles);
 }
 
 /// What:
@@ -307,25 +321,23 @@ pub fn long_pass(mechanism: Mechanism) -> Option<LongPass> {
 pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> MechanismReport {
     return match mechanism {
         Mechanism::Trees => match context.base {
-            Some(found) => {
-                let trees: Vec<Tree> = trees_in_order(found);
-                let mut keys: Vec<PathBuf> = Vec::with_capacity(trees.len());
-                for tree in &trees {
-                    keys.push(tree.path.clone());
-                }
-                let start: usize = resume_index(&keys, context.progress.after(LongPass::Trees));
-                tree_report(&trees, start, context.options, &context.deadline, context.environment, found, context.pinned)
-            }
+            Some(found) => tree_report(found, context.progress.after(LongPass::Trees), context.options, &context.deadline, context.environment, context.pinned),
             None => MechanismReport {
                 lines: vec![String::from("idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base")],
                 resume_after: None,
             },
         },
         Mechanism::Units => {
-            // Listing the profile directories reads every tree and every target directory,
-            // and the deadline only starts to apply once a profile directory is judged.
             let listing_began: std::time::Instant = std::time::Instant::now();
-            let profiles: Vec<(PathBuf, u64)> = unit_profiles(context.base, context.checkouts);
+            let Some(profiles) = unit_profiles(context.base, context.checkouts, &context.deadline) else {
+                return MechanismReport {
+                    lines: vec![
+                        format!("older-compiler sweep: the deadline passed while listing the profile directories, {} s in, so none was judged", listing_began.elapsed().as_secs()),
+                        String::from("  the list is sorted for the recorded position, so a part of it is not the list the next pass continues in"),
+                    ],
+                    resume_after: context.progress.after(LongPass::Units).map(Path::to_path_buf),
+                };
+            };
             let listing_seconds: u64 = listing_began.elapsed().as_secs();
             let mut keys: Vec<PathBuf> = Vec::with_capacity(profiles.len());
             for (profile, _cap) in &profiles {

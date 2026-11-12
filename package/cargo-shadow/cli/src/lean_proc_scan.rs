@@ -30,7 +30,7 @@
 use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 /// Device and inode of what a foreign-namespace process holds.
-use crate::lean_identity::{Identity, identity_of};
+use crate::lean_identity::{Deadline, Identity, identity_of};
 
 /// The suffix `/proc` appends to the link of a file that was unlinked while open.
 const DELETED_SUFFIX: &str = " (deleted)";
@@ -387,8 +387,9 @@ fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roo
 }
 
 /// What:
-/// `pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32) -> ScanReport` reads
-/// every process of the procfs at `proc_root`.
+/// `pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32, deadline: &Deadline) -> Option<ScanReport>` reads
+/// every process of the procfs at `proc_root`,
+/// and answers nothing when the deadline passed before the scan finished.
 /// Why:
 /// It finds the processes whose working directory,
 /// program,
@@ -398,12 +399,15 @@ fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roo
 /// because `/proc` names a held file without a link in it.
 /// A process whose entries cannot be read is classified rather than counted as another user's:
 /// see `note_without_entries`.
+/// The scan reads a descriptor table and a map for every process of the machine,
+/// which is over a thousand processes and tens of thousands of mappings on this host,
+/// so an unfinished scan is no proof of anything and the caller must not remove on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function scanProcesses(procRoot: string, roots: string[], identities: Identity[], skipPid: number): ScanReport
+/// export function scanProcesses(procRoot: string, roots: string[], identities: Identity[], skipPid: number, deadline: Deadline): ScanReport | undefined
 /// ```
-pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32) -> ScanReport {
+pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32, deadline: &Deadline) -> Option<ScanReport> {
     let mut report: ScanReport = ScanReport::default();
     let own_namespace: Option<PathBuf> = fs::read_link(proc_root.join("self/ns/mnt")).ok();
     // Both spellings of every root: the one a caller spelled, and the one the kernel holds.
@@ -415,8 +419,11 @@ pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity]
             compared.push(resolved);
         }
     }
-    let Ok(entries) = fs::read_dir(proc_root) else { return report };
+    let Ok(entries) = fs::read_dir(proc_root) else { return Some(report) };
     for entry in entries.flatten() {
+        if deadline.passed() {
+            return None;
+        }
         let name: String = entry.file_name().to_string_lossy().to_string();
         let Ok(pid) = name.parse::<i32>() else { continue };
         if pid == skip_pid {
@@ -457,7 +464,7 @@ pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity]
             }
         }
     }
-    return report;
+    return Some(report);
 }
 
 /// What:
