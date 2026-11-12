@@ -119,6 +119,7 @@ fn a_link_inside_the_tree_reaches_the_copys_own_directory() {
     std::fs::create_dir_all(source_root.join("package/x/node_modules").as_path()).expect("modules");
     std::os::unix::fs::symlink("../y", source_root.join("package/x/node_modules/zod")).expect("inside link");
     let destination_root: PathBuf = root.join("elsewhere/the worktree");
+    std::fs::create_dir_all(destination_root.join("package/x/y").as_path()).expect("the copy's own directory");
     let copied: PathBuf = copied_link(source_root.as_path(), root.join("stage-of-the-copy").as_path(), destination_root.as_path(), THE_LINK);
     assert_eq!(
         std::fs::canonicalize(copied.as_path()).expect("the copied link reaches the copy's own directory"),
@@ -149,6 +150,7 @@ fn an_absolute_link_into_the_tree_names_the_copys_own_directory() {
     std::fs::create_dir_all(source_root.join("package/x/node_modules").as_path()).expect("modules");
     std::os::unix::fs::symlink(source_root.join("package/x/y"), source_root.join("package/x/node_modules/zod")).expect("absolute link");
     let destination_root: PathBuf = root.join("elsewhere/the worktree");
+    std::fs::create_dir_all(destination_root.join("package/x/y").as_path()).expect("the copy's own directory");
     let copied: PathBuf = copied_link(source_root.as_path(), root.join("stage-of-the-copy").as_path(), destination_root.as_path(), THE_LINK);
     assert!(std::fs::read_link(copied.as_path()).expect("text").is_relative(), "the copy kept an absolute path into the checkout");
     assert_eq!(

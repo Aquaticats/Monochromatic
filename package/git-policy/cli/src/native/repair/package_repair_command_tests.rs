@@ -184,8 +184,9 @@ fn a_cut_failure_text_starts_at_a_sentence() {
     let text: String = failure_text(output.as_bytes());
     assert!(text.starts_with("The link at \""), "the kept text began inside a sentence: {text:?}");
     assert!(text.contains(link.as_str()), "the kept text does not name the link in full: {text:?}");
+    assert!(text.contains("Details: File exists (os error 17)"), "the kept text does not carry pnpm\u{27}s last sentence: {text:?}");
     assert!(
-        text.ends_with(&format!("Details: File exists (os error 17). The tool printed {} bytes and only its end is kept here.", output.len())),
+        text.ends_with(&format!("The tool printed {} bytes and only its end is kept here.", output.len())),
         "the kept text does not end at a sentence that says what was left out: {text:?}"
     );
 }

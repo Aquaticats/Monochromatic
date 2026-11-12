@@ -246,8 +246,12 @@ fn tail_of(bytes: &[u8]) -> String {
     let whole_lines: &str = match trimmed.split_once('\n') {
         Some((_ragged, rest)) => rest,
         // One line with no break in it has no whole line to start at, so it starts at the first sentence that follows the
-        //  cut: a fragment of a sentence is what a reader of one line cannot tell from a wrong statement.
-        None => sentence_after_the_cut(trimmed),
+        //  cut. A line that holds no sentence at all keeps its end: the reason a tool prints last is the point of the
+        //  text, and the sentence beside it says how much was left out.
+        None => {
+            let sentence: &str = sentence_after_the_cut(trimmed);
+            if sentence.is_empty() { trimmed } else { sentence }
+        }
     };
     return whole_lines.trim().to_owned();
 }
