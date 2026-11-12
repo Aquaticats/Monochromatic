@@ -352,11 +352,13 @@ pub fn resolve_push_remote(named: Option<OsString>, query: Query<'_>) -> Result<
 ///  here.
 /// Why:
 ///   Git's boolean grammar is Git's:
-/// `2`, `-1` and `0x10` are true,
+/// `2`,
+/// `-1` and `0x10` are true,
 /// an empty value is false,
 /// `TRUE` is true,
 ///  and a value it cannot read stops the push it belongs to.
-/// A list here disagreed with all four of those, and a
+/// A list here disagreed with all four of those,
+/// and a
 ///  boolean read wrongly is a push that publishes what it did not upload.
 /// The key is asked only when the settings hold a
 ///  value for it,

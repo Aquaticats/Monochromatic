@@ -9546,7 +9546,8 @@ The step:
   so the history
   behind a known tip is never read;
   those refs are evidence about the destination only while the destination itself reports them at the same
-  commits (`git ls-remote --heads <remote>`, see below),
+  commits (`git ls-remote --heads <remote>`,
+  see below),
   and when the destination is untrusted nothing is known and
   every commit of the pushed refs is read.
   Each commit is compared with each of its parents,
@@ -9627,7 +9628,8 @@ The step:
   a superset and idempotent as objects are content addressed),
   which
   can leave out nothing the destination might lack.
-  A configured remote with no tracking refs needs no check: the bounded
+  A configured remote with no tracking refs needs no check:
+  the bounded
   form then has nothing to skip and scans the whole refs itself,
   so it asks the destination nothing.
   The
@@ -9793,7 +9795,8 @@ The step:
   objects in its own place:
   that is every `pushurl` the remote names,
   and every `url` it names when it has no
-  `pushurl`, because `git push` writes to all of them.
+  `pushurl`,
+  because `git push` writes to all of them.
   A destination typed as a path (starting with `/`,
   `./` or `../`,
   or naming an existing
