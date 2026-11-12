@@ -96,6 +96,30 @@ fn an_interactive_clean_runs_with_one_force_and_names_the_repository_it_keeps() 
 }
 
 /// What:
+///  An interactive clean that deletes no ignored file still asks what it would delete,
+///  because its second force offers a nested repository in the menu.
+/// Why:
+///  `-x`/`-X` is not what lets a second force remove a repository:
+///  real Git prints `Would remove nested/` for `clean -n -f -f -d`,
+///  so a transform that waited for an ignored mode left the repository in the menu
+///  and the clean deleted it unsaved.
+#[test]
+fn an_interactive_clean_without_an_ignored_mode_asks_what_it_would_delete() {
+    let found: Worktree = worktree("rule-interactive-nested-plain", true);
+    let mut facts: ScriptedFacts = found.facts.clone();
+    facts.asked.clear();
+    match keep_nested_repositories_out_of_an_interactive_menu(
+        os_arguments(&["clean", "-i", "-f", "-f", "-d"]).as_slice(),
+        &mut facts,
+    ) {
+        CapDecision::Capped { repositories, .. } => assert_eq!(repositories, vec![b"cache/nested".to_vec()]),
+        CapDecision::Unchanged => panic!("the menu offers cache/nested and was left alone"),
+        CapDecision::Stopped { message } => panic!("the clean stopped: {message}"),
+    }
+    remove(found.root.as_path());
+}
+
+/// What:
 ///  A clean with no menu,
 ///  no descent,
 ///  no ignored mode or only one force is left to Git,

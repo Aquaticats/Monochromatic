@@ -164,6 +164,36 @@ fn saved_copies(common_dir: &Path) -> Vec<(String, Vec<u8>)> {
     return found;
 }
 
+/// The one directory a save wrote below `common_dir` whose name is `name`,
+///  which is where a nested repository moved whole is kept.
+fn saved_directory(common_dir: &Path, name: &str) -> PathBuf {
+    let root: PathBuf = common_dir.join("monochromatic-git-policy-cli/discarded");
+    let Ok(stamps) = std::fs::read_dir(root.as_path()) else {
+        panic!("no folder of saved copies below {}", root.display());
+    };
+    for candidate in stamps {
+        let Ok(stamp) = candidate else { continue };
+        let kept: PathBuf = stamp.path().join(name);
+        if kept.is_dir() {
+            return kept;
+        }
+    }
+    panic!("no saved copy of {name} below {}", root.display());
+}
+
+/// A repository inside `parent`, holding one commit and one uncommitted file,
+///  which is the work no copy of the surrounding repository holds.
+fn nested_repository(fixture: &Fixture, parent: &Path, name: &str) -> PathBuf {
+    let nested: PathBuf = parent.join(name);
+    std::fs::create_dir_all(nested.as_path()).expect("nested repository directory");
+    git(fixture, nested.as_path(), &["init", "--quiet", "--initial-branch=inner"]);
+    std::fs::write(nested.join("committed.txt"), b"nested committed\n").expect("nested tracked file");
+    git(fixture, nested.as_path(), &["add", "--", "committed.txt"]);
+    git(fixture, nested.as_path(), &["commit", "--quiet", "--message=nested"]);
+    std::fs::write(nested.join("uncommitted.txt"), b"nested uncommitted user data\n").expect("nested untracked file");
+    return nested;
+}
+
 /// What the repository's discard audit recorded,
 ///  read from every line of the file the wrapper appends to.
 fn audit_lines(common_dir: &Path) -> String {
@@ -459,6 +489,58 @@ fn a_forced_clean_in_a_clone_under_the_cargo_build_directory_saves_the_untracked
         vec![(String::from("untracked.txt"), b"untracked user bytes\n".to_vec())]
     );
     assert!(stderr_of(&observed).contains("untracked.txt => "), "{}", stderr_of(&observed));
+    remove(&fixture);
+}
+
+/// What:
+///  A clean with a second force that deletes no ignored file still removes a nested repository whole,
+///  so the repository is moved beside the audit log before the clean runs.
+/// Why:
+///  Git's second force removes a nested repository whether or not the clean asked for ignored files
+///  (`builtin/clean.c`:
+///  `if (force > 1) rm_flags = 0`),
+///  and the review found this exact loss in an exempt clone:
+///  `git clean -ffd` exited 0 and the repository,
+///  its history and its uncommitted file were gone with nothing saved.
+#[test]
+fn a_forced_clean_without_ignored_files_in_a_clone_under_the_cargo_build_directory_keeps_a_nested_repository() {
+    let fixture: Fixture = fixture("cargo-build-directory-clean-nested");
+    source_repository(&fixture);
+    let build_dir: PathBuf = cargo_build_directory(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let nested: PathBuf = nested_repository(&fixture, clone.as_path(), "nested");
+    // Real Git's own reading: the second force removes the repository, and `-x` is not part of it.
+    let dry: Output = git(&fixture, clone.as_path(), &["clean", "-n", "-f", "-f", "-d"]);
+    assert!(
+        String::from_utf8_lossy(dry.stdout.as_slice()).contains("Would remove nested/"),
+        "{}",
+        String::from_utf8_lossy(dry.stdout.as_slice())
+    );
+    let observed: Observed = run_with_variables(
+        &fixture,
+        clone.as_path(),
+        &[("CARGO_TARGET_DIR", build_dir.as_os_str())],
+        &["clean", "-f", "-f", "-d"],
+    );
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    // The clean ran: Git removed the repository where it stands.
+    assert!(!nested.exists(), "the clean left the nested repository where Git deletes it");
+    // Everything it held, its history included, is below the saved copies.
+    let place: PathBuf = saved_directory(clone.join(".git").as_path(), "nested");
+    assert_eq!(
+        std::fs::read_to_string(place.join("committed.txt")).expect("kept tracked file"),
+        "nested committed\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(place.join("uncommitted.txt")).expect("kept untracked file"),
+        "nested uncommitted user data\n"
+    );
+    assert!(place.join(".git").exists(), "the kept repository lost its own history");
+    let audit: String = audit_lines(clone.join(".git").as_path());
+    assert!(audit.contains("\"outcome\":\"saved-nested-repository\""), "{audit}");
+    assert!(audit.contains("\"exemptedBy\":\"CARGO_TARGET_DIR\""), "{audit}");
+    assert!(stderr_of(&observed).contains("nested => "), "{}", stderr_of(&observed));
     remove(&fixture);
 }
 
