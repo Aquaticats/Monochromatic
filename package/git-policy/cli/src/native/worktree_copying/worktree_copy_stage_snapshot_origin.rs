@@ -189,3 +189,8 @@ pub fn prove_made_from_the_recorded_source(_container: &Path, _origin: &Snapshot
 #[cfg(test)]
 #[path = "worktree_copy_stage_snapshot_origin_tests.rs"]
 mod tests;
+
+/// The measurement of what the origin costs an add's path stays out of the release executable too.
+#[cfg(test)]
+#[path = "worktree_copy_stage_snapshot_origin_measurement_tests.rs"]
+mod measurement_tests;
