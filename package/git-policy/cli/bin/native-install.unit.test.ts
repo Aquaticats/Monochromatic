@@ -19,10 +19,14 @@ import {
   wrapperVersionLine,
 } from './native-install-steps.ts';
 import {
-  type InstallFixture,
   commitSubjects,
-  createInstallFixture,
+  committedFileText,
   fileTextOf,
+  stagedPathNames,
+} from './install-fixture-checkout-reads-for-tests.ts';
+import {
+  type InstallFixture,
+  createInstallFixture,
 } from './stand-in-install-programs-for-tests.ts';
 import { recordedCalls } from './stand-in-scope-programs-for-tests.ts';
 
@@ -48,6 +52,11 @@ const releaseVersion = '0.6.1-alpha.10';
  The release the fixtures start from, which is the one their lockfile names.
  */
 const earlierVersion = '0.6.1-alpha.9';
+
+/**
+ A release another process writes into the lockfile while an install of {@link releaseVersion} runs.
+ */
+const concurrentlyWrittenVersion = '0.6.1-alpha.11';
 
 /**
  One line of the wrapper's own commit timing record, which a fixture writes beside the common Git directory.
@@ -277,6 +286,101 @@ await describe({
         expect(printed.stdout,).not.toContain('== newest timing line (',);
         expect(printed.stdout,).toContain(`installed ${earlierVersion}; ${lockFileName} already named it, so nothing was committed`,);
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
+        expect(await recordedCalls({
+          directory: fixture.directory,
+          fileName: 'journalctl.jsonl',
+        }),).toHaveLength(0,);
+      },
+    }),
+    it({
+      name: 'commits a lock the update step resolved and an earlier step had already staged',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseVersion,
+          options: {
+            lockUnchanged: true,
+            stagedLockVersion: releaseVersion,
+          },
+        });
+        /**
+         How the install ended.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseVersion,],
+        });
+        expect(printed.status,).toBe(0,);
+        expect(printed.stdout,).toContain(`+{"tools":{"cargo:monochromatic-git-policy-cli":"${releaseVersion}"}}`,);
+        expect(printed.stdout,).not.toContain(`${lockFileName} did not change`,);
+        expect(printed.stdout,).toContain(`installed ${releaseVersion} and committed the lock`,);
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual([
+          `chore(toolchain): monochromatic-git-policy-cli ${releaseVersion}`,
+          'first',
+        ],);
+        expect(await committedFileText({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(releaseVersion,);
+        // The release's own lock is committed, and nothing of it is left staged.
+        expect(await stagedPathNames({ repository: fixture.repository, }),).toEqual([],);
+      },
+    }),
+    it({
+      name: 'refuses to commit a lock another process wrote while the release was installed',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseVersion,
+          options: { concurrentLockVersion: concurrentlyWrittenVersion, },
+        });
+        /**
+         How the refused install ended.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseVersion,],
+        });
+        expect(printed.status,).toBe(1,);
+        expect(printed.stderr,).toContain('written by something else',);
+        expect(printed.stderr,).toContain('nothing was committed',);
+        // The refusal prints what holds the lock now, so a person reads the change that was not committed.
+        expect(printed.stdout,).toContain(concurrentlyWrittenVersion,);
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
+        // The other process's write is left exactly where it is.
+        expect(await fileTextOf({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(concurrentlyWrittenVersion,);
+        expect(await committedFileText({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(earlierVersion,);
+      },
+    }),
+    it({
+      name: 'says nothing was committed when another install of the release committed the lock first',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseVersion,
+          options: { concurrentCommit: true, },
+        });
+        /**
+         How the install ended.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseVersion,],
+        });
+        expect(printed.status,).toBe(0,);
+        expect(printed.stdout,).toContain(`installed ${releaseVersion}; ${lockFileName} already named it, so nothing was committed`,);
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual([
+          `chore(toolchain): monochromatic-git-policy-cli ${releaseVersion}`,
+          'first',
+        ],);
+        expect(await committedFileText({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(releaseVersion,);
+        // No sample commit was made here, so no journal is read for one.
         expect(await recordedCalls({
           directory: fixture.directory,
           fileName: 'journalctl.jsonl',

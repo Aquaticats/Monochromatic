@@ -5,18 +5,20 @@
  a real checkout under the scratch parent: the stand-in `git` answers `--version` with the wrapper's own line, which is the
  one thing a throwaway checkout's real Git cannot say, and passes every other command to the first `git` after its own
  directory, so the commit, the diff and the Git directory queries are real.
+
+ The questions a test asks of the checkout afterwards are in `install-fixture-checkout-reads-for-tests.ts`, which this file
+ uses and which uses nothing of this one.
  */
 import {
   mkdir,
   mkdtemp,
-  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { runGateCommandOrThrow } from './native-gate-run.ts';
+import { fixtureGit } from './install-fixture-checkout-reads-for-tests.ts';
 
 /**
  Permission bits that give the owner alone access.
@@ -53,9 +55,20 @@ export const installStandInFailStepVariable = 'INSTALL_STAND_IN_FAIL_STEP';
 export const installStandInLockUnchangedVariable = 'INSTALL_STAND_IN_LOCK_UNCHANGED';
 
 /**
- Milliseconds one git command of a fixture is given.
+ Environment variable that names a release another process writes into the lockfile while the install runs.
+
+ The stand-in `git` writes it when it is asked for `--version`, which is the moment between the install of the tools and
+ the commit of the lock: a concurrent `toolchain:update` of another tool reaches the lock there.
  */
-const fixtureGitDeadlineMilliseconds = 120_000;
+export const installStandInConcurrentLockVersionVariable = 'INSTALL_STAND_IN_CONCURRENT_LOCK_VERSION';
+
+/**
+ Environment variable that, when it is `1`, makes the stand-in `git` commit this release's lock itself at `--version`.
+
+ That is another install of the same release finishing its commit first, which leaves this install with nothing to
+ record and must not be an error.
+ */
+export const installStandInConcurrentCommitVariable = 'INSTALL_STAND_IN_CONCURRENT_COMMIT';
 
 /**
  The commit identity every fixture commit is made with, so a fixture never depends on this machine's Git configuration.
@@ -107,6 +120,9 @@ process.exit(2);
 /**
  The stand-in `git`: answers `--version` with the wrapper's own line, records every call, and passes everything else to
  the first `git` found after its own directory, so no absolute path to a Git binary is written anywhere here.
+
+ Two things another process does to the lockfile are modelled here, at the moment between installing the tools and
+ committing the lock: writing another release into it, and committing this release's lock itself.
  */
 const standInGit = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -116,10 +132,6 @@ const directory = process.env.${installStandInDirectoryVariable};
 const version = process.env.${installStandInVersionVariable} ?? '';
 const args = process.argv.slice(2);
 fs.appendFileSync(path.join(directory, 'git.jsonl'), JSON.stringify({ args, cwd: process.cwd() }) + '\\n');
-if (args.includes('--version')) {
-  process.stdout.write('git version 2.56.0\\nmonochromatic-git-policy-cli ' + version + ', shadowing git at /usr/bin/git\\n');
-  process.exit(0);
-}
 const own = path.resolve(path.dirname(process.argv[1]));
 const real = (process.env.PATH ?? '').split(':').filter((entry) => entry !== '').filter((entry) => path.resolve(entry) !== own).map((entry) => path.join(entry, 'git')).find((candidate) => {
   try {
@@ -133,7 +145,20 @@ if (real === undefined) {
   process.stderr.write('the stand-in git found no git after its own directory\\n');
   process.exit(127);
 }
-const done = spawnSync(real, args, { stdio: 'inherit' });
+const runReal = (realArgs) => spawnSync(real, realArgs, { stdio: 'inherit' });
+if (args.includes('--version')) {
+  const concurrentLockVersion = process.env.${installStandInConcurrentLockVersionVariable} ?? '';
+  if (concurrentLockVersion !== '') {
+    fs.writeFileSync(path.join(process.cwd(), 'toolchain.lock.json'), '{"tools":{"cargo:monochromatic-git-policy-cli":"' + concurrentLockVersion + '"}}\\n');
+  }
+  if (process.env.${installStandInConcurrentCommitVariable} === '1') {
+    const done = runReal(['commit', '--message=chore(toolchain): monochromatic-git-policy-cli ' + version, '--', 'toolchain.lock.json']);
+    if (done.status !== 0) process.exit(done.status === null ? 1 : done.status);
+  }
+  process.stdout.write('git version 2.56.0\\nmonochromatic-git-policy-cli ' + version + ', shadowing git at /usr/bin/git\\n');
+  process.exit(0);
+}
+const done = runReal(args);
 process.exit(done.status === null ? 1 : done.status);
 `;
 
@@ -168,30 +193,19 @@ export type InstallFixture = AsyncDisposable & {
 };
 
 /**
- Runs one git command in the fixture and answers what it printed.
+ The lockfile text that records one release.
 
- @param directory - the checkout to run in
+ @param version - the release the lockfile names
 
- @param args - the arguments after the `-C <checkout>` pair
+ @returns the whole lockfile, one line
 
- @returns what git printed on standard output
+ @example
+ ```ts
+ lockRecordText({ version: '0.6.1-alpha.10' });
+ ```
  */
-async function git({
-  directory,
-  args,
-}: {
-  readonly directory: string;
-  readonly args: readonly string[];
-}): Promise<string> {
-  return (await runGateCommandOrThrow({
-    program: 'git',
-    args: [
-      '-C',
-      directory,
-      ...args,
-    ],
-    deadlineMilliseconds: fixtureGitDeadlineMilliseconds,
-  })).stdout;
+export function lockRecordText({ version }: { readonly version: string; }): string {
+  return `{"tools":{"cargo:monochromatic-git-policy-cli":"${version}"}}\n`;
 }
 
 /**
@@ -200,8 +214,10 @@ async function git({
  @param version - the release the stand-in tool reports and writes into the lockfile
 
  @param options - what the fixture's stand-ins are told: `lockUnchanged` leaves the lockfile as it is, which is an
-   install of a release already recorded, `failStep` names the step whose stand-in fails, and `timingLine` is one recorded
-   timing line to write beside the common Git directory
+   install of a release already recorded, `stagedLockVersion` writes that release into the lockfile and stages it before
+   the install begins, `concurrentLockVersion` is a release another process writes into the lockfile while the install
+   runs, `concurrentCommit` makes another process commit this release's lock first, `failStep` names the step whose
+   stand-in fails, and `timingLine` is one recorded timing line to write beside the common Git directory
 
  @returns the fixture; declare it with `await using`
 
@@ -217,6 +233,9 @@ export async function createInstallFixture({
   readonly version: string;
   readonly options?: {
     readonly lockUnchanged?: boolean;
+    readonly stagedLockVersion?: string;
+    readonly concurrentLockVersion?: string;
+    readonly concurrentCommit?: boolean;
     readonly failStep?: string;
     readonly timingLine?: string;
   };
@@ -290,7 +309,7 @@ export async function createInstallFixture({
       '{"tools":{"cargo:monochromatic-git-policy-cli":"0.6.1-alpha.9"}}\n',
     ),
   ]);
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       'init',
@@ -299,14 +318,14 @@ export async function createInstallFixture({
       '.',
     ],
   });
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       'add',
       'toolchain.lock.json',
     ],
   });
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       ...fixtureIdentity,
@@ -317,6 +336,22 @@ export async function createInstallFixture({
       'toolchain.lock.json',
     ],
   });
+  if (options.stagedLockVersion !== undefined) {
+    await writeFile(
+      join(
+        repository,
+        'toolchain.lock.json'
+      ),
+      lockRecordText({ version: options.stagedLockVersion, })
+    );
+    await fixtureGit({
+      directory: repository,
+      args: [
+        'add',
+        'toolchain.lock.json',
+      ],
+    });
+  }
   if (options.timingLine !== undefined)
     await writeFile(
       join(
@@ -334,10 +369,17 @@ export async function createInstallFixture({
       PATH: `${programs}:${process.env
         .PATH
         ?? ''}`,
+      // The identity a stand-in commit is made with, so a fixture never depends on this machine's Git configuration.
+      GIT_AUTHOR_NAME: 'Install Test',
+      GIT_AUTHOR_EMAIL: 'install-test@example.invalid',
+      GIT_COMMITTER_NAME: 'Install Test',
+      GIT_COMMITTER_EMAIL: 'install-test@example.invalid',
       [installStandInDirectoryVariable]: directory,
       [installStandInVersionVariable]: version,
       ...(options.failStep === undefined ? {} : { [installStandInFailStepVariable]: options.failStep }),
       ...(options.lockUnchanged === true ? { [installStandInLockUnchangedVariable]: '1' } : {}),
+      ...(options.concurrentLockVersion === undefined ? {} : { [installStandInConcurrentLockVersionVariable]: options.concurrentLockVersion }),
+      ...(options.concurrentCommit === true ? { [installStandInConcurrentCommitVariable]: '1' } : {}),
     } as Readonly<Record<string, string>>,
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(
@@ -349,62 +391,4 @@ export async function createInstallFixture({
       );
     },
   };
-}
-
-/**
- The commits one fixture checkout holds, newest first.
-
- @param repository - the checkout to read
-
- @returns every commit's subject
-
- @example
- ```ts
- await commitSubjects({ repository: fixture.repository });
- ```
- */
-export async function commitSubjects({ repository }: { readonly repository: string; }): Promise<readonly string[]> {
-  return (await git({
-    directory: repository,
-    args: [
-      'log',
-      '--format=%s',
-    ],
-  })).split('\n')
-    .filter(function hasText(line) {
-      return line !== '';
-    });
-}
-
-/**
- The text of one file of a fixture checkout, which is how a test reads what a step wrote.
-
- @param repository - the checkout to read
-
- @param name - the file's name relative to the checkout
-
- @returns its text
-
- @example
- ```ts
- await fileTextOf({ repository: fixture.repository, name: 'toolchain.lock.json' });
- ```
- */
-export async function fileTextOf({
-  repository,
-  name,
-}: {
-  readonly repository: string;
-  readonly name: string;
-}): Promise<string> {
-  /**
-   The file's contents.
-   */
-  return await readFile(
-    join(
-      repository,
-      name
-    ),
-    'utf8'
-  );
 }
