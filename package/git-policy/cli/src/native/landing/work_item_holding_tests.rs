@@ -7,6 +7,7 @@
 //! and the next hold then publishes the commit the gate refused.
 
 use super::*;
+use crate::service_fault::hooks;
 use crate::test_support::{fixture, remove, restore_owner_access};
 use std::path::PathBuf;
 
@@ -225,5 +226,132 @@ fn a_hold_no_one_took_keeps_its_record() {
     assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
     give_up_what_the_queue_took(work.as_path(), item.id().as_str());
     assert!(state_directory(work.as_path(), HELD).join(item.id()).exists(), "a hold the queue has not taken is the only record of the wait");
+    remove(root.as_path());
+}
+
+/// What:
+///  A hold that writes its record after the queue approved the same push gives that record up.
+/// Why:
+///   The look that keeps a hold off an approved push is one look,
+/// and the queue can take the item between it and the write:
+/// the record then stands beside a `pending` one and the push both runs before the gate answered and stays named by a
+/// record nothing can promote.
+/// The hook is the producer's approval,
+/// and it runs at the instant the queue can take the item.
+#[test]
+fn a_hold_that_lands_after_the_queue_approved_the_push_gives_its_record_up() {
+    let root: PathBuf = fixture("work-item-holding-hold-after-the-approval");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    let (hook_work, hook_item): (PathBuf, WorkItem) = (work.clone(), item.clone());
+    hooks::set(
+        BEFORE_THE_HELD_WRITE,
+        std::rc::Rc::new(move || {
+            // The approval lands between this hold's look and its record, as a replay of the same batch does.
+            let _approved: Result<crate::work_item::Enqueued, String> = crate::work_item::enqueue(hook_work.as_path(), &hook_item);
+        }),
+    );
+    let held: Result<(), String> = hold(work.as_path(), &item, "4321");
+    hooks::clear();
+    assert_eq!(held, Ok(()), "the push is held while the gate decides");
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the approval is left where the queue put it");
+    assert!(
+        !state_directory(work.as_path(), HELD).join(item.id()).exists(),
+        "a hold that lands beside an approved push gives its own record up, so nothing names a push the queue already runs"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A promotion publishes the held record where a round finds it, once.
+/// Why:
+///   This is the answer the controls below depart from:
+/// the record is the producer's approval,
+/// so it becomes the queue's item and stops being a wait.
+#[test]
+fn a_promotion_of_a_held_record_queues_it() {
+    let root: PathBuf = fixture("work-item-holding-promote");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
+    assert_eq!(promote(work.as_path(), item.id().as_str()), Promoted::Queued, "the approval finds the record and queues it");
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the item waits where a round finds it");
+    assert!(!state_directory(work.as_path(), HELD).join(item.id()).exists(), "the wait is over");
+    assert_eq!(promote(work.as_path(), item.id().as_str()), Promoted::Nothing, "a second promotion finds nothing held");
+    remove(root.as_path());
+}
+
+/// What:
+///  A promotion of a push the queue already holds keeps the queue's own record exactly as it is.
+/// Why:
+///   A rename onto `pending` would replace that record,
+/// and the count of tries it carries is what limits a push that keeps failing:
+/// replacing it buys the push a fresh allowance it was never given,
+/// so the queue's record is the one that stays and the held record gives way.
+/// The hook is the producer's enqueue, which can land after the hold it duplicates.
+#[test]
+fn a_promotion_beside_a_push_the_queue_holds_keeps_the_queue_s_record() {
+    let root: PathBuf = fixture("work-item-holding-promote-beside-a-queued-push");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    let mut tried: WorkItem = item.clone();
+    tried.tries = 3;
+    assert_eq!(crate::work_item::enqueue(work.as_path(), &tried), Ok(crate::work_item::Enqueued::Added), "the producer queued the push");
+    assert!(create_private_directory_all(state_directory(work.as_path(), HELD).as_path()).is_ok(), "the held directory");
+    std::fs::write(state_directory(work.as_path(), HELD).join(item.id()), item.encode()).expect("a held record the same item left behind");
+    let _answer: Promoted = promote(work.as_path(), item.id().as_str());
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the queued push is still queued");
+    assert!(!state_directory(work.as_path(), HELD).join(item.id()).exists(), "the held record of an item the queue has is given up");
+    let queued: WorkItem = WorkItem::decode(std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(item.id())).expect("the queued record").as_str())
+        .expect("the queued record decodes");
+    assert_eq!(queued.tries, 3, "the queue's record keeps the tries it had counted, which a rename would replace with the held record's");
+    remove(root.as_path());
+}
+
+/// What:
+///  A promotion of a push a round already claimed writes no second record a round could run.
+/// Why:
+///   A claim is the queue's statement that the push runs now,
+/// so a `pending` record published beside it is the same push run twice,
+/// and the commit it carries delivered twice or reported twice.
+#[test]
+fn a_promotion_beside_a_claim_writes_no_second_runnable_record() {
+    let root: PathBuf = fixture("work-item-holding-promote-beside-a-claim");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    assert_eq!(crate::work_item::enqueue(work.as_path(), &item), Ok(crate::work_item::Enqueued::Added), "the producer queued the push");
+    let claimed: crate::work_item::Claimed =
+        crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("claim").expect("the queued push");
+    assert_eq!(claimed.id, item.id(), "the claim is this push's");
+    assert!(create_private_directory_all(state_directory(work.as_path(), HELD).as_path()).is_ok(), "the held directory");
+    std::fs::write(state_directory(work.as_path(), HELD).join(item.id()), item.encode()).expect("a held record the same item left behind");
+    let _answer: Promoted = promote(work.as_path(), item.id().as_str());
+    let pending: Vec<String> = std::fs::read_dir(state_directory(work.as_path(), PENDING)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert!(pending.is_empty(), "no record waits to be claimed a second time: {pending:?}");
+    assert!(!state_directory(work.as_path(), HELD).join(item.id()).exists(), "the held record of a push a round runs is given up");
+    remove(root.as_path());
+}
+
+/// What:
+///  A promotion of a push the queue already finished says that, and writes nothing.
+/// Why:
+///   `done` is the queue's answer that the push was made and `failed` its answer that it was given up on,
+/// so a `pending` record would run a push that is over,
+/// and the caller has no line to say about it.
+#[test]
+fn a_promotion_of_a_push_the_queue_finished_writes_nothing() {
+    let root: PathBuf = fixture("work-item-holding-promote-after-the-push");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    let done: PathBuf = state_directory(work.as_path(), DONE);
+    assert!(create_private_directory_all(done.as_path()).is_ok(), "the done directory");
+    assert!(create_private_directory_all(state_directory(work.as_path(), HELD).as_path()).is_ok(), "the held directory");
+    std::fs::write(done.join(item.id()), item.encode()).expect("the settled record");
+    std::fs::write(state_directory(work.as_path(), HELD).join(item.id()), item.encode()).expect("a held record the same item left behind");
+    assert_eq!(promote(work.as_path(), item.id().as_str()), Promoted::AlreadyFinished, "the queue finished with this push");
+    let pending: Vec<String> = std::fs::read_dir(state_directory(work.as_path(), PENDING)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert!(pending.is_empty(), "a push the queue settled is never queued again: {pending:?}");
+    assert!(!state_directory(work.as_path(), HELD).join(item.id()).exists(), "the held record of a settled push is given up");
+    assert!(done.join(item.id()).exists(), "the settlement is left where the queue put it");
     remove(root.as_path());
 }

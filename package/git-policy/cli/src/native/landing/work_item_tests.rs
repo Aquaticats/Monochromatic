@@ -1081,3 +1081,24 @@ fn a_given_up_push_whose_notice_cannot_be_written_stays_recoverable() {
     assert!(names(work.as_path(), RECOVERING).is_empty());
     remove(directory.as_path());
 }
+
+/// What:
+///  A push whose held record stands is not queued again.
+/// Why:
+///   The held record is the queue's statement that this push waits for its gate,
+/// so a `pending` record written beside it runs the push before the gate answered,
+/// which is the mirror image of a hold over an approved push:
+/// both leave two records for one commit and one of them runs too early.
+/// The producer's round is what writes it, on a replay after a restart or beside a hold another command wrote.
+#[test]
+fn a_push_whose_held_record_stands_is_not_queued_again() {
+    let directory: PathBuf = fixture("work-enqueue-held");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let held: WorkItem = item(WorkKind::Push, "aaa");
+    assert_eq!(hold(work.as_path(), &held, "4321"), Ok(()), "the push waits for its gate");
+    assert_eq!(enqueue(work.as_path(), &held), Ok(Enqueued::Known), "the queue already has this push, held");
+    assert_eq!(enqueue_all(work.as_path(), std::slice::from_ref(&held)), Ok(vec![Enqueued::Known]), "a round of it answers the same");
+    assert_eq!(names(work.as_path(), PENDING), Vec::<String>::new(), "nothing is queued beside the held record");
+    assert_eq!(names(work.as_path(), HELD), vec![held.id()], "the held record is the queue's statement of the wait");
+    remove(directory.as_path());
+}

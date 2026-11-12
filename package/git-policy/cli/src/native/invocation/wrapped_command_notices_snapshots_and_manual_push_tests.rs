@@ -115,7 +115,7 @@ fn a_released_push_is_not_said() {
     };
     crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
     assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()).len(), 1);
-    assert!(crate::work_item::promote(work_dir.as_path(), item.id().as_str()), "the producer released it");
+    assert_eq!(crate::work_item::promote(work_dir.as_path(), item.id().as_str()), crate::work_item::Promoted::Queued, "the producer released it");
     assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()), Vec::<String>::new(), "a released push is not said");
     remove(root.as_path());
 }

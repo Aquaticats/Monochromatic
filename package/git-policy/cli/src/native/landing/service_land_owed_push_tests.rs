@@ -61,8 +61,8 @@ fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
         state_directory(work_dir.as_path(), crate::work_item::HELD).join(id.as_str()).exists(),
         "the push waits where nothing drains it, until the wrapper's gate promotes it"
     );
-    // The producer's decision is one rename; a refused one unlinks the held record and leaves nothing runnable.
-    assert!(crate::work_item::promote(work_dir.as_path(), id.as_str()), "the gate's approval makes it runnable");
+    // The producer's decision publishes the record, and a refused one leaves the held record and nothing runnable.
+    assert_eq!(crate::work_item::promote(work_dir.as_path(), id.as_str()), crate::work_item::Promoted::Queued, "the gate's approval makes it runnable");
     assert!(state_directory(work_dir.as_path(), PENDING).join(id.as_str()).exists());
     crate::work_item::forget_held(work_dir.as_path(), id.as_str());
     assert!(wakes.try_recv().is_err(), "the service wakes no work of its own: the wrapper's hand-off is what asks for the push");

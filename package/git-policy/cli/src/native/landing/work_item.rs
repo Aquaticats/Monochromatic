@@ -281,7 +281,7 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
     return Ok(*answer);
 }
 
-pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict, requeue_after_giving_up};
+pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict, requeue_after_giving_up, Promoted};
 pub use crate::work_item_queued_ids::queued_ids;
 
 /// What:
@@ -319,9 +319,12 @@ pub fn enqueue_all(work_dir: &Path, items: &[WorkItem]) -> Result<Vec<Enqueued>,
     for item in items {
         let id: String = item.id();
         // A round holds every id once: a second item of one id finds the first one's record where the round put it.
+        //  `held` is a state the queue already has too: a held record keeps its push out of every round until its producer approves
+        //  it, so a pending record written beside one runs the push before the gate answered and leaves a record nothing promotes.
         if held.contains(id.as_str())
             || state_directory(work_dir, DONE).join(id.as_str()).exists()
             || state_directory(work_dir, FAILED).join(id.as_str()).exists()
+            || state_directory(work_dir, HELD).join(id.as_str()).exists()
         {
             answers.push(Enqueued::Known);
             continue;

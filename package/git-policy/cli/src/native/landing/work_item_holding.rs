@@ -27,6 +27,7 @@ use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, proven_g
 use crate::private_storage::{
     create_private_directory_all, replace_private_file, replace_private_file_unsynced, sync_directory, write_private_file, write_private_file_unsynced,
 };
+use crate::service_fault::{BEFORE_THE_HELD_WRITE, reach};
 use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -71,6 +72,8 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
         Some(rewritten) => rewritten,
         None => item_text,
     };
+    // A control stops here to let the queue take the item between the look above and the write below.
+    reach(BEFORE_THE_HELD_WRITE);
     let path: PathBuf = state_directory(work_dir, HELD).join(item.id());
     return match write_private_file_unsynced(path.as_path(), record.as_bytes()) {
         Ok(()) => {
@@ -212,24 +215,120 @@ pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
 
 /// What:
 ///  Makes a held item runnable,
-/// whole by one rename,
-/// and answers whether anything was held.
+///  answers whether the queue has it now and why when it does not,
+///  and gives the held record up when the queue held the item already.
 /// Why:
 ///   The promotion is the producer's approval,
-/// so a record that is not there is no approval and the caller says so.
+/// so an approval that finds nothing held still leaves the item where the queue put it,
+/// and a caller that must not lose the push writes the record itself in that case.
+///   The item is published by one exclusive write,
+/// because `pending` is where the queue's own record of the same item can already be:
+/// a producer may have enqueued it before the hold was written,
+/// a release before this one may have left it,
+/// and a hold and an enqueue can land in either order.
+/// A rename onto that name would replace the record the queue has,
+/// which costs the count of tries it carries,
+/// and beside a claim it would make a second runnable record for a push already in flight.
+/// So the write is create-only, as every record of this queue is,
+/// and a record already there is the queue's own answer that the push is queued.
+///   The published record carries the held record's own words,
+/// so the verdict it states is not lost,
+/// and a promotion a kill cuts in half leaves the held record beside the queued one,
+/// which the next look settles rather than runs twice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// promote(workDir, id) // rename held/<id> to pending/<id>
+/// promote(workDir, id) // 'queued' | 'already-queued' | 'already-finished' | 'nothing'
 /// ```
-pub fn promote(work_dir: &Path, id: &str) -> bool {
+pub fn promote(work_dir: &Path, id: &str) -> Promoted {
+    let held: PathBuf = state_directory(work_dir, HELD).join(id);
+    let Ok(record) = std::fs::read(held.as_path()) else {
+        return Promoted::Nothing;
+    };
     if !create_states(work_dir) {
-        return false;
+        return Promoted::Nothing;
     }
-    if std::fs::rename(state_directory(work_dir, HELD).join(id), state_directory(work_dir, PENDING).join(id)).is_err() {
-        return false;
+    let found: QueueHolds = where_the_queue_has_it(work_dir, id);
+    if found != QueueHolds::Nothing {
+        forget_held(work_dir, id);
+        return match found {
+            QueueHolds::Finished => Promoted::AlreadyFinished,
+            QueueHolds::Runnable => Promoted::AlreadyQueued,
+            QueueHolds::Nothing => Promoted::Nothing,
+        };
     }
-    return true;
+    let pending: PathBuf = state_directory(work_dir, PENDING).join(id);
+    return match write_private_file_unsynced(pending.as_path(), record.as_slice()) {
+        Ok(()) => {
+            forget_held(work_dir, id);
+            Promoted::Queued
+        }
+        // The queue's record is there already: nothing was lost and nothing was replaced.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            forget_held(work_dir, id);
+            Promoted::AlreadyQueued
+        }
+        // The record stays held, which says the push has not been approved for a round yet and loses nothing.
+        Err(_unwritable) => Promoted::Nothing,
+    };
+}
+
+/// What:
+///  What a producer's promotion of a held record found.
+/// Why:
+///   A caller says one thing about a push it queued and another about a push the queue already carries,
+/// and a push the queue already finished has nothing to say at all,
+/// so the answer is not a yes or a no.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Promoted = 'queued' | 'already-queued' | 'already-finished' | 'nothing';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Promoted {
+    /// The held record is gone and the item waits where a round finds it.
+    Queued,
+    /// The queue already held the item, and the held record gave way to the queue's own record.
+    AlreadyQueued,
+    /// The queue had already finished with the item, and the held record gave way to that answer.
+    AlreadyFinished,
+    /// Nothing was held under that name, or the record could not be published.
+    Nothing,
+}
+
+/// What:
+///  Where the queue already has an item.
+/// Why:
+///   `done`, `failed` and `pending` name the record itself,
+/// and a claim is named by the id it carries,
+/// so the three answers a hold and a promotion need are one question each:
+/// finished,
+/// runnable,
+///  or not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type QueueHolds = 'finished' | 'runnable' | 'nothing';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum QueueHolds {
+    /// In `done` or `failed`: the queue finished with it.
+    Finished,
+    /// In `pending`, `claimed` or `recovering`: the queue runs it, or runs it now.
+    Runnable,
+    /// Nowhere.
+    Nothing,
+}
+
+/// The answer to `where_the_queue_has_it` for `id`.
+fn where_the_queue_has_it(work_dir: &Path, id: &str) -> QueueHolds {
+    if state_directory(work_dir, DONE).join(id).exists() || state_directory(work_dir, FAILED).join(id).exists() {
+        return QueueHolds::Finished;
+    }
+    if state_directory(work_dir, PENDING).join(id).exists() || crate::work_item::find_claim(work_dir, id).is_some() {
+        return QueueHolds::Runnable;
+    }
+    return QueueHolds::Nothing;
 }
 
 /// The state directory of the blocked verdicts.
@@ -573,15 +672,7 @@ fn is_blocked(work_dir: &Path, id: &str) -> bool {
 /// const taken = exists(join(workDir, 'done', id)) || exists(join(workDir, 'failed', id)) || exists(join(workDir, 'pending', id)) || findClaim(workDir, id) !== undefined;
 /// ```
 fn settled_or_taken(work_dir: &Path, id: &str) -> bool {
-    // `done`, `failed` and `pending` name the record itself, so they are one look each.
-    if state_directory(work_dir, DONE).join(id).exists()
-        || state_directory(work_dir, FAILED).join(id).exists()
-        || state_directory(work_dir, PENDING).join(id).exists()
-    {
-        return true;
-    }
-    // A claim is named by its id and the generation and reading of its holder, so it is found by its id.
-    return crate::work_item::find_claim(work_dir, id).is_some();
+    return where_the_queue_has_it(work_dir, id) != QueueHolds::Nothing;
 }
 
 /// What:

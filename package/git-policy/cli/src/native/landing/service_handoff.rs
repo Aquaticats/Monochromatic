@@ -162,7 +162,9 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
         if crate::work_item::record_pass(work_dir.as_path(), name.as_str()) {
             crate::service_fault::reach(crate::service_fault::AFTER_THE_VERDICT);
         }
-        if crate::work_item::promote(work_dir.as_path(), name.as_str()) {
+        // The record is gone and the queue has the item, whether this promotion moved it or the queue had it already;
+        //  nothing is written beside it, because a second record is a push that runs twice.
+        if crate::work_item::promote(work_dir.as_path(), name.as_str()) != crate::work_item::Promoted::Nothing {
             return Ok(());
         }
     }
@@ -547,11 +549,17 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
         if gone {
             match holding.verdict {
                 // The checks passed and nothing is left to run the record: it becomes runnable, and this command says so.
+                //  A queue that holds the item already says the same, and a queue that finished with it says nothing here.
                 Verdict::Passed => {
-                    if crate::work_item::promote(work_dir.as_path(), name.as_str()) {
-                        released = true;
-                        lines.push(queued_push_line(branch.as_str(), commit));
-                        continue;
+                    match crate::work_item::promote(work_dir.as_path(), name.as_str()) {
+                        crate::work_item::Promoted::Queued | crate::work_item::Promoted::AlreadyQueued => {
+                            released = true;
+                            lines.push(queued_push_line(branch.as_str(), commit));
+                            continue;
+                        }
+                        // The push this record would make was made, or given up on, by the queue itself: no line is owed.
+                        crate::work_item::Promoted::AlreadyFinished => continue,
+                        crate::work_item::Promoted::Nothing => {}
                     }
                 }
                 // The checks refused the commit and nothing is left to write the verdict: it is settled exactly as the command that
