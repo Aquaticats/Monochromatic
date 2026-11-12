@@ -42,7 +42,7 @@ fn the_pool_of_a_worktree_that_is_going_away_goes_with_its_members() {
     let member: PathBuf = pool.join(A_MEMBER);
     std::fs::create_dir_all(member.as_path()).expect("a snapshot ahead of an add");
     std::fs::write(member.join("tracked.txt"), b"the worktree's own file\n").expect("its files");
-    assert_eq!(clear_the_snapshots_ahead(admin.as_path()), Ok(()), "the pool of a worktree that is going away goes");
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()), "the pool of a worktree that is going away goes");
     assert!(!pool.exists(), "no fill finds a pool under its own name any more");
     assert!(!member.exists(), "and no member is left");
 }
@@ -59,7 +59,7 @@ fn a_worktree_with_no_pool_is_nothing_to_clear() {
     let root: PathBuf = fixture("ahead-pool-absent");
     let admin: PathBuf = root.join("worktrees/wt");
     std::fs::create_dir_all(admin.as_path()).expect("an administrative directory");
-    assert_eq!(clear_the_snapshots_ahead(admin.as_path()), Ok(()));
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()));
     assert!(!admin.join("monochromatic-git-policy-cli").exists(), "nothing was made for a pool that never was");
 }
 
@@ -75,7 +75,7 @@ fn a_member_that_cannot_go_is_the_reason_the_removal_refuses() {
     let taken: PathBuf = root.join("removing-taken");
     let member: PathBuf = taken.join(A_MEMBER);
     std::fs::create_dir_all(member.as_path()).expect("a snapshot ahead of an add");
-    let refused: Result<(), String> = clear_the_snapshots_ahead_with(
+    let refused: Result<(), String> = clear_one_pool_ahead(
         taken.as_path(),
         &|_member: &Path| { return Err(std::io::Error::from_raw_os_error(libc::EACCES)); },
         &remove_tree,
@@ -85,4 +85,39 @@ fn a_member_that_cannot_go_is_the_reason_the_removal_refuses() {
         Err(reason) => reason,
     };
     assert!(reason.contains(member.to_str().expect("UTF-8")), "the reason names the snapshot that stands there: {reason}");
+}
+
+/// The name a clear gives a pool it is deleting,
+/// which a killed clear leaves behind.
+const TAKEN_BY_A_CLEAR: &str = "removing-0f0e0d0c-0b0a-4908-8706-050403020100";
+
+/// What:
+///  A pool a clear renamed and was killed before emptying is taken by the next clear,
+///  with its members,
+///  and the wrapper's folder goes with it.
+/// Why:
+///   A clear renames a pool to a name no fill reads before it deletes a member,
+/// and a command killed between
+///  those two steps leaves that member under the new name;
+/// a clear that took only the pool's own name would then
+///  refuse its own leftover for ever,
+/// so the registration could never be emptied and every later command would print
+///  the notice about it.
+#[test]
+fn a_pool_a_killed_clear_left_under_its_taken_name_goes_with_the_next_clear() {
+    let root: PathBuf = fixture("ahead-pool-left-taken");
+    let admin: PathBuf = root.join("worktrees/wt");
+    let folder: PathBuf = wrapper_folder(admin.as_path());
+    let left: PathBuf = folder.join(TAKEN_BY_A_CLEAR);
+    let member: PathBuf = left.join(A_MEMBER);
+    std::fs::create_dir_all(member.as_path()).expect("the member of a pool a killed clear left");
+    std::fs::write(member.join("tracked.txt"), b"the worktree's own file\n").expect("its files");
+    // The pool a fill made after that clear, which is the one the removal was written for.
+    let pool: PathBuf = pool_folder(admin.as_path());
+    std::fs::create_dir_all(pool.join(A_MEMBER).as_path()).expect("the pool of the worktree that is going away");
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()));
+    assert!(!left.exists(), "the leftover of the killed clear goes");
+    assert!(!member.exists(), "with the member it still held");
+    assert!(!pool.exists(), "and the pool a fill made goes as it always did");
+    assert!(!folder.exists(), "the wrapper's own folder is free again");
 }

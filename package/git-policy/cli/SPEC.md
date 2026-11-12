@@ -2876,7 +2876,8 @@ the record is written before the wake,
 and a person removing a worktree waits for none of what the service does with it,
 so a service that greets nothing costs one later wake and never the removal.
 
-The snapshots the wrapper made ahead of an add are taken before that hand-over
+The snapshots the wrapper made ahead of an add are taken before that hand-over,
+with everything else this program keeps in that registration
 (`src/native/worktree/worktree_removal_clears_the_ahead_pool.rs`).
 A worktree that was the source of one `git worktree add` holds them in
 `<admin>/monochromatic-git-policy-cli/ahead`,
@@ -2892,9 +2893,25 @@ a member is one copy of it,
 and an add that finds no pool makes its own,
 exactly as with the shadow pool of a
 removed worktree (`worktree_removal_clears_the_pool.rs`).
-It is taken out of its own name with one rename,
-so a fill
-that comes afterwards makes a pool of its own rather than writing into the tree being deleted,
+`<admin>/monochromatic-git-policy-cli` is this program's own folder inside a registration:
+no other program
+writes there,
+and every entry of it is a copy of the worktree being removed,
+so the whole folder goes and not
+just the one pool under it.
+That is what makes an interrupted take resumable:
+a clear renames a pool to
+`removing-<identity>` before it deletes a member of it,
+so a command killed between those two steps leaves a
+pool no fill reads under a name that is still inside the wrapper's own folder,
+and the next removal takes that
+name too rather than refusing a volume it is certain it made.
+Ownership is therefore the one folder name the wrapper
+made,
+never a pattern over the names of the volumes inside it.
+A pool is taken out of its own name with one
+rename,
+so a fill that comes afterwards makes a pool of its own rather than writing into the tree being deleted,
 and then member by
 member.
 A pool that cannot be taken stops the removal while nothing has happened:
@@ -2995,6 +3012,20 @@ with the same force:
   the
   destroy cannot take such a worktree whatever the person asks,
   and Git's removal would take the files inside it.
+- Every volume below the registration can be left alone
+  (`src/native/worktree/worktree_remove_reports.rs`).
+  The wrapper's own folder there is taken first,
+  and what remains is walked by the same proof,
+  because the registration is emptied after the destroy:
+  a subvolume or a mount point the wrapper did not make inside it would leave the files gone,
+  the registration
+  stuck,
+  and a notice on every later command until a person acted,
+  with the worktree no longer there to keep.
+  The refusal comes before the destroy,
+  names the volume,
+  and says that nothing was removed;
+  a registration that cannot be read refuses the same way and names the reason.
 
 Accepted risk,
 stated to the person who runs the command:

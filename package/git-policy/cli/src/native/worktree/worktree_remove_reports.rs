@@ -25,6 +25,7 @@
 //! const incomplete = incompleteReport({ target, registration, commonDir, reason });
 //! ```
 
+use crate::subvolume_remove_walk::Boundary;
 use crate::worktree_remove_registry::Registration;
 use std::path::Path;
 
@@ -182,6 +183,64 @@ pub(crate) fn incomplete_report(target: &Path, registration: &Registration, comm
         worktrees = registration.worktrees.display(),
         reason = reason,
         prune = prune
+    );
+}
+
+/// What:
+///  The report of a removal refused because the Git directory of the worktree holds a subvolume or a mount point this
+///  program did not make.
+/// Why:
+///   The registration is emptied after the destroy and that emptying refuses a nested subvolume,
+/// so a volume below it
+///  that this program does not own is the one state in which the destroy would take the worktree's files and leave the
+///  registration behind,
+/// with a notice on every later command until a person acted.
+/// The proof is made before anything irreversible,
+/// so the worktree and every file of it are still there,
+/// and
+///  the report names the volume and each way forward,
+/// exactly as the refusal for a volume below the worktree's own
+///  root does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function registrationVolumeReport(target: string, admin: string, found: Boundary): string;
+/// ```
+pub(crate) fn registration_volume_report(target: &Path, admin: &Path, found: &Boundary) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the Git directory {admin} of the worktree {target} holds {inner}, which is {what}, \
+         and a registration that holds one cannot be emptied, so the removal of {target} could never finish. Nothing was \
+         removed, and nothing of {inner} was deleted.\n\
+         Move {inner} out of {admin}, or delete it yourself (`btrfs subvolume delete {inner}`, or `umount {inner}` for a \
+         mount point), and then run this removal again; to keep it, leave it there and remove the worktree by hand, one \
+         file at a time.",
+        target = target.display(),
+        admin = admin.display(),
+        inner = found.path.display(),
+        what = found.what
+    );
+}
+
+/// What:
+///  The report of a removal refused because the registration of the worktree cannot be read at all.
+/// Why:
+///   Nothing proves the registration can be emptied,
+/// and the destroy cannot be undone,
+/// so the removal stops while
+///  the worktree is whole and names what could not be read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unwalkableRegistrationReport(target: string, admin: string, reason: string): string;
+/// ```
+pub(crate) fn unwalkable_registration_report(target: &Path, admin: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the Git directory {admin} of the worktree {target} cannot be read, so nothing proves \
+         the registration could be emptied after the destroy: {reason}. Nothing was removed, and nothing of {target} changed.\n\
+         Make {admin} readable by you (`chmod --recursive u+rwx {admin}`) and run this removal again.",
+        target = target.display(),
+        admin = admin.display(),
+        reason = reason
     );
 }
 

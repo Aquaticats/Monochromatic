@@ -1055,6 +1055,10 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 - no subvolume and no mount point stands below its root,
    because the kernel can never destroy a subvolume that contains another one,
    and Git's own removal would delete the files of the worktree inside it;
+- no subvolume and no mount point stands below its Git directory that this wrapper did not make,
+   because a registration holding one can never be emptied;
+   the wrapper's own folder there is taken first,
+   and a volume it did not make refuses the removal while every file of the worktree is still there;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
 
@@ -1187,8 +1191,17 @@ The removal of a worktree that was the source of an add takes these copies with 
  before it hands the worktree's own subvolume over,
  because the kernel cannot destroy a subvolume that contains another one and they stand in that worktree's
  Git directory.
+The whole folder the wrapper keeps there goes, not only the pool a fill reads:
+ a clear renames a pool to `removing-<identity>` before it deletes a member,
+ so a removal killed in that moment leaves a member under that name,
+ and the next removal takes it too rather than
+ refusing a volume it made itself.
 A copy that cannot be taken stops the removal with a report naming the folder and the way to take each entry,
  so a worktree is never destroyed while its registration could not be cleared afterwards.
+A subvolume or a mount point below the Git directory that the wrapper did not make stops it the same way,
+ while the worktree
+ and every file of it are still there,
+ because a registration holding one can never be emptied.
 
 ## Other processes changing files
 

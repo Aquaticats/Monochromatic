@@ -1,7 +1,11 @@
 //! What:
-//!  The snapshots the wrapper made ahead of an add,
-//! taken out of the administrative directory of a worktree that is being removed,
-//! before anything irreversible happens to that worktree.
+//!  Everything the wrapper keeps in the administrative directory of a worktree that is being removed,
+//! taken
+//!  before anything irreversible happens to that worktree:
+//! the snapshots it made ahead of an add,
+//! the
+//!  pools an interrupted take left,
+//! and the folder that holds them.
 //! Why:
 //!  A worktree that was the source of one `git worktree add` holds
 //! `<admin>/monochromatic-git-policy-cli/ahead`,
@@ -18,7 +22,7 @@
 //! F1),
 //! and the sweep after
 //!  a merge reported that state as a worktree left in place.
-//! Nothing else takes the pool:
+//! Nothing else takes a pool:
 //! the sweep of the repository scratch directory cannot reach a folder inside a worktree's
 //!  administrative directory,
 //! and a fill names only a worktree that still exists.
@@ -28,18 +32,28 @@
 //! and an add that
 //!  finds no pool makes its own copy,
 //! so nothing an add needs is lost with it.
-//! The pool is taken out of its own name with one
-//!  rename before anything of it is removed:
+//! `<admin>/monochromatic-git-policy-cli` is the wrapper's own folder:
+//! no other program writes there,
+//!  and everything in it is a copy of that worktree,
+//! so the whole folder goes rather than the one pool under it.
+//! That is what makes an interrupted take resumable:
+//! a clear renames a pool to `removing-<identity>`
+//!  before it deletes a member of it,
+//! so a command killed between those two steps leaves a pool no fill reads under a
+//!  name that is still inside the wrapper's own folder,
+//! and the next removal takes that name too rather than refusing a
+//!  volume it is certain it made.
+//! A pool is taken out of its own name with one rename before anything of it is
+//!  removed:
 //! a fill claims a member by renaming it out of that name,
-//! so a member is either
-//!  taken before the rename,
-//! and then it is not below the tree the deletion was given,
-//! or the pool's name is gone and the fill
-//!  makes its own.
+//! so a member is either taken before the rename,
+//!  and then it is not below the tree the deletion was given,
+//! or the pool's name is gone and the fill makes its
+//!  own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! clearTheSnapshotsAhead(admin); // throws the reason nothing was removed
+//! clearThePoolsAheadOfAWorktree(admin); // throws the reason nothing was removed
 //! ```
 
 use crate::fs_btrfs_ioctl::subvolume_destroy_at;
@@ -66,23 +80,97 @@ use std::path::{Path, PathBuf};
 pub(crate) type DestroyASnapshot<'a> = dyn Fn(&Path) -> std::io::Result<()> + 'a;
 
 /// What:
-///  Remove every snapshot the wrapper made ahead of an add for the worktree whose administrative directory is `admin`,
-/// and
-///  answer the reason when one cannot go.
+///  The folder of the administrative directory that is this program's own:
+/// the one the pool of snapshots ahead
+///  stands in.
+/// Why:
+///   Every entry of it is a copy of the worktree being removed and nothing else writes there,
+/// so ownership is
+///  the name of the folder the wrapper made, never a pattern over the names inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const folder = wrapperFolder(admin); // <admin>/monochromatic-git-policy-cli
+/// ```
+pub(crate) fn wrapper_folder(admin: &Path) -> PathBuf {
+    let pool: PathBuf = pool_folder(admin);
+    return pool.parent().map(Path::to_path_buf).unwrap_or(pool);
+}
+
+/// What:
+///  Remove every pool of snapshots ahead in the administrative directory `admin`,
+/// and every leftover of taking one,
+///  and answer the reason when something cannot go.
 /// Why:
 ///   The removal is a refusal when this fails,
 /// so it must run while the worktree is still there,
 /// and the
 ///  answer is the words for that refusal.
+///  Every entry of the wrapper's own folder is taken,
+/// not the one name a fill reads:
+/// a command killed
+///  between a pool's rename and its deletion leaves the same members under `removing-<identity>`,
+/// and a
+///  clear that named only the pool would then refuse its own leftover for ever.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// clearTheSnapshotsAhead(admin); // throws the reason
+/// clearThePoolsAheadOfAWorktree(admin); // throws the reason
 /// ```
-pub(crate) fn clear_the_snapshots_ahead(admin: &Path) -> Result<(), String> {
-    let taken: Option<PathBuf> = take_the_pool_out_of_its_name(pool_folder(admin).as_path(), REMOVING_PREFIX)?;
-    let Some(moved) = taken else { return Ok(()) };
-    return clear_the_snapshots_ahead_with(moved.as_path(), &destroy_a_snapshot_ahead, &remove_tree);
+pub(crate) fn clear_the_pools_ahead_of_a_worktree(admin: &Path) -> Result<(), String> {
+    let folder: PathBuf = wrapper_folder(admin);
+    for taken in take_every_pool_out_of_its_name(folder.as_path())? {
+        clear_one_pool_ahead(taken.as_path(), &destroy_a_snapshot_ahead, &remove_tree)?;
+    }
+    // The folder goes when nothing put anything back in it. A fill that made a pool of its own in these moments keeps it,
+    // and the emptying of the registration after the destroy answers that pool.
+    let _kept = std::fs::remove_dir(folder.as_path());
+    return Ok(());
+}
+
+/// What:
+///  Take every entry of the wrapper's own folder `folder` out of its name,
+/// and answer the names they took.
+/// Why:
+///   A pool a fill is writing into is taken with one rename rather than deleted where a fill can reach it,
+/// and a
+///  name that was already taken by a killed clear is taken again,
+/// so one pass clears the pool a fill made and the
+///  leftovers of every clear that came before it.
+/// An entry that is no directory is a name this program wrote once and no pool holds,
+/// so it is
+///  unlinked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = takeEveryPoolOutOfItsName(folder); // string[]
+/// ```
+fn take_every_pool_out_of_its_name(folder: &Path) -> Result<Vec<PathBuf>, String> {
+    let listing = match std::fs::read_dir(folder) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
+    };
+    let mut taken: Vec<PathBuf> = Vec::new();
+    for found in listing {
+        let entry: std::fs::DirEntry = match found {
+            Ok(entry) => entry,
+            Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
+        };
+        let path: PathBuf = entry.path();
+        if !entry.file_type().is_ok_and(|kind| { return kind.is_dir(); }) {
+            if let Err(error) = std::fs::remove_file(path.as_path())
+                && error.kind() != ErrorKind::NotFound
+            {
+                return Err(format!("{path} cannot be removed ({error})", path = path.display()));
+            }
+            continue;
+        }
+        if let Some(moved) = take_the_pool_out_of_its_name(path.as_path(), REMOVING_PREFIX)? {
+            taken.push(moved);
+        }
+    }
+    return Ok(taken);
 }
 
 /// What:
@@ -123,9 +211,9 @@ fn destroy_a_snapshot_ahead(member: &Path) -> std::io::Result<()> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// clearTheSnapshotsAheadWith(taken, destroy, remove); // throws the reason
+/// clearOnePoolAhead(taken, destroy, remove); // throws the reason
 /// ```
-pub(crate) fn clear_the_snapshots_ahead_with(taken: &Path, destroy: &DestroyASnapshot<'_>, remove: &RemoveAPool<'_>) -> Result<(), String> {
+pub(crate) fn clear_one_pool_ahead(taken: &Path, destroy: &DestroyASnapshot<'_>, remove: &RemoveAPool<'_>) -> Result<(), String> {
     let listing = match std::fs::read_dir(taken) {
         Ok(listing) => listing,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),

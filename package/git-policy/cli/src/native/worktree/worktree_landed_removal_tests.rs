@@ -13,7 +13,7 @@
 use super::{LandedPlace, LandedSweep, holds_its_own_commits, sweep_landed_worktrees};
 use crate::held_commit_record::{Held, write};
 use crate::shadow_pool::pool_root_for;
-use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository};
+use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_added_by_the_wrapper::record;
 use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
 use std::path::{Path, PathBuf};
@@ -984,4 +984,70 @@ fn a_repository_with_a_subvolume_worktree(name: &str) -> Option<Landed> {
     git(worktree.as_path(), &["update-index", "--refresh"]);
     let common: PathBuf = main.join(".git");
     return Some(Landed { root, main, common, worktree });
+}
+
+/// What:
+///  A repository whose linked worktree on `feature` is a subvolume this program made,
+///  on a btrfs fixture,
+///  with the
+///  record that says so and the fields the sweep reads.
+/// Why:
+///   The sweep's removal route is the one a merge runs,
+/// and only a subvolume worktree reaches the destroy that a
+///  pool of snapshots ahead stands in the way of,
+///  so the route that has no person behind it needs a control of
+///  its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landed = aBtrfsLandedWorktree(name); // undefined with no btrfs fixture root
+/// ```
+fn a_btrfs_landed_worktree(name: &str) -> Option<Landed> {
+    let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture(name)?;
+    let main: PathBuf = repository(root.as_path(), "main");
+    let tracked: PathBuf = main.join("README.md");
+    std::fs::write(tracked.as_path(), b"# fixture\n").expect("a tracked file");
+    // A file as new as the index proves nothing by its stat fields, and the sweep's cleanliness proof would then refuse.
+    age(tracked.as_path());
+    git(main.as_path(), &["add", "--", "README.md"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=a tracked file"]);
+    let worktree: PathBuf = root.join("worktree");
+    crate::fs_btrfs_ioctl::subvolume_create_at(worktree.as_path()).expect("the subvolume of the worktree");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
+    git(worktree.as_path(), &["commit", "--quiet", "--allow-empty", "--message=the feature work"]);
+    age(worktree.join("README.md").as_path());
+    git(worktree.as_path(), &["update-index", "--refresh"]);
+    let common: PathBuf = main.join(".git");
+    record(common.as_path(), worktree.as_path()).expect("the record of a worktree this program made");
+    return Some(Landed { root, main, common, worktree });
+}
+
+/// What:
+///  A worktree the sweep removes takes the snapshot this program made ahead of an add with it,
+///  and the sweep reports it as
+///  removed rather than as one whose removal could not finish.
+/// Why:
+///   A landed sweep runs without a person,
+///  so a removal it cannot finish leaves them a notice on every later command
+///  about a registration nothing can empty,
+///  and the pool of snapshots ahead is the one thing below that registration this
+///  program made.
+#[test]
+fn btrfs_a_swept_worktree_takes_a_pool_a_killed_clear_left_with_it() {
+    let Some(landed) = a_btrfs_landed_worktree("landed-btrfs-pool-left-taken") else { return };
+    let admin: PathBuf = landed.common.join("worktrees/worktree");
+    let left: PathBuf = crate::worktree_removal_clears_the_ahead_pool::wrapper_folder(admin.as_path()).join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
+    std::fs::create_dir_all(left.as_path()).expect("the folder a killed clear had renamed");
+    let member: PathBuf = left.join(".cli-git-worktree-ahead-0123456789abcdef-000001a1cae683dc-0123456789abcdef0123456789abcdef");
+    crate::fs_btrfs_ioctl::subvolume_create_at(member.as_path()).expect("the member a killed clear left under its taken name");
+    std::fs::write(member.join("tracked.txt"), b"a copy of the worktree\n").expect("its files");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.failed.is_none(), "{:?}", sweep.failed);
+    assert!(sweep.unfinished.is_empty(), "the sweep finishes what it removes: {sweep:?}");
+    assert!(sweep.refused.is_empty(), "and nothing of the wrapper's own stands in its way: {sweep:?}");
+    assert_eq!(sweep.removed.len(), 1, "one landed worktree is removed: {sweep:?}");
+    assert!(!landed.worktree.exists(), "the worktree directory is gone");
+    assert!(!admin.exists(), "the registration went with it");
+    assert!(!left.exists(), "and the pool the killed clear left went with it");
+    remove(landed.root.as_path());
 }
