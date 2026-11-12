@@ -15,7 +15,8 @@
 
 /// The facts interface and the fact types the script answers with.
 use crate::candidate_error::{CandidateError, CandidateFailure};
-/// The pair that makes one clean dry run: its directory and its arguments.
+/// The pair that makes one clean dry run:
+///  its directory and its arguments.
 use crate::command_clean::CleanDryRun;
 /// Real preparation,
 ///  for scripted facts given a repository.

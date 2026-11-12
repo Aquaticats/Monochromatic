@@ -286,11 +286,13 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
 ///  (`git.c:388` to `git.c:407`),
 ///  so a dry run started below that top measures a narrower subtree than the clean deletes,
 ///  and a repository or an untracked file above the caller is then deleted unsaved.
-///  A `-C` written in front would not do: Git reads a command's prefix from the directory it was started in,
+///  A `-C` written in front would not do:
+///  Git reads a command's prefix from the directory it was started in,
 ///  so `git -C <top> clean -ffdX` from a subdirectory still names the caller's own prefix
 ///  and refuses to remove it,
 ///  while the same clean started at the top names the subdirectory and removes it.
-///  Every other option the caller wrote stays, in the order written,
+///  Every other option the caller wrote stays,
+///  in the order written,
 ///  because those decide which repository and which ignore rules the clean reads.
 ///
 /// In TS you'd write (pseudocode):

@@ -93,7 +93,8 @@ fn a_process_directory_that_is_gone_is_an_error() {
     remove(root.as_path());
 }
 
-/// A shell's directory is taken as Git named it, and never re-read from the process's own.
+/// A shell's directory is taken as Git named it,
+/// and never re-read from the process's own.
 #[test]
 fn a_shells_directory_is_not_read_again() {
     let gone: &Path = Path::new("/gone/shell");

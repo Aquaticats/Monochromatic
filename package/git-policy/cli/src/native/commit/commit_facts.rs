@@ -22,7 +22,8 @@ use crate::candidate_error::CandidateError;
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// Rule facts.
 use crate::repository_facts::RepositoryFacts;
-/// The pair that makes one clean dry run: its directory and its arguments.
+/// The pair that makes one clean dry run:
+///  its directory and its arguments.
 use crate::command_clean::CleanDryRun;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;

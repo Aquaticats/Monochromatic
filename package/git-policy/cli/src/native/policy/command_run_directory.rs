@@ -61,7 +61,8 @@ pub fn command_run_directory(global_prefix: &[OsString], shell_directory: Option
     return Ok(chain_directory(cwd.as_path(), global_prefix));
 }
 
-/// A command's directory is one answer, and its spelling of the `-C` chain is read by one other file.
+/// A command's directory is one answer,
+/// and its spelling of the `-C` chain is read by one other file.
 #[cfg(test)]
 #[path = "command_run_directory_tests.rs"]
 mod tests;

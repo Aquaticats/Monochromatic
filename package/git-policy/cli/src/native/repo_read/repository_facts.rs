@@ -316,7 +316,8 @@ impl GitFacts {
     /// Why:
     ///   Git reads a command's prefix from the directory it was started in,
     ///  so a query about another directory must start Git there;
-    ///  the count is the same one, because the process is.
+    ///  the count is the same one,
+    ///  because the process is.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

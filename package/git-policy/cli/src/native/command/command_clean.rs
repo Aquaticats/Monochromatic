@@ -224,7 +224,7 @@ pub fn parse_clean_region(
 ///  because it reaches the same place and measures from the caller's own.
 ///  `arguments` carries every fact of the clean and no `-C` of the caller's
 ///  (`without_directory_changes`),
-///  so Git moves once, here.
+///  so Git moves once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,9 +232,11 @@ pub fn parse_clean_region(
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanDryRun {
-    /// The directory the clean runs in, where the query starts Git.
+    /// The directory the clean runs in,
+    /// where the query starts Git.
     pub run_in: PathBuf,
-    /// The arguments of the dry run, read from `run_in`.
+    /// The arguments of the dry run,
+    /// read from `run_in`.
     pub arguments: Vec<OsString>,
 }
 
@@ -342,7 +344,8 @@ pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsSt
 ///  (`git.c:388` to `git.c:407`),
 ///  which is where the command inside it measures its prefix from,
 ///  so a dry run started in the caller's directory measures a narrower subtree than the clean deletes
-///  (`SPEC.md`, the paragraph beginning "A clean in a linked worktree that deletes ignored files").
+///  (`SPEC.md`,
+///  the paragraph beginning "A clean in a linked worktree that deletes ignored files").
 ///  The caller's `-C` chain is left out of the arguments and the directory is carried beside them,
 ///  because `-C` reaches the same directory and measures from the one Git was started in:
 ///  `git -C <top> clean -ffdX` from a subdirectory names `./ignored.log` and refuses to remove the

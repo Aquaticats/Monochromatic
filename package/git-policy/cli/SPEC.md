@@ -14783,7 +14783,8 @@ through real Git,
 with no guard and no index-writer coordination,
 because the wrapper never sees that command start.
 `git by the word Git will run` is the boundary of this guard.
-The rules below read the flags, the paths and the revision of the command the guard decided about,
+The rules below read the flags,
+the paths and the revision of the command the guard decided about,
 which for a `!` alias is the command inside its shell
 (`GuardedForwarded::decided_words` in `src/native/invocation/guarded_forwarded_command.rs`).
 A rule that read the alias name instead asked a clean with no `-ffdX` and no `-e` pattern what it would delete,
