@@ -135,6 +135,51 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### 0.6.1-alpha.11 dispatched, and the third cull pass (2026-11-11T19:51:30-05:00)
+
+The integration branch `integrate/git-policy-cli-jam-fixes-after-alpha-9` was fast-forwarded to pass 14's tip `e33452755e`
+and `main` merged into it (`7e3b74281a`, 19:35:38; no Rust source of the wrapper differs from the tip pass 14 built).
+`main` was fast-forwarded to `7e3b74281a` and pushed at 19:50:59.
+`native:release -- 0.6.1-alpha.10 0.6.1-alpha.11` ran in unit `gpc-release-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.11.log`): it printed
+"no dispatch gate: an alpha release does not wait for node bin/native-release-host-controls.ts, which every other release does"
+and started `crate-release.yml` run 43130367751, which completed with success;
+`cargo-publish.yml` run 43130519508 followed (built from `c434449377`), watched by unit `gpc-release-wait-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/release-wait-0.6.1-alpha.11.log`).
+The full gate runs beside it, not waited for:
+unit `gpc-gate-wrapper-next-alpha-on-7e3b74281a-20261111T195115-0500`, log of the same name under `${HOME}/temp/agent/gate/`.
+Still to do: install, a sample commit whose push is left alone until it is seen to leave by itself, the timings against the estimate,
+the gate's verdict when it comes, and the Kimi and Sonnet audits of the released commit.
+
+A measurement of the installed 0.6.1-alpha.10 from this landing:
+`git merge --ff-only` of the integration branch in the main checkout had moved `refs/heads/main` by 19:50,
+and the command, started at 19:36, was then still running its after-merge work, starting one short Git child after another.
+The same fast-forward in the integration worktree took about four and a half minutes.
+The fix that takes the landed-worktree sweep off the merge's wait
+(`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`, 552 ms where the release took 25 s)
+is not in alpha.11; it goes into the next pass.
+
+The fast-forward also brought the sections agents wrote into this file on the integration branch,
+which now sit between this section and "Reviews go to qwen4 instead of Kimi, and pass 14 ended".
+
+The third cull pass (19:50). Decisions since the second pass: the service hands a commit its shadow (19:12),
+reviews go to qwen4 and running Kimi reviews finish (19:27 and 19:31), and pass 14 is on `main` (19:50).
+
+- Reframed by inbox note (19:53): the three agents that started from pass 14's branch while it stood at `7c0583c34c`,
+  where the package's tests do not compile
+  (`worktree-removal-finishes-while-its-dependencies-are-being-linked`, `commit-service-hands-a-commit-its-shadow`,
+  `commit-service-silence-on-an-ordinary-commit`): merge `main`, which holds the two later repairs.
+- Reframed by inbox note (19:34): the port agent (review commands model-neutral, qwen4 the default) and round 236 (the base option first).
+  The port agent's unit was no longer running at 19:50; whether it read the note before it ended is to be checked from its report.
+- No Kimi review is queued: 18 of round 231 are running and one has finished; the other two of that round were never started,
+  because their branches change nothing under `package/git-policy/cli/src/native`
+  (`open-issues-next-batch`, `pass-11-gate-failures`).
+  The one worktree made for them (`pi-kimi-review-open-issues-next-batch-round-231`) is removed;
+  the removal logged `worktreeRemovalInterruptedDestroy` and then removed the subvolume in one step.
+- Kept: every running fix agent (none rests on a changed decision), the four landing agents of round 241,
+  the four qwen4 reviews running and the four queued (round 243: landed sweep, service side by side, merge-asides findings, landed-sweep findings).
+- Nothing was stopped.
+
 ### The integration tip's two compile breaks, and the snapshot identity no record names (2026-11-11T17:57:56-05:00)
 
 Branch `fix/git-policy-cli-pass-13-tip-builds`,
