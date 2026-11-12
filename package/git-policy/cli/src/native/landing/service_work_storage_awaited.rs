@@ -324,18 +324,19 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
 
 /// What:
 ///  How long until the first claim still held in `work_dir` runs out its lease,
-/// or nothing when none is held.
+/// or nothing when none is held;
+/// a look that could not be made is a refusal so its caller can look again rather than take it as proof that nothing is held.
 /// Why:
 ///   The answer is a listing of the claim names,
 /// and it is what wakes the service once another instance's lease is over,
 /// so a failure to
-///  read it is said rather than read as "nothing is held".
+///  read it is said and given back as a failure rather than read as "nothing is held".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await nextClaimExpiryAwaiting(workDir, now, lease)
 /// ```
-pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Result<Option<Duration>, String> {
     let directory: PathBuf = work_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
     return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look that finds when another instance's claim runs out", "no wait is answered", move || {
@@ -343,10 +344,10 @@ pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime,
     })
     .await
     {
-        Ok(wait) => wait,
+        Ok(wait) => Ok(wait),
         Err(said) => {
             refused(said.as_str());
-            None
+            Err(said)
         }
     };
 }

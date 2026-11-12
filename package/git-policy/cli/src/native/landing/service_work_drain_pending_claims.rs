@@ -516,8 +516,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     //  A claim this look kept (a retryable answer, a settling step that could not run) has nothing else to look at it again:
     //  the service's own words promise it is tried again when its claim runs out, so the look that kept it owes that moment
     //  to the one loop that will come back.
-    let claim_wait: Option<Duration> =
-        next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await.map(no_sooner_than_a_look_again);
+    let claim_wait: Option<Duration> = match next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await {
+        Ok(wait) => wait.map(no_sooner_than_a_look_again),
+        // A look that could not read the claims proves nothing about them, so this one asks to be looked at again after its own
+        //  pause rather than answering nothing: a claim it may still hold is owed a wake, and the refusal is already said.
+        Err(_unread) => Some(LOOK_AGAIN_AFTER_DEFERRING),
+    };
     return match (look_again, claim_wait) {
         (Some(deferred), Some(claim)) => Some(deferred.min(claim)),
         (deferred, claim) => deferred.or(claim),
