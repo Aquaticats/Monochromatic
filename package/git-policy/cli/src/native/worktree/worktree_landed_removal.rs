@@ -108,7 +108,7 @@ const TAG: &str = "worktreeLandedRemoval";
 ///  (a cross-vendor audit of the landed sweep).
 ///  Every file a bisect keeps in that directory is named under this prefix,
 ///  and `git bisect reset` removes every one of them
-///  (measured on a fixture: none left),
+///  (a fixture had none left after the reset),
 ///  so the prefix is what a sweep can ask for without falling behind a Git that adds another file.
 const BISECT_MARK_PREFIX: &str = "BISECT_";
 

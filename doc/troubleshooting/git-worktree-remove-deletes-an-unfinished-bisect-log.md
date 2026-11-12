@@ -31,7 +31,8 @@ $ test -e <common>/worktrees/feature/BISECT_LOG ; echo $?
 the unforced form above is the one that deleted the log.
 
 The log is not the first file a bisect leaves.
-`git bisect start` writes `BISECT_START`, then `BISECT_NAMES`,
+`git bisect start` writes `BISECT_START`,
+then `BISECT_NAMES`,
 and only then opens `BISECT_LOG`
 (measured 2026-11-11 with Git `2.56.0` on a fixture under `strace`:
 the process was killed at its first `openat` of the log,
@@ -81,7 +82,7 @@ beside the marks of the other unfinished operations
 `BISECT_MARK_PREFIX`).
 Every file a bisect keeps in that directory is named under that prefix,
 and `git bisect reset` removes every one of them
-(measured on a fixture: none left),
+(a fixture had none left after the reset),
 so a kill between any two writes of a bisect keeps the worktree it happened in.
 The line the person reads names the file that stands there:
 

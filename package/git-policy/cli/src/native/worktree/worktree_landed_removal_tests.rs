@@ -646,7 +646,8 @@ fn a_landed_worktree_with_a_bisect_in_progress_stays() {
 ///  A landed worktree holding a bisect that was killed before it opened its log stays,
 ///  and so do the files Git wrote before the kill.
 /// Why:
-///  `git bisect start` writes `BISECT_START`, then `BISECT_NAMES`,
+///  `git bisect start` writes `BISECT_START`,
+/// then `BISECT_NAMES`,
 /// and only then opens `BISECT_LOG`
 ///  (measured with Git 2.56 under `strace`),
 ///  so a process killed between those writes leaves a bisect in progress whose marks are the two files it wrote first,

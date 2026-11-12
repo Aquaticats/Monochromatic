@@ -279,7 +279,8 @@ fn every_in_progress_marker_is_refused_where_git_keeps_it() {
 ///  A bisect that was killed before it opened its log is refused,
 ///  in the main Git directory and in a linked worktree's administrative directory.
 /// Why:
-///  `git bisect start` writes `BISECT_START`, then `BISECT_NAMES`,
+///  `git bisect start` writes `BISECT_START`,
+/// then `BISECT_NAMES`,
 /// and opens `BISECT_LOG` only after both
 ///  (measured with Git 2.56 under `strace`),
 ///  so a process killed between those writes leaves a bisect in progress whose only mark is a file written before the kill,

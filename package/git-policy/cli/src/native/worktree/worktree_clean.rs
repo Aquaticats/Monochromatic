@@ -57,7 +57,8 @@ use std::path::{Path, PathBuf};
 
 /// The entries of a Git directory that mean an operation is in progress and the index or tree is not a plain state.
 /// Why a bisect has two of them:
-///  `git bisect start` writes `BISECT_START`, then `BISECT_NAMES`,
+///  `git bisect start` writes `BISECT_START`,
+/// then `BISECT_NAMES`,
 ///  and opens `BISECT_LOG` only after both
 ///  (measured with Git 2.56 under `strace`),
 ///  so a process killed between those writes leaves a bisect whose mark is a file written before the kill,
