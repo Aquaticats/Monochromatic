@@ -71,12 +71,12 @@ fn a_push(git_dir: &Path) -> crate::work_item::WorkItem {
 }
 
 /// What:
-///  A look that could not answer asks for another round,
-///  never for nothing.
+///  A look that could not answer is its own answer,
+///  and it asks for another round rather than for nothing.
 /// Why:
 ///   Its answer is what wakes the service once another instance's lease runs out,
 ///  and nothing else wakes it when there is no push plan and no journal to read:
-/// an answer of "no claim is held" then leaves a push claimed for good,
+/// reading a look that gave no answer as "no claim is held" leaves a push claimed for good,
 ///  waiting for a command the person may never type.
 /// The only place of the process's bound is held here,
 /// which is the state a store that answers slowly leaves behind,
@@ -95,6 +95,7 @@ fn a_look_that_gave_no_answer_asks_for_another_round() {
         crate::work_item_recovery::next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease).is_some(),
         "positive control: the claim another instance holds runs out its lease, so a wake is owed"
     );
+    assert_eq!(ClaimLease::NoneHeld.the_wake_it_asks_for(), None, "positive control: no claim asks for no wake");
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(crate::parallel_test_support::ONE_PLACE);
     let (started, has_started) = std::sync::mpsc::channel::<()>();
     let (release, waiting) = std::sync::mpsc::channel::<()>();
@@ -108,12 +109,14 @@ fn a_look_that_gave_no_answer_asks_for_another_round() {
     });
     assert!(has_started.recv_timeout(PATIENCE).is_ok(), "the only place of the process's bound is held");
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime for the control");
-    let answered: Option<Duration> = runtime.block_on(next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease));
+    let answered: ClaimLease = runtime.block_on(next_claim_expiry_within_awaiting(THE_CONTROLS_CEILING, work_dir.as_path(), &ClaimTime::read(), lease));
     let _let_go = release.send(());
     holder.join().expect("the holder");
     drop(runtime);
-    assert!(
-        answered.is_some(),
+    assert_eq!(answered, ClaimLease::Unknown, "a look that did not run is neither a wait nor an answer that no claim is held");
+    assert_eq!(
+        answered.the_wake_it_asks_for(),
+        Some(LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER),
         "the look gave no answer, so the round must be woken again rather than told that no claim is held"
     );
     crate::test_support::remove(root.as_path());

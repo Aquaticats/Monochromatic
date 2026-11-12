@@ -2,7 +2,8 @@
 //!  The common Git directory a service drain looks at,
 //! and whether it belongs to a repository with no main worktree:
 //!  the directory a linked worktree's Git directory names in its `commondir` file,
-//! and the answer `core.bare` gives for it.
+//! the answer `core.bare` gives for it,
+//! and the whole decision a drain makes before it reads anything there.
 //! Why:
 //!   The drains of directories and the rounds that call them both need these answers
 //! (`service_work.rs`,
@@ -17,10 +18,11 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! commonDirectoryOf(gitDir) ?? undefined; isBareCommonDirectory(commonDir)
+//! commonDirectoryOf(gitDir) ?? undefined; isBareCommonDirectory(commonDir); commonDirectoryToDrain(gitDir)
 //! ```
 
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
+use crate::service_work_handlers_replanning_and_acceptance::work_directory;
 use std::path::{Path, PathBuf};
 
 
@@ -110,4 +112,36 @@ pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
         }
     }
     return Some(resolved);
+}
+
+/// What:
+///  The common directory whose records the instance of this worktree drains,
+/// or nothing when this repository has none to drain.
+/// Why:
+///   It is the whole decision a drain makes before it reads anything of that directory:
+/// the directory the `commondir` file names,
+/// whether it is the common directory of a repository with no main worktree,
+/// whose records only the instances of its linked worktrees can run,
+/// and whether a work directory was ever made there.
+/// Every one of the three is a read of the filesystem,
+/// so a caller that is a task of the runtime asks for this answer as a job of the blocking pool and never
+///  makes these reads itself
+/// (`service_work_storage_awaited.rs`,
+/// `common_directory_to_drain_awaiting`):
+/// a store that stopped answering otherwise holds the round for good
+/// (finding 1 of the review of `c02f49638e`).
+///   An unreadable file answers "not bare",
+/// which is the safe side of a wrong answer,
+/// as `is_bare_common_directory` says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const common = commonDirectoryOf(gitDir); return common && common !== gitDir && isBareCommonDirectory(common) && isDirectory(workDirectory(common)) ? common : undefined
+/// ```
+pub(crate) fn common_directory_to_drain(git_dir: &Path) -> Option<PathBuf> {
+    let common: PathBuf = common_directory_of(git_dir)?;
+    if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
+        return None;
+    }
+    return Some(common);
 }

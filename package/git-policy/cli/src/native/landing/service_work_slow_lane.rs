@@ -35,9 +35,9 @@ use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{CLAIM_LEASE, GitHandlers};
-use crate::service_work_common_directory::{common_directory_of, is_bare_common_directory};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
-use crate::service_work_handlers_replanning_and_acceptance::{Replanning, SLOW_KINDS, Wake, WorkHandlers, work_directory};
+use crate::service_work_handlers_replanning_and_acceptance::{Replanning, SLOW_KINDS, Wake, WorkHandlers};
+use crate::service_work_storage_awaited::{LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER, common_directory_to_drain_awaiting, refused};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -184,7 +184,12 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 ///   The records of a bare repository's worktrees sit in its common directory's work directory,
 /// and the round reaches that directory too (`drain_common_records_planned_awaiting`),
 /// so the lane must reach it or those records are never run.
-/// A directory whose look left housekeeping for a later one names the pause it wants (`housekeeping_of_one_round.rs`),
+/// The look for that directory reads its `commondir` file and its `config`,
+/// which is a job of the process's blocking pool with a ceiling,
+/// so this task never waits on a store that stopped answering (finding 1 of the review of `c02f49638e`).
+/// A look that gave no answer is not "there is none": the lane asks to be woken for it again.
+/// A directory whose look left housekeeping for a later one names the pause it wants
+/// (`housekeeping_of_one_round.rs`),
 /// and the earlier of the two looks is what the lane waits.
 ///
 /// In TS you'd write (pseudocode):
@@ -193,10 +198,14 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// ```
 pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
     let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping).await;
-    let Some(common) = common_directory_of(git_dir) else { return own };
-    if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
-        return own;
-    }
+    let common: Option<PathBuf> = match common_directory_to_drain_awaiting(git_dir).await {
+        Ok(found) => found,
+        Err(said) => {
+            refused(said.as_str());
+            return Some(own.unwrap_or(LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER));
+        }
+    };
+    let Some(common) = common else { return own };
     let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping).await;
     return match (own, shared) {
         (Some(one), Some(other)) => Some(one.min(other)),

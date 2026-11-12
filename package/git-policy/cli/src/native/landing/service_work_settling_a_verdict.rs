@@ -21,11 +21,62 @@
 use super::service_work_handlers_replanning_and_acceptance::*;
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_storage_awaited::{
-    clear_push_failures_before_awaiting, record_push_failure_awaiting, record_push_skip_awaiting, settle_all_awaiting,
+    clear_push_failures_before_awaiting, record_push_failure_awaiting, record_push_failure_within_awaiting, record_push_skip_awaiting, settle_all_awaiting,
 };
 use crate::push_failure_notice::PushOutcome;
-use crate::work_item::{Claimed, DONE, FAILED};
+use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
+use crate::work_item::{Claimed, DONE, FAILED, WorkItem};
 use std::path::Path;
+use std::time::Duration;
+
+/// What:
+///  Write the person's record of a push that did not land,
+/// and drop the branch's try only once that record is there.
+/// Why:
+///   Nothing scans the records of `failed`,
+/// so the record is the person's only word about a commit that was not backed up;
+/// a try dropped before it exists leaves that commit unpushed with neither a retry nor a word,
+/// waiting for a command the person may never type
+/// (finding 3 of the review of `c02f49638e`).
+/// The record's own step is a job of the pool with a ceiling
+/// (`service_work_storage_awaited.rs`),
+/// so it can give no answer while every place of the process's bound is taken or the write outlasts its ceiling:
+/// the try is then kept (`Replanning::keep_the_try`),
+/// and the next round tries the push and writes the record again until the person has it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await theRecordThenTheForget(gitDir, item, attempt, outcome, said, replanning)
+/// ```
+pub(super) async fn the_record_then_the_forget(git_dir: &Path, item: &WorkItem, attempt: u32, outcome: PushOutcome, said: &str, replanning: &mut Replanning) {
+    return the_record_then_the_forget_within(AFTER_COMMIT_STATE_CEILING, git_dir, item, attempt, outcome, said, replanning).await;
+}
+
+/// `the_record_then_the_forget` with the ceiling of the record's step given,
+/// so a control reaches that step's bound in a moment (`service_work_drains_awaiting_tests.rs`).
+pub(super) async fn the_record_then_the_forget_within(
+    ceiling: Duration,
+    git_dir: &Path,
+    item: &WorkItem,
+    attempt: u32,
+    outcome: PushOutcome,
+    said: &str,
+    replanning: &mut Replanning,
+) {
+    let branch: &str = item.branch_ref.as_str();
+    match record_push_failure_within_awaiting(ceiling, git_dir, branch, item.oid.as_str(), outcome, said).await {
+        Ok(()) => replanning.forget(git_dir, branch),
+        Err(reason) => {
+            crate::service_error!(
+                "the failed push of {} {} could not be recorded for the person, so its try is kept: {reason}",
+                item.oid,
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
+            );
+            replanning.keep_the_try(git_dir, item, attempt);
+        }
+    }
+    return;
+}
 
 /// What:
 ///  What one push's verdict does to its records and to the retry plan.
@@ -88,26 +139,11 @@ pub(super) async fn settle_after_the_push(
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Failed(text) => {
-            // A failure the service gives up on is no longer waiting for a new try.
+            // The record goes before the items settle, so an item in `failed` always has its record, and the branch's try
+            //  goes only once that record exists.
             if let Some(latest) = newest {
-                replanning.forget(git_dir, latest.item.branch_ref.as_str());
-            }
-            // The record goes before the items settle, so an item in `failed` always has its record.
-            if let Some(latest) = newest
-                && let Err(reason) = record_push_failure_awaiting(
-                    git_dir,
-                    latest.item.branch_ref.as_str(),
-                    latest.item.oid.as_str(),
-                    PushOutcome::Refused,
-                    text.as_str(),
-                )
-                .await
-            {
-                crate::service_error!(
-                    "the failed push of {} {} could not be recorded for the person: {reason}",
-                    latest.item.oid,
-                    crate::service_timing::in_the_repository_at(latest.item.repository.as_path())
-                );
+                // A claimed item's first planned try is number 1, as the retry of its own failure is.
+                the_record_then_the_forget(git_dir, &latest.item, 1, PushOutcome::Refused, text.as_str(), replanning).await;
             }
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }

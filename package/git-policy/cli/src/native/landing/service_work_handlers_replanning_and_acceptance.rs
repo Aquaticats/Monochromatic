@@ -559,6 +559,34 @@ impl Replanning {
             }
         };
     }
+
+    /// What:
+    ///  Keep try number `attempt` of the branch of `item`,
+    /// whose record for the person could not be written,
+    /// in the journal now and in the list the loop applies.
+    /// Why:
+    ///   The record that was to replace this try is not there,
+    /// so the try is the only thing that keeps the commit from waiting for a command the person may never type:
+    /// the next round tries the push and writes the record again,
+    /// and the loop keeps a wake for it because the plan is a change of this round
+    /// (`the_record_then_the_forget`), the way a plan a push's own failure keeps the branch trying.
+    /// The number names the try that will follow,
+    /// so the pauses grow as they do for a retry the push's own failure planned:
+    /// a store that cannot be written answers every push as long as it lasts, and the tries must thin out.
+    /// A drain that keeps no plan (`first` is nothing) has no loop to try again, so there is nothing to keep
+    /// and the service's own log is what the unsuccessful record leaves.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const first = this.first; if (!first) return; this.keepThePlan(gitDir, item, attempt); this.changes.push({ plan: { gitDir, item, attempt, due: now + pauseBefore(attempt, first) } })
+    /// ```
+    pub(crate) fn keep_the_try(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32) {
+        let Some(first) = self.first else {
+            return;
+        };
+        let _kept: bool = self.keep_the_plan(git_dir, item, attempt);
+        self.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause_before(attempt, first) });
+    }
 }
 
 /// What:

@@ -11,6 +11,7 @@ use super::*;
 use crate::parallel_test_support::{ONE_PLACE, PATIENCE};
 use crate::push_retry::RetryChange;
 use crate::service_work::{CLAIM_LEASE, PUSH_KINDS};
+use crate::service_work_storage_awaited::LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER;
 use crate::test_support::{fixture, remove};
 use crate::work_item::WorkItem;
 use std::os::unix::fs::OpenOptionsExt as _;
@@ -20,6 +21,10 @@ use std::time::Duration;
 /// The longest this control lets the drain it started run before it ends the read itself,
 /// which is a moment and not the state step's own ceiling.
 const THE_CONTROLS_WAIT: Duration = Duration::from_millis(500);
+
+/// The ceiling this control gives the storage step it reaches,
+/// short enough that its own job cannot finish inside it.
+const THE_CONTROLS_CEILING: Duration = Duration::from_millis(200);
 
 /// The branch every item of these controls names.
 const BRANCH: &str = "refs/heads/main";
@@ -139,15 +144,24 @@ fn a_commondir_that_gives_no_answer_does_not_hold_the_drain() {
     let draining = std::thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime for the control");
         let handlers: NothingToRun = NothingToRun;
-        let drained: Drained = runtime.block_on(drain_common_records_planned_awaiting(read_by.as_path(), &handlers, &ClaimTime::read(), CLAIM_LEASE, &Retrying::none(), &PUSH_KINDS));
+        let drained: Drained = runtime.block_on(drain_common_records_within_awaiting(
+            THE_CONTROLS_CEILING,
+            read_by.as_path(),
+            &handlers,
+            &ClaimTime::read(),
+            CLAIM_LEASE,
+            &Retrying::none(),
+            &PUSH_KINDS,
+        ));
         let _sent = finished.send(drained);
     });
     let returned: Result<Drained, std::sync::mpsc::RecvTimeoutError> = has_finished.recv_timeout(THE_CONTROLS_WAIT);
     // The read the drain left behind is ended before this control judges, so a failing control leaves no thread reading.
     release_the_pipe(stalled.as_path());
     let drained: Drained = returned.expect("the drain waited inside its own read of `commondir`, so the round that awaits it never ends");
-    assert!(
-        drained.wait.is_some(),
+    assert_eq!(
+        drained.wait,
+        Some(LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER),
         "whether there is a common directory is not known, so the drain asks to be looked at again"
     );
     draining.join().expect("the draining task");
@@ -200,7 +214,7 @@ fn a_retry_whose_record_could_not_be_written_keeps_its_try() {
     assert!(has_started.recv_timeout(PATIENCE).is_ok(), "the only place of the process's bound is held");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime for the control");
-    runtime.block_on(run_due_push_retries_awaiting(git_dir.as_path(), &TerminalFailure, std::slice::from_ref(&due), &mut replanning));
+    runtime.block_on(run_due_push_retries_within_awaiting(THE_CONTROLS_CEILING, git_dir.as_path(), &TerminalFailure, std::slice::from_ref(&due), &mut replanning));
     let kept: usize = crate::push_retry_store::load(plans.as_path()).len();
     let asked: bool = replanning.changes.iter().any(|change: &RetryChange| { return matches!(change, RetryChange::Plan { .. }); });
     let told: usize = notices(git_dir.as_path());
@@ -211,7 +225,7 @@ fn a_retry_whose_record_could_not_be_written_keeps_its_try() {
     assert!(asked, "the loop is asked to try the branch again: {:?}", replanning.changes);
     // The bound is free now, so the next round writes the record and only then drops the try.
     let mut later: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    runtime.block_on(run_due_push_retries_awaiting(git_dir.as_path(), &TerminalFailure, std::slice::from_ref(&due), &mut later));
+    runtime.block_on(run_due_push_retries_within_awaiting(THE_CONTROLS_CEILING, git_dir.as_path(), &TerminalFailure, std::slice::from_ref(&due), &mut later));
     drop(runtime);
     assert_eq!(notices(git_dir.as_path()), 1, "the person has the record of the push that needs them");
     assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the record exists, so the try it replaces is dropped");

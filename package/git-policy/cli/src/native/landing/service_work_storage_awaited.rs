@@ -5,6 +5,8 @@
 //!  which of them are acceptable,
 //! the settling of those that are not or are done,
 //! the look that finds a claim taken over,
+//!  the look for the common directory a repository's records are read from,
+//! which of them another instance still holds,
 //!  and the records a push leaves for the person.
 //! Why:
 //!  The drain runs as a task of the runtime (`service_work_drain_pending_claims.rs`),
@@ -39,6 +41,7 @@ use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_o
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::service_claim_renewal::HeldClaims;
+use crate::service_work_common_directory::common_directory_to_drain;
 use crate::service_work_handlers_replanning_and_acceptance::{
     MAX_TRIES, SkipNotice, is_acceptable, settle_all, still_held,
 };
@@ -49,18 +52,39 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// What:
+///  How soon a drain that could not make a look a wake depends on asks to be looked at again.
+/// Why:
+///   The step that gave no answer is still holding a place of the process's bound until storage answers
+/// (`blocking_jobs_within_the_budget.rs`),
+/// so a look asked for sooner would wait for a place it cannot get,
+/// and the state step's own ceiling is the wait after which another look can answer.
+/// The wake is not dropped instead:
+/// nothing else looks at a claim another instance holds,
+/// nor at the records of a common directory nobody read,
+/// so the push behind them would wait for a command the person may never type.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lookAgain = AFTER_COMMIT_STATE_CEILING
+/// ```
+pub(crate) const LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER: Duration = AFTER_COMMIT_STATE_CEILING;
+
+/// What:
 ///  Say that a storage step of the drain was refused,
 /// and what that leaves for the next round.
 /// Why:
 ///   A step that changed nothing and a step that may still be finishing are both said plainly
 /// (`a_storage_step_awaited_no_longer_than`),
 /// and a caller told nothing would read the silence as a drain that did all of it.
+/// The drains of directories say it for the steps they make themselves
+/// (`service_work_drains_awaiting.rs`),
+/// so the words of a refused step are written in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const refused = (said) => serviceWarn(`${said}; the records it would have moved keep their lease`)
 /// ```
-fn refused(said: &str) {
+pub(crate) fn refused(said: &str) {
     crate::service_warn!("{said}; the records it would have moved keep their lease, so the next round finds them");
 }
 
@@ -281,11 +305,24 @@ pub(crate) async fn clear_push_failures_before_awaiting(git_dir: &Path, branch_r
 /// await recordPushFailureAwaiting(gitDir, branch, commit, outcome, said)
 /// ```
 pub(crate) async fn record_push_failure_awaiting(git_dir: &Path, branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> Result<(), String> {
+    return record_push_failure_within_awaiting(AFTER_COMMIT_STATE_CEILING, git_dir, branch_ref, commit, outcome, said).await;
+}
+
+/// `record_push_failure_awaiting` with the ceiling its place and its job are given,
+/// so a control can reach the bound this step keeps in a moment (`service_work_drains_awaiting_tests.rs`).
+pub(crate) async fn record_push_failure_within_awaiting(
+    ceiling: Duration,
+    git_dir: &Path,
+    branch_ref: &str,
+    commit: &str,
+    outcome: PushOutcome,
+    said: &str,
+) -> Result<(), String> {
     let directory: PathBuf = git_dir.to_path_buf();
     let branch: String = String::from(branch_ref);
     let oid: String = String::from(commit);
     let words: String = String::from(said);
-    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that did not land", "none was written", move || {
+    return match a_storage_step_awaited_no_longer_than(ceiling, "the record of a push that did not land", "none was written", move || {
         return record_push_failure(directory.as_path(), branch.as_str(), oid.as_str(), outcome, words.as_str());
     })
     .await
@@ -323,30 +360,118 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
 }
 
 /// What:
-///  How long until the first claim still held in `work_dir` runs out its lease,
-/// or nothing when none is held.
+///  The common directory whose records the instance of this worktree drains,
+/// or nothing when this repository has none to drain,
+///  read as a job of the process's blocking pool.
+/// Why:
+///   The answer is a `commondir` file and the `config` that says whether its repository is bare,
+/// which is storage like every other step of the drain,
+/// and a task of the runtime that read them itself would hold a worker for good on a store that stopped answering:
+/// the round that awaits this drain then never ends,
+/// so no later push or upkeep round runs and the service never exits idle
+/// (finding 1 of the review of `c02f49638e`).
+/// Whether there is one is not known after a look that gave no answer,
+/// so that answer is said and never read as "this repository has none".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const common = await commonDirectoryToDrainAwaiting(gitDir)
+/// ```
+pub(crate) async fn common_directory_to_drain_awaiting(git_dir: &Path) -> Result<Option<PathBuf>, String> {
+    return common_directory_to_drain_within_awaiting(AFTER_COMMIT_STATE_CEILING, git_dir).await;
+}
+
+/// `common_directory_to_drain_awaiting` with the ceiling its place and its job are given,
+/// so a control can reach the bound this step keeps in a moment (`service_work_drains_awaiting_tests.rs`).
+pub(crate) async fn common_directory_to_drain_within_awaiting(ceiling: Duration, git_dir: &Path) -> Result<Option<PathBuf>, String> {
+    let directory: PathBuf = git_dir.to_path_buf();
+    return a_storage_step_awaited_no_longer_than(ceiling, "the look for the common directory of this repository", "no record there is drained", move || {
+        return common_directory_to_drain(directory.as_path());
+    })
+    .await;
+}
+
+/// What:
+///  What the look for another instance's claim in `work_dir` answered.
 /// Why:
 ///   The answer is a listing of the claim names,
 /// and it is what wakes the service once another instance's lease is over,
+/// so a look that did not run is neither "nothing is held" nor a wait:
+/// it is an answer of its own,
+/// and reading it as "nothing is held" drops the only wake a claimed push has
+/// (finding 2 of the review of `c02f49638e`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ClaimLease = 'noneHeld' | { runsOutAfter: number } | 'unknown'
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ClaimLease {
+    /// No claim another instance holds is there.
+    NoneHeld,
+    /// The first claim still held runs out its lease after this long.
+    RunsOutAfter(Duration),
+    /// The look gave no answer, so whether a claim is held is not known.
+    Unknown,
+}
+
+/// Methods over the answer.
+impl ClaimLease {
+    /// What:
+    ///  The wake this answer asks for,
+    /// or nothing when there is no claim to look at again.
+    /// Why:
+    ///   A claim another instance holds is looked at again when its lease ends,
+    /// and one nobody could read is looked at again after the state step's own ceiling,
+    /// which is the wait after which another look can answer;
+    /// only "no claim is held" asks for no wake,
+    /// so neither of the answers that need one is ever read as it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const wake = answer === 'noneHeld' ? undefined : answer === 'unknown' ? lookAgain : answer.runsOutAfter
+    /// ```
+    pub(crate) fn the_wake_it_asks_for(self) -> Option<Duration> {
+        return match self {
+            Self::NoneHeld => None,
+            Self::RunsOutAfter(wait) => Some(wait),
+            Self::Unknown => Some(LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER),
+        };
+    }
+}
+
+/// What:
+///  Whether another instance still holds a claim in `work_dir`, and when the first lease runs out,
+/// read as a job of the pool.
+/// Why:
+///   The look is a listing of the claim names,
+/// and it is what wakes the service once another instance's lease is over,
 /// so a failure to
-///  read it is said rather than read as "nothing is held".
+///  read it is said as an answer of its own rather than read as "nothing is held".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await nextClaimExpiryAwaiting(workDir, now, lease)
 /// ```
-pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> ClaimLease {
+    return next_claim_expiry_within_awaiting(AFTER_COMMIT_STATE_CEILING, work_dir, now, lease).await;
+}
+
+/// `next_claim_expiry_awaiting` with the ceiling its place and its job are given,
+/// so a control can reach the bound this step keeps in a moment (`service_work_storage_awaited_tests.rs`).
+pub(crate) async fn next_claim_expiry_within_awaiting(ceiling: Duration, work_dir: &Path, now: &ClaimTime, lease: Duration) -> ClaimLease {
     let directory: PathBuf = work_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
-    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look that finds when another instance's claim runs out", "no wait is answered", move || {
+    return match a_storage_step_awaited_no_longer_than(ceiling, "the look that finds when another instance's claim runs out", "no wait is answered", move || {
         return next_claim_expiry(directory.as_path(), &reading, lease);
     })
     .await
     {
-        Ok(wait) => wait,
+        Ok(None) => ClaimLease::NoneHeld,
+        Ok(Some(wait)) => ClaimLease::RunsOutAfter(wait),
         Err(said) => {
             refused(said.as_str());
-            None
+            ClaimLease::Unknown
         }
     };
 }

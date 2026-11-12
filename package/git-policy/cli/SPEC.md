@@ -5020,6 +5020,13 @@ and a kill before that would leave a notice that says the service keeps trying a
 A plan that could not be written makes no promise:
 the notice then carries only Git's own words
 (`planned_retry`).
+A record the person must see is written before the branch's try goes:
+nothing scans `failed`,
+so a try dropped first would leave the commit unpushed with neither a retry nor a word
+(`the_record_then_the_forget`).
+A record whose step gave no answer within its ceiling keeps the try
+(`Replanning::keep_the_try`),
+and the next round tries the push and writes the record again.
 The file of a branch that needs no new try goes the same way:
 the worker that decided it removes that branch's file as it decides
 (`Replanning::forget`),
