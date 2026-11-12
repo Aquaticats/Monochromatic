@@ -65,7 +65,7 @@ fn a_decision_the_wrapper_could_not_make_stands_out_by_level() {
 fn a_url_in_the_detail_is_stored_without_its_credentials() {
     let line: String = trigger_line(&decision(None, Outcome::Declined, "handover-failed", "push to https://user:s3cret@example.invalid/r.git failed"));
     assert!(!line.contains("s3cret") && !line.contains("user:"), "{line}");
-    assert!(line.contains("https://<credentials>@example.invalid/r.git"), "{line}");
+    assert!(line.contains("https://<credentials>@example.invalid/<credentials>"), "{line}");
 }
 
 /// The record lands in the common Git directory's shared file,

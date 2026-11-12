@@ -459,8 +459,8 @@ fn the_userinfo_of_a_url_never_reaches_an_entry() {
     for entry in &entries {
         assert!(!entry.message.contains("hunter2") && entry.fields.iter().all(|(_, value)| { return !value.contains("hunter2"); }), "{entry:?}");
     }
-    assert!(entries[0].message.starts_with("the review of abc failed: could not reach https://<credentials>@example.invalid/r.git (status 401) at_ms="), "{}", entries[0].message);
-    assert!(entries[1].fields.contains(&(String::from("CLI_GIT_URL"), String::from("https://<credentials>@example.invalid/r.git"))), "{:?}", entries[1].fields);
+    assert!(entries[0].message.starts_with("the review of abc failed: could not reach https://<credentials>@example.invalid/<credentials> (status 401) at_ms="), "{}", entries[0].message);
+    assert!(entries[1].fields.contains(&(String::from("CLI_GIT_URL"), String::from("https://<credentials>@example.invalid/<credentials>"))), "{:?}", entries[1].fields);
 }
 
 /// The macros write at the priority their name says,
