@@ -309,7 +309,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             let mut answers: AnswersAsTheyCome<'_, (Verdict, SystemTime, u128)> = AnswersAsTheyCome::starting(running);
             while let Some((at, answer)) = answers.the_next_answer().await {
                 let (verdict, pushing_since, push_ms): (Verdict, SystemTime, u128) = match answer {
-                    AnAnswer::Answered(answer) => answer,
+                    AnAnswer::Answered(answered) => answered,
                     // A push whose handler stopped unexpectedly fails with what happened, and the branches beside it go on.
                     AnAnswer::Stopped(said) => (Verdict::Failed(said), SystemTime::now(), 0),
                 };
@@ -413,7 +413,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             None => break 'round,
         };
         let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), &host);
-        let mut may_start_prewarm_now = || may_start_housekeeping(&slice, &mut housekeeping_has_started);
+        let mut may_start_prewarm_now = || {
+            return may_start_housekeeping(&slice, &mut housekeeping_has_started);
+        };
         match run_and_settle_what_the_round_may_start(
             held,
             work_dir.as_path(),
@@ -475,7 +477,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             None => break 'round,
         };
         let trashes_wide: usize = slow_items_side_by_side(trashed.len(), &host);
-        let mut may_start_trash_now = || may_start_housekeeping(&slice, &mut housekeeping_has_started);
+        let mut may_start_trash_now = || {
+            return may_start_housekeeping(&slice, &mut housekeeping_has_started);
+        };
         match run_and_settle_what_the_round_may_start(
             held,
             work_dir.as_path(),

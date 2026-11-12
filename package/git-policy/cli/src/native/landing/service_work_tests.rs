@@ -1901,7 +1901,15 @@ impl Controlled {
     /// Be inside one item's work and say what the work directory held at its end.
     async fn work_an_item(&self, item: &WorkItem) {
         let name: String = Controlled::name_of(item);
-        let takes: Duration = self.takes.iter().find(|(named, _)| *named == name).map_or(Duration::ZERO, |(_, takes)| *takes);
+        let takes: Duration = self
+            .takes
+            .iter()
+            .find(|(named, _)| {
+                return *named == name;
+            })
+            .map_or(Duration::ZERO, |(_, takes)| {
+                return *takes;
+            });
         if !takes.is_zero() {
             tokio::time::sleep(takes).await;
         }
@@ -1923,7 +1931,9 @@ impl WorkHandlers for Controlled {
             if self.panics.contains(&name) {
                 panic!("a push handler stopped unexpectedly");
             }
-            return match self.refuses.iter().find(|(named, _)| *named == name) {
+            return match self.refuses.iter().find(|(named, _)| {
+                return *named == name;
+            }) {
                 Some((_, reason)) => Verdict::Failed(reason.clone()),
                 None => Verdict::Done,
             };
@@ -1949,7 +1959,9 @@ impl WorkHandlers for Controlled {
             if self.panics.contains(&name) {
                 panic!("a trash handler stopped unexpectedly");
             }
-            return match self.refuses.iter().find(|(named, _)| *named == name) {
+            return match self.refuses.iter().find(|(named, _)| {
+                return *named == name;
+            }) {
                 Some((_, reason)) => Verdict::Failed(reason.clone()),
                 None => Verdict::Done,
             };
@@ -2046,7 +2058,14 @@ fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
     handler.takes.push((slow.clone(), ONE_ITEM_TAKES));
     handler.refuses.push((fast.clone(), String::from("the server refused the branch")));
     let drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
-    let at_the_slow_branch: &Vec<String> = &drained.seen.iter().find(|(name, _)| *name == slow).unwrap_or_else(|| panic!("the slow branch is pushed: {:?}", drained.seen)).1;
+    let at_the_slow_branch: &Vec<String> = &drained
+        .seen
+        .iter()
+        .find(|(name, _)| {
+            return *name == slow;
+        })
+        .unwrap_or_else(|| panic!("the slow branch is pushed: {:?}", drained.seen))
+        .1;
     assert!(
         at_the_slow_branch.iter().any(|name| { return name.starts_with("push-") && name.contains(&OID[..8]); }),
         "the refusal of the fast branch is on record while the slow branch is still pushing: {at_the_slow_branch:?}"

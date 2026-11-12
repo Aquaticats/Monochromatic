@@ -259,7 +259,9 @@ where
     H: WorkHandlers + Sync + ?Sized,
     F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
 {
-    let mut every_item_may_start = || true;
+    let mut every_item_may_start = || {
+        return true;
+    };
     let mut nothing_left_for_a_later_round: Vec<Claimed> = Vec::new();
     return run_and_settle_what_may_start(
         held,
@@ -366,7 +368,7 @@ where
         let mut answers: AnswersAsTheyCome<'_, Verdict> = AnswersAsTheyCome::starting(running);
         while let Some((at, answer)) = answers.the_next_answer().await {
             let verdict: Verdict = match answer {
-                AnAnswer::Answered(answer) => answer,
+                AnAnswer::Answered(answered) => answered,
                 // One item's handler stopped unexpectedly: that item fails with what happened, and the rest of its wave goes on.
                 AnAnswer::Stopped(said) => Verdict::Failed(said),
             };

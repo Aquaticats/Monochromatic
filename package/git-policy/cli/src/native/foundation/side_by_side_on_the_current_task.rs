@@ -150,7 +150,11 @@ impl<'wave, T: 'wave> AnswersAsTheyCome<'wave, T> {
     /// await wave.theRest();
     /// ```
     pub async fn the_rest(&mut self) {
-        while self.the_next_answer().await.is_some() {}
+        loop {
+            if self.the_next_answer().await.is_none() {
+                return;
+            }
+        }
     }
 }
 

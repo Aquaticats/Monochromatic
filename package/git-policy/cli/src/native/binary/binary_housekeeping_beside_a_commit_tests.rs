@@ -12,7 +12,7 @@
 //! that its push reached the remote,
 //! and that neither waited longer than a bound no queue of housekeeping may push a person's work past.
 //! Run it alone, because it creates its own queue and wants the host to itself:
-//! `mise run //package/git-policy/cli:native:test:binary:host -- --run-ignored housekeeping_beside_a_commit --success-output=final`
+//! `mise run //package/git-policy/cli:native:test:binary:host -- --run-ignored only housekeeping_beside_a_commit --no-capture`
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -101,9 +101,34 @@ fn setup(name: &str) -> Setup {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    the_clone_keeps_its_tools(&fixture);
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
     return Setup { fixture, repo, remote, service };
+}
+
+/// What:
+///  Give the fixture's service the tools the prewarm's clone needs,
+///  so the clone it runs is the shipped one and not a refusal before it.
+/// Why:
+///   The service runs with the fixture's own `PATH` (`<fixture>/bin:/usr/bin:/bin`) and its own `HOME`,
+/// and a prewarm refuses before it clones when no `cargo` can be found to clean the copy with.
+/// The tools are this run's own, linked into the fixture's bin directory rather than found on the host's path.
+fn the_clone_keeps_its_tools(fixture: &Fixture) {
+    let mut environment = fixture.service_environment.lock().expect("the fixture's service environment");
+    for name in ["CARGO_HOME", "RUSTUP_HOME"] {
+        if let Some(value) = std::env::var_os(name) {
+            environment.push((std::ffi::OsString::from(name), value));
+        }
+    }
+    drop(environment);
+    let cargo: PathBuf = std::env::var_os("CARGO").map_or_else(|| PathBuf::from("cargo"), PathBuf::from);
+    let toolchain: PathBuf = cargo.parent().map_or_else(|| PathBuf::from("/usr/bin"), PathBuf::from);
+    for tool in ["cargo", "rustc"] {
+        let link: PathBuf = fixture.root.join("bin").join(tool);
+        let _removed = std::fs::remove_file(link.as_path());
+        std::os::unix::fs::symlink(toolchain.join(tool), link.as_path()).expect("the fixture's own link to the toolchain");
+    }
 }
 
 /// What:
@@ -123,12 +148,13 @@ fn plant_the_queue(setup: &Setup) {
     for at in 0..THE_QUEUE {
         // The record's object name, which is what names one prewarm of one worktree.
         let destination: PathBuf = setup.fixture.root.join(format!("prewarm-build-{at}"));
-        let payload: serde_json::Value = serde_json::Value::Array(vec![serde_json::json!({
-            "root": setup.repo.display().to_string(),
-            "from": source.display().to_string(),
-            "to": destination.display().to_string(),
-            "members": [THE_CLONED_WORKSPACES_OWN_CRATE],
-        })]);
+        // The payload `package_repair_prewarm::encode` writes, built without the `json!` macro, which unwraps inside.
+        let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        fields.insert(String::from("root"), serde_json::Value::from(setup.repo.display().to_string()));
+        fields.insert(String::from("from"), serde_json::Value::from(source.display().to_string()));
+        fields.insert(String::from("to"), serde_json::Value::from(destination.display().to_string()));
+        fields.insert(String::from("members"), serde_json::Value::from(vec![String::from(THE_CLONED_WORKSPACES_OWN_CRATE)]));
+        let payload: serde_json::Value = serde_json::Value::Array(vec![serde_json::Value::Object(fields)]);
         let item: WorkItem = WorkItem {
             kind: WorkKind::Prewarm,
             repository: setup.repo.clone(),

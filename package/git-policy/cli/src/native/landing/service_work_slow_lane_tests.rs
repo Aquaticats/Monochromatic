@@ -636,3 +636,77 @@ fn a_look_that_panicked_is_looked_at_again() {
     let asked: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async { return Some(Duration::from_secs(3)); }));
     assert_eq!(asked, Some(Duration::from_secs(3)), "a look that asked for a pause keeps its own");
 }
+
+/// The upkeep and the trash of the look whose own work stops.
+const THE_STOPPING_UPKEEP: &str = "dddddddddddddddddddddddddddddddddddddddd";
+
+const THE_TRASH_THAT_LOOK_NEVER_REACHED: &str = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+/// Handlers whose upkeep stops unexpectedly and every other item is done.
+/// Why:
+///   The upkeep runs in the drain's own loop (`service_work_drain_pending_claims.rs`),
+/// not as an item of a wave,
+/// so a panic there is a panic in the look itself:
+/// it is the defect a look must survive,
+/// where a wave's panic is kept for its own item.
+struct StoppingUpkeep {
+    /// Whether the upkeep stops, so the panic is a condition of a run and not dead code.
+    stops: bool,
+}
+
+impl WorkHandlers for StoppingUpkeep {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn maintenance_awaiting<'a>(&'a self, _item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            if self.stops {
+                panic!("an upkeep handler stopped unexpectedly");
+            }
+            return Verdict::Done;
+        });
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+}
+
+/// What:
+///  A look whose own work stopped unexpectedly settles nothing falsely,
+///  keeps its records on their lease,
+///  and asks the lane to look again after the pause.
+/// Why:
+///   The lane is the only thing that would look at those records again,
+/// so a look that stopped without asking would leave them claimed until another wake happened to name this repository.
+/// Nothing of a look that stopped is settled, because nothing of it is known to have run.
+#[test]
+fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
+    let world: World = world(
+        "slow-lane-a-stopping-look",
+        &[(WorkKind::Maintenance, THE_STOPPING_UPKEEP), (WorkKind::Trash, THE_TRASH_THAT_LOOK_NEVER_REACHED)],
+    );
+    let answered: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(drain_the_slow_work_awaiting(
+        world.common.as_path(),
+        &StoppingUpkeep { stops: true },
+        HOUSEKEEPING_OF_ONE_ROUND,
+    )));
+    assert_eq!(
+        answered,
+        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+        "a look that stopped asks to be looked at again after the pause"
+    );
+    assert!(names_in(&world, DONE).is_empty() && names_in(&world, FAILED).is_empty(), "nothing of a look that stopped is settled");
+    assert_eq!(names_in(&world, CLAIMED).len(), 2, "the records the look held keep their lease, so the look after it finds them");
+    remove(world.root.as_path());
+}
