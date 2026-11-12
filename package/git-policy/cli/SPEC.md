@@ -1566,7 +1566,7 @@ with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99%
 The record sits in the repository's common work directory,
 `<common>/monochromatic-git-policy-cli/work/pending/trash-<the trash's name>`,
 and not in the new worktree's:
-a round drains one lane per repository and the drain of one work directory empties its trashes in sequence,
+the drain of one work directory empties one worktree's trashes one at a time and different worktrees' side by side,
 so concurrent adds never delete beside each other,
 and the claim that drain takes is the lease every other kind of work already uses,
 so no lock is added for this.
@@ -1579,7 +1579,7 @@ The add prints one line on standard error unless `--quiet` was given:
 it names the worktree,
 says how many directories were set aside,
 and says that the commit service empties them after the command returns,
-one trash at a time for the repository and at the lowest I/O priority.
+one worktree's trashes at a time and at the lowest I/O priority.
 A wake that fails is reported as a warning that names the worktree,
 the trash,
 and the record,
@@ -11319,27 +11319,158 @@ which is the 90th percentile of the peaks of 28 services rounded up to a power o
 The retry list is reported in the order the directories were named,
 whichever drain finishes first.
 The directories of one repository share a lane,
-so a main checkout and its linked worktrees are drained one after another there,
-and the drain of one work directory empties its trashes in sequence
-(`src/native/landing/service_work_drain_pending_claims.rs`).
-A trash is therefore emptied one at a time for a repository,
-whichever worktree holds it,
-which is what keeps concurrent adds from deleting beside each other
-(`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
-The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
-after another,
-because they share a work directory and its upkeep.
+so a main checkout and its linked worktrees have their work directories drained one after another there,
+because those directories share one upkeep and one object store.
+The items inside one work directory run beside each other,
+and which of them may is the next section
+(`src/native/landing/service_work_drain_pending_claims.rs`,
+`src/native/landing/service_work_items_side_by_side.rs`).
 Nothing is shared mutably:
 the handlers are read-only,
 every claim is still made by an atomic rename,
 each drain keeps its own
 renewal of its own claims,
 and `service_lock_inventory_tests.rs` still forbids a lock in these sources.
-Within one repository the items still run in the order the drain gave them:
-pushes grouped by branch,
-then upkeep,
-trash,
-reviews.
+
+#### What each kind of work runs beside, and what it must not
+
+One work directory holds the records of every worktree of its repository,
+and a queue of them is what a person's push must never wait for:
+on 2026-11-11 the installed `0.6.1-alpha.10` held two reviews and four trashes claimed from 10:24
+while a fresh commit's push sat pending from 10:29,
+and `main` was pushed by hand.
+So every kind names the thing two items of it may stand in each other's way over,
+and the drain runs at most one item of each such thing at a time,
+with different things side by side.
+The two keys are the worktree an item names (its `repository`) and the branch a push names.
+Nothing else is shared:
+the handlers are read-only values,
+and each item's claim stays in the drain's own set and is settled by the task that took it.
+
+The width of a wave of slow work is the least of the items waiting,
+the host's threads less an eighth,
+the free memory over one repository's measured peak,
+and `SLOW_ITEMS_CEILING`
+(`service_work_items_side_by_side.rs`):
+4,
+the number of blocking places the service has (`SERVICE_WORKER_CAP`),
+because beyond them a wider wave only adds tasks that wait for a place.
+Measured on 2026-11-11 on this host under its own load
+(average 68 to 100),
+the same binary asked for each width,
+alternating,
+over eight worktrees' trashes of one entry of 8,000 files each:
+1,599 and 1,389 ms at one item at once,
+9,935 and 948 ms at two,
+1,129 and 1,090 ms at four,
+1,916 and 853 ms at eight,
+so the spread of one width covered the differences between widths and no width was faster than another;
+the removals run at I/O priority class `idle`,
+and the drive was the limit.
+What the width buys is in the controls and not in that wall time:
+two worktrees' trashes are inside their handler at one moment after this change,
+which the release before it never did.
+A push's width is the host's threads and memory alone (`pushes_side_by_side`),
+because a push waits on the network and holds no place of the blocking pool.
+
+##### Push
+
+A push sends one branch and updates that branch's remote-tracking reference,
+so two pushes of one branch must not run beside each other:
+the same branch's records are one group and reach one push.
+Two branches of one repository do run beside each other:
+they share the object store,
+which only grows,
+and each names its own branch and its own reference.
+A push runs beside every slow kind,
+which is what the two claim lists are for;
+the round that answers a wake claims `PUSH_KINDS` alone (`landing/service_work_slow_lane.rs`).
+The push's own steps never queue behind slow work either:
+one place of the process's bound on blocking jobs stays free of every slow kind
+(`SLOW_WORK_RESERVE`,
+`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`),
+so a queue of trashes cannot hold the read of a push's child,
+which is the shape of the wait measured on the installed `0.6.1-alpha.10` at 2026-11-11T10:38:00-05:00.
+
+##### Upkeep (`maintenance`)
+
+`git maintenance run --auto` takes the repository's own packs and locks over the common object store,
+so one repository has one upkeep at a time;
+the drain already runs one upkeep per repository,
+keyed by the repository.
+Upkeeps of different repositories run beside each other.
+
+##### Prewarm
+
+Filling a new worktree's Cargo build directories writes inside that worktree
+(the trees it clones and the Cargo children it starts),
+so it must not run beside the relink of the same worktree,
+nor beside that worktree's trash emptying,
+its snapshot ahead,
+or the delete of its subvolume.
+The prewarm of another worktree runs beside it.
+
+##### Relink
+
+Rewriting the copied package state of a new worktree runs each tool's install inside that worktree,
+so it too holds its worktree alone.
+The relink of another worktree runs beside it.
+
+##### Trash
+
+Emptying a trash removes the entries the leave-out moved and then removes the trash's parent directory
+when nothing else is in it (`worktree_trash_dispose.rs`),
+so two trashes of one worktree would race over that parent:
+one worktree empties one trash at a time.
+Two worktrees' trashes share nothing but the disk,
+each is proved to be the directory its own snapshot made,
+and each removes its own parent,
+so they run beside each other.
+Every entry removal and both of the emptying's lookups ask through the gate that
+keeps a blocking place free of slow work (`run_a_slow_job_within_the_budget`),
+so a queue of trashes never stands in front of the work a person waits for,
+and the removals run at I/O priority class `idle`.
+
+##### Subvolume delete
+
+Destroying a removed worktree's subvolume is one kernel call on a directory nothing else names,
+but the record names the pool it is removed from as its worktree,
+so the deletes of one pool run one at a time and different pools' run beside each other.
+
+##### Snapshot ahead
+
+A snapshot ahead copies one worktree's tree,
+which an add is waiting for,
+and it runs before the upkeep and before every kind that frees space in the same round.
+It holds its worktree alone:
+a trash emptied,
+a prewarm filling or a relink writing inside that tree would be captured halfway.
+Its record names the source worktree,
+so that is the key it takes.
+
+##### Review
+
+The shadow review of a landed commit reads the commit and appends one entry to the repository's one log,
+and the append is one whole-entry write on an append-mode descriptor with no lock
+(`log_lines_appended_without_a_lock.rs`),
+so two reviews of one repository may run beside each other and every other kind.
+Reviews go last in a round because a push is the person's backup and a review is a shadow record.
+
+##### What the waves keep of the order
+
+Between the kinds the order of a round is unchanged,
+because each step of it answers a priority and no conflict:
+the snapshot a person waits for,
+then the upkeep,
+then what a new worktree needs (relink,
+then prewarm),
+then what frees space (subvolume delete,
+then trash),
+then the reviews.
+Inside one kind,
+each worktree's records keep the order they were claimed in,
+and a worktree that has more records than the width waits for the next wave rather than for the whole queue:
+the turn moves by one key each wave.
 
 ### The service's hold on the index lock
 

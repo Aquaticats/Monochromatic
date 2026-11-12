@@ -404,6 +404,9 @@ pub mod service_work_drain_pending_claims;
 /// and what it leaves for a later round.
 pub mod housekeeping_of_one_round;
 
+/// Which items of one batch of that drain run at once and how many of them.
+pub mod service_work_items_side_by_side;
+
 /// The drain's step that deletes the subvolumes a removal handed over.
 pub mod service_work_drain_deletes_subvolumes;
 
