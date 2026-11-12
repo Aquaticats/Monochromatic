@@ -1,62 +1,94 @@
 # Continue the desktop-session reload investigation
 
-## Checkpoint at 2026-11-12T09:59:14+00:00
+## Checkpoint at 2026-11-12T08:00:00-05:00
 
-The user asked to dig fully into both systemd and the Git wrapper,
-requested a saved checkpoint before reboot,
-and then explicitly resumed the investigation after reboot.
-The user said no Claude Sonnet or Kimi K3.1 Pro audits were needed this session.
-None was started.
+The user asked to dig fully into both open-source components,
+requested a saved checkpoint before a reboot,
+and resumed the investigation after it.
+The user said no Claude Sonnet or Kimi K3.1 Pro audits were needed this session;
+none was started.
+The user asked for issues in this repository;
+upstream filing was not authorized.
 
 The canonical evidence,
 source excerpts,
-and completed reproduction are in
+and every completed reproduction are in
 [the incident investigation](../troubleshooting/plasma-session-ended-after-service-manager-timeouts.md).
 The wrapper issue is [GitHub issue 6286](https://github.com/Aquaticats/Monochromatic/issues/6286).
 
 ## Current state
 
-The wrapper requested a user-manager reload at 01:22:34 EST on 2026-11-12.
-It lasted 139770 ms.
-KWin's D-Bus subscription then timed out,
-the desktop targets stopped,
-and applications lost their display connections.
-No GPU reset or ring timeout was recorded for the incident.
+The wrapper asks the shared user manager for one global reload inside the commit path.
+A reload re-reads every unit of the user manager,
+and on this host it routinely outlasts the three-second subscription deadline the wrapper
+itself uses:
 
-A rootless container with systemd `262.1-1-arch` reproduced termination of a running D-Bus service
-and its bound target when its subscription timed out during reload.
-The control that paused the bus without a reload preserved both.
-That container was stopped and removed.
-No host lifecycle fix or source patch has been deployed.
+- The retained journal holds 208 reloads.
+- Their median duration is 1635 ms.
+- 40 are longer than 3000 ms and 12 longer than 10000 ms.
+- The longest,
+  the incident's own,
+  is 139770 ms.
+- The requesters are the wrapper (161),
+  `git` (41),
+  and `systemctl` (6).
 
-The original agent transcript has now supplied the wrapper's three-second no-greeting restart diagnostic.
-The incident document preserves it verbatim.
-The wrapper inferred a stuck process from the missing greeting;
-the actual blocking operation remains unproven.
+When a reload keeps the manager from processing messages past a subscription's deadline,
+sd-bus expires an answer the bus had already sent,
+`signal_name_owner_changed_install_handler` reads that expiry as a lost bus name,
+and a running `Type=dbus` unit is stopped.
+That is the desktop session's end,
+with no GPU reset anywhere in the record.
+
+An automated harness now reproduces the whole sequence in one run:
+the manager alone is held inside its reload,
+the bus stays responsive and still reports the service's owner,
+the manager expires the captured successful subscription reply,
+and the service and its bound target end.
+The control arm keeps the same process.
+Artifacts:
+`${HOME}/temp/agent/systemd-manager-delay.2LP6eZ` (delayed,
+packaged `262.1-1`),
+`${HOME}/temp/agent/systemd-manager-delay.WSdsKT` (control,
+packaged `262.2-1-arch`),
+and the same arms against a build of the clone's `v262.1`.
+
+A candidate repair was verified in the disposable clone only.
+With it,
+the delayed arm keeps the service and target,
+the control keeps them,
+and a unit whose bus really goes away still ends.
+Upstream `main` (`4c213bab55c53682e6e3af6353bd201a4b27ac2a`) and released `v262.2`
+carry the unmodified callbacks.
+Nothing is deployed in the host or the repository.
 
 ## Open work
 
-- Trace the exact wrapper recovery branch using the original command,
-  saved session,
-  and incident-version source.
-  Distinguish a preparation commit printed to stdout from a commit that reached the branch.
-- Automate the now-reproduced delayed-manager case,
-  combining a successful subscription reply observed on the bus with the final service-state assertion.
-  The first manager-only pause reproduced the shutdown with a responsive bus.
-  The subsequent monitored run reached its container lifetime limit before its final check and is excluded.
-- Compare current upstream and maintained systemd releases,
-  then prototype and verify a repair in a disposable clone.
-  Preserve detection of real bus-name loss and startup failure;
-  merely ignoring the subscription error is not a verified repair.
-- Exercise the wrapper's shared service template with alternating executable paths in an isolated user manager.
-  Determine whether otherwise independent worktrees repeatedly overwrite the template and reload the manager.
-- Break down reload cost using source instrumentation and representative isolated inputs.
-  The original journal has no phase timings;
-  do not assign the 139770 ms to storage,
+- Decide and implement the wrapper remedy for issue 6286:
+  a commit must not ask the shared manager for a reload that outlives a client's patience,
+  and a three-second greeting silence must not be read as a service stopped inside its own process.
+- Measure whether alternating wrapper executables force repeated global reloads.
+  The shipped template embeds the absolute toolchain path of whichever executable ran the commit
+  (`package/git-policy/cli/src/native/service/service_provision.rs`,
+  `unit_texts` and `ask_manager`),
+  so two releases or a worktree build under
+  `.cache/monochromatic-git-policy-cli-bin` can overwrite one shared file back and forth.
+  A sampled watch of the template and the reload records is the cheapest first fixture;
+  a fifteen-minute watch on 2026-11-12 found the template unchanged and the journal holding no reload,
+  so the fixture has to provoke the alternation rather than wait for it.
+- Break down a slow reload's phases in a disposable user manager with a representative unit set:
+  unit enumeration,
+  environment and unit generators,
+  deserialization,
+  and job and unit re-loading.
+  The incident's journal has no phase timings,
+  so no share may be assigned to storage,
   generators,
-  or another component from coincidence.
-- Update issue 6286 and file separate repository issues only for independently established defects.
-  Upstream filing has not been authorized or performed.
+  or another component without a measurement.
+- Decide whether the repair's own gap matters:
+  it leaves the manager without tracking a name whose subscription it never installed,
+  until the next reload installs it again.
+  A complete repair re-arms the subscription instead.
 
 ## Reconstructible inputs
 
@@ -69,23 +101,37 @@ The evidence file omits journal cursor and machine identifiers.
 
 Unrelated documentation edits that were already uncommitted were inspected and snapshotted in
 [`plasma-reload-reboot-uncommitted.patch`](plasma-reload-reboot-uncommitted.patch).
-Their original files were left unchanged.
-Before applying that recovery patch after reboot,
-compare it with the current worktree and history:
-the originating work may have committed meanwhile.
+Their original files are still unchanged and still uncommitted;
+the patch reverse-applies to them.
 
 Systemd baseline is `v262.1`,
 commit `73612ea502d53baf9b0df4336cfc296a7ee0d524`.
-The inspected upstream `main` was `4c213bab55c53682e6e3af6353bd201a4b27ac2a`.
-Fetch them again if local scratch is unreadable after reboot.
+Upstream `main` is `4c213bab55c53682e6e3af6353bd201a4b27ac2a`.
+The clone has also fetched `v262.2`,
+which carries the same two callbacks.
 
-The local baseline clone was `${HOME}/temp/agent/systemd-plasma-reload-2026-11-12`.
-The fresh,
-unmodified prototype clone was `${HOME}/temp/agent/systemd-reload-prototype.KJTwzaK2`.
-The existing fixture inputs and driver were under `${HOME}/temp/agent/plasma-reload-probe-2026-11-12`.
-The driver and test units are retained in the incident document.
+The clone is `${HOME}/temp/agent/systemd-reload-prototype.KJTwzaK2`.
+Its `build-baseline` directory holds the built manager,
+and `src/core/unit.c` holds the candidate repair (two early returns for transient failures).
+The candidate is uncommitted in the clone;
+`git --no-pager diff` there is the whole change.
 
-The original agent run folder was
+The harness,
+its fixture files,
+and the retained probes are under `${HOME}/temp/agent/plasma-reload-probe-2026-11-12`:
+`reproduce-manager-delay.ts` (one arm),
+`run-harness-arms.ts` (control,
+delayed,
+and bus-gone arms),
+and `watch-template-rewrites.ts` (the sampled wrapper-template watch).
+
+The manager under test must be mounted read-only at `/probe-build` and reached through
+`LD_LIBRARY_PATH=/probe-build/src/core:/probe-build/src/shared:/probe-build/src/basic`,
+because a Meson build links the manager against its build tree.
+The build image is `localhost/systemd-reload-build-tools:20261112`;
+`meson` is reached through `--entrypoint=/usr/bin/meson`.
+
+The original agent run folder is
 `${HOME}/temp/agent/pi-runs/subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable-1`.
 Its `summary.json` names the full session file;
 its `feed.jsonl` truncates tool results.
@@ -97,35 +143,10 @@ not the `bash` tool.
 Its release is `0.6.1-alpha.12`,
 source commit `418ef369a6bb34e829ea90a50c64d9bb5d353d1a`.
 
-The post-reboot host kernel is `7.3.3-ogc1.1.fc45.x86_64`;
-the systemd and KDE package versions did not change.
-The prototype clone has also fetched `v262.2`.
-Its changes in the relevant files do not alter the failure callback or timeout-before-reply order,
-but that release has not yet been exercised in the reproducer.
-
-The build-dependency container `systemd-reload-build-deps-20261112` installed Meson,
-Ninja,
-and related dependencies,
-but pacman hooks failed under its inner sandbox.
-Use the already documented repair in
-[`pacman-hook-sandbox-rootless-podman-build.md`](../troubleshooting/pacman-hook-sandbox-rootless-podman-build.md)
-before treating a derived image as ready.
-The current build source remains unmodified.
-
-The successful probe used `localhost/monochromatic/nested-wayland-session:latest`
-with its entrypoint changed to `/usr/lib/systemd/systemd`,
-no network or host bind mounts,
-and explicit CPU,
-memory,
-task,
-and I/O limits.
-The container needed the documented `dbus-daemon` override and a policy allowing the test bus name.
-It did not exercise the host's live manager.
-
-The image has GDB and GCC,
-but `meson` and `ninja` were not found on its `PATH`.
-The earlier [scope investigation](../troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md)
-contains a working systemd build recipe and the unambiguous Meson target `./systemd:executable`.
+The wrapper's live template is `/run/user/1000/systemd/user/monochromatic-git-policy-cli@.service`;
+it names
+`/var/home/user/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-git-policy-cli/0.6.1-alpha.12/...`
+as the program.
 
 Do not run a diagnostic reload against the live desktop manager.
 Keep repository experiments in disposable checkouts and their own homes and runtime directories,

@@ -470,17 +470,13 @@ This identifies a concrete hypothesis:
 the manager can process an expired subscription before reading an already queued successful reply.
 The bus daemon need not have been stopped for that hypothesis to apply.
 The completed reproduction paused the bus daemon;
-the stronger reproduction that pauses only the manager has not yet been run.
+the stronger reproduction that pauses only the manager
+is recorded under the heading "Automated reload-delay harness at 2026-11-12T07:52:24-05:00".
 
 The packaged container library exports `manager_reload` and `unit_install_bus_match`,
 verified with `nm --dynamic`.
 `manager_ready` is static.
-A next probe can use GDB to break in `manager_reload`,
-finish that call,
-hold the manager before it returns to event processing,
-and query the still-running bus independently.
-This is a proposed experiment,
-not a completed result.
+The probe this paragraph proposed is now run by the harness named in that heading.
 
 ### Source and prototype state
 
@@ -489,8 +485,9 @@ not a completed result.
 - Upstream `main` resolved to `4c213bab55c53682e6e3af6353bd201a4b27ac2a` during this continuation.
   Its `src/core/unit.c` was fetched,
   but a complete comparison and maintained-release check remain open.
-- A fresh disposable prototype clone was created and remained clean.
-  No systemd patch or build was started.
+- A fresh disposable prototype clone was created.
+  It now carries the verified candidate recorded under the heading
+  "Candidate repair verified in a disposable clone".
 - The wrapper's shared template embeds the calling executable and Git paths in
   `package/git-policy/cli/src/native/service/service_provision.rs:112`.
   Whether alternating executable paths cause repeated global reloads still needs a real-manager fixture.
@@ -594,20 +591,149 @@ The current checkout's `git` link resolves to a toolchain launcher.
 Its resolver and the recorded executable used by the service still need tracing;
 do not assume that the launcher path is the service executable.
 
+## Automated reload-delay harness at 2026-11-12T07:52:24-05:00
+
+The manager-only delay is now one automated run,
+not a debugger session read by hand.
+`${HOME}/temp/agent/plasma-reload-probe-2026-11-12/reproduce-manager-delay.ts`
+starts an owned rootless container whose PID 1 is the manager under test,
+installs a `Type=dbus` probe service,
+its `BindsTo=` target,
+a bus monitor,
+and a debugger that holds the manager after `manager_reload` returns.
+It asserts the final service and target state itself and always removes its container.
+
+```sh
+# One arm of the harness; a Meson build is mounted read-only and resolved by library path.
+node reproduce-manager-delay.ts --image=localhost/systemd-reload-build-tools:20261112 \
+  --build-dir=<clone>/build-baseline [--control] [--bus-gone]
+```
+
+The run that the previous checkpoint left unfinished now has its final assertion.
+At `2026-11-12T10:22:16Z` the harness captured the manager's `AddMatch` request for the probe's
+`NameOwnerChanged` signal (cookie 76)
+and the bus's successful `method_return` with `reply_cookie=76` to the manager,
+while the manager was still held.
+After the release,
+the manager expired that answer and stopped the running service and its target:
+
+```text
+# Disposable container journal, 2026-11-12T10:22:13+00:00.
+systemd[1]: desktop-probe.service: Unexpected error response on installing NameOwnerChanged signal match: Method call timed out
+systemd[1]: desktop-probe.service: Deactivated successfully.
+systemd[1]: Stopped target Disposable target bound to desktop lifetime probe.
+```
+
+The control arm that reloads without pausing the manager kept the same process and target.
+The artifacts are in `${HOME}/temp/agent/systemd-manager-delay.2LP6eZ`.
+A control in the build-tools image with its packaged systemd `262.2-1-arch`
+kept the service and target as well
+(`${HOME}/temp/agent/systemd-manager-delay.WSdsKT`).
+
+### The same arms against a built baseline
+
+The probe now runs an unmodified `v262.1` manager built from the disposable clone
+(`73612ea502d53baf9b0df4336cfc296a7ee0d524`),
+so a candidate repair can be compared against a build of the same source.
+The arm reached the same states as the packaged image:
+control kept the service PID and the target (`2026-11-12T12:43:01Z`),
+the delayed arm expired the subscription and stopped both (`2026-11-12T12:45:27Z`).
+The manager's own identity is recorded in each artifact's `result.json`:
+executable `/probe-build/systemd`,
+the `libsystemd-core` and `libsystemd-shared` mappings taken from the mounted build tree.
+
+## Candidate repair verified in a disposable clone
+
+The incident's false loss comes from two callbacks in `src/core/unit.c` of `v262.1`.
+`signal_name_owner_changed_install_handler` treats any error answer to the subscription as a lost name,
+and `get_name_owner_handler` treats any error answer to its owner query the same way.
+Both requests carry the unit's start timeout as their deadline,
+so a manager that is reading every unit can expire an answer the bus already sent.
+
+The tested candidate keeps both callbacks' verdict on the bus's own answer only:
+a transient failure or `ETIMEDOUT` logs a warning and leaves the unit as it is,
+while every other answer still takes the original path.
+The rebuilt manager was exercised by the same harness on the same build directory:
+
+- Control:
+  service PID 144 and the target stayed active
+  (`${HOME}/temp/agent/systemd-manager-delay.TgTkdI`,
+  `2026-11-12T12:51:55Z`).
+- Delayed manager:
+  service PID 145 and the target stayed active
+  (`${HOME}/temp/agent/systemd-manager-delay.YQJBQC`,
+  `2026-11-12T12:52:10Z`),
+  with both repair lines in the journal.
+- Bus taken away:
+  the unit still ended
+  (`${HOME}/temp/agent/systemd-manager-delay.bz34qu`,
+  `2026-11-12T12:52:24Z`),
+  so a real loss of the bus still ends the unit.
+
+The delayed arm's journal names the branch that ran:
+
+```text
+# Repaired manager, held after the reload, 2026-11-12T12:52:05+00:00.
+systemd[1]: desktop-probe.service: Unexpected error response on installing NameOwnerChanged signal match: Method call timed out
+systemd[1]: desktop-probe.service: The request for the NameOwnerChanged signal match failed transiently (Method call timed out), which says nothing about this unit's D-Bus name; the unit stays as it is.
+systemd[1]: desktop-probe.service: The GetNameOwner() request failed transiently (Connection timed out), which says nothing about this unit's D-Bus name; the unit stays as it is.
+```
+
+This is a prototype,
+not a patch for upstream:
+it does not re-arm the subscription the manager never installed,
+so a unit can run unwatched until the next reload installs the match again,
+and no test in the clone's own suite covers the change.
+Upstream `main` at `4c213bab55c53682e6e3af6353bd201a4b27ac2a`
+and the released `v262.2` carry the same callbacks.
+No host or repository change was made from it.
+
+### Cost of the reloads this host already ran
+
+The retained journal records 208 reloads of the user manager.
+Their reported durations have a median of 1635 ms,
+40 run longer than 3000 ms,
+12 longer than 10000 ms,
+and the longest by far is the incident's 139770 ms.
+The client names behind the 208 requests are the wrapper (161),
+`git` (41),
+and `systemctl` (6).
+So the incident's reload is the extreme of a measured distribution on this machine,
+not a single pathological unit:
+a synchronous reload of the whole user manager routinely outlasts the three-second
+subscription deadline that the wrapper's own diagnostics use,
+and one interruption of the manager's message processing is enough to reach the false-loss path.
+The phase breakdown of a slow reload is still unmeasured;
+the original journal has no per-phase timings.
+
+### The incident window's log ordering
+
+Journal records that were produced during the incident window were written in one burst later:
+1594 records carry write stamps in the ten seconds around `2026-11-12T06:25:00Z`
+while their reception stamps spread across the preceding 3.4 minutes.
+That gap is a property of the log pipeline,
+not evidence that the manager stopped its loop,
+so the order of lines inside the window must not be read as a sequence of manager actions.
+The reload duration does not depend on those stamps:
+the manager reports it from its own monotonic clock.
+
 ## Upstream filing decision
 
 - The wrapper's shared-manager operation and systemd's timeout-to-stop mechanism are established.
   This investigation does not allocate the whole incident to an upstream defect.
 - A wrapper remedy must address its own service-lifecycle boundary.
-  A systemd patch was not evaluated.
+  A systemd candidate was evaluated in a disposable clone and is described in this document;
+  nothing of it was filed or deployed.
 - A running D-Bus service and dependent target were exercised in a disposable manager.
-  Host reload latency and KWin rendering were not reproduced.
+  Host reload latency was measured from the retained journal but not reproduced;
+  KWin rendering was not reproduced.
 - Upstream contribution policies were not investigated;
   the user requested issues in this repository.
 - Upstream searches for `"NameOwnerChanged" "timed out"` and `reload dbus services killed`
   returned no issues on 2026-11-12.
   That narrow result does not establish that no related report exists.
-- No source fix was prototyped or deployed.
+- No source fix is deployed;
+  the verified candidate lives only in the disposable clone.
 
 [GitHub issue 6286][] records the wrapper defect,
 the incident evidence,
