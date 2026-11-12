@@ -1755,10 +1755,12 @@ fn two_sweeps_of_one_dead_stage_remove_it_once_and_neither_fails() {
     remove(root.as_path());
 }
 
-/// The record of an object whose claim nothing keeps is swept,
-/// so a kill between the two removals leaves nothing behind for ever.
+/// The record of an object whose claim nothing keeps is swept once the folder it names is gone,
+/// so a kill between the two removals leaves nothing behind for ever,
+/// and it is kept while that folder stands,
+/// because it is then the only proof the folder is the wrapper's.
 #[test]
-fn the_record_of_an_object_whose_claim_is_gone_is_swept() {
+fn the_record_of_an_object_whose_claim_is_gone_is_swept_once_its_folder_is() {
     let (root, common, container, record) = killed_add_with_its_object_recorded("claim-add-orphan");
     let claim: PathBuf = journal_root(common.as_path()).join(format!(
         "{}.stage",
@@ -1766,8 +1768,11 @@ fn the_record_of_an_object_whose_claim_is_gone_is_swept() {
     ));
     std::fs::remove_file(claim.as_path()).expect("a claim another command reaped");
     reap_abandoned_stages(common.as_path()).expect("reap");
-    assert!(!record.exists(), "the record names no folder once its claim is gone");
+    assert!(record.exists(), "the record of a folder that still stands is that folder's only proof, so it stays");
     make_removable(container.as_path());
+    std::fs::remove_dir_all(container.as_path()).expect("the control's folder");
+    reap_abandoned_stages(common.as_path()).expect("a second reap");
+    assert!(!record.exists(), "the record names a folder that is gone, and nothing reads it any more");
     remove(root.as_path());
 }
 

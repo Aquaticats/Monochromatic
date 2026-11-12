@@ -492,8 +492,12 @@ pub fn reap_judged_stages(
             }
             let present: bool = still_there(container.as_path())?;
             let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-            // A record that cannot be looked up counts as one: when in doubt the stage is kept.
-            let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
+            // A record that cannot be looked up counts as one: when in doubt the stage is kept. The record of the object a
+            // stage's creation made says the same thing on its own, and a sweep that removed the destination record of an
+            // interrupted add must not leave its stage to be taken for a copy's own: that branch removes a folder without
+            //  asking whether a person put anything in it.
+            let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound)
+                || !matches!(std::fs::symlink_metadata(crate::worktree_copy_stage_made_object::made_record_beside_claim(claim.as_path()).as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
             let mut stage_stays: bool = false;
             // The exchange a kill interrupted left the directory Git made at the stage name, which the proof below
             // cannot account for; settling it is one empty folder and a few identity checks, never a copy, so every

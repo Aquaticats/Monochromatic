@@ -4062,7 +4062,7 @@ The command that meets one settles it in the pass that runs before every forward
   and a record whose bytes do not read cannot name one either,
   so such a record has none to wait for,
   which is what an interrupted copy is.
-- A record whose writer is gone is renamed into `<common git dir>/monochromatic-git-policy-cli-worktree-copy/v1/unreadable`,
+- A record whose writer is gone is kept in `<common git dir>/monochromatic-git-policy-cli-worktree-copy/v1/unreadable`,
   never deleted,
   and never over a record an earlier command kept there.
   One line names the record,
@@ -4070,14 +4070,32 @@ The command that meets one settles it in the pass that runs before every forward
   and what may still stand on disk because of it.
   The folder is not work:
   a command does not sweep for it.
-- A stage claim is written again under its own name from the records beside it where they name the folder,
-  the record of the object that folder's creation made (`<identifier>.made`) or the destination record
-  (`<identifier>.add`) whose worktree parent holds it.
-  The claim written again names no owner,
+- A stage claim's bytes are kept in that folder by one link,
+  which leaves the claim at its own name,
+  and the claim is then written again at that name in one rename.
+  No instant exists in which the stage has no claim:
+  a second command's sweep reads an absent claim as "no add stands behind these records",
+  removes the record of the object the stage's creation made,
+  and then takes the stage for a copy's own folder and removes it with whatever a person put in it
+  (a review's finding, reproduced in a second process before this rule was written).
+  A claim whose folder nothing names is renamed aside with the words that say what may stand,
+  because nothing beside it names that folder any more.
+  Where the claim cannot be written again,
+  its name goes the same way,
+  so the pass that follows reads no claim it cannot read;
+  the bytes are kept either way.
+- The claim written again names no owner,
   so the same pass settles the stage and,
   where the add still owes a copy,
   makes it.
-  A claim whose folder nothing names is moved aside with the words that say what may stand.
+- The record of the object a stage's creation made (`<identifier>.made`) is swept only when the folder it names is gone:
+  while that folder stands it is the only proof the folder is the wrapper's,
+  and a stage whose claim a command is settling,
+  or one a crash left without a claim,
+  must not lose it.
+- A stage whose destination record (`<identifier>.add`) was settled away is still an add's stage when the record of its
+  object stands,
+  and is judged by that record instead of by the branch that removes a copy's private folder without asking what it holds.
 - A destination record whose claim was moved is still read:
   the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
   naming the worktree it describes with the two commands that settle it,

@@ -190,3 +190,243 @@ fn a_claim_whose_folder_is_named_beside_it_is_written_again() {
     assert!(verdicts.names_dead_claim(names[0].as_str()), "this pass settles it as a dead owner's claim");
     assert!(notices[0].contains("written again"), "{}", notices[0]);
 }
+
+/// The claim file one claim was written to.
+/// Why a control needs it:
+///  the field is the claim's own,
+///  and a control damages and removes the file at that name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claimPathOf = (claim) => join(journalRoot(common), `${claim.identifier()}.stage`);
+/// ```
+fn claim_path_of(common: &Path, claim: &crate::worktree_copy_stage_claim::StageClaim) -> PathBuf {
+    return journal_root(common).join(format!("{}.stage", claim.identifier()));
+}
+
+/// What:
+///  Every event the kernel reported for one file while `run` took its course.
+/// Why:
+///   The claim's own name must never be absent while a command settles it,
+///  and the end state is the same whether the name was taken away and written again or never moved,
+///  so only the events of the call tell the two apart:
+///  a rename of the watched file reports `IN_MOVE_SELF`,
+///  a link to it and a rename over it report its link count changing (`IN_ATTRIB`).
+///  The watch is read once the call is done,
+///  because the kernel queues the events whether or not anybody reads them in between.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const masks = watchEvents(claimPath, () => settleUnreadableRecords(common, verdicts));
+/// ```
+#[cfg(target_os = "linux")]
+fn watch_events<F: FnOnce()>(file: &Path, run: F) -> Vec<u32> {
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::os::unix::ffi::OsStrExt;
+    // SAFETY: the call takes no arguments and answers a new descriptor or a negative number.
+    let raw: libc::c_int = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
+    assert!(raw >= 0, "a watch is opened: {}", std::io::Error::last_os_error());
+    // SAFETY: `raw` is a descriptor this call alone owns, and it is closed when `fd` drops.
+    let fd: OwnedFd = unsafe { OwnedFd::from_raw_fd(raw) };
+    let name: std::ffi::CString = std::ffi::CString::new(file.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    // SAFETY: `name` is a NUL-terminated path that outlives the call, and the descriptor is open.
+    let watch: libc::c_int = unsafe { libc::inotify_add_watch(fd.as_raw_fd(), name.as_ptr(), libc::IN_MOVE_SELF | libc::IN_DELETE_SELF | libc::IN_ATTRIB) };
+    assert!(watch >= 0, "the file is watched: {}", std::io::Error::last_os_error());
+    run();
+    let mut masks: Vec<u32> = Vec::new();
+    let mut buffer: [u8; 4096] = [0; 4096];
+    loop {
+        // SAFETY: the descriptor is open, and the buffer is the length handed to the call.
+        let read: libc::ssize_t = unsafe { libc::read(fd.as_raw_fd(), buffer.as_mut_ptr().cast(), buffer.len()) };
+        if read <= 0 {
+            break;
+        }
+        let mut at: usize = 0;
+        while at + 16 <= read as usize {
+            let mask: [u8; 4] = buffer[at + 4..at + 8].try_into().expect("four bytes of a mask");
+            let name_length: [u8; 4] = buffer[at + 12..at + 16].try_into().expect("four bytes of a name length");
+            masks.push(u32::from_ne_bytes(mask));
+            at += 16 + u32::from_ne_bytes(name_length) as usize;
+        }
+    }
+    return masks;
+}
+
+/// Whether the watched file was taken away from its own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const movedAway = (masks) => masks.some((mask) => (mask & (IN_MOVE_SELF | IN_DELETE_SELF)) !== 0);
+/// ```
+#[cfg(target_os = "linux")]
+fn was_taken_away(masks: &[u32]) -> bool {
+    return masks.iter().any(|mask: &u32| { return mask & (libc::IN_MOVE_SELF | libc::IN_DELETE_SELF) != 0; });
+}
+
+/// An unreadable claim is settled without its own name ever being taken away,
+/// so a command that reaps in the instant between the two steps never reads the stage as one no add stands behind.
+/// Why the control reads this way:
+///  the end state is the same either way,
+///  and only the events of the call tell the two apart,
+///  so the positive control below watches a claim whose folder nothing names being moved, which the same watch sees.
+#[cfg(target_os = "linux")]
+#[test]
+fn settling_an_unreadable_claim_never_takes_its_own_name_away() {
+    let base: PathBuf = scratch("claim-name-kept");
+    let common: PathBuf = base.join("common");
+    let destination: PathBuf = base.join("worktrees/two");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let claim: crate::worktree_copy_stage_claim::StageClaim =
+        claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_owner()).expect("an add's claim");
+    let claim_path: PathBuf = claim_path_of(common.as_path(), &claim);
+    // The worst damage this pass handles: a crash that published the rename and none of the bytes.
+    std::fs::write(claim_path.as_path(), b"").expect("the claim loses what it said");
+    std::fs::set_permissions(claim_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("private claim");
+    let mut verdicts: StageVerdicts = StageVerdicts::default();
+    let masks: Vec<u32> = watch_events(claim_path.as_path(), || {
+        settle_unreadable_records(common.as_path(), &mut verdicts).expect("settled");
+    });
+    assert!(!was_taken_away(masks.as_slice()), "the claim's name was never taken away: {masks:?}");
+    // The positive control: a claim whose folder nothing beside it names is moved, and this watch sees that.
+    let other: PathBuf = scratch("claim-name-lost");
+    let other_common: PathBuf = other.join("common");
+    let other_destination: PathBuf = other.join("worktrees/three");
+    std::fs::create_dir_all(other_destination.as_path()).expect("destination");
+    let lost: crate::worktree_copy_stage_claim::StageClaim = crate::worktree_copy_stage_claim::claim_stage_for(other_common.as_path(), other_destination.as_path(), &dead_owner()).expect("a copy's claim");
+    let lost_path: PathBuf = claim_path_of(other_common.as_path(), &lost);
+    std::fs::write(lost_path.as_path(), b"").expect("the claim loses what it said");
+    std::fs::set_permissions(lost_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("private claim");
+    let mut other_verdicts: StageVerdicts = StageVerdicts::default();
+    let seen: Vec<u32> = watch_events(lost_path.as_path(), || {
+        settle_unreadable_records(other_common.as_path(), &mut other_verdicts).expect("settled");
+    });
+    assert!(was_taken_away(seen.as_slice()), "the watch sees a claim that is moved aside, so the control above could have seen one: {seen:?}");
+    std::fs::remove_dir_all(base.as_path()).expect("the fixture");
+    std::fs::remove_dir_all(other.as_path()).expect("the fixture");
+}
+
+/// The variable that marks the child process that reaps one journal root.
+const CHILD_VARIABLE: &str = "CLI_GIT_REAP_CHILD";
+
+/// The variable that names the common directory whose journal root the child reaps.
+const CHILD_COMMON_VARIABLE: &str = "CLI_GIT_REAP_CHILD_COMMON";
+
+/// The body the parent starts in a child process:
+/// it reaps the journal root of the common directory its environment names, and prints every line it settled.
+/// Run without the child's variable it returns at once and checks nothing.
+#[test]
+fn child_reaps_the_journal_root_its_environment_names() {
+    if std::env::var_os(CHILD_VARIABLE).is_none() {
+        return;
+    }
+    let common: PathBuf = PathBuf::from(std::env::var_os(CHILD_COMMON_VARIABLE).expect("the child is given a common directory"));
+    let notices: Vec<String> = crate::worktree_copy_stage_claim_reaping::reap_abandoned_stages(common.as_path()).expect("the reap");
+    for notice in notices {
+        println!("NOTICE {notice}");
+    }
+}
+
+/// The notices a second process's reap of `common` printed.
+/// Why it says so when no test ran:
+///  a name that matches no test ends with success and runs nothing, and a control would pass on that.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notices = reapInAChild(common); // throws unless the child ran its test
+/// ```
+fn reap_in_a_child(common: &Path) -> String {
+    let module: &str = module_path!();
+    let path: String = format!(
+        "{}::child_reaps_the_journal_root_its_environment_names",
+        module.split_once("::").map_or(module, |(_, rest)| { return rest; })
+    );
+    let output: std::process::Output = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
+        .args(["--exact", path.as_str(), "--nocapture", "--test-threads=1"])
+        .env(CHILD_VARIABLE, "1")
+        .env(CHILD_COMMON_VARIABLE, common)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child process runs the reap");
+    let said: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    let heard: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert!(output.status.success(), "the child failed:\n{said}\n{heard}");
+    assert!(said.contains("1 passed"), "the child ran no reap:\n{said}\n{heard}");
+    return said;
+}
+
+/// A record of a stage's object whose claim is gone is kept while its stage still stands,
+/// so a command that reaps in the instant between a claim being taken away and written again never removes the only
+/// proof of a folder a person's file may be in.
+/// Why the control reads this way:
+///  the sweeps that run in every command take an absent claim to mean no add stands behind the records beside it,
+///  and the record they would delete is the only thing that says the folder is the wrapper's.
+#[test]
+fn a_reap_in_another_process_keeps_the_record_of_a_stage_that_still_stands() {
+    let base: PathBuf = scratch("record-kept-with-its-stage");
+    let common: PathBuf = base.join("common");
+    let destination: PathBuf = base.join("worktrees/four");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let claim: crate::worktree_copy_stage_claim::StageClaim =
+        claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_owner()).expect("an add's claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    std::fs::create_dir_all(container.join("payload").as_path()).expect("the stage");
+    std::fs::set_permissions(container.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private stage");
+    std::fs::write(container.join("precious.txt"), b"a person's only copy").expect("a person's file");
+    crate::worktree_copy_stage_made_object::record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), None)
+        .expect("the record of the creation");
+    let claim_path: PathBuf = claim_path_of(common.as_path(), &claim);
+    let made: PathBuf = crate::worktree_copy_stage_made_object::made_record_beside_claim(claim_path.as_path());
+    // The claim is gone: the instant between another command's two steps of settling a claim it could not read.
+    std::fs::remove_file(claim_path.as_path()).expect("the claim is taken away");
+    let said: String = reap_in_a_child(common.as_path());
+    assert!(made.exists(), "the record of the object the stage's creation made stands while its stage stands: {said}");
+    assert!(container.join("precious.txt").exists(), "nothing of the person's was removed: {said}");
+    // Once the folder is gone the record proves nothing, and the next sweep removes it.
+    std::fs::remove_dir_all(container.as_path()).expect("the control's stage");
+    let again: String = reap_in_a_child(common.as_path());
+    assert!(!made.exists(), "a record whose folder is gone is swept: {again}");
+    std::fs::remove_dir_all(base.as_path()).expect("the fixture");
+}
+
+/// A stage the wrapper made is judged by the record of its object even when the destination record beside it was
+/// settled away,
+/// so a stage a person put a file in is kept and named instead of being removed as a copy's own.
+/// Why the control reads this way:
+///  the destination record is what said the stage belongs to an add,
+///  and a command that settles that record while another settles the claim leaves the stage's own record as the only
+///  thing that keeps it from being taken for a copy's own folder, which is removed without asking what it holds.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_reap_in_another_process_keeps_the_stage_of_an_add_whose_destination_record_is_gone() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("claim-add-without-its-destination-record") else { return };
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.as_path()).expect("common directory");
+    std::fs::create_dir_all(root.join("worktrees").as_path()).expect("worktree parents");
+    std::fs::set_permissions(common.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private common directory");
+    std::fs::set_permissions(root.join("worktrees").as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private worktree parent");
+    let destination: PathBuf = root.join("worktrees/five");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let source: PathBuf = root.join("source");
+    crate::fs_btrfs_ioctl::subvolume_create_at(source.as_path()).expect("the source subvolume");
+    std::fs::write(source.join("tracked.txt"), b"tracked").expect("a file");
+    let claim: crate::worktree_copy_stage_claim::StageClaim =
+        claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_owner()).expect("an add's claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    // The record first, then the creation, then the person's file: the order a kill in the window leaves.
+    let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.as_path());
+    crate::worktree_copy_stage_made_object::record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), origin.as_ref())
+        .expect("the record of the creation");
+    crate::fs_btrfs_ioctl::snapshot_create_at(source.as_path(), container.as_path()).expect("the snapshot the killed add made");
+    std::fs::set_permissions(container.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private stage");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(container.join("precious.txt"), b"a person's only copy").expect("a person's file");
+    // The destination record was settled away by another command, and the claim it belonged to cannot be read.
+    let record: PathBuf = claim_path_of(common.as_path(), &claim).with_extension("add");
+    std::fs::remove_file(record.as_path()).expect("the destination record is settled away");
+    let said: String = reap_in_a_child(common.as_path());
+    assert!(container.join("precious.txt").exists(), "the person's file and the only copy of it survive: {said}");
+    assert!(said.contains("precious.txt") && said.contains("was not changed"), "the line names the file that kept the stage: {said}");
+    assert!(container.exists(), "the stage stands, so the person removes it once nothing needs it: {said}");
+    crate::subvolume_remove::remove_tree(container.as_path()).expect("the control's snapshot");
+    std::fs::remove_dir_all(root.as_path()).expect("the fixture");
+}

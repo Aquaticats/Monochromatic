@@ -19,7 +19,7 @@
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal_removal::remove_file_and_say;
 use crate::worktree_copy_stage_claim_reaping::StageVerdicts;
-use crate::worktree_copy_stage_made_object::MADE_SUFFIX;
+use crate::worktree_copy_stage_made_object::{MADE_SUFFIX, read_made_record};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -46,14 +46,20 @@ pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<
 }
 
 /// What:
-///  Removes every record of a stage's object that no claim beside it names.
+///  Removes every record of a stage's object whose container is gone and which no claim beside it names.
 /// Why:
 ///   A claim is released with its record,
 /// but a kill between the two removals leaves the record,
 /// and so does a claim another command
 ///  reaped;
-/// a record nothing claims proves nothing about any folder and no later command reads it,
+/// a record nothing claims proves nothing about a folder that is gone,
 /// so it would stay for ever.
+/// A record whose container still stands is the only proof that folder is the wrapper's:
+/// a stage whose claim another command is settling,
+/// or one a crash left without a claim,
+/// must not lose it,
+/// because the folder would then be taken for a copy's own and removed with anything a person put in it,
+/// and the notice the person reads would name no file of theirs.
 /// The sweep names only records,
 /// leaves every other file of the journal root alone,
 /// and a file a live writer is renaming is never
@@ -65,7 +71,7 @@ pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const name of list(root).filter((name) => name.endsWith(MADE_SUFFIX))) if (!exists(claimOf(name))) await rm(join(root, name));
+/// for (const name of list(root).filter((name) => name.endsWith(MADE_SUFFIX))) if (!exists(claimOf(name)) && !stands(containerOf(join(root, name)))) await rm(join(root, name));
 /// ```
 pub(crate) fn remove_records_nothing_claims(root: &Path) -> Result<bool, WorktreeCopyError> {
     // `match` treats an absent root as holding no records, and every other failure as fatal.
@@ -79,9 +85,14 @@ pub(crate) fn remove_records_nothing_claims(root: &Path) -> Result<bool, Worktre
         let path: PathBuf = listed.map_err(raw_failure_of)?.path();
         let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else { continue };
-        if !root.join(format!("{identifier}.stage")).exists() {
-            unclaimed.push(path);
+        if root.join(format!("{identifier}.stage")).exists() {
+            continue;
         }
+        // A record whose container stands is that folder's only proof, so it stays until the folder is settled.
+        if read_made_record(path.as_path()).is_some_and(|made: crate::worktree_copy_stage_made_object::MadeObject| { return std::fs::symlink_metadata(made.container.as_path()).is_ok(); }) {
+            continue;
+        }
+        unclaimed.push(path);
     }
     let mut removed: bool = false;
     for path in unclaimed {

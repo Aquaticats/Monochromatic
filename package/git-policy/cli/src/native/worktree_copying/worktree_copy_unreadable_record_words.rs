@@ -41,6 +41,26 @@ pub(crate) fn settled_notice(kind: &str, record: &Path, moved: &Path, reason: &s
 }
 
 /// What:
+///  The line that names one record that cannot be read whose bytes were kept beside the records while its own name went
+/// on to carry the record this release writes for the same thing.
+/// Why:
+///   Such a record was never moved:
+/// its bytes stand where a person reads them and its name carried a claim at every instant,
+/// and a line saying it was moved would send the person looking for a name that did not change hands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${kind} ${quote(record)} could not be read (${reason}), so its bytes were kept at ${quote(kept)} and nothing was deleted; its own name carries a record this release writes. ${left}`
+/// ```
+pub(crate) fn kept_notice(kind: &str, record: &Path, kept: &Path, reason: &str, left: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the {kind} {} could not be read ({reason}), so its bytes were kept at {} and nothing was deleted, and the record at its own name was written again. {left}",
+        quote(record.to_string_lossy().as_ref()),
+        quote(kept.to_string_lossy().as_ref())
+    );
+}
+
+/// What:
 ///  What a journal that cannot be read may leave on disk.
 /// Why:
 ///   The journal is the only record that names the stage it filled,

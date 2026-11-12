@@ -39,7 +39,7 @@ use crate::worktree_copy_stage_claim_reaping::{ClaimFile, StageVerdicts, claim_f
 use crate::worktree_copy_stage_made_object::read_made;
 use crate::worktree_copy_unfilled_record::{UnfilledFile, unfilled_file_reading, unfilled_names};
 use crate::worktree_copy_unreadable_record_aside::move_aside;
-use crate::worktree_copy_unreadable_record_words::{settled_notice, what_a_lost_claim_leaves, what_a_lost_journal_leaves};
+use crate::worktree_copy_unreadable_record_words::{kept_notice, settled_notice, what_a_lost_claim_leaves, what_a_lost_journal_leaves};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -47,6 +47,7 @@ use std::path::{Path, PathBuf};
 /// and the readers of that folder,
 /// re-exported so a caller that only needs the folder reaches it here.
 pub use crate::worktree_copy_unreadable_record_aside::{UNREADABLE_FOLDER, moved_record_path, unreadable_record_names, unreadable_records_stand};
+pub use crate::worktree_copy_unreadable_record_aside::keep_aside;
 
 /// What:
 ///  The stage container a claim that cannot be read still names through the records beside it.
@@ -161,14 +162,20 @@ fn settle_unreadable_journals(common_dir: &Path, notices: &mut Vec<String>) -> R
 }
 
 /// What:
-///  Moves every stage claim that cannot be read aside,
-/// writes it again where its stage folder can be recovered,
+///  Keeps every stage claim that cannot be read where the readers keep them,
+/// writes it again at its own name where its stage folder can be recovered,
 /// and settles the registration record inside that folder.
 /// Why:
 ///   A claim names the stage folder an add may still owe a copy from,
 /// so the folder is found again from the records beside it where they name it;
-/// writing the claim again leaves the sweeps that settle the add and make its copy with something to read,
+/// the claim is written again at the name every reader uses,
+/// so the sweeps that settle that add and make its copy find it,
 /// and a claim that names no owner has none to wait for.
+/// The claim's name is never absent while that happens:
+/// the bytes are kept by a link that leaves the name in place,
+/// and one rename replaces the record with its readable form,
+/// so no command that runs between the two steps reads the stage as one nothing names and removes its records and
+///  then the stage with what a person put in it.
 /// A claim whose folder nothing names is moved aside with the words that say what may stand.
 ///
 /// In TS you'd write (pseudocode):
@@ -188,42 +195,52 @@ fn settle_unreadable_claims(common_dir: &Path, verdicts: &mut StageVerdicts, not
         {
             notices.push(notice);
         }
-        let Some(moved) = move_aside(common_dir, claim.as_path(), OsStr::new(name.as_str()))? else { continue };
-        match container {
-            Some(found) => {
-                // `match` on the write: a claim written again leaves the sweeps something to settle; one that could not be
-                // written is named with what stands instead.
-                match rewrite_claim(claim.as_path(), found.as_path()) {
-                    Ok(()) => {
-                        // The claim names no owner, which is what an interrupted add is, so this pass settles it too.
-                        verdicts.record_dead_claim(name.as_str());
-                        notices.push(settled_notice(
-                            "worktree-copy stage claim",
-                            claim.as_path(),
-                            moved.as_path(),
-                            reason.as_str(),
-                            format!(
-                                "It was written again beside the claim name from the record of the object its stage's creation made or from the destination record beside it, naming the stage folder {}, so the sweeps that settle that folder and make the ignored-state copy the add still owes find it.",
-                                quote(found.to_string_lossy().as_ref())
-                            )
-                            .as_str(),
-                        ));
-                    }
-                    Err(refusal) => notices.push(settled_notice(
-                        "worktree-copy stage claim",
-                        claim.as_path(),
-                        moved.as_path(),
-                        reason.as_str(),
-                        format!(
-                            "It could not be written again ({}), so the stage folder {} stays and nothing of the wrapper's settles it.",
-                            refusal.0,
-                            quote(found.to_string_lossy().as_ref())
-                        )
-                        .as_str(),
-                    )),
-                }
+        // `match` on the records beside the claim: one that names a folder is written again under its own name, and one
+        // that names nothing leaves the name it took.
+        let Some(found) = container else {
+            let Some(moved) = move_aside(common_dir, claim.as_path(), OsStr::new(name.as_str()))? else { continue };
+            notices.push(settled_notice("worktree-copy stage claim", claim.as_path(), moved.as_path(), reason.as_str(), what_a_lost_claim_leaves().as_str()));
+            continue;
+        };
+        // The bytes are kept beside the records first, by a link that leaves the claim's own name standing, so the stage
+        // has a claim at every instant of what follows.
+        let Some(kept) = keep_aside(common_dir, claim.as_path(), OsStr::new(name.as_str()))? else { continue };
+        // `match` on the write: a claim written again leaves the sweeps something to settle; one that could not be
+        // written is named with what stands instead.
+        match rewrite_claim(claim.as_path(), found.as_path()) {
+            Ok(()) => {
+                // The claim names no owner, which is what an interrupted add is, so this pass settles it too.
+                verdicts.record_dead_claim(name.as_str());
+                notices.push(kept_notice(
+                    "stage claim",
+                    claim.as_path(),
+                    kept.as_path(),
+                    reason.as_str(),
+                    format!(
+                        "It names the stage folder {} again, so the sweeps that settle that folder and make the ignored-state copy the add still owes find it.",
+                        quote(found.to_string_lossy().as_ref())
+                    )
+                    .as_str(),
+                ));
             }
-            None => notices.push(settled_notice("worktree-copy stage claim", claim.as_path(), moved.as_path(), reason.as_str(), what_a_lost_claim_leaves().as_str())),
+            Err(refusal) => {
+                // A claim that cannot be written again takes the name it held, so the pass that follows reads no claim it
+                // cannot read and the state does not repeat; its bytes are kept beside the records either way.
+                remove_file_if_present(kept.as_path())?;
+                let Some(moved) = move_aside(common_dir, claim.as_path(), OsStr::new(name.as_str()))? else { continue };
+                notices.push(settled_notice(
+                    "worktree-copy stage claim",
+                    claim.as_path(),
+                    moved.as_path(),
+                    reason.as_str(),
+                    format!(
+                        "It could not be written again ({}), so the stage folder {} stays and nothing of the wrapper's settles it.",
+                        refusal.0,
+                        quote(found.to_string_lossy().as_ref())
+                    )
+                    .as_str(),
+                ));
+            }
         }
     }
     return Ok(());

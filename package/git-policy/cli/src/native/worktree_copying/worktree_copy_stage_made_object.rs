@@ -254,6 +254,24 @@ fn read_made_text(text: &str) -> Option<MadeObject> {
 }
 
 /// What:
+///  Reads one record of the object a stage's creation made,
+/// named by its own path,
+/// or nothing when there is none to read.
+/// Why:
+///   Most readers start at the claim the record stands beside,
+/// and a sweep that holds the record's own name needs it without one.
+/// A record that cannot be read proves nothing and is never acted on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = readMadeRecord(path); // undefined: absent, unreadable, or not a record of this shape
+/// ```
+pub fn read_made_record(record: &Path) -> Option<MadeObject> {
+    let text: String = std::fs::read_to_string(record).ok()?;
+    return read_made_text(text.as_str());
+}
+
+/// What:
 ///  Reads the record of the object a claim's stage creation made,
 /// or nothing when there is none to read.
 /// Why:
@@ -266,8 +284,7 @@ fn read_made_text(text: &str) -> Option<MadeObject> {
 /// const made = await readStageMadeObject(claim); // undefined: absent, unreadable, or not a record of this shape
 /// ```
 pub fn read_made(claim: &Path) -> Option<MadeObject> {
-    let text: String = std::fs::read_to_string(made_record_beside_claim(claim)).ok()?;
-    return read_made_text(text.as_str());
+    return read_made_record(made_record_beside_claim(claim).as_path());
 }
 
 /// What:

@@ -1,8 +1,10 @@
 //! What:
 //!  Where a record of an interrupted copy that cannot be read is kept,
 //!  and how it gets there:
-//!  one rename into a folder of its own under the journal root,
-//!  never deleting it and never over another record.
+//!  one step into a folder of its own under the journal root,
+//!  never deleting it and never over another record,
+//!  a link that leaves the record at its own name where a reader of the name comes between the two steps,
+//!  and a rename where the name is the copy's to take.
 //! Why:
 //!  The record is the only trace of what the interrupted copy was doing,
 //!  and the folder is what keeps it out of every reader's way
@@ -10,6 +12,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
+//! const kept = await keepAside({ commonDir, record, movedName }); // undefined when the record vanished
 //! const moved = await moveAside({ commonDir, record, movedName }); // undefined when the record vanished
 //! ```
 
@@ -128,6 +131,68 @@ pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Resul
         .as_str(),
         None,
     ));
+}
+
+/// What:
+///  Keeps one record that cannot be read where the readers keep them,
+/// and leaves the record at its own name,
+/// or answers nothing when another command settled the record first.
+/// Why:
+///   A claim's name must never be absent while its writer's records still stand:
+/// the sweeps read an absent claim as "no add stands behind these records",
+/// remove the record that proves the stage folder, and the stage is then taken for a copy's own and removed with
+///  whatever a person put in it.
+/// A link is one step that never replaces a name and never takes the name it links,
+/// so the bytes stand where a person reads them and at the name every reader uses,
+/// until one rename replaces the record with its readable form.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = await keepAside({ commonDir, record, keptName }); // undefined when the record vanished
+/// ```
+pub fn keep_aside(common_dir: &Path, record: &Path, kept_name: &OsStr) -> Result<Option<PathBuf>, WorktreeCopyError> {
+    let folder: PathBuf = unreadable_folder(common_dir)?;
+    let target: PathBuf = folder.join(kept_name);
+    // `match` on the one link: a vanished record is another command's work, and a name already taken holds these bytes
+    // already, so neither needs a second name.
+    match std::fs::hard_link(record, target.as_path()) {
+        Ok(()) => return Ok(Some(target)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(Some(target)),
+        // A record that is no plain file, or a filesystem without links, is kept the way this pass kept every record
+        // before: one rename, which takes the name it moves. The sweeps that follow read an absent claim as a stage
+        // nothing proves only while this record is the only name that folder has, and a folder a claim can name again
+        // is settled by the next pass.
+        Err(error) if is_unlinkable(&error) => return move_aside(common_dir, record, kept_name),
+        Err(error) => {
+            return Err(failure_with_cause(
+                format!(
+                    "monochromatic-git-policy-cli: the worktree-copy record {} could not be kept in {}.",
+                    quote(record.to_string_lossy().as_ref()),
+                    quote(folder.to_string_lossy().as_ref())
+                )
+                .as_str(),
+                Some(&error),
+            ));
+        }
+    }
+}
+
+/// What:
+///  Whether a refused link means the record cannot be kept by a link at all,
+/// rather than that something else went wrong.
+/// Why:
+///   A directory has no second name (`EPERM`),
+/// a filesystem may refuse links (`ENOSYS`, `EPERM`, `EXDEV`),
+/// and one record may have no more (`EMLINK`);
+/// every other refusal is a fault the person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unlinkable = (error) => [EPERM, EISDIR, ENOSYS, EXDEV, EMLINK].includes(error.code);
+/// ```
+fn is_unlinkable(error: &std::io::Error) -> bool {
+    return matches!(error.raw_os_error(), Some(libc::EPERM) | Some(libc::EISDIR) | Some(libc::ENOSYS) | Some(libc::EXDEV) | Some(libc::EMLINK));
 }
 
 /// What:
