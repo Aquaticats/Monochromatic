@@ -110,7 +110,7 @@ use crate::worktree_landed_registrations::{RegisteredBefore, Registration, regis
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_rescue::{snapshot_linked_worktrees, snapshot_one};
-use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
+use crate::worktree_remove::{LastLook, LinuxOperations, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
 use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -409,7 +409,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         if !place.registered_before.holds(one) {
             continue;
         }
-        match examine_and_remove(place, one, registered.as_slice()) {
+        match examine_and_remove(place, one, registered.as_slice(), &LinuxOperations) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
             Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
             Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
@@ -433,10 +433,15 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 /// ```ts
 /// remove(place, registration) // throws Git's refusal, in Git's words
 /// ```
-fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
+fn remove(place: &LandedPlace<'_>, one: &Registration, operations: &dyn RemoveOperations) -> Result<(), String> {
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
-    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
-    match remove_subvolume_worktree(&request) {
+    // Asked again inside the removal, in the window it destroys in: its proof of cleanliness starts Git and walks the
+    // tree, which is long enough for a command to add a worktree inside this one and for the service to record a refused
+    // push (a cross-vendor review of the landed sweep, round 208).
+    let ask = || return nothing_new_would_go_with_it(place, one);
+    let look: LastLook<'_> = LastLook { ask: &ask };
+    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir, last_look: Some(look) };
+    match remove_with(operations, &request) {
         RemoveOutcome::Removed => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
             return Ok(());
@@ -534,6 +539,64 @@ fn nested_worktree_reason(inside: &[&Registration]) -> String {
 }
 
 /// What:
+///  Why a worktree whose own records could not all be copied stays,
+///  naming the Git directory that still holds them.
+/// Why:
+///  The copy is the only thing left of those records once a removal deletes that directory,
+///  so a copy that could not be made keeps the worktree,
+///  and the person reads where the records still are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unsavedRecordsReason(admin, unsaved) // the sentence a kept worktree prints
+/// ```
+fn unsaved_records_reason(admin: &Path, unsaved: &[String]) -> String {
+    return format!(
+        "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
+        admin.display(),
+        unsaved.join(" ")
+    );
+}
+
+/// What:
+///  Why nothing may be removed from the worktree `one` now,
+///  or `Ok(())` when what a removal deletes beside the files Git keeps is still what the sweep read.
+/// Why:
+///  A removal deletes the worktree's own Git directory,
+///  which holds the push failures nobody has seen and the pushes the service has not run,
+///  and it deletes every worktree a registration names below it,
+///  with that worktree's files and its own record.
+///  Both can arrive while the sweep works:
+///  the push service records a refused push at any moment,
+///  and a command that adds a worktree inside this one is in the registrations only once it has finished.
+///  The sweep asks this before it examines a candidate,
+///  which answers early and keeps the expensive proof from starting,
+///  and the removal asks it again in the window it destroys in,
+///  which is what actually keeps them
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nothingNewWouldGoWithIt(place, registration) // throws the sentence a person reads
+/// ```
+fn nothing_new_would_go_with_it(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
+    let unsaved: Vec<String> = snapshot_one(place.common_dir, one.admin.as_path());
+    if !unsaved.is_empty() {
+        return Err(unsaved_records_reason(one.admin.as_path(), unsaved.as_slice()));
+    }
+    let registered_now: Vec<Registration> = match registrations_of(place.common_dir) {
+        Ok(found) => found,
+        Err(reason) => return Err(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
+    };
+    let inside_now: Vec<&Registration> = worktrees_inside(one, registered_now.as_slice());
+    if !inside_now.is_empty() {
+        return Err(nested_worktree_reason(inside_now.as_slice()));
+    }
+    return Ok(());
+}
+
+/// What:
 ///  What an unfinished operation's mark means,
 ///  in a person's words.
 /// Why:
@@ -578,13 +641,15 @@ enum Examined {
 ///  and a push failure recorded in this one's own Git directory,
 ///  appear only after that first reading
 ///  (`nested_worktree_reason`,
-///  `snapshot_one`).
+///  `nothing_new_would_go_with_it`).
+///  The `operations` are the kernel and Git a control replaces,
+///  exactly as `worktree_remove.rs` lets a control replace them for the person's own removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// examineAndRemove(place, registration, registered)
+/// examineAndRemove(place, registration, registered, operations)
 /// ```
-fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &[Registration]) -> Examined {
+fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &[Registration], operations: &dyn RemoveOperations) -> Examined {
     if !added_by_the_wrapper(one.admin.as_path(), one.worktree.as_path()) {
         return Examined::Unproven;
     }
@@ -624,31 +689,13 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
             ));
         }
     }
-    // The unshown push failures and the unfinished pushes of this worktree live in its own Git directory, which the
-    // removal deletes. The sweep copied them before it examined a candidate, and the push service writes a refused push at
-    // any moment, so the copy is made again here, as the removal runs: a record written after the sweep's own copy went with
-    // the directory (a cross-vendor review of the landed sweep, round 208). A record that cannot be copied keeps the
-    // worktree, because the copy is the only thing left of it after the removal.
-    let unsaved: Vec<String> = snapshot_one(place.common_dir, one.admin.as_path());
-    if !unsaved.is_empty() {
-        return Examined::Kept(format!(
-            "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
-            one.admin.display(),
-            unsaved.join(" ")
-        ));
+    // What the removal deletes beside the files Git keeps is asked here first, so a candidate that would lose a record or
+    // a nested worktree costs no proof of cleanliness, and the same question is asked again inside the removal, in the
+    // window it destroys in (`nothing_new_would_go_with_it`).
+    if let Err(reason) = nothing_new_would_go_with_it(place, one) {
+        return Examined::Kept(reason);
     }
-    // A worktree a command added inside this one while the sweep ran is in the registrations only once that command has
-    // finished, so the list read at the start of the sweep proves nothing about it: the removal took the nested worktree's
-    // changed files and its own record with the parent (a cross-vendor review of the landed sweep, round 208).
-    let registered_now: Vec<Registration> = match registrations_of(place.common_dir) {
-        Ok(found) => found,
-        Err(reason) => return Examined::Kept(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
-    };
-    let inside_now: Vec<&Registration> = worktrees_inside(one, registered_now.as_slice());
-    if !inside_now.is_empty() {
-        return Examined::Kept(nested_worktree_reason(inside_now.as_slice()));
-    }
-    let removal: Result<(), String> = remove(place, one);
+    let removal: Result<(), String> = remove(place, one, operations);
     if removal.is_ok() {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).

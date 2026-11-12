@@ -11,14 +11,17 @@
 //! ```
 
 use super::{Examined, LandedPlace, LandedSweep, examine_and_remove, holds_its_own_commits, sweep_landed_worktrees};
+use crate::fs_beneath::handle_path;
 use crate::held_commit_record::{Held, write};
 use crate::push_failure_notice::{PushOutcome, notice_directory, orphaned_push_failures, record_push_failure};
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository, shown_notices};
 use crate::worktree_added_by_the_wrapper::record;
+use crate::worktree_clean::check_clean;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_before, registrations_of};
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_snapshot_promotion::files_of;
+use crate::worktree_remove::{Held as HeldDirectories, LinuxOperations, RemoveOperations, RemoveRequest};
 use std::path::{Path, PathBuf};
 
 /// A repository with one linked worktree whose branch holds a commit of its own.
@@ -250,6 +253,122 @@ fn land_feature(landed: &Landed) -> LandedSweep {
     let table: PathBuf = an_empty_process_table(landed);
     let place: LandedPlace<'_> = place_of(landed, &context, &registered_before, table.as_path());
     return sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+}
+
+/// What:
+///  A repository,
+///  a worktree on `feature` that a merge can run in,
+///  and one on `task-z` that a person may move onto another branch's commit.
+/// Why:
+///  The controls of a branch that merely moved onto another branch's commit need the same two worktrees and the same
+///  record of the task worktree,
+///  so they are made in one place and none of them drifts from the state a person leaves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fixture = aTaskWorktreeBesideTheOneAMergeRunsIn('landed-reset-onto');
+/// ```
+struct TaskBesideAMerge {
+    /// The fixture directory that holds the repository.
+    root: PathBuf,
+    /// The main checkout,
+    /// whose branch a task may be reset onto.
+    main: PathBuf,
+    /// Its common Git directory.
+    common: PathBuf,
+    /// The worktree on `feature`,
+    /// where a merge of main can run.
+    merged_in: PathBuf,
+    /// The worktree a person has on `task-z`.
+    task: PathBuf,
+}
+
+/// What:
+///  The fixture the moves of a task branch happen in.
+/// Why:
+///  See `TaskBesideAMerge`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fixture = aTaskWorktreeBesideTheOneAMergeRunsIn('landed-reset-onto');
+/// ```
+fn a_task_worktree_beside_the_one_a_merge_runs_in(name: &str) -> TaskBesideAMerge {
+    let root: PathBuf = fixture(name);
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = main.join(".git");
+    let merged_in: PathBuf = root.join("feature");
+    let task: PathBuf = root.join("z");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", merged_in.to_str().expect("a UTF-8 fixture path")]);
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "task-z", task.to_str().expect("a UTF-8 fixture path")]);
+    record(common.as_path(), task.as_path()).expect("the record of a worktree this program made");
+    return TaskBesideAMerge { root, main, common, merged_in, task };
+}
+
+/// What:
+///  A commit of one file made in `directory`, aged so the cleanliness proof can vouch for it.
+/// Why:
+///  Every fixture commit is made the way a person makes one,
+///  and a file as new as the index proves nothing by its stat fields (`test_support::age`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// commitIn(main, 'more.txt', 'main\'s own commit\n');
+/// ```
+fn commit_in(directory: &Path, name: &str, bytes: &str) {
+    let path: PathBuf = directory.join(name);
+    std::fs::write(path.as_path(), bytes.as_bytes()).expect("a file the fixture commits");
+    age(path.as_path());
+    git(directory, &["add", "--", name]);
+    git(directory, &["commit", "--quiet", "--message=fixture commit"]);
+}
+
+/// What:
+///  One merge that has just run, as its sweep reads it.
+/// Why:
+///  The sweep compares the head the branch held before the merge with the one it holds now,
+///  and it asks the registrations the repository had before the merge started,
+///  so a control names those three things and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweepOf(fixture, { worktree: mergedIn, branch: 'feature', before, registeredBefore });
+/// ```
+struct MergeRun<'a> {
+    /// The worktree the merge ran in,
+    /// which the sweep never removes.
+    worktree: &'a Path,
+    /// The branch it ran in,
+    /// which received the landed commits.
+    branch: &'a str,
+    /// The commit that branch held before the merge.
+    before: &'a str,
+    /// The registrations the repository had before the merge started.
+    registered_before: &'a RegisteredBefore,
+}
+
+/// What:
+///  The sweep of the merge `run` describes.
+/// Why:
+///  See `MergeRun`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sweep = sweepOf(fixture, run);
+/// ```
+fn sweep_of(fixture: &TaskBesideAMerge, run: MergeRun<'_>) -> LandedSweep {
+    let now: String = head_of(run.worktree);
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = fixture.root.join("proc");
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    let place: LandedPlace<'_> = LandedPlace {
+        context: &context,
+        cwd: run.worktree,
+        common_dir: fixture.common.as_path(),
+        current_root: Some(run.worktree),
+        proc_root: table.as_path(),
+        registered_before: run.registered_before,
+    };
+    return sweep_landed_worktrees(&place, run.before, now.as_str(), run.branch);
 }
 
 /// A repository,
@@ -957,7 +1076,7 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
-    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
+    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice(), &LinuxOperations);
     assert_eq!(
         std::fs::read(changed.as_path()).expect("the changed file is still there"),
         b"# the fixture, edited in the nested worktree\n",
@@ -971,6 +1090,94 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     assert!(
         matches!(examined, Examined::Kept(_)),
         "a worktree that holds another worktree stays, whatever list was read before it arrived"
+    );
+}
+
+/// What:
+///  A stand-in for the kernel and Git whose proof of cleanliness is the moment a command adds a worktree inside the
+///  worktree a removal is about to take.
+/// Why:
+///  The window between the sweep's own last look and the destroy is that proof,
+///  which starts Git and walks the tree,
+///  so an add placed there is the state a person's concurrent command leaves.
+///  A stand-in reaches it without a fault injection in the shipped code,
+///  and the destroy deletes the directory as the kernel call does,
+///  so a removal that does not look again loses the nested worktree exactly as a person's would.
+struct AddingInsideTheProof {
+    /// The worktree whose directory holds the nested one.
+    worktree: PathBuf,
+    /// Where the nested worktree is added.
+    inside: PathBuf,
+}
+
+impl RemoveOperations for AddingInsideTheProof {
+    fn is_subvolume_root(&self, _path: &Path) -> bool {
+        return true;
+    }
+
+    fn removal_allowed(&self, _path: &Path) -> bool {
+        return true;
+    }
+
+    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, _common_dir: &Path) -> Result<(), String> {
+        // The proof is made against the repository the worktree's own pointers name, as the real one is.
+        let own_common_dir: &Path = admin.parent().and_then(Path::parent).ok_or_else(|| return String::from("no common directory"))?;
+        check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir).map_err(|refusal| return refusal.reason)?;
+        git(
+            self.worktree.as_path(),
+            &["worktree", "add", "--quiet", "-b", "sub", self.inside.to_str().expect("a UTF-8 fixture path")],
+        );
+        std::fs::write(self.inside.join("README.md"), b"# the fixture, edited in the nested worktree\n").expect("a tracked file the person changed there");
+        std::fs::write(self.inside.join("notes.txt"), b"work the person has not committed\n").expect("an untracked file the person wrote there");
+        return Ok(());
+    }
+
+    fn destroy(&self, held: &HeldDirectories) -> Result<(), String> {
+        // Below the held parent, as the kernel call is, so taking the tree is what the removal really does.
+        return std::fs::remove_dir_all(handle_path(&held.parent).join(held.name.as_os_str())).map_err(|error| return error.to_string());
+    }
+}
+
+/// What:
+///  A worktree a command adds inside the candidate while the removal proves it clean keeps the worktree that holds it,
+///  and the files written in the nested one stay.
+/// Why:
+///  The sweep read the registrations again before it removed,
+///  and the removal then proves the worktree clean by starting Git and walking the tree,
+///  which takes long enough for a `git worktree add` to finish inside it.
+///  The add was in no list the sweep had read,
+///  the destroy took the nested worktree's changed and untracked files with the parent,
+///  and its registration was left naming a path that is gone
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+#[test]
+fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the_worktree_that_holds_it() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-nested-during-the-proof", ".claude/\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
+    let outer: Registration = registered
+        .iter()
+        .find(|one| return one.worktree == landed.worktree)
+        .expect("the registration of the worktree this program made")
+        .clone();
+    let inside: PathBuf = landed.worktree.join(".claude/worktrees/b");
+    let stand: AddingInsideTheProof = AddingInsideTheProof { worktree: landed.worktree.clone(), inside: inside.clone() };
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = an_empty_process_table(&landed);
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice(), &stand);
+    assert!(matches!(examined, Examined::Kept(_)), "a worktree that holds another worktree stays, whatever list was read before it arrived");
+    assert!(landed.worktree.exists(), "the worktree the person has is where it was");
+    assert_eq!(
+        std::fs::read(inside.join("README.md")).expect("the changed file is still there"),
+        b"# the fixture, edited in the nested worktree\n",
+        "the tracked file the person changed in the nested worktree is still there"
+    );
+    assert_eq!(
+        std::fs::read(inside.join("notes.txt")).expect("the untracked file is still there"),
+        b"work the person has not committed\n",
+        "the untracked file the person wrote in the nested worktree is still there"
     );
 }
 
@@ -1011,7 +1218,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
-    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
+    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice(), &LinuxOperations);
     assert!(matches!(examined, Examined::Removed), "the account is clean, so the worktree is removed");
     assert!(!admin.exists(), "the removal took the record's original with the Git directory");
     // What the next command does with the removal this one made.
@@ -1073,41 +1280,91 @@ fn a_landed_worktree_whose_unshown_push_failure_cannot_be_saved_stays() {
 ///  round 208).
 #[test]
 fn a_worktree_whose_branch_was_reset_onto_another_branchs_commit_is_not_removed() {
-    let root: PathBuf = fixture("landed-reset-onto-another-branch");
-    let main: PathBuf = repository(root.as_path(), "main");
-    let common: PathBuf = main.join(".git");
-    let merged_in: PathBuf = root.join("feature");
-    let task: PathBuf = root.join("z");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", merged_in.to_str().expect("a UTF-8 fixture path")]);
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "task-z", task.to_str().expect("a UTF-8 fixture path")]);
-    record(common.as_path(), task.as_path()).expect("the record of a worktree this program made");
+    let fixture: TaskBesideAMerge = a_task_worktree_beside_the_one_a_merge_runs_in("landed-reset-onto-another-branch");
     // The main checkout commits, which is work of main's and of no other branch.
-    let moved: PathBuf = main.join("more.txt");
-    std::fs::write(moved.as_path(), b"main's own commit\n").expect("a file main commits");
-    age(moved.as_path());
-    git(main.as_path(), &["add", "--", "more.txt"]);
-    git(main.as_path(), &["commit", "--quiet", "--message=main moves"]);
+    commit_in(fixture.main.as_path(), "more.txt", "main's own commit\n");
     // The person moves the task's branch onto main's commit without making anything of its own.
-    git(task.as_path(), &["reset", "--hard", "--quiet", "main"]);
-    let before: String = head_of(merged_in.as_path());
-    let registered_before: RegisteredBefore = registered_before(common.as_path()).expect("the registrations of the fixture");
-    git(merged_in.as_path(), &["merge", "--quiet", "--no-ff", "--message=bring main in", "main"]);
-    let now: String = head_of(merged_in.as_path());
-    let context: crate::transaction_git::GitContext = git_context();
-    let table: PathBuf = root.join("proc");
-    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
-    let place: LandedPlace<'_> = LandedPlace {
-        context: &context,
-        cwd: merged_in.as_path(),
-        common_dir: common.as_path(),
-        current_root: Some(merged_in.as_path()),
-        proc_root: table.as_path(),
-        registered_before: &registered_before,
-    };
-    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), now.as_str(), "feature");
+    git(fixture.task.as_path(), &["reset", "--hard", "--quiet", "main"]);
+    let before: String = head_of(fixture.merged_in.as_path());
+    let registered_before: RegisteredBefore = registered_before(fixture.common.as_path()).expect("the registrations of the fixture");
+    git(fixture.merged_in.as_path(), &["merge", "--quiet", "--no-ff", "--message=bring main in", "main"]);
+    let sweep: LandedSweep = sweep_of(
+        &fixture,
+        MergeRun { worktree: fixture.merged_in.as_path(), branch: "feature", before: before.as_str(), registered_before: &registered_before },
+    );
     assert!(sweep.removed.is_empty(), "a branch the person reset onto another branch's commit landed no work of its own: {sweep:?}");
     assert!(sweep.kept.is_empty() && sweep.unproven.is_empty(), "it was no candidate at all: {sweep:?}");
-    assert!(task.exists(), "the worktree the person has is where it was");
+    assert!(fixture.task.exists(), "the worktree the person has is where it was");
+}
+
+/// What:
+///  A worktree whose branch a person reset onto another branch's commit stays when that other branch moves on after
+///  the reset.
+/// Why:
+///  The sweep asked whether another landed branch sat on the same tip as the candidate,
+///  and the branch the person reset onto no longer sits there once it commits again.
+///  The tip then differed from the commit the candidate's own reflog names it was made at,
+///  no witness was left,
+///  and the merge that brought that branch in took a worktree holding no commit of its own
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+#[test]
+fn a_worktree_whose_branch_was_reset_onto_a_commit_that_moved_on_is_not_removed() {
+    let fixture: TaskBesideAMerge = a_task_worktree_beside_the_one_a_merge_runs_in("landed-reset-onto-a-commit-that-moved-on");
+    // The main checkout commits, which is work of main's and of no other branch.
+    commit_in(fixture.main.as_path(), "more.txt", "main's own commit\n");
+    // The person moves the task's branch onto main's commit without making anything of its own.
+    git(fixture.task.as_path(), &["reset", "--hard", "--quiet", "main"]);
+    // main commits again, so it no longer sits on the commit the task's branch was moved onto.
+    commit_in(fixture.main.as_path(), "again.txt", "main moves again\n");
+    let before: String = head_of(fixture.merged_in.as_path());
+    let registered_before: RegisteredBefore = registered_before(fixture.common.as_path()).expect("the registrations of the fixture");
+    git(fixture.merged_in.as_path(), &["merge", "--quiet", "--no-ff", "--message=bring main in", "main"]);
+    let sweep: LandedSweep = sweep_of(
+        &fixture,
+        MergeRun { worktree: fixture.merged_in.as_path(), branch: "feature", before: before.as_str(), registered_before: &registered_before },
+    );
+    assert!(
+        sweep.removed.is_empty(),
+        "a branch the person reset onto another branch's commit landed no work of its own, whether that branch moved on or not: {sweep:?}"
+    );
+    assert!(sweep.kept.is_empty() && sweep.unproven.is_empty(), "it was no candidate at all: {sweep:?}");
+    assert!(fixture.task.exists(), "the worktree the person has is where it was");
+}
+
+/// What:
+///  A worktree whose branch a person reset onto the tip a merge lands stays when that merge is a fast-forward.
+/// Why:
+///  A fast-forward leaves the branch the merge ran in on the tip the landed branch has,
+///  and the sweep exempted every landed branch sitting on the head it landed,
+///  which is every branch in a fast-forward:
+///  nothing was left to prove the candidate merely moved onto another branch's commit,
+///  and the merge took its worktree
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+///  The landed worktree stays with it, because the task's own reflog moved onto its tip and Git records no owner of a
+///  commit: that is the cost of keeping every worktree the rule cannot prove it may remove.
+#[test]
+fn a_worktree_whose_branch_was_reset_onto_a_fast_forwarded_tip_is_not_removed() {
+    let fixture: TaskBesideAMerge = a_task_worktree_beside_the_one_a_merge_runs_in("landed-reset-onto-a-fast-forwarded-tip");
+    commit_in(fixture.merged_in.as_path(), "feature.txt", "the feature's own work\n");
+    // The person moves the task's branch onto the feature's commit without making anything of its own.
+    git(fixture.task.as_path(), &["reset", "--hard", "--quiet", "feature"]);
+    let before: String = head_of(fixture.main.as_path());
+    let registered_before: RegisteredBefore = registered_before(fixture.common.as_path()).expect("the registrations of the fixture");
+    git(fixture.main.as_path(), &["merge", "--quiet", "--message=land the feature", "feature"]);
+    assert_eq!(
+        head_of(fixture.main.as_path()),
+        head_of(fixture.merged_in.as_path()),
+        "the merge fast-forwarded main onto the feature's own commit"
+    );
+    let sweep: LandedSweep = sweep_of(
+        &fixture,
+        MergeRun { worktree: fixture.main.as_path(), branch: "main", before: before.as_str(), registered_before: &registered_before },
+    );
+    assert!(sweep.removed.is_empty(), "a branch the person reset onto the landed tip landed no work of its own: {sweep:?}");
+    assert!(fixture.task.exists(), "the worktree the person has is where it was");
+    assert!(fixture.merged_in.exists(), "and the landed worktree stays with it, because nothing proves which of the two made the commit");
 }
 
 /// What:

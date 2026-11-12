@@ -166,6 +166,42 @@ pub struct RemoveRequest<'a> {
     pub plan: &'a RemovePlan,
     /// The canonical common Git directory of the repository the command was run in.
     pub common_dir: &'a Path,
+    /// The question the caller asks again as the removal runs,
+    /// immediately before anything is destroyed,
+    /// whose refusal is why nothing is removed.
+    pub last_look: Option<LastLook<'a>>,
+}
+
+/// What:
+///  A question a removal's caller asks again as the removal runs,
+///  immediately before anything is destroyed.
+/// Why:
+///   A removal deletes what its caller proved it may delete,
+///  and that proof takes time:
+///  it starts Git and walks the tree.
+///  What the caller read before it may have changed by now,
+///  and a worktree added inside the one being removed,
+///  or a record written into its Git directory,
+///  would go with it.
+///  This is the last moment the caller can look,
+///  so nothing but the destroy follows its answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LastLook = () => void; // throws the reason nothing is removed
+/// ```
+#[derive(Clone, Copy)]
+pub struct LastLook<'a> {
+    /// The question,
+    /// which answers the reason nothing is removed.
+    pub ask: &'a dyn Fn() -> Result<(), String>,
+}
+
+impl std::fmt::Debug for LastLook<'_> {
+    /// A question is not text, so it prints as the one name a person reads in a message.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str("LastLook(..)");
+    }
 }
 
 /// What:
@@ -553,6 +589,16 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
+    }
+    // The caller's own last look, after the proof of cleanliness and after every check above it: a worktree a command
+    // added inside this one, or a record written into its Git directory, can arrive while that proof runs, and a caller
+    // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses, and the
+    // refusal is the reason the caller asked for.
+    if let Some(look) = request.last_look
+        && let Err(reason) = (look.ask)()
+    {
+        debug(TAG, format!("{} is no longer one this removal may destroy ({reason}); nothing is removed", target.display()).as_str());
+        return RemoveOutcome::Refused(reason);
     }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`

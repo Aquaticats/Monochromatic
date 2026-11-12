@@ -136,7 +136,7 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     let context = crate::test_support::git_context();
     let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: false };
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path() });
+    let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path(), last_look: None });
     assert!(stand.handed.get(), "the removal handed the subvolume over");
     assert!(!stand.destroyed.get(), "and did not destroy it on the person's path");
     assert_eq!(outcome, RemoveOutcome::Removed, "{outcome:?}");
