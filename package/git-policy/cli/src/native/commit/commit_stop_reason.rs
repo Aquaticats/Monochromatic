@@ -70,19 +70,21 @@ pub const KIND_NATIVE_EXIT: &str = "native-exit";
 pub const KIND_CLIENT_SIGNAL: &str = "client-signal";
 
 /// What:
-///  The command itself decided that the commit cannot be made,
-///  and the record says which failure did it.
+///  The command itself did not make the commit,
+///  and the record says which failure it was.
 /// Why:
 ///  These stops are the ones the client knows best and the record named worst:
 ///  a service of another release that would not stop,
 ///  a service manager that answered nothing within its bound,
-///  a service that refused the request,
+///  a service that answered `unavailable`,
 ///  a wait that reached its ceiling.
 ///  Every one of them used to land in `unidentified`,
 ///  which the owner's rule reads as a defect,
 ///  although the person had been told the cause in words.
-///  The `reason` member carries `service_messages::failure_code`.
-pub const KIND_CLIENT_REFUSAL: &str = "client-refusal";
+///  The name matches the type the client decides with (`ClientFailure`),
+///  and the `reason` member carries `service_messages::failure_code`.
+///  "Refusal" would be the wrong word for the ones that are a wait that ran out.
+pub const KIND_CLIENT_FAILURE: &str = "client-failure";
 
 /// What:
 ///  What the record states when no step,
@@ -105,7 +107,7 @@ pub const KIND_UNIDENTIFIED: &str = "unidentified";
 ///   A reader of an `unidentified` record needs to know what was ruled out:
 ///  every route a commit can stop by is named,
 ///  and the record says they were all absent.
-const EVERY_ROUTE_A_MESSAGE_IS_NOT: [&str; 7] = [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_REFUSAL];
+const EVERY_ROUTE_A_MESSAGE_IS_NOT: [&str; 7] = [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_FAILURE];
 
 /// What:
 ///  The routes a run of events that explains nothing was checked against.
@@ -223,7 +225,7 @@ impl CommitStopReason {
     /// The command's own failure,
     /// named by the word that failure goes by.
     pub fn client_failure(failure: &ClientFailure) -> Self {
-        return Self { reason: Some(failure_code(failure)), ..Self::only(KIND_CLIENT_REFUSAL) };
+        return Self { reason: Some(failure_code(failure)), ..Self::only(KIND_CLIENT_FAILURE) };
     }
 
     /// What the reason says,

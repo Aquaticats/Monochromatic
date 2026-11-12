@@ -40,7 +40,7 @@ const SENDER: i32 = 4_242;
 /// Why:
 ///  The list is the record's own answer to "why does this say unidentified?":
 ///  a control that repeated the module's own constant could not notice that a route went missing from it.
-const ROUTES_A_MESSAGE_IS_NOT: [&str; 7] = [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_REFUSAL];
+const ROUTES_A_MESSAGE_IS_NOT: [&str; 7] = [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_FAILURE];
 
 /// The routes `reason_of_events` looked for and found absent.
 const ROUTES_AN_EVENT_IS_NOT: [&str; 3] = [KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
@@ -112,7 +112,7 @@ fn each_kind_names_what_stopped_the_commit() {
     );
     assert_eq!(
         stop_json(Some(&CommitStopReason::client_failure(&ClientFailure::OtherRelease))),
-        format!("{{\"kind\":\"{KIND_CLIENT_REFUSAL}\",\"reason\":\"other-release\"}}")
+        format!("{{\"kind\":\"{KIND_CLIENT_FAILURE}\",\"reason\":\"other-release\"}}")
     );
     assert_eq!(
         stop_json(Some(&CommitStopReason::client_signal(libc::SIGTERM, Some(SENDER)))),
@@ -230,7 +230,7 @@ fn every_failure_a_command_decides_names_itself() {
     let mut seen: Vec<&'static str> = Vec::new();
     for failure in &failures {
         let reason: CommitStopReason = reason_of_stop(&crate::commit_transaction::client_stop(failure.clone()), None);
-        assert_eq!(reason.kind, KIND_CLIENT_REFUSAL, "{failure:?}");
+        assert_eq!(reason.kind, KIND_CLIENT_FAILURE, "{failure:?}");
         let word: &'static str = crate::service_messages::failure_code(failure);
         assert!(!word.is_empty() && word.chars().all(|character| { return character.is_ascii_lowercase() || character == '-'; }), "{word}");
         assert!(!seen.contains(&word), "two failures share the word {word}");
@@ -269,7 +269,7 @@ fn a_stop_with_no_route_says_what_was_ruled_out() {
     let line: String = stop_json(Some(&CommitStopReason::unidentified(&ROUTES_A_MESSAGE_IS_NOT)));
     let parsed: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
     let routes: Vec<&str> = parsed["ruledOut"].as_array().expect("a list of routes").iter().map(|route| { return route.as_str().expect("a route name"); }).collect();
-    for kind in [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_REFUSAL] {
+    for kind in [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_FAILURE] {
         assert!(routes.contains(&kind), "{kind} is not among the routes ruled out: {line}");
     }
     assert!(!routes.contains(&KIND_UNIDENTIFIED), "a record cannot rule itself out: {line}");

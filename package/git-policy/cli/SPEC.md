@@ -15305,7 +15305,7 @@ which is a start that was refused or a step ended at its ceiling),
 with `step` and `status` as before,
 `engine-failure` for the wrapper's own engine failing where no step explains the stop,
 with `code` the engine failure's stable code,
-`client-refusal` for a stop the command itself decided,
+`client-failure` for a commit the command itself did not make,
 with `reason` the one word that failure goes by (`src/native/landing/service_messages.rs`,
 `failure_code`:
 `did-not-start` and `nothing-answered` for the start bound that ran out,

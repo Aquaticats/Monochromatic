@@ -1718,7 +1718,7 @@ fn a_commit_the_service_answers_with_a_failure_states_what_the_answer_was() {
     println!("TIMING RECORD (the service answered a failure): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["sends"], 1, "the answer is to the one request it sent: {record}");
-    assert_eq!(record["stop"]["kind"], "client-refusal", "{record}");
+    assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
     assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
     remove_settled(&fixture);
 }
@@ -1754,7 +1754,7 @@ fn a_commit_nothing_answers_states_the_bound_that_ran_out() {
     println!("TIMING RECORD (nothing answered): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["sends"], 0, "no request was ever written: {record}");
-    assert_eq!(record["stop"]["kind"], "client-refusal", "{record}");
+    assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
     assert_eq!(record["stop"]["reason"], "nothing-answered", "the record names the bound that ran out: {record}");
     assert!(number(record, "reachMs") >= 9_000, "the record states the wait the bound covered: {record}");
     remove_settled(&fixture);
