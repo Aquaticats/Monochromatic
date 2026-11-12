@@ -310,7 +310,8 @@ fn a_local_branch_named_like_the_upstream_is_never_the_reference_written() {
         "the repair writes a remote-tracking reference and no other"
     );
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/origin/main"]), world.before, "the person's branch is where they left it");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", TRACKING]), world.before, "the reference is where the refused push left it");
+    let names: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"]);
+    assert!(!names.lines().any(|name| { return name == TRACKING; }), "no tracking reference was written under the name: {names}");
     remove(world.root.as_path());
 }
 
