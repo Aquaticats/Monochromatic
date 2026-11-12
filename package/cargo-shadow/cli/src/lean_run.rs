@@ -223,6 +223,9 @@ fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf], deadline: &Deadline
     }
     if let Some(found) = base {
         for tree in list_trees(found, deadline)? {
+            // The base listing above and the walk of one tree below each carry this bound too,
+            // so this line is a shortcut and never the only bound:
+            // no test can isolate it, because taking it out answers the same thing one call later.
             if deadline.passed() {
                 return None;
             }

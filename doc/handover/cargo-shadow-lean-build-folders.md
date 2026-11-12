@@ -730,6 +730,54 @@ against the real host build base and the real `/proc`.
 A pass over the profile directories is still about ten hours,
 so the bound stays below a whole pass and both long passes keep their recorded position.
 
+### Verified at the merged tip, 2026-11-12T09:12:15-05:00
+
+`main` was merged into the branch at `1169c6fa4f` before this verification,
+and `main` holds no `cargo-shadow` change since `c4bd20380a`
+beyond dependency patch versions in `Cargo.lock`,
+so the branch is still the only place this bound and this order exist.
+At that tip `mise run //package/cargo-shadow/cli:lint:clippy` is clean,
+`mise run //package/cargo-shadow/cli:test -- --no-fail-fast` reports 883 passed and 21 skipped,
+and `mise run //:lint:monochromatic-lint` over the touched sources,
+tests and README is clean.
+
+- The bound holds to under a second on the real base:
+  `lean run --dry-run --only trees --deadline-minutes 1`
+  exited 0 at 60.68 s of wall clock,
+  after surveying 56,801 trees in 30 s,
+  judging 653 of them and naming the tree it stopped at.
+  A kernel call already blocked is the one thing it cannot cut,
+  which is the state the pass of 2026-11-11 was in.
+- A whole base fits inside one bound when there is nothing to remove:
+  the same command with a ten-minute bound judged 56,513 of 56,513 trees in 500 s,
+  which is a 95 s survey and about 7 ms per tree on the path a kept tree takes.
+  It would have removed nothing and said why:
+  792 trees in use and 55,721 not left alone long enough.
+  Free space on the build base fell 14.30 GiB while it ran,
+  which is what running builds write while a pass is at work.
+  The survey alone measured 30 s on one run and 95 s on another,
+  so its cost follows the page cache as much as the tree count.
+- A kill in the middle of a deletion leaves the base consistent:
+  a fixture tree of 300,000 files was claimed into `.cargo-shadow-trash`
+  and the pass was killed with `SIGKILL` 1.54 s in,
+  which left 299,979 files in the claimed entry and the tree gone from the base.
+  The next pass printed `finished an earlier run's deletion in .../.cargo-shadow-trash (4096 disk bytes)`,
+  removed the tree that was left,
+  and ended with the trash gone.
+- The controls were re-shown failing at this tip,
+  which the refactor that moved the survey and the order into `src/lean_tree_survey.rs` made necessary:
+  the survey's clock check,
+  the age order,
+  the clock check inside the unlink walk
+  and the clock check inside the process scan each fail their test with the check taken out.
+  The clock check inside the listing of the base's profile directories has no control and cannot have one:
+  `list_trees` and `profile_dirs_of` carry the same bound,
+  so taking this check out answers the same thing one call later,
+  and the case in `guard-fails-2026-11-12.log` that names it passed with the check removed.
+  That log was written before the refactor,
+  so its first and fourth cases patch text that no longer exists;
+  the re-shown output is `controls-at-tip.log` beside it.
+
 ## Measured 2026-11-10: what a pass over every tree and profile directory costs
 
 What the journal holds for the two runs that went furthest
