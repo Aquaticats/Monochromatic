@@ -828,7 +828,11 @@ The ask is an offer, never a step a commit needs:
 The rename moves from the commit to the service,
 where it runs on a thread of its own named `shadow-pool-draw`
 (`service_shadow_draw::start`,
-called beside the fill in `land_group`),
+called beside the fill in `land_group`,
+after the landing rather than before it,
+and making a pool member itself when the pool holds none: a draw that ran beside the fill of the same landing
+found a pool the fill had not filled yet and drew nothing,
+which the built wrapper showed on four commits),
 so what it can delay is:
 
 - the next draw, which a guarded flag serializes, and nothing else on that thread;

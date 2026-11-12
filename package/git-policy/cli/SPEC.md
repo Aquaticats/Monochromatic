@@ -13011,8 +13011,11 @@ in its checked form, so every question a claim asks is asked of the tree that is
   and the removal of a removed worktree takes that folder out of its name with one rename,
   while a drawn tree is used where it stands and is left alone while a commit holds it.
 - The draw is one `rename` of a pool member into that folder and the same check a claim makes,
-  and it runs beside the landing loop on a thread of its own
+  and it runs beside the landing loop on a thread of its own,
+  after the landing it follows
   (`service_shadow_draw.rs`),
+  and makes a pool member itself when the pool holds none:
+  a draw that ran beside the fill of its own landing found a pool the fill had not filled yet and drew nothing.
   so what it can delay is the next draw and nothing else:
   a draw that stalls for the 5,606 ms the slowest measured rename took costs the commits in that window
   the pool's member and no wait of their own.
