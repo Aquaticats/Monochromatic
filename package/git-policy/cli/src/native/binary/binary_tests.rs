@@ -579,6 +579,12 @@ mod service_pruned;
 #[path = "binary_service_replay_tests.rs"]
 mod service_replay;
 
+/// How long the service remembers a finished request:
+/// a request sent again after more landings than the journal keeps,
+/// and the age and the count a record must both pass before it goes.
+#[path = "binary_service_finished_record_retention_tests.rs"]
+mod service_finished_record_retention;
+
 /// A commit whose branch write meets a reference lock:
 /// the wait for a live holder,
 /// and the lock that nothing proves gone,
