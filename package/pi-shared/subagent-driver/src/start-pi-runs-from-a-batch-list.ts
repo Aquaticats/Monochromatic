@@ -4,14 +4,19 @@
  for a slot that frees as the runs before it end. See `README.md` for the list's fields.
 
  Both of a start's streams are kept: a start that printed why it could not run on standard output and nothing else once left a
- batch's failures unexplained.
+ batch's failures unexplained. An entry's line says the reason its start printed, and the whole of what it printed is appended to a
+ file beside the runs that the line names.
 
  @module
  */
 
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
-import { readFile, } from 'node:fs/promises';
+import {
+  appendFile,
+  readFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
 import {
   argv,
   env,
@@ -19,7 +24,7 @@ import {
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   batchEntriesIn,
-  ENTRY_OUTPUT_TAIL_CHARACTERS,
+  ENTRY_OUTPUT_KEPT_CHARACTERS,
   type StartedEntry,
   startBatch,
 } from './batch-list.ts';
@@ -85,7 +90,7 @@ async function startOne({ words, }: { readonly words: readonly string[] },): Pro
   /**
    The end of what it printed, on either stream.
    */
-  const printed = tailKeeper({ characters: ENTRY_OUTPUT_TAIL_CHARACTERS, },);
+  const printed = tailKeeper({ characters: ENTRY_OUTPUT_KEPT_CHARACTERS, },);
 
   child.stdout
     .on(
@@ -124,6 +129,50 @@ async function startOne({ words, }: { readonly words: readonly string[] },): Pro
 }
 
 /**
+ Keeps the whole of what a failed start printed, so the one line the batch prints can stay short and still be enough to find out
+ more. The file sits beside the run folders and appends, so a name that failed twice keeps both attempts.
+
+ @param name - the run's name
+
+ @param output - what the start printed on both streams
+
+ @returns the file the output was kept in, or nothing when it could not be written
+
+ @example
+ ```ts
+ const keptAt = await keepFailedOutput({ name: 'a', output, },);
+ ```
+ */
+async function keepFailedOutput({
+  name,
+  output,
+}: {
+  readonly name: string;
+  readonly output: string;
+},): Promise<{ readonly keptAt?: string }> {
+  /**
+   The file this run's failed attempts are kept in.
+   */
+  const file = join(
+    options.runsFolder,
+    `${name}-start-failure.log`,
+  );
+  try {
+    await appendFile(
+      file,
+      `=== ${new Date().toISOString()} ===\n${output.trimEnd()}\n`,
+    );
+    return { keptAt: file, };
+  }
+  catch (error) {
+    // The line still has to say why the start failed, so a file that could not be written is reported and the line goes without it.
+    process.stderr
+      .write(`the output of ${name} could not be kept in ${file}: ${String(error,)}\n`,);
+    return {};
+  }
+}
+
+/**
  The line each entry ended with.
  */
 const lines = await startBatch({
@@ -132,6 +181,7 @@ const lines = await startBatch({
   deadlineSeconds: options.deadlineSeconds,
   start: startOne,
   wait,
+  keepFailure: keepFailedOutput,
 },);
 
 for (const line of lines) {

@@ -11,10 +11,21 @@ import type { CommandOutput, } from './run-command.ts';
 import { NO_SLOT_EXIT_STATUS, } from './pool-gate.ts';
 
 /**
- How much of what the gate printed is kept for a reader. Its answer names the pools and why it started nothing, so the end of it
- carries the reason; the beginning does not.
+ How many kibibytes of what the gate printed are kept for a reader.
  */
-export const GATE_OUTPUT_TAIL_CHARACTERS = 3_000;
+const GATE_OUTPUT_KIBIBYTES = 64;
+
+/**
+ How many characters one kibibyte of what the gate printed is.
+ */
+const CHARACTERS_PER_KIBIBYTE = 1_024;
+
+/**
+ How much of what the gate printed is kept for a reader. Its answer names the pools and why it started nothing, and it carries the
+ launcher's own stack when the launcher failed, whose message hangs above frames, so a bound smaller than the batch's kept bound
+ could cut the one line that says why.
+ */
+export const GATE_OUTPUT_TAIL_CHARACTERS: number = GATE_OUTPUT_KIBIBYTES * CHARACTERS_PER_KIBIBYTE;
 
 /**
  What one retrying start ends with.

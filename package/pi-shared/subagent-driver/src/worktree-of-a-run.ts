@@ -1,6 +1,6 @@
 /**
- The worktree a run works in: making it from the checkout's `main`, and removing it once the run has finished its work and holds
- nothing uncommitted.
+ The worktree a run works in: making it, with its branch started at the commit or branch the caller names, and removing it once
+ the run has finished its work and holds nothing uncommitted.
 
  The owner, 2026-11-10: "You're the coordinator and you're supposed to remove finished worktrees automatically." A worktree
  added on btrfs is a snapshot of `main`, so it keeps every file `main` held when it was taken, build folders included: finished
@@ -30,6 +30,12 @@ export type GitRunner = (request: {
   readonly words: readonly string[];
   readonly folder: string;
 }) => Promise<CommandOutput>;
+
+/**
+ The commit or branch a run's new branch starts at when the caller names none, which is what every launcher started from before a
+ run could name its own.
+ */
+export const BASE_OF_A_RUN_NAMING_NONE = 'main';
 
 /**
  A worktree that is there but holds something, so it is not a worktree of this run's.
@@ -158,6 +164,11 @@ export async function branchExists({
 /**
  Makes a run's worktree, unless it is already there.
 
+ A branch this call creates starts at `base`, which is a commit or a branch: a fix for a reviewed branch starts at that branch, and
+ a review starts at the commit it reviews. A branch that already exists keeps its own commits, so `base` does not move it: the
+ scratch launcher left an existing branch alone the same way, and moving it would rewrite work someone else may be reading. The
+ note this answers with says which of the two happened, so a reader is never left to guess which commit a run's branch began at.
+
  @param git - how one git command is run
 
  @param checkoutFolder - the checkout the worktree is made in
@@ -165,6 +176,8 @@ export async function branchExists({
  @param worktree - the worktree's path
 
  @param branch - the branch the run's work goes on
+
+ @param base - the commit or branch a branch this call creates starts at, which an existing branch ignores
 
  @returns what was done, in words for a reader
 
@@ -174,7 +187,7 @@ export async function branchExists({
 
  @example
  ```ts
- const note = await makeWorktree({ git, checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', branch: 'feat/a', },);
+ const note = await makeWorktree({ git, checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', branch: 'feat/a', base: 'main', },);
  ```
  */
 export async function makeWorktree({
@@ -182,11 +195,13 @@ export async function makeWorktree({
   checkoutFolder,
   worktree,
   branch,
+  base,
 }: {
   readonly git: GitRunner;
   readonly checkoutFolder: string;
   readonly worktree: string;
   readonly branch: string;
+  readonly base: string;
 },): Promise<string> {
   if (await isThere(join(
     worktree,
@@ -233,7 +248,7 @@ export async function makeWorktree({
         '-b',
         branch,
         worktree,
-        'main',
+        base,
       ],
   },);
   if (added.status !== 0) {
@@ -243,7 +258,9 @@ export async function makeWorktree({
           .trim()}`,
     );
   }
-  return `worktree add: status ${String(added.status,)}`;
+  return branchIsThere
+    ? `worktree add: status ${String(added.status,)} (existing branch ${branch}, which keeps its own commits, so the base ${base} was not used)`
+    : `worktree add: status ${String(added.status,)} (new branch ${branch} at ${base})`;
 }
 
 /**

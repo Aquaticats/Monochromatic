@@ -14,12 +14,20 @@ import {
  The command's command line, for the error message.
  */
 export const RETRY_START_USAGE =
-  'retry-pi-run-start-until-a-pool-has-room --deadline-seconds=<n> --period-seconds=<n> -- <pool gate options>';
+  'retry-pi-run-start-until-a-pool-has-room --deadline-seconds=<n> --period-seconds=<n> [--] <pool gate options>';
 
 /**
- The word that separates this command's own options from the pool gate's.
+ The word that separates this command's own options from the pool gate's, which a caller may write and which a task runner may drop.
  */
 const SEPARATOR = '--';
+
+/**
+ This command's own options, which it reads wherever they stand and never hands to the pool gate.
+ */
+const OWN_OPTIONS: readonly string[] = [
+  'deadline-seconds',
+  'period-seconds',
+];
 
 /**
  A command line the retrying start cannot use.
@@ -166,38 +174,40 @@ export type RetryStartOptions = {
 /**
  Reads the command line.
 
+ This command reads its own two options wherever they stand, and hands every other word to the pool gate, so a `--` between them
+ is optional: `mise run //package/pi-shared/subagent-driver:retry-pi-run-start-until-a-pool-has-room -- --deadline-seconds=1
+ --period-seconds=1 -- --name=a` lost its second `--` before it reached the script, and the task could not be used as its own
+ usage line said. The gate has no `--deadline-seconds` and no `--period-seconds` of its own, so a word of either name can only be
+ this command's.
+
  @param commandLine - arguments after the program name
 
  @returns what the retrying start was asked for
 
- @throws RetryStartOptionsError when an option is missing or unusable, or the separator is absent
+ @throws RetryStartOptionsError when an option is missing or unusable, or no word for the pool gate was given
 
  @example
  ```ts
- const options = parseRetryStartOptions(['--deadline-seconds=7200', '--period-seconds=30', '--', '--name=a',],);
+ const options = parseRetryStartOptions(['--deadline-seconds=7200', '--period-seconds=30', '--name=a',],);
  ```
  */
 export function parseRetryStartOptions(commandLine: readonly string[],): RetryStartOptions {
   /**
-   Where this command's own options end.
-   */
-  const separator = commandLine.indexOf(SEPARATOR,);
-  if (separator === (-1)) {
-    throw retryStartOptionsErrorOf(`the words for the pool gate must come after ${SEPARATOR}.\nUsage: ${RETRY_START_USAGE}`,);
-  }
-  /**
    This command's own words.
    */
-  const own = commandLine.slice(
-    0,
-    separator,
-  );
+  const own = commandLine.filter(function isOwnOption(word,) {
+    return OWN_OPTIONS.some(function namesIt(name,) {
+      return word.startsWith(`--${name}=`,);
+    },);
+  },);
   /**
-   The pool gate's words.
+   The pool gate's words: every word that is neither this command's nor a separator.
    */
-  const words = commandLine.slice(separator + 1,);
+  const words = commandLine.filter(function isTheGates(word,) {
+    return (word !== SEPARATOR) && (!own.includes(word,));
+  },);
   if (words.length === 0) {
-    throw retryStartOptionsErrorOf(`no pool gate word was given after ${SEPARATOR}.\nUsage: ${RETRY_START_USAGE}`,);
+    throw retryStartOptionsErrorOf(`no pool gate word was given.\nUsage: ${RETRY_START_USAGE}`,);
   }
   return {
     deadlineSeconds: requiredOption({

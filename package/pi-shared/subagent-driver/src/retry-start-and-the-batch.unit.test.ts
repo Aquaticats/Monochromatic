@@ -25,6 +25,7 @@ import {
   BATCH_STAGGER_MILLISECONDS,
   BatchOptionsError,
   type CommandOutput,
+  GATE_OUTPUT_TAIL_CHARACTERS,
   LAUNCHER_ENTRY_NAMES,
   type PoolMembership,
   NO_SLOT_EXIT_STATUS,
@@ -238,7 +239,7 @@ await describe({
             /**
              What the gate printed, longer than the tail a caller reads.
              */
-            const long = 'x'.repeat(4_000,);
+            const long = 'x'.repeat(GATE_OUTPUT_TAIL_CHARACTERS,);
             /**
              What asking for a slot ended with.
              */
@@ -255,7 +256,7 @@ await describe({
               words: [],
             },);
             expect(retried.status,).toBe(1,);
-            expect(retried.text,).toHaveLength(3_000,);
+            expect(retried.text,).toHaveLength(GATE_OUTPUT_TAIL_CHARACTERS,);
             expect(retried.text,).toContain('and the reason',);
           },
         },),
@@ -307,6 +308,61 @@ await describe({
             expect(lines,).toEqual(['a: status 0', 'b: status 0',],);
           },
         },),
+        it({
+          name: 'keeps the whole of what a failed start printed, and names that file on the entry line',
+          fn: async () => {
+            /**
+             Every output the batch asked to keep.
+             */
+            const kept: { readonly name: string; readonly output: string }[] = [];
+            /**
+             Where the batch says it kept them.
+             */
+            const keptAt = '/runs/a-start-failure.log';
+            const lines = await startBatch({
+              entries: [
+                {
+                  name: 'a',
+                  branch: 'feat/a',
+                },
+                {
+                  name: 'b',
+                  branch: 'feat/b',
+                },
+              ],
+              runsFolder: '/runs',
+              deadlineSeconds: 7_200,
+              start: async function startOne({ name, },) {
+                return (name === 'a')
+                  ? {
+                    status: 1,
+                    output: 'Error: it did not start\n    at nowhere\nNode.js v26.13.0\n',
+                  }
+                  : {
+                    status: 0,
+                    output: '',
+                  };
+              },
+              wait: async function passTime() {
+                // The stagger is not what this test reads.
+              },
+              keepFailure: async function keep({ name, output, },) {
+                kept.push({
+                  name,
+                  output,
+                },);
+                return { keptAt, };
+              },
+            },);
+            expect(kept.map(function nameKept(entry,) {
+              return entry.name;
+            },),).toEqual(['a',],);
+            expect(lines,).toEqual([
+              `a: status 1 Error: it did not start (all it printed: ${keptAt})`,
+              'b: status 0',
+            ],);
+          },
+        },),
       ],
     },),
     describe({
@@ -340,6 +396,51 @@ await describe({
             },),).toBe('a: could not start the retry (it answered no status)',);
           },
         },),
+        it({
+          name: 'says why a start that ended on an uncaught error failed, never the version line Node ends the stack with',
+          fn: async () => {
+            /**
+             What Node prints for an uncaught error: where it happened, the code, the error, its frames, and its own version.
+             */
+            const crashed = [
+              'file:///pkg/src/required-output-of-a-command.ts:58',
+              '    throw new CommandAnswerMissingError(',
+              '          ^',
+              '',
+              'CommandAnswerMissingError: git rev-parse --show-toplevel answered 1: not at the root',
+              '    at requiredOutputOf (file:///pkg/src/required-output-of-a-command.ts:58:11)',
+              'Node.js v26.13.0',
+              '',
+            ].join('\n',);
+            expect(entryLineOf({
+              name: 'a',
+              started: {
+                status: 1,
+                output: crashed,
+              },
+            },),).toBe('a: status 1 CommandAnswerMissingError: git rev-parse --show-toplevel answered 1: not at the root',);
+          },
+        },),
+        it({
+          name: 'names the file the whole of a failed start was kept in, and says so plainly when it printed no reason at all',
+          fn: async () => {
+            expect(entryLineOf({
+              name: 'a',
+              started: {
+                status: 1,
+                output: 'a line nobody can act on\n',
+              },
+              keptAt: '/runs/a-start-failure.log',
+            },),).toBe('a: status 1 a line nobody can act on (all it printed: /runs/a-start-failure.log)',);
+            expect(entryLineOf({
+              name: 'a',
+              started: {
+                status: 1,
+                output: '    at somewhere (file:///x.ts:1:1)\nNode.js v26.13.0\n',
+              },
+            },),).toBe('a: status 1 it printed no reason',);
+          },
+        },),
       ],
     },),
     describe({
@@ -359,6 +460,59 @@ await describe({
               shown: '{"name":"a"}',
               listFile: 'batch.json',
             },),).toThrow('holds no JSON array',);
+          },
+        },),
+        it({
+          name: 'refuses an entry that names a field this command does not read, naming the field and the entry',
+          fn: async () => {
+            /**
+             A field no version of this command has read.
+             */
+            const unread = 'baseBranch';
+            expect(() => batchEntriesIn({
+              shown: `[{"name":"b","branch":"feat/b","${unread}":"main"}]`,
+              listFile: 'batch.json',
+            },),).toThrow(unread,);
+            expect(() => batchEntriesIn({
+              shown: `[{"name":"a","branch":"feat/a"},{"name":"b","branch":"feat/b","${unread}":"main"}]`,
+              listFile: 'batch.json',
+            },),).toThrow('entry 2 (b)',);
+            expect(() => batchEntriesIn({
+              shown: '["a"]',
+              listFile: 'batch.json',
+            },),).toThrow('is no JSON object',);
+          },
+        },),
+        it({
+          name: 'reads every field a list has always had, the base a run starts at, and the session file a run resumes',
+          fn: async () => {
+            /**
+             One entry naming every field this command reads.
+             */
+            const entry = {
+              name: 'a',
+              branch: 'feat/a',
+              base: 'main',
+              prompt: 'p.md',
+              cpu: 1,
+              memory: '1G',
+              tasks: 1,
+              wall: 1,
+              run: 1,
+              sessionOf: 'a-1',
+              session: '/s.jsonl',
+              provider: 'neuralwatt',
+              model: 'deepseek-v4.1-flash',
+            };
+            expect(batchEntriesIn({
+              shown: JSON.stringify([entry,],),
+              listFile: 'batch.json',
+            },),).toEqual([entry,],);
+            expect(retryWordsOf({
+              entry,
+              runsFolder: '/runs',
+              deadlineSeconds: 60,
+            },),).toContain('--session=/s.jsonl',);
           },
         },),
       ],
@@ -440,6 +594,34 @@ await describe({
             },),).toContain('--session-of=a-3',);
           },
         },),
+        it({
+          name: 'hands the start the commit or branch an entry names as its base, and says nothing about a base an entry names none of',
+          fn: async () => {
+            /**
+             The commit a fix for a reviewed branch starts at.
+             */
+            const base = 'fix/the-branch-that-was-reviewed';
+            expect(retryWordsOf({
+              entry: {
+                name: 'a',
+                branch: 'feat/a',
+                base,
+              },
+              runsFolder: '/runs',
+              deadlineSeconds: 60,
+            },),).toContain(`--base=${base}`,);
+            expect(retryWordsOf({
+              entry: {
+                name: 'a',
+                branch: 'feat/a',
+              },
+              runsFolder: '/runs',
+              deadlineSeconds: 60,
+            },).filter(function namesTheBase(word,) {
+              return word.startsWith('--base=',);
+            },),).toEqual([],);
+          },
+        },),
       ],
     },),
     describe({
@@ -495,17 +677,26 @@ await describe({
       name: parseRetryStartOptions.name,
       children: [
         it({
-          name: 'reads its own two durations and the words after the separator',
+          name: 'reads its own two durations wherever they stand, and hands the pool gate every other word',
           fn: async () => {
-            expect(parseRetryStartOptions(['--deadline-seconds=7200', '--period-seconds=30', '--', '--name=a',],),).toEqual({
+            /**
+             What a line of this command is read as, whichever way it is written.
+             */
+            const meant = {
               deadlineSeconds: 7_200,
               periodSeconds: 30,
               words: ['--name=a',],
-            },);
+            };
+            expect(parseRetryStartOptions(['--deadline-seconds=7200', '--period-seconds=30', '--', '--name=a',],),).toEqual(meant,);
+            // `mise run //package/pi-shared/subagent-driver:retry-pi-run-start-until-a-pool-has-room -- --deadline-seconds=1
+            // --period-seconds=1 -- --name=a` lost its second `--` before the script saw it, so the line without one reads the
+            // same way.
+            expect(parseRetryStartOptions(['--deadline-seconds=7200', '--period-seconds=30', '--name=a',],),).toEqual(meant,);
+            expect(parseRetryStartOptions(['--name=a', '--deadline-seconds=7200', '--period-seconds=30',],),).toEqual(meant,);
           },
         },),
         it({
-          name: 'refuses a line with no separator, no words after it, or a duration it cannot use',
+          name: 'refuses no words for the pool gate, or a duration it cannot use',
           fn: async () => {
             expect(() => parseRetryStartOptions(['--deadline-seconds=1', '--period-seconds=1',],),).toThrow(RetryStartOptionsError,);
             expect(() => parseRetryStartOptions(['--deadline-seconds=1', '--period-seconds=1', '--',],),).toThrow('no pool gate word',);
