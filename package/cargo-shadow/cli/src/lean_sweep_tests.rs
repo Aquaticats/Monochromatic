@@ -11,7 +11,9 @@ use std::{fs, fs::File, os::unix::fs::PermissionsExt, os::unix::fs::symlink, pat
 use rustix::fs::{FlockOperation, flock};
 
 use crate::lean_identity::Deadline;
+use crate::lean_policy::IN_TREE_PROFILE_CAP_BYTES;
 use crate::lean_removal::{Item, claim_into_trash, item_of};
+use crate::lean_run_steps::{UnitsPass, sweep_and_cap};
 use crate::lean_sweep_plan::OlderCompilerSweep;
 use crate::lean_test_support::{DAY, HOUR, NOW, add_incremental, add_new_unit, add_old_unit, copy_a_program, make_pipe, make_profile, real_environment, within};
 use crate::lean_unit_removal::{ProfileOutcome, apply_removals};
@@ -348,4 +350,18 @@ fn a_pass_with_no_time_left_reads_nothing_and_removes_nothing() {
     for path in &stale {
         assert!(path.exists(), "nothing is removed from a profile directory the pass did not read: {}", path.display());
     }
+}
+
+/// A folder both mechanisms of the units pass leave alone is named once in the report,
+/// not once per mechanism: a real pass logged every "left alone ... unknown layout" line
+/// twice, which reads as two folders where there is one.
+#[test]
+fn a_folder_both_mechanisms_leave_alone_is_named_once() {
+    let root = scratch();
+    let profile: PathBuf = root.path().join("strange");
+    fs::create_dir_all(&profile).expect("directory");
+    fs::write(profile.join(".cargo-build-lock"), b"").expect("lock");
+    let pass: UnitsPass = sweep_and_cap(&[(profile.clone(), IN_TREE_PROFILE_CAP_BYTES)], false, &Deadline::after(std::time::Duration::from_secs(60)), &real_environment());
+    let named: usize = pass.lines.iter().filter(|line| { return line.contains("left alone") && line.contains(&profile.display().to_string()); }).count();
+    assert_eq!(named, 1, "one folder, one line: {:#?}", pass.lines);
 }

@@ -133,8 +133,33 @@ pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Dead
         format!("size caps: {verb} {cap_units} units and {cap_incremental} incremental directories ({})", gib(cap_bytes)),
         format!("profile directories with a running or queued build, retried by the next run: {busy}"),
     ];
-    lines.extend(notes.into_iter().take(40));
+    lines.extend(unique_notes(notes).into_iter().take(40));
     return UnitsPass { lines, judged };
+}
+
+/// What:
+/// `fn unique_notes(notes: Vec<String>) -> Vec<String>` is the notes in the order they were written,
+/// with a note that repeats an earlier one dropped.
+/// Why:
+/// Both mechanisms read the same profile directories,
+/// so the same skip or the same refusal is written once by each and a report that prints both says everything twice:
+/// a real pass logged 48 lines of 'left alone ... unknown layout' where 24 folders were meant.
+/// Two notes are the same only when the whole line is,
+/// so a distinct reason for the same folder stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function uniqueNotes(notes: string[]): string[] { const seen = new Set<string>(); return notes.filter((note) => !seen.has(note) && (seen.add(note), true)); }
+/// ```
+fn unique_notes(notes: Vec<String>) -> Vec<String> {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut unique: Vec<String> = Vec::with_capacity(notes.len());
+    for note in notes {
+        if seen.insert(note.clone()) {
+            unique.push(note);
+        }
+    }
+    return unique;
 }
 
 /// What:
