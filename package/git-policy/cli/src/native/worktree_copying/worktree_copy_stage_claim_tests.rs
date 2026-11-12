@@ -213,16 +213,18 @@ fn every_abandoned_stage_is_removed() {
 /// A claim that names a path outside the stage container naming is refused,
 /// and the named path survives.
 #[test]
-fn a_claim_naming_another_directory_is_refused() {
+fn a_claim_naming_another_directory_is_no_claim_a_sweep_acts_on() {
     let (root, common, destination) = scene("claim-foreign-name");
     let victim: PathBuf = destination.parent().expect("parent").join("precious");
     std::fs::create_dir_all(victim.as_path()).expect("victim");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::write(claim.path.as_path(), victim.to_string_lossy().as_bytes()).expect("rewrite claim");
-    let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
-    assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
-    assert!(victim.exists());
-    assert!(claim.path.exists(), "an unproven claim stays for inspection");
+    // A claim whose lines are not a record this release writes names a folder no sweep may remove, so the sweep reads it
+    // as no claim at all and the command that met it settles the record.
+    assert_eq!(read_claim(claim.path.as_path()).expect("read"), None, "no sweep acts on it");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
+    assert!(victim.exists(), "the directory its line names is not this claim's to remove");
+    assert!(claim.path.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
@@ -231,7 +233,7 @@ fn a_claim_naming_another_directory_is_refused() {
 /// A line of bytes inside such a path is not where this release writes one,
 /// so the claim is refused and the private directory those bytes name survives.
 #[test]
-fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_survives() {
+fn a_claim_that_names_other_bytes_inside_a_path_removes_nothing_it_names() {
     let (root, common, destination) = scene("claim-path-lines");
     let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
     create_private_directory(target.as_path()).expect("a private directory with the stage naming");
@@ -245,9 +247,10 @@ fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_sur
         dead_copy_owner().token()
     );
     crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
-    reap_abandoned_stages(common.as_path()).expect_err("a claim of a shape this release does not write is refused");
+    assert_eq!(read_claim(claim.as_path()).expect("read"), None, "a claim of a shape this release does not write names no folder");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
     assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
-    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    assert!(claim.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
@@ -255,7 +258,7 @@ fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_sur
 /// Two lines that name different paths are refused,
 /// and the directory the bytes name survives.
 #[test]
-fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
+fn a_claim_whose_text_and_bytes_name_different_paths_names_no_folder() {
     let (root, common, destination) = scene("claim-text-bytes-disagree");
     let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
     create_private_directory(target.as_path()).expect("a private directory with the stage naming");
@@ -270,20 +273,22 @@ fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
         dead_copy_owner().token()
     );
     crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
-    reap_abandoned_stages(common.as_path()).expect_err("a claim whose two lines name two paths is refused");
+    assert_eq!(read_claim(claim.as_path()).expect("read"), None, "a claim whose two lines name two paths names no folder");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
     assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
-    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    assert!(claim.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
 /// A claim that names a relative path is refused even when its last component looks like a stage.
 #[test]
-fn a_claim_naming_a_relative_path_is_refused() {
+fn a_claim_naming_a_relative_path_is_no_claim_a_sweep_acts_on() {
     let (root, common, destination) = scene("claim-relative");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::write(claim.path.as_path(), b".cli-git-worktree-copy-relative").expect("rewrite claim");
-    let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
-    assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
+    assert_eq!(read_claim(claim.path.as_path()).expect("read"), None, "a folder named relative is none a sweep removes");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
+    assert!(claim.path.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
@@ -777,13 +782,13 @@ fn unfinished_record_and_marker_writes_are_removed() {
 /// while a
 /// claim that is there and names no stage container is still refused.
 #[test]
-fn a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused() {
+fn a_claim_that_vanished_is_skipped_and_a_malformed_one_names_no_folder() {
     let (root, common, _destination) = scene("claim-vanished");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
     assert_eq!(read_claim(journals.join("gone.stage").as_path()).expect("skipped"), None);
     let malformed: PathBuf = journals.join("malformed.stage");
     crate::private_storage::write_private_file(malformed.as_path(), b"relative/path\n").expect("claim");
-    read_claim(malformed.as_path()).expect_err("a claim that names no stage container is refused");
+    assert_eq!(read_claim(malformed.as_path()).expect("read"), None, "a claim that names no stage container names no folder");
     let owned: PathBuf = journals.join("owned.stage");
     let container: String = format!("/parent/{STAGE_PREFIX}owned");
     crate::private_storage::write_private_file(owned.as_path(), format!("{container}\nowner=7~linux:1~\n").as_bytes()).expect("claim");

@@ -177,16 +177,21 @@ fn a_record_of_a_running_copy_is_left_alone() {
 /// and named,
 /// because nothing it says can be acted on.
 #[test]
-fn a_record_this_release_does_not_write_is_kept_and_named() {
+fn a_record_this_release_does_not_write_is_named_and_left_to_the_command_that_settles_it() {
     let root: PathBuf = fixture("unfilled-record-foreign");
     let common: PathBuf = root.join("common");
     let record: PathBuf = record_root(common.as_path()).join("0123456789abcdef.unfilled");
     std::fs::write(record.as_path(), b"destination=nothing-useful\n").expect("foreign record");
     std::fs::set_permissions(record.as_path(), std::fs::Permissions::from_mode(0o600)).expect("private record");
-    let refusal: WorktreeCopyError = report_unfilled_records(common.as_path()).expect_err("refused");
-    assert!(refusal.0.contains("is not one this release writes"), "{}", refusal.0);
-    assert!(refusal.0.contains("check it and remove the file"), "{}", refusal.0);
-    assert!(record.exists(), "a record that cannot be read is kept");
+    // A record a rename published before its bytes is what a crash leaves: the sweep that reports worktrees names no
+    // worktree from it, so the command that found it moves it aside, and no reader fails a command over it.
+    let reading: Option<UnfilledFile> = unfilled_file_reading(record.as_path()).expect("reading");
+    let Some(UnfilledFile::Unreadable { reason }) = reading else {
+        panic!("a record this release does not write is one it cannot read");
+    };
+    assert_eq!(reason, "its worktree is not a path", "the reading names why the record is not one this release writes");
+    assert_eq!(report_unfilled_records(common.as_path()).expect("reported"), Vec::<String>::new(), "no worktree is named from it");
+    assert!(record.exists(), "a record this release cannot read is still there for the command that settles it");
     remove(root.as_path());
 }
 

@@ -894,7 +894,7 @@ fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_byte
 /// reading it with replacement characters would name another directory,
 /// so it is refused by name and kept.
 #[test]
-fn a_journal_file_that_is_not_text_is_refused_and_kept() {
+fn a_journal_file_that_is_not_text_reads_as_a_record_nothing_can_read() {
     use crate::private_storage::write_private_file;
     let root: PathBuf = fixture("journal-not-text");
     let common: PathBuf = root.join("common");
@@ -903,9 +903,17 @@ fn a_journal_file_that_is_not_text_is_refused_and_kept() {
     let path: PathBuf = journals.join("id.json");
     let record: &[u8] = b"{\"createdEntries\":[],\"intendedEntries\":[],\"destinationRoot\":\"/w/a\xffb\",\"phase\":\"staged\",\"selectedRoots\":[],\"sourceRoot\":\"/w/s\",\"stageContainer\":\"/w/.cli-git-worktree-copy-x\",\"stageRoot\":\"/w/.cli-git-worktree-copy-x/payload\",\"version\":1}\n";
     write_private_file(path.as_path(), record).expect("journal");
-    let failure: WorktreeCopyError = read_pending_journals(common.as_path()).expect_err("not text");
-    assert!(failure.0.contains("it is not text"), "{}", failure.0);
-    assert!(path.exists(), "a journal that cannot be read is kept");
+    // A record a rename published before its bytes is what a crash leaves, so the reader names it and the command that
+    // found it moves it aside; it never fails a command and it is never deleted by a reader.
+    let listed: Vec<JournalFile> = read_listed_journals(common.as_path()).expect("listed");
+    assert_eq!(listed.len(), 1, "the record is listed");
+    let JournalFile::Unreadable { path: named, reason } = &listed[0] else {
+        panic!("a journal that is not text is not a pending one");
+    };
+    assert_eq!(named, &path);
+    assert_eq!(reason, "its bytes are not text");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty(), "no reader acts on it");
+    assert!(path.exists(), "a journal this release cannot read is still there for the command that settles it");
     remove(root.as_path());
 }
 
