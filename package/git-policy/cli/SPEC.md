@@ -4020,6 +4020,16 @@ of which the two that rewrite link layouts in place are the service's work whene
   a lock Cargo refuses is resolved first by `cargo metadata --offline`,
   and the checked-out bytes go back only when the file still holds exactly what that resolution wrote,
   so a write of the person's lands in their own file and stays there.
+  That comparison is a moment of its own,
+  so the write that puts the checked-out bytes back is one step that hands back the file it replaced
+  (`renameat2(RENAME_EXCHANGE)`,
+  `rename_that_never_replaces.rs`):
+  a write that lands after the comparison is put back where the person wrote it,
+  and the checked-out bytes stay in the displaced directory where the line names them.
+  A lock the clean created where the checkout has none is taken away by a move and put back if it was written since,
+  and one the clean removed is written with `create_new`,
+  so no step of the restore replaces a file nobody kept.
+  The write the add's own clean makes is judged the same way.
   A lock that is not the resolution's and not the checked-out one is left exactly as it is found,
   and the job's diagnostic log says which file it was.
   A clean that stops anyway names the lock,

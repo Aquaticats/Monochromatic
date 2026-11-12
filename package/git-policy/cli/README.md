@@ -2165,7 +2165,10 @@ the two tools that rewrite link layouts in place are the commit service's work w
    it passes `--locked`,
    asks Cargo for the resolution a stale lock needs as a step of its own,
    and puts the checked-out lock back only when the file still holds exactly what that resolution wrote.
-  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it.
+  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it,
+   even one that lands in the moment between the repair's last look and its restore:
+   the restore replaces the file itself in one step and puts back what it found there,
+   so your write stays and the checked-out lock is the copy kept under the repository's Git directory.
   A `target` or `node_modules` you keep as a link to a directory outside the worktree is left alone:
    a clean or an install through it would delete or rewrite the files of the checkout the link names,
    so the repair does nothing there and your first build recompiles what it needs.

@@ -33,6 +33,19 @@
 //! A lock the clean left unchanged is not written at all,
 //!  and a lock whose displaced bytes cannot be kept is left exactly as it was found,
 //! because putting the checked-out bytes back would then be the only place those bytes existed.
+//! The reading that decided all this is a moment of its own,
+//! and a person may write the lock after it:
+//! a write made over the file by an earlier version was in neither the copy nor the file afterwards.
+//! So the checked-out bytes are staged in the displaced directory and exchanged with the lock in one step
+//! (`renameat2(RENAME_EXCHANGE)`,
+//! `rename_that_never_replaces.rs`),
+//! which hands back the file that stood there at that instant:
+//! the file the reading named goes,
+//! and any other is put back where the person wrote it while the checked-out bytes stay where the line names them
+//! (`replace_the_clean_s_own`).
+//! A lock the clean created is taken away by a move and put back if it was written since,
+//! and one the clean removed is written with `create_new`,
+//! so no step here replaces a file nobody kept.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -60,6 +73,10 @@ pub const LOCK_FILE: &str = "Cargo.lock";
 /// under the worktree's Git directory,
 /// that holds the bytes a clean displaced.
 pub const DISPLACED_DIRECTORY: &str = "monochromatic-git-policy-cli-displaced-locks";
+
+/// The part of a staged file's name that says it is the checked-out lock on its way into the worktree,
+/// and not one of the copies a read displaced.
+const STAGING_SUFFIX: &str = "restoring";
 
 /// The most bytes of one lock's hexadecimal path that go into one directory name.
 /// Why:
@@ -190,37 +207,37 @@ fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Pa
             }
         },
     };
-    put_back(path.as_path(), before);
-    let copy: PathBuf = kept?;
-    return Some(format!(
-        "the {LOCK_FILE} of {} was not the checked-out file when the clean ended, so the bytes that stood there are kept at {}, and the file \
-         is back as checked out",
-        root.display(),
-        copy.display()
-    ));
+    let restored: Restored = replace_the_clean_s_own(path.as_path(), before, after.as_deref(), kept_in);
+    return match (restored, kept) {
+        (Restored::TheirWriteStays(Some(kept_lock)), _) => Some(format!(
+            "the {LOCK_FILE} of {} was written again while the checked-out lock was being put back, so the file is left exactly as it is found; \
+             the checked-out lock is kept at {}, and `git diff -- {LOCK_FILE}` in that worktree shows the difference",
+            root.display(),
+            kept_lock.display()
+        )),
+        (Restored::TheirWriteStays(None), _) => Some(format!(
+            "the {LOCK_FILE} of {} was written again while the checked-out lock was being put back, so the file is left exactly as it is found; the \
+             branch holds the bytes it was checked out with, and `git diff -- {LOCK_FILE}` in that worktree shows the difference",
+            root.display()
+        )),
+        (Restored::LeftAsFound(reason), _) => {
+            // The step names what it could not do and what became of every byte, so this line adds only where to look.
+            debug(TAG, format!("{} was not put back as checked out ({reason})", path.display()).as_str());
+            Some(format!(
+                "the {LOCK_FILE} of {} was not put back as checked out ({reason}); `git diff -- {LOCK_FILE}` in that worktree shows the file as it stands",
+                root.display()
+            ))
+        }
+        (Restored::TheCheckoutIsBack, Some(copy)) => Some(format!(
+            "the {LOCK_FILE} of {} was not the checked-out file when the clean ended, so the bytes that stood there are kept at {}, and the file \
+             is back as checked out",
+            root.display(),
+            copy.display()
+        )),
+        (Restored::TheCheckoutIsBack, None) => None,
+    };
 }
 
-/// What:
-///  Write the checked-out bytes over what the clean left,
-/// or remove the lock a clean created where the checkout had none.
-/// Why:
-///   The write is the step that displaces whatever stands there,
-/// so the caller keeps those bytes first and this step runs only after it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// before === undefined ? unlink(path) : writeFile(path, before);
-/// ```
-fn put_back(path: &Path, before: Option<&[u8]>) {
-    let outcome: std::io::Result<()> = match before {
-        Some(bytes) => std::fs::write(path, bytes),
-        None => std::fs::remove_file(path),
-    };
-    match outcome {
-        Ok(()) => debug(TAG, format!("{} was put back as checked out after the clean", path.display()).as_str()),
-        Err(error) => debug(TAG, format!("{} changed during the clean and could not be put back ({error})", path.display()).as_str()),
-    }
-}
 
 /// What:
 ///  Put the bytes a clean displaced where they survive it,
@@ -283,6 +300,279 @@ fn copies_directory(kept_in: &Path, lock: &Path) -> PathBuf {
         directory = directory.join(String::from_utf8_lossy(piece).into_owned());
     }
     return directory;
+}
+
+/// What:
+///  What putting the checked-out lock back did with the bytes that stood there.
+/// Why:
+///   The reading that judged those bytes is a moment of its own,
+/// and a person's write may land after it:
+///  the answer says whether the lock is the checkout's again,
+///  or their file was left where they wrote it and the checked-out bytes were kept instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Restored = { kind: 'the-checkout-is-back' } | { kind: 'their-write-stays'; kept?: string } | { kind: 'left-as-found'; reason: string };
+/// ```
+enum Restored {
+    /// The lock holds the checked-out bytes again,
+    /// or no file stands there because the checkout has none.
+    TheCheckoutIsBack,
+    /// A write landed after the reading,
+    /// so that file is left where it is;
+    /// the checked-out bytes are kept at this path when there was a place to keep them.
+    TheirWriteStays(Option<PathBuf>),
+    /// The step could not run,
+    /// so nothing was written and the lock is exactly as it was found.
+    LeftAsFound(String),
+}
+
+/// What:
+///  Put the checked-out bytes back over the file `after` read,
+///  in one step that hands back whatever file stood there instead,
+///  and leave a write that landed after that reading exactly where it is.
+/// Why:
+///   A window between a last look and a write cannot be closed from outside the writer,
+///  but it can be made to lose nothing:
+///  the checked-out bytes are staged in the displaced directory and exchanged with the lock by
+///  `renameat2(RENAME_EXCHANGE)` (`rename_that_never_replaces.rs`),
+///  which leaves the file that stood there under the staged name.
+///  When that file holds the bytes the reading named it is the clean's own, and it goes
+///  (a copy of it is kept already);
+///  when it holds anything else a person wrote it after the reading,
+///  so the exchange is undone and their file is back where they wrote it while the checked-out bytes are kept where the notice says.
+///  A filesystem that cannot exchange two names reads the lock once more and renames over it at once,
+///  and the one window that leaves is named where it is (`replace_after_a_second_look`).
+///  A lock the checkout does not have is taken away by a move and put back if it was written since,
+///  and one the clean removed is written with `create_new`,
+///  so no step here replaces bytes nobody kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// replaceTheCleansOwn(path, before, after, keptIn) // never replaces an unkept file
+/// ```
+fn replace_the_clean_s_own(path: &Path, before: Option<&[u8]>, after: Option<&[u8]>, kept_in: Option<&Path>) -> Restored {
+    #[cfg(test)]
+    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
+    return match (before, after, kept_in) {
+        (Some(checkout), Some(read), Some(directory)) => exchange_the_file_read(path, checkout, read, directory),
+        // The clean created a lock the checkout has not, so the file goes, and a write that landed since keeps its file.
+        (None, Some(read), Some(directory)) => take_the_file_away(path, read, directory),
+        // The clean removed the lock the checkout has, so it is written where nothing stands.
+        (Some(checkout), None, _) => write_where_nothing_stands(path, checkout),
+        // Nothing stood there and the checkout has none: nothing to put back.
+        (None, None, _) | (Some(_), Some(_), None) | (None, Some(_), None) => Restored::TheCheckoutIsBack,
+    };
+}
+
+/// What:
+///  Replace the lock with the checked-out bytes and judge the file the exchange handed back.
+/// Why:
+///  The exchange is the step that says what it displaced,
+///  which a comparison and a rename cannot,
+///  and the bytes it hands back are the ones to judge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staged = stageTheCheckout(dir, lock, checkout); await exchange(staged, lock); return judge(staged, read);
+/// ```
+fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: &Path) -> Restored {
+    let staged: PathBuf = match stage_the_checkout(directory, path, checkout) {
+        Ok(staged) => staged,
+        Err(reason) => return Restored::LeftAsFound(reason),
+    };
+    if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path) {
+        let _dropped = std::fs::remove_file(staged.as_path());
+        if !crate::rename_that_never_replaces::rename_unsupported(&error) {
+            return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
+        }
+        return replace_after_a_second_look(path, checkout, read, directory);
+    }
+    return judge_the_displaced(path, staged.as_path(), read);
+}
+
+/// What:
+///  The same judgement over a plain rename,
+///  for a filesystem that cannot exchange two names.
+/// Why:
+///  Such a filesystem leaves one window:
+/// the lock is read once more and the rename follows at once,
+/// and a write that lands exactly between those two steps is replaced unseen,
+/// which no step taken from outside the writer can prevent there.
+/// Every other write, before the reading or after the rename, is judged as the exchange judges it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (read(lock) !== read) return theirWriteStays(staged); await rename(staged, lock); return theCheckoutIsBack;
+/// ```
+fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], directory: &Path) -> Restored {
+    // The exchange's staging file went, so the bytes are staged again for this step.
+    let staged: PathBuf = match stage_the_checkout(directory, path, checkout) {
+        Ok(staged) => staged,
+        Err(reason) => return Restored::LeftAsFound(reason),
+    };
+    let standing: Option<Vec<u8>> = std::fs::read(path).ok();
+    if standing.as_deref() != Some(read) {
+        // The bytes that stand there are not the ones the reading named, so they are a person's and stay.
+        return Restored::TheirWriteStays(Some(staged));
+    }
+    if let Err(error) = std::fs::rename(staged.as_path(), path) {
+        let _dropped = std::fs::remove_file(staged.as_path());
+        return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
+    }
+    return Restored::TheCheckoutIsBack;
+}
+
+/// What:
+///  Judge the file an exchange handed back:
+///  the one the reading named goes,
+///  and any other is put back where it was written,
+///  with the checked-out bytes kept where it stood.
+/// Why:
+///  The file an exchange hands back is exactly what the lock held at the one step that replaced it,
+/// so this answer is about the bytes that were there and not about bytes read earlier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (read(displaced) === read) { unlink(displaced); return theCheckoutIsBack(); } await exchange(displaced, lock); return theirWriteStays(displaced);
+/// ```
+fn judge_the_displaced(path: &Path, displaced: &Path, read: &[u8]) -> Restored {
+    let handed_back: Option<Vec<u8>> = std::fs::read(displaced).ok();
+    if handed_back.as_deref() == Some(read) {
+        let _dropped = std::fs::remove_file(displaced);
+        return Restored::TheCheckoutIsBack;
+    }
+    if let Err(error) = crate::rename_that_never_replaces::exchange(displaced, path) {
+        // The exchange that would have put the write back failed, so the checked-out bytes are in place and the write is kept.
+        return Restored::LeftAsFound(format!(
+            "the bytes written after the reading could not be put back at {} ({error}), so they are kept at {} and the checked-out lock is in its place",
+            path.display(),
+            displaced.display()
+        ));
+    }
+    return Restored::TheirWriteStays(Some(displaced.to_path_buf()));
+}
+
+/// What:
+///  Take away the lock a clean created where the checkout has none,
+///  and put it back if it holds bytes written after the reading.
+/// Why:
+///  A move is one step, so the file that goes is the file that stood there when the step ran,
+///  whatever a person wrote after the reading;
+///  the bytes are judged from the moved file and not from an earlier reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const moved = freeName(dir, lock); rename(lock, moved); return judgeTheMovedFile(lock, moved, read);
+/// ```
+fn take_the_file_away(path: &Path, read: &[u8], directory: &Path) -> Restored {
+    let moving: PathBuf = a_free_staging_name(directory, path);
+    if let Err(error) = std::fs::rename(path, moving.as_path()) {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            return Restored::TheCheckoutIsBack;
+        }
+        return Restored::LeftAsFound(format!("{} could not be moved aside ({error})", path.display()));
+    }
+    let moved: Option<Vec<u8>> = std::fs::read(moving.as_path()).ok();
+    if moved.as_deref() == Some(read) {
+        // What the clean resolved is kept already (`keep_the_bytes`), so this name goes.
+        let _dropped = std::fs::remove_file(moving.as_path());
+        return Restored::TheCheckoutIsBack;
+    }
+    if let Err(error) = std::fs::rename(moving.as_path(), path) {
+        // The file was moved away and could not be put back, so it is kept where the move left it.
+        return Restored::LeftAsFound(format!(
+            "the bytes written after the reading could not be put back at {} ({error}), so they are kept at {}",
+            path.display(),
+            moving.display()
+        ));
+    }
+    return Restored::TheirWriteStays(None);
+}
+
+/// What:
+///  Write the checked-out bytes where no file stands,
+///  and leave a file that appeared after the reading where it is.
+/// Why:
+///  `create_new` is one step that never replaces a file,
+/// so a lock a person created after the reading is not written over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openSync(lock, 'wx'); writeSync(file, checkout); closeSync(file);
+/// ```
+fn write_where_nothing_stands(path: &Path, checkout: &[u8]) -> Restored {
+    let opened: std::io::Result<std::fs::File> = std::fs::OpenOptions::new().write(true).create_new(true).open(path);
+    let mut file: std::fs::File = match opened {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Restored::TheirWriteStays(None),
+        Err(error) => return Restored::LeftAsFound(format!("{} could not be written ({error})", path.display())),
+    };
+    if let Err(error) = std::io::Write::write_all(&mut file, checkout) {
+        drop(file);
+        let _dropped = std::fs::remove_file(path);
+        return Restored::LeftAsFound(format!("{} could not be written ({error})", path.display()));
+    }
+    return Restored::TheCheckoutIsBack;
+}
+
+/// What:
+///  Stage the checked-out bytes in the displaced directory,
+///  where the exchange and the fallback take them from,
+///  and answer the name they are at.
+/// Why:
+///   The staged file is outside the worktree,
+///  so the checked-out tree never shows it,
+///  and it is written exclusively and synced as every copy there is,
+///  so a power cut leaves one of the two files whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staged = freeStagingName(dir, lock); writeExclusiveSynced(staged, checkout); return staged;
+/// ```
+fn stage_the_checkout(directory: &Path, lock: &Path, checkout: &[u8]) -> Result<PathBuf, String> {
+    let copies: PathBuf = copies_directory(directory, lock);
+    if let Err(error) = create_private_directory_all(copies.as_path()) {
+        return Err(format!("{} could not be made ({error})", copies.display()));
+    }
+    let staged: PathBuf = a_free_staging_name(directory, lock);
+    if let Err(error) = write_exclusive_synced(staged.as_path(), checkout) {
+        return Err(format!("{} could not be written ({error})", staged.display()));
+    }
+    return Ok(staged);
+}
+
+/// What:
+///  A name in the copies directory that no file holds,
+///  for bytes a step stages there before they take the lock's place.
+/// Why:
+///   The names `Cargo.lock`, `Cargo.lock.1`, ... belong to the copies a reading displaced,
+/// and a step that staged its bytes under one of them would hide a copy a person is told about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let step = 0; ; step += 1) { const name = step === 0 ? 'Cargo.lock.restoring' : `Cargo.lock.restoring.${step}`; if (!exists(join(dir, name))) return join(dir, name); }
+/// ```
+fn a_free_staging_name(directory: &Path, lock: &Path) -> PathBuf {
+    let copies: PathBuf = copies_directory(directory, lock);
+    for step in 0.. {
+        let name: String = if step == 0 { format!("{LOCK_FILE}.{STAGING_SUFFIX}") } else { format!("{LOCK_FILE}.{STAGING_SUFFIX}.{step}") };
+        let candidate: PathBuf = copies.join(name);
+        if std::fs::symlink_metadata(candidate.as_path()).is_err() {
+            return candidate;
+        }
+    }
+    return copies.join(format!("{LOCK_FILE}.{STAGING_SUFFIX}"));
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may stop the restore between the reading that judged the lock and the step that puts the checked-out bytes back,
+    /// which is where a person's write lands.
+    /// Why:
+    ///   The window cannot be reached from outside the writer on a wall clock,
+    /// and a control that waited on one would pass whatever the code did.
+    pub(crate) static BETWEEN_THE_READING_AND_THE_RESTORE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Controls stay out of the release executable.

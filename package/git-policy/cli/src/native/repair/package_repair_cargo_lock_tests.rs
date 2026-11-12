@@ -214,3 +214,69 @@ fn a_lock_the_clean_created_is_kept_and_removed_again() {
     assert!(said.is_some(), "the person is told what was kept");
     remove(root.as_path());
 }
+
+/// The bytes Cargo's own resolution wrote for the clean,
+/// which is the lock the restore may replace.
+const THE_CLEANS_OWN: &[u8] = b"# the resolution's lock\n";
+
+/// The bytes a person writes while the checked-out lock is being put back.
+const WRITTEN_AFTER_THE_READING: &[u8] = b"# the person's newest write\n";
+
+/// What:
+///  The copy under the displaced directory that holds `bytes`.
+/// Why:
+///   A displacement keeps what it found and a restore may stage what it puts back,
+/// so a control names the copy by the bytes it holds rather than by the only entry in the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readdirSync(copiesDirectory(gitDir, lock)).map(join).find((copy) => readFileSync(copy).equals(bytes));
+/// ```
+fn the_copy_holding(git_dir: &Path, lock: &Path, bytes: &[u8]) -> PathBuf {
+    let directory: PathBuf = copies_directory(git_dir, lock);
+    for entry in std::fs::read_dir(directory.as_path()).expect("the copies directory").flatten() {
+        if std::fs::read(entry.path()).expect("a kept copy") == bytes {
+            return entry.path();
+        }
+    }
+    panic!("no copy holds {}", String::from_utf8_lossy(bytes));
+}
+
+/// What:
+///  A write that lands after the reading that judged the lock stays in the person's own file,
+///  and the checked-out bytes are kept where the notice says.
+/// Why:
+///  The service's restore runs after the add returned, when the person may be working in the worktree,
+/// and the reading that decides whether the lock is the clean's own is a moment of its own.
+/// A write between that reading and the step that puts the checked-out bytes back was in neither the preserved
+/// copy nor the file afterwards: the copy held the resolution's bytes and the file held the checkout's,
+/// which is the repair discarding what a person wrote (never discard user data).
+/// The control writes at the seam the restoring step follows, which is exactly the window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// betweenTheReadingAndTheRestore(() => writeFileSync(lock, persons)); restoreOnlyTheCleansOwn(...); expect(readFileSync(lock)).toEqual(persons);
+/// ```
+#[test]
+fn a_lock_written_after_the_reading_stays_as_the_person_wrote_it() {
+    let root: PathBuf = fixture("cargo-lock-written-during-the-restore");
+    let lock: PathBuf = root.join(LOCK_FILE);
+    let git_dir: PathBuf = git_directory(root.as_path());
+    std::fs::write(lock.as_path(), CHECKED_OUT).expect("the checked-out lock");
+    let before: Option<Vec<u8>> = read_lock(root.as_path());
+    std::fs::write(lock.as_path(), THE_CLEANS_OWN).expect("the lock the clean's resolution wrote");
+    let persons: PathBuf = lock.clone();
+    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::write(persons.as_path(), WRITTEN_AFTER_THE_READING).expect("the person's write");
+        }));
+    });
+    let said: Option<String> = restore_only_the_cleans_own(root.as_path(), before.as_deref(), Some(git_dir.as_path()), THE_CLEANS_OWN);
+    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| { *hook.borrow_mut() = None; });
+    let standing: Vec<u8> = std::fs::read(lock.as_path()).expect("the lock");
+    assert_eq!(standing, WRITTEN_AFTER_THE_READING, "the person's write stays in their own lock");
+    let words: String = said.expect("the person is told where the checked-out lock is kept");
+    let kept: PathBuf = the_copy_holding(git_dir.as_path(), lock.as_path(), CHECKED_OUT);
+    assert!(words.contains(kept.display().to_string().as_str()), "{words}: the line names where the checked-out lock is kept");
+    remove(root.as_path());
+}
