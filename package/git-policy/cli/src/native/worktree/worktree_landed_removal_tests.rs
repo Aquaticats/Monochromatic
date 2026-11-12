@@ -438,6 +438,8 @@ fn sweep_of(fixture: &TaskBesideAMerge, run: MergeRun<'_>) -> LandedSweep {
         current_root: Some(run.worktree),
         proc_root: table.as_path(),
         registered_before: run.registered_before,
+        git_dir: fixture.common.as_path(),
+        told: &no_service_answers,
     };
     return sweep_landed_worktrees(&place, run.before, now.as_str(), run.branch);
 }
@@ -1452,10 +1454,13 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
     };
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
-    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
-    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice(), &stand);
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
+    let examined: Examined = examine_and_remove(&place, &no_service_answers, &outer, registered.as_slice(), &stand);
     let came_to: String = match &examined {
         Examined::Removed => String::from("removed"),
+        Examined::Refused(why) => format!("refused: {why}"),
+        Examined::Unfinished(why) => format!("unfinished: {why}"),
+        Examined::Handed(record) => format!("handed: {}", record.oid),
         Examined::Kept(why) => format!("kept: {why}"),
         Examined::Unproven => String::from("unproven"),
     };
@@ -1581,9 +1586,20 @@ fn a_landed_worktree_whose_unshown_push_failure_cannot_be_saved_stays() {
 ///  round 208).
 #[test]
 fn a_worktree_whose_branch_was_reset_onto_another_branchs_commit_is_not_removed() {
-    let fixture: TaskBesideAMerge = a_task_worktree_beside_the_one_a_merge_runs_in("landed-reset-onto-another-branch");
+    let root: PathBuf = fixture("landed-reset-onto-another-branch");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = main.join(".git");
+    let merged_in: PathBuf = root.join("feature");
+    let task: PathBuf = root.join("z");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", merged_in.to_str().expect("a UTF-8 fixture path")]);
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "task-z", task.to_str().expect("a UTF-8 fixture path")]);
+    record(common.as_path(), task.as_path()).expect("the record of a worktree this program made");
     // The main checkout commits, which is work of main's and of no other branch.
-    commit_in(fixture.main.as_path(), "more.txt", "main's own commit\n");
+    let moved: PathBuf = main.join("more.txt");
+    std::fs::write(moved.as_path(), b"main's own commit\n").expect("a file main commits");
+    age(moved.as_path());
+    git(main.as_path(), &["add", "--", "more.txt"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=main moves"]);
     // The person moves the task's branch onto main's commit without making anything of its own.
     git(task.as_path(), &["reset", "--hard", "--quiet", "main"]);
     let before: String = head_of(merged_in.as_path());

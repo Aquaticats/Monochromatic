@@ -159,7 +159,7 @@ fn btrfs_a_worktree_holding_a_nested_subvolume_is_refused_before_the_hand_over()
     let (repo, worktree, inner) = a_worktree_holding_a_nested_worktree(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path() });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, so the removal is Git's, as it always was on such a mount.
         assert_eq!(outcome, RemoveOutcome::LeftToGit);
@@ -296,7 +296,7 @@ fn btrfs_a_subvolume_of_the_persons_own_in_the_git_directory_refuses_before_the_
     std::fs::write(foreign.join("notes.txt"), b"what I was in the middle of\n").expect("a file the person wrote");
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path() });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, so the removal is Git's and nothing of the wrapper's runs.
         assert_eq!(outcome, RemoveOutcome::LeftToGit);
