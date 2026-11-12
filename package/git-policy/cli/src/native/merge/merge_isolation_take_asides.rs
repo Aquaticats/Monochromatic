@@ -521,9 +521,26 @@ pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path,
     return are_the_file_form_of_awaiting(git, root, path, aside, expected).await == Some(true);
 }
 
+/// What one last look at a copy and the file at its path came to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CopyRemoval = 'proven' | 'held-open' | 'changed';
+/// ```
+pub(crate) enum CopyRemoval {
+    /// Nothing can write into the copy and the file at its path still holds the bytes that were compared.
+    Proven,
+    /// A program this command can read still holds the copy open,
+    /// or nothing could prove that none does.
+    HeldOpen,
+    /// The copy or the file at its path is no longer the entry the comparison read.
+    Changed,
+}
+
 /// What:
 ///  Whether removing a copy the file at its path already holds loses nothing,
-/// because nothing can write into the copy any more.
+/// because nothing can write into the copy any more,
+///  and the file at the path still holds what was compared with it.
 /// Why:
 ///   A copy whose bytes the person's file holds again is a second file of the same bytes,
 /// and the copy beside the path is the one to go;
@@ -539,32 +556,49 @@ pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path,
 /// no process this command can read holds it open,
 /// and its bytes still hash to the
 ///  object the comparison read.
+///  The file at the path is asked again beside all that,
+/// because it is the only other name those bytes have:
+///  a save or a chmod that arrived after the comparison would leave the copy the last name of the older bytes or the older
+///  permissions,
+/// so the identity the comparison read must still be the file's,
+///  and its bytes must still be the copy's own
+/// (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its second finding).
 /// An entry that is not a regular file or a symbolic link is never removed here:
 /// a pipe has no
 ///  bytes a reading can compare.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function mayRemoveTheCopy(git, root, aside): Promise<boolean>; // regular entry && no readable process holds it && identity unchanged && bytes unchanged
+/// async function mayRemoveTheCopy(git, root, aside, theFile, heldByTheFile): Promise<CopyRemoval>; // regular entry && no readable process holds it && the aside's identity and bytes are unchanged && the file at the path is still the entry the comparison read
 /// ```
-pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, aside: &Path) -> bool {
-    let Some(taken): Option<FileIdentity> = file_identity(aside) else { return false };
-    let Some(held): Option<String> = raw_bytes_of_awaiting(git, root, aside).await else { return false };
+pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, aside: &Path, the_file: &Path, held_by_the_file: FileIdentity) -> CopyRemoval {
+    let Some(taken): Option<FileIdentity> = file_identity(aside) else { return CopyRemoval::Changed };
+    let Some(held): Option<String> = raw_bytes_of_awaiting(git, root, aside).await else { return CopyRemoval::Changed };
     let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
     if !scanned.holders.is_empty() {
-        return false;
+        return CopyRemoval::HeldOpen;
     }
     for reason in &scanned.partial {
         if !reason.starts_with(UNREADABLE_PROCESS_REASON) {
-            return false;
+            return CopyRemoval::HeldOpen;
         }
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("copy-scanned");
     if file_identity(aside) != Some(taken) {
-        return false;
+        return CopyRemoval::Changed;
     }
-    return raw_bytes_of_awaiting(git, root, aside).await == Some(held);
+    if file_identity(the_file) != Some(held_by_the_file) {
+        return CopyRemoval::Changed;
+    }
+    if raw_bytes_of_awaiting(git, root, aside).await.as_deref() != Some(held.as_str()) {
+        return CopyRemoval::Changed;
+    }
+    if raw_bytes_of_awaiting(git, root, the_file).await.as_deref() != Some(held.as_str()) {
+        return CopyRemoval::Changed;
+    }
+    return CopyRemoval::Proven;
 }
 
 /// What:

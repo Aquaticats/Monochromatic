@@ -1566,7 +1566,7 @@ with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99%
 The record sits in the repository's common work directory,
 `<common>/monochromatic-git-policy-cli/work/pending/trash-<the trash's name>`,
 and not in the new worktree's:
-a round drains one lane per repository and the drain of one work directory empties its trashes in sequence,
+the drain of one work directory empties one worktree's trashes one at a time and different worktrees' side by side,
 so concurrent adds never delete beside each other,
 and the claim that drain takes is the lease every other kind of work already uses,
 so no lock is added for this.
@@ -1579,7 +1579,7 @@ The add prints one line on standard error unless `--quiet` was given:
 it names the worktree,
 says how many directories were set aside,
 and says that the commit service empties them after the command returns,
-one trash at a time for the repository and at the lowest I/O priority.
+one worktree's trashes at a time and at the lowest I/O priority.
 A wake that fails is reported as a warning that names the worktree,
 the trash,
 and the record,
@@ -4076,6 +4076,16 @@ of which the two that rewrite link layouts in place are the service's work whene
   because it means the working directory of whatever runs,
   which no record can name for another process,
   and no repair starts a program found there.
+  A search path whose absolute spelling cannot be written back as one search path
+  (a colon separates the entries of a search path and cannot be escaped in one,
+  so an entry of a directory whose absolute name holds a colon has no such spelling)
+  names no record:
+  the add relinks the worktree itself,
+  exactly as it does when no service answers,
+  and the line the add prints is that relink's own.
+  The program a repair starts is the file its own lookup found,
+  named by its absolute path,
+  so a relative entry of the add's own path starts the add's own file and never the worktree's.
   A record written before this change carries a relative entry as it was written,
   so the service reads that entry from its own directory,
   which is what the release that wrote the record did with it.
@@ -4333,7 +4343,12 @@ The one push that gives a branch its upstream names the branch,
 because Git sets an upstream only from a refspec that names a branch
 (measured with Git 2.56.0:
 `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves `branch.new.merge` unset),
-and every later push of that branch is fixed again.
+and it may name the branch only while the branch still names the commit that push may send:
+a push a verdict stops before,
+or one whose branch moved after the reading,
+sends that commit alone and leaves the upstream to the first push that can name the branch.
+Naming the branch whatever the verdicts said published the refused commit on a branch's first push,
+while the result still said the branch was held back.
 A reconcile publishes a merge made from the same commit:
 a commit that lands while a reconcile runs goes out with its own push,
 and the branch that moved is left where it is with the report saying why.
@@ -4344,10 +4359,15 @@ because one refspec names one commit and no commit is invented for the other sid
 a blocked commit with no parent has nothing below it,
 so that push sends nothing.
 A push under `push.default=matching` names no refspec at all,
-so a stop cannot be expressed there and the push sends nothing,
-and no commit is fixed for a push no verdict holds back either:
-a commit that lands while such a push runs is published by it,
-and a refusal written afterwards cannot take it back.
+so a stop cannot be expressed there and the push sends nothing;
+such a push also runs only while the branch still names the commit the push read,
+because Git resolves the branch itself,
+and a branch that moved sends nothing and is tried again.
+A commit that lands while Git resolves the branch to match is published by it,
+which no refspec of this push can prevent.
+A first push that gives a branch its upstream names the branch for the same reason,
+so a commit that lands between the question above and Git's own resolution of the branch is published by it;
+Git sets an upstream from no refspec that names a commit.
 The upstream tracking ref can lag the remote,
 so a verdict already on the remote but not yet fetched still holds the branch back;
 that costs a push that could have run and publishes nothing it should not.
@@ -4645,6 +4665,11 @@ and "never discard user data"):
   and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
+  The ref goes only once no record that is still there names its commit
+  (`a_record_still_names_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
+  a merge that saves its result for a later finish writes a second record beside the first,
+  both name one capture,
+  and the record settled first must not take the ref the other one still needs for the person's bytes.
   The objects are written and the ref exists before the first byte of the checkout changes.
   That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
   Git's own status,
@@ -4720,8 +4745,21 @@ and "never discard user data"):
   so the line that names it is true.
   A mode the person set without touching the bytes is theirs as the bytes are:
   the merge's own content is written with their mode,
-  and a staged mode stays staged over the merge's object
-  (`plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
+  and a staged mode stays staged over the merge's object,
+  where every permission bit Git does not record (the read and write bits of each of the owner,
+  the group and
+  everyone,
+  and the setuid,
+  setgid and sticky bits above them) is kept from the entry the write replaces and
+  only the execute bits come from Git's entry
+  (`keep_the_permissions_of_the_entry_it_replaces` in `src/native/merge/merge_isolation_carry_place.rs`,
+  and `plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`
+  for the execute bits and the staged mode).
+  A saved merge's install gives the files it wrote the permission bits the command judged before the carry
+  writes over them
+  (`give_back_the_permissions_of_the_files_the_install_wrote` in
+  `src/native/merge/merge_isolation_recovery_install.rs`),
+  because `checkout-index` writes the mode Git's entry implies and the chmod the judgement saw is nowhere else.
   A mode at a path the merge deletes keeps the person's side whole and is named with the others,
   because nothing of the merge's stands there to take it
   (`the_mode_a_deletion_would_leave` in `src/native/merge/merge_isolation_carry_layers.rs`).
@@ -6620,6 +6658,18 @@ on the commit path:
   so a write that has stayed stuck a new minute is told at once.
   The words name no moment of the write,
   because the moment they are read is the client's and not the write's.
+  No line the client says about a long wait is said while the service's next message is already here:
+  the client reads what has arrived first,
+  because a message it has not read yet can be the landing,
+  and a commit the service had landed then prints nothing of its write or of its place
+  (`a_message_is_already_here`,
+  `src/native/service/service_client_listen_and_ask_to_retire.rs`,
+  said of the loop in `src/native/service/service_client.rs`).
+  A line the service sends itself,
+  such as one naming a lock's holder,
+  is said when it arrives.
+  The asking is one `MSG_DONTWAIT` peek on the connection the client already holds,
+  which waits for nothing.
   A client that is never told takes the older path and waits
   `WITHDRAW_CEILING`.
   The record holds no lock (the owner:
@@ -7531,6 +7581,8 @@ in-process reader can) gives every value of the multi-valued keys.
   or that names another object,
   proves nothing and leaves the push the failure it was,
   so the retry that publishes the branch is still planned.
+  It runs only while the recorded branch still names the commit the push read;
+  a branch that moved sends nothing and its retry plan tries it again.
 
 #### Reconcile and bounds
 
@@ -11279,27 +11331,158 @@ which is the 90th percentile of the peaks of 28 services rounded up to a power o
 The retry list is reported in the order the directories were named,
 whichever drain finishes first.
 The directories of one repository share a lane,
-so a main checkout and its linked worktrees are drained one after another there,
-and the drain of one work directory empties its trashes in sequence
-(`src/native/landing/service_work_drain_pending_claims.rs`).
-A trash is therefore emptied one at a time for a repository,
-whichever worktree holds it,
-which is what keeps concurrent adds from deleting beside each other
-(`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
-The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
-after another,
-because they share a work directory and its upkeep.
+so a main checkout and its linked worktrees have their work directories drained one after another there,
+because those directories share one upkeep and one object store.
+The items inside one work directory run beside each other,
+and which of them may is the next section
+(`src/native/landing/service_work_drain_pending_claims.rs`,
+`src/native/landing/service_work_items_side_by_side.rs`).
 Nothing is shared mutably:
 the handlers are read-only,
 every claim is still made by an atomic rename,
 each drain keeps its own
 renewal of its own claims,
 and `service_lock_inventory_tests.rs` still forbids a lock in these sources.
-Within one repository the items still run in the order the drain gave them:
-pushes grouped by branch,
-then upkeep,
-trash,
-reviews.
+
+#### What each kind of work runs beside, and what it must not
+
+One work directory holds the records of every worktree of its repository,
+and a queue of them is what a person's push must never wait for:
+on 2026-11-11 the installed `0.6.1-alpha.10` held two reviews and four trashes claimed from 10:24
+while a fresh commit's push sat pending from 10:29,
+and `main` was pushed by hand.
+So every kind names the thing two items of it may stand in each other's way over,
+and the drain runs at most one item of each such thing at a time,
+with different things side by side.
+The two keys are the worktree an item names (its `repository`) and the branch a push names.
+Nothing else is shared:
+the handlers are read-only values,
+and each item's claim stays in the drain's own set and is settled by the task that took it.
+
+The width of a wave of slow work is the least of the items waiting,
+the host's threads less an eighth,
+the free memory over one repository's measured peak,
+and `SLOW_ITEMS_CEILING`
+(`service_work_items_side_by_side.rs`):
+4,
+the number of blocking places the service has (`SERVICE_WORKER_CAP`),
+because beyond them a wider wave only adds tasks that wait for a place.
+Measured on 2026-11-11 on this host under its own load
+(average 68 to 100),
+the same binary asked for each width,
+alternating,
+over eight worktrees' trashes of one entry of 8,000 files each:
+1,599 and 1,389 ms at one item at once,
+9,935 and 948 ms at two,
+1,129 and 1,090 ms at four,
+1,916 and 853 ms at eight,
+so the spread of one width covered the differences between widths and no width was faster than another;
+the removals run at I/O priority class `idle`,
+and the drive was the limit.
+What the width buys is in the controls and not in that wall time:
+two worktrees' trashes are inside their handler at one moment after this change,
+which the release before it never did.
+A push's width is the host's threads and memory alone (`pushes_side_by_side`),
+because a push waits on the network and holds no place of the blocking pool.
+
+##### Push
+
+A push sends one branch and updates that branch's remote-tracking reference,
+so two pushes of one branch must not run beside each other:
+the same branch's records are one group and reach one push.
+Two branches of one repository do run beside each other:
+they share the object store,
+which only grows,
+and each names its own branch and its own reference.
+A push runs beside every slow kind,
+which is what the two claim lists are for;
+the round that answers a wake claims `PUSH_KINDS` alone (`landing/service_work_slow_lane.rs`).
+The push's own steps never queue behind slow work either:
+one place of the process's bound on blocking jobs stays free of every slow kind
+(`SLOW_WORK_RESERVE`,
+`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`),
+so a queue of trashes cannot hold the read of a push's child,
+which is the shape of the wait measured on the installed `0.6.1-alpha.10` at 2026-11-11T10:38:00-05:00.
+
+##### Upkeep (`maintenance`)
+
+`git maintenance run --auto` takes the repository's own packs and locks over the common object store,
+so one repository has one upkeep at a time;
+the drain already runs one upkeep per repository,
+keyed by the repository.
+Upkeeps of different repositories run beside each other.
+
+##### Prewarm
+
+Filling a new worktree's Cargo build directories writes inside that worktree
+(the trees it clones and the Cargo children it starts),
+so it must not run beside the relink of the same worktree,
+nor beside that worktree's trash emptying,
+its snapshot ahead,
+or the delete of its subvolume.
+The prewarm of another worktree runs beside it.
+
+##### Relink
+
+Rewriting the copied package state of a new worktree runs each tool's install inside that worktree,
+so it too holds its worktree alone.
+The relink of another worktree runs beside it.
+
+##### Trash
+
+Emptying a trash removes the entries the leave-out moved and then removes the trash's parent directory
+when nothing else is in it (`worktree_trash_dispose.rs`),
+so two trashes of one worktree would race over that parent:
+one worktree empties one trash at a time.
+Two worktrees' trashes share nothing but the disk,
+each is proved to be the directory its own snapshot made,
+and each removes its own parent,
+so they run beside each other.
+Every entry removal and both of the emptying's lookups ask through the gate that
+keeps a blocking place free of slow work (`run_a_slow_job_within_the_budget`),
+so a queue of trashes never stands in front of the work a person waits for,
+and the removals run at I/O priority class `idle`.
+
+##### Subvolume delete
+
+Destroying a removed worktree's subvolume is one kernel call on a directory nothing else names,
+but the record names the pool it is removed from as its worktree,
+so the deletes of one pool run one at a time and different pools' run beside each other.
+
+##### Snapshot ahead
+
+A snapshot ahead copies one worktree's tree,
+which an add is waiting for,
+and it runs before the upkeep and before every kind that frees space in the same round.
+It holds its worktree alone:
+a trash emptied,
+a prewarm filling or a relink writing inside that tree would be captured halfway.
+Its record names the source worktree,
+so that is the key it takes.
+
+##### Review
+
+The shadow review of a landed commit reads the commit and appends one entry to the repository's one log,
+and the append is one whole-entry write on an append-mode descriptor with no lock
+(`log_lines_appended_without_a_lock.rs`),
+so two reviews of one repository may run beside each other and every other kind.
+Reviews go last in a round because a push is the person's backup and a review is a shadow record.
+
+##### What the waves keep of the order
+
+Between the kinds the order of a round is unchanged,
+because each step of it answers a priority and no conflict:
+the snapshot a person waits for,
+then the upkeep,
+then what a new worktree needs (relink,
+then prewarm),
+then what frees space (subvolume delete,
+then trash),
+then the reviews.
+Inside one kind,
+each worktree's records keep the order they were claimed in,
+and a worktree that has more records than the width waits for the next wave rather than for the whole queue:
+the turn moves by one key each wave.
 
 ### The service's hold on the index lock
 
@@ -14595,14 +14778,30 @@ so a copy no later merge touches is not a file no command ever ends:
 a copy whose merge still runs is left for that merge to finish,
 because a command beside a live merge that put the copy back under it would make Git refuse the checkout the
 merge was part way through making,
+and a copy whose merge key names a record that was written after the command read the owners is left too:
+the records are read again beside the copy it decides,
+so a merge that started in the moment between the two
+keeps the file it took instead of meeting it again under the path it cleared,
 a copy whose path is empty and whose merge stopped without finishing goes back,
 a copy whose bytes the file at its path holds again,
 and whose permissions that file has too,
 is removed only on the
 proof its own removal asks for:
 the identity and the bytes it read are still its own,
-and no process this command can read holds it open,
+no process this command can read holds it open,
+and the file at its path is still the entry the comparison read,
+holding those bytes with those permissions,
+because a save or a chmod that arrived after the comparison would leave the copy the last name of the older
+bytes or the older mode,
 a copy whose bytes that file holds but whose permissions it does not keeps its bytes and is named with that reason,
+where the permissions are every bit a person can set,
+the setuid,
+setgid and sticky bits above the read,
+write and execute bits of each of the owner,
+the group and
+everyone,
+because Git records only the execute ones and a copy that is the only entry carrying a special bit is
+not the second file of those bytes,
 and so does a copy a program still holds open,
 a copy whose bytes the branch's own commit holds for that path is removed with that commit named and with the
 `git restore` command that reaches those bytes,
@@ -14677,7 +14876,15 @@ because it was saved again after the merge was saved,
 is not written over at all:
 the record goes,
 the merge's commit stays on its ref,
-and the line names that ref and the `git merge` command that makes the merge on the bytes the file holds now.
+and the line names that ref and the `git merge` command that makes the merge on the bytes the file holds now,
+where a recorded ref another command repointed is not that promise:
+the commit is kept on a name of the
+command's own,
+written with an all-zero old value so no other command's commit is replaced,
+and the line names
+that name too,
+because a commit whose record and ref are both gone is collected by `git gc`
+(`keep_the_merge_on_a_side_ref_awaiting` in `src/native/merge/merge_isolation_recovery_cleanup.rs`).
 A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
 another branch's checkout has nothing for it to finish and nothing of it was saved,
 so the record goes and the merge is run again on the branch it is for.

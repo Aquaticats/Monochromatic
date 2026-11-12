@@ -124,6 +124,27 @@ export type RunFailure =
     };
 
 /**
+ What Pi's own automatic retry reported when it stopped retrying the model error the run stands on, or that it reported nothing
+ of one. A retry that is turned off in Pi's settings, and an error Pi does not retry, both report nothing.
+ */
+export type PiRetryGaveUp =
+  | { readonly gaveUp: false }
+    | {
+      readonly gaveUp: true;
+
+    /**
+     How many attempts Pi's retry made at the error, as its `auto_retry_end` reported them.
+     */
+      readonly attempts: number;
+
+    /**
+     What Pi said when it stopped, which is that event's `finalError`: the error's own text, or Pi's word for a retry it
+     cancelled.
+     */
+      readonly problem: string;
+    };
+
+/**
  What `summary.json` holds.
  */
 export type RunSummary = {
@@ -169,6 +190,16 @@ export type RunSummary = {
    measures those apart from other failures.
    */
   readonly rateLimitErrors: number;
+
+  /**
+   What Pi reported of its own automatic retry when it gave up on the model error the run ended with, so a coordinator sees that
+   the error was Pi's retry's to answer, that Pi answered it and stopped, and how many attempts it made. It is here only when a
+   model error stands and Pi said it gave up on it; a 429 left to Pi is the case it was added for.
+   */
+  readonly piRetryGaveUp?: {
+    readonly attempts: number;
+    readonly problem: string;
+  };
 
   /**
    Why the feed is incomplete, when writing it failed.

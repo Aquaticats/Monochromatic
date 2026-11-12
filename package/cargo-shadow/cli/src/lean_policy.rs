@@ -88,6 +88,28 @@ pub const IN_TREE_PROFILE_CAP_BYTES: u64 = 12 * GIB;
 /// rounded up.
 pub const HOST_PROFILE_CAP_BYTES: u64 = 24 * GIB;
 
+/// The pause between two passes of the systemd user service:
+/// sixty seconds.
+/// Measured 2026-11-11 on this machine with the release binary,
+/// best and median of five runs each:
+/// a pass over a world with nothing at all to clean cost 0.052 s best and 0.054 s median,
+/// and the same pass over 500 in-tree profile directories it kept cost 0.177 s,
+/// 0.25 ms per profile directory,
+/// so a minute keeps that loop at work under a thousandth of the time,
+/// where systemd's default restart delay of 100 ms would put it at work about a third of the time
+/// (`0.054 / (0.054 + 0.1)`).
+/// On this machine a pass that finds nothing is not short:
+/// it pays the machine-wide listings the README records,
+/// 398 s for the run records (2026-11-08),
+/// 334 s for Podman and 880 s to list 68,755 profile directories (2026-11-10),
+/// so an idle pass costs at least 27 minutes here and the pause is a twenty-seventh of the shortest one.
+/// The owner,
+/// 2026-11-11:
+/// "Make the cleanups a systemd service that runs continuously",
+/// and the volume had 6.5 MB free that day hours before the daily pass,
+/// so the pause is a minute rather than the hours between the timer's passes it replaced.
+pub const PAUSE_BETWEEN_PASSES_SECONDS: u64 = 60;
+
 /// The longest a whole `cargo-shadow lean run` may take:
 /// five hours.
 /// Measured 2026-11-10:
@@ -107,12 +129,14 @@ pub const HOST_PROFILE_CAP_BYTES: u64 = 24 * GIB;
 /// 193 s,
 /// 6 s and 1,944 s in the one before it.
 /// A whole pass over both lists is therefore about seventeen hours today,
-/// which no daily run may take on a volume a person also commits to,
+/// which no single pass may take on a volume a person also commits to,
 /// so the bound is set below it and the two passes record where they stopped
 /// (`lean_progress.rs`):
-/// a run ends by 09:30 local time from the timer's 04:30,
-/// the trees pass at 6.6 h needs a second night,
-/// which leaves that second run about 3.4 h for the units pass,
+/// a pass ends by its own bound,
+/// the service kills one that outlasts the bound by more than thirty minutes,
+/// and the next pass starts `PAUSE_BETWEEN_PASSES_SECONDS` after it,
+/// so the trees pass at 6.6 h needs a second pass,
+/// which leaves that second pass about 3.4 h for the units pass,
 /// and so on while a pass over both lists costs more than the bound.
 /// The run's own share of the disk is small beside that:
 /// systemd recorded `2min 22s CPU time over 3h 30min wall clock` for the run that ended 2026-11-09T08:00:00-05:00,

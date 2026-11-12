@@ -338,7 +338,7 @@ fn handed_words(trash: &PendingTrash) -> String {
         many => format!("{many} directories"),
     };
     return format!(
-        "monochromatic-git-policy-cli: the new worktree {} took over {taken_over} that an earlier add left in the trash of the source. The {count} {directories} left out of the new worktree {} {verb} handed to the commit service, which empties {pronoun} after this command returns, one trash at a time for this repository and at the lowest I/O priority; the add did not wait for that.",
+        "monochromatic-git-policy-cli: the new worktree {} took over {taken_over} that an earlier add left in the trash of the source. The {count} {directories} left out of the new worktree {} {verb} handed to the commit service, which empties {pronoun} after this command returns, one worktree's trashes at a time and at the lowest I/O priority; the add did not wait for that.",
         trash.destination.display(),
         trash.destination.display()
     );

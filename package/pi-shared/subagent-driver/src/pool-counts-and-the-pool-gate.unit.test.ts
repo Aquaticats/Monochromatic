@@ -27,13 +27,14 @@ import {
   NO_POOL_HAS_ROOM,
   NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
-  POOL_OF_A_RUN_NAMING_NO_POOL,
+  POOL_LIMITS_VARIABLE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   PROVIDER_OPTION,
   PROVIDER_POOLS,
   PoolGateOptionsError,
   type PoolGateOptions,
   type PoolMembership,
+  PoolLimitsError,
   type ProviderPool,
   QWEN_PLAN_DEEPSEEK,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
@@ -42,11 +43,15 @@ import {
   freeSpaceTextOf,
   gateOutcomeOf,
   launcherArgumentsOf,
+  limitsIn,
   membershipOf,
   poolChoiceFor,
   poolHasRoom,
   poolNamed,
   poolTakesNoNewRun,
+  poolsHeldBy,
+  poolsWithTheseLimits,
+  roomIn,
   summaryTextOf,
   talliesOf,
 } from '../dist/final/node/index.mjs';
@@ -74,7 +79,7 @@ const TEST_VOLUME = '/a-build-volume-of-the-test';
 function aRun(name: string, pool?: PoolMembership,): GoingRun {
   return {
     name,
-    membership: pool ?? { inAPool: false, },
+    membership: pool ?? { holds: 'no-pool', },
   };
 }
 
@@ -92,8 +97,27 @@ function aRun(name: string, pool?: PoolMembership,): GoingRun {
  */
 function inPool(pool: ProviderPool,): PoolMembership {
   return {
-    inAPool: true,
+    holds: 'a-pool',
     pool,
+  };
+}
+
+/**
+ A membership a command line could not place: every pool such a run could be running on.
+
+ @param pools - the pools the run could hold
+
+ @returns the membership
+
+ @example
+ ```ts
+ const unknown = couldBeIn(PROVIDER_POOLS);
+ ```
+ */
+function couldBeIn(pools: readonly ProviderPool[],): PoolMembership {
+  return {
+    holds: 'some-pools',
+    pools,
   };
 }
 
@@ -185,13 +209,13 @@ function theFirstDefaultPool(): ProviderPool {
 }
 
 /**
- How many of the runs hold a slot in one pool.
+ How many of the runs hold a slot in one pool, counting a run whose pool could not be read in every pool it could be in.
 
  @param runs - the runs going now
 
  @param pool - the pool to count
 
- @returns how many runs of those are in the pool
+ @returns how many runs of those hold a slot in the pool
 
  @example
  ```ts
@@ -206,7 +230,10 @@ function countOf({
   readonly pool: ProviderPool;
 },): number {
   return runs.filter(function isInThisPool(run,) {
-    return run.membership.inAPool && (run.membership.pool.name === pool.name);
+    return poolsHeldBy({ membership: run.membership, },)
+      .some(function isThePool(held,) {
+        return held.name === pool.name;
+      },);
   },).length;
 }
 
@@ -239,7 +266,7 @@ function expectCountsLineNamesEachPool({
     expect(entries[index],).toBe(`${pool.name} ${String(countOf({
       runs,
       pool,
-    },),)}/${String(pool.limit,)}`,);
+    },),)}/${String(roomIn(pool,),)}`,);
   }
 }
 
@@ -348,7 +375,7 @@ await describe({
             expect(poolNamed({
               provider: 'synthetic',
               model: 'moonshotai/Kimi-K3.1-Pro',
-            },),).toEqual({ inAPool: false, },);
+            },),).toEqual({ holds: 'no-pool', },);
           },
         },),
         it({
@@ -443,17 +470,18 @@ await describe({
         it({
           name: 'counts no slot for an audit, or for a Kimi run on a provider no pool holds',
           fn: async () => {
-            expect(membershipOf({ runName: 'sol-audit-1', }),).toEqual({ inAPool: false, },);
-            expect(membershipOf({ runName: 'kimi-review-round-9', }),).toEqual({ inAPool: false, },);
+            expect(membershipOf({ runName: 'sol-audit-1', }),).toEqual({ holds: 'no-pool', },);
+            expect(membershipOf({
+              runName: 'sol-audit-1',
+              pool: inPool(NEURALWATT_STANDARD,),
+            },),).toEqual({ holds: 'no-pool', },);
           },
         },),
         it({
-          name: 'counts a run that names no pool at all in the fallback pool, which is what a unit whose own command line could not be read is counted in',
+          name: 'holds a slot in every pool a run could be in when its command line could not be read',
           fn: async () => {
-            expect(membershipOf({ runName: 'copy-route', }),).toEqual({
-              inAPool: true,
-              pool: POOL_OF_A_RUN_NAMING_NO_POOL,
-            },);
+            expect(membershipOf({ runName: 'copy-route', }),).toEqual(couldBeIn(PROVIDER_POOLS,),);
+            expect(membershipOf({ runName: 'kimi-review-a', }),).toEqual(couldBeIn([NEURALWATT_KIMI_FLEX,],),);
           },
         },),
       ],
@@ -477,6 +505,30 @@ await describe({
             const tallies = talliesOf({ runs, },);
             expect(tallies.counts.get(QWEN_PLAN_DEEPSEEK.name,),).toBe(2,);
             expect(tallies.counts.get(NEURALWATT_DEEPSEEK_FLEX.name,),).toBe(0,);
+            expectCountsLineNamesEachPool({
+              line: summaryTextOf(tallies,),
+              runs,
+            },);
+          },
+        },),
+        it({
+          name: 'counts a run whose pool could not be read in every pool it could be running on, and says so in the line',
+          fn: async () => {
+            /**
+             One run whose command line could not be read, and one that named the Kimi pool and could not be read either.
+             */
+            const runs = [
+              aRun('copy-route', couldBeIn(PROVIDER_POOLS,),),
+              aRun('kimi-review-a', couldBeIn([NEURALWATT_KIMI_FLEX,],),),
+            ];
+            /**
+             What the two unreadable runs hold of each pool.
+             */
+            const tallies = talliesOf({ runs, },);
+            expect(tallies.counts.get(NEURALWATT_STANDARD.name,),).toBe(1,);
+            expect(tallies.counts.get(NEURALWATT_DEEPSEEK_FLEX.name,),).toBe(1,);
+            expect(tallies.counts.get(OPENCODE_GO.name,),).toBe(1,);
+            expect(tallies.counts.get(NEURALWATT_KIMI_FLEX.name,),).toBe(2,);
             expectCountsLineNamesEachPool({
               line: summaryTextOf(tallies,),
               runs,
@@ -555,6 +607,68 @@ await describe({
       ],
     },),
     describe({
+      name: limitsIn.name,
+      children: [
+        it({
+          name: 'reads the limits a caller set, and refuses a pair that names no pool, holds no whole number, or misses its equals sign',
+          fn: async () => {
+            expect(limitsIn({ listed: 'opencode-go=20, neuralwatt-kimi-flex=0', },),).toEqual(new Map([
+              ['opencode-go', 20],
+              ['neuralwatt-kimi-flex', 0],
+            ],),);
+            expect(limitsIn({ listed: '', },),).toEqual(new Map(),);
+            expect(() => limitsIn({ listed: 'neuralwatt=nineteen', },),).toThrow(PoolLimitsError,);
+            expect(() => limitsIn({ listed: 'no-such-pool=1', },),).toThrow('no-such-pool',);
+            expect(() => limitsIn({ listed: 'opencode-go', },),).toThrow(PoolLimitsError,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: poolsWithTheseLimits.name,
+      children: [
+        it({
+          name: 'opens a pool the owner set aside, closes one a caller set to zero, and leaves every other pool as it ships',
+          fn: async () => {
+            /**
+             The shipped pool the owner set aside.
+             */
+            const setAside = PROVIDER_POOLS.find(function isOpencodeGo(pool,) {
+              return pool.name === OPENCODE_GO.name;
+            },) ?? OPENCODE_GO;
+            expect(roomIn(setAside,),).toBe(0,);
+            /**
+             The same pool with the room a caller gives it, which is another open pool's own limit rather than a number written
+             down here.
+             */
+            const opened = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, NEURALWATT_DEEPSEEK_FLEX.limit],]), },)
+              .find(function isOpencodeGo(pool,) {
+                return pool.name === OPENCODE_GO.name;
+              },) ?? OPENCODE_GO;
+            expect(opened.closed,).toBeUndefined();
+            expect(roomIn(opened,),).toBe(NEURALWATT_DEEPSEEK_FLEX.limit,);
+            /**
+             A pool a caller closed, which keeps the room it returns to and says who closed it.
+             */
+            const closed = poolsWithTheseLimits({ limits: new Map([[NEURALWATT_STANDARD.name, 0],]), },)
+              .find(function isStandard(pool,) {
+                return pool.name === NEURALWATT_STANDARD.name;
+              },) ?? NEURALWATT_STANDARD;
+            expect(roomIn(closed,),).toBe(0,);
+            expect(closed.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
+            /**
+             A pool the caller named nothing about.
+             */
+            const untouched = poolsWithTheseLimits({ limits: new Map(), },)
+              .find(function isFlex(pool,) {
+                return pool.name === NEURALWATT_DEEPSEEK_FLEX.name;
+              },) ?? NEURALWATT_DEEPSEEK_FLEX;
+            expect(untouched,).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: poolChoiceFor.name,
       children: [
         it({
@@ -626,7 +740,7 @@ await describe({
           name: 'sends a run whose provider no pool holds on its own provider',
           fn: async () => {
             expect(poolChoiceFor({
-              requested: { inAPool: false, },
+              requested: { holds: 'no-pool', },
               tallies: talliesOf({ runs: [], },),
               resumes: false,
             },),).toEqual({ destination: 'its-own-provider', },);
