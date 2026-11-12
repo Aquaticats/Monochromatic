@@ -203,12 +203,12 @@ pub fn tree_fields_by_content(target: &ContentTarget<'_>, entries: &[StatEntry],
 /// so its bytes are the entry's,
 /// and a
 ///  checkout whose index is as new as its files costs nothing here.
-/// An entry that recorded no nanoseconds is not such data:
-/// zero is what a Git built without
-///  nanosecond support wrote for a time it could not express,
-/// and it matches any present count,
-/// so that
-///  entry's file is read like any other unproven one.
+/// An entry whose recorded nanosecond count is zero is not such data unless the file's own count is
+///  zero too:
+/// zero is what a Git built without nanosecond support wrote for a time it could not express,
+/// and it
+///  matches any present count,
+/// so that entry's file is read like any other unproven one.
 /// A file the worktree does not hold,
 /// or a path whose
 ///  directories a link replaced,
@@ -242,8 +242,9 @@ pub fn paths_whose_content_differs(target: &ContentTarget<'_>, entries: &[StatEn
         let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { continue };
         // Git's own check cannot tell an edit from a file whose size, times and inode it recorded, so the recorded
         //  stat data is compared the strict way here: a file that is not the one the entry recorded is read, and one
-        //  that is its own to the nanosecond is believed whatever Git calls a racy entry. An entry that recorded no
-        //  nanoseconds proves nothing about the bytes, because zero matches any present count, so its file is read too.
+        //  that is its own to the nanosecond is believed whatever Git calls a racy entry. A recorded count of zero
+        //  proves nothing about the bytes unless the file's count is zero too, because zero stands for any present
+        //  count, so such an entry's file is read as well.
         if matches_stored_exactly(&fields_of(&metadata), &entry.stored) {
             continue;
         }

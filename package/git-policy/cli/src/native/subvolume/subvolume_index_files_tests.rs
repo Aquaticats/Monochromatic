@@ -371,30 +371,35 @@ fn a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree() 
 }
 
 /// What:
-///  An entry that recorded no nanoseconds never proves which bytes its file holds,
-/// even when every field it
-///  recorded agrees.
+///  A count recorded as zero never stands for a present count that is not zero,
+/// so an entry written by a Git
+///  without nanosecond support never proves which bytes its file holds.
 /// Why:
-///   Zero is what a Git without nanosecond support wrote for a count it could not express,
-/// and the recorded
-///  comparison reads it as "any value";
-/// such an entry equals a file of the same length,
+///   Zero is what such a Git wrote for a time it could not express,
+/// and the recorded comparison reads it as
+///  "any value";
+/// taken as an exact match it would vouch for a file of the same length,
 /// inode and second even
 ///  after an edit,
-/// so only a comparison of that kind may use it and a caller that would skip reading the
-///  file may not.
+/// so a caller that would skip reading the file must compare the counts themselves.
+/// A present count of zero
+///  is the one value an entry that recorded zero can match exactly,
+/// and a file whose time is on a whole second has it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// expect(matchesStoredExactly(now, stored)).toBe(true); expect(matchesStoredExactly(now, { ...stored, mtimeNanos: 0 })).toBe(false);
+/// expect(matchesStoredExactly({ ...now, mtimeNanos: 0 }, { ...stored, mtimeNanos: 0 })).toBe(true);
 /// ```
 #[test]
 fn an_entry_that_recorded_no_nanoseconds_never_proves_its_files_bytes() {
     let (now, stored) = recorded_and_present();
     assert!(matches_stored_exactly(&now, &stored), "positive control: every recorded field, counts included, agrees");
-    assert!(!matches_stored_exactly(&now, &StoredStat { mtime_nanos: 0, ..stored }), "a modification time recorded as zero proves nothing");
-    assert!(!matches_stored_exactly(&now, &StoredStat { ctime_nanos: 0, ..stored }), "a change time recorded as zero proves nothing");
+    assert!(!matches_stored_exactly(&now, &StoredStat { mtime_nanos: 0, ..stored }), "a modification time recorded as zero does not stand for a present count that is not zero");
+    assert!(!matches_stored_exactly(&now, &StoredStat { ctime_nanos: 0, ..stored }), "a change time recorded as zero does not stand for a present count that is not zero");
     assert!(!matches_stored_exactly(&StatFields { mtime_nanos: now.mtime_nanos + 1, ..now }, &stored), "a different count proves the file is not the entry's");
+    let on_a_whole_second: (StatFields, StoredStat) = (StatFields { mtime_nanos: 0, ..now }, StoredStat { mtime_nanos: 0, ..stored });
+    assert!(matches_stored_exactly(&on_a_whole_second.0, &on_a_whole_second.1), "a file whose time is on a whole second matches the zero recorded for it");
     assert!(matches_stored(&now, &StoredStat { mtime_nanos: 0, ..stored }), "the recorded comparison still reads zero as any value");
 }
 

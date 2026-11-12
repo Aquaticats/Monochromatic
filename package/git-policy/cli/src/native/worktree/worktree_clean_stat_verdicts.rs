@@ -167,13 +167,15 @@ pub enum StatVerdict {
     /// times,
     /// inode,
     /// type and mode all equal the entry,
-    /// with the times recorded to the nanosecond,
-    /// so the entry names
-    ///  the bytes the file holds.
+    /// each nanosecond count the entry recorded equal to the
+    ///  file's own,
+    /// so no field was matched as a wildcard and the entry names the bytes the file holds.
     Agrees,
     /// The stat data proves nothing either way;
     /// the content decides.
-    /// A recorded nanosecond count of zero is one way to get here:
+    /// A count the entry recorded as zero,
+    ///  which a file whose own count is not zero cannot equal,
+    /// is one way here:
     /// a Git built without
     ///  nanosecond support wrote it for a time it could not express.
     Unproven(String),
@@ -195,12 +197,12 @@ pub enum StatVerdict {
 /// Type and executable bit come before the time checks:
 /// they differ
 ///  whatever the content is.
-/// An entry that agrees on every field it recorded but recorded no nanoseconds is unproven,
-/// not
-///  agreed:
-/// zero is what a Git built without nanosecond support wrote for a time it could not express,
-/// and
-///  zero matches any present count,
+/// An entry whose recorded nanosecond count the file does not equal is unproven,
+/// not agreed,
+///  even when every other field agrees:
+/// zero is what a Git built without nanosecond support wrote for a time it could
+///  not express,
+/// and zero matches any present count,
 /// so only the content tells what the file holds.
 ///
 /// In TS you'd write (pseudocode):
@@ -213,7 +215,7 @@ pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_s
         Some(refusal) => StatVerdict::Differs(refusal.reason),
         None if matches_stored_exactly(&fields_of(metadata), &entry.stored) => StatVerdict::Agrees,
         None => StatVerdict::Unproven(format!(
-            "{} has an index entry that never recorded its times to the nanosecond, so only its content can prove it",
+            "{} is recorded without the nanoseconds the file has, so only its content can prove which bytes it holds",
             String::from_utf8_lossy(entry.path.as_slice())
         )),
     };

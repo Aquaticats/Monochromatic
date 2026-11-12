@@ -197,25 +197,30 @@ pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
 
 /// What:
 ///  Whether a file's present stat equals what an entry recorded,
-/// with the change and modification times to the
-///  nanosecond,
-/// so the file is provably the one the entry described.
+/// with the change and modification times
+///  agreeing to the nanosecond,
+/// so no recorded field was matched as a wildcard and the file is provably the
+///  one the entry described.
 /// Why:
-///   An index written by a Git built without nanosecond support records zero for both counts,
-/// and zero matches any
-///  present value;
-/// such an entry says the file is of its size,
-/// its inode and its second,
-/// never that its
-///  bytes are the ones the entry names,
-/// so a caller that would skip reading the file cannot take it as proof.
+///   A recorded count of zero is what a Git built without nanosecond support wrote for a time it could not
+///  express,
+/// and the recorded comparison reads zero as any present value;
+/// such an entry equals a file of the
+///  same size,
+/// inode and second even after an edit of the same length,
+/// so a caller that would skip reading the
+///  file must require the counts themselves to agree.
+/// A file whose time is exactly on a second records zero as
+///  well,
+/// and its zero equals the record's,
+/// which is an exact match of what the index holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// matchesStoredExactly(now, stored); // every recorded field, the nanosecond counts included, is known and equal
+/// matchesStoredExactly(now, stored); // every recorded field, the nanosecond counts included, is equal
 /// ```
 pub(crate) fn matches_stored_exactly(now: &StatFields, stored: &StoredStat) -> bool {
-    return stored.ctime_nanos != 0 && stored.mtime_nanos != 0 && matches_stored(now, stored);
+    return now.ctime_nanos == stored.ctime_nanos && now.mtime_nanos == stored.mtime_nanos && matches_stored(now, stored);
 }
 
 /// What:
