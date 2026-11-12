@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
 use crate::service_land_settings::Settings;
 use crate::service_land_side_reference_write::{ASideRefWrite, keep_on_the_scratch_reference, remember_the_tip_a_side_reference_does_not_hold};
+use crate::service_land_without_its_scratch_reference::remember_why_it_has_none;
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
 use crate::side_reference_written_here::{SideReferenceWrite, SideReferenceWritePlan, write_side_reference};
 
@@ -100,13 +101,11 @@ pub(crate) fn objects_of_batch(
         //  it made (`held_commit_record.rs`, `service_scratch_ref_marker_of_a_batch.rs`).
         // The write is answered by the reference, not by the wait for it: a wait that ends without its answer is told apart from a
         //  write that failed, so a slow host never tells a person their commit was not made (`keep_on_the_scratch_reference`).
-        //  A reference that still does not name the commit after that is a write the repository did not take, and the batch ends
-        //  with the person's index and worktree as they were, so the answer that it was not made is true of anything they can reach.
         //  A step a stop ended is the landing's own ending, and it keeps its code so that the commit is kept beside it
         //  (`service_land.rs`, `keep_what_an_ended_step_built`).
-        // The batch's own reference not naming the commit leaves the commit on no branch and no reference: the landing keeps it on the
-        //  reference a commit that did not land is kept on and names that to the person, because `git gc --prune=now` takes an object
-        //  nothing names (the owner's rule "never discard user data", `keep_what_a_side_reference_write_left`).
+        // A reference the write did not prove is no reason to fail the commit: real Git needs no such reference, and this commit is
+        //  made as Git makes it, the branch naming it a step later. The batch lands, and the landing tells the person once what the
+        //  missing reference exposed (`service_land_without_its_scratch_reference.rs`).
         record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
         // The reference is the wrapper's own name, and a Git start for one rename is time the person waits on for nothing.
         //  The write is taken here only where it is provably Git's; every other repository answers `LeftToGit` and Git writes
@@ -125,18 +124,17 @@ pub(crate) fn objects_of_batch(
         return match written {
             ASideRefWrite::Written => Ok((vec![built.to_string()], built.to_string())),
             ASideRefWrite::Refused(words) => {
-                crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");
-                remember_the_tip_a_side_reference_does_not_hold(built, format!("Git refused the write of {scratch} ({words})"));
-                Err(FailureCode::Unavailable)
+                crate::service_error!("batch {seq}: the commit Git built lands without its own reference: Git refused the write of {scratch} ({words})");
+                remember_why_it_has_none(format!("Git refused the write of {scratch} ({words})"));
+                Ok((vec![built.to_string()], built.to_string()))
             }
             ASideRefWrite::LeftRunning => {
-                crate::service_error!("batch {seq}: the write of {scratch} was left running, so whether it names the commit Git built is not known");
-                remember_the_tip_a_side_reference_does_not_hold(
-                    built,
-                    format!("this command stopped waiting for the write of {scratch}, so whether that reference names it is not known"),
-                );
-                Err(FailureCode::Unavailable)
+                crate::service_error!("batch {seq}: the commit Git built lands without its own reference: the write of {scratch} was left running, so whether it names the commit is not known");
+                remember_why_it_has_none(format!("this command stopped waiting for the write of {scratch}, so whether that reference names it is not known"));
+                Ok((vec![built.to_string()], built.to_string()))
             }
+            // Git could not be run, or the service's stop ended the write: the branch write that would name the commit cannot run
+            //  either, so the commit is kept beside the failure (`keep_what_a_side_reference_write_left`).
             ASideRefWrite::Ended(code) => {
                 crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch}, because the write of it was ended ({code:?})");
                 remember_the_tip_a_side_reference_does_not_hold(built, format!("the write of {scratch} was ended ({code:?})"));
@@ -164,12 +162,17 @@ pub(crate) fn objects_of_batch(
         let imported: GitOutput = run(git, repository, import_arguments.as_slice(), Some(import_stream(scratch, old, batch, amended_parents)))?;
         if !imported.succeeded() {
             // The import makes the commits and updates the batch's reference at its end, so a repository that refuses that
-            //  update leaves every commit it made named by nothing, and `git gc --prune=now` takes an object nothing names. The
-            //  marks it exported name a batch it read to its end, so that batch's tip is kept beside the failure and named to the
-            //  person where a commit that did not land is kept (the owner's rule "never discard user data",
-            //  `keep_what_a_side_reference_write_left`).
-            if let Some(tip) = the_tip_a_refused_reference_left_unnamed(marks.as_path(), batch.len()) {
-                remember_the_tip_a_side_reference_does_not_hold(tip.as_str(), format!("the import of this batch could not write {scratch}"));
+            //  update leaves every commit it made named by nothing. The marks it exported name a batch it read to its end, so
+            //  the whole batch is there and lands as real Git would land it, the branch naming it a step later, and the person is
+            //  told once what the missing reference exposed (`service_land_without_its_scratch_reference.rs`).
+            //  A marks file naming fewer is an import that stopped inside the batch, and the commit it names is not the commit the
+            //  person's requests make together, so that batch fails with Git's own words as it always did.
+            let refused: String = crate::service_land_side_reference_write::refused_words_of(&imported);
+            if let Some(made) = the_commits_a_refused_reference_left_unnamed(marks.as_path(), batch.len()) {
+                crate::service_error!("batch {seq}: the batch lands without its own reference: the import could not write {scratch} ({refused})");
+                remember_why_it_has_none(format!("the import of this batch could not write {scratch} ({refused})"));
+                let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
+                return Ok((made, last));
             }
             return Err(classify(&imported));
         }
@@ -187,7 +190,7 @@ pub(crate) fn objects_of_batch(
 }
 
 /// What:
-///  The commit of a batch `fast-import` made in full,
+///  The commits of a batch `fast-import` made in full,
 /// when the marks it exported name every request of that batch,
 /// and nothing otherwise.
 /// Why:
@@ -196,16 +199,15 @@ pub(crate) fn objects_of_batch(
 ///  reference it refused.
 ///  A marks file naming fewer is an import that stopped inside the batch,
 /// and the commit it names is not the commit the person's requests make together,
-///  so it is not kept as one.
+///  so it is not landed as one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const tip = readMarks(marks, requests)?.at(-1)
+/// const made = commitsFromMarks(readMarks(marks), requests) // nothing unless every request is there
 /// ```
-fn the_tip_a_refused_reference_left_unnamed(marks: &Path, requests: usize) -> Option<String> {
+fn the_commits_a_refused_reference_left_unnamed(marks: &Path, requests: usize) -> Option<Vec<String>> {
     let text: String = std::fs::read_to_string(marks).ok()?;
-    let made: Vec<String> = commits_from_marks(text.as_str(), requests)?;
-    return made.last().cloned();
+    return commits_from_marks(text.as_str(), requests);
 }
 
 /// Controls for the objects a batch lands and the side reference that keeps them stay out of the release executable.

@@ -81,6 +81,9 @@ pub(crate) fn land_batch_body(
     let unborn: bool = is_zero_object(first.base.as_str());
     loop {
         timing.attempts += 1;
+        // What an earlier attempt of this batch could not prove about its own reference says nothing about this one: a batch a
+        //  moved branch sends back is built again, and this attempt writes the reference for itself.
+        crate::service_land_without_its_scratch_reference::forget_why_it_had_none();
         // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
         //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
         let branch_began: Instant = Instant::now();
@@ -253,8 +256,13 @@ pub(crate) fn land_batch_body(
         timing.reads_split.witness += witness_began.elapsed();
         reach("before-ref");
         // Every batch holds its commits on the scratch branch until this move, a commit Git built included: the branch write
-        //  removes it in the same transaction (`service_land_objects_of_batch.rs`).
-        let removal: String = format!("delete {scratch}\n");
+        //  removes it in the same transaction (`service_land_objects_of_batch.rs`). A reference this attempt did not prove is not
+        //  this landing's to remove: the name may hold another command's commit, so the delete is left out and the branch move
+        //  names the commit without it (`service_land_without_its_scratch_reference.rs`).
+        let removal: String = match crate::service_land_without_its_scratch_reference::it_has_one() {
+            true => format!("delete {scratch}\n"),
+            false => String::new(),
+        };
         // A detached head is the `HEAD` file itself and is updated as such. The update follows a symbolic `HEAD` as native Git's
         //  own commit does, because a compare that does not follow it replaces a head attached to a branch since the last look
         //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the

@@ -309,7 +309,10 @@ fn give_the_lock_back(directory: &Path, batch: &str, mark: LockMark, held: std::
 ///  so the last thing between the person's commit and its branch is a reference
 ///  the wrapper names and owns;
 ///  writing it here saves the process start the person would wait on,
-///  and every shape whose write Git would make differently answers `LeftToGit` instead of writing.
+///  and every shape whose write Git would make differently answers `LeftToGit` instead of writing,
+///  as does a name that already stands:
+///  that reference may be the only thing naming another command's commit,
+///  so this writer never replaces it, and Git's own create-only refusal is what the caller reads.
 ///  The reference is written where a per-worktree reference lives:
 ///  in the worktree's own Git directory,
 ///  which is `.git` for the main worktree and `.git/worktrees/<id>` for a linked one
@@ -332,15 +335,15 @@ pub(crate) fn write_side_reference(git_dir: &Path, name: &str, tip: &str, mark: 
         return SideReferenceWrite::LeftToGit;
     }
     let reference: PathBuf = directory.join(batch);
-    // A name that is not a plain file is a shape this writer cannot replace: a symbolic reference, or a directory Git
-    //  would refuse. Git answers both.
-    match std::fs::symlink_metadata(reference.as_path()) {
-        Ok(found) if !found.is_file() => return SideReferenceWrite::LeftToGit,
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(_) => return SideReferenceWrite::LeftToGit,
-    }
+    // This writer replaces no name: the reference that is already there may be the only thing naming its commit
+    //  (the owner's rule "never discard user data"), and a symbolic reference or a directory at this name is a shape only Git's own
+    //  words refuse. Every writer of this exact name takes the same lock, so the question is asked where no other write of it can run.
     let Some(mut held) = lock_beside_the_reference(directory.as_path(), batch, mark) else { return SideReferenceWrite::LeftToGit };
+    let free: bool = matches!(std::fs::symlink_metadata(reference.as_path()), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
+    if !free {
+        give_the_lock_back(directory.as_path(), batch, mark, held);
+        return SideReferenceWrite::LeftToGit;
+    }
     let value: String = format!("{tip}\n");
     if held.write_all(value.as_bytes()).is_err() {
         give_the_lock_back(directory.as_path(), batch, mark, held);
