@@ -18,6 +18,21 @@ pub const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";
 
+/// The wall-clock bound of one native Git command this harness runs for its own oracle or its fixtures,
+/// in seconds,
+/// as the text `timeout` takes.
+/// Why not the shared backstop:
+///  A fixture command is one native Git run and never the service work of a wrapped commit,
+/// and a control that waits for it should fail in a minute rather than in ten.
+/// Why sixty:
+///  The slowest of the 1,036 oracle reads and 28 native commits that the conclusion controls made
+/// took 463 ms on 2026-11-11 on a host other sessions load
+/// (`git-policy-cli-service-landing-state-control-times-out-alone`),
+/// and the longest disk stall one `fsync` of a trivial command showed on this host is 4.74 s
+/// (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`),
+/// so sixty seconds is more than ten times either.
+pub const NATIVE_GIT_BOUND_SECONDS: &str = "60";
+
 /// The wall-clock backstop,
 /// in seconds,
 /// of the shared bound:

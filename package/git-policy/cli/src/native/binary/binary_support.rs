@@ -24,6 +24,7 @@ pub use crate::support_btrfs_controls::*;
 pub use crate::support_fixture_directories::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_fixture_service_log::*;
+pub use crate::support_native_git_command::*;
 pub use crate::support_fixture_service_readiness::*;
 pub use crate::support_observation::*;
 pub use crate::support_program_names_and_time_bound::*;
@@ -229,13 +230,6 @@ pub fn wrapped(fixture: &Fixture) -> Command {
     );
 }
 
-/// The same invocation sent straight to real Git,
-///  as the comparison oracle.
-pub fn direct(fixture: &Fixture) -> Command {
-    let mut command: Command = Command::new(REAL_GIT);
-    hermetic(&mut command, fixture, OsStr::new("/usr/bin:/bin"));
-    return command;
-}
 
 /// What:
 ///  Make the in-process object readers decline the repository,
@@ -255,11 +249,15 @@ pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
     for (name, text) in [("replace-from.txt", "from\n"), ("replace-to.txt", "to\n")] {
         let file: PathBuf = fixture.root.join(name);
         std::fs::write(&file, text).expect("blob source");
-        let output = direct(fixture).current_dir(repo).args(["hash-object", "-w"]).arg(&file).output().expect("hash-object starts");
+        let mut hashing: Command = direct(fixture);
+        hashing.args(["hash-object", "-w"]).arg(&file);
+        let output: Output = native_git_output(fixture, &mut hashing, repo, NATIVE_GIT_BOUND_SECONDS);
         assert!(output.status.success(), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
         hashes.push(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
     }
-    let replaced = direct(fixture).current_dir(repo).args(["replace", hashes[0].as_str(), hashes[1].as_str()]).output().expect("replace starts");
+    let mut replacing: Command = direct(fixture);
+    replacing.args(["replace", hashes[0].as_str(), hashes[1].as_str()]);
+    let replaced: Output = native_git_output(fixture, &mut replacing, repo, NATIVE_GIT_BOUND_SECONDS);
     assert!(replaced.status.success(), "{}", String::from_utf8_lossy(replaced.stderr.as_slice()));
 }
 
@@ -379,16 +377,27 @@ pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
     return path;
 }
 
-/// Run real Git directly inside a fixture and require success.
+/// Run real Git directly inside a fixture under the bound of one fixture command,
+/// and require success.
+/// # Panics
+///  When Git failed,
+///  or was ended at the bound:
+///  the failure names the command,
+///  the directory and the bound.
 pub fn git<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S]) -> Output {
-    let output: Output = direct(fixture)
-        .current_dir(directory)
-        .args(arguments)
-        .output()
-        .expect("native Git fixture command");
+    return git_within(fixture, directory, arguments, NATIVE_GIT_BOUND_SECONDS);
+}
+
+/// Run real Git directly inside a fixture under `bound` seconds,
+/// and require success.
+pub fn git_within<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S], bound: &str) -> Output {
+    let output: Output = native_git_within(fixture, directory, arguments, bound);
+    let words: Vec<String> = arguments.iter().map(|argument| { return argument.as_ref().to_string_lossy().into_owned(); }).collect();
     assert!(
         output.status.success(),
-        "git failed: {}",
+        "native Git {} in {} failed (bound {bound} s): {}",
+        words.join(" "),
+        directory.display(),
         String::from_utf8_lossy(&output.stderr)
     );
     return output;
@@ -419,11 +428,12 @@ pub fn run_wrapped(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> O
     return observe(wrapped(fixture).current_dir(directory).args(arguments), b"");
 }
 
-/// Run real Git directly in a directory,
+/// Run real Git directly in a directory under the bound of one fixture command,
 ///  with empty standard input,
 ///  and return what the caller saw.
 pub fn run_direct(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
-    return observe(direct(fixture).current_dir(directory).args(arguments), b"");
+    let output: Output = native_git(fixture, directory, arguments);
+    return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
 }
 
 /// Real Git's porcelain status of a repository,

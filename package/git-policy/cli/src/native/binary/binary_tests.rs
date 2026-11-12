@@ -28,6 +28,12 @@ mod hold_at_prepare;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
+/// The native Git command a control starts,
+/// its bound,
+/// and the read that keeps its streams in files.
+#[path = "binary_support_native_git_command.rs"]
+mod support_native_git_command;
+
 /// The names a wrapped command left behind in a repository's two scratch places,
 /// waited for within a bound.
 #[path = "binary_support_scratch_left_behind.rs"]
@@ -690,6 +696,12 @@ mod abort_during_an_operation;
 /// compared with real Git.
 #[path = "binary_merge_rr_cleanup_tests.rs"]
 mod merge_rr_cleanup;
+
+/// The bounds of the native Git commands this harness runs for its own oracles:
+/// a command that carries none,
+/// and a read that outlives its bound waiting for a stream a hook of Git left held.
+#[path = "binary_native_git_bound_tests.rs"]
+mod native_git_bound;
 
 /// The timing record of a wrapped commit and the service's log lines,
 /// which split a slow commit by phase.
