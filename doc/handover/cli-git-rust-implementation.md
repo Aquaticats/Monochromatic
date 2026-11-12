@@ -220,9 +220,15 @@ Eleven older local branches also hold commits the remote lacks and were left alo
 
 #### After the restart, in this order
 
-1.  Issue 6286 first, one agent alone: the wrapper never asks the user manager for a manager-wide reload.
+The owner was asked at 03:45 which comes first, with three options (fix issue 6286 first and ship it in alpha.13, recommended;
+release alpha.13 as it stands; hold everything until the other session reports).
+The owner's answer: "Release alpha.13 as it stands".
+So the fix for issue 6286 follows in the release after it, and agents run under alpha.13 meanwhile.
+
+1.  0.6.1-alpha.13 from `844c85d3d5`: trial merge with `git merge-tree`, merge into `main`, release, install.
+    It was not started before the restart, so that no release is in flight when the machine goes down.
+2.  Issue 6286, one agent, started at once after step 1 is dispatched: the wrapper never asks the user manager for a manager-wide reload.
     Until that is in an installed release, every agent that commits can end the desktop session again.
-2.  0.6.1-alpha.13 from `844c85d3d5` (trial merge with `git merge-tree`, merge into `main`, release, install), unless the owner wants the fix of step 1 in it.
 3.  A digest of the twenty-nine ended runs, then reviews and the next integration pass.
 4.  The five killed runs, started again; the tokio one from its rescue commit.
 5.  The agents that were running at the restart, continued from their last commits.
