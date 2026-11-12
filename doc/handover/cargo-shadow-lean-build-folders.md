@@ -681,6 +681,55 @@ The fix is in the released binary:
 output ignores a closed pipe,
 and a stopped run's leftover trash is finished by the next one.
 
+## Measured 2026-11-12: what the bounded, age-ordered pass costs
+
+Branch `fix/cargo-shadow-lean-deadline-ends-a-pass-and-a-pass-keeps-up`,
+not released and not installed.
+Every run below was a dry run in a scope with `CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=256` and `IOWeight=5`,
+from this worktree,
+against the real host build base and the real `/proc`.
+
+- `lean run --dry-run --only trees --deadline-minutes 20`,
+  2026-11-12T02:13:14 to 02:33:14:
+  the ledger survey read 56,615 trees in 187 s,
+  the pass judged 819 trees in the rest of the bound,
+  and 493 of them would have gone for 907.36 GiB by disk blocks,
+  18.28 GiB of that in the first 34 s of judging.
+  It exited 0 at 1,200 s,
+  which is the bound to the second.
+- The same command over the same base in path order,
+  02:47 to 03:07:
+  10,805 trees judged in 1,095 s and nothing freed,
+  every tree it reached being younger than its idle period,
+  and the trees that would have gone were further down the same path order.
+  An earlier attempt that put the ledgered candidates first but still in path order
+  judged 12,555 trees in 1,190 s and freed 5.36 GiB,
+  the first of it 610 s in.
+- `lean run --dry-run --only trees --deadline-minutes 10`,
+  03:29 to 03:39,
+  with the hint short-circuit in place:
+  survey 76 s for 56,847 trees,
+  2,185 judged,
+  474 would have gone for 835.89 GiB,
+  exit 0 at 600 s.
+- The released 0.1.5-alpha.10 binary,
+  `--deadline-minutes 0`,
+  killed after 120 s:
+  it printed `lean run: 137 checkouts, dry run (nothing is removed)` and nothing about the trees,
+  because it was still reading the recorded workspace of every tree after its bound had passed.
+  The branch's build with the same arguments stops before it lists the base and says so.
+- A fixture base of five trees,
+  one of them holding 200,000 files in its `deps` directory,
+  run with `--deadline-minutes 1`:
+  the released binary took 9.86 s and the branch's 0.01 s,
+  both reporting the same four trees to remove and the same one to keep,
+  because the branch keeps a tree whose workspace exists without walking its units.
+
+A pass over the profile directories is still about ten hours,
+so the bound stays below a whole pass and both long passes keep their recorded position.
+
 ## Measured 2026-11-10: what a pass over every tree and profile directory costs
 
 What the journal holds for the two runs that went furthest
