@@ -224,6 +224,12 @@ type RunRequest = {
   readonly withoutPi?: boolean;
 
   /**
+   Whether the `git` this run would find answers as this repository's policy wrapper, which it does in every test but the one that
+   asks what happens when it does not.
+   */
+  readonly gitIsTheWrapper?: boolean;
+
+  /**
    Text of the prompt file, which no test leaves empty.
    */
   readonly promptText?: string;
@@ -433,6 +439,34 @@ async function installStandIn(folder: string,): Promise<void> {
   await chmod(launcher, 0o700,);
 }
 
+/**
+ Installs the `git` a run's session finds on its `PATH`: this repository's policy wrapper, or a program that answers as the system
+ git does when nothing installs the wrapper.
+
+ @param folder - the folder `PATH` searches, which holds the program
+
+ @param isTheWrapper - whether the program prints the policy namespace help, which is the wrapper's own answer
+ */
+async function installStandInGit({
+  folder,
+  isTheWrapper,
+}: {
+  readonly folder: string;
+  readonly isTheWrapper: boolean;
+},): Promise<void> {
+  /**
+   The program's file.
+   */
+  const program = join(folder, 'git',);
+  await writeFile(
+    program,
+    isTheWrapper
+      ? `#!/bin/sh\nprintf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]'\nexit 0\n`
+      : `#!/bin/sh\nprintf '%s\\n' "git: 'monochromatic-git-policy-cli' is not a git command. See 'git --help'." >&2\nexit 1\n`,
+  );
+  await chmod(program, 0o700,);
+}
+
 async function exitOf(running: ReturnType<typeof execFileAsync>,): Promise<readonly [number, string,]> {
   try {
     const result = await running;
@@ -503,6 +537,7 @@ async function runDriver(
     extraOptions = [],
     environment = {},
     withoutPi = false,
+    gitIsTheWrapper = true,
     promptText = 'hello',
     withoutPrompt = false,
     wallSeconds = RUN_WALL_SECONDS,
@@ -527,6 +562,12 @@ async function runDriver(
   if (!withoutPi) {
     await installStandIn(folder.path,);
   }
+  // The driver asks the git the session would run whether it is the policy wrapper before it starts Pi, so every run needs one to
+  // answer that question: the folder `PATH` starts with, and the folder that holds nothing when a test takes Pi away.
+  await installStandInGit({
+    folder: withoutPi ? withoutExecutables : folder.path,
+    isTheWrapper: gitIsTheWrapper,
+  },);
   await prepare?.({
     runFolder,
     promptFile,
@@ -720,6 +761,19 @@ await describe({
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('pi-exited',);
         expect(String(run.summary.piExit?.processError,),).toContain('ENOENT',);
+      },
+    },),
+    it({
+      name: 'a session whose git is not the policy wrapper is refused before Pi starts, and the refusal names what it found',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'normal', gitIsTheWrapper: false, },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.standardError,).toContain('GitWrapperPreflightError',);
+        expect(run.standardError,).toContain('is not a git command',);
+        expect(run.standardError,).toContain('.cache/monochromatic-git-policy-cli-bin',);
+        expect(run.logWasWritten,).toBe(false,);
+        expect(run.runFolderWasMade,).toBe(false,);
+        expect(run.summary.endReason,).toBe(ABSENT_SUMMARY.endReason,);
       },
     },),
     it({

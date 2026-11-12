@@ -28,6 +28,7 @@ import {
   type EnvironmentWithoutCredentials,
   stripCredentialsFromEnvironment,
 } from './environment-without-credentials.ts';
+import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import {
   DRIVER_USAGE,
   DriverOptionsError,
@@ -43,6 +44,7 @@ import type {
 } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { putTheRunAway, } from './put-the-run-away.ts';
+import { runCommandWithChildProcess, } from './run-command.ts';
 import { endReasonOfRun, } from './take-the-first-prompt.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
@@ -169,6 +171,9 @@ function compactionNoteOf(summary: RunSummary,): string {
 
  @throws NestedDriverError when started by a Pi that a driver runs
 
+ @throws GitWrapperPreflightError when the git this session would run is not this repository's policy wrapper, which is decided
+ before Pi starts and before the run folder is written
+
  @throws PiRunEndedEarlyError when the run did not end on its own terms, after the summary is written
 
  @example
@@ -197,6 +202,16 @@ export async function supervisePiRun(
   if ((!Number.isFinite(wallMilliseconds,)) || (!Number.isFinite(Date.now() + wallMilliseconds,))) {
     throw new DriverOptionsError(`--wall-seconds must be a number of seconds whose milliseconds stay finite; it was "${String(options.wallSeconds,)}".\nUsage: ${DRIVER_USAGE}`,);
   }
+  // The git a session would run is asked before Pi starts, because a session whose git is the system binary commits past every
+  // policy the wrapper enforces and no later check can give those commits back (issue 1768). It is asked under the environment Pi
+  // is about to get and in the folder Pi works in, so the answer is the one this session's own commands would find.
+  await refuseUnlessTheWrapperAnswersGit({
+    run: runCommandWithChildProcess,
+    // A session with no PATH is refused by the check itself, so its absence is passed on rather than papered over with an empty
+    // string.
+    ...(environment.PATH === undefined ? {} : { sessionPath: environment.PATH }),
+    workingFolder: options.workingFolder,
+  },);
   /**
    When the run must be over, counted from before Pi starts so that Pi's start-up is inside the limit.
    */

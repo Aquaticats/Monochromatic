@@ -7,6 +7,12 @@ enforces the run's limits,
 records a feed and a summary,
 and delivers steering messages from an inbox folder.
 
+Four more commands start those runs:
+`start-pi-run-when-a-pool-has-room` counts the provider pools and chooses one,
+`start-pi-run-in-a-worktree` makes the worktree and the unit,
+`retry-pi-run-start-until-a-pool-has-room` waits for a slot,
+and `start-pi-runs-from-a-batch-list` starts a whole list of runs.
+
 Two more commands read the same runs folder:
 `watch-overdue-pi-runs` ends when a run should have come back,
 and `check-in-on-pi-runs` describes one run that has not.
@@ -14,6 +20,220 @@ and `check-in-on-pi-runs` describes one run that has not.
 The skill `.agents/skills/pi-as-subagent/SKILL.md` says how to start a run
 and which command to run to watch for one that should have come back.
 Evidence for how Pi behaves is in `doc/agent/drive-pi-as-a-coding-subagent.md`.
+
+## Starting runs at all
+
+A run is one Pi agent,
+one worktree,
+one unit and one run folder.
+Four commands do that work,
+and each offers the step it owns:
+
+- `start-pi-run-when-a-pool-has-room`:
+  counts the runs going now,
+  chooses the pool one more run goes on,
+  and hands the worktree launcher the words the run needs.
+- `start-pi-run-in-a-worktree`:
+  makes the worktree,
+  links its dependencies,
+  sizes the turn cap,
+  starts the driver as a capped systemd unit,
+  and removes the worktree once the run has finished with it.
+- `retry-pi-run-start-until-a-pool-has-room`:
+  asks the pool gate again and again until a slot frees or its own deadline passes.
+- `start-pi-runs-from-a-batch-list`:
+  starts each entry of a list through the retrying start,
+  one at a time,
+  and prints the line each entry ended with.
+
+Each has a `mise` task of its own name under
+`//package/pi-shared/subagent-driver:`.
+
+### The git a session would run
+
+A session whose `git` resolves to the system binary never runs this repository's Git policy wrapper,
+so it commits past every policy,
+past the guards against discarding work,
+and without the automatic push after each commit.
+The wrapper cannot notice its own absence:
+`git --version` prints the same text either way.
+So the launchers ask before a session starts
+([issue 1768](https://github.com/Aquaticat/Monochromatic/issues/1768),
+`doc/troubleshooting/git-policy-wrapper-launcher-path.md`).
+They resolve `git` on the `PATH` the session would get,
+the way the session's own commands resolve it,
+in the folder the session would work in,
+and then ask that program for its policy namespace help:
+`git monochromatic-git-policy-cli --help` prints that help only when the wrapper answers it.
+
+The question is bounded at ten seconds,
+well above the 72 ms it took in this checkout on 2026-11-11,
+because a session starts unattended and nothing here waits forever.
+A program that does not answer is refused as well as one that answers wrongly.
+
+`start-pi-run-in-a-worktree` asks after it has made the worktree and before it links dependencies,
+so a refused launch has started no unit, written no run folder and linked nothing,
+and it exits 1 saying:
+
+- the path of the `git` the session would run,
+- what that program answered,
+- and the fix: the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
+  which `mise run toolchain:install` makes,
+  and that folder has to come before the system one on the session's `PATH`.
+
+A worktree it made stays as it is:
+the refusal line names that folder,
+and nothing here removes a worktree that may be an earlier run's.
+
+`drive-pi-subagent` asks the same question of the environment it is about to hand Pi,
+in the working folder it was given,
+before Pi starts and before it writes the run folder.
+That is what covers a unit a coordinator started by hand rather than through the launcher above.
+
+What this does not decide:
+whether `git-lfs` resolves, which the same incident also needed;
+and work the launcher does before the check (its own `git worktree add`) runs with the launcher's own `PATH`,
+which a protected session already sets.
+
+### The provider pools
+
+A pool is how many runs one provider account answers at once,
+which is not the work a run does.
+Every limit sits in `src/pool-limits.ts` beside the owner's words or the measured refusal it came from,
+and the commands read them from there:
+
+- `neuralwatt`:
+  standard DeepSeek,
+  20 runs.
+- `neuralwatt-flex`:
+  DeepSeek flex,
+  22 runs.
+  Flex answers about 100% slower,
+  so a run moved there gets twice the wall clock it asked for.
+- `opencode-go`:
+  20 runs,
+  taken only once both Neuralwatt pools are full.
+- `neuralwatt-kimi-flex`:
+  22 runs of Kimi K3.1 Pro flex,
+  taken only by a run that names that model.
+
+A run that names a model only one pool takes stays on that pool.
+A run that resumes a session stays on the pool it named,
+with no wall factor.
+Every other run takes the first pool with room,
+in the order above.
+
+A run is counted from its launcher's own command line while the launcher is still running,
+and from the unit's `ExecStart` once the launcher has gone,
+so a launcher that has not made its unit yet still holds its slot.
+An audit (`sol-`) and a Kimi run on a provider no pool holds are counted in no pool,
+because neither competes for those slots.
+A run whose pool cannot be read at all is counted in `opencode-go`,
+which is what the launcher this replaced did.
+
+### `start-pi-run-when-a-pool-has-room`
+
+It takes the worktree launcher's options,
+plus these:
+
+- `--name`:
+  the run's name.
+  Required unless `--counts-only` asks for the counts alone.
+- `--runs-folder`:
+  the folder the runs live in,
+  `${HOME}/temp/agent/pi-runs` by default.
+- `--counts-only`:
+  print the counts and start nothing.
+  It needs no name and never refuses because a run is already going.
+- `--session-of`:
+  a finished run's folder,
+  whose session this run resumes.
+
+Every other word is the launcher's and is passed on untouched.
+
+It answers one line,
+and exits `0` when it started a run,
+`3` when no pool has room,
+and `4` when a run of that name is already going,
+which is what the retrying start reads.
+
+### `start-pi-run-in-a-worktree`
+
+- `--name`,
+  `--branch`,
+  `--prompt`,
+  `--cpu`,
+  `--memory`,
+  `--tasks`,
+  and `--wall`,
+  which are all required.
+- `--branch=none` runs in the checkout itself and makes no worktree.
+- `--run`:
+  the run folder's number.
+  Without it the next number no folder of that name holds is taken,
+  so a restart never writes over an earlier run's summary.
+- `--turn-cap`:
+  how many model turns the run may start.
+  Without it the cap is a quarter above the longest finished run of the same kind,
+  and a runs folder with no finished run refuses the launch rather than guess.
+- `--session`,
+  `--provider`,
+  `--model`,
+  `--idle-seconds`,
+  `--runs-folder`,
+  and `--checkout-folder`.
+
+The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`,
+made from the checkout's `main` unless the run's branch already exists.
+The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
+which is the only bound that reaches a driver stuck in a file system call.
+
+The wait for the unit is the launcher's own:
+it starts the waiter,
+and asks the manager for the unit's `ActiveState` every minute,
+and ends the waiter once the unit has read as not running twice in a row,
+or once the run's wall clock plus fifteen minutes has passed.
+It used to wait on `systemd-run --wait` alone,
+and while an impostor manager held the session bus name on 2026-11-11,
+sixteen launchers never heard their units end and waited about ten hours.
+
+When the run has ended the worktree is removed only if the run ended `idle` or on its stop file,
+its HEAD is a branch,
+and `git status` holds nothing.
+It is never removed by force,
+and every other ending keeps it and prints why.
+
+### `retry-pi-run-start-until-a-pool-has-room`
+
+`--deadline-seconds` and `--period-seconds`,
+then `--` and the pool gate's words.
+It ends when the gate starts the run,
+when the gate answers something other than "no slot",
+or at its deadline,
+when it prints `no slot freed before the deadline:` and what it was asked for.
+
+### `start-pi-runs-from-a-batch-list`
+
+`--batch-file`,
+`--runs-folder`,
+and `--deadline-seconds`,
+which is two hours by default.
+The file holds a JSON array of entries,
+each with `name` and `branch` required.
+An entry may also name `prompt`,
+`cpu`,
+`memory`,
+`tasks`,
+`wall`,
+`run`,
+`sessionOf`,
+`provider` and
+`model`.
+A `prompt` that is not a path is read under the runs folder,
+and an entry with none reads `<name>-prompt.md` there.
+Entries start twenty seconds apart,
+and the command prints one line per entry once every run it started has ended,
+keeping the end of both streams so a failure says why.
 
 ## Command line
 
@@ -76,7 +296,10 @@ and the feed's last write,
 each with a limit of its own,
 so a run ends even when Pi answers nothing at the end.
 
-`pi` must be on `PATH`.
+`pi` must be on `PATH`,
+and the `git` this session would run must be this repository's policy wrapper,
+which the driver asks before it starts Pi
+(see the section "The git a session would run").
 
 ## Files a run writes
 
@@ -230,7 +453,7 @@ A resumed run of 905 483 tokens on a model with a 524 288-token window reported 
 and a driver that gave every prompt thirty seconds recorded `prompt-rejected` with `no answer in 30000 ms`
 while Pi was still compacting.
 
-So the thirty seconds measure Pi's silence,
+So the bound measures Pi's silence,
 not the clock.
 `compaction_start` stops the count and `compaction_end` starts it again,
 which means a compaction Pi is running never spends the silence a prompt is allowed.
@@ -243,6 +466,39 @@ so silence after one ends the run as `compaction-failed`.
 
 A Pi that reports no compaction and answers nothing is unchanged:
 the wait ends after its silence bound and the run ends as `prompt-rejected`.
+
+### `save-the-final-message-of-a-review-that-wrote-no-review-file`
+
+`--review` (repeatable),
+`--runs-folder`,
+and `--review-folder`.
+A Kimi review that ends without writing `review.md` leaves its findings only in its last message,
+and a review's worktree is kept until that file exists.
+This reads the last assistant message whole from the Pi session file the newest finished
+`kimi-review-<review>-<n>` run names,
+and writes it as `<review-folder>/<review>/review.md` with a note saying which run it came from.
+The summary's own `lastAssistantText` cannot be the source:
+it is cut to 900 characters.
+A review that wrote its own file is left alone,
+and the command exits non-zero when any review it was asked for was not saved.
+
+## The three answers a run waits for while Pi starts
+
+A run's first three commands are `get_state`,
+`get_commands`,
+and the prompt,
+and Pi is loading its session and its extensions while they wait.
+Their silence is bounded by a measured figure of its own,
+not by the bound an answer owes mid-run.
+That figure is `START_UP_ANSWER_MILLISECONDS`,
+two minutes,
+and `src/driver-constants.ts` states it with the measurement it came from:
+over 1,214 runs in a runs folder,
+the longest answer Pi gave took 76 322 ms,
+and four runs were still waiting 90 to 91 seconds after Pi started when the old thirty-second bound cut them off as
+`prompt-rejected`.
+Each of the three still stops counting silence while Pi reports a compaction,
+and the run's wall clock still ends them.
 
 ## Which layer retries what
 
@@ -628,7 +884,8 @@ and needs neither a running unit nor a process table.
 
 Every wait for Pi is bounded:
 Pi's start-up,
-each command,
+its state and its commands,
+each command after the prompt,
 the watch,
 and putting the run away.
 Each command keeps its own limit as well,

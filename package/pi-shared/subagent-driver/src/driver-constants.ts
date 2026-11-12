@@ -30,10 +30,32 @@ export const POLL_MILLISECONDS = 300;
  working on its own session then, so this bound stops counting until the compaction ends; the deadline a run gives the wait is
  the outer bound.
 
+ This is the bound of an answer Pi owes while it is already at work, such as a steer from the inbox or an attempt after a model
+ error. The three answers of a run's start-up wait under {@link START_UP_ANSWER_MILLISECONDS} instead, because Pi is loading
+ its session and its extensions then.
+
  Pi answered the first prompt 5.2 to 5.4 seconds after starting in four real runs on 2026-11-08
  (`doc/agent/drive-pi-as-a-coding-subagent.md`); this leaves room for a loaded host.
  */
 export const COMMAND_ANSWER_MILLISECONDS = 30_000;
+
+/**
+ Longest silence Pi may keep while the driver starts it up: the state and the commands it is asked for, and the answer to the
+ first prompt. Pi is loading its session and its extensions then, and a loaded host stretches that, so the bound for an answer
+ Pi owes while it is already at work does not cover these.
+
+ Measured on this machine on 2026-11-12 over the runs in `${HOME}/temp/agent/pi-runs`: of the 1,214 runs that recorded a first
+ prompt, the longest answer Pi gave took 76,322 ms (`kimi-review-since-alpha8-all-waits-3`, which ended `idle`), and the
+ 99th percentile was 1,086 ms. Four runs were still waiting 90 to 91 seconds after Pi started and were cut off as
+ `prompt-rejected`, three of them with summary files stamped 2026-11-11T00:50-05:00
+ (`kimi-never-stuck-audit-findings-1`, `commands-never-wait-on-or-fail-with-a-silent-service-1`,
+ `killed-add-leftover-copy-is-not-another-commands-wait-1`, and `kimi-review-merge-route-round-9-2` a day earlier): each waited
+ the old thirty seconds for Pi's state, thirty more for its commands, and were due the prompt's answer at 90 seconds.
+
+ Two minutes sits above both figures. It stays a silence bound, never the run's length: the run's own wall clock is still the
+ outer bound of every wait.
+ */
+export const START_UP_ANSWER_MILLISECONDS = 120_000;
 
 /**
  Longest wait for Pi to leave after its input closes and again after each signal, and for its output to end once it has gone.
