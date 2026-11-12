@@ -59,8 +59,9 @@
 use crate::fs_btrfs_ioctl::subvolume_destroy_at;
 use crate::fs_kind::is_subvolume_root;
 use crate::private_storage::remove_tree;
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use crate::worktree_removal_clears_the_pool::{REMOVING_PREFIX, RemoveAPool, take_the_pool_out_of_its_name};
-use crate::worktree_snapshot_ahead::pool_folder;
+use crate::worktree_snapshot_ahead::POOL_FOLDER;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -80,97 +81,160 @@ use std::path::{Path, PathBuf};
 pub(crate) type DestroyASnapshot<'a> = dyn Fn(&Path) -> std::io::Result<()> + 'a;
 
 /// What:
-///  The folder of the administrative directory that is this program's own:
-/// the one the pool of snapshots ahead
-///  stands in.
-/// Why:
-///   Every entry of it is a copy of the worktree being removed and nothing else writes there,
-/// so ownership is
-///  the name of the folder the wrapper made, never a pattern over the names inside it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const folder = wrapperFolder(admin); // <admin>/monochromatic-git-policy-cli
-/// ```
-pub(crate) fn wrapper_folder(admin: &Path) -> PathBuf {
-    let pool: PathBuf = pool_folder(admin);
-    return pool.parent().map(Path::to_path_buf).unwrap_or(pool);
-}
-
-/// What:
 ///  Remove every pool of snapshots ahead in the administrative directory `admin`,
-/// and every leftover of taking one,
+/// and every pool a clear took and a kill left,
 ///  and answer the reason when something cannot go.
 /// Why:
 ///   The removal is a refusal when this fails,
 /// so it must run while the worktree is still there,
 /// and the
 ///  answer is the words for that refusal.
-///  Every entry of the wrapper's own folder is taken,
-/// not the one name a fill reads:
-/// a command killed
-///  between a pool's rename and its deletion leaves the same members under `removing-<identity>`,
-/// and a
-///  clear that named only the pool would then refuse its own leftover for ever.
+///  What is taken is named by what this program wrote there,
+/// never by a guess about the volumes:
+/// the pool a fill reads,
+///  and a pool a clear renamed to `removing-<identity>` and was killed before emptying.
+/// Both are a
+///  directory of the data folder the fill and the clear own,
+/// and every other entry of that folder is left where it is,
+///  because the same folder holds what a person reads:
+/// the notices of a push that failed,
+/// the files a
+///  pull kept out of the way,
+/// and the service's own work queue.
+/// The data folder itself therefore stays,
+/// and the
+///  finish copies the notices it still holds before the registration goes.
+///  An older release spelled the data folder another way,
+/// so both spellings are cleared,
+/// and neither folder is
+///  moved by a command that does not own it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// clearThePoolsAheadOfAWorktree(admin); // throws the reason
 /// ```
 pub(crate) fn clear_the_pools_ahead_of_a_worktree(admin: &Path) -> Result<(), String> {
-    let folder: PathBuf = wrapper_folder(admin);
-    for taken in take_every_pool_out_of_its_name(folder.as_path())? {
-        clear_one_pool_ahead(taken.as_path(), &destroy_a_snapshot_ahead, &remove_tree)?;
+    for folder in data_folders(admin) {
+        clear_the_pools_ahead_in(folder.as_path())?;
     }
-    // The folder goes when nothing put anything back in it. A fill that made a pool of its own in these moments keeps it,
-    // and the emptying of the registration after the destroy answers that pool.
-    let _kept = std::fs::remove_dir(folder.as_path());
     return Ok(());
 }
 
 /// What:
-///  Take every entry of the wrapper's own folder `folder` out of its name,
-/// and answer the names they took.
+///  The folders inside the administrative directory `admin` that hold this program's state,
+/// both spellings
+///  of the data folder's name.
 /// Why:
-///   A pool a fill is writing into is taken with one rename rather than deleted where a fill can reach it,
-/// and a
-///  name that was already taken by a killed clear is taken again,
-/// so one pass clears the pool a fill made and the
-///  leftovers of every clear that came before it.
-/// An entry that is no directory is a name this program wrote once and no pool holds,
-/// so it is
-///  unlinked.
+///   A release before the program was renamed wrote the earlier name,
+/// and a removal of that worktree takes its
+///  leftovers as much as this release's,
+/// while nothing that reads them ever moves a folder it does not own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = takeEveryPoolOutOfItsName(folder); // string[]
+/// const folders = dataFolders(admin); // [<admin>/monochromatic-git-policy-cli, <admin>/cli-git]
 /// ```
-fn take_every_pool_out_of_its_name(folder: &Path) -> Result<Vec<PathBuf>, String> {
+pub(crate) fn data_folders(admin: &Path) -> [PathBuf; 2] {
+    return [admin.join(DATA_FOLDER.current), admin.join(DATA_FOLDER.earlier)];
+}
+
+/// What:
+///  The same clear for one spelling of the data folder `folder`.
+/// Why:
+///   Both spellings need the same steps,
+/// and a folder that is not there is nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// clearThePoolsAheadIn(folder); // throws the reason
+/// ```
+fn clear_the_pools_ahead_in(folder: &Path) -> Result<(), String> {
+    // The pool a fill reads is taken out of its name first, so a fill that comes afterwards makes a pool of its own
+    // instead of writing into the tree this clear was given.
+    let mut taken: Vec<PathBuf> = Vec::new();
+    if let Some(moved) = take_the_pool_out_of_its_name(folder.join(POOL_FOLDER).as_path(), REMOVING_PREFIX)? {
+        taken.push(moved);
+    }
+    taken.extend(left_over_pools(folder)?);
+    for pool in taken {
+        clear_one_pool_ahead(pool.as_path(), &destroy_a_snapshot_ahead, &remove_tree)?;
+    }
+    // The folder goes when nothing put anything back in it, and stays when it holds what a person reads. A fill that made a
+    // pool of its own in these moments keeps that pool, and the emptying of the registration after the destroy answers it.
+    let _kept = std::fs::remove_dir(folder);
+    return Ok(());
+}
+
+/// What:
+///  The pools a clear renamed to a name no fill reads and a kill left behind,
+/// in the data folder `folder`.
+/// Why:
+///   The rename comes before every deletion,
+/// so the name a killed clear leaves is this program's own record of a pool it
+///  was taking,
+/// and the body after its prefix is the identity that name was made of.
+/// A directory called
+///  `removing-<identity>` is the one shape taken by name,
+/// and it is a record this program wrote rather than a guess about
+///  what a volume is:
+/// nothing else in the data folder is ever renamed to that shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pools = leftOverPools(folder); // string[]
+/// ```
+fn left_over_pools(folder: &Path) -> Result<Vec<PathBuf>, String> {
     let listing = match std::fs::read_dir(folder) {
         Ok(listing) => listing,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
     };
-    let mut taken: Vec<PathBuf> = Vec::new();
+    let mut pools: Vec<PathBuf> = Vec::new();
     for found in listing {
         let entry: std::fs::DirEntry = match found {
             Ok(entry) => entry,
             Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
         };
-        let path: PathBuf = entry.path();
-        if !entry.file_type().is_ok_and(|kind| { return kind.is_dir(); }) {
-            if let Err(error) = std::fs::remove_file(path.as_path())
-                && error.kind() != ErrorKind::NotFound
-            {
-                return Err(format!("{path} cannot be removed ({error})", path = path.display()));
-            }
-            continue;
-        }
-        if let Some(moved) = take_the_pool_out_of_its_name(path.as_path(), REMOVING_PREFIX)? {
-            taken.push(moved);
+        let name: std::ffi::OsString = entry.file_name();
+        let Some(text) = name.to_str() else { continue };
+        let Some(identity) = text.strip_prefix(REMOVING_PREFIX) else { continue };
+        if is_an_identity(identity) {
+            pools.push(entry.path());
         }
     }
-    return Ok(taken);
+    return Ok(pools);
+}
+
+/// Whether one byte of a name this program made is a hexadecimal digit.
+fn is_a_hexadecimal_digit(byte: u8) -> bool {
+    return byte.is_ascii_hexdigit();
+}
+
+/// What:
+///  Whether `text` is an identity this program makes for a name:
+/// eight hexadecimal digits and then four,
+///  four,
+///  four and twelve more around four hyphens.
+/// Why:
+///   A leftover pool is named `removing-<identity>`,
+/// and an identity is a shape this program alone writes,
+/// so a
+///  directory a person named anything else is never taken for one of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text);
+/// ```
+fn is_an_identity(text: &str) -> bool {
+    let shape: [usize; 5] = [8, 4, 4, 4, 12];
+    let mut parts = text.split('-');
+    for digits in shape {
+        let Some(part) = parts.next() else { return false };
+        if part.len() != digits || !part.bytes().all(is_a_hexadecimal_digit) {
+            return false;
+        }
+    }
+    return parts.next().is_none();
 }
 
 /// What:
@@ -190,6 +254,11 @@ fn take_every_pool_out_of_its_name(folder: &Path) -> Result<Vec<PathBuf>, String
 /// destroyASnapshotAhead(member); // throws the reason
 /// ```
 fn destroy_a_snapshot_ahead(member: &Path) -> std::io::Result<()> {
+    // A pool holds a subvolume per member; a name that is no directory is a file this program wrote once, and it goes
+    // without a delete that would have to walk it.
+    if !std::fs::symlink_metadata(member)?.is_dir() {
+        return std::fs::remove_file(member);
+    }
     if !is_subvolume_root(member).unwrap_or(false) {
         return remove_tree(member);
     }
@@ -238,6 +307,8 @@ pub(crate) fn clear_one_pool_ahead(taken: &Path, destroy: &DestroyASnapshot<'_>,
     }
     return match remove(taken) {
         Ok(()) => Ok(()),
+        // Another command's clear took it between the listing and this call.
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
         Err(error) => Err(format!("the folder {taken} of the snapshots the wrapper made ahead of an add cannot be removed ({error})", taken = taken.display())),
     };
 }

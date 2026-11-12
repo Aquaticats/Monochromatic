@@ -374,11 +374,14 @@ fn a_removal_whose_snapshots_ahead_cannot_be_cleared_refuses_before_the_subvolum
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let pool: PathBuf = admin.join("monochromatic-git-policy-cli/ahead");
-    std::fs::create_dir_all(pool.parent().expect("the wrapper's own folder")).expect("the folder of the pool");
-    std::fs::write(pool.as_path(), b"a file where the folder of the pool belongs\n").expect("a blocker at the pool's name");
+    let data: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let pool: PathBuf = crate::worktree_snapshot_ahead::pool_folder(admin.as_path());
+    std::fs::create_dir_all(pool.as_path()).expect("the folder of the pool");
+    // A folder this account may read and not write is the one shape in which the pool cannot be taken out of its name.
+    std::fs::set_permissions(data.as_path(), std::fs::Permissions::from_mode(0o555)).expect("a folder that cannot be written");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    std::fs::set_permissions(data.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder is writable again");
     let RemoveOutcome::Refused(report) = outcome else { panic!("a pool that cannot go stops the removal, but it was {outcome:?}") };
     assert!(report.contains(pool.to_str().expect("UTF-8")), "the report names the folder that stands in the way: {report}");
     assert!(report.contains("nothing was removed"), "and says nothing changed: {report}");

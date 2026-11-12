@@ -27,7 +27,7 @@
 
 use crate::fs_beneath::{device_of, handle_path, open_directory_widening, remove_at, widen_directory};
 use std::os::unix::fs::MetadataExt;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -77,6 +77,7 @@ enum Pass {
 /// One directory on the work stack:
 /// its handle,
 /// its name in the parent,
+/// its path for a message,
 /// and the entries still to visit.
 struct Frame {
     /// The directory's descriptor.
@@ -84,6 +85,9 @@ struct Frame {
     /// The name in the parent frame's directory;
     /// absent for the top.
     name: Option<OsString>,
+    /// The directory's own path,
+    /// which a message about an entry below it needs and which the stack's own borrow cannot give.
+    path: PathBuf,
     /// Entries not visited yet,
     /// each with whether it is a directory (a link is not one).
     pending: Vec<(OsString, bool)>,
@@ -104,17 +108,31 @@ fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsStri
     return Ok(entries);
 }
 
-/// The path of the directory on top of the stack,
-/// for messages.
-fn shown_path(top: &Path, stack: &[Frame], name: &OsString) -> PathBuf {
-    let mut path: PathBuf = top.to_path_buf();
-    for frame in stack {
-        if let Some(part) = frame.name.as_ref() {
-            path.push(part);
+/// What:
+///  Whether the caller named `path` as a folder it owns,
+/// so the walk neither visits nor deletes it.
+/// Why:
+///   A caller that keeps its own state below the top removes it by itself,
+/// and the answer is asked of every entry the walk
+///  meets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const own = isTheCallersOwn(except, path); // boolean
+/// ```
+fn is_the_callers_own(except: &[&Path], path: &Path) -> bool {
+    for owned in except {
+        if *owned == path {
+            return true;
         }
     }
-    path.push(name);
-    return path;
+    return false;
+}
+
+/// The path of the entry `name` inside the directory the frame holds,
+/// for messages and for the question whether a caller owns it.
+fn shown_path(frame: &Frame, name: &OsStr) -> PathBuf {
+    return frame.path.join(name);
 }
 
 /// What:
@@ -160,16 +178,19 @@ fn boundary_error(top: &Path, found: &Boundary) -> std::io::Error {
 /// and a caller that refuses before it starts needs the path itself.
 ///  A boundary stops the walk in either pass,
 /// because nothing below it is part of the tree being removed.
+/// A caller that owns folders below `top` names them as `except`:
+/// they are neither visited nor deleted here,
+/// because what stands in them is that caller's own to remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stopped = walk(top, shown, Pass.Remove); // a Boundary, or undefined when the whole tree went
+/// const stopped = walk(top, shown, Pass.Remove, []); // a Boundary, or undefined when the whole tree went
 /// ```
-fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<Option<Boundary>> {
+fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> std::io::Result<Option<Boundary>> {
     let baseline: u64 = device_of(top)?;
     // A directory the user does not own keeps its mode; the removal below then reports the operating system's refusal.
     let _top_widened = widen_directory(top);
-    let mut stack: Vec<Frame> = vec![Frame { directory: top.try_clone()?, name: None, pending: list(top, pass == Pass::Check)? }];
+    let mut stack: Vec<Frame> = vec![Frame { directory: top.try_clone()?, name: None, path: shown.to_path_buf(), pending: list(top, pass == Pass::Check)? }];
     while let Some(frame) = stack.last_mut() {
         let Some((name, is_directory)) = frame.pending.pop() else {
             let Some(done) = stack.pop() else { break };
@@ -177,13 +198,18 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<Option<Boundary
                 && let (Some(name), Some(parent)) = (done.name.as_ref(), stack.last())
                 && let Err(error) = remove_at(&parent.directory, name, true)
             {
-                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, name).display())));
+                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", done.path.display())));
             }
             continue;
         };
+        // The entry's own path decides two things: whether the caller owns it, and what a message names.
+        let path: PathBuf = shown_path(frame, &name);
+        if is_the_callers_own(except, path.as_path()) {
+            continue;
+        }
         if !is_directory {
             if let Err(error) = remove_at(&frame.directory, &name, false) {
-                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, &name).display())));
+                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", path.display())));
             }
             continue;
         }
@@ -191,19 +217,19 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<Option<Boundary
         let child: File = match opened {
             Ok(child) => child,
             Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
-                return Ok(Some(Boundary { path: shown_path(shown, &stack, &name), what: A_MOUNT_POINT }));
+                return Ok(Some(Boundary { path, what: A_MOUNT_POINT }));
             }
             Err(error) => {
-                return Err(std::io::Error::new(error.kind(), format!("{} cannot be opened without following a link ({error})", shown_path(shown, &stack, &name).display())));
+                return Err(std::io::Error::new(error.kind(), format!("{} cannot be opened without following a link ({error})", path.display())));
             }
         };
         let child_facts: std::fs::Metadata = child.metadata()?;
         if child_facts.dev() != baseline && child_facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
-            return Ok(Some(Boundary { path: shown_path(shown, &stack, &name), what: ANOTHER_FILESYSTEM }));
+            return Ok(Some(Boundary { path, what: ANOTHER_FILESYSTEM }));
         }
         let _child_widened = widen_directory(&child);
         let pending: Vec<(OsString, bool)> = list(&child, pass == Pass::Check)?;
-        stack.push(Frame { directory: child, name: Some(name), pending });
+        stack.push(Frame { directory: child, name: Some(name), path, pending });
     }
     return Ok(None);
 }
@@ -221,7 +247,7 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<Option<Boundary
 /// await verifyBelow(top, shown);
 /// ```
 pub fn verify_below(top: &File, shown: &Path) -> std::io::Result<()> {
-    return match walk(top, shown, Pass::Check)? {
+    return match walk(top, shown, Pass::Check, &[])? {
         None => Ok(()),
         Some(found) => Err(boundary_error(shown, &found)),
     };
@@ -239,7 +265,7 @@ pub fn verify_below(top: &File, shown: &Path) -> std::io::Result<()> {
 /// await emptyDirectory(top, shown);
 /// ```
 pub fn empty_directory(top: &File, shown: &Path) -> std::io::Result<()> {
-    return match walk(top, shown, Pass::Remove)? {
+    return match walk(top, shown, Pass::Remove, &[])? {
         None => Ok(()),
         Some(found) => Err(boundary_error(shown, &found)),
     };
@@ -261,7 +287,25 @@ pub fn empty_directory(top: &File, shown: &Path) -> std::io::Result<()> {
 /// const found = findBoundaryBelow(top, shown); // Boundary | undefined
 /// ```
 pub fn find_boundary_below(top: &File, shown: &Path) -> std::io::Result<Option<Boundary>> {
-    return walk(top, shown, Pass::Check);
+    return walk(top, shown, Pass::Check, &[]);
+}
+
+/// What:
+///  The same walk with the folders the caller owns left out of it,
+/// or nothing when the rest of the tree holds neither a subvolume nor a mount point.
+/// Why:
+///   A caller that keeps its own state in folders below `top` and removes them by itself needs the proof of
+///  everything else:
+/// a volume a fill made there in the moments since that folder was cleared is the caller's own,
+/// and refusing it
+///  as somebody else's would stop a removal over state this program made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const found = findBoundaryBelowExcept(top, shown, [callingFolder]); // Boundary | undefined
+/// ```
+pub fn find_boundary_below_except(top: &File, shown: &Path, except: &[&Path]) -> std::io::Result<Option<Boundary>> {
+    return walk(top, shown, Pass::Check, except);
 }
 
 /// Walk controls stay out of the release executable.

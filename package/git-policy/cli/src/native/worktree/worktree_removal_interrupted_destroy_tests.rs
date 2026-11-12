@@ -97,7 +97,8 @@ fn btrfs_a_recorded_destroy_is_finished_when_a_pool_a_killed_clear_left_is_the_o
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = common_dir.join("worktrees/wt");
     // The state a clear killed between its rename and its deletions leaves: a member of the pool under the taken name.
-    let left: PathBuf = crate::worktree_removal_clears_the_ahead_pool::wrapper_folder(admin.as_path()).join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
+    let data: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let left: PathBuf = data.join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
     std::fs::create_dir_all(left.as_path()).expect("the folder a killed clear had renamed");
     let member: PathBuf = left.join(".cli-git-worktree-ahead-0123456789abcdef-000001a1cae683dc-0123456789abcdef0123456789abcdef");
     subvolume_create_at(member.as_path()).expect("the member a killed clear left under its taken name");

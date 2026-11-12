@@ -52,12 +52,12 @@ use crate::fs_beneath::{handle_path, identity_at, remove_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
-use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, verify_below};
+use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, find_boundary_below_except, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
+use crate::worktree_removal_clears_the_ahead_pool::{clear_the_pools_ahead_of_a_worktree, data_folders};
 use crate::worktree_removal_refuses_a_nested_volume::refusal_for_nested_volume;
 use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, registration_volume_report, snapshots_ahead_report, stage_state, unwalkable_registration_report};
 pub use crate::worktree_removal_holds_the_worktree::Held;
@@ -422,7 +422,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // program does not own inside it would leave the files gone and the registration stuck, with a notice on every later
     // command. It is proved now, while the worktree and every file of it are still there, so the person reads what stands in
     // the way instead of a removal that cannot finish.
-    match find_boundary_below(&held.admin, registration.admin.as_path()) {
+    // This program's own folders there are left out of the proof: the clear above emptied their pools, a fill that made a
+    // pool of its own in the moments since is this program's as well, and it is taken before the destroy rather than
+    // refused.
+    let own: [PathBuf; 2] = data_folders(registration.admin.as_path());
+    let except: [&Path; 2] = [own[0].as_path(), own[1].as_path()];
+    match find_boundary_below_except(&held.admin, registration.admin.as_path(), &except) {
         Ok(None) => {}
         Ok(Some(found)) => {
             let report: String = registration_volume_report(target, registration.admin.as_path(), &found);

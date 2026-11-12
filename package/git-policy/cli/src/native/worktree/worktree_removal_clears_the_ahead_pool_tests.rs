@@ -1,6 +1,6 @@
 //! What:
-//!  Controls for taking the snapshots the wrapper made ahead of an add out of the administrative directory of a
-//! worktree that is being removed.
+//!  Controls for taking the pools of snapshots the wrapper made ahead of an add out of the administrative directory
+//! of a worktree that is being removed.
 //! Why:
 //!   The pool is the wrapper's own cache of that worktree,
 //! and the removal is the only thing that takes it,
@@ -14,12 +14,13 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(clearTheSnapshotsAhead(admin)).toBeUndefined(); expect(pool.exists()).toBe(false);
+//! expect(clearThePoolsAheadOfAWorktree(admin)).toBeUndefined(); expect(pool.exists()).toBe(false);
 //! ```
 
 use super::*;
 use crate::private_storage::remove_tree;
 use crate::test_support::fixture;
+use crate::worktree_snapshot_ahead::pool_folder;
 
 /// The name of one member of a pool,
 /// in the shape the service makes it,
@@ -87,8 +88,8 @@ fn a_member_that_cannot_go_is_the_reason_the_removal_refuses() {
     assert!(reason.contains(member.to_str().expect("UTF-8")), "the reason names the snapshot that stands there: {reason}");
 }
 
-/// The name a clear gives a pool it is deleting,
-/// which a killed clear leaves behind.
+/// The name a killed clear leaves a pool it had already renamed,
+/// which is the identity that name was made of.
 const TAKEN_BY_A_CLEAR: &str = "removing-0f0e0d0c-0b0a-4908-8706-050403020100";
 
 /// What:
@@ -107,7 +108,7 @@ const TAKEN_BY_A_CLEAR: &str = "removing-0f0e0d0c-0b0a-4908-8706-050403020100";
 fn a_pool_a_killed_clear_left_under_its_taken_name_goes_with_the_next_clear() {
     let root: PathBuf = fixture("ahead-pool-left-taken");
     let admin: PathBuf = root.join("worktrees/wt");
-    let folder: PathBuf = wrapper_folder(admin.as_path());
+    let folder: PathBuf = admin.join("monochromatic-git-policy-cli");
     let left: PathBuf = folder.join(TAKEN_BY_A_CLEAR);
     let member: PathBuf = left.join(A_MEMBER);
     std::fs::create_dir_all(member.as_path()).expect("the member of a pool a killed clear left");
@@ -119,5 +120,44 @@ fn a_pool_a_killed_clear_left_under_its_taken_name_goes_with_the_next_clear() {
     assert!(!left.exists(), "the leftover of the killed clear goes");
     assert!(!member.exists(), "with the member it still held");
     assert!(!pool.exists(), "and the pool a fill made goes as it always did");
-    assert!(!folder.exists(), "the wrapper's own folder is free again");
+    assert!(!folder.exists(), "the data folder is free again, because it held nothing but those pools");
+}
+
+/// What:
+///  The records a person reads stay where they are when the pools of a worktree that is going away are taken,
+///  and a name that is no identity this program made is not taken for a pool.
+/// Why:
+///   The data folder holds the notices of a push that failed,
+/// the files a pull kept out of the way and the service's
+///  own work queue beside the pool,
+/// so a clear that took the folder whole would delete what a person has not read yet,
+///  and one that took every name beginning `removing-` would take a directory somebody else named.
+#[test]
+fn the_records_a_person_reads_stay_and_a_name_this_program_did_not_make_is_no_pool() {
+    let root: PathBuf = fixture("ahead-pool-keeps-the-records");
+    let admin: PathBuf = root.join("worktrees/wt");
+    let folder: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let notices: PathBuf = folder.join("notices/push+refs%2Fheads%2Ftopic+0123456789abcdef0123456789abcdef01234567.txt");
+    let kept: PathBuf = folder.join("pull-kept/notes.txt");
+    let queued: PathBuf = folder.join("work/an-item");
+    for path in [&notices, &kept, &queued] {
+        std::fs::create_dir_all(path.parent().expect("a folder a person reads")).expect("the folder");
+        std::fs::write(path.as_path(), b"what a person reads\n").expect("its bytes");
+    }
+    // A directory of the person's own whose name begins like a taken pool but is no identity this program makes.
+    let named_like_a_pool: PathBuf = folder.join("removing-not-an-identity");
+    std::fs::create_dir_all(named_like_a_pool.as_path()).expect("a folder of the person's own");
+    std::fs::write(named_like_a_pool.join("notes.txt"), b"mine\n").expect("its file");
+    // The pool a fill reads, and the pool a killed clear left.
+    let pool: PathBuf = pool_folder(admin.as_path());
+    std::fs::create_dir_all(pool.join(A_MEMBER).as_path()).expect("the pool of the worktree that is going away");
+    let left: PathBuf = folder.join(TAKEN_BY_A_CLEAR);
+    std::fs::create_dir_all(left.join(A_MEMBER).as_path()).expect("the pool a killed clear left");
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()));
+    assert!(!pool.exists(), "the pool a fill reads goes");
+    assert!(!left.exists(), "and so does the pool a killed clear left");
+    for path in [&notices, &kept, &queued] {
+        assert!(path.is_file(), "the records a person reads stay: {}", path.display());
+    }
+    assert_eq!(std::fs::read(named_like_a_pool.join("notes.txt")).expect("the person's file"), b"mine\n", "a name this program did not make is no pool");
 }

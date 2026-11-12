@@ -393,6 +393,11 @@ pub(crate) fn candidates(folder: &File, key: &str) -> Vec<OsString> {
     return names;
 }
 
+/// The name of the folder a pool of snapshots ahead stands in,
+/// inside the data folder of a Git directory:
+/// the one path a fill reads and a removal takes.
+pub const POOL_FOLDER: &str = "ahead";
+
 /// What:
 ///  The folder the snapshots the wrapper makes ahead of an add stand in:
 /// `<git-dir>/monochromatic-git-policy-cli/ahead`,
@@ -418,7 +423,7 @@ pub(crate) fn candidates(folder: &File, key: &str) -> Vec<OsString> {
 /// const pool = (gitDir: string) => join(gitDir, 'monochromatic-git-policy-cli', 'ahead');
 /// ```
 pub fn pool_folder(git_dir: &Path) -> PathBuf {
-    return git_dir.join("monochromatic-git-policy-cli").join("ahead");
+    return git_dir.join("monochromatic-git-policy-cli").join(POOL_FOLDER);
 }
 
 /// What:

@@ -326,8 +326,9 @@ fn btrfs_a_subvolume_of_the_persons_own_in_the_git_directory_refuses_before_the_
 /// const left = aPoolAKilledClearLeft(admin); // the folder the clear had renamed
 /// ```
 fn a_pool_a_killed_clear_left(admin: &Path) -> PathBuf {
-    let left: PathBuf = crate::worktree_removal_clears_the_ahead_pool::wrapper_folder(admin).join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
-    std::fs::create_dir_all(left.as_path()).expect("the folder a killed clear had renamed");
+    let data: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let left: PathBuf = data.join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
+    std::fs::create_dir_all(left.as_path()).expect("the pool a killed clear had renamed");
     let member: PathBuf = left.join(".cli-git-worktree-ahead-0123456789abcdef-000001a1cae683dc-0123456789abcdef0123456789abcdef");
     subvolume_create_at(member.as_path()).expect("the member a killed clear left under its taken name");
     std::fs::write(member.join("tracked.txt"), b"a copy of the worktree\n").expect("its files");

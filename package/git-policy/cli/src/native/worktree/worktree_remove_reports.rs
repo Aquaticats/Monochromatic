@@ -4,8 +4,10 @@
 //! the report of a refused
 //!  removal,
 //! the report of one that destroyed the files and could not remove the registration,
-//! and the report of one
-//!  refused because the snapshots this program made ahead of an add cannot be taken.
+//! the report of one
+//!  refused because the snapshots this program made ahead of an add cannot be taken,
+//! and the reports of one refused because
+//!  the registration holds a volume it cannot empty.
 //! Why:
 //!  Each report is text a person acts on,
 //! so each names the paths and every command that finishes the job,
@@ -23,6 +25,8 @@
 //! const refused = leftoverStageReport(target, converting);
 //! const blocked = snapshotsAheadReport({ target, admin, reason });
 //! const incomplete = incompleteReport({ target, registration, commonDir, reason });
+//! const held = registrationVolumeReport({ target, admin, found });
+//! const unreadable = unwalkableRegistrationReport({ target, admin, reason });
 //! ```
 
 use crate::subvolume_remove_walk::Boundary;

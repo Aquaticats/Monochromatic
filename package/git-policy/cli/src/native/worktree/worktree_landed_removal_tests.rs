@@ -1036,7 +1036,8 @@ fn a_btrfs_landed_worktree(name: &str) -> Option<Landed> {
 fn btrfs_a_swept_worktree_takes_a_pool_a_killed_clear_left_with_it() {
     let Some(landed) = a_btrfs_landed_worktree("landed-btrfs-pool-left-taken") else { return };
     let admin: PathBuf = landed.common.join("worktrees/worktree");
-    let left: PathBuf = crate::worktree_removal_clears_the_ahead_pool::wrapper_folder(admin.as_path()).join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
+    let data: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let left: PathBuf = data.join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
     std::fs::create_dir_all(left.as_path()).expect("the folder a killed clear had renamed");
     let member: PathBuf = left.join(".cli-git-worktree-ahead-0123456789abcdef-000001a1cae683dc-0123456789abcdef0123456789abcdef");
     crate::fs_btrfs_ioctl::subvolume_create_at(member.as_path()).expect("the member a killed clear left under its taken name");

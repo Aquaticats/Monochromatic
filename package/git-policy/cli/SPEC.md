@@ -2893,22 +2893,33 @@ a member is one copy of it,
 and an add that finds no pool makes its own,
 exactly as with the shadow pool of a
 removed worktree (`worktree_removal_clears_the_pool.rs`).
-`<admin>/monochromatic-git-policy-cli` is this program's own folder inside a registration:
-no other program
-writes there,
-and every entry of it is a copy of the worktree being removed,
-so the whole folder goes and not
-just the one pool under it.
-That is what makes an interrupted take resumable:
-a clear renames a pool to
-`removing-<identity>` before it deletes a member of it,
-so a command killed between those two steps leaves a
-pool no fill reads under a name that is still inside the wrapper's own folder,
-and the next removal takes that
-name too rather than refusing a volume it is certain it made.
-Ownership is therefore the one folder name the wrapper
-made,
-never a pattern over the names of the volumes inside it.
+What is taken from that registration is what this program wrote there,
+never a guess about what a
+volume is:
+the pool a fill reads,
+`<admin>/monochromatic-git-policy-cli/ahead`,
+and a pool a clear
+renamed to `removing-<identity>` and a kill left before it emptied it.
+That second name is a record
+this program keeps of a pool it was taking:
+the prefix is the one the clear chose and the body is an identity
+this program makes,
+so a directory a person named anything else is never taken for one.
+It is also what makes an
+interrupted take resumable:
+the next removal takes that pool rather than refusing a volume it made itself.
+The data folder
+itself stays,
+because it also holds what a person reads:
+the notices of a push that failed,
+the files a pull kept
+out of the way,
+and the service's own work queue,
+none of which the removal may delete.
+A release before the
+program was renamed spelled the data folder another way,
+so both spellings are cleared and neither folder is
+moved.
 A pool is taken out of its own name with one
 rename,
 so a fill that comes afterwards makes a pool of its own rather than writing into the tree being deleted,
@@ -3012,8 +3023,10 @@ with the same force:
   the
   destroy cannot take such a worktree whatever the person asks,
   and Git's removal would take the files inside it.
-- Every volume below the registration can be left alone
-  (`src/native/worktree/worktree_remove_reports.rs`).
+- Every volume below the registration can be left alone,
+  except in the folder this program owns there
+  (`src/native/worktree/worktree_remove_reports.rs`,
+  `src/native/subvolume/subvolume_remove_walk.rs`).
   The wrapper's own folder there is taken first,
   and what remains is walked by the same proof,
   because the registration is emptied after the destroy:
@@ -3026,6 +3039,10 @@ with the same force:
   names the volume,
   and says that nothing was removed;
   a registration that cannot be read refuses the same way and names the reason.
+  The one folder this program keeps in a registration is left out of that proof,
+  because the clear above empties it and a pool a fill made there in the moments since is its own:
+  what stands in that folder is treated as this program's,
+  and a volume beside it is refused.
 
 Accepted risk,
 stated to the person who runs the command:
