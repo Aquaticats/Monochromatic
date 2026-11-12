@@ -1314,10 +1314,10 @@ and each of the two long passes continues where it stopped:
   Both files are created readable and writable by this user alone (`0600`).
   A staging name that cannot be created is reported once and costs the run its position,
   never the run itself.
-- A resumed idle-trees pass still holds the whole base's workspaces as guards.
-  The trees before the recorded position are not judged again,
-  but their ledgers are read,
-  because a tree this pass judges may hold the workspace one of them records:
+- The idle-trees pass holds the whole base's workspaces as guards.
+  It reads the ledger of every tree of the base before it judges one,
+  not only of the trees it is about to judge,
+  because a tree this pass judges may hold the workspace another one records:
   without them a resumed pass removed a tree that a pass from the front keeps,
   and the live sources inside it with it.
   Only the ledger is read for those trees,
@@ -1326,46 +1326,99 @@ and each of the two long passes continues where it stopped:
   measured 2026-11-11 in a fixture base on this host,
   4,000 trees with a ledger on every one took 62 ms
   against 33 ms for the same base with no ledger (best of seven alternating runs),
-  which is 29 ms for 4,000 reads and about a second for the 33,804 trees of the real base.
+  which is 29 ms for 4,000 reads.
+- Every loop of the pass obeys the run's deadline, and a cut is a safe point.
+  The listing of the base,
+  the survey that reads every tree's ledger and the newest time among its directories,
+  the walk for a tree's own last write,
+  the walk for the workspace its dependency information names,
+  the scan of the processes and the unlink walk of a claimed tree all check the clock between two items.
+  A bound that has passed ends the pass at the next of those,
+  and the pass says what it finished and what it left.
+  A survey the deadline cut judges nothing,
+  because the guard list and the order both come from the whole list:
+  a pass that removed on half a base could remove a tree that holds a live workspace.
+  A deletion the deadline stopped leaves the rest of the claimed entry in the trash with a line saying so,
+  and the next pass's sweep of the trash finishes it,
+  which is the same path that finishes what a killed pass left.
+  Before this,
+  measured on 2026-11-11 and 2026-11-12,
+  a pass given fifteen minutes on the command line was still reading the recorded workspace of every tree 985 s in,
+  in uninterruptible disk wait,
+  and a released build given a bound of zero minutes and killed 120 s later had printed nothing about the trees.
+- The whole base is judged in the order of its age,
+  not in path order:
+  the survey reads the newest time among each tree's root,
+  profile directories and their working directories,
+  and the pass judges the oldest first.
+  That time is a lower bound of the tree's newest write,
+  so a tree whose hint is younger than its idle period is kept without the walk over every unit it holds,
+  and a tree whose hint is older is walked as before.
+  A directory touched since the last write keeps a tree one more pass,
+  which is the safe direction.
+  Why the order matters:
+  measured 2026-11-12 on the real base with a twenty-minute bound,
+  a pass in path order judged 10,805 of 55,881 trees in 1,095 s and freed nothing,
+  because every tree it reached was younger than its idle period;
+  the same pass in age order judged 819 trees in 1,000 s and would have freed 907.36 GiB from 493 of them,
+  the first 18.28 GiB of it inside the first half minute of judging.
+- What a pass says while it runs:
+  every half minute the journal gets one line with how many trees it judged,
+  how many it removed and how many bytes with them,
+  how many it kept,
+  and how much of its bound is left.
+  The summary line says how far it got,
+  what it removed,
+  what it left for the next pass and why,
+  and, when it freed nothing,
+  whether the trees are still in use or not yet old enough.
 
 The bound is set from what each mechanism costs,
-measured 2026-11-10 on this machine:
+measured 2026-11-10 on this machine and re-measured 2026-11-12:
 
-- The idle-trees pass judged 14,850 of 33,804 trees in 10,475 s of the run that ended
-  2026-11-10T07:37:24-05:00,
-  0.71 s per tree including the removal of 511.49 GiB,
-  so a pass over every
-  tree costs about 6.6 h at today's size.
-  Before it judges anything it reads every tree's recorded workspace,
+- The idle-trees pass on 2026-11-12 surveyed 56,615 trees in 187 s
+  and then judged 819 of them in 1,000 s,
+  which is the removal being the expensive part:
+  493 of those 819 qualified,
+  and each of the 493 costs the process scan and a walk of the tree.
+  The trees it keeps cost a ledger read and a `stat` of the workspace,
+  or, for a legacy tree, a read of one dependency file,
+  and a `stat` of a few directories.
+  Before that day it cost 0.71 s per tree and a fixed read of the whole base:
+  the run that ended 2026-11-10T07:37:24-05:00 judged 14,850 of 33,804 trees in 10,475 s,
   and under the load of that day
   (a load average of 70 to 148,
-  a build base with 18 GiB free) that fixed read alone ran past an hour;
-  the pass now says how long it took.
+  a build base with 18 GiB free) the fixed read alone ran past an hour.
 - The units pass judged 1,782 of 68,755 profile directories in the 921 s a planning pass had left after
   listing them (0.52 s each,
   `lean run --dry-run --only units --deadline-minutes 30`),
   so a pass over
   every profile directory costs about 9.9 h,
   and listing them costs 880 s before the first one is judged.
+  The listing obeys the deadline now and a listing the deadline cut is judged not at all,
+  because a sorted list missing its tail is not the list a recorded position indexes.
 - Run records,
   toolchains and Podman took 24 s,
   under a second and 334 s in the journaled run above,
   and 193 s,
   6 s and 1,944 s in the one before it.
 
-A pass over both lists is therefore about seventeen hours today,
-so no bound a person would accept makes one run cover it.
+A pass over the profile directories is still about ten hours,
+so no bound a person would accept makes one run cover every mechanism,
+and the two long passes keep the position each records.
 
 `RUN_DEADLINE_SECONDS` is 5 h (`src/lean_policy.rs`),
 the service's `RuntimeMaxSec` is that plus thirty minutes,
 both written by the next `cargo-shadow lean service-install`,
 while the unit installed today still holds the old bound's 12,600 s.
-A pass that runs out of its own deadline ends there,
-or up to thirty minutes later when one large tree's deletion outlasts it,
-and the next pass starts a minute later.
-The trees pass at 6.6 h then needs a second pass,
-whose last 3.4 h the units pass takes,
-and the two continue that way while a whole pass costs more than the bound.
+A pass that runs out of its own deadline ends at the next check,
+which is a tree,
+verification directory or profile directory,
+and at worst the removal it had already claimed,
+whose rest stays in the trash for the next pass.
+The next pass starts a minute later.
+The units pass at about ten hours still needs more than one,
+and the next one continues after the profile directory the last pass recorded.
 What the bound costs a person is small:
 systemd recorded `2min 22s CPU time over 3h 30min wall clock` and a 517 MiB peak for the run that ended
 2026-11-09T08:00:00-05:00,
@@ -1446,8 +1499,13 @@ recorded in the log line of every removal:
   so nothing outside the claimed entry is touched.
 
 Nothing waits without end:
-every walk obeys the run's deadline and every `podman`,
+every walk obeys the run's deadline,
+every loop of a walk checks the clock between two items,
+and every `podman`,
 `rustup` and `systemctl` call has its own.
+A walk that is cut says so and leaves the decision it could not make for the next pass:
+nothing is removed on a survey or a process scan that did not finish,
+and a deletion that was claimed and then cut is finished by the next pass's sweep of the trash.
 `lean` never starts `cargo`,
 never starts itself,
 and takes no lock of its own (the claim is the rename).

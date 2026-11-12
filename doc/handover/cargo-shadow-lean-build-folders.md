@@ -36,6 +36,40 @@ before the tasks sweep the names it adds.
 
 ## State
 
+- Updated 2026-11-12T02:45:00-05:00 (branch `fix/cargo-shadow-lean-deadline-ends-a-pass-and-a-pass-keeps-up`,
+  not released and not installed):
+  a pass now ends at its bound, frees space in its first minutes, and says what it is doing while it runs.
+  `--deadline-minutes` used to be checked only between trees,
+  so the prelude that read the recorded workspace of every tree ran with no clock check at all:
+  on 2026-11-11 a pass given fifteen minutes was 985 s in and in disk wait,
+  and 57 minutes in had printed nothing about the trees.
+  Every loop of the pass now carries the deadline (the base listing,
+  the ledger survey,
+  the walk for a tree's last write,
+  the walk for the workspace its dependency information names,
+  the process scan,
+  and the unlink walk of a claimed tree),
+  a cut survey judges nothing,
+  a cut scan removes nothing,
+  and a cut deletion leaves the rest of the claimed entry in the trash for the next pass,
+  which is the path that already finished what a killed pass left there.
+  The survey now reads the ledger of every tree once (that is the guard list as well as the class),
+  the pass judges the whole base in the order of its age,
+  keeps a tree whose own directories were written to inside its idle period without walking its units,
+  and keeps a tree whose workspace still exists from one `stat` of it.
+  Measured 2026-11-12 on this machine,
+  `lean run --dry-run --only trees --deadline-minutes 20` in a scope with `CPUQuota=200%`,
+  `MemoryMax=4G`, `TasksMax=256` and `IOWeight=5`:
+  it surveyed 56,615 trees in 187 s,
+  judged 819 in the rest of the twenty minutes,
+  would have removed 493 trees for 907.36 GiB by disk blocks (18.28 GiB of it in the first 34 s of judging),
+  and exited 0 at 1,200 s.
+  The same pass in path order:
+  12,555 trees judged in 1,190 s,
+  two removed for 5.36 GiB,
+  the first of them 610 s in.
+  The released 0.1.5-alpha.10 binary on the same base with `--deadline-minutes 0`,
+  killed after 120 s, had printed nothing about the trees.
 - Updated 2026-11-10T17:30:00-05:00 (branch `fix/cargo-shadow-lean-read-only-trees-and-run-deadline`,
   not released and not installed):
   the two long passes continue after the position each records,
@@ -86,6 +120,27 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
 
 ## Open
 
+- What a pass still costs when there is nothing to remove,
+  measured 2026-11-12 and not fixed:
+  the survey is 187 s and the judge of a kept tree still reads its ledger again for its workspace
+  (one small read, or a read of one dependency file for a legacy tree) and `stat`s its workspace,
+  so the pass still pays a few reads per tree of the base.
+  The measured figures of the other mechanisms are 398 s for the run records (2026-11-08),
+  334 s for Podman and 880 s to list the profile directories (2026-11-10),
+  so an idle pass still costs about half an hour.
+  `PAUSE_BETWEEN_PASSES_SECONDS` is a minute, which was a twenty-seventh of the shortest idle pass when it was chosen
+  and is now nothing beside one:
+  the loop is at work nearly all the time.
+  Two directions the next change can take, neither measured to its end:
+  remember each tree's workspace and newest write across passes so that a kept tree costs one `stat` of itself rather
+  than a ledger read and a workspace `stat`
+  (the answer agrees with what a fresh read finds or keeps more, never less,
+  so a removal is still decided from a fresh proof);
+  and make the listing of the profile directories cheaper or incremental,
+  which is the largest single fixed cost of the units pass.
+- The pause between passes and `RUN_DEADLINE_SECONDS` are coordinator picks with the owner's veto open.
+  The bound stays at five hours for the units pass's sake (see its comment in `src/lean_policy.rs`);
+  the pause is now smaller than the work between two passes and is the owner's call.
 - D at its producers:
   wired on 2026-11-08 in the five producing packages,
   and not yet released.

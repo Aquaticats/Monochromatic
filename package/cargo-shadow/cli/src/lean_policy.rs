@@ -112,6 +112,21 @@ pub const PAUSE_BETWEEN_PASSES_SECONDS: u64 = 60;
 
 /// The longest a whole `cargo-shadow lean run` may take:
 /// five hours.
+/// Why five hours is still the answer after the idle-trees pass became cheap
+/// (measured 2026-11-12:
+/// 56,615 trees surveyed in 187 s,
+/// then 819 judged in 1,000 s of which 493 qualified for 907.36 GiB,
+/// the first 18.28 GiB inside the first half minute of judging):
+/// the bound is not what the shorter mechanism needs but what the longest one may take on a volume a person also
+/// commits to,
+/// and the units pass still costs about ten hours
+/// (`lean run --dry-run --only units --deadline-minutes 30` on 2026-11-10:
+/// 1,782 of 68,755 profile directories judged in 921 s after 880 s of listing),
+/// so a pass that ran until every mechanism finished would hold the disk for seventeen hours.
+/// The bound also has to be longer than the trees pass needs for the removals it reaches,
+/// because a bound shorter than that would re-survey the base on every pass and remove nothing:
+/// the same pass on 2026-11-12 spent 187 s of its twenty minutes on the survey,
+/// and a bound of four minutes would spend most of itself there.
 /// Measured 2026-11-10:
 /// the idle-trees pass judged 14,850 of 33,804 trees in 10,475 s,
 /// 0.71 s per tree including the removal of 511.49 GiB,

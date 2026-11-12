@@ -549,12 +549,12 @@ pub fn collect_idle_trees(
     let mut collection: TreeCollection = TreeCollection::default();
     // The survey is a fixed cost of every pass, however small the bound is, so the pass says what it cost.
     let surveying: Instant = Instant::now();
-    let found: Survey = survey(trees, retired, deadline);
-    collection.lines.push(format!("  read the ledger of {} of {} trees in {} s", found.read, trees.len(), surveying.elapsed().as_secs()));
-    let candidates: usize = found.candidates.iter().filter(|one| { return **one; }).count();
+    let surveyed: Survey = survey(trees, retired, deadline);
+    collection.lines.push(format!("  read the ledger of {} of {} trees in {} s", surveyed.read, trees.len(), surveying.elapsed().as_secs()));
+    let candidates: usize = surveyed.candidates.iter().filter(|one| { return **one; }).count();
     collection.candidates = candidates;
-    if found.cut {
-        collection.lines.push(format!("  the deadline passed while reading the ledger of {} of {} trees, so this pass judged nothing: a removal needs the whole base's records as its guard", found.read, trees.len()));
+    if surveyed.cut {
+        collection.lines.push(format!("  the deadline passed while reading the ledger of {} of {} trees, so this pass judged nothing: a removal needs the whole base's records as its guard", surveyed.read, trees.len()));
         collection.given = trees.len();
         collection.resume_after = after.map(Path::to_path_buf);
         return collection;
@@ -562,10 +562,10 @@ pub fn collect_idle_trees(
     // The age order is not a position: a tree that was kept has been written to since, or was too young, so it moves
     // further down the order on the next pass. The recorded position bounds the window a pass judges, so a pass that is
     // cut always leaves ground behind it and the next one continues after it instead of reading the same front again.
-    let order: Vec<usize> = judging_order(trees, &found);
+    let order: Vec<usize> = judging_order(trees, &surveyed);
     let mut to_judge: Vec<usize> = Vec::with_capacity(order.len());
     for index in order {
-        if after.is_none_or(|recorded| trees[index].path.as_path() > recorded) {
+        if after.is_none_or(|recorded| return trees[index].path.as_path() > recorded) {
             to_judge.push(index);
         }
     }
@@ -609,8 +609,8 @@ pub fn collect_idle_trees(
             // Its workspace was not read, so nothing was decided about it: the next pass judges it first.
             break;
         };
-        let (reason, needed): (String, i64) = match qualifies_apart_from_idleness(tree, &workspace, retired, policy) {
-            Ok(found) => found,
+        let (why_qualified, needed): (String, i64) = match qualifies_apart_from_idleness(tree, &workspace, retired, policy) {
+            Ok(answer) => answer,
             Err((why, kind)) => {
                 standing.judged += 1;
                 standing.kept += 1;
@@ -621,17 +621,17 @@ pub fn collect_idle_trees(
         };
         // The hint is the newest time among the tree's own directories, so it is a lower bound of its newest write:
         // a hint younger than the period proves the tree is not old enough, and the walk is not needed to know it.
-        if let Some(hint) = found.hints[*index]
+        if let Some(hint) = surveyed.hints[*index]
             && now - hint <= needed
         {
             standing.judged += 1;
             standing.kept += 1;
             collection.judged += 1;
-            let reason: String = format!("the newest write among its own directories was {} s ago, within the {needed} s period ({reason})", now - hint);
-            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep { reason, kind: KeepKind::NotIdleEnough } });
+            let told: String = format!("the newest write among its own directories was {} s ago, within the {needed} s period ({why_qualified})", now - hint);
+            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep { reason: told, kind: KeepKind::NotIdleEnough } });
             continue;
         }
-        if let Some(inside) = holds_other_workspace(&tree.path, &found.roots) {
+        if let Some(inside) = holds_other_workspace(&tree.path, &surveyed.roots) {
             standing.judged += 1;
             standing.kept += 1;
             collection.judged += 1;
@@ -643,15 +643,15 @@ pub fn collect_idle_trees(
             standing.judged += 1;
             standing.kept += 1;
             collection.judged += 1;
-            let reason: String = format!("the workspace it records lies inside {}, whose guard that record is", guarded.display());
-            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep { reason, kind: KeepKind::InUse } });
+            let told: String = format!("the workspace it records lies inside {}, whose guard that record is", guarded.display());
+            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep { reason: told, kind: KeepKind::InUse } });
             continue;
         }
         let Some(activity) = last_activity(&tree.path, deadline) else {
             break;
         };
-        let reason: String = match qualifies(now, activity, needed, &reason) {
-            Ok(found) => found,
+        let reason: String = match qualifies(now, activity, needed, &why_qualified) {
+            Ok(answer) => answer,
             Err((why, kind)) => {
                 standing.judged += 1;
                 standing.kept += 1;

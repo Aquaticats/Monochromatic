@@ -246,10 +246,12 @@ fn make_base_world() -> World {
         std::fs::write(profile.join("deps").join("libalpha.rlib"), vec![5_u8; 8192]).expect("artifact");
         std::fs::write(relative.join(".cargo-shadow-workspace"), format!("{}\n", workspace.display())).expect("ledger");
         let old: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(FIFTEEN_DAYS);
-        std::fs::File::open(profile.join("deps").join("libalpha.rlib")).expect("open").set_modified(old).expect("time");
-        std::fs::File::open(profile.join(".cargo-build-lock")).expect("open").set_modified(old).expect("time");
-        std::fs::File::open(&profile).expect("open").set_modified(old).expect("time");
-        std::fs::File::open(&relative).expect("open").set_modified(old).expect("time");
+        for directory in [profile.join("deps"), profile.clone(), relative.clone()] {
+            std::fs::File::open(&directory).expect("open").set_modified(old).expect("time");
+        }
+        for file in [profile.join("deps").join("libalpha.rlib"), profile.join(".cargo-build-lock"), relative.join(".cargo-shadow-workspace")] {
+            std::fs::File::open(&file).expect("open").set_modified(old).expect("time");
+        }
     }
     world.base = base;
     return world;
