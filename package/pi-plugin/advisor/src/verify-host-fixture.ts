@@ -30,6 +30,8 @@ import { AdvisorCompletionError, } from '../dist/final/node/index.mjs';
  ```
  */
 export default function advisorHostFixture(pi: ForeignHostCapability<ExtensionAPI>,): void {
+  //region Environment guard
+
   /**
    Guard prevents accidental loading into an ordinary user session.
    */
@@ -55,6 +57,11 @@ export default function advisorHostFixture(pi: ForeignHostCapability<ExtensionAP
       'slash-error',
     ].includes(mode ?? '',)))
     throw new AdvisorCompletionError('Advisor host fixtures require the dedicated verification environment',);
+
+  //endregion Environment guard
+
+  //region Dispatch trace
+
   /**
    Primitive validated trace destination retained by provider callbacks.
    */
@@ -78,6 +85,10 @@ export default function advisorHostFixture(pi: ForeignHostCapability<ExtensionAP
       `${JSON.stringify({ event, },)}\n`,
     );
   }
+
+  //endregion Dispatch trace
+
+  //region Scripted providers
 
   /**
    Scripted primary agent can issue exactly one Advisor tool call, then finish.
@@ -208,7 +219,14 @@ export default function advisorHostFixture(pi: ForeignHostCapability<ExtensionAP
       return fauxAssistantMessage('ALTERNATE_REVIEW',);
     },
   ],);
+
+  //endregion Scripted providers
+
+  //region Provider registration
+
   pi.registerProvider(main.provider,);
   pi.registerProvider(initial.provider,);
   pi.registerProvider(alternate.provider,);
+
+  //endregion Provider registration
 }

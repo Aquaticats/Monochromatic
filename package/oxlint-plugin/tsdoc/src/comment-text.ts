@@ -5,6 +5,10 @@
  the structural-message scanner, and the rule modules can all share these
  helpers without forming an import cycle through `tsdoc-comments.ts`.
  
+ The character predicates and `tokenEnd` are re-exported from
+ `@monochromatic-dev/oxlint-plugin-shared`, which owns them for every plugin
+ package, so the scanners keep one import for the primitives they share.
+ 
  @module
  */
 
@@ -15,6 +19,15 @@ import {
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
 
+<<<<<<< HEAD
+=======
+export {
+  isWhitespaceChar,
+  isWordChar,
+  tokenEnd,
+} from '@monochromatic-dev/oxlint-plugin-shared/ts';
+
+>>>>>>> main
 //region Delimiters, escapes, and line shape
 // The two backtick delimiters, the escape that shields an at sign from tag
 // scanning, and the per-line record the scanner passes between passes.
@@ -240,6 +253,7 @@ export function wordRunEnd({
 }
 
 /**
+<<<<<<< HEAD
  Returns the exclusive end index of the first non-whitespace token starting
  at `start`.
  
@@ -276,6 +290,8 @@ export function tokenEnd({
 }
 
 /**
+=======
+>>>>>>> main
  Returns the exclusive end index of the whitespace run starting at `start`.
  
  @param text - string scanned for whitespace

@@ -4,37 +4,21 @@
  @module
  */
 
+<<<<<<< HEAD
 import {
   isWhitespace,
   isWordChar,
 } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+=======
+import { BLOCK_TAG_NAMES, } from './block-tag-names.ts';
+import { isWordChar, } from './text-character.ts';
+import { tokenEnd, } from './token-end.ts';
+>>>>>>> main
 
 //region Constants
-// The tags that close an open contract, the fence delimiter that suspends
-// scanning, and the sentinel standing where no segment is open.
-
-/**
- Block tags that terminate an open `@mutates` block.
- */
-const BLOCK_TAG_NAMES: ReadonlySet<string> = new Set([
-  '@decorator',
-  '@defaultValue',
-  '@deprecated',
-  '@example',
-  '@param',
-  '@privateRemarks',
-  '@remarks',
-  '@returns',
-  '@see',
-  '@throws',
-  '@typeParam',
-  '@jsx',
-  '@jsxRuntime',
-  '@jsxFrag',
-  '@jsxImportSource',
-  '@mutates',
-  '@yields',
-]);
+// The fence delimiter that suspends scanning, the sentinel standing where no
+// segment is open, and the tag list that closes one, which the tsdoc block
+// scanner reads from the same module.
 
 /**
  Triple-backtick delimiter controlling fenced example state.
@@ -108,6 +92,7 @@ type ReadonlyOpenMutationSegment = {
 //endregion Types
 
 //region Line tokens
+<<<<<<< HEAD
 // Where the first token ends, and which `@word` tag opens a line.
 
 /**
@@ -124,6 +109,10 @@ function firstTokenEnd(text: string,): number {
   }
   return text.length;
 }
+=======
+// Which `@word` tag opens a line. The first-token end both scanners slice a
+// block at comes from the shared `tokenEnd`.
+>>>>>>> main
 
 /**
  Returns leading `@word` tag.
@@ -246,7 +235,10 @@ function finalizeSegment({
   /**
    Exclusive parameter-name token end.
    */
-  const nameEnd = firstTokenEnd(text,);
+  const nameEnd = tokenEnd({
+    text,
+    start: 0,
+  },);
   /**
    Raw first token, with separator-only token treated as absent.
    */

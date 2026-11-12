@@ -67,11 +67,12 @@ export async function* mergeAsArrived<T,>(
     );
   }
   while (pending.size > 0) {
+    /* oxlint-disable eslint/no-await-in-loop -- intentional: race the outstanding tasks, yield the winner, then loop to race the remainder; this IS the merge-as-arrived semantics */
     /**
      The next task to settle, with its index for removal.
      */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- intentional: race the outstanding tasks, yield the winner, then loop to race the remainder; this IS the merge-as-arrived semantics
     const settled = await Promise.race(pending.values(),);
+    /* oxlint-enable eslint/no-await-in-loop */
     pending.delete(settled.index,);
     yield settled.value;
   }

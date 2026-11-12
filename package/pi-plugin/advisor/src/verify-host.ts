@@ -25,6 +25,8 @@ import {
   verifyAdvisorHostEvidence,
 } from './verify-host-results.ts';
 
+//region Child-process adapter
+
 /**
  Preserve Node's ChildProcess-returning execFile signature when selecting its promisify overload.
  */
@@ -33,6 +35,10 @@ const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promis
  Native asynchronous adapter retains captured output, failures, and the child handle.
  */
 const executeFile = promisifyExecFile(execFile,);
+
+//endregion Child-process adapter
+
+//region Fixture constants
 
 /**
  Fixed scenarios prevent a caller or model from supplying an unbounded task queue.
@@ -62,6 +68,8 @@ const FIXTURE_PROMPT = 'Run the scripted Advisor fixture.';
  */
 const MAX_FIXTURE_PROMPT_CHARS = 200;
 
+//endregion Fixture constants
+
 /**
  Run one isolated host and inspect its real persisted tool or slash-command boundary.
  
@@ -70,6 +78,8 @@ const MAX_FIXTURE_PROMPT_CHARS = 200;
  @throws when registration, execution, accounting, or cancellation differs from the accepted contract
  */
 async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
+  //region Disposable host layout
+
   /**
    Each host owns its home, session, configuration, and dispatch trace.
    */
@@ -130,6 +140,11 @@ async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
     },),
     { flag: 'wx', },
   );
+
+  //endregion Disposable host layout
+
+  //region Seeded session
+
   /**
    A seeded assistant makes slash-only session persistence observable too.
    */
@@ -167,6 +182,11 @@ async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
       .join('\n',)  }\n`,
     { flag: 'wx', },
   );
+
+  //endregion Seeded session
+
+  //region Child invocation
+
   /**
    Installed package's actual CLI entry, verified from its bin metadata.
    */
@@ -264,6 +284,11 @@ async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
   execution.child
     .stdin
     ?.end();
+
+  //endregion Child invocation
+
+  //region Evidence assertions
+
   /**
    Both output streams are retained, and nonzero exits reject instead of being ignored.
    */
@@ -309,6 +334,10 @@ async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
   console.log(`Advisor real Pi host verified: ${mode}`,);
 }
 
+  //endregion Evidence assertions
+
+//region Guarded entry point
+
 if (process.env
   .PI_ADVISOR_VERIFY_HOST
   !== '1')
@@ -319,3 +348,5 @@ for (const mode of SCENARIOS) {
   // oxlint-disable-next-line no-await-in-loop -- Keep fixture hosts sequential so only one agent process is live at a time.
   await verifyScenario(mode,);
 }
+
+//endregion Guarded entry point

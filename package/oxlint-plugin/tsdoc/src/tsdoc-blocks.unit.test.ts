@@ -4,6 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { BLOCK_TAG_NAMES, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
 
@@ -27,6 +28,31 @@ await describe({
     describe({
       name: splitDocComment.name,
       children: [
+        //region Block-tag ownership
+
+        it({
+          name: 'ends an open block on every tag the shared block-tag list names',
+          fn: async () => {
+            // Derived from the shared list rather than written out here, so a
+            // tag added to that one list is scanned by this case unedited and
+            // a scanner answering from a private copy of it fails.
+            const unended = [...BLOCK_TAG_NAMES,].filter(function endsNothing(tag,): boolean {
+              const { params, } = splitDocComment({
+                comment: commentFromBody([
+                  '@param',
+                  `${tag} name - Desc.`,
+                ],),
+              },);
+              // An unterminated block swallows the tag line, so its first token
+              // becomes the parameter name; a terminated one has no content.
+              return params.blocks[0]?.parameterName !== '';
+            },);
+            expect(unended,).toEqual([],);
+          },
+        },),
+
+        //endregion Block-tag ownership
+
         //region @param extraction
 
         it({
