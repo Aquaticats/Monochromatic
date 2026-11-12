@@ -12579,6 +12579,26 @@ For injected commit-only semantics:
     so the value of `--mess` stays
     (`commit_args.rs`,
     `command_options_long_resolution.rs`).
+    The options end at `--` and at `--end-of-options` alike,
+    as Git's own parsing ends them,
+    so every token after either is a path and nothing else:
+    `git commit -m msg --end-of-options -m x` commits the paths `-m` and `x`,
+    and a path that spells `-o`,
+    `--all` or `--pathspec-file-nul` is committed as the path it is
+    (`commit_args_reading.rs`).
+    Each selection control leaves in every spelling Git accepts of it,
+    inside a short cluster too,
+    so `--on` and `-om` are `--only` and go with the selection the private index holds,
+    while a spelling Git refuses stays for the real commit to refuse:
+    an ambiguous prefix such as `--pat`,
+    a value on a flag such as `--only=a.txt`,
+    and a missing value.
+    The same reading answers the other two questions of the commit path:
+    whether the commit asks for a signature (`--gpg-s` and `--no-gpg-s` included,
+    never a value or a path that spells them)
+    and which options a line the moved branch rebuilds must not repeat
+    (`native_commit_waiting_notice.rs`,
+    `service_commit_line_reissued.rs`).
 
 Merge,
 cherry-pick,
