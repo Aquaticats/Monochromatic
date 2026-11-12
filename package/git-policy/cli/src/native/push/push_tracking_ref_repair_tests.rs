@@ -85,6 +85,39 @@ fn tracking(repo: &Path) -> String {
 }
 
 /// What:
+///  One more commit on the branch, pushed,
+///  so the tracking reference names it,
+///  and that commit.
+/// Why:
+///   A push or a fetch that lands between a push and its repair is the state the repair must not undo,
+/// and the commit it leaves is what the controls read afterwards.
+fn another_push(world: &World) -> String {
+    std::fs::write(world.repo.join("c.txt"), "newer\n").expect("c.txt");
+    git(world.repo.as_path(), &["add", "c.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=newer"]);
+    git(world.repo.as_path(), &["push", "--quiet", "origin", "main"]);
+    return another_push_commit(world);
+}
+
+/// What:
+///  One more commit on the branch that is not pushed,
+///  and that commit.
+/// Why:
+///   A commit that only the worktree has is what a repair reading the branch's name instead of the delivered commit would
+///  publish.
+fn a_commit_the_remote_never_received(world: &World) -> String {
+    std::fs::write(world.repo.join("c.txt"), "local only\n").expect("c.txt");
+    git(world.repo.as_path(), &["add", "c.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=local-only"]);
+    return another_push_commit(world);
+}
+
+/// The commit `main` names now, which the last push delivered.
+fn another_push_commit(world: &World) -> String {
+    return git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+}
+
+/// What:
 ///  A reference that names an older commit than the one the push delivered is made to name the delivered commit.
 /// Why:
 ///   This is the write Git refused,
@@ -191,6 +224,115 @@ fn a_reference_named_short_is_written_by_its_full_name() {
         .map(str::to_owned)
         .collect();
     assert_eq!(about_origin, vec![String::from("refs/remotes/origin/main")], "no other reference took the short name");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A repair whose reference already names a newer commit than the one its push delivered leaves that commit where it is.
+/// Why:
+///   Another push or a fetch can advance the reference before this push's repair runs,
+/// and a write there would name an older commit than the remote holds:
+/// a published commit then reads as unpublished,
+/// which is the stale held notice this repair exists to remove.
+#[test]
+fn a_repair_leaves_a_reference_that_already_names_a_newer_commit() {
+    let world: World = world("tracking-ref-repair-newer-synchronous");
+    let newer: String = another_push(&world);
+    let git: PushGit = push_git(world.repo.as_path());
+    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "a reference that holds a commit above the delivered one needs no write");
+    assert_eq!(tracking(world.repo.as_path()), newer, "the synchronous repair leaves the newer commit another push wrote");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The awaited repair leaves a newer commit where the synchronous one does.
+/// Why:
+///   The two faces are one rule, and a reference rewound by the face the service uses names an older commit than the remote
+///  holds.
+#[test]
+fn the_awaited_repair_leaves_a_reference_that_already_names_a_newer_commit() {
+    let world: World = world("tracking-ref-repair-newer-awaited");
+    let newer: String = another_push(&world);
+    let git: PushGit = push_git(world.repo.as_path());
+    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "the synchronous face reads the newer commit as already there");
+    assert_eq!(tracking(world.repo.as_path()), newer, "the synchronous face leaves the newer commit");
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    assert!(
+        runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, world.delivered.as_str())),
+        "the awaited face reads the same newer commit as already there"
+    );
+    assert_eq!(tracking(world.repo.as_path()), newer, "the awaited face leaves the newer commit the synchronous one leaves");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A repair asked to write a name instead of a commit writes nothing.
+/// Why:
+///   `git update-ref` resolves the value it is given at write time,
+/// so a name that stands for the branch would publish a commit that landed after the push and never reached the remote,
+/// and a later look would settle that commit's held record as a push that was made.
+#[test]
+fn a_repair_asked_for_a_name_instead_of_a_commit_writes_nothing() {
+    let world: World = world("tracking-ref-repair-name-is-no-commit");
+    // The branch is rewritten to a commit the remote never received, so a repair that resolved the name would publish it.
+    git(world.repo.as_path(), &["reset", "--hard", world.before.as_str()]);
+    let local_only: String = a_commit_the_remote_never_received(&world);
+    assert_ne!(local_only, world.delivered, "the commit the branch names is not the one the remote holds");
+    let git: PushGit = push_git(world.repo.as_path());
+    assert!(!bring_up_to_date(&git, TRACKING, "refs/heads/main"), "the branch is no statement of what the push delivered");
+    assert_eq!(tracking(world.repo.as_path()), world.before, "the reference still names what the remote holds");
+    assert_ne!(tracking(world.repo.as_path()), local_only, "the reference never names the commit the remote never received");
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    assert!(
+        !runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, "refs/heads/main")),
+        "the awaited face refuses a name as the synchronous one does"
+    );
+    assert_eq!(tracking(world.repo.as_path()), world.before, "the awaited face writes nothing either");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A local branch named the way the branch's upstream is abbreviated is never the reference the repair writes.
+/// Why:
+///   `git rev-parse` answers the short name `origin/main` from `refs/heads` as readily as from `refs/remotes`,
+/// so a repair that took its first answer would move a person's own branch to the delivered commit
+/// while the remote-tracking reference stayed where it was.
+#[test]
+fn a_local_branch_named_like_the_upstream_is_never_the_reference_written() {
+    let world: World = world("tracking-ref-repair-local-branch-of-the-same-name");
+    git(world.repo.as_path(), &["branch", "origin/main", world.before.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "-d", TRACKING]);
+    let git: PushGit = push_git(world.repo.as_path());
+    assert_eq!(resolve(&git, "origin/main"), None, "with the tracking reference gone this name is no reference of the repair's");
+    assert_eq!(resolve(&git, "refs/heads/origin/main"), None, "a local branch is never resolved to a reference the repair writes");
+    assert!(
+        !bring_up_to_date(&git, "refs/heads/origin/main", world.delivered.as_str()),
+        "the repair writes a remote-tracking reference and no other"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/origin/main"]), world.before, "the person's branch is where they left it");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", TRACKING]), world.before, "the reference is where the refused push left it");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A tracking reference that is behind, beside a local branch of the same short name, is the one repaired.
+/// Why:
+///   This is the state the repair exists for,
+/// and `git rev-parse` reads the ambiguous short name as neither reference,
+/// so the derived remote-tracking name is what makes both the repair and the person's branch keep their commits.
+#[test]
+fn a_tracking_reference_beside_a_local_branch_of_the_same_name_is_the_one_repaired() {
+    let world: World = world("tracking-ref-repair-beside-a-local-branch");
+    git(world.repo.as_path(), &["branch", "origin/main", world.before.as_str()]);
+    let git: PushGit = push_git(world.repo.as_path());
+    assert_eq!(resolve(&git, "origin/main"), Some(String::from(TRACKING)), "the derived name is the tracking reference Git holds");
+    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "the tracking reference is brought up to date");
+    assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/heads/origin/main"]),
+        world.before,
+        "the person's branch of the same short name keeps its commit"
+    );
     remove(world.root.as_path());
 }
 

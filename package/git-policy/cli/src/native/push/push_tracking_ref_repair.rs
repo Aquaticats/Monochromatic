@@ -29,6 +29,12 @@
 //! because a short name such as `origin/main` is accepted by `update-ref` and changes nothing
 //!  (measured on 2026-11-11 with Git 2.56.0),
 //! and because a value that moved meanwhile is another writer's to keep.
+//! The reference written is the branch's remote-tracking one and no other,
+//! and the value written is the commit the push delivered and never a name:
+//! a short name is answered from `refs/heads` and `refs/tags` as readily as from `refs/remotes`,
+//! and `update-ref` resolves the value it is given when it writes,
+//! so either would move or publish something this push never carried.
+//! A reference that already names the delivered commit or a commit above it is left alone.
 //! A write the lock refuses through every retry is said instead of left silent.
 //! Nothing a person asked for waits on this:
 //! it runs after the push answered.
@@ -39,9 +45,10 @@
 //! ```
 
 use crate::auto_push::{PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES};
-use crate::auto_push_reconcile_basics_and_limits::is_ancestor;
+use crate::auto_push_reconcile_basics_and_limits::{is_ancestor, is_ancestor_awaiting};
 use crate::auto_push_single_flight::{PushGit, run_query, run_query_awaiting};
 use crate::diagnostic_log::warn;
+use crate::service_protocol::is_object_name;
 use std::ffi::OsString;
 
 /// Tag used for diagnostics from this module.
@@ -124,50 +131,81 @@ async fn ask_awaiting(git: &PushGit, parts: &[&str]) -> Option<Answer> {
 
 /// What:
 ///  The full ref name of the reference a branch's upstream is,
-///  and nothing when the name is not a ref or Git could not say.
+///  and nothing when the name is not the remote-tracking reference of one,
+///  or Git could not say.
 /// Why:
 ///   A write takes the full name:
 /// `update-ref origin/main <commit>` is accepted and changes nothing,
 /// as Git 2.56.0 was measured to do on
 ///  2026-11-11,
 /// so a repair written from the short name would report success and leave the reference behind.
-/// A name that is not under `refs/` is refused
-///  here rather than written somewhere nobody asked for.
+/// The name is derived rather than taken from Git's answer,
+/// because `rev-parse` reads a short name from `refs/heads` and `refs/tags` as readily as from `refs/remotes`:
+/// a repository that holds a local branch named `origin/main` would have that branch written,
+/// and the remote-tracking reference this repair exists for would be left behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const fullRef = (git, name) => { const answer = ask(git, ['rev-parse', '--symbolic-full-name', '--verify', name]); const full = answer?.text(); return answer?.ok() && full.startsWith('refs/') ? full : undefined; };
+/// const fullRef = (git, name) => { const full = trackingRef(name); const answer = full === undefined ? undefined : ask(git, ['rev-parse', '--symbolic-full-name', '--verify', full]); return answer?.ok() && answer.text() === full ? full : undefined; };
 /// ```
 pub fn resolve(git: &PushGit, name: &str) -> Option<String> {
     return full_ref_from(git, name, ask);
 }
 
 /// What:
-///  The full reference a name or a remote-tracking shorthand means,
-///  asked with the query given.
+///  The full remote-tracking reference name a name a branch's upstream is answered with means,
+///  and nothing for a name that is no remote-tracking reference.
 /// Why:
-///   A branch's upstream is answered as `origin/main`,
-/// which is no ref name,
-///  and `rev-parse --symbolic-full-name` answers a shorthand with the shorthand itself,
-/// so the name is asked as it
-///  stands and then as the remote-tracking ref under `refs/remotes`;
-/// a name neither answers for is no reference and is
-///  never written.
+///   The reference a push updates is the branch's upstream,
+/// which Git abbreviates as `origin/main`;
+/// the repair writes the reference under `refs/remotes` and nothing else,
+///  and a name that already spells a ref out is read only where it is one of those.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const candidate of [name, `refs/remotes/${name}`]) { const said = ask(candidate); if (said?.ok() && said.text().startsWith('refs/')) return said.text() } return undefined;
+/// const trackingRef = (name) => name.startsWith('refs/remotes/') ? name : name.startsWith('refs/') ? undefined : `refs/remotes/${name}`;
+/// ```
+fn remote_tracking_ref(name: &str) -> Option<String> {
+    if name.starts_with("refs/remotes/") {
+        return Some(name.to_owned());
+    }
+    if name.starts_with("refs/") {
+        return None;
+    }
+    return Some(format!("refs/remotes/{name}"));
+}
+
+/// What:
+///  Whether an answer names exactly the reference the repair asked about.
+/// Why:
+///   `rev-parse --symbolic-full-name --verify` answers an ambiguous name with no output at all and still exits `0`
+/// (measured on 2026-11-11 with Git 2.56.0),
+/// so the text is compared with the expected name and never taken on trust.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesIt = (answer, full) => answer.ok() && answer.text() === full;
+/// ```
+fn names_exactly(answer: &Answer, full: &str) -> bool {
+    return answer.ok() && answer.text() == full;
+}
+
+/// What:
+///  The full reference a name a branch's upstream is answered with means,
+///  asked with the query given.
+/// Why:
+///   `rev-parse --symbolic-full-name` answers a shorthand with the shorthand itself,
+/// so the derived name is asked for and accepted only when Git answers that very name;
+/// a name Git does not hold is no reference and is never written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = ask(git, ['rev-parse', '--symbolic-full-name', '--verify', full]); return said && namesIt(said, full) ? full : undefined;
 /// ```
 fn full_ref_from(git: &PushGit, name: &str, query: fn(&PushGit, &[&str]) -> Option<Answer>) -> Option<String> {
-    let under_remote: String = format!("refs/remotes/{name}");
-    for candidate in [name, under_remote.as_str()] {
-        let Some(answer) = query(git, &["rev-parse", "--symbolic-full-name", "--verify", candidate]) else { continue };
-        let full: String = answer.text();
-        if answer.ok() && full.starts_with("refs/") {
-            return Some(full);
-        }
-    }
-    return None;
+    let full: String = remote_tracking_ref(name)?;
+    let answer: Answer = query(git, &["rev-parse", "--symbolic-full-name", "--verify", full.as_str()])?;
+    return names_exactly(&answer, full.as_str()).then_some(full);
 }
 
 /// The same,
@@ -175,18 +213,12 @@ fn full_ref_from(git: &PushGit, name: &str, query: fn(&PushGit, &[&str]) -> Opti
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const fullRefAwaiting = async (git, name) => { const answer = await askAwaiting(git, ['rev-parse', '--symbolic-full-name', '--verify', name]); const full = answer?.text(); return answer?.ok() && full.startsWith('refs/') ? full : undefined; };
+/// const fullRefAwaiting = async (git, name) => { const full = trackingRef(name); const answer = full === undefined ? undefined : await askAwaiting(git, ['rev-parse', '--symbolic-full-name', '--verify', full]); return answer && namesIt(answer, full) ? full : undefined; };
 /// ```
 pub async fn resolve_awaiting(git: &PushGit, name: &str) -> Option<String> {
-    let under_remote: String = format!("refs/remotes/{name}");
-    for candidate in [name, under_remote.as_str()] {
-        let Some(answer) = ask_awaiting(git, &["rev-parse", "--symbolic-full-name", "--verify", candidate]).await else { continue };
-        let full: String = answer.text();
-        if answer.ok() && full.starts_with("refs/") {
-            return Some(full);
-        }
-    }
-    return None;
+    let full: String = remote_tracking_ref(name)?;
+    let answer: Answer = ask_awaiting(git, &["rev-parse", "--symbolic-full-name", "--verify", full.as_str()]).await?;
+    return names_exactly(&answer, full.as_str()).then_some(full);
 }
 
 /// The commit a full reference names,
@@ -222,20 +254,33 @@ async fn value_of_awaiting(git: &PushGit, full: &str) -> Option<String> {
 }
 
 /// What:
-///  Whether `full` already names `delivered` or a commit above it,
-///  and written so that a reference naming an unrelated commit is not read as one that holds it.
+///  Whether the value a reference holds is `delivered` or a commit above it,
+///  asked about the value itself rather than about the reference.
 /// Why:
 ///   A reference that holds the delivered commit is what the push would have written,
 /// so it is left alone;
-/// a question Git cannot answer is not a reason to leave a stale reference stale,
+/// the value asked about is the one the write then expects,
+/// so a reference another writer advanced between the two is never the reason an older commit replaces a newer one.
+/// A question Git cannot answer is not a reason to leave a stale reference stale,
 ///  and the write's expected value answers it exactly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const alreadyThere = (git, full, delivered) => isAncestor(git, delivered, full) === true;
+/// const holdsTheDelivery = (git, at, delivered) => isAncestor(git, delivered, at) === true;
 /// ```
-fn already_there(git: &PushGit, full: &str, delivered: &str) -> bool {
-    return matches!(is_ancestor(git, delivered, full), Ok(Some(true)));
+fn holds_the_delivery(git: &PushGit, at: &str, delivered: &str) -> bool {
+    return matches!(is_ancestor(git, delivered, at), Ok(Some(true)));
+}
+
+/// The same question,
+/// awaited by a caller that is itself a task of the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsTheDeliveryAwaiting = async (git, at, delivered) => (await isAncestorAwaiting(git, delivered, at)) === true;
+/// ```
+async fn holds_the_delivery_awaiting(git: &PushGit, at: &str, delivered: &str) -> bool {
+    return matches!(is_ancestor_awaiting(git, delivered, at).await, Ok(Some(true)));
 }
 
 /// One `git update-ref` of the full reference,
@@ -277,25 +322,30 @@ async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str
 /// so it must name what the
 ///  remote holds as soon as the push says it delivered,
 /// and not wait for a later push or a fetch.
+///   Only a remote-tracking reference is written,
+/// and only with a commit name:
+/// a branch name given to `update-ref` is resolved when it is written,
+/// so a commit that landed after the push and never reached the remote would be published by this repair.
 /// A write can meet the same held lock the push met,
 ///  so it is tried as often and as patiently as the push.
+///   The value read is the one the ancestry question is asked about and the one the write expects,
+/// so a reference another writer advanced is left to that writer rather than moved to an older commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const full = fullRef(git, upstream); if (!full) return false;
-/// if (alreadyThere(git, full, delivered)) return true;
-/// for (let attempt = 0; attempt <= RETRIES; attempt += 1) { const old = valueOf(git, full); if (old && write(git, full, delivered, old)) return true; if (attempt < RETRIES) sleep(PAUSE * (attempt + 1)); }
+/// if (!full.startsWith('refs/remotes/') || !isObjectName(delivered)) return false;
+/// for (let attempt = 0; attempt <= RETRIES; attempt += 1) { const old = valueOf(git, full); if (!old) return false; if (holdsTheDelivery(git, old, delivered)) return true; if (write(git, full, delivered, old)) return true; if (attempt < RETRIES) sleep(PAUSE * (attempt + 1)); }
 /// warn(stillBehind(full, delivered)); return false;
 /// ```
 pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
-    if !full.starts_with("refs/") || delivered.is_empty() {
+    if !full.starts_with("refs/remotes/") || !is_object_name(delivered) {
         return false;
-    }
-    if already_there(git, full, delivered) {
-        return true;
     }
     for attempt in 0..=PUSH_LOCK_RETRIES {
         let Some(old) = value_of(git, full) else { return false };
+        if holds_the_delivery(git, old.as_str(), delivered) {
+            return true;
+        }
         if write_the_reference(git, full, delivered, old.as_str()) {
             return true;
         }
@@ -315,17 +365,24 @@ pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
 ///   The service's push runs on the runtime,
 /// where a synchronous Git start is refused,
 /// and the writing of the reference must be here for that face too.
+/// It answers what the synchronous face answers, on the same reference and the same value read,
+/// so two writers of one reference see one rule.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await bringUpToDateAwaiting(git, upstream, delivered)
+/// if (!full.startsWith('refs/remotes/') || !isObjectName(delivered)) return false;
+/// for (let attempt = 0; attempt <= RETRIES; attempt += 1) { const old = await valueOf(git, full); if (!old) return false; if (await holdsTheDelivery(git, old, delivered)) return true; if (await write(git, full, delivered, old)) return true; if (attempt < RETRIES) await sleep(PAUSE * (attempt + 1)); }
+/// warn(stillBehind(full, delivered)); return false;
 /// ```
 pub async fn bring_up_to_date_awaiting(git: &PushGit, full: &str, delivered: &str) -> bool {
-    if !full.starts_with("refs/") || delivered.is_empty() {
+    if !full.starts_with("refs/remotes/") || !is_object_name(delivered) {
         return false;
     }
     for attempt in 0..=PUSH_LOCK_RETRIES {
         let Some(old) = value_of_awaiting(git, full).await else { return false };
+        if holds_the_delivery_awaiting(git, old.as_str(), delivered).await {
+            return true;
+        }
         if write_the_reference_awaiting(git, full, delivered, old.as_str()).await {
             return true;
         }
