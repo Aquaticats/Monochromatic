@@ -20,7 +20,7 @@
 //! expect((await drain(goneRepo, due)).changes).toEqual([{ forget: branch }]);
 //! ```
 
-use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, TheMountTable, gone_line, prove};
+use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, TheMountTable, gone_line, prove, the_mounts};
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{RetryChange, Retrying};
 use crate::service_claim_renewal_running::Renewal;
@@ -118,6 +118,78 @@ fn a_path_behind_an_unmounted_mount_point_may_return() {
         Proof::MayReturn(super::MayReturn { nearest: root.join("drive") }),
         "nothing is mounted at the directory, and it holds nothing, so a drive may still arrive"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A path behind a directory this process may not search may return,
+///  because an access error proves nothing about it.
+/// Why:
+///  "never discard user data":
+/// a directory whose mode,
+/// an access control list,
+/// or a filesystem that stopped answering refuses the search is not a directory that is gone;
+/// the repository behind it may be there all along,
+/// and a plan read as gone there would delete a live repository's only retry record.
+/// The proof is asked both ways it is asked in the release:
+/// with the worktree a plan names,
+/// and without one,
+/// as the service's own question asks it.
+#[test]
+fn a_path_behind_a_directory_that_cannot_be_searched_may_return() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: a directory that refuses the search does not stop root, so this control proves nothing here");
+        return;
+    }
+    let root: PathBuf = fixture("unreachable-denied-search");
+    let private: PathBuf = root.join("private");
+    let repository: PathBuf = private.join("repository");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a repository");
+    // The directory that holds the repository refuses the search, and the directory above it holds other entries, so a walk that
+    //  read the refusal as absence would reach an ordinary directory and prove the repository gone.
+    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o000)).expect("the directory refuses the search");
+    assert_eq!(
+        prove(git_dir.as_path(), Some(repository.as_path()), &NothingIsMounted),
+        Proof::MayReturn(super::MayReturn { nearest: repository.clone() }),
+        "a refused search is not a deletion, so the worktree's repository may still be there"
+    );
+    assert_eq!(
+        prove(git_dir.as_path(), None, &NothingIsMounted),
+        Proof::MayReturn(super::MayReturn { nearest: git_dir.clone() }),
+        "a walk that was refused at its first step proves nothing about the path"
+    );
+    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the directory is searchable again");
+    assert!(git_dir.exists(), "the repository was there the whole time");
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory that is there but whose entries cannot be listed may return.
+/// Why:
+///  An empty directory is what a mount point looks like while its drive is not mounted,
+/// and whether this one holds anything was refused;
+/// reading the refusal as "it holds other entries" would end the plan of a live repository deleted from it.
+#[test]
+fn a_path_behind_a_directory_whose_entries_cannot_be_listed_may_return() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: a directory that refuses the read does not stop root, so this control proves nothing here");
+        return;
+    }
+    let root: PathBuf = fixture("unreachable-denied-listing");
+    let repository: PathBuf = root.join("repository");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(repository.as_path()).expect("the directory the repository would be in");
+    // Search without read: the Git directory can be looked for, and the entries of the directory it would be in cannot be listed.
+    std::fs::set_permissions(repository.as_path(), std::fs::Permissions::from_mode(0o100)).expect("the directory refuses the listing");
+    assert_eq!(
+        prove(git_dir.as_path(), None, &NothingIsMounted),
+        Proof::MayReturn(super::MayReturn { nearest: repository.clone() }),
+        "a directory whose entries were refused is not proven to hold the other entries of a deleted repository"
+    );
+    std::fs::set_permissions(repository.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the directory is listable again");
     remove(root.as_path());
 }
 
@@ -245,6 +317,110 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
 #[test]
 fn the_real_mount_table_names_the_root() {
     assert!(TheMountTable::default().is_mount_point(Path::new("/")), "the root of the tree is a mount point");
+}
+
+/// Environment variable that makes the control below run its inner half,
+/// inside a mount namespace of its own.
+#[cfg(target_os = "linux")]
+const MOUNT_SIDE: &str = "UNREACHABLE_GIT_DIR_TEST_MOUNT_SIDE";
+
+/// What:
+///  The mount table is read again for every question,
+///  so a drive mounted after an earlier check,
+///  whose only repository is then deleted,
+///  is proven gone by the next.
+/// Why:
+///   A serving service asks whether its worktree is still there every minute
+/// (`service_server::OWN_WORKTREE_CHECK`),
+/// and a drive may be mounted between two of those questions.
+/// A table kept from the first check kept saying the drive was not mounted,
+/// so the empty root of a mounted filesystem read as a mount point waiting for its drive,
+/// the plan never ended,
+/// and the service of a deleted repository never asked for its socket to be stopped.
+/// The sequence needs a mount, so the inner half runs under `unshare` in a private mount namespace,
+/// and the control skips where the host lets no unprivileged process mount.
+#[cfg(target_os = "linux")]
+#[test]
+#[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start")]
+fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
+    if std::env::var_os(MOUNT_SIDE).is_none() {
+        let probe: std::process::Output = std::process::Command::new("unshare")
+            .args(["--user", "--map-root-user", "--mount", "--propagation", "private", "--", "mount", "--version"])
+            .output()
+            .expect("unshare runs");
+        if !probe.status.success() {
+            eprintln!("skipped: this host lets no unprivileged process mount in a namespace of its own, so no table changes here");
+            return;
+        }
+        let done: std::process::Output = std::process::Command::new("unshare")
+            .args(["--user", "--map-root-user", "--mount", "--propagation", "private"])
+            .arg(std::env::current_exe().expect("this test binary"))
+            .args(["--exact", "landing::unreachable_git_dir_proven_gone::tests::the_mount_table_is_read_again_after_a_drive_is_mounted", "--nocapture"])
+            .env(MOUNT_SIDE, "1")
+            .output()
+            .expect("the inner half runs");
+        let said: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
+        assert!(done.status.success(), "the inner half failed:\n{said}");
+        assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
+        return;
+    }
+    let root: PathBuf = fixture("unreachable-table-again");
+    let drive: PathBuf = root.join("drive");
+    std::fs::create_dir_all(drive.as_path()).expect("a mount point that is there");
+    let repository: PathBuf = drive.join("repository");
+    let git_dir: PathBuf = repository.join(".git");
+    // The drive is not mounted and its mount point holds nothing, so a repository may still arrive with it.
+    assert_eq!(
+        prove(git_dir.as_path(), None, the_mounts()),
+        Proof::MayReturn(super::MayReturn { nearest: drive.clone() }),
+        "an empty directory that no filesystem is mounted on may still receive the repository"
+    );
+    let mounted: MountedTmpfs = MountedTmpfs::at(drive.as_path());
+    // The drive is mounted, and the only repository on it is deleted, so its root holds nothing at all.
+    std::fs::create_dir_all(git_dir.as_path()).expect("a repository on the mounted drive");
+    std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
+    assert_eq!(
+        prove(git_dir.as_path(), None, the_mounts()),
+        Proof::Gone(Gone { nearest: drive.clone(), because: GoneBecause::MountedFilesystemRoot }),
+        "the table is read again, so the mounted root that is answering proves the repository gone"
+    );
+    assert!(
+        crate::service_units_of_removed_worktrees::worktree_is_gone(git_dir.as_path()),
+        "the question the service asks reads the same table and answers the same"
+    );
+    drop(mounted);
+    remove(root.as_path());
+}
+
+/// A tmpfs this control mounted,
+/// unmounted when it goes however the control ends,
+/// so an assertion that failed does not leave the fixture's mount point busy.
+#[cfg(target_os = "linux")]
+struct MountedTmpfs {
+    /// The directory the filesystem was mounted on.
+    at: PathBuf,
+}
+
+#[cfg(target_os = "linux")]
+impl MountedTmpfs {
+    /// Mount a tmpfs on `path`, which this process may only do as root in a mount namespace of its own.
+    fn at(path: &Path) -> Self {
+        let mounted: std::process::Output = std::process::Command::new("mount").args(["-t", "tmpfs", "tmpfs"]).arg(path).output().expect("the mount command runs");
+        assert!(
+            mounted.status.success(),
+            "a tmpfs is mounted at {}: {}",
+            path.display(),
+            String::from_utf8_lossy(mounted.stderr.as_slice())
+        );
+        return Self { at: path.to_path_buf() };
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for MountedTmpfs {
+    fn drop(&mut self) {
+        let _unmounted: std::io::Result<std::process::Output> = std::process::Command::new("umount").arg(self.at.as_path()).output();
+    }
 }
 
 /// A drain whose directory may return asks no handler anything,

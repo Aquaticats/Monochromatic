@@ -9,7 +9,7 @@
 //! so each side of both lines has a control here.
 
 use super::*;
-use crate::push_retry_store::{StoredPlan, load, save};
+use crate::push_retry_store::{StoredPlan, load, name_of, save};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{WorkItem, WorkKind};
 
@@ -91,6 +91,73 @@ fn a_plan_of_a_deleted_repository_ends_and_the_plans_of_repositories_that_are_th
         vec![alive_git_dir.clone(), unmounted_git_dir.clone()],
         "a repository that is there and a drive that may arrive keep their plans"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A plan of a live repository behind a directory this process may not search stays when the gone plans of the journal end.
+/// Why:
+///  "never discard user data":
+/// a service ends the plans of the repositories its own filesystem proves gone,
+/// and an access error is not such a proof;
+/// the plan it would delete is the only retry record of a push that may still run.
+/// The journal of one instance holds the plans of other repositories it was woken for,
+/// so this is the sequence a person reaches when a directory of their home refuses the search for a moment.
+#[test]
+fn a_plan_of_a_repository_behind_a_directory_that_cannot_be_searched_stays() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: a directory that refuses the search does not stop root, so this control proves nothing here");
+        return;
+    }
+    let root: PathBuf = fixture("plans-of-a-denied-repository");
+    let journal: PathBuf = root.join("journal");
+    let plans: PathBuf = journal.join(crate::push_retry::PLAN_DIRECTORY);
+    let private: PathBuf = root.join("holder/private");
+    let repository: PathBuf = private.join("repository");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a live repository");
+    save(plans.as_path(), &plan(git_dir.as_path(), repository.as_path(), &commit("aaaa"))).expect("the plan is kept");
+    // The repository itself stays where it is; only the search of its holder is refused, and the holder's own holder holds entries,
+    //  which is the reading that would prove a deleted repository.
+    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o000)).expect("the holder refuses the search");
+    let ended: Vec<String> = end_plans_of_gone_repositories(journal.as_path());
+    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the holder is searchable again");
+    assert!(git_dir.exists(), "the repository itself was never removed");
+    assert_eq!(load(plans.as_path()).len(), 1, "the live repository's retry plan was deleted; the cleanup reported {ended:?}");
+    assert!(ended.is_empty(), "an access error was read as proof of deletion: {ended:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A valid plan whose own file cannot be read stays when the gone plans of the journal end.
+/// Why:
+///  "never discard user data":
+/// a read that was refused says nothing about the push the file schedules,
+/// which may be neither done nor cancelled,
+/// and the journal keeps it for the start that can read it.
+/// A review of this cleanup read the deletion of such a file into it;
+/// the read keeps it since `load` was changed to, and this control holds the promise at the cleanup.
+#[test]
+fn a_valid_plan_that_cannot_be_read_stays_when_the_gone_plans_end() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: a file that refuses the read does not stop root, so this control proves nothing here");
+        return;
+    }
+    let root: PathBuf = fixture("plans-of-an-unreadable-plan");
+    let journal: PathBuf = root.join("journal");
+    let plans: PathBuf = journal.join(crate::push_retry::PLAN_DIRECTORY);
+    let repository: PathBuf = root.join("repository");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a live repository");
+    let stored: StoredPlan = plan(git_dir.as_path(), repository.as_path(), &commit("aaaa"));
+    save(plans.as_path(), &stored).expect("the plan is kept");
+    let only: PathBuf = plans.join(name_of(&stored));
+    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o000)).expect("the plan refuses the read");
+    let _ended: Vec<String> = end_plans_of_gone_repositories(journal.as_path());
+    assert!(only.exists(), "a plan that could not be read is kept, because its push is neither done nor cancelled");
+    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o600)).expect("the plan is readable again");
     remove(root.as_path());
 }
 
