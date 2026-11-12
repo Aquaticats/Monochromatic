@@ -398,18 +398,21 @@ async function main(): Promise<number> {
   if (updated.trim() === '')
     printLine(`== ${stepNameOf({ step: updateStep, })} printed nothing`);
   /**
-   The lockfile's diff against the last commit, printed whole, because it is the review surface of a released version
-   (rule `UPN`), and because it is exactly what a commit of this path would record.
-   */
-  const diff = await lockDiffFromCommit({ repository, });
-  printLine(diff.trim() === '' ? `${lockFileName} did not change` : diff.trimEnd());
-  /**
    The lockfile's text this install resolved, which a writer of another process replaces.
+
+   Read before the diff is asked for, so a writer between the two shows up as a diff this install did not make and is
+   caught after the tools were installed, instead of becoming the text this install calls its own.
    */
   const resolvedLock = await readOrEmpty({ path: join(
     repository,
     lockFileName
   ), });
+  /**
+   The lockfile's diff against the last commit, printed whole, because it is the review surface of a released version
+   (rule `UPN`), and because it is exactly what a commit of this path would record.
+   */
+  const diff = await lockDiffFromCommit({ repository, });
+  printLine(diff.trim() === '' ? `${lockFileName} did not change` : diff.trimEnd());
   await runStep({
     step: installStep,
     deadlineMilliseconds,
@@ -433,6 +436,10 @@ async function main(): Promise<number> {
   }
   /**
    The lockfile's text once the tools were installed.
+
+   Nothing can hold another process off the file between this read and the commit, which is why a commit is never made
+   from a decision taken before a step that runs minutes long: what remains is a window of milliseconds, and a write that
+   lands in it is a concurrent edit of a lock no command can own (rule `NLK`).
    */
   const installedLock = await readOrEmpty({ path: join(
     repository,
