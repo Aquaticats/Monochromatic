@@ -154,10 +154,10 @@ pub fn start(context: &GitContext, request: &CommitRequest, stock: &Arc<DrawnSha
     let common_dir: PathBuf = request.common_dir.clone();
     let git_dir: PathBuf = request.git_dir.clone();
     let repository: PathBuf = request.repository.clone();
-    let stock: Arc<DrawnShadows> = Arc::clone(stock);
+    let held: Arc<DrawnShadows> = Arc::clone(stock);
     let started = spawn_named("shadow-pool-draw", move || {
         // The flag is cleared however the draw ends, so one refused Git start does not stop every later draw.
-        let outcome: Result<(), GitFailure> = draw_one(&own, &common_dir, &git_dir, &repository, stock.as_ref());
+        let outcome: Result<(), GitFailure> = draw_one(&own, &common_dir, &git_dir, &repository, held.as_ref());
         DRAWING.store(false, Ordering::Release);
         if let Err(error) = outcome {
             crate::service_warn!("the shadow drawn ahead for {named} was not drawn: {}", error.0);

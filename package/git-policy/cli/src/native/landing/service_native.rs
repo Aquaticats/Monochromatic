@@ -201,7 +201,7 @@ pub fn private_invocation(
 /// a signer that failed);
 /// `TransactionStop::Message` when Git could not be started.
 pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
-    let shadow = input.scratch.join("shadow");
+    let own_shadow: PathBuf = input.scratch.join("shadow");
     // Named paths while another session's merge, cherry-pick or revert is unfinished: real Git refuses that as a partial commit,
     //  and a commit never fails for another session's unfinished work, so the scratch repository holds none of that state and
     //  builds an ordinary commit of the paths; the worktree's state stays for its owner to conclude on the new head.
@@ -219,7 +219,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         input.context,
         input.cwd,
         input.capture,
-        shadow.as_path(),
+        own_shadow.as_path(),
         input.scratch,
         carry_conclusion,
         input.clock,
