@@ -24,6 +24,7 @@
 
 use crate::commit_transaction::{TransactionStop, failed};
 use crate::service_commit_args::ServiceCommitArgs;
+use crate::service_commit_utf8_as_git_writes_it::repaired_text_bytes;
 use crate::service_message::{author_overrides, identity};
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::Path;
@@ -176,19 +177,21 @@ pub fn split_author(line: &str) -> Option<(String, String, String)> {
 /// and `--reset-author` makes the committer the author with a new date.
 /// Git's own `var` makes the line
 ///  whenever a part is replaced,
-/// so a date or an identity is read as Git reads it.
+/// so a date or an identity is read as Git reads it,
+/// and the bytes of a name that is not UTF-8 are repaired as Git repairs them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await amendedAuthor(context, cwd, source, parsed)
 /// ```
-pub fn amended_author(context: &GitContext, cwd: &Path, source: &AmendSource, parsed: &ServiceCommitArgs) -> Result<Option<String>, TransactionStop> {
+pub fn amended_author(context: &GitContext, cwd: &Path, source: &AmendSource, parsed: &ServiceCommitArgs) -> Result<Option<(String, bool)>, TransactionStop> {
     if parsed.reset_author {
         return identity(context, cwd, "GIT_AUTHOR_IDENT", &[]);
     }
     let replaced: Vec<(&'static str, String)> = author_overrides(parsed);
     if replaced.is_empty() {
-        return Ok(Some(source.author.clone()));
+        let (repaired, changed): (Option<String>, bool) = repaired_text_bytes(source.author.as_bytes());
+        return Ok(repaired.map(|found| { return (found, changed); }));
     }
     let Some((name, email, date)) = split_author(source.author.as_str()) else { return Ok(None) };
     let mut parts: Vec<(&'static str, String)> = vec![("GIT_AUTHOR_NAME", name), ("GIT_AUTHOR_EMAIL", email), ("GIT_AUTHOR_DATE", date)];

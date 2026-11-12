@@ -21,6 +21,7 @@
 
 use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
 use crate::service_commit_args::{FixupKind, ServiceCommitArgs, cleanup_message};
+use crate::service_commit_utf8_as_git_writes_it::repaired_text_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::ffi::OsString;
 use std::path::Path;
@@ -35,11 +36,25 @@ pub struct Built {
     pub reused_author: Option<String>,
 }
 
-/// One identity line (`Name <email> seconds zone`) from Git's own resolution of the variable,
-/// with the given overrides;
-///  nothing when Git cannot make one (a date it does not read),
-/// so native `git commit` gives its own message.
-pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<String>, TransactionStop> {
+/// What:
+///  One identity line (`Name <email> seconds zone`) from Git's own resolution of the variable,
+///  with the given overrides,
+///  and whether Git's byte repair changed it.
+/// Why:
+///   The identity is the person's bytes,
+/// not text:
+///  a name held in Latin-1 is not UTF-8,
+///  and real `git commit` records the bytes of its own repair rather than a replacement character,
+///  so the bytes are read as they are and repaired by Git's rule
+///  (`service_commit_utf8_as_git_writes_it.rs`).
+///  Nothing is answered when Git cannot make a line at all (a date it does not read),
+///  so native `git commit` gives its own message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = await resolvedIdentity(context, cwd, 'GIT_COMMITTER_IDENT', overrides); // { text, repaired } | undefined
+/// ```
+pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<(String, bool)>, TransactionStop> {
     let mut request: GitRequest = GitRequest::new(cwd, &["var", variable]);
     for (name, value) in overrides {
         request.environment.push((OsString::from(name), OsString::from(value)));
@@ -51,7 +66,10 @@ pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(
     if output.code != Some(0) {
         return Ok(None);
     }
-    return Ok(Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()));
+    // Git writes the line and one line break; a name cannot hold one, because Git removes those from it.
+    let line: &[u8] = output.stdout.strip_suffix(b"\n").unwrap_or(output.stdout.as_slice());
+    let (text, repaired): (Option<String>, bool) = repaired_text_bytes(line);
+    return Ok(text.map(|found| { return (found, repaired); }));
 }
 
 /// The author variables `--author` and `--date` stand for.
@@ -239,8 +257,9 @@ pub fn build_message(
     } else {
         cleanup_message(texts.as_slice())
     };
+    // A message is empty only when nothing in it but Git's own white space is left: a no-break space is text to Git.
     let message: String = match cleaned {
-        Some(text) if !text.trim().is_empty() || parsed.verbatim => text,
+        Some(text) if !text.trim_matches(crate::service_commit_args::git_takes_off_the_end).is_empty() || parsed.verbatim => text,
         _ if parsed.allow_empty_message => String::new(),
         _ => return Ok(None),
     };

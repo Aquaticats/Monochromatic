@@ -325,6 +325,10 @@ pub mod service_route;
 /// made as native `git commit` makes them.
 pub mod service_message;
 
+/// The repair Git applies to a commit's bytes before it writes the object,
+/// which records a name that is not UTF-8 as Git records it.
+pub mod service_commit_utf8_as_git_writes_it;
+
 /// What an amend takes from the commit it replaces:
 /// parents,
 /// message and author.

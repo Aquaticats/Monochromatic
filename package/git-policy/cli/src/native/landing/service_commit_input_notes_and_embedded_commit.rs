@@ -31,6 +31,7 @@ use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
 use crate::diagnostic_log::warn;
 use crate::service_amend::{AmendSource, amended_author, read_amend_source};
 use crate::service_commit_args::ServiceCommitArgs;
+use crate::service_commit_utf8_as_git_writes_it::{COMMIT_UTF8_WARN, repaired_text_bytes};
 use crate::service_message::{author_overrides, build_message, identity};
 use crate::transaction_git::{GitRequest, run_git};
 use std::ffi::OsString;
@@ -197,7 +198,7 @@ pub(crate) struct Embedded {
 /// await embeddedCommit(invocation, parsed) // undefined when Git must build it
 /// ```
 pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: ServiceCommitArgs) -> Result<Option<Embedded>, TransactionStop> {
-    let Some(committer) = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT", &[])? else { return Ok(None) };
+    let Some((committer, committer_repaired)) = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT", &[])? else { return Ok(None) };
     let source: Option<AmendSource> = if parsed.amend {
         let Some(read) = read_amend_source(invocation.context, invocation.cwd)? else { return Ok(None) };
         Some(read)
@@ -206,22 +207,45 @@ pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: Service
     };
     let previous: Option<&str> = source.as_ref().map(message_of_source);
     let Some(built) = build_message(invocation, &parsed, committer.as_str(), previous)? else { return Ok(None) };
-    let author: String = match built.reused_author {
-        Some(reused) => reused,
+    let (message, message_repaired): (Option<String>, bool) = repaired_text_bytes(built.message.as_bytes());
+    let Some(message) = message else { return Ok(None) };
+    let (author, author_repaired): (String, bool) = match built.reused_author {
+        Some(reused) => (reused, false),
         None => match source.as_ref() {
             Some(replaced) => {
-                let Some(made) = amended_author(invocation.context, invocation.cwd, replaced, &parsed)? else { return Ok(None) };
-                made
+                let Some((made, repaired)) = amended_author(invocation.context, invocation.cwd, replaced, &parsed)? else { return Ok(None) };
+                (made, repaired)
             }
             None => {
-                let Some(made) = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT", author_overrides(&parsed).as_slice())? else {
+                let Some((made, repaired)) = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT", author_overrides(&parsed).as_slice())? else {
                     return Ok(None);
                 };
-                made
+                (made, repaired)
             }
         },
     };
-    return Ok(Some(Embedded { message: built.message, author, committer, source, quiet: parsed.quiet }));
+    if committer_repaired || author_repaired || message_repaired {
+        warn_of_the_repaired_bytes();
+    }
+    return Ok(Some(Embedded { message, author, committer, source, quiet: parsed.quiet }));
+}
+
+/// What:
+///  Git's own warning that a commit's bytes were not text and were repaired.
+/// Why:
+///   Real `git commit` says this as it writes the commit,
+/// and a person whose name or message is not UTF-8 sees it whichever program records the
+///  commit;
+/// a standard error that cannot be written is logged and does not fail the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(COMMIT_UTF8_WARN);
+/// ```
+fn warn_of_the_repaired_bytes() {
+    if let Err(error) = std::io::stderr().write_all(COMMIT_UTF8_WARN.as_bytes()) {
+        warn("embeddedCommit", format!("writing the warning about the commit's bytes failed: {error}").as_str());
+    }
 }
 
 /// What:
