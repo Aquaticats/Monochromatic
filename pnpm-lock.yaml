@@ -1810,6 +1810,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
