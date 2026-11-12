@@ -297,6 +297,58 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### A commit in the main checkout got no answer for thirteen minutes and was not made (2026-11-12T14:33:44-05:00)
+
+- The commit of the section "Starts go through again" was started at about 14:20 and ended at 14:33:44 with, four times,
+  "The commit service has said nothing for 5 seconds, so the same commit is being sent to it again",
+  and then "The commit service stopped answering while this commit waited, and it did not answer when asked again.
+  The branch is not at the commit this command prepared, so it was not made by this command".
+  Checked with real Git at 14:42:41: `main` still at `d9812caad7`, the file still modified. The commit was not made.
+  This is the first failed commit of this session under 0.6.1-alpha.15. The requirement is "Commits should never fail."
+- `/proc/pressure/io` at 14:42:41: full avg10=8.39, avg60=12.46. The disk pressure had gone down; the service had not recovered with it.
+- The main checkout's service (pid 4030886) logged in that window
+  (`~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/main-service-journal-1419-to-1444.md`):
+  "the round leaves 8 housekeeping items ... because it spent 2450757 ms of its 30000 ms on housekeeping";
+  a push of `main` with `push_ms=567507`;
+  `pnpm install` and `mpm-shadow install` "still running" for four new worktrees;
+  "the look for this directory's instance record gave no answer within 60s";
+  and the commit's request "dropped ... whose client is gone before its commit landed", six times.
+- So the service that lands the main checkout's commits is also the one that repairs every new worktree's package state,
+  pushes, and removes trash and landed worktrees, and a commit waited behind that.
+  Which of them held the landing is not established.
+  The budget of a housekeeping round, which a branch of pass 17 was to keep, did not hold: eighty times over.
+- One consequence for pass 18: its seventh branch takes the package repair off the path of `git worktree add`.
+  Where the repair runs afterwards has to be read in the pass's report before the release;
+  if it moves into the commit service, it adds to what a landing waits behind.
+- Round 313, started at about 14:50 through the package launcher:
+  `landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service` (on `main`, wall twelve hours):
+  a landing begins within a stated bound whatever else the service does; every budget is real;
+  the exchange between a client that gave up and a service that dropped its request ends in a way a person can tell.
+- The commit of this section is the retry.
+
+#### Starts go through again; why four continuations wait for pass 18 (2026-11-12T14:20:01-05:00)
+
+- At 14:11:05 two runs of round 310 were up
+  (`commit-of-many-changed-files-is-made-within-five-seconds-of-real-git-1`,
+  `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill-1`);
+  the third, the pending push, was past Pi's check and on its way.
+- Rounds 311 and 312 failed a second time, now with
+  `CommandAnswerMissingError: mise exec -- bash --noprofile --norc -c command -v node answered -1`:
+  one more call of the launcher that a slow machine ends.
+  It was added to the launcher-fix brief. Both were started a third time
+  (312 printed "started" at 14:11:30, 311 at 14:20:01; the `mise` task that starts a batch took about nine minutes for the second).
+- Integration pass 18 had merged all nine branches by 14:14 (its notes folder holds the message of the ninth merge)
+  and was in its builds and checks at 148 turns. The run for issue 6286 was at 309 turns.
+  A bounded wait of fifty minutes on pass 18 began at 14:15.
+- The four continuations stay unstarted, and the reason is order, not load:
+  - the landed-removal second pass (`3118b41ce3`) with the held-commit keeper (`c79d17060e`):
+    both share removal files with pass 18's fifth branch, so they are brought together on `main` once pass 18 is merged;
+  - the tokio step (`3a1de3fd9e`): it conflicts in two landing files with pass 18's fourth branch; same order;
+  - the fast-forward carry (`6e1f7ba095`): whether edits are carried through a merge at all waits for the inventory run's report
+    and an answer from the owner;
+  - the exempt repository (`7646eced75`): 471 commits behind `main`, with a question of its own agent about tracked edits
+    that goes to the owner with the next batch.
+
 #### The five-second rule is changed; the hourly pass after 14:00 (2026-11-12T14:03:46-05:00)
 
 ##### The five-second rule is changed
