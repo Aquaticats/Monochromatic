@@ -405,6 +405,96 @@ and no desktop configuration or running workload was changed during this investi
   paths,
   and quoted code.
 
+## Further source findings before reboot at 2026-11-12T03:47:48-05:00
+
+The user requested a full investigation of both open-source components,
+then requested preservation and an issue update before reboot.
+The open work is recorded in
+[the reboot handover](../handover/plasma-session-reload-investigation.md).
+
+### Original wrapper recovery output recovered
+
+The original agent's saved session contains the full command output,
+which its driver feed had truncated.
+The tool result at `2026-11-12T06:25:08.295Z` includes:
+
+```text
+# Original agent tool output, recovered from its saved session.
+monochromatic-git-policy-cli: Waiting for the commit service of this worktree... nothing has answered at /run/user/1000/monochromatic-git-policy-cli/586bb5f650de27366c16146c727c8866.sock yet (the service manager says monochromatic-git-policy-cli@586bb5f650de27366c16146c727c8866.service is active); this wait ends as soon as it answers.
+monochromatic-git-policy-cli: the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process; it is asked to restart (monochromatic-git-policy-cli@586bb5f650de27366c16146c727c8866.service), and this commit goes on once it answers.
+The commit service did not start, so this commit was not made. Its log shows why: `journalctl --user --unit 'monochromatic-git-policy-cli@*.service'`. Run the commit again after fixing that. Nothing in the repository changed.
+```
+
+This establishes that the wrapper took its no-greeting restart path before the failed recovery.
+The diagnostic's claim that the service was stopped inside its own process is the wrapper's inference,
+not an independently established process state.
+The precise reload call site still needs correlation with the original command and incident-version source.
+The output also printed preparation commit `c200b01e0f`;
+that alone does not establish that this commit reached the branch.
+The subsequent service log establishes landing of `c2b4d5a7fd`.
+
+The transcript is recoverable from the session named
+`2026-11-12T05-58-16-907Z_01a1ce55-e049-76d8-9fc0-fe8eb6f98f8e.jsonl`
+under the Pi session directory for
+`pi-subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable`.
+The durable excerpt in this document does not depend on that local file surviving reboot.
+
+### A delayed manager can expire replies before reading them
+
+In the same systemd `v262.1` commit,
+`src/libsystemd/sd-bus/sd-bus.c:3063` defines `process_running`.
+Its processing order is:
+
+```c
+// systemd v262.1, src/libsystemd/sd-bus/sd-bus.c:3070.
+r = process_timeout(bus);
+if (r != 0)
+        goto null_message;
+
+r = dispatch_wqueue(bus);
+if (r != 0)
+        goto null_message;
+
+r = dispatch_track(bus);
+if (r != 0)
+        goto null_message;
+
+r = dispatch_rqueue(bus, &m);
+```
+
+`process_timeout` at line 2691 constructs `SD_BUS_ERROR_NO_REPLY` with `Method call timed out`
+when the callback deadline has elapsed.
+This identifies a concrete hypothesis:
+the manager can process an expired subscription before reading an already queued successful reply.
+The bus daemon need not have been stopped for that hypothesis to apply.
+The completed reproduction paused the bus daemon;
+the stronger reproduction that pauses only the manager has not yet been run.
+
+The packaged container library exports `manager_reload` and `unit_install_bus_match`,
+verified with `nm --dynamic`.
+`manager_ready` is static.
+A next probe can use GDB to break in `manager_reload`,
+finish that call,
+hold the manager before it returns to event processing,
+and query the still-running bus independently.
+This is a proposed experiment,
+not a completed result.
+
+### Source and prototype state
+
+- Installed-version source remains systemd `v262.1`,
+  commit `73612ea502d53baf9b0df4336cfc296a7ee0d524`.
+- Upstream `main` resolved to `4c213bab55c53682e6e3af6353bd201a4b27ac2a` during this continuation.
+  Its `src/core/unit.c` was fetched,
+  but a complete comparison and maintained-release check remain open.
+- A fresh disposable prototype clone was created and remained clean.
+  No systemd patch or build was started.
+- The wrapper's shared template embeds the calling executable and Git paths in
+  `package/git-policy/cli/src/native/service/service_provision.rs:112`.
+  Whether alternating executable paths cause repeated global reloads still needs a real-manager fixture.
+- No Sonnet or Kimi audit was launched.
+  The user explicitly waived those audits for this session.
+
 ## Upstream filing decision
 
 - The wrapper's shared-manager operation and systemd's timeout-to-stop mechanism are established.
