@@ -280,10 +280,12 @@ and this is said rather than hidden:
 ### Checks
 
 - `native:clippy` on every target:
-  `Finished` of the `dev` profile in 46.26 s after the last code change,
+  `Finished` of the `dev` profile in 46.26 s after the last code change and in 2 m 00 s at the branch's tip,
   with warnings denied.
-- Both test targets built with `--no-run`:
-  `Finished` of the `test` profile in 3.59 s for the library and in 1 m 57 s for `native_binary`.
+- Both test targets built with `--no-run`,
+  once after the last code change and once at the tip:
+  `Finished` of the `test` profile in 3.59 s and 2 m 03 s for the library,
+  and in 1 m 57 s and 2 m 03 s for `native_binary`.
 - `native:test:host` filtered to
   `landing::`,
   `service::service_journal`,
@@ -388,6 +390,11 @@ and this is said rather than hidden:
 - `clear_recorded_scratch_refs_awaiting` and `end_scratch_ref_record_awaiting` wait for
   `landing/service_land_finish.rs` (the restart's sweep) and `landing/service_land.rs` (the end of one landing),
   which are respectively the recovery path's and the landing loop's.
+- The commit path's own settle writes an intent and a start record too
+  (`landing/held_commit_settle.rs`,
+  `write_intent` and `write_start`):
+  it is another slice's file,
+  and the two awaited faces are there for it when that path is a task.
 - A take whose job gave no answer cannot hand the landing's memory back:
   the markers made ahead it carried are dropped with it,
   so the next take stages its own marker (the nine to thirteen seconds a cold staging costs),
