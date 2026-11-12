@@ -12712,6 +12712,14 @@ The commit is made from:
   when the amend was signed,
   signed again by `git commit-tree -S` with the `-S` option the command line named,
   whose other header lines a signature cannot carry are dropped with a warning.
+  The key is read from the line as Git reads it:
+  `-S[key]`,
+  `--gpg-sign[=key]` in every unambiguous spelling of it,
+  and the letter inside a short cluster (`-qSKEY`) all name one,
+  and `commit-tree` is given the `-S[key]` spelling it takes,
+  while a value that spells the option and a path after `--` or `--end-of-options`
+  name no key
+  (`signing_option`).
 
 The rule holds for every build,
 not only the first:
