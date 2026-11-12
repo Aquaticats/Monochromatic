@@ -360,6 +360,31 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool {
     let mut told: bool = true;
     for item in given_up {
+        // A relink given up on leaves the worktree's links naming the checkout the copy came from, and nothing reads `failed`;
+        //  the words name the commands that finish it, and are shown by the next command in that worktree.
+        if item.kind == WorkKind::Relink {
+            match crate::package_repair_relink_notice::notice_for_given_up(item, MAX_TRIES) {
+                Some(text) => {
+                    if let Err(problem) = crate::package_repair_relink_notice::record_notice(git_dir, item.id().as_str(), text.as_str()) {
+                        crate::service_error!(
+                            "the abandoned relink of {} {} could not be recorded for the person: {problem}",
+                            item.id(),
+                            crate::service_timing::in_the_repository_at(item.repository.as_path())
+                        );
+                        told = false;
+                    }
+                }
+                None => {
+                    crate::service_error!(
+                        "the abandoned relink of {} {} names no tool this release knows, so no notice names a command to run",
+                        item.id(),
+                        crate::service_timing::in_the_repository_at(item.repository.as_path())
+                    );
+                    told = false;
+                }
+            }
+            continue;
+        }
         if item.kind != WorkKind::Push {
             continue;
         }

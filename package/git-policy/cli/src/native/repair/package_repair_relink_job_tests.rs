@@ -181,20 +181,23 @@ fn both_tools_run_in_the_worktree_in_the_records_order() {
 
 /// What:
 ///  A tool that fails is named in the verdict,
-/// and the next tool still runs.
+/// the next tool still runs,
+/// and the record keeps its claim for another try.
 /// Why:
 ///   One tool's failure must not leave the other tool's state unrelinked,
-/// and the person is told which tool failed:
-/// the same two guarantees the add gave.
+///   the person is told which tool failed and how to finish it,
+///   and a failure this machine's ordinary conditions produce (two installers in one `node_modules`)
+///   passes when the tool runs alone.
 #[test]
-fn a_tool_that_fails_is_named_and_the_next_still_runs() {
+fn a_tool_that_fails_is_named_the_next_still_runs_and_the_record_is_tried_again() {
     let scene: Scene = scene("relink-job-fails");
     executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 3).as_bytes());
     executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
     let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
     let verdict: Verdict = relink(&scene, &item);
-    let Verdict::Failed(reason) = verdict else { panic!("a failing tool is a failure: {verdict:?}") };
+    let Verdict::Retry(reason) = verdict else { panic!("a failing tool is a failure that can pass: {verdict:?}") };
     assert!(reason.starts_with("pnpm: "), "{reason}");
+    assert!(reason.contains("pnpm --dir "), "the words do not name the command that finishes it: {reason}");
     let named: String = starts(&scene);
     assert!(named.contains("mpm-shadow"), "the toolchain install did not run: {named}");
     remove(scene.root.as_path());

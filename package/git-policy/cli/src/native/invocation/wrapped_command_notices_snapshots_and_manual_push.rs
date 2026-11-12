@@ -207,6 +207,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
+    // A relink the commit service gave up on is read here next: its record reached `failed`, which nothing scans, and the
+    //  worktree's links still name the checkout the copy came from. The line names the commands that finish it by hand.
+    for line in crate::package_repair_relink_notice::take_notices(git_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };

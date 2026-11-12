@@ -5,7 +5,7 @@ use crate::claim_time::ClaimTime;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work::{CLAIM_LEASE, SERVICE_KINDS, Verdict};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
-use crate::service_work_handlers_replanning_and_acceptance::{MAX_TRIES, Replanning, WorkHandlers, work_directory};
+use crate::service_work_handlers_replanning_and_acceptance::{MAX_TRIES, Replanning, WorkHandlers, tell_about_given_up, work_directory};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, enqueue, id_of_entry, state_directory};
 use crate::work_item_recovery::requeue_expired;
@@ -202,4 +202,35 @@ fn the_other_verdicts_keep_the_state_they_had() {
         assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), state, "{verdict:?} is settled in {state}");
         remove(queued.root.as_path());
     }
+}
+
+/// What:
+///  A relink the service gives up on leaves a notice in the worktree's own Git directory,
+///  and the notice names the command that finishes the job.
+/// Why:
+///   A record that reached `failed` is scanned by nothing,
+///   so without the notice the person keeps a worktree whose package links still name the checkout the copy came from,
+///   and learns of it only when a tool fails in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(tellAboutGivenUp(gitDir, [relinkItem])); assert(takeNotices(gitDir)[0].includes('pnpm --dir '));
+/// ```
+#[test]
+fn a_given_up_relink_leaves_a_notice_naming_the_command() {
+    let root: PathBuf = fixture("settling-given-up-relink");
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
+    let worktree: PathBuf = root.join("the worktree");
+    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
+        root: worktree.clone(),
+        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+    };
+    let item: WorkItem = crate::package_repair_relink::item_of(git_dir.as_path(), worktree.as_path(), &entry).expect("the record");
+    assert!(tell_about_given_up(git_dir.as_path(), std::slice::from_ref(&item)), "the person was not told");
+    let lines: Vec<String> = crate::package_repair_relink_notice::take_notices(git_dir.as_path());
+    assert_eq!(lines.len(), 1, "one notice per record given up on: {lines:?}");
+    assert!(lines[0].contains("pnpm --dir "), "the notice names no command: {lines:?}");
+    remove(root.as_path());
 }

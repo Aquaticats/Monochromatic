@@ -212,11 +212,17 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
 /// What:
 ///  The last bytes of what a program printed,
 /// as text,
-/// with the cut ragged edge dropped.
+/// with the cut ragged edge dropped,
+/// and started at a sentence when the tool printed one line and the cut fell inside it.
 /// Why:
 ///   A failure is worded with the end of the output,
 /// where tools print their reason;
 /// the start is progress noise.
+/// A person reads the failure as one line,
+/// so a kept text that began in the middle of a sentence named neither the tool's reason nor its own:
+/// `package/dsh-plugin/cost-dismissal/node_modules/zod". The link at "/var/` was all a service journal showed of pnpm's
+///  reason,
+/// and the sentence that said why came after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -239,9 +245,52 @@ fn tail_of(bytes: &[u8]) -> String {
     }
     let whole_lines: &str = match trimmed.split_once('\n') {
         Some((_ragged, rest)) => rest,
-        None => trimmed,
+        // One line with no break in it has no whole line to start at, so it starts at the first sentence that follows the
+        //  cut: a fragment of a sentence is what a reader of one line cannot tell from a wrong statement.
+        None => sentence_after_the_cut(trimmed),
     };
     return whole_lines.trim().to_owned();
+}
+
+/// What:
+///  The text from its first sentence on,
+///  or nothing when it holds no sentence start at all.
+/// Why:
+///   A tool that prints its reason as one line cannot be cut at a line break,
+///   and cutting inside a sentence leaves words that name no tool's claim;
+///   the first `. ` after a cut is where a sentence of that line begins again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sentenceAfterTheCut = (text) => { const at = text.indexOf('. '); return at < 0 ? '' : text.slice(at + 2) };
+/// ```
+fn sentence_after_the_cut(text: &str) -> &str {
+    return match text.find(". ") {
+        Some(end) => &text[end + 2..],
+        None => "",
+    };
+}
+
+/// What:
+///  The words one failed tool's output is reported with:
+/// the kept end of it,
+/// and one sentence saying that it printed more than is kept.
+/// Why:
+///   The kept text is bounded,
+///   and a bound the person cannot see is a bound that reads as the whole output;
+///   the sentence ends the report at a full stop wherever the kept text was cut,
+///   and a tool whose output fit says nothing extra.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failureText = (bytes) => bytes.length <= OUTPUT_TAIL_BYTES ? tailOf(bytes) : `${tailOf(bytes)} The tool printed ${bytes.length} bytes and only its end is kept here.`;
+/// ```
+fn failure_text(bytes: &[u8]) -> String {
+    let kept: String = tail_of(bytes);
+    if bytes.len() <= OUTPUT_TAIL_BYTES {
+        return kept;
+    }
+    return format!("{kept} The tool printed {} bytes and only its end is kept here.", bytes.len());
 }
 
 /// What:
@@ -485,7 +534,7 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
         return ToolRun { end: ToolEnd::Succeeded, millis, stdout, notes: shown.notes };
     }
     let combined: Vec<u8> = [stdout.as_slice(), errors.as_slice()].concat();
-    let text: String = tail_of(combined.as_slice());
+    let text: String = failure_text(combined.as_slice());
     // What was left out, or could not be read, is part of what the person is told: the text shows the tail only.
     let disclosed: String = if shown.notes.is_empty() { String::new() } else { format!(" ({})", shown.notes.join("; ")) };
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };

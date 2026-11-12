@@ -153,6 +153,60 @@ fn a_failure_text_drops_wait_notices() {
     assert_eq!(text, "error: the real reason");
 }
 
+/// A path of the shape pnpm printed:
+/// the worktree, the package, and the store entry,
+/// long enough that the kept tail of a one-line failure begins inside one.
+fn a_path_of_the_shape_pnpm_printed(package: &str) -> String {
+    return format!("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-integration-pass-16-for-alpha-13/package/{package}/node_modules/{package}");
+}
+
+/// What:
+///  A one-line failure whose kept tail begins inside a path starts at a sentence,
+///  and says that the tool printed more.
+/// Why:
+///   The service's journal line for a failed relink read
+///   `pnpm: exit status 1: package/dsh-plugin/cost-dismissal/node_modules/zod". The link at "/var/`,
+///   a fragment that named neither pnpm's claim nor its reason,
+///   and the sentence that said why came after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(tailOf(loneLineOverTheBound).startsWith('The link at "'));
+/// ```
+#[test]
+fn a_cut_failure_text_starts_at_a_sentence() {
+    let link: String = a_path_of_the_shape_pnpm_printed("dsh-plugin-cost-dismissal");
+    let store: String = a_path_of_the_shape_pnpm_printed("zod");
+    let output: String = format!(
+        "Error while trying to symlink \"{link}\" to \"{store}\". The link at \"{link}\" points at \"{store}\" and still does after it was removed to be retargeted. Details: File exists (os error 17)"
+    );
+    assert!(output.len() > OUTPUT_TAIL_BYTES, "the fixture is {} bytes and does not reach the bound", output.len());
+    let text: String = failure_text(output.as_bytes());
+    assert!(text.starts_with("The link at \""), "the kept text began inside a sentence: {text:?}");
+    assert!(text.contains(link.as_str()), "the kept text does not name the link in full: {text:?}");
+    assert!(
+        text.ends_with(&format!("Details: File exists (os error 17). The tool printed {} bytes and only its end is kept here.", output.len())),
+        "the kept text does not end at a sentence that says what was left out: {text:?}"
+    );
+}
+
+/// A failure whose output printed several lines keeps whole lines and never a fragment of one.
+#[test]
+fn a_cut_failure_text_keeps_whole_lines() {
+    let progress: String = "progress ".repeat(80);
+    let output: String = format!("{progress}\nerror: the real reason\n");
+    let text: String = failure_text(output.as_bytes());
+    assert!(output.len() > OUTPUT_TAIL_BYTES, "the fixture is {} bytes and does not reach the bound", output.len());
+    assert_eq!(text, format!("error: the real reason The tool printed {} bytes and only its end is kept here.", output.len()));
+}
+
+/// A failure whose output fit within the bound says nothing about a bound.
+#[test]
+fn a_short_failure_text_says_nothing_about_a_bound() {
+    let text: String = failure_text(b"error: the real reason\n");
+    assert_eq!(text, "error: the real reason");
+}
+
 /// The quiet window of the control below:
 /// longer than the sampling interval of the progress meter.
 const WORKING_WINDOW: Duration = Duration::from_millis(1200);
