@@ -226,7 +226,8 @@ fn an_unreadable_process_table_is_reported() {
 /// A descriptor whose link text is not a path is of no file,
 /// and its record is answered without being opened.
 /// Why:
-///  The record of the anonymous descriptor is a directory here, which no read can open:
+///  The record of the anonymous descriptor is a directory here,
+/// which no read can open:
 ///  a scan that opened it would report a refusal instead of the answer.
 ///  The file beside it is the control that the gate lets a file through:
 ///  its record names the lock and its link is the lock.
@@ -373,11 +374,13 @@ fn a_process_that_holds_that_many_watches_blocks() {
 /// What:
 ///  The inotify flags of a descriptor this process alone holds.
 /// Why:
-///   `IN_CLOEXEC` keeps it out of a child, and `IN_NONBLOCK` keeps nothing waiting on it.
+///   `IN_CLOEXEC` keeps it out of a child,
+/// and `IN_NONBLOCK` keeps nothing waiting on it.
 const IN_CLOEXEC: i32 = 0o2000000;
 /// The same non-blocking flag.
 const IN_NONBLOCK: i32 = 0o4000;
-/// Every inotify event, as a program that watches a project asks for.
+/// Every inotify event,
+/// as a program that watches a project asks for.
 const IN_ALL_EVENTS: u32 = 0x0000_0fff;
 
 /// What:
@@ -435,7 +438,8 @@ impl Watches {
         return self.0.id();
     }
 
-    /// The number of its inotify descriptor, as the text of its links says.
+    /// The number of its inotify descriptor,
+    /// as the text of its links says.
     /// Why:
     ///  A scan is what reads records,
     ///  so this walks the links of the process this control started and never a record of it.
@@ -464,7 +468,8 @@ impl Drop for Watches {
     }
 }
 
-/// The line a holder prints when its watches are set, read from its standard output.
+/// The line a holder prints when its watches are set,
+/// read from its standard output.
 /// Why:
 ///  The test harness prints its own lines around the test's output,
 ///  so the line this control waits for is the one that says a pid and a descriptor,
@@ -511,12 +516,14 @@ fn table_of_one(root: &Path, pid: u32) -> PathBuf {
 }
 
 /// What:
-///  The kernel memory this process's own control group holds now, in bytes.
+///  The kernel memory this process's own control group holds now,
+/// in bytes.
 /// Why:
 ///   The buffer the kernel builds a record in is charged to the reading process's control group with
 ///  `GFP_KERNEL_ACCOUNT`,
 ///  so this is where a read's cost shows.
-///  `None` where the group does not account kernel memory, which the control then reports rather than asserts.
+///  `None` where the group does not account kernel memory,
+/// which the control then reports rather than asserts.
 fn kernel_charge_now() -> Option<u64> {
     let own: String = std::fs::read_to_string("/proc/self/cgroup").ok()?;
     let path: &str = own.lines().find_map(|line| { return line.strip_prefix("0::"); })?;
@@ -591,7 +598,9 @@ struct Cost {
 }
 
 /// What:
-///  Read the holder's record once, then scan the table that names it, and report what each cost.
+///  Read the holder's record once,
+/// then scan the table that names it,
+/// and report what each cost.
 /// Why:
 ///   The direct read is the control that the measurement can see a record's cost at all:
 ///  the scan must not pay it.
@@ -617,7 +626,9 @@ fn cost_of_one_scan(root: &Path, watches: &Watches) -> Cost {
 /// The small inotify set this control starts with.
 const SMALL_WATCH_COUNT: usize = 2_000;
 
-/// The large one: a record of megabytes, whose read is the cost issue 6287 found.
+/// The large one:
+/// a record of megabytes,
+/// whose read is the cost issue 6287 found.
 const LARGE_WATCH_COUNT: usize = 64_000;
 
 /// The most a scan may cost because the record beside it is that much longer.

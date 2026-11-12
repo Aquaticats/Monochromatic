@@ -17,7 +17,8 @@
 
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
-/// `Instant` is a moment on the monotonic clock, which a scan's bound names.
+/// `Instant` is a moment on the monotonic clock,
+/// which a scan's bound names.
 use std::time::Instant;
 
 /// The root of the process table on Linux.
@@ -27,7 +28,8 @@ pub const PROC_ROOT: &str = "/proc";
 ///
 /// Measured on 2026-11-07 on this host at load average 37 to 52:
 /// one walk of every process's open descriptors (list each `/proc/<pid>/fd` and `stat` each link) over 1,000 processes
-/// and 54,500 descriptors took 313, 360 and 398 ms,
+/// and 54,500 descriptors took 313,
+/// 360 and 398 ms,
 /// and the commit service's scan carries the same bound for the same measurement (`SERVICE_SCAN_BUDGET`).
 /// A scan that reaches it returns what it found and says that it did not finish,
 /// which every caller reads as a table it may not act on:

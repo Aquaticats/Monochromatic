@@ -21,7 +21,10 @@
 //!  while a walk of the same link revalidates the target's directory entry and can wait for ever on a stopped server
 //!  (`doc/troubleshooting/fuse-descriptor-attributes.md`).
 //!  A descriptor whose text is not a path cannot be a file of a file system,
-//!  and a kernel anonymous inode (`anon_inode:`: inotify, fanotify, epoll and their kind) is not a file any scan here
+//!  and a kernel anonymous inode (`anon_inode:`:
+//! inotify,
+//! fanotify,
+//! epoll and their kind) is not a file any scan here
 //!  looks for,
 //!  so neither is opened.
 //!
@@ -38,7 +41,10 @@ use std::path::{Path, PathBuf};
 /// How much of a descriptor's record a scan takes:
 /// four kibibytes,
 /// which is far past the four short lines of a regular file's record
-/// (`pos:`, `flags:`, `mnt_id:`, `ino:`)
+/// (`pos:`,
+/// `flags:`,
+/// `mnt_id:`,
+/// `ino:`)
 /// and still a bound on what one scan holds in this process.
 pub const RECORD_BYTES_AT_MOST: usize = 4096;
 
@@ -93,12 +99,14 @@ pub enum Targeted {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Record {
-    /// The descriptor cannot be the target, so its record was never opened.
+    /// The descriptor cannot be the target,
+    /// so its record was never opened.
     NotTheTarget,
     /// The descriptor or its process ended while the scan walked it,
     /// which is a race of every scan of another process's descriptors and no evidence about a file.
     Gone,
-    /// The descriptor's record, at most `RECORD_BYTES_AT_MOST` bytes of it.
+    /// The descriptor's record,
+    /// at most `RECORD_BYTES_AT_MOST` bytes of it.
     Text(String),
     /// The record is longer than the bound,
     /// so none of it is used and the descriptor may be the target.

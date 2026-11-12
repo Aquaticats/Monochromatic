@@ -5,7 +5,8 @@ use crate::test_support::{fixture, remove};
 
 /// A process table directory whose descriptor `fd` is a link to `target` and whose record is `record`.
 /// Why:
-///  A control's `/proc` is a directory of links, and the record of one descriptor is a file beside it.
+///  A control's `/proc` is a directory of links,
+/// and the record of one descriptor is a file beside it.
 fn table(root: &Path, fd: &str, target: &str, record: Option<&str>) -> PathBuf {
     let process: PathBuf = root.join("proc").join("4242");
     std::fs::create_dir_all(process.join("fd")).expect("the descriptor directory");
@@ -17,9 +18,12 @@ fn table(root: &Path, fd: &str, target: &str, record: Option<&str>) -> PathBuf {
     return process;
 }
 
-/// A descriptor whose link text is not a path is of no file of a file system, and its record is not opened.
+/// A descriptor whose link text is not a path is of no file of a file system,
+/// and its record is not opened.
 /// Why:
-///  The record's own file is a directory here, which no read can open: a scan that opened it would report the refusal.
+///  The record's own file is a directory here,
+/// which no read can open:
+/// a scan that opened it would report the refusal.
 #[test]
 fn a_descriptor_that_is_not_a_file_is_answered_without_opening_its_record() {
     let root: PathBuf = fixture("descriptor-record-anonymous");
@@ -29,8 +33,10 @@ fn a_descriptor_that_is_not_a_file_is_answered_without_opening_its_record() {
     remove(root.as_path());
 }
 
-/// A pipe is a file a scan for an anonymous file looks for, and it is read;
-/// a kernel anonymous inode is not, and it is not.
+/// A pipe is a file a scan for an anonymous file looks for,
+/// and it is read;
+/// a kernel anonymous inode is not,
+/// and it is not.
 /// Why:
 ///  A step's own output pipe is found by its mount number and inode,
 /// so skipping every text that is not a path would lose every holder of a pipe.
@@ -48,7 +54,8 @@ fn an_anonymous_target_reads_a_pipe_and_skips_a_kernel_anonymous_inode() {
     remove(root.as_path());
 }
 
-/// A record that fits is taken whole, one of exactly the bound included.
+/// A record that fits is taken whole,
+/// one of exactly the bound included.
 #[test]
 fn a_record_that_fits_the_bound_is_taken() {
     let root: PathBuf = fixture("descriptor-record-fits");
@@ -75,7 +82,8 @@ fn a_record_past_the_bound_is_not_used() {
     remove(root.as_path());
 }
 
-/// A record that cannot be opened is the kernel's own refusal, and not a bound's.
+/// A record that cannot be opened is the kernel's own refusal,
+/// and not a bound's.
 #[test]
 fn a_record_that_cannot_be_opened_is_reported() {
     let root: PathBuf = fixture("descriptor-record-unreadable");
@@ -87,7 +95,8 @@ fn a_record_that_cannot_be_opened_is_reported() {
     remove(root.as_path());
 }
 
-/// A link whose text cannot be produced is a descriptor whose kind is unknown, which a caller reads as a file that may be held.
+/// A link whose text cannot be produced is a descriptor whose kind is unknown,
+/// which a caller reads as a file that may be held.
 /// Why:
 ///  `readlink(2)` of `/proc/<pid>/fd/<n>` answers `EINVAL` when the entry is no link and `EACCES` when the kernel refuses
 /// the scan that entry,
@@ -105,7 +114,8 @@ fn a_link_that_cannot_be_read_is_a_kind_unknown() {
     remove(root.as_path());
 }
 
-/// A descriptor that closed during the walk is gone, and the race is no evidence about the file.
+/// A descriptor that closed during the walk is gone,
+/// and the race is no evidence about the file.
 #[test]
 fn a_descriptor_that_closed_is_gone() {
     let root: PathBuf = fixture("descriptor-record-gone");

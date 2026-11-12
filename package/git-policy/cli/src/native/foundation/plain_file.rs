@@ -194,7 +194,8 @@ pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
 }
 
 /// How many bytes of a mount table this reads:
-/// the kernel's own, under `/proc/<pid>/mountinfo` or this process's.
+/// the kernel's own,
+/// under `/proc/<pid>/mountinfo` or this process's.
 /// Why:
 ///  The number of mounts is the system's state and not this command's:
 /// a container's namespace can hold tens of thousands of entries,
