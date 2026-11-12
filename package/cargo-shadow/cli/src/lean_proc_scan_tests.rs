@@ -311,3 +311,35 @@ fn a_process_in_another_mount_namespace_holding_a_build_lock_blocks_every_entry_
     assert_eq!(blocker.how, "identity", "{blocker:?}");
     assert_eq!(blocker.pid, 71, "{blocker:?}");
 }
+
+/// A scan that reaches its bound proves nothing and says so,
+/// so a removal that needs it must not happen.
+/// Why:
+/// The scan of the processes is the second half of the proof of "not in use",
+/// and it reads a descriptor table and a map for every process of the machine:
+/// a scan that was cut saw some of them and cannot say what the rest hold.
+#[test]
+fn a_scan_the_bound_stops_answers_nothing() {
+    let root = scratch();
+    let proc_root: PathBuf = root.path().join("proc");
+    let pid: PathBuf = proc_root.join("1001");
+    fs::create_dir_all(&pid).expect("process directory");
+    symlink("/somewhere", pid.join("cwd")).expect("cwd link");
+    let cut: Option<ScanReport> = scan_processes(&proc_root, &[root.path()], &[], -1, &Deadline::after(Duration::ZERO));
+    assert!(cut.is_none(), "a scan past its bound is not a report: {cut:?}");
+    let finished: Option<ScanReport> = scan_processes(&proc_root, &[root.path()], &[], -1, &Deadline::after(Duration::from_secs(60)));
+    assert!(finished.is_some(), "the same scan inside its bound answers");
+}
+
+/// A guard whose process scan was cut skips the directory,
+/// so a profile directory is never declared quiescent by a proof that did not finish.
+#[test]
+fn a_guard_whose_scan_was_cut_skips_the_directory() {
+    let root = scratch();
+    let profile: PathBuf = crate::lean_test_support::make_profile(root.path(), "debug");
+    let environment: crate::lean_guard::GuardEnvironment = crate::lean_guard::GuardEnvironment::real();
+    match crate::lean_guard::guard_profile(&profile, &environment, &Deadline::after(Duration::ZERO)) {
+        crate::lean_guard::Guard::Skip(why) => assert!(why.contains("the deadline passed while scanning the processes"), "{why}"),
+        crate::lean_guard::Guard::Ready(_) => panic!("a scan past its bound is not a proof"),
+    }
+}

@@ -32,6 +32,8 @@ struct World {
     log: PathBuf,
     /// An empty Cargo home.
     cargo_home: PathBuf,
+    /// The build base a fixture world gives the run, when it has one.
+    base: PathBuf,
 }
 
 /// Makes a world with a repository that holds one in-tree build with a stale unit and a current one.
@@ -55,7 +57,7 @@ fn make_world() -> World {
         std::fs::create_dir_all(profile.join(directory)).expect("profile directory");
     }
     std::fs::write(profile.join(".cargo-build-lock"), b"").expect("lock file");
-    return World { _guard: guard, repository, fakes, log, cargo_home };
+    return World { _guard: guard, repository, fakes, log, cargo_home, base: PathBuf::new() };
 }
 
 /// Writes a unit into the fixture's profile directory.
@@ -226,4 +228,51 @@ fn the_old_timer_install_name_says_what_it_does_now_and_installs_the_continuous_
     let service: String = std::fs::read_to_string(units.join("cargo-shadow-lean.service")).expect("service unit");
     assert!(service.contains("Restart=always"), "{service}");
     assert!(!units.join("cargo-shadow-lean.timer").exists());
+}
+
+/// A build base of this test's own:
+/// a tree whose ledger names a workspace that is gone, and a tree whose workspace is still there.
+fn make_base_world() -> World {
+    let mut world: World = make_world();
+    let base: PathBuf = world.cargo_home.parent().expect("parent").join("build-base");
+    std::fs::write(world.cargo_home.join("config.toml"), format!("[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n", base.display())).expect("cargo configuration");
+    let gone: PathBuf = world.cargo_home.parent().expect("parent").join("no-longer-here");
+    let alive: PathBuf = world.cargo_home.parent().expect("parent").join("still-here");
+    std::fs::create_dir_all(&alive).expect("the live workspace");
+    for (relative, workspace) in [(base.join("ab").join("00000000000001"), &gone), (base.join("ab").join("00000000000002"), &alive)] {
+        let profile: PathBuf = relative.join("debug");
+        std::fs::create_dir_all(profile.join("deps")).expect("profile directory");
+        std::fs::write(profile.join(".cargo-build-lock"), b"").expect("lock file");
+        std::fs::write(profile.join("deps").join("libalpha.rlib"), vec![5_u8; 8192]).expect("artifact");
+        std::fs::write(relative.join(".cargo-shadow-workspace"), format!("{}\n", workspace.display())).expect("ledger");
+        let old: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(FIFTEEN_DAYS);
+        std::fs::File::open(profile.join("deps").join("libalpha.rlib")).expect("open").set_modified(old).expect("time");
+        std::fs::File::open(profile.join(".cargo-build-lock")).expect("open").set_modified(old).expect("time");
+        std::fs::File::open(&profile).expect("open").set_modified(old).expect("time");
+        std::fs::File::open(&relative).expect("open").set_modified(old).expect("time");
+    }
+    world.base = base;
+    return world;
+}
+
+/// The real binary judges a fixture build base and says what it read, what it kept and what it would remove,
+/// and a dry run removes nothing.
+/// Why:
+/// The pass used to read the recorded workspace of every tree before it answered anything,
+/// so the question "what would a pass remove" could not be answered inside any bound.
+#[test]
+fn a_dry_run_over_a_fixture_base_says_what_it_read_and_what_it_would_remove() {
+    let world = make_base_world();
+    let removable: PathBuf = world.base.join("ab").join("00000000000001");
+    let live: PathBuf = world.base.join("ab").join("00000000000002");
+    let output: Output = run(&world, &world.repository, &["lean", "run", "--dry-run", "--only", "trees"]);
+    let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(output.status.code(), Some(0), "{stdout} {stderr}");
+    assert!(stdout.contains("read the ledger of 2 of 2 trees in"), "{stdout}");
+    assert!(stdout.contains("1 trees are named by their ledger as already qualified"), "{stdout}");
+    assert!(stdout.contains("idle trees: 2 of 2 trees judged; would remove 1"), "{stdout}");
+    assert!(stdout.contains("kept 1"), "{stdout}");
+    assert!(stderr.contains(&format!("would remove tree {}", removable.display())), "{stderr}");
+    assert!(removable.exists() && live.exists(), "a dry run removes nothing");
 }

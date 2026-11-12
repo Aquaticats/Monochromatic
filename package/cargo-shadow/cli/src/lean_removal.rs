@@ -337,8 +337,6 @@ struct Walk<'a> {
     seen: &'a mut std::collections::HashSet<Identity>,
     /// The instant after which the walk leaves the rest for the next pass.
     deadline: &'a Deadline,
-    /// Whether the deadline has stopped this walk.
-    cut: bool,
 }
 
 /// What:
@@ -354,11 +352,11 @@ struct Walk<'a> {
 /// function deleteEntry(path: string, walk: Walk): void
 /// ```
 fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
-    if walk.cut {
+    if walk.deleted.cut {
         return;
     }
     if walk.deadline.passed() {
-        walk.cut = true;
+        walk.deleted.cut = true;
         return;
     }
     let metadata: fs::Metadata = match fs::symlink_metadata(path) {
@@ -448,7 +446,7 @@ pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32,
         return Err(Refusal::Changed { path: claimed.to_path_buf(), judged, found });
     }
     let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
-    let mut walk: Walk<'_> = Walk { this_uid, deleted: Deleted::default(), seen: &mut seen, deadline, cut: false };
+    let mut walk: Walk<'_> = Walk { this_uid, deleted: Deleted::default(), seen: &mut seen, deadline };
     delete_entry(claimed, &mut walk);
     if walk.deleted.cut {
         walk.deleted.remaining.push(format!("the deadline passed while deleting it, and what is left of it stays in {} for the next pass to finish", claimed.display()));

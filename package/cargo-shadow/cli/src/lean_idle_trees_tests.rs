@@ -12,7 +12,7 @@ use rustix::fs::{FlockOperation, flock};
 
 use crate::lean_build_trees::{Tree, TreeKind, Workspace, list_trees, profile_dirs_of, workspace_of};
 use crate::lean_identity::Deadline;
-use crate::lean_idle_trees::{IdlePolicy, TreeCollection, TreeOutcome, TreeVerdict, collect_idle_trees};
+use crate::lean_idle_trees::{IdlePolicy, KeepKind, TreeCollection, TreeOutcome, TreeVerdict, collect_idle_trees};
 use crate::lean_keyed_folder::LEDGER_FILE;
 use crate::lean_test_support::{DAY, NOW, age_everything, make_pipe, make_tree, real_environment, within};
 use crate::test_scratch::scratch;
@@ -418,4 +418,97 @@ fn a_retired_tree_whose_workspace_is_outside_the_base_still_goes() {
     let outcomes: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
     assert!(matches!(verdict_of(&outcomes, &retired), TreeVerdict::Removed { .. }), "{outcomes:?}");
     assert!(alive.exists(), "the workspace is outside the base and is not removed with the tree");
+}
+
+/// What one survey of a fixture cost,
+/// in the words the pass reports.
+/// Why:
+/// The cost of the survey is the fixed part of every pass,
+/// and it is the part that used to run with no clock check at all:
+/// the pass read the recorded workspace of every tree of the base before it judged the first one,
+/// so a bound it was given did not end it
+/// (measured 2026-11-11: `--deadline-minutes 15` was still inside that read 985 s in, in disk wait).
+#[test]
+fn a_pass_reads_the_ledger_of_every_tree_once_before_it_judges_anything_and_reports_the_cost() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let gone: PathBuf = root.path().join("no-longer-here");
+    aged_tree(&base, "aa/00000000000001", &gone, 30 * DAY);
+    let alive: PathBuf = root.path().join("alive");
+    fs::create_dir_all(&alive).expect("the workspace");
+    aged_tree(&base, "ab/00000000000002", &alive, 30 * DAY);
+    let (collection, _log): (TreeCollection, Vec<String>) = collect_reporting(&base, &[], true);
+    let reported: String = collection.lines.join("\n");
+    assert!(reported.contains("read the ledger of 2 of 2 trees in "), "{reported}");
+    assert!(reported.contains("1 trees are named by their ledger as already qualified"), "{reported}");
+    assert_eq!(collection.judged, 2, "{reported}");
+}
+
+/// A bound that has already passed stops the survey,
+/// and a survey that did not cover the base judges nothing:
+/// the guard against removing a tree that holds another tree's workspace is the whole base's records,
+/// so a pass may not remove on a part of them.
+#[test]
+fn a_bound_that_has_already_passed_stops_the_survey_and_judges_nothing() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let gone: PathBuf = root.path().join("no-longer-here");
+    let first: PathBuf = aged_tree(&base, "aa/00000000000001", &gone, 30 * DAY);
+    let second: PathBuf = aged_tree(&base, "ab/00000000000002", &gone, 30 * DAY);
+    let trees: Vec<Tree> = list_trees(&base, &Deadline::after(Duration::from_secs(60))).expect("the listing finished");
+    let deadline: Deadline = Deadline::after(Duration::ZERO);
+    let mut log: Vec<String> = Vec::new();
+    let collection: TreeCollection = collect_idle_trees(&trees, Some(&first), &base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &deadline, &mut log);
+    assert_eq!(collection.judged, 0, "{collection:?}");
+    assert!(collection.outcomes.is_empty(), "{collection:?}");
+    assert_eq!(collection.resume_after.as_deref(), Some(first.as_path()), "the position it started at is kept: {collection:?}");
+    assert!(collection.lines.iter().any(|line| { return line.contains("so this pass judged nothing"); }), "{:?}", collection.lines);
+    assert!(first.exists() && second.exists(), "a pass the deadline cut removes nothing");
+}
+
+/// The trees whose own ledger already shows they qualify are judged before the trees that need a walk over their
+/// dependency information.
+/// Why:
+/// A pass that is cut judges only the front of its order,
+/// so the space a pass frees has to come out of the front:
+/// measured on this host, a tree whose ledger names a gone workspace needs two reads to qualify,
+/// and a tree with no ledger needs a walk of its units before anything is known about it.
+#[test]
+fn the_trees_their_ledger_already_shows_they_qualify_for_are_judged_first() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    // Sorts first, and only its dependency information can say anything about it.
+    let needs_a_walk: PathBuf = make_tree(&base, "aa/00000000000001", None);
+    let existing_source: PathBuf = root.path().join("src").join("lib.rs");
+    fs::create_dir_all(existing_source.parent().expect("parent")).expect("source directory");
+    fs::write(&existing_source, b"").expect("source");
+    let out: PathBuf = needs_a_walk.join("debug").join("build").join("alpha").join("00000000000000aa").join("out");
+    fs::create_dir_all(&out).expect("out directory");
+    fs::write(out.join("alpha.d"), format!("{}/alpha.d: {}\n", needs_a_walk.display(), existing_source.display())).expect("dependency information");
+    age_everything(&needs_a_walk, NOW - 60 * DAY);
+    // Sorts second, and its ledger names a workspace that is gone, so it is a candidate before any walk.
+    let candidate: PathBuf = aged_tree(&base, "ab/00000000000002", &root.path().join("gone"), 5 * DAY);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
+    let judged: Vec<PathBuf> = outcomes.iter().map(|outcome| { return outcome.tree.clone(); }).collect();
+    assert_eq!(judged, vec![candidate.clone(), needs_a_walk.clone()], "the candidate comes first however its path sorts");
+    assert!(!candidate.exists(), "{outcomes:?}");
+    assert!(needs_a_walk.exists(), "the tree whose source still exists stays");
+}
+
+/// A tree whose workspace is still there is kept as "in use" and never as "not idle yet",
+/// because the question "is anything still using it" is answered by one stat and the question "when did it last write"
+/// is answered by a walk over every unit it holds.
+#[test]
+fn a_tree_whose_workspace_is_still_there_is_kept_because_something_uses_it() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let alive: PathBuf = root.path().join("alive");
+    fs::create_dir_all(&alive).expect("the workspace");
+    let tree: PathBuf = aged_tree(&base, "ab/00000000000003", &alive, 90 * DAY);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
+    match verdict_of(&outcomes, &tree) {
+        TreeVerdict::Keep { kind, .. } => assert_eq!(kind, KeepKind::InUse, "a live workspace is a use, not an age"),
+        other => panic!("expected a keep, got {other:?}"),
+    }
+    assert!(tree.exists());
 }

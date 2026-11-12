@@ -218,3 +218,56 @@ fn a_widened_directory_gets_this_users_read_write_and_search_and_keeps_every_oth
         assert_eq!(widened_mode(found), widened, "mode {found:04o}");
     }
 }
+
+/// A deletion the deadline stops leaves the rest of the claimed entry in the trash,
+/// and the sweep the next pass runs finishes it.
+/// Why:
+/// A tree can hold hundreds of thousands of files,
+/// and the run that ended 2026-11-09T08:00:00-05:00 was killed by its unit thirty minutes past its own deadline
+/// while a single tree's deletion was still going.
+/// What a deadline leaves is not a failure:
+/// the entry was judged and claimed already,
+/// so the next pass only has to finish the unlink.
+#[test]
+fn a_deletion_the_deadline_stops_leaves_the_rest_for_the_next_pass_to_finish() {
+    let root = scratch();
+    let path: PathBuf = root.path().join("tree");
+    for index in 0..8 {
+        let directory: PathBuf = path.join(format!("unit-{index}")).join("inner");
+        fs::create_dir_all(&directory).expect("directory");
+        fs::write(directory.join("file"), vec![3_u8; 4096]).expect("file");
+    }
+    let trash: PathBuf = root.path().join("trash");
+    let item: Item = item_of(&path).expect("identity");
+    let claimed: PathBuf = claim_into_trash(&item, &trash, 1).expect("claim");
+    let cut = delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::ZERO));
+    match cut {
+        Err(Refusal::PartlyRemoved { deleted, .. }) => {
+            assert!(deleted.cut, "the walk stopped at the deadline: {deleted:?}");
+            assert!(deleted.remaining.iter().any(|reason| { return reason.contains("the deadline passed while deleting it"); }), "{deleted:?}");
+        }
+        other => panic!("expected the deadline to stop the walk, got {other:?}"),
+    }
+    assert!(claimed.exists(), "what is left of it is still the claimed entry in the trash");
+    let sweep: crate::lean_removal::TrashSweep = crate::lean_removal::empty_trash(&trash, &Deadline::after(std::time::Duration::from_secs(60)));
+    assert!(!sweep.cut, "{sweep:?}");
+    assert!(sweep.failures.is_empty(), "{sweep:?}");
+    assert!(sweep.bytes >= 8 * 4096, "the next pass frees what the stopped one claimed: {sweep:?}");
+    assert!(!claimed.exists(), "the next pass finished the deletion");
+}
+
+/// A sweep of the trash that reaches its bound deletes nothing it did not finish and says it was cut.
+#[test]
+fn a_trash_sweep_reports_the_bound_it_stopped_at_and_deletes_nothing_without_finishing() {
+    let root = scratch();
+    let trash: PathBuf = root.path().join("trash");
+    fs::create_dir_all(trash.join("1-2-0-one")).expect("a claimed entry");
+    fs::write(trash.join("1-2-0-one").join("file"), vec![4_u8; 4096]).expect("file");
+    let cut: crate::lean_removal::TrashSweep = crate::lean_removal::empty_trash(&trash, &Deadline::after(std::time::Duration::ZERO));
+    assert!(cut.cut, "{cut:?}");
+    assert!(trash.join("1-2-0-one").exists(), "the claimed entry stays for the next pass");
+    let finished: crate::lean_removal::TrashSweep = crate::lean_removal::empty_trash(&trash, &Deadline::after(std::time::Duration::from_secs(60)));
+    assert!(!finished.cut, "{finished:?}");
+    assert!(finished.bytes >= 4096, "{finished:?}");
+    assert!(!trash.join("1-2-0-one").exists());
+}

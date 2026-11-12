@@ -179,3 +179,32 @@ fn a_resumed_trees_pass_keeps_a_tree_that_holds_a_workspace_recorded_before_its_
     assert!(later.exists(), "a resumed pass keeps a tree another tree's workspace lies inside: {:?}", resumed.lines);
     assert!(important.exists(), "the live workspace's file is user data and must survive a resumed pass: {:?}", resumed.lines);
 }
+
+/// A pass that removes nothing says why it removed nothing.
+/// Why:
+/// "free space falling and the cleanup freed nothing" is the question the journal has to answer without a person
+/// reading the proof lines of every kept tree:
+/// the two reasons a pass keeps a whole base are that something still uses the trees, or that they are too young.
+#[test]
+fn a_pass_that_frees_nothing_says_whether_the_trees_are_in_use_or_too_young() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let alive: PathBuf = root.path().join("alive");
+    fs::create_dir_all(&alive).expect("the workspace");
+    let in_use: PathBuf = make_tree(&base, "aa/00000000000001", Some(&alive));
+    let too_young: PathBuf = make_tree(&base, "ab/00000000000002", Some(&root.path().join("gone")));
+    age_everything(&in_use, now_seconds() - 90 * DAY);
+    age_everything(&too_young, now_seconds() - DAY);
+    let options: RunOptions = RunOptions { dry_run: true, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
+    let environment: GuardEnvironment = GuardEnvironment::real();
+    let pinned: HashSet<String> = HashSet::new();
+    let checkouts: Vec<PathBuf> = vec![root.path().to_path_buf()];
+    let report: MechanismReport = {
+        let context = RunContext { options: &options, deadline: Deadline::after(options.deadline), environment: &environment, checkouts: &checkouts, pinned: &pinned, base: Some(&base), rustup_home: root.path(), progress: &Progress::default() };
+        run_mechanism(Mechanism::Trees, &context)
+    };
+    let reported: String = report.lines.join("\n");
+    assert!(reported.contains("kept 2"), "{reported}");
+    assert!(reported.contains("nothing was found to remove"), "{reported}");
+    assert!(reported.contains("1 trees were kept because something that uses them is still there and 1 because they have not been left alone long enough"), "{reported}");
+}

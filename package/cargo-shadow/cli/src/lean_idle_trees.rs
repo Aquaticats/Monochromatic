@@ -546,6 +546,8 @@ pub fn collect_idle_trees(
     collection.candidates = candidates;
     if found.cut {
         collection.lines.push(format!("  the deadline passed while reading the ledger of {} of {} trees, so this pass judged nothing: a removal needs the whole base's records as its guard", found.read, trees.len()));
+        collection.given = trees.len();
+        collection.resume_after = after.map(Path::to_path_buf);
         return collection;
     }
     // The order is judged from the recorded position: the candidates after it first, then the rest after it.
