@@ -22,14 +22,13 @@
 //! ```
 
 use crate::journald_native::send_without_waiting;
-use crate::lazy_runtime::{LATE_BUILD_PATIENCE, spawn_on_runtime_within};
-use crate::service_runtime_build_report::no_worker_words;
+use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::service_timing::LOG_PREFIX;
 use crate::stop_of_the_service_noticed_by_its_children::{SETTLE_CEILING, Settled, end_by_the_signal, is_noticing, stopping_signal, tell_the_stop_and_wait_for_the_work, unfinished_work};
 
 /// What:
 ///  Starts the shutdown task on the process's runtime,
-/// waiting `LATE_BUILD_PATIENCE` for a build that missed its deadline,
+/// waiting `RUNTIME_BUILD_PATIENCE` for a build that missed its deadline,
 /// or ends the service with a plain line and status 4 when no worker arrived.
 /// Why:
 ///  A service that cannot shut down in order would end a stop by the last-resort alarm only,
@@ -47,7 +46,7 @@ pub(crate) fn start_shutdown_after_a_stop_or_exit() {
     if !is_noticing() {
         return;
     }
-    if spawn_on_runtime_within(LATE_BUILD_PATIENCE, shut_down_after_a_stop()).is_none() {
+    if start_what_the_service_cannot_serve_without("the shutdown after a stop", shut_down_after_a_stop()).is_none() {
         crate::service_error!("{}", no_worker_words("the shutdown after a stop"));
         std::process::exit(4);
     }

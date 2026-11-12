@@ -34,8 +34,7 @@ use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
-use crate::lazy_runtime::{LATE_BUILD_PATIENCE, spawn_on_runtime_within};
-use crate::service_runtime_build_report::no_worker_words;
+use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
@@ -218,7 +217,7 @@ impl ServeSettings {
 }
 
 /// Starts the after-commit work as a task of the process's runtime,
-/// waiting `LATE_BUILD_PATIENCE` for a build that missed its deadline,
+/// waiting `RUNTIME_BUILD_PATIENCE` for a build that missed its deadline,
 /// or ends the service with a plain line and status 4:
 /// a service that goes on
 ///  without its after-commit work never pushes the person's commits,
@@ -234,7 +233,7 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
         let mut wakes: UnboundedReceiver<Wake> = receiver;
         work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
     };
-    if spawn_on_runtime_within(LATE_BUILD_PATIENCE, work).is_none() {
+    if start_what_the_service_cannot_serve_without("the after-commit work", work).is_none() {
         crate::service_error!("{}", no_worker_words("the after-commit work"));
         std::process::exit(4);
     }

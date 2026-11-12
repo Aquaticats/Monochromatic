@@ -6164,6 +6164,19 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
+- `RUNTIME_BUILD_PATIENCE` 60 seconds:
+  the longest a service waits for the build of its own multi-thread runtime once that build has outlasted
+  `BUILD_DEADLINE` (one second), before it ends and lets the service manager start it again.
+  The greeting of a connection waits behind that build,
+  so this wait is inside the time a client gives the service's start.
+  It is `START_CEILING`,
+  because a service that ended sooner would end a start the person's commit is still waiting for,
+  and one that waited longer would serve a client that has already given up.
+  The service says on its log what it waits for while it waits,
+  since its socket takes connections and answers none of them until the build arrives.
+  A build of the runtime takes 0.3 to 0.5 ms when it works,
+  and the slowest of 52 measured cold starts greeted in 1,041 ms,
+  so one minute is far from any ordinary slow start.
 - `SERVICE_GREETING_SILENCE` 3 seconds:
   how long a commit lets a unit the service manager reports `active` stay silent before it asks the manager to
   restart it.
