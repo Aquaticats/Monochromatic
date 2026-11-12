@@ -719,3 +719,30 @@ fn a_failure_record_whose_replacement_is_refused_keeps_the_record_it_replaces() 
     assert!(!shown[0].contains(SECOND), "the refused words are not the record: {:?}", shown[0]);
     remove(root.as_path());
 }
+
+/// What:
+///  A skip record whose replacement cannot be written leaves the record it would have replaced.
+/// Why:
+///   A skip is recorded through the same one-rename replacement a refusal's record uses,
+/// and its words are the only sign a person gets that the backup the push promised does not exist:
+/// a record removed before the new one is published leaves them nothing about that commit,
+/// and nothing tries the skip again.
+#[test]
+fn a_skip_record_whose_replacement_is_refused_keeps_the_record_it_replaces() {
+    use crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN;
+    const FIRST: &str = "why nothing was pushed, which nobody has read";
+    const SECOND: &str = "why nothing was pushed, which could not be written";
+    let root: PathBuf = fixture("notice-skip-replacement-refused");
+    record_push_skip(root.as_path(), BRANCH, COMMIT, FIRST).expect("the first record");
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the disk filled")); }));
+    });
+    let refused: Result<(), String> = record_push_skip(root.as_path(), BRANCH, COMMIT, SECOND);
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    refused.expect_err("a write the disk refused");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown.len(), 1, "the record that stood there is gone: {shown:?}");
+    assert!(shown[0].contains(FIRST), "the words nobody had read were kept: {:?}", shown[0]);
+    assert!(!shown[0].contains(SECOND), "the refused words are not the record: {:?}", shown[0]);
+    remove(root.as_path());
+}
