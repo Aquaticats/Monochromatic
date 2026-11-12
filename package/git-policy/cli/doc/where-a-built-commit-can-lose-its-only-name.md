@@ -34,8 +34,10 @@ repository names it,
 and the landing writes the batch's reference for it
 (`src/native/landing/service_land_objects_of_batch.rs`):
 the release writes that reference itself where its write is provably Git's
-(`src/native/landing/side_reference_written_here.rs`, an exclusive lock and a rename),
-and leaves it to Git otherwise, waiting for Git's write and reading the reference to answer it
+(`src/native/landing/side_reference_written_here.rs`,
+an exclusive lock and a rename),
+and leaves it to Git otherwise,
+waiting for Git's write and reading the reference to answer it
 (`keep_on_the_scratch_reference`,
 `src/native/landing/service_land_side_reference_write.rs`).
 
@@ -131,8 +133,9 @@ The sweep that drops a batch removes it compare-and-delete only when it proves t
 
 ## How this was established
 
-A disposable repository, its own `HOME` and `XDG_RUNTIME_DIR`, a commit service started the way its
-unit file starts it,
+A disposable repository,
+its own `HOME` and `XDG_RUNTIME_DIR`,
+a commit service started the way its unit file starts it,
 and an open descriptor on `.git/index.lock` (a holder the service can prove alive) or a Git index in
 a folder the account may not write:
 the landing then answers the batch as not made,

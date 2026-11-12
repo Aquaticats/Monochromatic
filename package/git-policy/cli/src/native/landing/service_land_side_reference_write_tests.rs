@@ -626,8 +626,8 @@ fn a_commit_no_reference_can_keep_is_named_to_the_person() {
     assert!(!kept_read.status.success(), "no kept reference names the commit");
     assert!(!scratch_read.status.success(), "the batch's own reference names nothing");
     assert!(still_there.status.success(), "the commit object is still in the store");
-    let named: Option<&String> = lines.iter().find(|line| { return line.contains(commit.as_str()); });
-    let Some(named) = named else {
+    let found: Option<&String> = lines.iter().find(|line| { return line.contains(commit.as_str()); });
+    let Some(named) = found else {
         panic!("the person is told the commit's name; the lines were {lines:?}");
     };
     assert!(named.contains("no reference"), "the line says no reference is proven to name it: {named}");
