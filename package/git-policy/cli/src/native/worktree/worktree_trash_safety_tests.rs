@@ -1115,11 +1115,12 @@ fn a_file_written_inside_a_recorded_entry_after_the_manifest_is_left_alone() {
 fn a_trash_whose_removal_failed_once_is_emptied_by_the_next_attempt() {
     let name: String = "3".repeat(40);
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-retried-emptying", name.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let entry: PathBuf = trash.join(entry_name(0).as_str());
+    // The entry is made what the leave-out moved before the manifest is written, which is the order the wrapper writes in.
     std::fs::create_dir_all(entry.join("inner")).expect("a directory inside the entry");
     std::fs::write(entry.join("inner/file"), b"left out\n").expect("a file inside it");
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
     let inside: PathBuf = entry.clone();
     // The removal of the entries runs on the caller's thread while the caller is itself a task of the runtime, and the act
     //  writes into the entry only on the first attempt, which is the failure the retry has to survive.
