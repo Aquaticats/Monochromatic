@@ -5,7 +5,14 @@ use super::*;
 /// One stop's words,
 /// with the fields a control is not asking about left at their quietest.
 fn a_stop(waited: u64, ceiling: u64, signs: bool, below_unlisted: bool, below_unended: u32) -> ScratchStepStop {
-    return ScratchStepStop { waited: Duration::from_secs(waited), ceiling: Duration::from_secs(ceiling), signs, below_unlisted, below_unended };
+    return ScratchStepStop {
+        waited: Duration::from_secs(waited),
+        ceiling: Duration::from_secs(ceiling),
+        signs,
+        below_unlisted,
+        below_unended,
+        waited_while_the_kernel_held_it: false,
+    };
 }
 
 /// The words of a stop say what ended,
@@ -51,4 +58,22 @@ fn the_words_say_when_a_program_below_could_not_be_ended() {
     assert!(one.contains("One program it started could not be ended, so it may still be running"), "{one}");
     assert!(several.contains("3 programs it started could not be ended, so they may still be running"), "{several}");
     assert!(one.contains("check with `ps`") && several.contains("check with `ps`"), "the person is told what to run: {one} {several}");
+}
+
+/// What:
+///  A stop of a step the kernel held in a disk wait says the step was already waited for.
+/// Why:
+///   The ceiling stood aside once before the step was ended,
+///  and a person who is not told reads the stop as one that ended a step working on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(stopWords({ ...aStop(), waitedWhileTheKernelHeldIt: true })).toContain('held it in a disk wait')
+/// ```
+#[test]
+fn the_words_say_when_the_kernel_held_the_step_before_it_was_stopped() {
+    let quiet: String = stop_words(a_stop(1261, 1260, false, false, 0));
+    let held: String = stop_words(ScratchStepStop { waited_while_the_kernel_held_it: true, ..a_stop(1261, 1260, false, false, 0) });
+    assert!(!quiet.contains("held it in a disk wait"), "{quiet}");
+    assert!(held.contains("The kernel held it in a disk wait, so it was waited for to that bound before it was stopped."), "{held}");
 }

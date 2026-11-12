@@ -21,6 +21,7 @@ use crate::rule_abort_operation::AbortOperation;
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// One disposable repository directory with a linked worktree layout,
@@ -57,6 +58,22 @@ impl Drop for Scene {
     }
 }
 
+/// A waiting abort whose restored tree is `HEAD`,
+///  with the person's own work at these paths.
+fn waiting(operation: AbortOperation, paths: Vec<Vec<u8>>) -> AbortDiscard {
+    return AbortDiscard::Waiting { in_progress: operation, restored: OsString::from("HEAD"), index_only: Vec::new(), paths };
+}
+
+/// A waiting abort whose worktree no longer holds a file the index still holds at `index_only`.
+fn waiting_with_index_only(operation: AbortOperation, index_only: Vec<Vec<u8>>) -> AbortDiscard {
+    return AbortDiscard::Waiting {
+        in_progress: operation,
+        restored: OsString::from("HEAD"),
+        index_only: index_only.clone(),
+        paths: index_only,
+    };
+}
+
 /// The limits of the saved copies:
 /// no test waits on the pass.
 fn limits() -> Limits {
@@ -68,7 +85,7 @@ fn limits() -> Limits {
 fn every_other_guarded_form_is_not_applicable() {
     let scene: Scene = Scene::new("not-an-abort");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(AbortDiscard::Waiting { operation: AbortOperation::Merge, paths: vec![b"a.txt".to_vec()] });
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()]));
     for command in [
         GuardedCommand::Stash,
         GuardedCommand::Clean,
@@ -119,7 +136,7 @@ fn an_unreadable_answer_is_not_applicable() {
 fn the_operations_own_state_alone_runs_without_a_copy() {
     let scene: Scene = Scene::new("own-state");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(AbortDiscard::Waiting { operation: AbortOperation::Merge, paths: Vec::<Vec<u8>>::new() });
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::<Vec<u8>>::new()));
     assert_eq!(
         judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 0, limits()),
         AbortVerdict::Allowed { notice: String::new(), copies: Vec::new() }
@@ -134,7 +151,7 @@ fn the_persons_own_work_is_copied_and_named() {
     let scene: Scene = Scene::new("save");
     std::fs::write(scene.root.join("a.txt"), b"resolved by hand\n").expect("the file");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(AbortDiscard::Waiting { operation: AbortOperation::Merge, paths: vec![b"a.txt".to_vec()] });
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()]));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 7, limits()) {
         AbortVerdict::Allowed { notice, copies } => {
             assert_eq!(copies.len(), 1, "{copies:?}");
@@ -155,7 +172,7 @@ fn the_persons_own_work_is_copied_and_named() {
 fn a_path_deleted_in_the_worktree_is_named_as_having_no_copy() {
     let scene: Scene = Scene::new("deleted");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(AbortDiscard::Waiting { operation: AbortOperation::Rebase, paths: vec![b"gone.txt".to_vec()] });
+    facts.abort_discard = Ok(waiting(AbortOperation::Rebase, vec![b"gone.txt".to_vec()]));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortRebase, &scene.identity(), 11, limits()) {
         AbortVerdict::Allowed { notice, copies } => {
             assert_eq!(copies.len(), 1, "{copies:?}");
@@ -175,7 +192,7 @@ fn an_ignored_file_the_restored_tree_tracks_keeps_the_refusal() {
     let scene: Scene = Scene::new("ignored");
     std::fs::write(scene.root.join("a.txt"), b"resolved by hand\n").expect("the file");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(AbortDiscard::Waiting { operation: AbortOperation::Merge, paths: vec![b"a.txt".to_vec()] });
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()]));
     facts.ignored_and_tracked = Ok(vec![String::from(".env")]);
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 0, limits()) {
         AbortVerdict::CopyFailed(text) => {
@@ -192,12 +209,75 @@ fn an_ignored_file_the_restored_tree_tracks_keeps_the_refusal() {
 fn an_unreadable_ignored_file_answer_keeps_the_refusal() {
     let scene: Scene = Scene::new("ignored-unreadable");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(AbortDiscard::Waiting { operation: AbortOperation::Am, paths: Vec::<Vec<u8>>::new() });
+    facts.abort_discard = Ok(waiting(AbortOperation::Am, Vec::<Vec<u8>>::new()));
     facts.ignored_and_tracked = Err(String::from("the tree of HEAD could not be read"));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortAm, &scene.identity(), 0, limits()) {
         AbortVerdict::CopyFailed(text) => {
             assert!(text.contains("the tree of HEAD could not be read"), "{text}");
             assert!(text.contains("am in progress still waits"), "{text}");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+/// The ignored-file question asks for the revision the abort actually restores,
+///  so a rebase's own recorded head is read and no fixed name stands in for it.
+#[test]
+fn the_ignored_file_question_reads_the_restored_revision() {
+    let scene: Scene = Scene::new("restored-revision");
+    let record: &str = "0123456789abcdef0123456789abcdef01234567";
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(AbortDiscard::Waiting {
+        in_progress: AbortOperation::Rebase,
+        restored: OsString::from(record),
+        index_only: Vec::<Vec<u8>>::new(),
+        paths: Vec::<Vec<u8>>::new(),
+    });
+    facts.ignored_and_tracked = Ok(Vec::<String>::new());
+    assert_eq!(
+        judge_abort_discard(&mut facts, GuardedCommand::AbortRebase, &scene.identity(), 0, limits()),
+        AbortVerdict::Allowed { notice: String::new(), copies: Vec::new() }
+    );
+    assert!(
+        facts.asked.iter().any(|asked| { return *asked == format!("ignored-and-tracked:{record}"); }),
+        "the record the abort restores is the tree asked about: {:?}",
+        facts.asked
+    );
+}
+
+/// Content that stands only in the index is refused naming the paths,
+///  because a worktree file that is not there cannot be copied.
+#[test]
+fn content_the_worktree_lost_is_refused_with_its_paths() {
+    let scene: Scene = Scene::new("index-only");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(waiting_with_index_only(AbortOperation::Merge, vec![b"new.txt".to_vec()]));
+    facts.ignored_and_tracked = Ok(Vec::<String>::new());
+    match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 0, limits()) {
+        AbortVerdict::CopyFailed(text) => {
+            assert!(text.contains("new.txt"), "{text}");
+            assert!(text.contains("the index does"), "{text}");
+            assert!(text.contains("git restore --worktree --"), "{text}");
+            assert!(text.contains("nothing was saved or changed"), "{text}");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    assert!(!scene.root.join(".git").join(SAVED_DIRECTORY).exists(), "nothing was saved");
+}
+
+/// An `am` abort that ends a rebase names the rebase in its refusal,
+///  while the command stays the one the person typed.
+#[test]
+fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
+    let scene: Scene = Scene::new("am-ends-rebase");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(waiting(AbortOperation::Rebase, Vec::<Vec<u8>>::new()));
+    facts.ignored_and_tracked = Ok(vec![String::from(".env")]);
+    match judge_abort_discard(&mut facts, GuardedCommand::AbortAm, &scene.identity(), 0, limits()) {
+        AbortVerdict::CopyFailed(text) => {
+            assert!(text.contains("git am --abort"), "the command is named as typed: {text}");
+            assert!(text.contains("rebase in progress still waits"), "the operation it ends is named: {text}");
+            assert!(!text.contains("the am in progress"), "no sentence calls the rebase an am: {text}");
         }
         other => panic!("expected a refusal, got {other:?}"),
     }

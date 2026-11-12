@@ -762,6 +762,69 @@ fn a_relative_file_path_beside_another_work_tree_is_read_from_the_directory_the_
     remove(&fixture);
 }
 
+/// What:
+///  A `!` shell alias runs the Git inside its shell from the top of the working tree,
+///  so a relative `--file` path it names is read from there,
+///  names the shared file from a subdirectory of a linked worktree,
+///  and is refused.
+/// Why:
+///  Git changes to the top of the working tree before it starts the shell of a `!` alias
+///  (`git.c:388` to `git.c:407`),
+///  so the same words name different files in the caller's directory and in the shell's;
+///  a guard that read the path from the caller's directory found no shared file,
+///  returned clean,
+///  and let the write change the configuration every worktree shares.
+///  Real Git is the oracle:
+///  the same words in the same directory write the shared file.
+#[test]
+fn a_shell_alias_reads_a_relative_file_path_where_git_runs_its_shell() {
+    let fixture: Fixture = fixture("shared-remote-shell-alias-relative");
+    let place: PathBuf = fixture.root.join("linked");
+    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let below: PathBuf = linked.join("below");
+    std::fs::create_dir_all(below.as_path()).expect("subdirectory of the linked worktree");
+    // The command runs below the worktree root, where require-root refuses first, so this repository turns it off.
+    std::fs::write(
+        linked.join("monochromatic-git-policy-cli.config.jsonc"),
+        b"{ \"policies\": { \"require-root\": \"off\" } }\n",
+    )
+    .expect("settings");
+    let form: [&str; 7] = [
+        "-c",
+        "alias.shellcfg=!git config",
+        "shellcfg",
+        "--file",
+        "../repo/.git/config",
+        "remote.origin.url",
+        OTHER_URL,
+    ];
+    let before: Vec<u8> = config_bytes(repo.as_path());
+    let observed: Observed = run_wrapped(&fixture, below.as_path(), form.as_slice());
+    let stderr: String = stderr_of(&observed);
+    assert_eq!(
+        observed.code,
+        Some(1),
+        "a shell alias below the worktree root was not refused: {stderr}"
+    );
+    assert!(
+        stderr.contains(SHARED_REMOTE_CODE),
+        "the refusal does not name the shared settings: {stderr}"
+    );
+    assert_eq!(
+        config_bytes(repo.as_path()),
+        before,
+        "the shell alias changed the shared configuration"
+    );
+    // The oracle: real Git reads the same relative path from the directory it runs the shell in.
+    let oracle: Observed = run_direct(&fixture, below.as_path(), form.as_slice());
+    assert_eq!(oracle.code, Some(0), "real Git refused its own alias: {}", stderr_of(&oracle));
+    assert!(
+        String::from_utf8_lossy(&config_bytes(repo.as_path())).contains(OTHER_URL),
+        "real Git did not write the shared file through the same spelling, so the refusal above proves nothing"
+    );
+    remove(&fixture);
+}
+
 /// A linked worktree of a repository that lives under an exempt tool cache keeps today's behaviour,
 ///  as every other worktree policy allows it there.
 #[test]

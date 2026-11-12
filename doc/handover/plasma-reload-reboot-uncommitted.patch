@@ -1,0 +1,116 @@
+diff --git a/doc/troubleshooting/bash-c-started-by-node-reads-bashrc.md b/doc/troubleshooting/bash-c-started-by-node-reads-bashrc.md
+index 9216949d07..d93a2107ac 100644
+--- a/doc/troubleshooting/bash-c-started-by-node-reads-bashrc.md
++++ b/doc/troubleshooting/bash-c-started-by-node-reads-bashrc.md
+@@ -35,7 +35,8 @@ The --norc option inhibits this behavior
+ Node gives a child with `stdio: 'pipe'` a socket pair,
+ not an anonymous pipe,
+ so standard input is a socket and bash takes it for a remote shell.
+-The Unix socket is the first condition (the second is the inherited `SHLVL`, measured below),
++The Unix socket is the first condition (the second is the inherited `SHLVL`,
++measured below),
+ not the use of Node:
+ the same `bash -c` with standard input ignored,
+ or fed from a shell pipe,
+@@ -69,15 +70,23 @@ From a shell,
+ 
+ ## A second condition: the inherited `SHLVL`
+ 
+-Measured 2026-11-07 on this host (bash 5.3.15, Node 26.13.0),
++Measured 2026-11-07 on this host (bash 5.3.15,
++Node 26.13.0),
+ with a disposable home whose `.bashrc` and `.bash_profile` each write a marker file,
+ and `spawnSync('bash', ['-c', 'true'], { env, encoding: 'utf8' })` (standard input a socket):
+ 
+-- `env` of only `PATH` and `HOME`: the marker was written.
+-- `env` of the whole `process.env` of a terminal session (`SHLVL=2`): no marker.
+-  Removing `SHLVL` from that environment, and nothing else, brought the marker back.
+-- `SHLVL` set to each of `''`, `0` and `x`: the marker was written.
+-  Set to `1` or `2`: no marker.
++- `env` of only `PATH` and `HOME`:
++  the marker was written.
++- `env` of the whole `process.env` of a terminal session (`SHLVL=2`):
++  no marker.
++  Removing `SHLVL` from that environment,
++  and nothing else,
++  brought the marker back.
++- `SHLVL` set to each of `''`,
++  `0` and `x`:
++  the marker was written.
++  Set to `1` or `2`:
++  no marker.
+ 
+ So bash reads the startup file when standard input is a socket and the `SHLVL` it inherits is not a positive number.
+ I did not read the bash source for this rule;
+diff --git a/package/agent-harness-shared/neuralwatt-listing/lint-boundaries.md b/package/agent-harness-shared/neuralwatt-listing/lint-boundaries.md
+index 9cfd78c4f3..c851abf9d2 100644
+--- a/package/agent-harness-shared/neuralwatt-listing/lint-boundaries.md
++++ b/package/agent-harness-shared/neuralwatt-listing/lint-boundaries.md
+@@ -22,7 +22,8 @@ mirror-first posture):
+   (`providers/model-schema.ts`).
+   In those shapes `null` is not absence:
+   it is the instruction "level unsupported",
+-  distinct from an absent key ("supported, dispatch nothing").
++  distinct from an absent key ("supported,
++  dispatch nothing").
+   The expansion must keep both spellings reachable,
+   or the pi projection would silently change dispatch behavior.
+ - `NeuralWattReasoningEfforts = false | NeuralWattEffortsDict` mirrors
+diff --git a/package/claude-cpu-cap/daemon/README.md b/package/claude-cpu-cap/daemon/README.md
+index 37c0be41c2..6fb0f90961 100644
+--- a/package/claude-cpu-cap/daemon/README.md
++++ b/package/claude-cpu-cap/daemon/README.md
+@@ -182,12 +182,16 @@ so they are out of scope for this package.
+ 
+ ## Install
+ 
+-The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`, not a link into the repository:
+-the user manager reads it while loading units, and a link into a repository that lives on the 860 drive would leave the
++The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`,
++not a link into the repository:
++the user manager reads it while loading units,
++and a link into a repository that lives on the 860 drive would leave the
+ unit unloaded whenever the drive is not mounted at manager start or at a daemon reload.
+ The copy's `ExecStartPre` runs the repository link check installed outside the repository
+-(`~/.local/share/monochromatic-dev/repository-link/check.mjs`), so a start before the mount fails with the plain
+-message and status 75, and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
++(`~/.local/share/monochromatic-dev/repository-link/check.mjs`),
++so a start before the mount fails with the plain
++message and status 75,
++and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
+ there.
+ Copy again after every edit of the file in `systemd/`:
+ 
+diff --git a/package/ide/app/README.md b/package/ide/app/README.md
+index 3cf934cd96..fb8a23700f 100644
+--- a/package/ide/app/README.md
++++ b/package/ide/app/README.md
+@@ -5250,7 +5250,8 @@ The process limit is 256 per CPU with a floor of 512,
+ and the descriptor limit is 4096.
+ Every started container also gets the lowest disk weight,
+ `--blkio-weight=10` and `--cgroup-conf=io.weight=10`
+-(`lowestDiskWeight` and `diskWeightArguments` in the module, which take them from
++(`lowestDiskWeight` and `diskWeightArguments` in the module,
++which take them from
+ `package/container-limit/core`;
+ repository rule HXR in `AGENTS.md`).
+ The first option sets `io.bfq.weight`,
+diff --git a/package/mutation-test/cli/README.md b/package/mutation-test/cli/README.md
+index 4fdd708672..899eb61bc2 100644
+--- a/package/mutation-test/cli/README.md
++++ b/package/mutation-test/cli/README.md
+@@ -96,10 +96,12 @@ floor) and `--timeout-factor` (multiple of baseline test time),
+  `--report <file>`.
+ 
+ Every shard container also starts at the lowest disk weight,
+-`--blkio-weight=10` and `--cgroup-conf=io.weight=10` (`LOWEST_DISK_WEIGHT` from `@monochromatic-dev/container-limit-core`, re-exported by `src/host/podman.ts`),
++`--blkio-weight=10` and `--cgroup-conf=io.weight=10` (`LOWEST_DISK_WEIGHT` from `@monochromatic-dev/container-limit-core`,
++re-exported by `src/host/podman.ts`),
+ and no flag raises it:
+ a rootless container sits outside the launcher's unit and ignores the launcher's `IOWeight`.
+-The runtime image build (`podman build`, which has no weight option) is bounded to 4 GiB and 4 CPUs
++The runtime image build (`podman build`,
++which has no weight option) is bounded to 4 GiB and 4 CPUs
+ (`RUNTIME_IMAGE_BUILD_LIMITS` in `src/host/image.ts`).
+ 
+ Test selection:

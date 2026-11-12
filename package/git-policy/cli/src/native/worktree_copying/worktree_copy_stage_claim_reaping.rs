@@ -24,7 +24,6 @@
 
 use crate::json_record::quote;
 use crate::path_bytes_in_records::path_of_the_two_fields;
-use crate::private_storage::sync_directory;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_recovery::RecoveryDestinations;
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
@@ -439,7 +438,6 @@ pub fn reap_judged_stages(
 ) -> Result<Vec<String>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     let names: Vec<String> = claim_names(root.as_path())?;
-    let mut changed: bool = false;
     let mut notices: Vec<String> = Vec::new();
     if !names.is_empty() {
         let mut journaled: BTreeSet<PathBuf> = BTreeSet::new();
@@ -476,7 +474,6 @@ pub fn reap_judged_stages(
                     match provenance_of(claim.as_path(), container.as_path())? {
                         Provenance::Proved => {
                             remove_stage(container.as_path())?;
-                            changed = true;
                             notices.push(removed_stage_words(container.as_path()));
                         }
                         Provenance::Gone => {}
@@ -491,7 +488,6 @@ pub fn reap_judged_stages(
                     match assert_private_path(container.as_path(), Role::PrivateStage) {
                         Ok(()) => {
                             remove_stage(container.as_path())?;
-                            changed = true;
                             notices.push(removed_copy_stage_words(container.as_path()));
                         }
                         Err(_) if !still_there(container.as_path())? => {}
@@ -519,16 +515,9 @@ pub fn reap_judged_stages(
             remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
             remove_file_if_present(claim.as_path())?;
-            changed = true;
         }
     }
-    changed |= remove_dead_temporaries(root.as_path(), verdicts)?;
-    changed |= remove_records_nothing_claims(root.as_path())?;
-    // The flush makes the removals durable, and nothing else: an add that found other adds' live claims removed nothing and
-    // paid a filesystem commit for it (measured 2026-11-11 as 4.6 to 13.9 seconds of the `recover` step of five
-    // concurrent adds). A removal a power cut takes back only means the next command settles the same records again.
-    if changed {
-        absent_is_fine(sync_directory(root.as_path()))?;
-    }
+    remove_dead_temporaries(root.as_path(), verdicts)?;
+    remove_records_nothing_claims(root.as_path())?;
     return Ok(notices);
 }

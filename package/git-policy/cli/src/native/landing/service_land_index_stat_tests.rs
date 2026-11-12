@@ -168,3 +168,34 @@ fn a_landing_over_an_index_that_describes_the_worktree_starts_no_refresh() {
     assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
     remove(shimmed.root.as_path());
 }
+
+/// The modification time of the world's live index.
+fn index_time(world: &World) -> std::time::SystemTime {
+    return std::fs::metadata(world.repo.join(".git/index")).expect("the live index").modified().expect("a modification time");
+}
+
+/// A landing installs its copy with the times the live index had,
+/// even when its own refresh rewrote that copy,
+/// so the entries whose recorded stat data is as new as the file are still entries Git reads again:
+///  a stat check compares the fields it reads only to the second,
+/// so an edit made in the same second as the stat the live index records differs from it in nothing Git compares,
+///  and only the entry being as new as the index makes Git read the file at all.
+///  A copy written a moment ago would be newer than every entry,
+/// Git would answer from the recorded stat,
+/// and the edit would reach neither the next commit nor `git status`.
+#[test]
+fn a_landing_installs_its_copy_with_the_live_index_times() {
+    let world: World = world("service-land-index-stat-times");
+    make_the_index_stale(&world);
+    let stamped: String = recording(&world, STALE_FILE);
+    let before: std::time::SystemTime = index_time(&world);
+    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+    assert_ne!(recording(&world, STALE_FILE), stamped, "the fixture must make the landing's refresh write the copy");
+    assert_eq!(
+        index_time(&world),
+        before,
+        "the installed index must keep the time the live index had, or Git trusts stat data it would read again"
+    );
+    remove(world.root.as_path());
+}

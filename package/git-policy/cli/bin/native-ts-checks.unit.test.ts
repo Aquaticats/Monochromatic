@@ -4,6 +4,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import {
   describe,
@@ -13,10 +14,7 @@ import {
 
 import { NativeGateError } from './native-gate-error.ts';
 import { isMissingPathError } from './native-gate-paths.ts';
-import {
-  runGateCommand,
-  runGateCommandOrThrow,
-} from './native-gate-run.ts';
+import { runGateCommand } from './native-gate-run.ts';
 import {
   failureLinesOf,
   namedChecks,
@@ -24,6 +22,7 @@ import {
   resultLinesOf,
   scopeLabelOfTask,
 } from './native-ts-checks.ts';
+import { fixtureGit } from './install-fixture-checkout-reads-for-tests.ts';
 import {
   type ScopeStandIn,
   createScopeStandIn,
@@ -43,6 +42,14 @@ const checksPath = join(
  Milliseconds one run of the command under test is given, which is far more than its fixtures need.
  */
 const testDeadlineMilliseconds = 120_000;
+
+/**
+ Milliseconds from the start of a second at which two runs are started, so both stamp their scopes with that second.
+
+ A scope name carries a second-precise stamp, so two runs started in one second are the case where a run's own identity
+ has to keep their names apart.
+ */
+const startOfSecondOffsetMilliseconds = 1_100;
 
 /**
  Milliseconds the stand-in `mise` keeps running when a test asks it to hang, so its own end cannot be what ended the wait.
@@ -409,6 +416,52 @@ await describe({
       },
     }),
     it({
+      name: 'names each run\'s scopes for that run, so two runs of one check in one second both run',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        /**
+         The environment with the stand-in `mise` first on `PATH`.
+         */
+        const environment = await withStandInMise({ standIn, });
+        // Both runs start inside one second, which is the case the second-precise stamp alone cannot tell apart.
+        await delay(startOfSecondOffsetMilliseconds - (Date.now() % 1_000));
+        /**
+         What two simultaneous runs of one check ended with.
+         */
+        const runs = await Promise.all([
+          tsChecks({
+            worktree: scratch.path,
+            args: ['//package/a:b',],
+            environment,
+          }),
+          tsChecks({
+            worktree: scratch.path,
+            args: ['//package/a:b',],
+            environment,
+          }),
+        ]);
+        for (const printed of runs) {
+          expect(printed.status,).toBe(0,);
+          expect(printed.stdout,).toContain('//package/a:b: exit 0',);
+        }
+        /**
+         The scope names the two runs asked the manager for.
+         */
+        const units = (await recordedCalls({
+          directory: standIn.directory,
+          fileName: 'systemd-run.jsonl',
+        })).map(function unitOf(call) {
+          return call.find(function isUnit(argument) {
+            return argument.startsWith('--unit=',);
+          });
+        });
+        expect(units,).toHaveLength(2,);
+        // A shared name is refused by the manager while the first run's scope is active, so the names must differ.
+        expect(new Set(units).size,).toBe(2,);
+      },
+    }),
+    it({
       name: 'refuses a cap systemd cannot read before any check starts',
       fn: async () => {
         await using standIn = await createScopeStandIn();
@@ -430,15 +483,53 @@ await describe({
       },
     }),
     it({
+      name: 'refuses a deadline that would not bound a check, before any scope starts',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        /**
+         The refusal a zero deadline gets.
+         */
+        const zero = await tsChecks({
+          worktree: scratch.path,
+          args: [
+            '--deadline-seconds',
+            '0',
+            '//package/a:b',
+          ],
+          environment: await withStandInMise({ standIn, }),
+        });
+        expect(zero.status,).toBe(1,);
+        expect(zero.stderr,).toContain('--deadline-seconds 0',);
+        expect(zero.stderr,).toContain('leaves a command with no deadline at all',);
+        /**
+         The refusal a deadline longer than Node's timers honour gets.
+         */
+        const oversized = await tsChecks({
+          worktree: scratch.path,
+          args: [
+            '--deadline-seconds',
+            '2147484',
+            '//package/a:b',
+          ],
+          environment: await withStandInMise({ standIn, }),
+        });
+        expect(oversized.status,).toBe(1,);
+        expect(oversized.stderr,).toContain('2147483 seconds',);
+        expect(await recordedCalls({
+          directory: standIn.directory,
+          fileName: 'systemd-run.jsonl',
+        }),).toHaveLength(0,);
+      },
+    }),
+    it({
       name: 'prints the commit the checkout points at, so a log says what was checked',
       fn: async () => {
         await using standIn = await createScopeStandIn();
         await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: scratch.path,
           args: ['init', '--quiet', '--initial-branch=main', '.',],
-          deadlineMilliseconds: testDeadlineMilliseconds,
-          workingDirectory: scratch.path,
         });
         await writeFile(
           join(
@@ -447,17 +538,15 @@ await describe({
           ),
           'tracked\n'
         );
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: scratch.path,
           args: [
             'add',
             'tracked.txt',
           ],
-          deadlineMilliseconds: testDeadlineMilliseconds,
-          workingDirectory: scratch.path,
         });
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: scratch.path,
           args: [
             '-c',
             'user.email=checks-test@example.invalid',
@@ -469,8 +558,6 @@ await describe({
             'first',
             'tracked.txt',
           ],
-          deadlineMilliseconds: testDeadlineMilliseconds,
-          workingDirectory: scratch.path,
         });
         /**
          How the command ended.
