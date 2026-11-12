@@ -305,7 +305,11 @@ fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
 #[test]
 fn a_commits_own_storage_step_waits_as_long_as_a_landings_state_step() {
     assert_eq!(COMMIT_OWN_STATE_CEILING, LANDING_STATE_CEILING, "the owner's \"nothing should ever wait forever or indefinitely\", at the one value both kinds of read use");
+    // The repair's awaited faces and the pool jobs they wait on are in a file of their own since the file rose over the
+    //  linter's size limit (`landing/owed_index_repair_awaiting.rs`), and the synchronous face stayed in the repair's file.
+    let awaited: &str = include_str!("../landing/owed_index_repair_awaiting.rs");
+    assert!(awaited.contains("COMMIT_OWN_STATE_CEILING"), "the repair of what an index owes is what waits for the commit's own index and worktree paths");
+    assert!(awaited.contains("records_within(ceiling, git_dir)"), "the look at the owed records is a job of the pool at that ceiling");
     let repair: &str = include_str!("../landing/owed_index_repair.rs");
-    assert!(repair.contains("COMMIT_OWN_STATE_CEILING"), "the repair of what an index owes is what waits for the commit's own index and worktree paths");
-    assert!(repair.contains("records_within(ceiling, git_dir)"), "the look at the owed records is a job of the pool at that ceiling");
+    assert!(repair.contains("pub fn exclude_with_note("), "and the repair a caller on a thread asks is still the one face of it");
 }
