@@ -103,35 +103,6 @@ fn a_trees_pass_continues_after_the_recorded_tree_and_starts_at_the_front_withou
     assert!(!front.lines.iter().any(|line| { return line.contains("this pass started after"); }), "{:?}", front.lines);
 }
 
-/// A tree whose own ledger already shows it qualifies is judged on every pass, whatever position the last pass left.
-/// Why:
-/// The recorded position is what keeps a pass that is cut by its deadline from starving the trees after it,
-/// and the candidates are the trees that free the space:
-/// a candidate that is kept is kept because its last write is too recent,
-/// so it can only move forward in the order and is removed on a later pass,
-/// and holding it behind a position recorded before it would delay the one thing the pass is for.
-#[test]
-fn a_tree_its_ledger_names_as_gone_is_judged_even_when_the_recorded_position_is_past_it() {
-    let root = scratch();
-    let base: PathBuf = root.path().join("base");
-    let gone: PathBuf = root.path().join("no-longer-here");
-    let first: PathBuf = make_tree(&base, "ab/00000000000001", Some(&gone));
-    let second: PathBuf = make_tree(&base, "ab/00000000000002", Some(&gone));
-    for tree in [&first, &second] {
-        age_everything(tree, now_seconds() - 30 * DAY);
-    }
-    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
-    let environment: GuardEnvironment = GuardEnvironment::real();
-    let pinned: HashSet<String> = HashSet::new();
-    let checkouts: Vec<PathBuf> = vec![root.path().to_path_buf()];
-    let mut progress: Progress = Progress::default();
-    progress.set(LongPass::Trees, Some(second.clone()));
-    let context = RunContext { options: &options, deadline: Deadline::after(options.deadline), environment: &environment, checkouts: &checkouts, pinned: &pinned, base: Some(&base), rustup_home: root.path(), progress: &progress };
-    let report: MechanismReport = run_mechanism(Mechanism::Trees, &context);
-    assert!(!first.exists() && !second.exists(), "both candidates went, though the position named one of them: {report:?}");
-    assert_eq!(report.resume_after, None, "no position is left behind when the list is finished: {report:?}");
-}
-
 /// The units pass continues after the profile directory the last run stopped at,
 /// keeps its position when the deadline cuts it before its first profile,
 /// and leaves no position behind once it finishes the list.

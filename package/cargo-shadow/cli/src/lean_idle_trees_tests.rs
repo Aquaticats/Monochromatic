@@ -14,7 +14,7 @@ use crate::lean_build_trees::{Tree, TreeKind, Workspace, list_trees, profile_dir
 use crate::lean_identity::Deadline;
 use crate::lean_idle_trees::{IdlePolicy, KeepKind, TreeCollection, TreeOutcome, TreeVerdict, collect_idle_trees};
 use crate::lean_keyed_folder::LEDGER_FILE;
-use crate::lean_test_support::{DAY, NOW, age_everything, make_pipe, make_tree, real_environment, within};
+use crate::lean_test_support::{DAY, NOW, age_everything, make_pipe, make_tree, real_environment, set_time, within};
 use crate::test_scratch::scratch;
 
 /// The idle period of these tests for a tree whose workspace is gone.
@@ -466,18 +466,21 @@ fn a_bound_that_has_already_passed_stops_the_survey_and_judges_nothing() {
     assert!(first.exists() && second.exists(), "a pass the deadline cut removes nothing");
 }
 
-/// The trees whose own ledger already shows they qualify are judged before the trees that need a walk over their
-/// dependency information.
+/// The order is the trees' age, not what identifies them:
+/// a tree nothing identifies and that has been idle two months is judged before a tree whose ledger already says its
+/// workspace is gone and that was written to a week ago.
 /// Why:
 /// A pass that is cut judges only the front of its order,
-/// so the space a pass frees has to come out of the front:
-/// measured on this host, a tree whose ledger names a gone workspace needs two reads to qualify,
-/// and a tree with no ledger needs a walk of its units before anything is known about it.
+/// and the tree that frees space is the one that has been idle longest,
+/// whatever its ledger says:
+/// measured 2026-11-12 on this host,
+/// the pass judged every tree its ledger marked as gone first and freed nothing in twenty minutes,
+/// because those were the newest worktrees and the removable trees were older ones with no ledger.
 #[test]
-fn the_trees_their_ledger_already_shows_they_qualify_for_are_judged_first() {
+fn the_tree_that_has_been_idle_longest_is_judged_first_whatever_identifies_it() {
     let root = scratch();
     let base: PathBuf = root.path().join("base");
-    // Sorts first, and only its dependency information can say anything about it.
+    // Sorts first, and only its dependency information can say anything about it: it is two months idle.
     let needs_a_walk: PathBuf = make_tree(&base, "aa/00000000000001", None);
     let existing_source: PathBuf = root.path().join("src").join("lib.rs");
     fs::create_dir_all(existing_source.parent().expect("parent")).expect("source directory");
@@ -486,11 +489,11 @@ fn the_trees_their_ledger_already_shows_they_qualify_for_are_judged_first() {
     fs::create_dir_all(&out).expect("out directory");
     fs::write(out.join("alpha.d"), format!("{}/alpha.d: {}\n", needs_a_walk.display(), existing_source.display())).expect("dependency information");
     age_everything(&needs_a_walk, NOW - 60 * DAY);
-    // Sorts second, and its ledger names a workspace that is gone, so it is a candidate before any walk.
-    let candidate: PathBuf = aged_tree(&base, "ab/00000000000002", &root.path().join("gone"), 5 * DAY);
+    // Sorts second, and its ledger says its workspace is gone, but it was written to a week ago.
+    let candidate: PathBuf = aged_tree(&base, "ab/00000000000002", &root.path().join("gone"), 8 * DAY);
     let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
     let judged: Vec<PathBuf> = outcomes.iter().map(|outcome| { return outcome.tree.clone(); }).collect();
-    assert_eq!(judged, vec![candidate.clone(), needs_a_walk.clone()], "the candidate comes first however its path sorts");
+    assert_eq!(judged, vec![needs_a_walk.clone(), candidate.clone()], "the older tree comes first, whatever its ledger says");
     assert!(!candidate.exists(), "{outcomes:?}");
     assert!(needs_a_walk.exists(), "the tree whose source still exists stays");
 }
@@ -531,4 +534,32 @@ fn the_candidate_whose_last_write_is_oldest_is_judged_first() {
     let judged: Vec<PathBuf> = outcomes.iter().map(|outcome| { return outcome.tree.clone(); }).collect();
     assert_eq!(judged, vec![long_idle.clone(), recently_built.clone()], "the oldest last write comes first however its path sorts");
     assert!(!long_idle.exists() && !recently_built.exists(), "{outcomes:?}");
+}
+
+/// A tree whose own directories were written to inside its idle period is kept without reading its units,
+/// and the reason says so.
+/// Why:
+/// The walk over every unit is what a pass over this host spends its time on,
+/// and the newest time among a tree's own directories is a lower bound of the newest write:
+/// when that time is young the tree cannot be old enough, so the walk cannot change the answer.
+/// The trade-off is the other direction and it is the safe one:
+/// a directory touched since the last write keeps the tree one more pass,
+/// which keeps a tree that a full read might have removed.
+#[test]
+fn a_tree_whose_own_directories_were_written_to_recently_is_kept_without_reading_its_units() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let tree: PathBuf = aged_tree(&base, "ab/00000000000004", &root.path().join("gone"), 60 * DAY);
+    // Everything in the tree is two months old, but one of its working directories was touched now:
+    // the units say it is old enough, and the hint says the pass cannot know that cheaply.
+    set_time(&tree.join("debug").join("deps"), NOW);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
+    match verdict_of(&outcomes, &tree) {
+        TreeVerdict::Keep { reason, kind } => {
+            assert_eq!(kind, KeepKind::NotIdleEnough, "{reason}");
+            assert!(reason.contains("the newest write among its own directories was"), "{reason}");
+        }
+        other => panic!("expected the hint to keep it: {other:?}"),
+    }
+    assert!(tree.exists());
 }

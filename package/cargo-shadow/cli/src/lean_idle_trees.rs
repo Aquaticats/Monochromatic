@@ -246,22 +246,21 @@ fn qualifies(now: i64, activity: i64, needed: i64, why: &str) -> Result<String, 
 
 /// What:
 /// `pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) -> Survey` reads the ledger of every tree once,
-/// and the time of the directories of the trees whose ledger already shows they qualify.
+/// and the newest time among each tree's directories.
 /// Why:
-/// Two things need it before a single tree is judged:
+/// Three things need it before a single tree is judged:
 /// the guard against removing a tree that holds another tree's workspace must cover the whole base,
-/// including the trees this pass does not reach,
-/// and the order the pass judges in puts the trees whose ledger already shows they qualify first,
-/// so the space a pass frees comes before the pass has read every tree.
-/// Only the ledger is read for every tree,
-/// never the dependency information,
-/// so a survey costs one small file read and one `stat` per tree,
-/// and a tree whose ledger names a workspace that is gone is a candidate without a walk.
-/// A candidate also gets a hint of its age,
-/// which is one `stat` per profile directory and a few more beside it,
-/// because a pass that judged its candidates in path order freed nothing:
-/// measured 2026-11-12,
-/// 10,805 of 55,881 trees judged in 1,095 s and every one of them younger than its idle period.
+/// including the trees this pass does not reach;
+/// the order the pass judges in puts the trees whose last write is oldest first,
+/// so the space a pass frees comes before the pass has read every tree;
+/// and the hint ends the question "is this tree old enough" for most trees without the walk that answers it exactly.
+/// The hint is the newest time of a tree's own directories,
+/// which a write anywhere in the tree does not necessarily change,
+/// so it is a lower bound of the newest write:
+/// a hint younger than the idle period proves the tree is not old enough,
+/// and a hint older than it proves nothing, so the walk decides.
+/// Only the ledger and those few times are read for every tree,
+/// never the dependency information.
 /// Reading stops at the deadline:
 /// a guard list that is short of one tree may not be used to remove anything.
 ///
@@ -280,58 +279,45 @@ pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) ->
             TreeKind::Keyed(name) => retired.contains(name),
             TreeKind::Legacy => false,
         };
+        found.hints[index] = recent_write_hint(&tree.path, deadline);
         let Some(root) = read_ledger(&tree.path) else {
             found.candidates[index] = toolchain_retired;
             found.read += 1;
-            if toolchain_retired {
-                found.hints[index] = recent_write_hint(&tree.path, deadline);
-            }
             continue;
         };
         found.candidates[index] = toolchain_retired || missing(&root);
         found.roots.push((tree.path.clone(), root));
         found.read += 1;
-        if found.candidates[index] {
-            found.hints[index] = recent_write_hint(&tree.path, deadline);
-        }
     }
     return found;
 }
 
 /// What:
 /// `fn judging_order(trees: &[Tree], survey: &Survey) -> Vec<usize>` is the indexes of the trees in the order the pass judges them:
-/// the candidates first,
-/// oldest hint first and path order within one time,
-/// then everything else in path order.
+/// the oldest last write first,
+/// and path order within one time.
 /// Why:
 /// A pass that is cut by its deadline judges only the front of this order,
-/// so putting the trees that already qualify there is what makes the space come out of the pass while it runs instead of
-/// at the end of a survey of every tree,
-/// and ordering those by the last time anything was written into them puts the trees that qualify first:
-/// measured 2026-11-12,
-/// the same pass in path order freed nothing in twenty minutes.
-/// A candidate whose hint the deadline stopped is judged after the ones with a time,
+/// so the order decides when the space comes out of the pass:
+/// measured 2026-11-12 on this host,
+/// a pass in path order judged 10,805 trees in 1,095 s and freed nothing,
+/// because every tree it reached was younger than its idle period,
+/// and the trees that would have gone were further down the same path order.
+/// A tree whose hint the deadline stopped is judged after the ones with a time,
 /// because the pass has no answer about it and the ones with an answer are the ones it can free now.
-/// The candidates are judged from the front on every pass and hold no position:
-/// they are re-derived from the ledgers,
-/// and a candidate that is kept becomes older,
-/// so it moves further forward and is removed on a later pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const judgingOrder = (trees: Tree[], survey: Survey): number[] => { const candidates = trees.map((_, index) => index).filter((index) => survey.candidates[index]); candidates.sort((a, b) => (survey.hints[a] ?? Infinity) - (survey.hints[b] ?? Infinity) || (trees[a].path < trees[b].path ? -1 : 1)); const rest = trees.map((_, index) => index).filter((index) => !survey.candidates[index]).sort((a, b) => trees[a].path < trees[b].path ? -1 : 1); return [...candidates, ...rest]; };
+/// const judgingOrder = (trees: Tree[], survey: Survey): number[] => trees.map((_, index) => index).sort((a, b) => (survey.hints[a] ?? Infinity) - (survey.hints[b] ?? Infinity) || (trees[a].path < trees[b].path ? -1 : trees[a].path > trees[b].path ? 1 : 0));
 /// ```
 fn judging_order(trees: &[Tree], survey: &Survey) -> Vec<usize> {
-    let mut candidates: Vec<usize> = (0..trees.len()).filter(|index| { return survey.candidates[*index]; }).collect();
-    candidates.sort_by(|left, right| {
+    let mut order: Vec<usize> = (0..trees.len()).collect();
+    order.sort_by(|left, right| {
         let left_hint: i64 = survey.hints[*left].unwrap_or(i64::MAX);
         let right_hint: i64 = survey.hints[*right].unwrap_or(i64::MAX);
         return left_hint.cmp(&right_hint).then_with(|| { return trees[*left].path.cmp(&trees[*right].path); });
     });
-    let mut rest: Vec<usize> = (0..trees.len()).filter(|index| { return !survey.candidates[*index]; }).collect();
-    rest.sort_by(|left, right| { return trees[*left].path.cmp(&trees[*right].path); });
-    candidates.extend(rest);
-    return candidates;
+    return order;
 }
 
 /// What:
@@ -573,13 +559,13 @@ pub fn collect_idle_trees(
         collection.resume_after = after.map(Path::to_path_buf);
         return collection;
     }
-    // The recorded position indexes the trees that are not candidates:
-    // those are the ones a pass reaches only by walking the whole list,
-    // where the candidates are re-derived from the ledgers on every pass and age forward until they are removed.
+    // The age order is not a position: a tree that was kept has been written to since, or was too young, so it moves
+    // further down the order on the next pass. The recorded position bounds the window a pass judges, so a pass that is
+    // cut always leaves ground behind it and the next one continues after it instead of reading the same front again.
     let order: Vec<usize> = judging_order(trees, &found);
     let mut to_judge: Vec<usize> = Vec::with_capacity(order.len());
     for index in order {
-        if found.candidates[index] || after.is_none_or(|recorded| trees[index].path.as_path() > recorded) {
+        if after.is_none_or(|recorded| trees[index].path.as_path() > recorded) {
             to_judge.push(index);
         }
     }
@@ -607,7 +593,7 @@ pub fn collect_idle_trees(
         }
     }
     let mut standing: Standing = Standing { began: Instant::now(), last_said: Instant::now(), judged: 0, given: collection.given, removed: 0, bytes: 0, kept: 0, skipped: 0 };
-    // The last tree of this pass that the position orders, which is where a cut pass continues.
+    // The last tree of this pass by path, which is where a cut pass continues.
     let mut last_of_the_rest: Option<PathBuf> = None;
     for index in &to_judge {
         if deadline.passed() {
@@ -615,9 +601,10 @@ pub fn collect_idle_trees(
         }
         progress(&mut standing, deadline);
         let tree: &Tree = &trees[*index];
-        if !found.candidates[*index] {
-            last_of_the_rest = Some(tree.path.clone());
-        }
+        last_of_the_rest = match last_of_the_rest {
+            Some(current) if current >= tree.path => Some(current),
+            _ => Some(tree.path.clone()),
+        };
         let Some(workspace) = workspace_of(&tree.path, deadline) else {
             // Its workspace was not read, so nothing was decided about it: the next pass judges it first.
             break;
@@ -632,6 +619,18 @@ pub fn collect_idle_trees(
                 continue;
             }
         };
+        // The hint is the newest time among the tree's own directories, so it is a lower bound of its newest write:
+        // a hint younger than the period proves the tree is not old enough, and the walk is not needed to know it.
+        if let Some(hint) = found.hints[*index]
+            && now - hint <= needed
+        {
+            standing.judged += 1;
+            standing.kept += 1;
+            collection.judged += 1;
+            let reason: String = format!("the newest write among its own directories was {} s ago, within the {needed} s period ({reason})", now - hint);
+            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep { reason, kind: KeepKind::NotIdleEnough } });
+            continue;
+        }
         if let Some(inside) = holds_other_workspace(&tree.path, &found.roots) {
             standing.judged += 1;
             standing.kept += 1;
@@ -694,7 +693,6 @@ pub fn collect_idle_trees(
     }
     let _ = std::fs::remove_dir(&trash);
     // A pass that judged nothing keeps the position it started at, unless the list held nothing after it.
-    // A candidate never becomes the position: the candidates are judged from the front on every pass.
     collection.resume_after = if collection.judged < collection.given {
         match last_of_the_rest {
             Some(last) => Some(last),
