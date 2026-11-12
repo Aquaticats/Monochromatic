@@ -140,6 +140,7 @@ const FILED_SITES = [
   [String.raw`/<input[^>]*type="radio"[^>]*checked/`, '#790'],
   [String.raw`/type="radio"/g`, '#791'],
   [String.raw`/<fieldset>/g`, '#792'],
+  [String.raw`/class="capture/g`, '#793'],
 ];
 const siteSearchControl = `if (${FILED_SITES[0][0]}.test(html)) throw`;
 if (!siteSearchControl.includes(FILED_SITES[0][0])) throw new Error('The site search cannot see the site string it looks for.');
@@ -285,6 +286,14 @@ try {
         '<fieldset></fieldset></body>'
       ),
       diagnostic: 'seven radio choices',
+    },
+    {
+      name: 'one capture card too many',
+      mutate: (page) => page.replace(
+        '</body>',
+        '<p class="capture"></p></body>'
+      ),
+      diagnostic: 'disclose every native scene',
     },
   ];
   for (const { name, mutate, diagnostic } of mutations) {
