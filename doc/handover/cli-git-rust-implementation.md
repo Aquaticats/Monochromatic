@@ -135,6 +135,560 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### How far the protection of a worktree being removed reaches; free space; the second and third audits of 0.6.1-alpha.14 (2026-11-12T13:04:14-05:00)
+
+#### How far the protection of a worktree being removed reaches
+
+- The third Sonnet audit reported that the automatic removal of a landed worktree destroys a person's files with it.
+  The owner, typed at about 12:58:
+  "If someone puts personal data in worktrees, they deserve the data loss."
+- Asked through the question tool how far that reaches, with the audit's four cases named. The picks:
+  "Keep Git work only (Recommended)";
+  for a typed unforced `git worktree remove`, "Same rule for both (Recommended)";
+  and, asked separately because the first option's text had listed untracked files among what goes,
+  "Still spare untracked (Recommended)".
+- So, for the automatic removal and for a typed unforced removal alike:
+  - Git work is never destroyed by a removal:
+    a commit that no reference holds, and an edit to a tracked file, however it is hidden (`assume-unchanged`, `skip-worktree`).
+  - An untracked file that is not ignored and stands directly in the worktree keeps the worktree, as today:
+    the automatic removal leaves it and removes it later by itself; a typed unforced removal refuses as real Git does.
+  - Everything else a person put into the worktree goes with it and is logged:
+    ignored files and whole ignored directories,
+    a nested repository even when its commits exist nowhere else,
+    the untracked and ignored files of a nested worktree.
+  - Unchanged: a worktree a live process works in is refused with an opt-out;
+    a subvolume or mount the wrapper did not make is removed around.
+- This session's additions, open to veto:
+  a typed removal never does more than real Git does without `--force`;
+  a nested repository that goes is logged with its path and the tips of its branches.
+- It withdraws this session's adoption of 11:58:45 that a nested worktree with an untracked file is refused.
+- Sent at 13:06 to the three runs on removal
+  (`~/temp/agent/notes-to-send/2026-11-12T1306-how-far-the-protection-of-a-worktree-being-removed-reaches.md`);
+  the brief of round 311 was corrected before its run read it or is corrected by that note.
+
+#### Free space: the owner freed it
+
+- 101 GiB at 12:31:17, 543 GiB at 12:51:21, 572 GiB at 13:04:14.
+- The owner, at about 12:57: "I deleted all my Steam games and moved a bit more data to the main drive."
+- Before that message this session checked that nothing of the work had gone:
+  the volume's top-level folders, the 259 entries of the build base and the 143 worktrees were all there.
+- The launcher's 100 GiB gate no longer holds anything back.
+  The size of a build tree stays the limit on how many agents can work; the measurement run goes on.
+
+#### The second Sonnet audit: commit, landing, commit service, push, changeover
+
+- Ended at about 12:35. Its summary was saved by this session as
+  `~/temp/agent/sonnet-audits/alpha-14-commit-landing-service-push-and-changeover/report.md`
+  (the harness refused the auditor's write). All five findings were reproduced against a wrapper built from the release.
+- F3: a push held by a server hook that never answers is never ended,
+  because Git's keepalive packets (about 20 bytes every 20 s) reset the stall window;
+  pushes of later commits wait behind it.
+  Sent to `push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window-1` at 12:48:29.
+- F2: a push whose wake was lost (the client killed between promoting the record and waking the service) is never made
+  by a running service, while every command says "queued ... needs no further commit"; 229 s without a push.
+  Round 310, `pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`.
+- F1: single-file commits of 6 s to 9 s in about one run in twenty (`git fast-import` 5.4 s of one), under `IOWeight=10`.
+  F4: 10000 changed files, 4.1 s to 13.5 s against 0.35 s to 0.58 s.
+  Both sent to `commit-does-not-list-every-reference-on-the-path-it-waits-on-1` at 12:48:29;
+  F4 also has a run of its own in round 310,
+  `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`.
+- F5: `git add`, `rm` or `mv` against a killed service's index lock prints the same notice 50 times in 110 ms
+  (`service_hold_retry.rs`, `run_again_within`).
+  It belongs to `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone-1`; the note goes when that run is up.
+- Read, not reproduced: a path written unescaped into the journal's `paths=` line; temporary files left by a kill before a rename.
+  Round 310, `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill`.
+- What held: a kill at nine fault points of the service, 55 commit forms against real Git,
+  24 simultaneous commits over three worktrees (slowest 481 ms), the changeover between releases.
+
+#### The third Sonnet audit: worktree add, remove, the landed sweep
+
+- Ended at about 12:55. Saved as `~/temp/agent/sonnet-audits/alpha-14-worktree-add-remove-and-landed-sweep/report.md`.
+- F1 (files in an ignored directory and a nested repository go with a landed worktree):
+  decided behaviour since 13:04:14, to be logged.
+- F2 (a detached nested worktree destroyed with its commit), F6 (a commit made after the hand-over destroyed),
+  F3 (an edit hidden by `assume-unchanged` or `skip-worktree` destroyed): Git work, to be fixed.
+  Round 311, started 12:57,
+  `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit`
+  (the name says more than the decision; the brief is corrected).
+- F4 (a person's btrfs snapshot deleted on the service route, refused on the in-merge route):
+  with `removal-goes-around-a-subvolume-or-mount-it-did-not-make-1`.
+- F7 (an add killed while its snapshot is made leaves a stage the wrapper does not recognise as its own,
+  and every command there repeats "remove it yourself ... `btrfs subvolume delete`"; six of eight kills in that window stuck):
+  for `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own-1`.
+- The audit's adds took 3.5 s to 30.7 s.
+
+#### Second readings of the ten runs that ended since 11:10
+
+- `~/temp/agent/digest-2026-11-12T1216-work/digest.md` and `~/temp/agent/digest-2026-11-12T1216-reviews/digest.md`.
+- From the work runs:
+  - The false line "The interrupted removal of ... cannot be finished ... Run `git worktree prune`" was printed into other agents' commands five times,
+    twice under 0.6.1-alpha.15.
+    Only the landed-removal second pass fixes it, and that branch is not in pass 18.
+  - The landed-removal second pass closed all seven items of its brief with each fix shown failing first,
+    but its "Everything is green" is not true: a `max-lines` lint error and a wide `landing::` run with 7 failed and 20 timed out.
+    It conflicts with `main` in seven files, and with the held-commit keeper's branch in four.
+    The two go into one continuation, then into the pass after 18.
+  - The held-commit keeper is still missing from `main` and from pass 18's tip;
+    its loss was reproduced only with a held record planted by hand.
+  - The fast-forward carry still lacks an opt-out on its new refusal and leaves a false claim at `README.md:3199-3202`.
+  - The exempt-repository run refuses and saves no copy; it is 471 commits behind `main`,
+    and its refusal tests were never run on the unfixed code.
+  - The tokio run added 47 files of awaited faces that nothing calls yet; the batch body is not converted.
+  - A linked worktree overwrites a person's untracked file with exit 0 under `reset --hard`, `read-tree --reset -u`,
+    `mv --force` and `checkout-index --force --prefix` (probed on 0.6.1-alpha.13; not re-checked on alpha.15).
+- From the reviews:
+  - The review of the commit that concludes a merge ("no concrete defects") ran only library unit tests,
+    on a base 189 commits behind `main`, and no built wrapper.
+    By the decision of 12:26:24 it is started again once the read-check exists; it does not hold pass 18.
+  - The discard-guard review's first finding loses data whatever the guard does:
+    `restore --source=other --pathspec-from-file` and `checkout other --pathspec-from-file` overwrite a file
+    the guard's reading of written paths never sees (`command_written_paths.rs:328`, `:344`, `:205` to `:213`).
+    For the agent rebuilding the guard.
+  - The review of the second merge ended by its own `kill -9` loop, which matched its own folder name and killed its Pi process.
+    Its review file is final.
+  - The review of the commit that does not land names four places that touch the service manager,
+    to be read again when that branch moves onto the fix for issue 6286.
+  - The descriptor-scan review's race is unproven against the installed release (a standalone harness only).
+
+#### Left behind by two reviews, cleaned at 13:07
+
+- A review's built wrapper had reached the real user manager
+  (it did not unset `DBUS_SESSION_BUS_ADDRESS`):
+  `monochromatic-git-policy-cli@e70b454686a58493cf811805d63e506d.socket` listened from 11:09:49 for a fixture repository that was gone.
+  Checked (`Listen=` names that instance's socket, the service inactive), then stopped by its exact name.
+  No manager reload is in the journal for that minute.
+- `review-dbg3.scope`, failed with `Result=timeout`, was cleared with `systemctl --user reset-failed review-dbg3.scope`.
+- Two defects this shows, tracked here:
+  a review brief has to make a built wrapper unable to reach the real manager, not only ask for it;
+  and a socket unit of a worktree that no longer exists stays listening until someone stops it.
+
+#### Round 310, started 12:51:21
+
+- `pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`,
+  `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`,
+  `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill`, all on `main`.
+
+#### Still running at 13:04:14
+
+- The run for issue 6286 and integration pass 18 (both units active).
+
+#### Commits in the main checkout take a minute and more since 13:00 (recorded 13:30)
+
+- The commit of this section's first version (`56301a3373`, about 13:19) printed
+  "The commit service has not said where this commit stands yet; it has waited 11 seconds.",
+  "This commit is next." and
+  "still waiting for /usr/bin/git ls-tree (process 3013228) after 5 seconds".
+- The timing log under 0.6.1-alpha.15 (`commit-timing-by-release.ts`):
+  hour 16Z, 18 commits, median 5117 ms;
+  hour 17Z, 41 commits, median 5651 ms, largest 145816 ms;
+  hour 18Z until 13:25, 7 commits, median 56156 ms, largest 199431 ms.
+  A median of five seconds is itself at the edge of the requirement.
+- In the six slowest since 12:30 the largest share is the wait for the service's answer
+  (`answerWaitMs` 150247, 97095, 70972, 54781, 38736, 25020);
+  others carry a start wait of 37 s, a prepare of 77 s, a build of 30 s and of 37 s
+  (`~/temp/agent/scratch-scripts/slowest-commits-of-a-release-and-where-their-time-went.ts`;
+  its lines for the `steps` list read a field whose meaning is not established, so only the phase fields are quoted here).
+- The machine at 13:25:55: load average 132.78;
+  `/proc/pressure/io` some avg10=59.25, full avg10=47.49; memory some avg10=8.73.
+  Sixteen runs were started since 12:00 and build; several `git worktree add` commands sat twenty minutes in their package repair;
+  the owner's deletion and move of data ran on the same disk between 12:31 and 12:51.
+  Pressure is normal here and explains nothing by itself: what the wrapper adds over real Git under it is the defect.
+- Whether a commit stood in a queue behind other work of the service, or its own steps were slow under the pressure, is not established.
+  A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
+  (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
+
+#### A commit in the main checkout got no answer for thirteen minutes and was not made (2026-11-12T14:33:44-05:00)
+
+- The commit of the section "Starts go through again" was started at about 14:20 and ended at 14:33:44 with, four times,
+  "The commit service has said nothing for 5 seconds, so the same commit is being sent to it again",
+  and then "The commit service stopped answering while this commit waited, and it did not answer when asked again.
+  The branch is not at the commit this command prepared, so it was not made by this command".
+  Checked with real Git at 14:42:41: `main` still at `d9812caad7`, the file still modified. The commit was not made.
+  This is the first failed commit of this session under 0.6.1-alpha.15. The requirement is "Commits should never fail."
+- `/proc/pressure/io` at 14:42:41: full avg10=8.39, avg60=12.46. The disk pressure had gone down; the service had not recovered with it.
+- The main checkout's service (pid 4030886) logged in that window
+  (`~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/main-service-journal-1419-to-1444.md`):
+  "the round leaves 8 housekeeping items ... because it spent 2450757 ms of its 30000 ms on housekeeping";
+  a push of `main` with `push_ms=567507`;
+  `pnpm install` and `mpm-shadow install` "still running" for four new worktrees;
+  "the look for this directory's instance record gave no answer within 60s";
+  and the commit's request "dropped ... whose client is gone before its commit landed", six times.
+- So the service that lands the main checkout's commits is also the one that repairs every new worktree's package state,
+  pushes, and removes trash and landed worktrees, and a commit waited behind that.
+  Which of them held the landing is not established.
+  The budget of a housekeeping round, which a branch of pass 17 was to keep, did not hold: eighty times over.
+- One consequence for pass 18: its seventh branch takes the package repair off the path of `git worktree add`.
+  Where the repair runs afterwards has to be read in the pass's report before the release;
+  if it moves into the commit service, it adds to what a landing waits behind.
+- Round 313, started at about 14:50 through the package launcher:
+  `landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service` (on `main`, wall twelve hours):
+  a landing begins within a stated bound whatever else the service does; every budget is real;
+  the exchange between a client that gave up and a service that dropped its request ends in a way a person can tell.
+- The commit of this section is the retry.
+
+#### Starts go through again; why four continuations wait for pass 18 (2026-11-12T14:20:01-05:00)
+
+- At 14:11:05 two runs of round 310 were up
+  (`commit-of-many-changed-files-is-made-within-five-seconds-of-real-git-1`,
+  `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill-1`);
+  the third, the pending push, was past Pi's check and on its way.
+- Rounds 311 and 312 failed a second time, now with
+  `CommandAnswerMissingError: mise exec -- bash --noprofile --norc -c command -v node answered -1`:
+  one more call of the launcher that a slow machine ends.
+  It was added to the launcher-fix brief. Both were started a third time
+  (312 printed "started" at 14:11:30, 311 at 14:20:01; the `mise` task that starts a batch took about nine minutes for the second).
+- Integration pass 18 had merged all nine branches by 14:14 (its notes folder holds the message of the ninth merge)
+  and was in its builds and checks at 148 turns. The run for issue 6286 was at 309 turns.
+  A bounded wait of fifty minutes on pass 18 began at 14:15.
+- The four continuations stay unstarted, and the reason is order, not load:
+  - the landed-removal second pass (`3118b41ce3`) with the held-commit keeper (`c79d17060e`):
+    both share removal files with pass 18's fifth branch, so they are brought together on `main` once pass 18 is merged;
+  - the tokio step (`3a1de3fd9e`): it conflicts in two landing files with pass 18's fourth branch; same order;
+  - the fast-forward carry (`6e1f7ba095`): whether edits are carried through a merge at all waits for the inventory run's report
+    and an answer from the owner;
+  - the exempt repository (`7646eced75`): 471 commits behind `main`, with a question of its own agent about tracked edits
+    that goes to the owner with the next batch.
+
+#### The five-second rule is changed; the hourly pass after 14:00 (2026-11-12T14:03:46-05:00)
+
+##### The five-second rule is changed
+
+- The owner, typed at about 14:04: "Change the 5s rule to max(5s, double what native git takes)".
+- Asked which bound that is, with an example of real Git taking 30 s. The owner: "Extra over real Git".
+- So the rule "commits vs native git should not take 5s longer." now reads:
+  what the wrapper adds on top of real Git's own time for the same commit is at most the larger of five seconds and twice real Git's time.
+  With `n` real Git's time: wrapper time minus `n` is at most max(5 s, 2 × `n`).
+- Every measurement therefore carries real Git's time for the same commit under the same conditions beside the wrapper's.
+  Today's commits of 56 s to 199 s are over the rule unless real Git would itself have taken 17 s to 65 s; that has not been measured.
+- Sent at 14:06:35 to `commit-does-not-list-every-reference-on-the-path-it-waits-on-1`,
+  `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer-1` and `integration-pass-18-for-alpha-16-1`
+  (`~/temp/agent/notes-to-send/2026-11-12T1406-the-five-second-rule-is-changed.md`);
+  written into the brief of the many-changed-files run before it started.
+
+##### The hourly pass after 14:00
+
+- `/proc/pressure/io` at 14:03:46: full avg10=28.81, avg60=42.40, avg300=53.09. It is easing.
+- Culled: none.
+- The launchers of rounds 310, 311 and 312 had all ended with every entry failed
+  ("Failed to start transient service unit: Connection timed out", and
+  "the branch ... this start made is still there, because git refused to delete it").
+  All three were started again: 311 at 14:06:43, 310 at 14:06:45, 312 in the same minute.
+  Their worktrees exist from the failed attempts, so the add is not repeated.
+- Ended since 13:28: five more Kimi audits of 0.6.1-alpha.14
+  (worktree add 13:48:54, package repair 13:50:53, discarding commands 13:56:11, worktree remove and landed sweep 13:56:30,
+  commit service and landing 14:00:21, whose last message reads like a step in the middle of work).
+  Two more, push and merge, have no live unit and are not in the listing of ended runs.
+  A Sonnet subagent reads all seven into `~/temp/agent/digest-2026-11-12T1406-kimi-audits/digest.md`.
+  Only the LFS audit is still running.
+- The second reading of the five runs that ended between 12:08 and 13:28 is in
+  `~/temp/agent/digest-2026-11-12T1335-mixed/digest.md`. None of the five shows a lost commit or a lost edit to a tracked file.
+  - Correction of this session's note of 11:44 to the cleaner's agent: "silent until its end" was half wrong.
+    The journal shows lines of that pass at 08:58:27, 08:58:56, 09:01:45 and 09:44:52; the report came at the end.
+  - The cleaner's branch `fix/cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo` (`335462b6fd`)
+    fixes its five defects and the doubled lines and merges cleanly, but shortens no pass and changes no memory use.
+    Not fit to release alone: the version is still `0.1.5-alpha.10`, `monochromatic-lint` was never run,
+    a shim test is red and unexplained, its seven commits have no review, and claims the installed cleaner left half deleted are never freed.
+    Its run ended because the driver sent `SIGKILL` 148 s after it had settled; the final report was complete.
+    One of its commit messages (`c82ecf5fbb`) has a hole: backticks in the message ran `lean run` in the agent's shell.
+  - The review of the removal fixes (`f941f71d77`, in pass 18) read its whole diff and ran three probes and 237 btrfs tests through a wrapper built from the reviewed tree,
+    so it is not started again; the merged tip is what a read-checked review reads next,
+    since the decisions of 12:11:18 and 13:04:14 change what its refusal probes assert.
+  - The `clean` run's branch (`4b3a9a2925`) follows the decisions of 10:33 and 10:35; it is 472 behind `main` with no conflict,
+    and its tests were not rerun after its last edits.
+    It leaves a window of 10 to 37 ms in `git clean -ffd` in which a nested repository made after the wrapper's check is deleted;
+    by the decision of 13:04:14 a nested repository is not protected, so this is recorded and not a defect.
+  - Kimi, release changeover: a client of 0.6.1-alpha.13 in flight sent `retire` to a healthy 0.6.1-alpha.14 service 100 times in 10 s,
+    and its commit exited 1 after 10.05 s with the edit still staged. New.
+  - Kimi, commit path: the service's standard error on a full FIFO held a landing 7.35 s over real Git. New, and close to today's slow commits.
+    That auditor ran `ps` with `args` three times against its rules and started a `claude --print` reviewer of its own.
+  - Both findings went at about 14:10 to the commit-path run and the two service runs
+    (`~/temp/agent/notes-to-send/2026-11-12T1410-two-findings-of-kimi-audits-a-log-write-that-blocks-a-landing-and-a-retire-storm.md`).
+- Still deferred: the continuation of the landed-removal second pass with the held-commit keeper,
+  and those of the fast-forward carry, the exempt repository and the tokio step, until one of the three restarted rounds shows a run up.
+- New, tracked here: the cleaner's passes of hours are not shortened by its branch; that needs a task of its own.
+
+#### Where the time of the slow commits went: the wrapper's own file work, not a queue and not child `git` (read 2026-11-12T13:57:54-05:00)
+
+- The read-only diagnosis of the six slowest commits (56 s to 199 s, 12:35 to 13:23) is saved as
+  `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/report.md`.
+  It corrects one thing in this handover's 13:30 record: the timing log sits in the shared Git directory and holds the commits of every worktree,
+  so the medians quoted there are of all worktrees, and only one of the six slowest was made in the main checkout.
+- Not a queue behind other commits: `queued_behind=0` in all six, `syncs_waited=0` in every landing.
+- Not child `git`: in one landing of 95 s the only children were two `git update-ref` calls of 4 and 9 ms.
+  Real Git's read-only commands took about 4 ms each under the same pressure (cached reads; no bound on what real Git's writes cost).
+- The seconds are in the wrapper's own file work with no child running:
+  in the service, `index_update_ms` of 95 s and 82 s, `ref_ms` of 22.8 s;
+  in the client, `shadow refs` 35 s, `index copy` 15.7 s, `scratch` 21 s, `index` 30 s, `unmergedFiles` 12.6 s;
+  in the gate, a policy of 8.9 s with 0.4 s of children.
+  Which file operation blocks was not traced.
+- Before a landing begins, waits of 17 s to 65 s (`queued_ms`) with nothing ahead of the commit, not explained.
+- Landings of three different worktrees' services ran back to back, each beginning within 0.2 s of the previous one's end.
+- A scratch `git commit` child took 29.9 s with `ssh-keygen` under it in uninterruptible sleep (commit signing waiting on the disk).
+- When sampled at about 13:45, the repository's disk was nearly idle and the busy device was the NVMe that holds `/var/home`
+  (51% util, 33.5 ms average write), which fits the owner's move.
+  Which files the wrapper writes on that disk during a commit is not established; it is the first thing the fix has to find out.
+- Other defects the journals showed:
+  - A service instance got `SIGTERM` 287 ms after its start (13:19:22), then lingered 33 s until its own last-resort alarm;
+    the commit that started it counted 34 refused connections and a start wait of 37327 ms. Who sent the signal is not established.
+  - Housekeeping rounds of the main checkout's service far over their 30 s budget, the worst 808916 ms (12:23:53).
+  - `pnpm` relinking a new worktree ran 1080 s and was stopped at its ceiling (13:15:29).
+  - About 45 "could not be relinked: toolchain: 1 launcher records still name another lock file" lines (12:10 to 12:47)
+    and about 66 "is still running ... for the repair of the new worktree" lines (12:10 to 13:18).
+  - Pushes of 52807 ms and 109709 ms.
+- Routed at about 13:58 by notes (files under `~/temp/agent/notes-to-send/`, names beginning `2026-11-12T1358-`):
+  - `commit-does-not-list-every-reference-on-the-path-it-waits-on-1` is reframed:
+    its centre is now the file work a commit waits on (a trace of every file the commit path touches and on which filesystem,
+    a reproduction in a container whose own disk is capped, taking off the waiting path what the commit does not need, the wait before the landing).
+    It keeps what it built for `git for-each-ref`.
+  - The stopped-and-lingering service went to the two runs on the service's start and stop
+    (`commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-1`,
+    `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer-1`).
+- Not routed yet, tracked here: the housekeeping rounds over budget, and the two repeated lines.
+  The relink that runs eighteen minutes inside an add is what pass 18's branch 7 takes off the add's path.
+- Starts at 13:57:54: none of the five runs of rounds 310, 311 and 312 was up
+  (26 to 56 minutes after their launchers began); pass 18 and the run for issue 6286 were active.
+  `/proc/pressure/io` full avg60=53.48.
+  New worktrees do not come up while an add sits in its package repair; pass 18 is what changes that.
+
+#### The owner on the disk pressure, and round 312 (2026-11-12T13:31:45-05:00)
+
+- The owner, typed at about 13:31, after the slow commits were reported:
+  "Might be my move of a dir that's saturating it."
+- It fits the figures: the stalls are on I/O (`/proc/pressure/io` full avg10=47.49 at 13:25:55, CPU pressure at zero),
+  and they began in the window of the deletion and the move.
+  It does not answer what the wrapper adds over real Git under that pressure; the diagnosis started at 13:30 measures that.
+- Corrected: the section "The hourly pass after 13:00" names 13:35 three times; the clock read 13:29:55 to 13:31:46 during that pass.
+  Round 311's `git worktree add` had then run for about twenty-eight minutes, not more than thirty.
+- Round 312, started 13:31:45 through the package launcher:
+  `launcher-starts-a-run-under-load-instead-of-ending-a-batch-on-one-timed-out-request`
+  (in `package/pi-shared/subagent-driver`, on `main`; builds no Rust),
+  the first of the deferred items, tried because it adds no Rust build.
+  Whether its run comes up is read at the next look.
+- No further Rust-building run is started until a start is seen to go through.
+
+#### The hourly pass after 13:00 (prompt delivered and read between 13:29:55 and 13:31:46)
+
+- Culled: none. No running task is superseded by the decisions of 12:26:24 and 13:04:14;
+  the three removal runs and the guard runs have them by note.
+- Ended since 12:08 (`~/temp/agent/gate/runs-ended-since-1208-read-at-1332.log`, read after it had finished printing):
+  `clean-counts-no-force-as-git-does-and-saves-a-repository-made-while-it-saves-1` (12:15:53),
+  `cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo-1` (12:22:30, exit status not printed),
+  the review of the removal fixes (12:30:40, "no concrete defect found"),
+  `kimi-audit-alpha-14-release-changeover-and-leftovers-1` (13:19:18),
+  `kimi-audit-alpha-14-commit-path-1` (13:28:02).
+  A Sonnet subagent reads them a second time into `~/temp/agent/digest-2026-11-12T1335-mixed/digest.md`;
+  none is routed before that.
+- Started: nothing new, and this is why. Starts fail under the machine's load:
+  - Round 310's second launcher (13:21:34): for one entry Pi's own check was killed after 120 s
+    and then "Failed to start transient service unit: Connection timed out";
+    for the two others again `PiUnitsUnreadableError: systemctl could not list the Pi units`.
+    Its launcher was still active at 13:35, so its retries go on.
+  - Round 311's `git worktree add` had run for more than thirty minutes at 13:35 and its run was not up.
+  - A single request to the user manager answered in 5 ms at 13:30:11, and the journal since 13:10 shows no reload,
+    so the manager is not hung; requests time out in bursts.
+- Tried and deferred, to be started when a start goes through
+  (the first two when round 310 or 311 shows a run coming up; pool room is there: `neuralwatt-flex 9/20`):
+  one continuation that brings the landed-removal second pass (`3118b41ce3`) and the held-commit keeper (`c79d17060e`) together on `main`
+  (a `max-lines` lint error, 7 failed and 20 timed-out `landing::` tests, four files in conflict between the two);
+  a fix in `package/pi-shared/subagent-driver` so that one failed `systemctl` listing or one timed-out `systemd-run` is tried again and does not end a batch;
+  continuations of the fast-forward carry (`6e1f7ba095`), the exempt repository (`7646eced75`, 471 behind `main`) and the tokio step (`3a1de3fd9e`).
+- For the owner, next: the wg deploy and about fourteen more items of the consolidated list.
+
+#### Launchers at 13:21
+
+- Round 310's first launcher ended at about 12:52 with all three entries failed:
+  `PiUnitsUnreadableError: systemctl could not list the Pi units` (`package/pi-shared/subagent-driver/src/going-runs.ts:388`).
+  One failed listing ends every entry, where the retry beside it exists for a pool without room.
+  A defect of the launcher, for the package.
+  The output is kept as `~/temp/agent/gate/agents-batch-round-310-first-start-that-failed.out`; round 310 was started again at 13:21:34.
+- Round 311's launcher began at 13:01:44 (the `mise` task that starts it took four minutes to come up)
+  and its `git worktree add` was still running at 13:20, with `cargo` children.
+- Round 309's four runs are all up.
+
+### The owner's answers of 2026-11-12T12:26:24-05:00, through the question tool: who reviews, a file mode through a merge, what Git refuses, how far publishing reaches; and the first audit of 0.6.1-alpha.14
+
+The answers were read before 12:26:24.
+Each pick is quoted as the owner gave it.
+
+#### Who reviews a change (item 3.5)
+
+- Asked, with what was seen since 2026-11-11
+  (qwen4 once wrote no defect where Kimi reported a blocker; a qwen4 review that read two fifths of a diff and ran nothing;
+  reviews that ended without a review file).
+- The owner: "qwen4 alone, read-checked".
+- So:
+  reviews stay with qwen4 alone.
+  Every review brief demands that the review states how much of the diff it read
+  and what it ran through a built wrapper,
+  and a review that ran nothing is started again.
+  The demand belongs in the package command that writes review briefs
+  (`package/pi-shared/subagent-driver`, `write-a-brief-for-a-review`), not in a scratch script.
+
+#### A file mode a person set, through a merge (item 4.11)
+
+- The owner: "As real Git, both cases (Recommended)".
+- So:
+  the wrapper writes the mode real Git would write in both cases;
+  the one case in the installed release that keeps the person's mode (from `aff52c9e64`) is brought back to Git's behaviour.
+  The stopped run `mode-a-person-set-survives-a-merge-that-changes-the-file` stays stopped.
+
+#### Commands real Git refuses that make a commit through the wrapper (items 3.8 and 3.9)
+
+- The owner: "Refuse as Git does (Recommended)".
+- So:
+  every `git commit` form real Git refuses is refused by the wrapper with Git's own message,
+  `-i` with `-o` among them.
+  The one recorded exception stays: a commit that names an untracked path
+  (`doc/decision/cli-git-policies-platform.md`, "Transactional commit gate").
+
+#### How far the permission to publish reaches (item 4.9)
+
+- The owner: "Standing, alphas, these tools (Recommended)".
+- So, standing in every session:
+  alpha releases of the wrapper and of the tools on its path
+  (the build-folder cleaner `cargo-shadow`, the installer `mpm-shadow`, the Pi driver packages)
+  may be bumped and published without asking;
+  anything that is not an alpha is asked first.
+
+#### Adopted from recorded decisions, not asked, open to veto
+
+- Item 3.11, an operator switch that forces the native route when the commit service misbehaves:
+  none is built.
+  It follows from "A way back is intentionally not given, to avoid agents from becoming lazy." and the refusal of install switches.
+- Item 4.5, the Cargo build directory:
+  the exemption is from the linked-worktree rule only;
+  a discarding command there is refused with an opt-out like anywhere else, by the rule restated at 10:33.
+- Item 3.2, how long an add may take:
+  "60s is fine for adding worktrees" and "nothing should ever wait forever or indefinitely" already decide that a 600-second window does not fit;
+  the branch that takes the repair off the add's path is in pass 18.
+- Item 3.4, the 6,000 ms bound of the agent-settled notification:
+  a notification that did not arrive is a defect, tracked as its own task; no question.
+
+#### The first of the three Sonnet audits of 0.6.1-alpha.14: merge, discarding commands, LFS, package repair
+
+- Ended at about 12:20.
+  The harness refused the auditor's write of its report, so its final text was saved by this session as
+  `~/temp/agent/sonnet-audits/alpha-14-merge-discarding-commands-lfs-and-package-repair/report.md`;
+  scripts and a matrix of 3480 command forms are in the same folder.
+  Its worktree is removed.
+- Findings, in its order:
+  submodule discards (`submodule update --force`, `submodule deinit --force`) are unguarded;
+  the guard misses hidden work (a submodule with `ignore=all`, `skip-worktree`, `assume-unchanged` under `merge --no-commit`);
+  a merge saved behind a live foreign `index.lock` leaves its two records and references for ever
+  and every later command repeats two notices;
+  the opt-out does not give what real Git gives for `checkout` and `switch` (an added `--no-overwrite-ignore`; exit 128 with `--discard-changes`);
+  a refusal of `merge --abort` gives advice the same guard refuses;
+  the advice `git diff > backup.patch` saves nothing for staged or untracked work;
+  refusals name a kind of loss, never a path or a count;
+  low: stash entries dropped through plumbing; displaced `Cargo.lock` copies never pruned.
+- No finding loses data that a refusal had protected: 1551 of 3480 forms were refused and none of those lost anything.
+- Routed by notes at 12:27 (files under `~/temp/agent/notes-to-send/`, names beginning `2026-11-12T1227-audit-of-alpha-14-`):
+  the guard findings to `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file-1`;
+  the `index.lock` finding and the audit's list of places that save and go on to
+  `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on-1`;
+  the abort advice to `abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work-1`;
+  the `Cargo.lock` copies and a "recorded-destroys ... cannot be marked" warning to the add and removal agents.
+- Not routed yet, tracked here:
+  after a wrapper is killed (the audit's bound ended its process group during a stalled LFS download),
+  `index.lock` stays with a record naming a process that is gone,
+  and the next commit waits 60 s and is withdrawn.
+  `SPEC.md` describes that as intended; a killed process is normal here, so a leftover the wrapper could prove dead
+  and does not clear is a defect.
+  A fix run is written when the gate lets one start.
+- Carried merge of 215.5 s on this host against 0.9 s in a private process namespace:
+  issue 6287, fixed in 0.6.1-alpha.15.
+
+#### Round 309, started 12:30:01 from these answers and the audit
+
+- `review-briefs-demand-what-was-read-and-run-and-a-review-that-ran-nothing-is-started-again`
+  (in `package/pi-shared/subagent-driver`, on `main`; builds no Rust).
+- `commit-forms-real-git-refuses-are-refused-with-gits-own-message` (on `main`).
+- `file-mode-through-a-merge-is-written-as-real-git-writes-it` (on `main`).
+- `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone` (on `main`),
+  the audit's leftover `index.lock`.
+- Briefs under `~/temp/agent/pi-runs/`, each named after its run with `-prompt.md`.
+
+#### Free space
+
+- 107 GiB at 12:26:24, so the launcher's gate lets round 308 start; 103 GiB at 12:30:01.
+
+### The owner's answers of 2026-11-12T12:11:18-05:00, through the question tool: a slow push, finished records, a way back, a foreign subvolume
+
+The answers were read before 12:11:18.
+Each pick is quoted as the owner gave it.
+
+#### A slow server and a typed push (item 3.7)
+
+- Asked:
+  how "Stop only on no progress" and "nothing should ever wait forever or indefinitely" meet,
+  since a server that sends one byte every few seconds holds a typed push without end.
+- The owner: "Minimum rate (Recommended)".
+- So:
+  progress means at least a stated number of bytes within a stated window;
+  under it the push stops with a message.
+  The two values are measured on real pushes and put to the owner before a release carries them.
+
+#### How long the commit service remembers a finished request (item 3.6)
+
+- Asked:
+  `README.md` says the records are pruned by count, `SPEC.md` says they are kept by age,
+  and an audit landed one commit twice by resending a request after a thousand other landings.
+- The owner: "Age and count together (Recommended)".
+- So:
+  a record is pruned only when it is both older than a stated age and beyond a stated count;
+  the code and both documents follow that.
+
+#### A way back from a bad wrapper release (item 3.3)
+
+- Asked: whether the previous release stays on disk.
+- The owner, in their own words:
+  "Leave as it is. A way back is intentionally not given, to avoid agents from becoming lazy."
+- So:
+  nothing is kept and no test of a reinstall is added;
+  a bad release is answered by a fixed release.
+  No agent is briefed to build or to rely on a way back.
+
+#### A subvolume someone else put inside a worktree being removed (item 3.1)
+
+- Asked: what follows from "make the wrapper work in that case." for a subvolume or mount the wrapper did not make.
+- The owner: "Remove around it (Recommended)".
+- So:
+  everything else in the worktree is removed and Git forgets the worktree;
+  the foreign subvolume or mount is left where it stands, with the folders that lead to it,
+  and the wrapper says so.
+  The path stays occupied until the item is moved.
+  This was not built or tried when it was offered, and the question said so.
+
+#### The owner adds to the systemd answer (typed after 12:11:18, while these were being recorded)
+
+- "Also regarding systemd answer: We're also supposed to workaround systemd issues."
+- It adds to the section
+  "The owner: "Remove systemd as a hard dependency. Bazel doesn't need it."":
+  besides needing no service manager and using one only as an enhancement,
+  the wrapper works around the defects of systemd it meets.
+- This session's reading, to be corrected if wrong:
+  a defect of systemd is never a reason for a wrapper command to fail, to wait, or to tell a person to act;
+  the wrapper detects the state and gets its own work done another way.
+  The cases on record are those of issue 6286
+  (a manager-wide reload that holds every start for seconds or minutes,
+  and systemd v262.1 reading an expired reply as a lost bus name, `src/core/unit.c:3576`, `src/core/service.c:5975`),
+  a start request that is not answered within a bound,
+  and a unit left in a failed or stale state by an earlier release.
+- Sent as a note to the two agents on that path,
+  `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-1` (round 297)
+  and `reload-fix-brought-onto-main-where-a-program-link-already-is-1` (round 301):
+  `~/temp/agent/notes-to-send/2026-11-12T1214-the-wrapper-also-works-around-defects-of-the-service-manager.md`.
+
+#### What these start
+
+- Round 308, three runs:
+  `push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window` (on `main`),
+  `finished-records-of-the-commit-service-are-pruned-only-when-old-and-beyond-a-count` (on `main`),
+  `removal-goes-around-a-subvolume-or-mount-it-did-not-make`
+  (on `fix/git-policy-cli-removal-pool-symlink-and-nested-subvolume-fixes-brought-onto-main`, `f941f71d77`).
+- Free space was 102 GiB at 12:11:18, two above the launcher's gate, so these wait at the gate until space returns.
+- Of the consolidated list, twenty-two items are still to ask.
+
 ### A typed push of a branch that was not checked out published a merge labelled with the checked-out branch (2026-11-12T12:00:10-05:00)
 
 #### The eleven local-only branches are on the remote
@@ -221,7 +775,33 @@ move its durable facts to their canonical doc and delete it from this page.
 
 #### The hourly pass after 12:00
 
-- No Pi run ended between 11:10 and 11:46 (`runs-that-ended-since.ts`).
+- Corrected at 12:17: the line that stood here said no Pi run had ended between 11:10 and 11:46.
+  That was read from the listing before it had finished printing.
+  The finished listing (`runs-that-ended-since.ts 2026-11-12T11:10:00-05:00`, read at 12:16) names ten runs of this work:
+  the review of the discard guard (11:16:55),
+  `held-commit-is-kept-again-before-a-landed-worktree-is-destroyed-in-process-1` (11:34:15),
+  the review of the commit that concludes a merge (11:39:44, "no concrete defects found"),
+  `tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted-2` (11:41:22),
+  the review of the second merge (11:51:49, ended inside a tool call while cleaning up),
+  the review of the commit that does not land (11:57:55),
+  `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts-1` (11:58:00),
+  the review of the descriptor scan, whose change is in 0.6.1-alpha.15 (11:59:55),
+  `fast-forward-merge-and-pull-carry-what-a-diverged-merge-carries-2` (12:02:54),
+  and `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards-1` (12:07:00).
+- Two Sonnet subagents read them a second time, started at about 12:16:
+  the five work runs into `~/temp/agent/digest-2026-11-12T1216-work/digest.md`,
+  the five reviews into `~/temp/agent/digest-2026-11-12T1216-reviews/digest.md`.
+  None of the ten is routed until its digest is read.
+- The worktrees of nine of the ten were removed when the runs ended
+  (the listing of unused worktrees at 12:17 shows one new name against 11:38, the second-merge review's);
+  that one's build cache was cleaned ("Removed 4343 files, 3.3GiB total", 12:18:38).
+- The harness delivered the hourly prompt at about 12:15, after the work of this pass had been done;
+  nothing was started twice.
+- Round 308's three runs are not started:
+  the launcher prints "NO SLOT: 99 GiB free on /var/mnt/encrypted, under the floor of 100 GiB" for each,
+  asks again about every thirty seconds, and gives up two hours after it began (14:13).
+  The pass after 13:00 starts again whichever gave up.
+- Reviews of the five ended work runs go to qwen4 once their digests are read and the gate lets a start through.
 - Culled: none.
   The three redirected agents were still making turns or inside a bounded test of their own at 11:45
   (`clean-counts-...-1` had been silent 2452 s inside a `timeout 3000` test run).

@@ -726,6 +726,34 @@ Decided by the owner on 2026-11-12:
   (the option chosen reads "No,
   nobody reported it").
 
+Further instructions from the owner on 2026-11-12,
+in order:
+
+- "dahlia could be someone useful.
+  Be maximally coorperative and do everything dahlia asked and might ask."
+- "Still do everything we need to do to ask dahlia questions correctly on top of that.
+  This is an addition,
+  not a change of course."
+- "Feel free to make new gh repos in my `Aquaticat` gh account for minimal reproductions."
+
+What those add:
+
+- Reproducers the maintainer can run as they are,
+  on Node,
+  Deno and Bun,
+  against an npm version or a source checkout.
+- Each new upstream finding written up as its own report under `doc/troubleshooting/`,
+  with a draft in the form upstream's tracker uses.
+  Two were found on 2026-11-12:
+  every option probe on the unreleased 1.4 line pays for short-option scoping,
+  and the input trace copies its whole map for each recorded token on every version.
+- A fix prototyped locally for the input trace only.
+  Upstream accepts AI-assisted pull requests only for accepted issues,
+  so no patch is sent before an issue is accepted.
+- Reproduction repositories under the owner's account,
+  created private,
+  made public only when the owner says.
+
 Open:
 
 - Which further questions go to the maintainer.
