@@ -13,6 +13,11 @@ use crate::shadow_create::{ShadowTemplate, create_shadow_template, may_be_handed
 use crate::shadow_pool::{fill, members, pool_root};
 use crate::shadow_pool_member::refusal;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+/// The stand-in service of one control,
+/// and the protocol lines it answers.
+use crate::service_protocol::{ServiceMessage, encode_service};
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixListener;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -213,6 +218,48 @@ fn a_removal_leaves_the_tree_a_commit_holds_and_takes_the_one_nobody_renewed() {
 }
 
 /// What:
+///  A stand-in service at a socket of its own that hands out one drawn tree,
+///  and the socket's path.
+/// Why:
+///  The hand-out is one exchange,
+///  and a control of the tree a commit was handed needs a service that hands out exactly one.
+///  The socket sits in a short folder because one socket address holds 107 bytes and a fixture root does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const socket = aStandInADrawnTree('refused', tree);
+/// ```
+fn a_stand_in_a_drawn_tree(name: &str, tree: &Path) -> PathBuf {
+    let folder: PathBuf = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .expect("a home directory")
+        .join("temp/agent")
+        .join(format!("drawn{}", std::process::id()))
+        .join(name);
+    std::fs::create_dir_all(folder.as_path()).expect("the short folder");
+    crate::test_support::track_for_this_thread(folder.parent().expect("the folder's parent").to_path_buf().as_path());
+    let socket: PathBuf = folder.join("service.sock");
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("a stand-in socket");
+    let handed: PathBuf = tree.to_path_buf();
+    std::thread::spawn(move || {
+        let Ok((stream, _address)) = listener.accept() else { return };
+        let mut writer = stream.try_clone().expect("the second half of the connection");
+        let welcome: String = format!("{}\n", encode_service(&ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from("test")) }));
+        if writer.write_all(welcome.as_bytes()).is_err() {
+            return;
+        }
+        let mut reader: BufReader<std::os::unix::net::UnixStream> = BufReader::new(stream);
+        let mut line: String = String::new();
+        if reader.read_line(&mut line).is_err() {
+            return;
+        }
+        let answer: String = encode_service(&ServiceMessage::Drawn { tree: handed });
+        let _sent = writer.write_all(format!("{answer}\n").as_bytes());
+    });
+    return socket;
+}
+
+/// What:
 ///  A tree a commit holds is renewed while the value lives,
 ///  so the sweep finds it fresh however long the commit runs.
 /// Why:
@@ -278,5 +325,51 @@ fn a_conclusion_commit_or_a_shadow_no_draw_makes_is_never_handed_a_tree() {
     assert!(!may_be_handed_a_tree(&template, true), "a commit that concludes something is not");
     let reftable: ShadowTemplate = ShadowTemplate { ref_format: crate::transaction_journal::RefFormat::Reftable, ..template_of(repo.as_path()) };
     assert!(!may_be_handed_a_tree(&reftable, false), "a reftable repository's shadow is Git's own tables");
+    remove(root.as_path());
+}
+
+/// What:
+///  A drawn tree this invocation's own check refuses is released and the commit takes the pool's member.
+/// Why:
+///   The service's check of a member is the fill's, and this commit's facts are what decide:
+///  a repository that changed between the draw and the claim is refused here and never used,
+///  the tree is handed back in the background,
+///  and the commit goes on to the paths it knows instead of failing.
+#[test]
+fn a_drawn_tree_this_invocation_refuses_is_released_and_the_pool_serves_the_commit() {
+    let root: PathBuf = fixture("shadow-drawn-refused-at-the-hand-out");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    let member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let refused: PathBuf = drawn_root(&template).join("drawn-00000000000000000000000000000004");
+    std::fs::create_dir_all(refused.as_path()).expect("a drawn tree");
+    std::fs::write(refused.join("stray").as_path(), b"left by a use no claim can trust").expect("a stray entry");
+    let socket: PathBuf = a_stand_in_a_drawn_tree("refused", refused.as_path());
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(scratch.as_path()).expect("the commit's scratch tree");
+    let shadow: PathBuf = scratch.join("shadow");
+    let mut clock: BuildPartClock = BuildPartClock::begin("test");
+    let taken: crate::shadow_create::ShadowTree = crate::shadow_create::take_or_create_shadow(
+        &context,
+        repo.as_path(),
+        &capture,
+        shadow.as_path(),
+        scratch.as_path(),
+        false,
+        &mut clock,
+        &crate::service_server_socket_binding::Bind::Path(socket),
+    )
+    .expect("a shadow");
+    assert_eq!(taken.path, shadow, "the pool's member is the tree the commit builds in");
+    assert!(taken.handed.is_none(), "and nothing is handed back by the commit's own end");
+    assert!(members(pool_root(&template).as_path()).is_empty(), "the member this commit took is the one it used");
+    assert!(!member.exists(), "and it is no longer a member");
+    assert!(
+        crate::test_support::wait_until(&|| return std::fs::symlink_metadata(refused.as_path()).is_err()),
+        "the tree this invocation refused is released beside the command"
+    );
     remove(root.as_path());
 }
