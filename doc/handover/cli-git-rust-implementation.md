@@ -332,6 +332,52 @@ names the fix run as the review,
 and doubles a prefix)
 went to round 287's agent as a second note at 10:10:08.
 
+#### Three more runs ended by 10:08:45, and rounds 291 and 292 (2026-11-12T10:12:09-05:00)
+
+- The qwen4 review of the merge-asides fix (`aff52c9e64`,
+  a branch in pass 17) is final,
+  read by this session whole:
+  `~/temp/agent/reviews/review-findings-merge-asides-round-208-findings/review.md`.
+  - One finding,
+    reproduced through the built wrapper:
+    a mode a person set (`chmod 0600`) on a file whose content a merge changes comes back `0644`.
+    The commit keeps such a mode when the merge deletes the path.
+    Real Git alone also gives `0644` (the review ran it),
+    so the wrapper loses nothing that real Git keeps;
+    the branch keeps more than Git in one case and not in the neighbouring one.
+    The branch stays in pass 17.
+  - Clean:
+    the deleted-path case,
+    the classification of a process that cannot be dumped,
+    index modes,
+    the lease proof for inherited writers.
+  - Evidence for issue 6287:
+    the reviewer saw the wrapper in uninterruptible sleep on `/proc/<pid>/fdinfo/<n>` for about 126 seconds,
+    twice (about 09:33 and 09:50),
+    and could not verify the restore path end to end because of it.
+  - Round 291,
+    started 10:12:
+    `mode-a-person-set-survives-a-merge-that-changes-the-file`,
+    on that branch:
+    keep the mode in both cases
+    (decided by this session under "never discard user data" and the commit's own stated intent,
+    open to veto,
+    since it is more than real Git does),
+    every other way a merge writes a file whose mode was changed,
+    and the two gaps in the new proof that the review noted without reporting.
+- `landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused-2` (`d62b91889f`)
+  and `lfs-push-uploads-every-object-the-remote-lacks-2` (`9e23c2623e`) ended by their own stop with reports.
+  Round 292:
+  a qwen4 review of each,
+  queued behind the gate of four.
+  A Sonnet digest of both is being written in `~/temp/agent/digest-2026-11-12T1012-landing-and-lfs/`;
+  for the LFS run it also says whether anything outside the worktree was changed and what deployment still needs.
+- The review of worktree add without waiting (round 285) started at about 10:08,
+  when the merge-asides review freed a slot.
+- Round 290's five fix agents:
+  two shown working by their feeds at 10:10:51,
+  the rest starting twenty seconds apart.
+
 ### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
 
 #### What the owner said
