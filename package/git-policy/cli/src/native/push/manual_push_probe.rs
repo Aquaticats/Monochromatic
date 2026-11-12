@@ -274,7 +274,15 @@ pub fn probe_manual_push_updates_on(
     let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
     let output = match run_query(git, arguments.as_slice()) {
         Ok(found) => found,
-        Err(error) => return Err(probe_error(cause_of_query(&error), format!("probe push could not run: {error}"))),
+        // What: A query's own words are masked before they are relayed.
+        // Why:  A query can name the destination it could not reach, and a destination can carry a token in a path
+        //       segment or in its query (audit `alpha-12-lfs`).
+        Err(error) => {
+            return Err(probe_error(
+                cause_of_query(&error),
+                mask_url_secrets_text(format!("probe push could not run: {error}").as_str()),
+            ));
+        }
     };
     let report: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     let blocks = match parse_porcelain(report.as_str()) {
@@ -285,8 +293,11 @@ pub fn probe_manual_push_updates_on(
         if output.code == Some(0) {
             return Ok(Vec::new());
         }
-        let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
-        let message: String = mask_url_secrets_text(format!("Git could not determine push updates: {}", said.trim_end()).as_str());
+        // What: Git's words are masked here, once, for both the diagnostic and the refusal that is printed instead.
+        // Why:  Git names the destination it could not reach, and a destination can carry a token in a path segment or in
+        //       its query (audit `alpha-12-lfs`); the refusal's own text is what a person reads and what the journal keeps.
+        let said: String = mask_url_secrets_text(String::from_utf8_lossy(&output.stderr).as_ref());
+        let message: String = format!("Git could not determine push updates: {}", said.trim_end());
         // Git ends `push --dry-run --porcelain` before any destination is reported only when it refuses the push itself
         //  (`transport_push` returns before it prints a block, and `die` and usage errors end the process); a status
         //  from a signal, or a refusal without a word, is not Git saying no.
@@ -309,7 +320,12 @@ pub fn probe_manual_push_updates_on(
     let mut asking: RemoteResolverQuery<'_> = RemoteResolverQuery { git, global_prefix };
     let resolved_remote = match resolve_push_remote(named, &mut asking) {
         Ok(found) => found,
-        Err(error) => return Err(probe_error(ManualPushCause::SelfExplained, format!("Git could not tell which remote this push goes to: {}", error.0))),
+        Err(error) => {
+            return Err(probe_error(
+                ManualPushCause::SelfExplained,
+                mask_url_secrets_text(format!("Git could not tell which remote this push goes to: {}", error.0).as_str()),
+            ));
+        }
     };
     let remote_name: String = resolved_remote.to_string_lossy().into_owned();
     // A destination the caller typed as an URL or a path is its own location, with its credentials; Git's printed `To`

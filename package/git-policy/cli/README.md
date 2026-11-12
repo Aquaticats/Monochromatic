@@ -392,22 +392,33 @@ Read-only commands,
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
    of every URL replaced by `<credentials>`:
   the userinfo,
-  every path segment that is not a plain label (the letters `a` to `z` and `-`,
-  `.`,
-  `_` and `~` alone,
-   which is what `lfs`,
-  `objects` and `batch` are),
-  and every query and fragment value,
-  with a key kept only while it is a plain label.
+  every path segment,
+  and every query and fragment key and value,
+  so a person still reads the scheme,
+  host and port and whether the URL carried a path or a query.
+  A segment,
+  key or value is hidden however plain it looks,
+  because a token made only of lowercase letters reads as a label;
+  the head of an output kept at its 4 MiB cap is hidden whole where a URL reaches that end,
+  since a user and a token cut before their `@` would read as a host.
   The punctuation that ends a URL in a sentence stays after the mask.
   The owner's rule,
   quoted:
   "Never print or commit secrets".
-  The same mask covers the wrapper's own diagnostic lines and the service's journal,
-  and a token made only of lowercase letters reads as a label and is not hidden.
+  The same mask covers the wrapper's own diagnostic lines and the service's journal.
   It covers a typed `git push` (including the merge push of a lost race),
   the auto-push after a commit and its
    reconcile pushes.
+  A typed push is run as a child whose two streams the wrapper reads and writes on with their URLs masked,
+  because Git names the destination it could not reach on its standard error and the one it pushed to in its summary on
+   standard output,
+  and a destination can carry a token in a path segment or in its query;
+  the wrapper asks Git for its progress meter when your standard error is a terminal,
+  so the meter native Git would have drawn is not lost to the pipe,
+  and a `--quiet` push keeps its quiet.
+  A dry run Git refused,
+  which the wrapper's probe runs before any policy reads content,
+  is relayed with Git's words masked and Git's own status.
   The typed push's upload is bounded like the auto-push's:
   a program that shows no sign of work for the push's stall window
    (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
@@ -419,6 +430,8 @@ Read-only commands,
   and one that keeps it open with nothing moving for the connected window (150 seconds)
    is stopped,
   with `git lfs push --all <remote>` named as its way forward.
+  The upload is started as the reaper of its own descendants,
+  so a transfer helper that detaches into a session of its own is reparented to it and is ended with it.
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -618,7 +631,8 @@ Read-only commands,
   When another session pushes to the same branch between your commit and your `git push`,
    Git rejects the push as non-fast-forward.
   The wrapper runs a plain push of one branch as a child process with your terminal,
-   so Git's own output is unchanged.
+   so Git's own output is unchanged,
+  with the URLs in that output masked and its progress meter kept.
   When that push fails and the remote branch has commits yours lacks,
    the wrapper merges them in from Git objects alone and pushes the merge by running itself,
    so every push policy reads the integrated result,
@@ -3758,8 +3772,8 @@ The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MON
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
 which can name a remote.
  The userinfo of any URL in such a line,
-every path segment that is not a plain label,
-and every query and fragment value are replaced by `<credentials>`,
+every path segment,
+and every query and fragment key and value are replaced by `<credentials>`,
 and every control character by a space.
 
 ## Configuration
@@ -4269,6 +4283,10 @@ fractional or non-numeric value is ignored.
   whose carried bytes count,
   and so does the work of every process that holds no connection,
   which is why a slow upload that keeps moving data is never stopped here.
+  A process that held the connection and closed it is at work again once a look that read every list finds it holding
+   nothing,
+  so a helper that closes its connection and goes on with the push is not stopped as a stall;
+  a look that could not tell who holds a socket counts a holder's own signs for nothing.
   Silence across a client's own reconnections still reaches the window,
   because each new connection starts from nothing.
   A run whose connection to the remote is open (the push,
@@ -7243,8 +7261,8 @@ Every line ends with `at_ms=<milliseconds since the epoch>`,
 the time of its event,
 on both paths.
 The userinfo of any URL in a line,
-every path segment that is not a plain label,
-and every query and fragment value are replaced by `<credentials>`.
+every path segment,
+and every query and fragment key and value are replaced by `<credentials>`.
 
 The lines,
 each prefixed `monochromatic-git-policy-cli-service:` on standard error and identified as `monochromatic-git-policy-cli-service` in the journal:

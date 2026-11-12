@@ -150,11 +150,21 @@ pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]
         needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
     let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
+    let is_push: bool = command.word() == b"push";
     let stack: bool =
-        !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some();
+        !stacked_already && is_push && stackable_option_tokens(command.region()).is_some();
+    // What: Every push runs as a child of the wrapper, whatever it does with LFS objects or stacking.
+    // Why:  The wrapper masks the URLs in what that Git prints, and Git names the destination it could not reach on its
+    //       standard error and the one it pushed to in the summary on its standard output (audit `alpha-12-lfs`).
     // A push that uploads LFS objects runs as a child like a stackable one: the parent that owns the push is the one
     // that explains a failed upload, and no wrapper is started for it.
-    if stack || lfs {
+    if stack || lfs || is_push {
+        // A push that would have become Git itself is judged for the reference locks of a killed Git first, as before.
+        let lock_notice: String = if !(stack || lfs) && is_covered(command.word()) {
+            forwarded_lock_notice(command.word(), &command.arguments[..command.subcommand_index], environment, &Judge::here())
+        } else {
+            String::new()
+        };
         return Action::ForwardPush {
             forward: Box::new(PushForward {
                 real_git,
@@ -167,7 +177,7 @@ pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]
                 lfs_settings,
                 stack,
             }),
-            stderr: stderr_with_warning,
+            stderr: format!("{stderr_with_warning}{lock_notice}"),
         };
     }
     // A plain forwarded fetch or push becomes Git itself, so the reference locks of a killed Git are judged here, before.

@@ -387,3 +387,74 @@ fn an_authority_that_reaches_the_end_of_a_cut_text_is_hidden_whole() {
 }
 
 //endregion
+
+//region A stream read in chunks: a URL cut between two reads
+
+/// What:
+///  A URL whose userinfo is cut between two reads is masked as a URL,
+/// because the stream holds back the word in progress.
+/// Why:
+///   A relay reads whatever the kernel has, and the `@` that ends a userinfo can fall in the next read.
+#[test]
+fn a_url_cut_between_two_reads_is_masked_as_a_url() {
+    let mut stream: UrlMaskingStream = UrlMaskingStream::new();
+    let canary: &str = "streamcanary";
+    let first: String = String::from_utf8_lossy(stream.feed(b"batch response: Post \"https://user:streamcanary").as_slice()).into_owned();
+    assert!(!first.contains(canary), "the word in progress is held and not written: {first}");
+    let second: String = String::from_utf8_lossy(
+        stream.feed(format!("@host.invalid/lowercasecanary/lfs?token={canary}\": EOF\n").as_bytes()).as_slice(),
+    )
+    .into_owned();
+    assert_eq!(
+        format!("{first}{second}"),
+        format!("batch response: Post \"https://{m}@host.invalid/{m}/{m}?{m}={m}\": EOF\n", m = CREDENTIALS_MASK),
+        "the held word is classified with the read that ends it"
+    );
+    assert_eq!(String::from_utf8_lossy(stream.finish().as_slice()), "", "nothing is left held");
+}
+
+/// What:
+///  A whole chunk ending at a separator is masked and handed over at once,
+/// and a last word with no end is hidden the way the head of a cut text is.
+#[test]
+fn a_chunk_that_ends_a_word_is_handed_over_at_once_and_a_last_word_is_hidden() {
+    let mut stream: UrlMaskingStream = UrlMaskingStream::new();
+    let shown: String = String::from_utf8_lossy(
+        stream.feed(format!("To https://user:{canary}@host.invalid/repo.git\n", canary = "chunkcanary").as_bytes()).as_slice(),
+    )
+    .into_owned();
+    assert_eq!(shown, format!("To https://{m}@host.invalid/{m}\n", m = CREDENTIALS_MASK), "a whole line is written as soon as it ends");
+    // A stream can end inside a URL too, and an authority with no `@` in it may be a user and a token.
+    assert_eq!(
+        String::from_utf8_lossy(stream.feed(format!("fatal: unable to access 'https://user:{canary}", canary = "lastcanary").as_bytes()).as_slice()),
+        "fatal: unable to access '",
+        "the bytes before the last word are written and the last word is held"
+    );
+    let tail: String = String::from_utf8_lossy(stream.finish().as_slice()).into_owned();
+    assert_eq!(tail, format!("https://{CREDENTIALS_MASK}"), "the last word is hidden whole");
+}
+
+/// What:
+///  A word longer than the stream holds is hidden whole when it carries a scheme,
+/// the rest of that word is dropped,
+/// and a long word with no scheme is handed over as it stands.
+/// Why:
+///   A word that never ends may be a token the mask must hide, and its middle may not be written unmasked afterwards.
+#[test]
+fn a_word_longer_than_the_stream_holds_is_hidden_and_its_rest_dropped() {
+    let mut stream: UrlMaskingStream = UrlMaskingStream::new();
+    let long_token: String = format!("https://host.invalid/{}", "l".repeat(LONGEST_HELD_WORD));
+    let shown: String = String::from_utf8_lossy(stream.feed(long_token.as_bytes()).as_slice()).into_owned();
+    assert!(shown.starts_with(&format!("https://host.invalid/{CREDENTIALS_MASK}")), "the long word is hidden: {}", &shown[..64.min(shown.len())]);
+    assert_eq!(
+        String::from_utf8_lossy(stream.feed(b"the_rest_of_that_word\nnext line\n").as_slice()),
+        "\nnext line\n",
+        "the rest of the hidden word is dropped and what follows it is written"
+    );
+    let mut plain: UrlMaskingStream = UrlMaskingStream::new();
+    let long_plain: String = "p".repeat(LONGEST_HELD_WORD + 1);
+    let handed: String = String::from_utf8_lossy(plain.feed(long_plain.as_bytes()).as_slice()).into_owned();
+    assert_eq!(handed, long_plain, "a long word with no scheme is handed over as it stands");
+}
+
+//endregion

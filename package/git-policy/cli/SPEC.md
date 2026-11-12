@@ -6013,6 +6013,16 @@ keep retrying").
 A stopped upload's program is ended with the grace every stopped child gets,
 and what it started goes with it,
 so the password program a login would have started cannot outlive the push either.
+The program is started as the reaper of its own descendants
+(`own_the_descendants_it_starts` in `src/native/process/process_tree.rs`,
+`PR_SET_CHILD_SUBREAPER`),
+so a transfer helper that detaches into a session of its own and is reparented answers to the program instead of to
+ init,
+and the sweep that ends a stopped run finds it there
+(audit `alpha-12-lfs`,
+"A stopped upload can leave its detached transfer helper running").
+The same start is given to the push the wrapper bounds,
+whose transport helper can detach the same way.
 The connected window bounds that shape too:
 a server that accepts the connection and never answers holds an interactive push for that window and no longer,
 and the upload is then stopped and named,
@@ -9651,6 +9661,24 @@ The step:
   so an authority with no `@` that runs to that end is hidden whole,
   because a user and a token cut before their `@` would read as a host
   (`mask_url_secrets_cut`).
+  A typed `git push` is run as a child whose standard output and standard error the wrapper reads and writes on with this
+  mask,
+  because Git names the destination it could not reach on its standard error and the one it pushed to in its summary on
+  standard output,
+  and a destination can carry a token in a path segment or in its query
+  (`src/native/push/push_output_relay.rs`;
+  audit `alpha-12-lfs`,
+  "A typed push relays URL path and query secrets without the wrapper's mask").
+  The two streams are masked a word at a time (`UrlMaskingStream` in `src/native/lfs/lfs_output_mask.rs`),
+  so a URL the kernel split between two reads is masked as one URL,
+  the two streams stay apart,
+  and Git is asked for its progress meter (`--progress`) when the caller's standard error is a terminal,
+  so the meter native Git would have drawn is not lost to the pipe;
+  a `--quiet` push keeps its quiet.
+  The push that the wrapper's own probe ran is masked too:
+  a dry run Git refused is relayed with Git's words masked and Git's own status
+  (`GitRefusal` in `src/native/push/manual_push_probe.rs`),
+  and so is every diagnostic that repeats a query's words.
   When that file cannot be made,
   the push is refused with the ways forward.
   A run that fails is never run again by the wrapper,

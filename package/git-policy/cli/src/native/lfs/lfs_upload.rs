@@ -249,6 +249,10 @@ async fn await_upload(
     captured: &std::fs::File,
     environment: &[(OsString, OsString)],
 ) -> Result<UploadEnd, RunError> {
+    // What: The program that uploads is the reaper of everything it starts, however far that helper detaches.
+    // Why:  A stopped upload ended the tree it could still find, and a transfer helper that detached twice was reparented
+    //       past it and ran on (audit `alpha-12-lfs`).
+    crate::process_tree::own_the_descendants_it_starts(command);
     let mut relayed: RelayedChild = match guard.start_relayed(command).await {
         // A program that never started is the missing-program refusal, not a defect of the wait.
         Err(_error) => return Err(RunError::Start),

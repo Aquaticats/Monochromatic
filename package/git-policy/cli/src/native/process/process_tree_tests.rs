@@ -228,3 +228,63 @@ fn use_of_names_a_process_and_holds_what_it_uses() {
     assert_eq!(used.name, "sleep");
     assert_ne!(used.state, 'Z', "a running process is not a zombie");
 }
+
+/// What:
+///  A helper that detaches twice is still a descendant of the child that started it,
+/// so the sweep of a stopped run ends it,
+/// and a child started without the reaper attribute loses it to init.
+/// Why:
+///   A stopped upload ended the tree it could still find,
+/// and a transfer helper that called `setsid` and was reparented escaped that tree and ran on
+/// (audit `alpha-12-lfs`).
+/// The two arms are one control:
+/// the first proves the escape this fixes,
+/// and the second proves the fix,
+/// so a change that drops either is caught.
+#[test]
+fn a_helper_that_detaches_twice_stays_a_descendant_of_the_child_that_started_it() {
+    let root: std::path::PathBuf = crate::test_support::fixture("process-subreaper");
+    let recorded: std::path::PathBuf = root.join("helper.pid");
+    // The child starts a launcher in a session of its own, the launcher starts a helper in a session of its own and
+    //  exits, so the helper is reparented to the nearest living ancestor that reaps orphans.
+    let script: String = format!(
+        "setsid sh -c 'setsid sleep 30 & echo $! > {recorded}' ; sleep 30",
+        recorded = recorded.display()
+    );
+    for owner in [false, true] {
+        let _absent: std::io::Result<()> = std::fs::remove_file(recorded.as_path());
+        let mut command: Command = Command::new("sh");
+        command.arg("-c").arg(script.as_str()).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+        if owner {
+            own_the_descendants_it_starts(&mut command);
+        }
+        let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("the child starts");
+        let began: Instant = Instant::now();
+        while !recorded.exists() {
+            assert!(began.elapsed() < ENDING_BOUND, "the detached helper never recorded its number");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let helper: i32 = std::fs::read_to_string(recorded.as_path())
+            .expect("the recorded number")
+            .trim()
+            .parse()
+            .expect("a process number");
+        // The launcher has exited by now, so the helper has been reparented.
+        std::thread::sleep(Duration::from_millis(100));
+        let found: bool = descendants_of(i32::try_from(child.id()).expect("a pid"))
+            .iter()
+            .any(|member: &TreeMember| { return member.pid == helper; });
+        // SAFETY: `kill` takes a process number and a signal and touches no memory.
+        unsafe {
+            libc::kill(helper, libc::SIGKILL);
+        }
+        let _killed = child.kill();
+        let _waited = child.wait();
+        assert_eq!(
+            found, owner,
+            "with the reaper attribute {owner}, the detached helper {helper} is {} among the child's descendants",
+            if found { "found" } else { "not found" }
+        );
+    }
+    crate::test_support::remove(root.as_path());
+}

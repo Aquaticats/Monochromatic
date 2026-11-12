@@ -299,6 +299,10 @@ pub struct Meter {
     /// supplied by a control that cannot make a process spend them without spinning the machine it runs on.
     #[cfg(test)]
     supplied_ticks: Option<(i32, u64)>,
+    /// A process whose descriptor list a control reports as unreadable,
+    /// which is the answer a loaded kernel gives now and then.
+    #[cfg(test)]
+    supplied_unreadable: Option<i32>,
     /// How many times a sample listed the processes of the whole machine to find the tree;
     /// a stand-in for the cost of a
     ///  sample,
@@ -382,8 +386,17 @@ impl Meter {
         self.connected = false;
         self.holding.clear();
         self.sockets_decided = false;
-        // A member whose descriptor list could not be read says nothing about which socket, if any, it holds.
-        let lists_read: bool = held.iter().all(read_its_descriptors);
+        // A member whose descriptor list could not be read says nothing about which socket, if any, it holds, so a
+        //  look with one of those cannot tell who holds what. A member that has ended says nothing either way and holds
+        //  no sign of work to count, so only a member still running makes the look undecided.
+        let lists_read: bool = held.iter().all(|one_member: &(i32, Option<Vec<u64>>)| {
+            // A control reports one process's list as unreadable, which a loaded kernel does now and then.
+            #[cfg(test)]
+            if self.supplied_unreadable == Some(one_member.0) {
+                return false;
+            }
+            return read_its_descriptors(one_member) || member_of(one_member.0).is_none();
+        });
         if held.iter().all(holds_no_socket) {
             // Every list was read and none of them names a socket, so no process of the tree holds a connection now. A look
             //  over no process at all tells nothing, so it stays undecided.
@@ -401,10 +414,10 @@ impl Meter {
             }
             let mut carried_by_a_holder: bool = false;
             for (pid, inodes) in &held {
-                let Some(inodes) = inodes.as_ref() else {
+                let Some(held_inodes) = inodes.as_ref() else {
                     continue;
                 };
-                if !inodes.contains(&socket.inode) {
+                if !held_inodes.contains(&socket.inode) {
                     continue;
                 }
                 carried_by_a_holder = true;

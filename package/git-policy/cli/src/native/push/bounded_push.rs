@@ -497,6 +497,10 @@ pub async fn run_bounded_push_awaiting(
     let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment);
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
+    // What: The push is the reaper of everything it starts, however far a transport helper detaches.
+    // Why:  A stopped push ends the tree it can still find, and a helper reparented past it would run on (audit
+    //       `alpha-12-lfs`).
+    crate::process_tree::own_the_descendants_it_starts(&mut command);
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);

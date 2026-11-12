@@ -331,12 +331,23 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     //       sees it, so the signal itself is kept for that end
     //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 4 of the round-4 review).
     let mut signalled: Option<i32> = None;
-    let code: i32 = match run_forwarded_git(
-        forward.real_git.as_path(),
-        forward.arguments.as_slice(),
-        forward.overlay.as_slice(),
-        forward.copy.as_deref(),
-    ) {
+    // What: Both streams of the push are relayed through the mask of the URLs in them.
+    // Why:  Git names the destination it could not reach and the one it pushed to, and a destination can carry a token in
+    //       a path segment or in its query (audit `alpha-12-lfs`). A push carries no worktree-copy plan, because one is
+    //       given only to a command that creates a worktree or serves the ignored-state ladder
+    //       (`entry_forward_action_planning`); the copy route stays for the day one names a push.
+    let ran: ForwardedRun = match forward.copy.as_deref() {
+        None => crate::push_output_relay::run_masked_push(
+            forward.real_git.as_path(),
+            forward.arguments.as_slice(),
+            forward.overlay.as_slice(),
+            Some(forward.subcommand_index),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
+        Some(facts) => run_forwarded_git(forward.real_git.as_path(), forward.arguments.as_slice(), forward.overlay.as_slice(), Some(facts)),
+    };
+    let code: i32 = match ran {
         ForwardedRun::Ran(0) => return 0,
         ForwardedRun::Ran(code) => code,
         ForwardedRun::Killed(signal) => {

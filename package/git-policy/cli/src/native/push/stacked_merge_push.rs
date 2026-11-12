@@ -109,7 +109,18 @@ fn run_planned(action: Action) -> i32 {
         Action::Forward { real_git, arguments, mut overlay, stderr } => {
             write_to_standard_error(stderr.as_str());
             overlay.push(marker);
-            return status_of_forwarded(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), None));
+            // What: The merge push's two streams are relayed through the mask too.
+            // Why:  It is a push, and Git names the destination it pushed to; the caller's streams are where that lands.
+            // The option that asks for the meter is not added: the wrapper built this argument list itself and does not know
+            //  where its subcommand word sits, and an option in the wrong place would be a push Git refuses.
+            return status_of_forwarded(crate::push_output_relay::run_masked_push(
+                real_git.as_path(),
+                arguments.as_slice(),
+                overlay.as_slice(),
+                None,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            ));
         }
         Action::ForwardSettled { real_git, arguments, mut overlay, copy, stderr } => {
             write_to_standard_error(stderr.as_str());

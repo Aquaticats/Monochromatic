@@ -581,11 +581,50 @@ pub fn still_running(_member: &TreeMember) -> bool {
     return false;
 }
 
+/// What:
+///  Make the child this command starts the reaper of its own descendants,
+/// so a helper that detaches and is reparented answers to that child instead of to init.
+/// Why:
+///  A stopped run ends the tree it can still find,
+/// and a transfer helper that calls `setsid` and is reparented escaped that tree and ran on
+/// (audit `alpha-12-lfs`,
+/// finding "A stopped upload can leave its detached transfer helper running").
+/// `PR_SET_CHILD_SUBREAPER` makes a reparented helper a descendant of the child again,
+/// where the sweep that ends a stopped run finds it (`stop_push`).
+/// The setting survives `execve` and is not inherited by a fork,
+/// so it is set between the fork and the exec,
+/// and the nearest living ancestor that has it takes the orphan.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // no equivalent: it is a Linux process attribute, set between fork and exec
+/// ```
+#[cfg(target_os = "linux")]
+pub fn own_the_descendants_it_starts(command: &mut std::process::Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: `prctl` with `PR_SET_CHILD_SUBREAPER` sets this child's own attribute and touches nothing else, and it is
+    //  async-signal-safe, which is what a closure that runs between fork and exec may call.
+    unsafe {
+        command.pre_exec(|| {
+            let refused: libc::c_int = libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
+            if refused != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        });
+    }
+}
+
+/// Only Linux reparents an orphan to a subreaper;
+/// elsewhere a command is started as it stands.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn own_the_descendants_it_starts(_command: &mut std::process::Command) {}
+
 /// Process-tree controls stay out of the release executable.
 #[cfg(test)]
 #[path = "process_tree_tests.rs"]
 mod tests;
-
 /// Controls for platforms without `/proc`,
 /// whose branches the Linux build does not compile.
 #[cfg(all(test, not(target_os = "linux")))]

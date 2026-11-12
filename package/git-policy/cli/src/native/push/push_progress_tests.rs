@@ -737,8 +737,7 @@ fn supplied_processor_time_is_work_while_no_connection_is_held() {
     end(child);
     assert!(
         stopped.is_none(),
-        "a tree that keeps using processor time and holds no connection is not stopped for time: {:?}",
-        stopped
+        "a tree that keeps using processor time and holds no connection is not stopped for time, and this one was stopped"
     );
     assert!(ticks > 0, "the control supplied the ticks it measured");
 }
@@ -1022,7 +1021,7 @@ fn a_former_holder_that_writes_is_at_work_again() {
 /// Why:
 ///   A holder's own account of waiting must not clear the wait on a look that says nothing about who holds what,
 /// because those looks fail now and then under load and the connected window would then never be reached.
-/// The member whose list cannot be read is a process number no process has.
+/// The control reports one descriptor list as unreadable, which the kernel does now and then under load.
 #[test]
 fn a_look_that_cannot_read_a_descriptor_list_counts_a_holder_for_nothing() {
     let root: std::path::PathBuf = fixture("progress-holder-undecided");
@@ -1082,8 +1081,10 @@ fn a_look_that_cannot_read_a_descriptor_list_counts_a_holder_for_nothing() {
         std::thread::sleep(POLL);
     }
     std::thread::sleep(Duration::from_millis(250));
-    let undecided: Vec<TreeMember> = vec![holder.clone(), TreeMember { pid: i32::MAX, started: 0 }];
-    let counted_by_an_undecided_look: bool = meter.look_over(undecided.as_slice());
+    // The control reports the holder's descriptor list as unreadable, which a loaded kernel does now and then.
+    meter.supplied_unreadable = Some(holder.pid);
+    let counted_by_an_undecided_look: bool = meter.look_over(std::slice::from_ref(&holder));
+    meter.supplied_unreadable = None;
     std::thread::sleep(Duration::from_millis(250));
     let counted_by_a_decided_look: bool = meter.look_over(std::slice::from_ref(&holder));
     std::fs::write(stop.as_path(), b"stop the writer").expect("stop the child");

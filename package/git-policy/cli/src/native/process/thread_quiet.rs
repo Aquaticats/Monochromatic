@@ -152,7 +152,8 @@ impl ThreadSigns {
     /// The bytes the process's connected sockets carried since the last look,
     /// or zero where they cannot be listed.
     fn socket_bytes_moved(&mut self) -> u64 {
-        let held: Vec<u64> = socket_inodes_of(i32::try_from(std::process::id()).unwrap_or(i32::MAX));
+        // A descriptor list that cannot be read names no socket, so a look that cannot list them counts nothing, as before.
+        let held: Vec<u64> = socket_inodes_of(i32::try_from(std::process::id()).unwrap_or(i32::MAX)).unwrap_or_default();
         let Some(connected) = established_sockets() else {
             return 0;
         };

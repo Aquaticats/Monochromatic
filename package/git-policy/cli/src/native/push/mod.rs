@@ -114,6 +114,9 @@ pub mod push_limit_held_for_an_ordering;
 /// and the clock that stops it on a stall.
 pub mod push_progress;
 
+/// The relay that reads the two streams of the person's push and writes them with the secrets of every URL masked.
+pub mod push_output_relay;
+
 /// The connected TCP sockets of the machine with their byte counts,
 /// and the sockets a process holds.
 pub mod tcp_sockets;
