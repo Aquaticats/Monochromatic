@@ -9976,7 +9976,10 @@ a landing or withdrawal record,
 and a file this release does not know keep the whole journal and are logged,
 never discarded.
 Nothing starts a unit.
-The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
+The wrapper forwards native `git commit` only for dry runs,
+for short-circuit forms,
+and for a command line whose selection controls the repository's commit-only policy would refuse,
+so that Git gives its own refusal (see "The command lines Git refuses itself").
 
 The repository is the one the command line names.
 `-C` moves the wrapper,
@@ -12462,9 +12465,29 @@ For injected commit-only semantics:
     and native Git records it with its worktree content (measured against Git 2.56.0).
     An index that holds an assume-unchanged or skip-worktree entry,
     or one the in-process readers do not understand,
-    is built from the base alone instead:
-    a copied mark makes `git add --all` skip or refuse a file the commit named,
-    where native Git stages it.
+    is built from the base alone instead,
+    because a copied mark makes `git add --all` skip or refuse a file the commit named.
+    The paths those marks name keep the base's entry after the staging
+    (`commit_index.rs`,
+    `leave_the_marked_paths_as_they_were`;
+    `index_flags.rs` reports them):
+    measured against Git 2.56.0,
+    `git commit -am x` over an edited skip-worktree file records no change for it,
+    `git commit -m x -- <that path>` records nothing at all and exits `1`,
+    and `-a` leaves an assume-unchanged entry alone too,
+    because Git's own `add_files_to_cache` skips a marked entry.
+    A named path whose entry is assume-unchanged is staged,
+    as `git commit -- <path>` stages it,
+    so only a skipped-worktree path keeps the base's entry on that route,
+    and only `-a` also puts an assume-unchanged one back.
+    A change the person staged inside a marked entry stays staged in the real index,
+    which the landing leaves as it is;
+    `-a` beside such a change is the one shape this leaves to the wrapper's own answer,
+    where Git would carry the staged entry into the commit.
+    A named skip-worktree path that leaves nothing to commit is refused by both programs,
+    and the display of what is left names that path for the wrapper where Git's own leaves it out,
+    because the mark stays in the real index and the commit's own index does not carry it;
+    nothing is committed either way (`binary_commit_bytes_match_direct_git_tests.rs`).
     A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
     from the same copy and through the same clearing,
     so it holds exactly the requested tree,
@@ -12599,6 +12622,85 @@ For injected commit-only semantics:
     and which options a line the moved branch rebuilds must not repeat
     (`native_commit_waiting_notice.rs`,
     `service_commit_line_reissued.rs`).
+
+#### The command lines Git refuses itself
+
+A command line that Git refuses before it looks at the index,
+the worktree or any path is not carried out at all:
+the whole line reaches real Git,
+which answers it in its own words and with its own status and makes no commit
+(`refused_by_git` in `src/native/command/command_commit.rs`,
+`run_commit_if_real` in `src/native/invocation/wrapped_command.rs`).
+The conditions are Git 2.56.0's own, from `builtin/commit.c`:
+a line that names two of `-i/--include`,
+`-o/--only`,
+`-a/--all` and `--interactive/-p/--patch`
+(`die_for_incompatible_opt4`,
+line 1385);
+a path beside `-a` (line 1419);
+`--pathspec-from-file` beside `-i`,
+`-a` or a path,
+and `--pathspec-file-nul` without `--pathspec-from-file` (lines 373-390);
+and an `-i` or `-o` selection that names no path (line 389),
+where an amend and an allow-empty commit are Git's exceptions and a pathspec file's own count is
+read later.
+A `--fixup` suboption Git does not know dies there too,
+before any of these.
+Measured against Git 2.56.0 over the shapes the 0.6.1-alpha.12 audits compared,
+each of these exited `0` and made a commit the wrapper's own reading had built,
+while real Git exited `128` and made none;
+they are rows of `binary_commit_bytes_match_direct_git_tests.rs` now.
+An `-i`/`-o` selection whose pathspec file names no path is read by the wrapper as an empty selection,
+as before, so Git's `No paths with --include/--only does not make sense.` is not given for it.
+
+#### The message and the identities a commit records
+
+The message of a line the service covers is cleaned the way Git 2.56.0 cleans it when no editor opens:
+`strbuf_stripspace` with no comment character,
+so each line loses the white space Git's own table marks as space
+(a space,
+a tab,
+a line break and a carriage return)
+and keeps every other character,
+empty lines collapse,
+and the message ends in one line break
+(`cleanup_message` in `src/native/landing/service_commit_args.rs`).
+Measured against Git 2.56.0,
+a no-break space,
+a figure space,
+a narrow no-break space,
+a vertical tab and a form feed at the end of a line are all part of the message,
+and a rule that trimmed everything Unicode calls white space removed them.
+The one line a commit prints about itself is the same rule:
+the subject is Git's `%s`,
+which keeps the white space at the start of a line and joins the first paragraph with spaces
+(`subject_of` in `src/native/landing/landed_summary.rs`,
+`src/native/repo_read/repo_read_tree.rs`).
+A repository whose `core.commentChar`,
+`core.commentString` or `i18n.commitEncoding` is set takes the native route
+(`config_needs_native`),
+so the clean-up here is never asked to guess one of those.
+
+An identity that is not UTF-8 is recorded as Git records it,
+and the person is warned in Git's own words.
+Real Git builds the whole commit buffer and then repairs every byte sequence that is not UTF-8
+by reading each of its bytes as a Latin-1 character,
+warning `Warning: commit message did not conform to UTF-8.` when it changed anything
+(`ensure_utf8` in Git 2.56.0's `commit.c`).
+The service writes the commit through `git fast-import`,
+which records the bytes it is given,
+so the client repairs the committer's line,
+the author's line and the message by that same rule before it sends them
+(`service_commit_utf8_as_git_writes_it.rs`),
+prints the warning once when any of them changed,
+and the commit object holds Git's repair rather than the replacement character of a lossy conversion.
+A commit read from the object store and an identifier the repository's configuration holds are repaired the same way
+(`service_amend.rs`,
+`service_message.rs`).
+A commit buffer's regions cannot share a multi-byte sequence,
+because Git's own repair never spans the space and the angle bracket it writes between two identities,
+so the repair of each field equals the repair of the whole buffer.
+
 
 Merge,
 cherry-pick,

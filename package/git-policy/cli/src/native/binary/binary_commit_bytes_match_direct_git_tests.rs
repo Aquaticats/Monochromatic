@@ -60,6 +60,12 @@ enum Expectation {
     /// Both arms end the same way,
     /// with the same bytes.
     Same,
+    /// Both commands make no commit and end with the same status,
+    /// and the wrapper's display of what is left names a path an index mark hides,
+    /// which Git's own display leaves out:
+    /// the mark lives in the real index and the wrapper's own commit index does not carry it.
+    /// `SPEC.md`, "Explicit-path commit", records the difference.
+    RefusesAndNamesOnePathMore,
     /// The project records this difference on purpose:
     /// the wrapper commits the paths the command line names,
     /// and real Git refuses them.
@@ -170,7 +176,14 @@ fn escaped(bytes: &[u8]) -> String {
 /// ```
 fn command_for(fixture: &Fixture, wrapped: bool, shape: &Shape, repo: &Path) -> std::process::Command {
     let mut command: std::process::Command = if wrapped {
-        wrapped_commit(fixture, repo, shape.argv)
+        // The repository's commit-only policy refuses a line of its own before this table's question is asked,
+        // so the wrapper's policy flags are turned off for both arms; the policy's refusals have their own controls.
+        let mut policy_off: Vec<&str> = shape.argv.to_vec();
+        if let Some(at) = policy_off.iter().position(|word| { return *word == "commit"; }) {
+            policy_off.insert(at + 1, "--no-enforce-only");
+            policy_off.insert(at + 2, "--no-enforce-require-root");
+        }
+        wrapped_commit(fixture, repo, policy_off.as_slice())
     } else {
         let mut plain: std::process::Command = direct(fixture);
         plain.current_dir(repo).args(shape.argv);
@@ -239,6 +252,12 @@ fn difference(wrapped: &Ended, direct: &Ended, expectation: Expectation) -> Opti
         ));
     }
     let mut differences: Vec<String> = Vec::new();
+    if expectation == Expectation::RefusesAndNamesOnePathMore {
+        if wrapped.observed.code != Some(0) && direct.observed.code != Some(0) && wrapped.tree == direct.tree && wrapped.index == direct.index {
+            return None;
+        }
+        return Some(format!("the wrapper must refuse as real Git refuses: wrapped exit {:?}, direct exit {:?}", wrapped.observed.code, direct.observed.code));
+    }
     if (wrapped.observed.code == Some(0)) != (direct.observed.code == Some(0)) {
         differences.push(format!("exit status: wrapped {:?}, direct {:?}", wrapped.observed.code, direct.observed.code));
     }
@@ -263,10 +282,19 @@ fn difference(wrapped: &Ended, direct: &Ended, expectation: Expectation) -> Opti
     if wrapped.status != direct.status {
         differences.push(format!("status:\n  wrapped {}\n  direct  {}", escaped(wrapped.status.as_bytes()), escaped(direct.status.as_bytes())));
     }
-    let wrapped_words: String = stderr_of(&wrapped.observed);
-    let direct_words: String = stderr_of(&direct.observed);
-    if direct_words.contains("fatal: ") && wrapped_words != direct_words {
-        differences.push(format!("standard error:\n  wrapped {wrapped_words:?}\n  direct  {direct_words:?}"));
+    // A command Git refuses must be refused in Git's own words on both streams: the person sees the same answer
+    //  whichever program gave it.
+    if direct.observed.code != Some(0) {
+        let wrapped_words: String = stderr_of(&wrapped.observed);
+        let direct_words: String = stderr_of(&direct.observed);
+        if wrapped_words != direct_words {
+            differences.push(format!("standard error:\n  wrapped {wrapped_words:?}\n  direct  {direct_words:?}"));
+        }
+        let wrapped_shown: String = String::from_utf8_lossy(&wrapped.observed.stdout).into_owned();
+        let direct_shown: String = String::from_utf8_lossy(&direct.observed.stdout).into_owned();
+        if wrapped_shown != direct_shown {
+            differences.push(format!("standard output:\n  wrapped {wrapped_shown:?}\n  direct  {direct_shown:?}"));
+        }
     }
     return (!differences.is_empty()).then(|| differences.join("\n"));
 }
@@ -380,11 +408,13 @@ fn compare_row(fixture: &Fixture, shape: &Shape, base: &str, repos: &Repos) -> O
     let direct: Ended = ended(fixture, observe(&mut direct_command, shape.stdin), repos.direct.as_path());
     return difference(&wrapped, &direct, shape.expectation).map(|report| {
         return format!(
-            "{} ({:?}) differs from real Git:\n{report}\n  wrapped standard output {:?}\n  direct standard output {:?}",
+            "{} ({:?}) differs from real Git:\n{report}\n  wrapped standard output {:?}\n  wrapped standard error {:?}\n  direct standard output {:?}\n  direct standard error {:?}",
             shape.label,
             shape.argv,
             String::from_utf8_lossy(&wrapped.observed.stdout),
-            String::from_utf8_lossy(&direct.observed.stdout)
+            stderr_of(&wrapped.observed),
+            String::from_utf8_lossy(&direct.observed.stdout),
+            stderr_of(&direct.observed),
         );
     });
 }
@@ -532,6 +562,7 @@ const SHAPES: &[Shape] = &[
         edits: &[("a.txt", b"one\ntwo\n"), ("b.txt", b"one\ntwo\n")],
         mark: IndexMark::SkipWorktree("a.txt"),
         argv: &["commit", "--quiet", "-m", "skip", "--", "a.txt"],
+        expectation: Expectation::RefusesAndNamesOnePathMore,
         ..EMPTY
     },
     Shape {

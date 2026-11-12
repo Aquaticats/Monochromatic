@@ -2458,7 +2458,14 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git commit --message <message> -- <paths>` commits only the named paths and ignores other staged entries;
    a directory or a wildcard takes the tracked paths and staged additions it matches,
   as native Git does,
-   while a path that names one file takes that file even when nothing staged it,
+   while a path that names one file takes that file even when nothing staged it
+   (this is the one place a wrapped commit records what real Git refuses:
+   real Git answers `git commit --message <message> -- <untracked path>` with
+   `error: pathspec '<path>' did not match any file(s) known to git` and makes no commit,
+   and the commit-only policy's explicit-path commit records that file
+   because the policy requires the paths a commit names to be the paths it records;
+   a path an ignore rule matches and no index entry tracks is still refused,
+   see "What can still end a commit with a nonzero status"),
    `git diff --cached --name-only` lists what is staged.
 - `git restore --staged` (unstaging):
    the same two commands as `git reset`.
@@ -3374,6 +3381,20 @@ none is waited out or retried on the moved head yet:
   issue 6283).
   The twenty commits that stopped inside that staging on 2026-11-10 are measured in
   `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
+- A command line Git refuses before it reads anything.
+   Real Git is given the whole line and answers it in its own words with its own status,
+   and the wrapper makes no commit at all:
+   two of `-i/--include`,
+   `-o/--only`,
+   `-a/--all` and `--interactive/-p/--patch` in one line,
+   a path beside `-a`,
+   `--pathspec-from-file` beside `-i` or `-a` or a path,
+   `--pathspec-file-nul` without `--pathspec-from-file`,
+   an `-i` or `-o` selection with no path,
+   and a `--fixup` suboption Git does not know (`SPEC.md`,
+  "The command lines Git refuses itself").
+  Before this,
+  the wrapper's own reading resolved some of those combinations and made the commit Git refuses.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
@@ -6049,6 +6070,19 @@ and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
+
+The message and the two identities a service commit records are the ones real Git would record,
+byte for byte:
+the message is cleaned by Git's own rule
+(a line loses the white space Git's table calls space and keeps everything else,
+so a no-break space at the end of a subject stays),
+and a name whose bytes are not UTF-8 is repaired the way Git repairs it,
+with Git's own
+`Warning: commit message did not conform to UTF-8.` on standard error.
+A repository that sets `i18n.commitEncoding`,
+`core.commentChar` or `core.commentString` takes the route that runs real `git commit`,
+so those settings are always Git's own answer (see `SPEC.md`,
+"The message and the identities a commit records").
 
 The repository is the one the command line names.
 `-C` moves the wrapper,
