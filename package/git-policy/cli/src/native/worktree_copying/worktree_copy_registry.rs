@@ -342,7 +342,7 @@ pub fn find_created_worktree(
     {
         return Ok(nothing_created(None));
     }
-    let owner: RegistrationOwner = claim_registration(&bound.admin, bound.binding.admin.as_path(), mine).map_err(raw_failure_of)?;
+    let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
     let Bound { binding, .. } = bound;
     if let RegistrationOwner::Another(other) = owner {
         return Ok(nothing_created(Some(other)));

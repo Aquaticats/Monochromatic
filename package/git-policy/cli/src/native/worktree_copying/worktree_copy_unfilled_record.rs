@@ -20,7 +20,7 @@
 use crate::json_record::quote;
 use crate::path_bytes_in_records::{hex_of_bytes, hex_of_path, path_of_hex};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, write_atomic};
+use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, write_atomic_unsynced};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::js_order;
@@ -309,7 +309,9 @@ pub fn remember_unfilled_with(
         owner: owner.map(str::to_string),
     };
     let path: PathBuf = unfilled_path_of(journal);
-    return write_atomic(path.as_path(), encode_unfilled(&copy).as_bytes(), "unfilled-copy record");
+    // Published whole by its rename and flushed by nobody: it names a worktree whose copy did not finish, and a power
+    // cut that loses it loses a notice, never a byte (`SPEC.md`, "The records an add writes for itself").
+    return write_atomic_unsynced(path.as_path(), encode_unfilled(&copy).as_bytes(), "unfilled-copy record");
 }
 
 /// What:

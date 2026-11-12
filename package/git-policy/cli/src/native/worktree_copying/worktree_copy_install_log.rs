@@ -13,7 +13,6 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::private_storage::{flush_file_when_faithful, sync_directory};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{Role, assert_private_path};
@@ -250,11 +249,6 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
     if complete_length < total_length {
         file.set_len(complete_length)
             .map_err(raw_failure_of)?;
-        flush_file_when_faithful(&file, path.as_path())
-            .map_err(raw_failure_of)?;
-    }
-    if !existed {
-        sync_directory(stage_container).map_err(raw_failure_of)?;
     }
     return Ok(OpenedLog {
         log: InstallLog { file, path },
@@ -263,14 +257,17 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
 }
 
 impl InstallLog {
-    /// Appends one line and waits until it is durable,
-    /// as far as the process's durability answer reaches;
+    /// Appends one line,
+    /// published to every other process and flushed by nobody;
     /// an empty batch writes nothing.
+    /// The line names what the copy is about to create,
+    /// which a power cut can lose without losing a byte of a person's:
+    /// the source keeps every entry,
+    /// and the record of an unfilled worktree names the worktree
+    /// (`SPEC.md`,
+    /// "The records an add writes for itself").
     fn append_line(&mut self, line: &str) -> Result<(), WorktreeCopyError> {
-        let written: std::io::Result<()> = match self.file.write_all(line.as_bytes()) {
-            Ok(()) => flush_file_when_faithful(&self.file, self.path.as_path()),
-            Err(error) => Err(error),
-        };
+        let written: std::io::Result<()> = self.file.write_all(line.as_bytes());
         if let Err(error) = written {
             let message: String = format!(
                 "monochromatic-git-policy-cli: could not persist worktree-copy install log {}.",

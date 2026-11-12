@@ -4,7 +4,7 @@
 //! unfinished trailing appends and corruption.
 
 use super::*;
-use crate::private_storage::write_private_file;
+use crate::private_storage::{take_directory_syncs, take_file_syncs, write_private_file};
 use crate::test_support::{fixture, remove};
 
 /// One created-entry record.
@@ -56,8 +56,46 @@ fn appended_records_are_read_back_on_reopen() {
     remove(root.as_path());
 }
 
-/// The log's file is private,
-/// and a new log's directory entry is synced.
+/// What:
+///  The install log is published whole and flushed by nobody,
+///  its batches and the cut of an unfinished append alike.
+/// Why:
+///   A line names what the copy is about to create in a worktree Git has just made,
+/// whose every byte the source still holds,
+/// so a power cut costs the rollback of a partial installation and never a byte of a person's;
+/// native Git flushes nothing for the worktree add it serves,
+/// and a flush per batch is a commit of the whole btrfs filesystem on the add's waiting path
+/// (`SPEC.md`,
+/// "The records an add writes for itself").
+/// The control that the recorders see a flush is a durable private file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// openLog(); appendIntents(); appendCreations(); expect(fileSyncs()).toEqual([]);
+/// ```
+#[test]
+fn the_install_log_flushes_nothing() {
+    let root: PathBuf = fixture("install-log-flushes-nothing");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir(stage.as_path()).expect("stage");
+    take_file_syncs();
+    take_directory_syncs();
+    {
+        let mut opened: OpenedLog = open_install_log(stage.as_path()).expect("open");
+        opened.log.append_intents(&[b"a".to_vec()]).expect("intents");
+        opened.log.append_creations(&[created(b"a", 1, 2)]).expect("creations");
+    }
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the install log flushes no file");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the install log flushes no directory");
+    let text: String = std::fs::read_to_string(stage.join(INSTALL_LOG_NAME)).expect("log");
+    assert!(text.contains("\"intended\":[\"a\"]"), "the batch is published whole: {text}");
+    let control: PathBuf = root.join("durable-control");
+    crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
+    assert!(!take_file_syncs().is_empty(), "the recorder sees a durable private file");
+    remove(root.as_path());
+}
+
+/// The log's file is private.
 #[cfg(unix)]
 #[test]
 fn log_is_private() {

@@ -177,19 +177,25 @@ pub fn ensure_journal_root(common_dir: &Path) -> Result<PathBuf, WorktreeCopyErr
 /// What:
 ///  Writes one complete journal atomically:
 /// a private exclusive temporary,
-/// synced,
 /// renamed,
-/// and its directory synced.
+/// and flushed by nobody.
 /// Why:
 ///   A reader sees either the previous complete journal or the new complete one,
 /// never a fragment.
+/// What the journal guards is a copy into a worktree Git has just made,
+/// whose every byte the source still holds,
+/// so a power cut costs the rollback of a partial installation and not a byte of a person's;
+/// native Git flushes nothing for the worktree add it serves,
+/// and a flush here is a commit of the whole btrfs filesystem on the add's waiting path
+/// (`SPEC.md`,
+/// "The records an add writes for itself").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await writeJournal({ path, record });
 /// ```
 pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyError> {
-    return write_atomic(path, encode_journal(journal).as_bytes(), "journal");
+    return write_atomic_unsynced(path, encode_journal(journal).as_bytes(), "journal");
 }
 
 /// What:
@@ -426,12 +432,13 @@ pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Opti
     let identifier: &str = name.split('.').next().unwrap_or_default();
     let adopted: PathBuf = parent.join(format!("{identifier}.{}{JOURNAL_SUFFIX}", owner.token()));
     // `match` on the rename: a vanished source means another command took the journal first; any other failure is real.
+    // The rename is the whole claim and nothing waits to make it durable: a journal that a power cut returns to its
+    // dead owner's name is taken over again by the next command, and nothing of a person's depends on it.
     match std::fs::rename(pending.path.as_path(), adopted.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(raw_failure(&error)),
     }
-    sync_directory(parent).map_err(raw_failure_of)?;
     return Ok(Some(PendingJournal { path: adopted, journal: pending.journal.clone() }));
 }
 

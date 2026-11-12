@@ -609,7 +609,6 @@ pub enum RegistrationOwner {
 
 /// What:
 ///  Say that this command made the registration held open as `admin`,
-/// whose path is `admin_path`,
 /// and answer whose it is.
 /// Why:
 ///   A `git worktree add` that Git refuses because the destination exists cannot tell
@@ -623,22 +622,24 @@ pub enum RegistrationOwner {
 /// so of several commands exactly one succeeds and
 ///  the rest read its token;
 /// nothing waits and no lock file exists.
-/// The flush of the file goes through the process's durability answer,
-/// so a control that keeps its writes in the page cache does not wait for a filesystem commit here either;
-/// `admin_path` names the file in the record that answer keeps,
-/// so a control whose subject is the order of the flushes still reads it.
+/// The proof is published whole and flushed by nobody:
+/// it guards a killed command,
+/// whose writes stay in the page cache,
+/// and native Git flushes nothing for the worktree add it serves,
+/// while a flush of it is a commit of the whole btrfs filesystem on the add's waiting path
+/// (`SPEC.md`,
+/// "Local durability follows what the remote already holds").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const owner = await claimRegistration(heldAdmin, adminPath, token); // { mine: true } | { mine: false, owner }
+/// const owner = await claimRegistration(heldAdmin, token); // { mine: true } | { mine: false, owner }
 /// ```
-pub fn claim_registration(admin: &File, admin_path: &Path, token: &str) -> std::io::Result<RegistrationOwner> {
+pub fn claim_registration(admin: &File, token: &str) -> std::io::Result<RegistrationOwner> {
     let name: &OsStr = OsStr::new(REGISTRATION_OWNER_NAME);
     // `match` on the exclusive create: the one command that made the file is the registration's owner.
     match crate::fs_beneath::create_file_at(admin, name, 0o600) {
         Ok(mut written) => {
             std::io::Write::write_all(&mut written, token.as_bytes())?;
-            crate::private_storage::flush_file_when_faithful(&written, admin_path.join(REGISTRATION_OWNER_NAME).as_path())?;
             return Ok(RegistrationOwner::Mine);
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}

@@ -4,6 +4,7 @@
 //! and that a copy still running is left alone.
 
 use super::*;
+use crate::private_storage::take_file_syncs;
 use crate::json_record::quote;
 use crate::test_support::{dead_copy_owner, fixture, git, remove, repository};
 use crate::worktree_copy_owner::current_copy_owner;
@@ -35,6 +36,39 @@ fn worktree(root: &Path) -> (PathBuf, crate::fs_beneath::ObjectId) {
     std::fs::create_dir_all(destination.as_path()).expect("destination");
     let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(destination.as_path()).expect("identity");
     return (destination, identity);
+}
+
+/// What:
+///  The record of an unfilled worktree is published whole and flushes nothing.
+/// Why:
+///   What it guards is a notice a killed copy owes a later command,
+/// whose absence costs the notice and never a byte of a person's,
+/// and native Git flushes nothing for the worktree add it serves
+/// (`SPEC.md`,
+/// "The records an add writes for itself").
+/// The control that the recorders see a flush is a durable private file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberUnfilled(); expect(fileSyncs()).toEqual([]); expect(decode(record)).toBeTruthy();
+/// ```
+#[test]
+fn the_record_of_an_unfilled_worktree_flushes_nothing() {
+    let root: PathBuf = fixture("unfilled-record-flushes-nothing");
+    let (destination, identity) = worktree(root.as_path());
+    let journal: PathBuf = root.join("0123456789abcdef.json");
+    take_file_syncs();
+    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the record of an unfilled worktree flushes no file");
+    assert_eq!(
+        decode_unfilled(std::fs::read_to_string(unfilled_path_of(journal.as_path())).expect("record").as_str()).expect("decoded").destination,
+        destination,
+        "the record is published whole"
+    );
+    let control: PathBuf = root.join("durable-control");
+    crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
+    assert!(!take_file_syncs().is_empty(), "the recorder sees a durable private file");
+    remove(root.as_path());
 }
 
 /// The record one copy writes names its worktree,

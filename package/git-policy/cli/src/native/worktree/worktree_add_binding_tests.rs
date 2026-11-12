@@ -6,6 +6,7 @@
 //! replaced or edited object stops the step.
 
 use super::*;
+use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, git, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, tracked};
 
@@ -59,6 +60,40 @@ fn a_pair_the_repository_does_not_confirm_is_not_bound() {
     assert!(bind_registration(common.as_path(), link.as_path()).is_err(), "a link is not the directory");
     // Positive control: the real pair binds.
     assert!(bind_registration(common.as_path(), destination.as_path()).is_ok());
+    remove(root.as_path());
+}
+
+/// What:
+///  The proof that names the command a registration belongs to is published whole and flushes nothing,
+/// and the command that reads it back learns the same token.
+/// Why:
+///  The proof outlives the command that writes it and only answers whose a registration is;
+/// a flush of it is a commit of the whole btrfs filesystem on the add's waiting path,
+/// where native Git flushes nothing for the worktree add it serves.
+/// The control that the recorders see a flush is a private file's own durable write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimRegistration(); expect(fileSyncs()).toEqual([]); expect(ownerFile()).toEqual('mine');
+/// ```
+#[test]
+fn the_proof_of_who_made_a_registration_flushes_nothing() {
+    let root: PathBuf = fixture("binding-owner-unsynced");
+    let (repo, destination, admin) = registered(root.as_path());
+    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let owner_file: PathBuf = admin.join(REGISTRATION_OWNER_NAME);
+    take_file_syncs();
+    assert_eq!(claim_registration(&bound.admin, "mine").expect("claimed"), RegistrationOwner::Mine);
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the proof of who made the registration flushes no file");
+    assert_eq!(std::fs::read(owner_file.as_path()).expect("owner"), b"mine", "the proof is published whole with the token in it");
+    assert_eq!(
+        claim_registration(&bound.admin, "another").expect("read back"),
+        RegistrationOwner::Another(String::from("mine")),
+        "a second command reads the token the first one wrote"
+    );
+    let control: PathBuf = admin.join("durable-control");
+    crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
+    assert!(!take_file_syncs().is_empty(), "a durable private file flushes (the control that the recorder sees it)");
     remove(root.as_path());
 }
 

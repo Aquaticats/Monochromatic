@@ -3407,13 +3407,12 @@ so no later invocation replays the same failure.
 
 Each destination uses a schema-versioned journal under
 `<git-common-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
-Journal writes use a private no-follow temporary file,
-file synchronization,
-atomic rename,
-and parent-directory synchronization where supported.
+Journal writes use a private no-follow temporary file and an atomic rename,
+and no synchronization
+(see "The records an add writes for itself").
 The journal record is rewritten only when the transaction changes phase.
 Selected-entry intents and proven post-creation identities are appended to a private install log inside the stage,
-one synchronized line per bounded batch of manifest entries:
+one line per bounded batch of manifest entries:
 the batch's absent paths are claimed before any of them is created,
 and their identities are recorded after.
 Installation cost therefore grows linearly with the entry count.
@@ -3458,8 +3457,9 @@ Staging takes minutes and gigabytes,
 and the journal is written only after it,
 so the stage's name is recorded first:
 a claim file `<id>.stage` beside the journals names the stage container before the container is created,
-with the same temporary file,
-synchronization and rename as a journal write.
+with the same temporary file and atomic rename as a journal write,
+and no synchronization of its own
+(see "The records an add writes for itself" below).
 The claim is removed once a journal names the stage,
 or once a failed copy has removed the stage.
 Every item names its owner,
@@ -3519,6 +3519,57 @@ and it must then also be renamed onto the reserved stage name before the reaping
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
+
+### The records an add writes for itself
+
+An add's own bookkeeping is published whole and flushed by nobody.
+That is the stage claim (`<id>.stage`),
+the destination record beside it (`<id>.add`,
+written planned before real Git runs,
+rewritten when the add names its Git and when the binding is recorded),
+the proof in the new registration's administrative directory of which command made it
+(`monochromatic-git-policy-cli-copy-owner`),
+and the removals the recovery makes when it settles them.
+Each is a private file created exclusively beside its final name and renamed over it,
+so a reader sees the whole record or none,
+and the filesystem makes it durable with its next commit.
+The reason is the rule above,
+"Local durability follows what the remote already holds":
+what these records guard is a command that was killed,
+whose writes the page cache keeps,
+and native Git flushes nothing for the worktree add they serve
+(measured 2026-11-11:
+a native `git worktree add` of this repository's tree makes no `fsync` at all,
+while the same add through the wrapper made twelve,
+43 s of its 82 s under a load average of 95,
+`doc/planning/cli-git-worktree-add-records-flushed-by-nobody.md`).
+A flush of any of them is a commit of the whole btrfs filesystem,
+which waits behind every other writer's data,
+and it stands on the add's waiting path.
+What a power cut can therefore cost is the record,
+never a byte of a person's:
+a claim whose record is absent leaves the wrapper's own stage to the recovery's copy-stage rules and the destination
+unnamed,
+and the worktree Git registered,
+with everything a person put in it,
+stands as it was (`worktree_copy_stage_claim_tests.rs`).
+The completion marker keeps its flush:
+recovery removes a registered worktree whose add has no such record,
+so a lost marker would remove a worktree a person was told about
+(`worktree_copy_stage_claim.rs`).
+The same holds for a copy's own bookkeeping:
+its journal,
+the journal's adoption by a command that takes over a dead owner's,
+its stage binding,
+each batch line of its install log,
+the record of an unfilled worktree,
+and the removals that settle them.
+What they prove is what the copy wrote into a worktree Git has just made,
+whose every byte the source still holds,
+so a power cut costs the rollback of a partial installation and the notice that names it,
+never a byte of a person's.
+An install log that is cut by a power cut is read as its complete lines and truncated before the next append,
+so the record stays usable.
 
 Every root a copy record holds is written as its bytes.
 The journal carries `destinationRootHex`,
