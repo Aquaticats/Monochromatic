@@ -4,7 +4,6 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import {
   describe,
@@ -44,12 +43,14 @@ const checksPath = join(
 const testDeadlineMilliseconds = 120_000;
 
 /**
- Milliseconds from the start of a second at which two runs are started, so both stamp their scopes with that second.
-
- A scope name carries a second-precise stamp, so two runs started in one second are the case where a run's own identity
- has to keep their names apart.
+ The characters one run's identity holds: a UUID's 128 bits written as hexadecimal digits without its hyphens.
  */
-const startOfSecondOffsetMilliseconds = 1_100;
+const runTokenLength = 32;
+
+/**
+ The alphabet a run identity is written in, which is a UUID's lowercased hexadecimal digits.
+ */
+const runTokenCharacters = '0123456789abcdef';
 
 /**
  Milliseconds the stand-in `mise` keeps running when a test asks it to hang, so its own end cannot be what ended the wait.
@@ -129,6 +130,23 @@ async function withStandInMise({
     ...standIn.environment,
     ...environment,
   };
+}
+
+/**
+ Whether one word is the identity a run draws for its scope names: a UUID with its hyphens removed.
+
+ Written as a scan and not as a pattern, because a regular expression is refused in this package (`no-regex`) and the
+ claim here is only a length and an alphabet.
+
+ @param text - the word to read
+
+ @returns true when the word is one run's identity
+ */
+function isRunTokenOf(text: string): boolean {
+  return (text.length === runTokenLength) && text.split('')
+    .every(function isTokenCharacter(character) {
+      return runTokenCharacters.includes(character);
+    });
 }
 
 /**
@@ -416,7 +434,7 @@ await describe({
       },
     }),
     it({
-      name: 'names each run\'s scopes for that run, so two runs of one check in one second both run',
+      name: 'gives every run an identity of its own in its scope names, so two runs never ask the manager for one name',
       fn: async () => {
         await using standIn = await createScopeStandIn();
         await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
@@ -424,8 +442,6 @@ await describe({
          The environment with the stand-in `mise` first on `PATH`.
          */
         const environment = await withStandInMise({ standIn, });
-        // Both runs start inside one second, which is the case the second-precise stamp alone cannot tell apart.
-        await delay(startOfSecondOffsetMilliseconds - (Date.now() % 1_000));
         /**
          What two simultaneous runs of one check ended with.
          */
@@ -459,6 +475,20 @@ await describe({
         expect(units,).toHaveLength(2,);
         // A shared name is refused by the manager while the first run's scope is active, so the names must differ.
         expect(new Set(units).size,).toBe(2,);
+        /**
+         The identity each run put in its scope name, which a scope name carries after its stamp.
+
+         The same-second pair of runs is asserted on one stamp in `native-capped-scope-command.unit.test.ts`, where the
+         stamp need not be measured; what this checks is that the identity reaches every name a run asks for, so two runs
+         whose stamps do fall in one second are already kept apart.
+         */
+        const runTokens = units.map(function tokenOf(name) {
+          return (name ?? '').split('-',)
+            .at(-1);
+        });
+        for (const token of runTokens)
+          expect(isRunTokenOf(token ?? ''),).toBe(true,);
+        expect(new Set(runTokens).size,).toBe(2,);
       },
     }),
     it({
