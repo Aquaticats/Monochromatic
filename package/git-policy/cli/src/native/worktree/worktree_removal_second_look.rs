@@ -39,22 +39,29 @@ use crate::worktree_removal_rescue::snapshot_one;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// The marks of an unfinished operation this proof keeps a worktree for,
-/// on top of the ones Git's own merge isolation already checks.
+/// The start of every name Git gives a file an unfinished bisect keeps in a worktree's Git directory.
 /// Why:
 ///  `IN_PROGRESS_MARKERS` answers the same question for a merge the wrapper runs itself,
 ///  so its list is reused rather than written again,
-///  and this one names what that question has to include for a removal.
-///  An unfinished bisect leaves `BISECT_LOG` in a worktree and never touches `HEAD`:
+///  and a bisect needs the question answered too, because it never touches `HEAD`:
 ///  the checkout stays on its branch and every file stays clean,
-///  and `git worktree remove` deletes the worktree and that log without a word
-///  (measured with Git 2.56 on a fixture:
-/// exit 0,
-/// the log gone).
-///  The sweep's own module doc promises a bisect keeps the worktree,
-///  and it did not,
-/// which a cross-vendor audit of the landed sweep reproduced.
-const FURTHER_UNFINISHED_MARKERS: [&str; 1] = ["BISECT_LOG"];
+///  and `git worktree remove` deletes the worktree and Git's own bisect records without a word.
+///  `git bisect start` writes `BISECT_START`,
+/// then `BISECT_NAMES`,
+/// and opens `BISECT_LOG` only after both
+///  (measured with Git 2.56 under `strace`),
+///  so a process killed between those writes leaves a bisect whose marks are only the files written before the kill.
+///  A proof that knew only the log let the removal take the worktree with the rest:
+///  a fixture whose bisect was killed at the first open of `BISECT_LOG` had `BISECT_START` and `BISECT_NAMES`,
+///  no log,
+///  a clean checkout on its branch,
+///  and the wrapped merge removed it and every file with it
+///  (a cross-vendor audit of the landed sweep).
+///  Every file a bisect keeps in that directory is named under this prefix,
+///  and `git bisect reset` removes every one of them
+///  (a fixture had none left after the reset),
+///  so the prefix is what a removal can ask for without falling behind a Git that adds another file.
+const BISECT_MARK_PREFIX: &str = "BISECT_";
 
 /// What:
 ///  Where one reading of the proof looks,
@@ -120,10 +127,13 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     if admin.join("locked").exists() {
         return Some(String::from("it is locked, and a lock is a promise to keep it"));
     }
-    for marker in IN_PROGRESS_MARKERS.iter().copied().chain(FURTHER_UNFINISHED_MARKERS.iter().copied()) {
+    for marker in IN_PROGRESS_MARKERS {
         if admin.join(marker).exists() {
-            return Some(unfinished_operation_reason(marker));
+            return Some(format!("a {marker} stands in it, so an operation there is unfinished"));
         }
+    }
+    if let Some(mark) = bisect_mark_in(admin) {
+        return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
@@ -238,22 +248,32 @@ pub(crate) fn nested_worktree_reason(inside: &[&Registration]) -> String {
 }
 
 /// What:
-///  What an unfinished operation's mark means,
-///  in a person's words.
+///  The name of a file an unfinished bisect left in `admin`,
+///  or nothing when no bisect is in progress there.
 /// Why:
-///   The mark is the file Git leaves behind,
-///  and `BISECT_LOG` says nothing to a person who does not know Git,
-///  while `MERGE_HEAD` is Git's own name for an operation they were in.
+///   The file is Git's own record that a bisect is unfinished,
+///  and its name is what tells a person where Git kept the bisect,
+///  while a question about `BISECT_LOG` alone answers nothing when the kill came before that file was opened.
+///  The smallest name is taken,
+/// not the one the filesystem listed first,
+///  so the reason reads the same every time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// unfinishedOperationReason('BISECT_LOG') // 'a bisect is unfinished there ...'
+/// bisectMarkIn(admin) // 'BISECT_NAMES'
 /// ```
-fn unfinished_operation_reason(marker: &str) -> String {
-    return match marker {
-        "BISECT_LOG" => format!("a bisect is unfinished there, and its {marker} is still in the worktree"),
-        _ => format!("a {marker} stands in it, so an operation there is unfinished"),
-    };
+fn bisect_mark_in(admin: &Path) -> Option<String> {
+    let mut marks: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(admin).ok()?.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if name.starts_with(BISECT_MARK_PREFIX) {
+            marks.push(name);
+        }
+    }
+    marks.sort();
+    return marks.into_iter().next();
 }
 
 /// What:
