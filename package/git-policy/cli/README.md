@@ -360,18 +360,35 @@ Read-only commands,
   A push that adds no pointer starts no `git-lfs` and sends no request to the LFS server;
   a push that adds some runs
    `git-lfs push --object-id <remote> <oid>...` for exactly those objects.
-  The remote's tracking refs say what the destination already has only for a configured remote that is fetched from
-   and pushed to one place;
+  The remote's tracking refs say what the destination already has only while the destination itself says so:
+  the wrapper asks it for its branch heads (`git ls-remote --heads <remote>`,
+  through the same URL and rewrites the
+   push resolves) and keeps a ref only where it reports the same branch at the same commit.
+  A branch that moved on,
+   a branch the destination no longer has,
+  a question that cannot be answered,
   a push URL,
-  a `pushInsteadOf` rewrite,
+  a `pushInsteadOf`
+   rewrite,
   a URL or path destination,
-  a mirror push or an
-   unconfigured remote makes the wrapper read the whole history of the pushed refs instead.
+  a remote Git writes to more than one URL,
+  a mirror push or an unconfigured
+   remote makes the wrapper read the whole history of the pushed refs instead;
+  a clone with no tracking refs for the
+   remote asks nothing.
+  `remote.<name>.mirror` is read through Git (`git config --type=bool --get`),
+  never by a list of
+   spellings kept here,
+  so `2`,
+  `-1` and `0x10` are the mirror Git performs and an unreadable value stops the push
+   Git would stop.
   A repository the readers decline,
   or an object missing from `.git/lfs`,
   falls back to `git-lfs push <remote> <refs>`
    (with `--all` in the untrusted cases),
-  which scans itself.
+  which scans itself;
+  a clone whose `.git/lfs` lacks an old object then
+   refuses the push with `git-lfs`'s words instead of publishing pointers nobody can fill.
   When `git-lfs push` fails,
   the wrapper does not run it again,
   whatever the cause.

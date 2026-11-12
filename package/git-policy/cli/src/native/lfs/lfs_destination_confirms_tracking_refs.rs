@@ -19,13 +19,14 @@
 //!  destination reports the same branch at the same commit.
 //! A branch the destination moved on,
 //! a branch it no longer has,
-//!  a destination that cannot be asked:
+//!  a destination that cannot be asked,
+//! a local listing this cannot read:
 //! those refs are then no evidence at all,
-//! and the whole pushed history is
-//!  read instead,
+//! and
+//!  the whole pushed history is read instead,
 //! which is slower and can leave out nothing the destination might lack.
-//! A clone that holds no tracking
-//!  refs for the remote has nothing to skip,
+//! A
+//!  clone that holds no tracking refs for the remote has nothing to skip,
 //! so it asks nothing.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,6 +39,9 @@ use crate::diagnostic_log::debug;
 /// The read-only Git questions,
 /// and the answers their callers read.
 use crate::lfs_upload_settings::{Query, QueryAwaiting};
+/// The destination's branches,
+/// by ref name.
+use std::collections::HashMap;
 
 /// The tag of the decision lines.
 const TAG: &str = "monochromatic-git-policy-cli lfs-destination";
@@ -45,13 +49,19 @@ const TAG: &str = "monochromatic-git-policy-cli lfs-destination";
 /// What:
 ///  The `for-each-ref` format the tracking refs are read in:
 /// the commit,
-/// the ref name,
-/// and the ref a symbolic
-///  ref points at (empty for a ref of its own).
+/// the ref a symbolic ref points at,
+/// and
+///  the ref name.
 /// Why:
 ///   `refs/remotes/<remote>/HEAD` is a symbolic ref that holds no belief about the destination of its own,
 ///  and a tab separates the three without the spaces a ref name may hold.
-const TRACKING_FORMAT: &str = "--format=%(objectname)%09%(refname)%09%(symref)";
+/// The empty field of a ref that is not
+///  symbolic sits between two filled ones,
+/// because every caller of a Git query trims the answer's ends,
+///  which would eat a trailing or leading tab.
+/// A line in any other shape is refused rather than read as a ref with no
+///  commit.
+const TRACKING_FORMAT: &str = "--format=%(objectname)%09%(symref)%09%(refname)";
 
 /// One of this clone's tracking refs:
 /// the branch it came from and the commit it holds.
@@ -75,25 +85,34 @@ fn is_filled(field: &str) -> bool {
 }
 
 /// What:
-///  The refs of a `for-each-ref` listing of one remote's tracking refs that hold a belief of their own.
+///  The refs of a `for-each-ref` listing of one remote's tracking refs that hold a belief of their own,
+///  or nothing when a line is not the shape the format asks for.
 /// Why:
-///   A symbolic ref and a name outside `refs/remotes/<remote>/` are not evidence about the destination;
-/// a
-///  line the format did not produce is skipped rather than read as one.
+///   A symbolic ref and a name outside `refs/remotes/<remote>/` are no evidence about the destination,
+/// and a
+///  listing read as "no tracking refs" would trust everything:
+/// an answer this cannot read is refused instead,
+///  so the caller reads the whole pushed history.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// listing.split('\n').flatMap((line) => { const [oid, name, symref] = line.split('\t'); return !symref && name.startsWith(prefix) ? [{ oid, branch: name.slice(prefix.length) }] : []; });
+/// listing.split('\n').flatMap((line) => { const fields = line.split('\t'); if (!line) return []; if (fields.length !== 3) throw new Error(line); return fields[1] || !fields[2].startsWith(prefix) ? [] : [{ oid: fields[0], branch: fields[2].slice(prefix.length) }]; });
 /// ```
-fn tracking_refs(listing: &str, remote: &str) -> Vec<TrackingRef> {
+fn tracking_refs(listing: &str, remote: &str) -> Option<Vec<TrackingRef>> {
     let prefix: String = format!("refs/remotes/{remote}/");
     let mut tracked: Vec<TrackingRef> = Vec::new();
     for line in listing.lines() {
-        let mut fields = line.split('\t');
-        let (Some(oid), Some(refname)) = (fields.next(), fields.next()) else {
+        if line.is_empty() {
             continue;
+        }
+        let mut fields = line.split('\t');
+        let (Some(oid), Some(symbolic), Some(refname)) = (fields.next(), fields.next(), fields.next()) else {
+            return None;
         };
-        if fields.next().is_some_and(is_filled) {
+        if fields.next().is_some() {
+            return None;
+        }
+        if is_filled(symbolic) {
             continue;
         }
         let Some(branch) = refname.strip_prefix(prefix.as_str()) else {
@@ -104,30 +123,32 @@ fn tracking_refs(listing: &str, remote: &str) -> Vec<TrackingRef> {
             oid: oid.to_owned(),
         });
     }
-    return tracked;
+    return Some(tracked);
 }
 
 /// What:
 ///  The branch heads a destination reported,
-/// as `(commit, ref name)` pairs,
+/// by ref name,
 /// or nothing when a line is not one.
 /// Why:
 ///   A listing this cannot read is no evidence about the destination,
 /// and the caller then reads the whole
-///  pushed history rather than trusting a part of it.
+///  pushed history rather than trusting a part of it;
+/// one map answers every tracking ref in one lookup,
+///  whatever the destination reports.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const heads = listing.split('\n').filter(Boolean).map((line) => { const [oid, name] = line.split('\t'); if (!name) throw new Error(line); return [oid, name]; });
+/// const heads = new Map(listing.split('\n').filter(Boolean).map((line) => { const [oid, name] = line.split('\t'); if (!name) throw new Error(line); return [name, oid]; }));
 /// ```
-fn destination_heads(reported: &str) -> Option<Vec<(String, String)>> {
-    let mut heads: Vec<(String, String)> = Vec::new();
+fn destination_heads(reported: &str) -> Option<HashMap<String, String>> {
+    let mut heads: HashMap<String, String> = HashMap::new();
     for line in reported.lines() {
         if line.is_empty() {
             continue;
         }
         let (oid, refname) = line.split_once('\t')?;
-        heads.push((oid.to_owned(), refname.to_owned()));
+        heads.insert(refname.to_owned(), oid.to_owned());
     }
     return Some(heads);
 }
@@ -143,19 +164,12 @@ fn destination_heads(reported: &str) -> Option<Vec<(String, String)>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// tracked.every(({ branch, oid }) => heads.some(([headOid, name]) => name === `refs/heads/${branch}` && headOid === oid));
+/// tracked.every(({ branch, oid }) => heads.get(`refs/heads/${branch}`) === oid);
 /// ```
-fn every_tracking_ref_is_reported(tracked: &[TrackingRef], heads: &[(String, String)]) -> bool {
+fn every_tracking_ref_is_reported(tracked: &[TrackingRef], heads: &HashMap<String, String>) -> bool {
     for tracked_ref in tracked {
         let wanted: String = format!("refs/heads/{}", tracked_ref.branch);
-        let mut reported: bool = false;
-        for (oid, refname) in heads {
-            if *refname == wanted && *oid == tracked_ref.oid {
-                reported = true;
-                break;
-            }
-        }
-        if !reported {
+        if heads.get(wanted.as_str()) != Some(&tracked_ref.oid) {
             return false;
         }
     }
@@ -174,21 +188,24 @@ fn every_tracking_ref_is_reported(tracked: &[TrackingRef], heads: &[(String, Str
 /// ```ts
 /// function evidenceHolds(tracked, heads, remote): boolean;
 /// ```
-fn evidence_holds(tracked: &[TrackingRef], heads: Option<Vec<(String, String)>>, remote: &str) -> bool {
+fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>>, remote: &str) -> bool {
     if tracked.is_empty() {
         return true;
     }
-    let Some(heads) = heads else {
+    let Some(reported) = heads else {
         debug(
             TAG,
             &format!("the destination of {remote} did not report its branches, so the whole pushed history is read"),
         );
         return false;
     };
-    if every_tracking_ref_is_reported(tracked, heads.as_slice()) {
+    if every_tracking_ref_is_reported(tracked, &reported) {
         debug(
             TAG,
-            &format!("the destination of {remote} reports every one of this clone's {} tracking refs, so the upload stops where they reach", tracked.len()),
+            &format!(
+                "the destination of {remote} reports every one of this clone's {} tracking refs, so the upload stops where they reach",
+                tracked.len()
+            ),
         );
         return true;
     }
@@ -204,7 +221,8 @@ fn evidence_holds(tracked: &[TrackingRef], heads: Option<Vec<(String, String)>>,
 
 /// What:
 ///  The tracking refs of `remote` from one `for-each-ref`,
-/// or nothing when Git cannot list them for us.
+/// or nothing when Git cannot list them or the listing is not
+///  the shape asked for.
 /// Why:
 ///   A listing that cannot be read is no evidence,
 /// and the caller then sends everything;
@@ -218,7 +236,16 @@ fn evidence_holds(tracked: &[TrackingRef], heads: Option<Vec<(String, String)>>,
 fn read_tracking_refs(remote: &str, query: Query<'_>) -> Option<Vec<TrackingRef>> {
     let prefix: String = format!("refs/remotes/{remote}");
     return match query.ask(&["for-each-ref", TRACKING_FORMAT, prefix.as_str()]) {
-        Ok(listing) => Some(tracking_refs(listing.as_str(), remote)),
+        Ok(listing) => match tracking_refs(listing.as_str(), remote) {
+            Some(tracked) => Some(tracked),
+            None => {
+                debug(
+                    TAG,
+                    &format!("git for-each-ref {prefix} answered in a shape this cannot read, so the whole pushed history is read"),
+                );
+                None
+            }
+        },
         Err(why) => {
             debug(
                 TAG,
@@ -234,7 +261,16 @@ fn read_tracking_refs(remote: &str, query: Query<'_>) -> Option<Vec<TrackingRef>
 async fn read_tracking_refs_awaiting(remote: &str, query: QueryAwaiting<'_>) -> Option<Vec<TrackingRef>> {
     let prefix: String = format!("refs/remotes/{remote}");
     return match query.ask(&["for-each-ref", TRACKING_FORMAT, prefix.as_str()]).await {
-        Ok(listing) => Some(tracking_refs(listing.as_str(), remote)),
+        Ok(listing) => match tracking_refs(listing.as_str(), remote) {
+            Some(tracked) => Some(tracked),
+            None => {
+                debug(
+                    TAG,
+                    &format!("git for-each-ref {prefix} answered in a shape this cannot read, so the whole pushed history is read"),
+                );
+                None
+            }
+        },
         Err(why) => {
             debug(
                 TAG,
@@ -258,7 +294,7 @@ async fn read_tracking_refs_awaiting(remote: &str, query: QueryAwaiting<'_>) -> 
 /// ```ts
 /// query(['ls-remote', '--heads', remote]) -> heads
 /// ```
-fn read_destination_heads(remote: &str, query: Query<'_>) -> Option<Vec<(String, String)>> {
+fn read_destination_heads(remote: &str, query: Query<'_>) -> Option<HashMap<String, String>> {
     return match query.ask(&["ls-remote", "--heads", remote]) {
         Ok(reported) => destination_heads(reported.as_str()),
         Err(why) => {
@@ -273,7 +309,7 @@ fn read_destination_heads(remote: &str, query: Query<'_>) -> Option<Vec<(String,
 
 /// The same question,
 /// awaited by a caller that is itself a task of the runtime.
-async fn read_destination_heads_awaiting(remote: &str, query: QueryAwaiting<'_>) -> Option<Vec<(String, String)>> {
+async fn read_destination_heads_awaiting(remote: &str, query: QueryAwaiting<'_>) -> Option<HashMap<String, String>> {
     return match query.ask(&["ls-remote", "--heads", remote]).await {
         Ok(reported) => destination_heads(reported.as_str()),
         Err(why) => {
@@ -307,7 +343,7 @@ pub(crate) fn tracking_refs_describe_destination(remote: &str, query: Query<'_>)
     if tracked.is_empty() {
         return true;
     }
-    let heads: Option<Vec<(String, String)>> = read_destination_heads(remote, query);
+    let heads: Option<HashMap<String, String>> = read_destination_heads(remote, query);
     return evidence_holds(tracked.as_slice(), heads, remote);
 }
 
@@ -322,7 +358,7 @@ pub(crate) async fn tracking_refs_describe_destination_awaiting(remote: &str, qu
     if tracked.is_empty() {
         return true;
     }
-    let heads: Option<Vec<(String, String)>> = read_destination_heads_awaiting(remote, query).await;
+    let heads: Option<HashMap<String, String>> = read_destination_heads_awaiting(remote, query).await;
     return evidence_holds(tracked.as_slice(), heads, remote);
 }
 

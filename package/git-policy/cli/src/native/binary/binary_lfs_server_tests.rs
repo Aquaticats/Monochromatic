@@ -502,29 +502,49 @@ fn move_origin(fixture: &Fixture, repo: &Path) -> (PathBuf, LfsServer) {
     return (origin, server);
 }
 
+/// What:
+///  Real Git in the fixture with the fixture's `git-lfs` on the `PATH`,
+/// so the branch's file can pass through the
+///  LFS filter.
+/// Why:
+///   Switching branches and committing run the clean and smudge filters,
+/// and the hermetic `PATH` of the plain
+///  helper has no `git-lfs`.
+fn real_git_with_lfs(fixture: &Fixture, repo: &Path) -> std::process::Command {
+    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let mut command: std::process::Command = direct(fixture);
+    command.current_dir(repo).env("PATH", path);
+    return command;
+}
+
 /// A commit that adds one LFS file on a branch of its own,
 /// made by real Git so that no auto-push runs,
 /// leaving the
 ///  worktree on `main`.
 fn side_branch_with_a_pointer(fixture: &Fixture, repo: &Path, content: &[u8]) -> String {
-    git(fixture, repo, &["switch", "--quiet", "--create", "side"]);
+    let switched = real_git_with_lfs(fixture, repo)
+        .args(["switch", "--quiet", "--create", "side"])
+        .output()
+        .expect("switch starts");
+    assert!(switched.status.success(), "{}", String::from_utf8_lossy(switched.stderr.as_slice()));
     std::fs::write(repo.join("side.bin"), content).expect("side.bin");
     let added: Observed = observe(
         &mut super::commit::wrapped_commit(fixture, repo, &["add", "--", "side.bin"]),
         b"",
     );
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
-    path.push(":/usr/bin:/bin");
-    let committed = direct(fixture)
-        .current_dir(repo)
-        .env("PATH", path)
+    let committed = real_git_with_lfs(fixture, repo)
         .args(["commit", "--quiet", "--message=side"])
         .output()
         .expect("commit starts");
     assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
     let oid: String = pointer_oid_at(fixture, repo, "side:side.bin");
-    git(fixture, repo, &["switch", "--quiet", "main"]);
+    let back = real_git_with_lfs(fixture, repo)
+        .args(["switch", "--quiet", "main"])
+        .output()
+        .expect("switch starts");
+    assert!(back.status.success(), "{}", String::from_utf8_lossy(back.stderr.as_slice()));
     return oid;
 }
 

@@ -47,10 +47,10 @@ impl GitQueryAwaiting for Stub<'_> {
 
 /// The commit this clone believes `origin/main` holds,
 /// in the listing a `for-each-ref` gives.
-const HELD_MAIN: &str = "1111111111111111111111111111111111111111\trefs/remotes/origin/main\t";
+const HELD_MAIN: &str = "1111111111111111111111111111111111111111\t\trefs/remotes/origin/main";
 /// A symbolic tracking ref,
 /// which holds no belief about the destination.
-const HELD_HEAD: &str = "1111111111111111111111111111111111111111\trefs/remotes/origin/HEAD\trefs/remotes/origin/main";
+const HELD_HEAD: &str = "1111111111111111111111111111111111111111\trefs/remotes/origin/main\trefs/remotes/origin/HEAD";
 /// The same branch and commit,
 /// as the destination reports them.
 const SAME_MAIN: &str = "1111111111111111111111111111111111111111\trefs/heads/main";
@@ -95,25 +95,45 @@ fn check(answers: &[(&str, &str)], failing: &[&str], expected: bool, asked: usiz
 }
 
 /// A listing keeps the refs that hold a belief of their own,
-/// and stops at the symbolic ref,
-/// at another remote and at a
-///  line the format did not produce.
+/// and stops at the symbolic ref and at another
+///  remote's ref.
 #[test]
 fn a_listing_keeps_the_tracking_refs_that_hold_a_belief_of_their_own() {
-    let listing: String = [HELD_MAIN, HELD_HEAD, "4444444444444444444444444444444444444444\trefs/remotes/elsewhere/main\t", "no tab on this line"].join("\n");
-    let tracked: Vec<TrackingRef> = tracking_refs(listing.as_str(), "origin");
+    let listing: String = [HELD_MAIN, HELD_HEAD, "4444444444444444444444444444444444444444\t\trefs/remotes/elsewhere/main"].join("\n");
+    let tracked: Vec<TrackingRef> = tracking_refs(listing.as_str(), "origin").expect("a listing");
     assert_eq!(tracked.len(), 1);
     assert_eq!((tracked[0].branch.as_str(), tracked[0].oid.as_str()), ("main", "1111111111111111111111111111111111111111"));
-    assert!(tracking_refs("", "origin").is_empty());
+    assert!(tracking_refs("", "origin").expect("an empty listing").is_empty());
+}
+
+/// What:
+///  A listing in a shape the format did not ask for is refused,
+/// never read as a clone with no tracking refs.
+/// Why:
+///   Reading it as empty would trust every ref the clone holds,
+/// which is the one decision this file exists to
+///  withhold.
+#[test]
+fn a_listing_in_another_shape_is_no_listing() {
+    for listing in [
+        "refs/remotes/origin/main",
+        "1111111111111111111111111111111111111111 refs/remotes/origin/main",
+        // What a caller that trims the answer's ends would leave of a line whose last field was empty.
+        "1111111111111111111111111111111111111111\trefs/remotes/origin/main",
+        "only-one-field",
+    ] {
+        assert!(tracking_refs(listing, "origin").is_none(), "{listing:?}");
+    }
 }
 
 /// The destination's answer reads as pairs,
 /// and a listing that is not one is no answer at all.
 #[test]
 fn the_destination_answer_reads_as_pairs_and_an_unreadable_one_is_no_answer() {
-    let heads: Vec<(String, String)> = destination_heads([SAME_MAIN, MOVED_MAIN].join("\n").as_str()).expect("two heads");
+    let heads: HashMap<String, String> = destination_heads([SAME_MAIN, "2222222222222222222222222222222222222222\trefs/heads/side"].join("\n").as_str()).expect("two heads");
     assert_eq!(heads.len(), 2);
-    assert_eq!((heads[1].0.as_str(), heads[1].1.as_str()), ("2222222222222222222222222222222222222222", "refs/heads/main"));
+    assert_eq!(heads.get("refs/heads/main").map(String::as_str), Some("1111111111111111111111111111111111111111"));
+    assert_eq!(heads.get("refs/heads/side").map(String::as_str), Some("2222222222222222222222222222222222222222"));
     assert!(destination_heads("").expect("an empty answer").is_empty(), "an empty destination has no branches");
     assert!(destination_heads("fatal: not a repository").is_none());
 }
@@ -122,14 +142,11 @@ fn the_destination_answer_reads_as_pairs_and_an_unreadable_one_is_no_answer() {
 /// for the branch it came from.
 #[test]
 fn a_tracking_ref_is_confirmed_only_at_the_commit_it_holds() {
-    let tracked: Vec<TrackingRef> = vec![TrackingRef {
-        branch: String::from("main"),
-        oid: String::from("1111111111111111111111111111111111111111"),
-    }];
-    let heads = |reported: &str| -> Vec<(String, String)> { return destination_heads(reported).expect("a listing"); };
-    assert!(every_tracking_ref_is_reported(tracked.as_slice(), heads(SAME_MAIN).as_slice()));
-    assert!(!every_tracking_ref_is_reported(tracked.as_slice(), heads(MOVED_MAIN).as_slice()));
-    assert!(!every_tracking_ref_is_reported(tracked.as_slice(), heads(GONE_MAIN).as_slice()));
+    let tracked: Vec<TrackingRef> = tracking_refs(HELD_MAIN, "origin").expect("a listing");
+    let heads = |reported: &str| -> HashMap<String, String> { return destination_heads(reported).expect("a listing"); };
+    assert!(every_tracking_ref_is_reported(tracked.as_slice(), &heads(SAME_MAIN)));
+    assert!(!every_tracking_ref_is_reported(tracked.as_slice(), &heads(MOVED_MAIN)));
+    assert!(!every_tracking_ref_is_reported(tracked.as_slice(), &heads(GONE_MAIN)));
 }
 
 /// What:
@@ -148,6 +165,8 @@ fn both_faces_read_every_answer_alike() {
     check(&[("for-each-ref", HELD_MAIN), ("ls-remote", "not a listing")], &[], false, 2);
     check(&[("for-each-ref", HELD_MAIN)], &["ls-remote"], false, 2);
     check(&[], &["for-each-ref"], false, 1);
+    check(&[("for-each-ref", "refs/remotes/origin/main")], &[], false, 1);
+    check(&[("for-each-ref", "1111111111111111111111111111111111111111 refs/remotes/origin/main")], &[], false, 1);
     check(&[("for-each-ref", HELD_HEAD)], &[], true, 1);
     check(&[("for-each-ref", "")], &[], true, 1);
 }

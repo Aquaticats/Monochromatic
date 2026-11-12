@@ -151,8 +151,20 @@ fn a_destination_that_tracking_refs_may_not_describe_keeps_the_full_scan() {
     assert_eq!(full(&["https://example.invalid/r.git", "main"], &[url])[..3], words(&["push", "--all", "https://example.invalid/r.git"])[..]);
     assert_eq!(full(&["origin", "main"], &[("remote.origin.pushurl", "https://other.invalid/r.git")])[..2], words(&["push", "--all"])[..]);
     assert_eq!(full(&["elsewhere", "main"], &[url])[..3], words(&["push", "--all", "elsewhere"])[..]);
-    assert_eq!(full(&["--mirror", "origin"], &[url]), words(&["push", "--all", "origin"]));
-    assert_eq!(full(&["origin"], &[url, ("remote.origin.mirror", "true")]), words(&["push", "--all", "origin"]));
+    let mirrored: UploadPlan = plan_of(
+        &["--mirror", "origin"],
+        &[url],
+        &[("symbolic-ref", "refs/heads/work"), ("config:remote.origin.mirror", "true")],
+    );
+    assert!(mirrored.full_scan);
+    assert_eq!(mirrored.arguments(mirrored.remotes[0].as_os_str()), words(&["push", "--all", "origin"]));
+    let configured_mirror: UploadPlan = plan_of(
+        &["origin"],
+        &[url, ("remote.origin.mirror", "true")],
+        &[("symbolic-ref", "refs/heads/work"), ("config:remote.origin.mirror", "true")],
+    );
+    assert!(configured_mirror.full_scan);
+    assert_eq!(configured_mirror.arguments(configured_mirror.remotes[0].as_os_str()), words(&["push", "--all", "origin"]));
 }
 
 /// A forced refspec uploads its source,
@@ -301,9 +313,9 @@ fn a_mirror_is_read_through_git_and_never_from_a_list_of_spellings() {
     assert!(error.0.contains("remote.origin.mirror"), "{error:?}");
     let settings_without_mirror: Settings = config(&[("remote.origin.url", "https://example.invalid/r.git"), ("push.default", "current")]);
     let answers: &[(&str, &str)] = &[("symbolic-ref", "refs/heads/work"), ("for-each-ref:refs/remotes/origin", "")];
-    let (ordinary, asked) = plan_in(Path::new("/work"), &[], &["origin"], &[], &settings_without_mirror, &Stub { answers, failing: &[] });
+    let (ordinary, ordinary_asked) = plan_in(Path::new("/work"), &[], &["origin"], &[], &settings_without_mirror, &Stub { answers, failing: &[] });
     assert!(!ordinary.expect("planned").expect("a plan").everything);
-    assert_eq!(asked, 2, "a repository without a mirror setting asks Git nothing about one");
+    assert_eq!(ordinary_asked, 2, "a repository without a mirror setting asks Git nothing about one");
 }
 
 /// Every query that fails,
@@ -359,7 +371,7 @@ fn a_remote_with_several_urls_is_uploaded_to_each() {
 #[test]
 fn the_destination_itself_decides_whether_the_tracking_refs_are_evidence() {
     let url: (&str, &str) = ("remote.origin.url", "https://example.invalid/r.git");
-    let tracked: &str = "1111111111111111111111111111111111111111\trefs/remotes/origin/main\t\n3333333333333333333333333333333333333333\trefs/remotes/origin/HEAD\trefs/remotes/origin/main\n";
+    let tracked: &str = "1111111111111111111111111111111111111111\t\trefs/remotes/origin/main\n3333333333333333333333333333333333333333\trefs/remotes/origin/main\trefs/remotes/origin/HEAD\n";
     let planned = |answers: &[(&str, &str)], failing: &[&str]| -> (Option<UploadPlan>, usize) {
         let (result, asked) = plan_in(Path::new("/work"), &[], &["origin", "main"], &[], &config(&[url]), &Stub { answers, failing });
         return (result.expect("the plan is worked out"), asked);
@@ -382,13 +394,13 @@ fn the_destination_itself_decides_whether_the_tracking_refs_are_evidence() {
     assert_eq!(sends_everything(&[tracked_listing, ("ls-remote:origin", "not a listing\n")], &[]), "--all", "an answer that is not a listing");
     assert_eq!(sends_everything(&[tracked_listing], &["ls-remote:origin"]), "--all", "a destination that cannot be asked");
     assert_eq!(sends_everything(&[], &["for-each-ref:refs/remotes/origin"]), "--all", "tracking refs that cannot be listed");
-    let (none, asked) = planned(&[("for-each-ref:refs/remotes/origin", "")], &[]);
+    let (none, none_asked) = planned(&[("for-each-ref:refs/remotes/origin", "")], &[]);
     let nothing_to_skip: UploadPlan = none.expect("a plan");
     assert!(!nothing_to_skip.full_scan, "a clone with no tracking refs has nothing to skip");
-    assert_eq!(asked, 1, "and nothing to ask the destination about");
-    let (symbolic, asked) = planned(&[("for-each-ref:refs/remotes/origin", "3333333333333333333333333333333333333333\trefs/remotes/origin/HEAD\trefs/remotes/origin/main\n")], &[]);
+    assert_eq!(none_asked, 1, "and nothing to ask the destination about");
+    let (symbolic, symbolic_asked) = planned(&[("for-each-ref:refs/remotes/origin", "3333333333333333333333333333333333333333\trefs/remotes/origin/main\trefs/remotes/origin/HEAD\n")], &[]);
     assert!(!symbolic.expect("a plan").full_scan, "a symbolic ref holds no belief about the destination");
-    assert_eq!(asked, 1);
+    assert_eq!(symbolic_asked, 1);
 }
 
 /// A remote with several push URLs is uploaded to once per URL;
@@ -600,9 +612,9 @@ fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() 
     // A mirror setting is asked of Git on both faces, and the two plans agree about it.
     let mirror_settings: Settings = config(&[("remote.origin.mirror", "2")]);
     let mirror_answers: &[(&str, &str)] = &[("symbolic-ref", "refs/heads/main"), ("config:remote.origin.mirror", "true")];
-    let stub: Stub<'_> = Stub { answers: mirror_answers, failing: &[] };
-    let synchronous = plan_in(Path::new("/work"), &[], &["origin"], &[], &mirror_settings, &stub);
-    let awaited = plan_in_awaiting(Path::new("/work"), &[], &["origin"], &[], &mirror_settings, &stub);
-    assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"));
-    assert!(synchronous.0.expect("planned").expect("a plan").everything);
+    let mirror_stub: Stub<'_> = Stub { answers: mirror_answers, failing: &[] };
+    let mirror_synchronous = plan_in(Path::new("/work"), &[], &["origin"], &[], &mirror_settings, &mirror_stub);
+    let mirror_awaited = plan_in_awaiting(Path::new("/work"), &[], &["origin"], &[], &mirror_settings, &mirror_stub);
+    assert_eq!(format!("{mirror_awaited:?}"), format!("{mirror_synchronous:?}"));
+    assert!(mirror_synchronous.0.expect("planned").expect("a plan").everything);
 }

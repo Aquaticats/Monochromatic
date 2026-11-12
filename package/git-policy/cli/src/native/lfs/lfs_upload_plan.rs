@@ -6,6 +6,10 @@
 //! so that it
 //!  cannot hide an object the destination lacks,
 //! and in git-lfs's bounded form (no `--all`) everywhere else.
+//! A tracking ref
+//!  describes the destination only where the destination itself reports it at the same commit,
+//! which is asked of
+//!  the destination rather than assumed (`lfs_destination_confirms_tracking_refs`).
 //! Why:
 //!  `git lfs push` takes refs and no ref-update lines,
 //! so the plan is read from the push's own arguments with the same
