@@ -250,6 +250,8 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
                 let next: Frame = enter(&frame.dir, entry.as_os_str(), device, Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()))?;
                 shown.push(entry);
                 stack.push(next);
+                #[cfg(test)]
+                crate::subvolume_remove_listing_test_support::after_listing(Describe::new(top.as_path(), shown.as_slice()).path().as_path());
             }
             Some((entry, false)) => match remove_at(&frame.dir, entry.as_os_str(), false) {
                 Ok(()) => {}

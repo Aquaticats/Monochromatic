@@ -144,6 +144,10 @@ pub mod subvolume_remove;
 
 pub mod subvolume_remove_walk;
 
+/// The moment a removal has read a directory's entries and not yet removed them, for a control that acts there.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod subvolume_remove_listing_test_support;
+
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
 pub mod subvolume_journal;

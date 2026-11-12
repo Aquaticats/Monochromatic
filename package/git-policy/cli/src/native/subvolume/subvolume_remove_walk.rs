@@ -149,7 +149,15 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
         }
         let _child_widened = widen_directory(&child);
         let pending: Vec<(OsString, bool)> = list(&child, pass == Pass::Check)?;
+        #[cfg(test)]
+        let listed: PathBuf = shown_path(shown, &stack, &name);
         stack.push(Frame { directory: child, name: Some(name), pending });
+        #[cfg(test)]
+        {
+            if pass == Pass::Remove {
+                crate::subvolume_remove_listing_test_support::after_listing(listed.as_path());
+            }
+        }
     }
     return Ok(());
 }

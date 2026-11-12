@@ -128,6 +128,115 @@ fn btrfs_a_nested_subvolume_is_refused_before_anything_else_in_the_tree_is_delet
 }
 
 /// What:
+///  A nested subvolume that appears in a directory after the removal listed that directory is refused there,
+///  by name,
+/// with the ways forward,
+///  and it and what it holds are untouched.
+/// Why:
+///   A removal lists a directory once and unlinks what it listed,
+/// so a subvolume made after that listing is not
+///  among them;
+/// the kernel then refuses the directory as not empty,
+/// and the removal has to say what it met and what
+///  to do about it,
+/// which `SPEC.md` promises (a boundary that appears after the first pass is refused again at the
+///  directory where it is met).
+/// The entries that listing held are already removed,
+/// which is the residual race
+///  `SPEC.md` accepts by name;
+/// this control pins the refusal and its words,
+/// never that the listing's entries
+///  survived.
+#[test]
+fn btrfs_a_nested_subvolume_made_after_a_directory_was_listed_is_refused_there_by_name() {
+    let Some(root) = btrfs_fixture("trash-remove-subvolume-after-listing") else { return };
+    let top: PathBuf = root.join("top");
+    put(root.as_path(), "top/locked/file", b"a file the listing held");
+    let boundary: PathBuf = top.join("locked/boundary-made-after-the-listing");
+    let made: PathBuf = boundary.clone();
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+        if listed.file_name() != Some(std::ffi::OsStr::new("locked")) {
+            return;
+        }
+        subvolume_create_at(made.as_path()).expect("a nested subvolume made while the removal runs");
+        std::fs::write(made.join("inside"), b"data the subvolume holds").expect("a file inside it");
+    });
+    let held: std::fs::File = open_root(root.as_path()).expect("root");
+    let reason: String = remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None).expect_err("a nested subvolume is no boundary a removal crosses");
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    assert!(reason.contains(boundary.to_str().expect("UTF-8")), "the reason names the boundary the removal met: {reason}");
+    assert!(reason.contains("btrfs subvolume delete"), "the ways forward are named: {reason}");
+    assert!(boundary.join("inside").is_file(), "the subvolume and what it holds are untouched");
+    assert!(top.is_dir(), "the tree stays where it is");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  Entries that appear in a directory after the removal listed it are named,
+///  and they are left as they are.
+/// Why:
+///   The removal deletes what it listed and nothing else,
+/// so an entry that appeared after the listing is no
+///  part of what it was asked to delete;
+/// the kernel's `Directory not empty` alone tells the person nothing about
+///  what stands there or what to do.
+#[test]
+fn entries_that_appeared_after_a_directory_was_listed_are_named_and_left_as_they_are() {
+    let root: PathBuf = fixture("trash-remove-entry-after-listing");
+    put(root.as_path(), "top/locked/file", b"a file the listing held");
+    let appeared: PathBuf = root.join("top/locked/appeared-after-the-listing");
+    let written: PathBuf = appeared.clone();
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+        if listed.file_name() != Some(std::ffi::OsStr::new("locked")) {
+            return;
+        }
+        std::fs::write(written.as_path(), b"written while the removal ran").expect("an entry that appears after the listing");
+    });
+    let held: std::fs::File = open_root(root.as_path()).expect("root");
+    let reason: String = remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None).expect_err("a directory that gained an entry is not the one the removal listed");
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    assert!(reason.contains("appeared-after-the-listing"), "the reason names what appeared: {reason}");
+    assert!(appeared.is_file(), "what appeared is left as it is: {reason}");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory whose name something else took while the removal ran is named as another object,
+///  and that object is left as it is.
+/// Why:
+///   The removal holds the directory it emptied and removes the name in the held parent,
+/// so a name that no longer
+///  leads to that directory removes nothing of it;
+/// the person has to be told that the name holds something else,
+///  not left with a bare `Directory not empty`.
+#[test]
+fn a_directory_whose_name_was_taken_while_it_was_removed_is_named_as_another_object() {
+    let root: PathBuf = fixture("trash-remove-name-taken");
+    put(root.as_path(), "top/locked/file", b"a file the listing held");
+    let moved: PathBuf = root.join("top/moved-aside");
+    let taken: PathBuf = root.join("top/locked");
+    let (from, to, another): (PathBuf, PathBuf, PathBuf) = (taken.clone(), moved.clone(), taken.clone());
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+        if listed.file_name() != Some(std::ffi::OsStr::new("locked")) {
+            return;
+        }
+        std::fs::rename(from.as_path(), to.as_path()).expect("the directory the removal holds leaves its name");
+        std::fs::create_dir(another.as_path()).expect("another directory takes the name");
+        std::fs::write(another.join("someone-elses"), b"not the tree the removal was asked to remove").expect("an entry of that other directory");
+    });
+    let held: std::fs::File = open_root(root.as_path()).expect("root");
+    let reason: String = remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None).expect_err("a name that leads to another object is not the directory the removal emptied");
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    assert!(reason.contains(taken.to_str().expect("UTF-8")), "the reason names the name that was taken: {reason}");
+    assert!(reason.contains("another object"), "the reason says the name leads to another object: {reason}");
+    assert!(taken.join("someone-elses").is_file(), "the other directory and its entry are left as they are");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
 ///  A folder holding the stand-ins a snapshot shows where its source holds nested subvolumes is removed whole.
 /// Why:
 ///   The stand-in step takes a whole worktree folder off an add's waiting path by moving it into the trash,
