@@ -1700,9 +1700,9 @@ and one the service settled as failed is named as a trash nothing will empty,
 with the same instruction to look at it,
 so no command promises an emptying no service will claim.
 A record is work only a woken service looks at,
-so the scan tells the repository's service once for each trash it records:
-for the record it wrote,
-and for one the queue already held which no service ever looked at,
+so the scan tells the repository's service about each trash whose record waits for it:
+the one it wrote,
+and one the queue already held which no service ever looked at,
 whose own wake never arrived,
 exactly as a hand-over tells it.
 A work item of kind `trash` that an earlier release wrote is emptied by the same handler

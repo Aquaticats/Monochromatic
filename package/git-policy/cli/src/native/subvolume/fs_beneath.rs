@@ -420,17 +420,18 @@ pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std:
     if entry_metadata_at(dir, name)?.is_dir() {
         return Ok(Owned::Kept(format!("{} is a directory and is not removed", name.to_string_lossy())));
     }
-    #[cfg(test)]
-    WHILE_THE_ENTRY_IS_DECIDED.with(|hook| {
-        if let Some(intervene) = hook.borrow().as_ref() {
-            intervene();
-        }
-    });
     return match remove_at(dir, name, false) {
         Ok(()) => Ok(Owned::Removed),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Owned::Absent),
         Err(error) => Err(error),
     };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may put another file at the name on this thread while the entry that was taken is being decided,
+    /// which is where a process that renames onto the name can slip in.
+    pub(crate) static WHILE_THE_ENTRY_IS_DECIDED: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:
@@ -502,14 +503,6 @@ pub fn take_then_remove_if_identical(dir: &File, name: &OsStr, taken: &OsStr, ex
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Owned::Absent),
         Err(error) => Err(error),
     };
-}
-
-#[cfg(test)]
-thread_local! {
-    /// A control may put another file at the name on this thread while the entry that was there is being decided,
-    /// between the identity the removal was given and the call that takes the name,
-    ///  where a process that renames onto the name can slip in.
-    pub(crate) static WHILE_THE_ENTRY_IS_DECIDED: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:

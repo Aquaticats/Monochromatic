@@ -441,7 +441,7 @@ fn remove_the_manifest(trash: &File, inside: &Path, expected: crate::fs_beneath:
     ) {
         Ok(crate::fs_beneath::Owned::Removed | crate::fs_beneath::Owned::Absent) => Ok(()),
         Ok(crate::fs_beneath::Owned::Kept(reason)) => Err(TrashLeft::kept(format!(
-            "the manifest inside {} is not the file that was read as it ({reason}), so the trash directory is left alone",
+            "the manifest inside {} is not shown to be the file that was read as it ({reason}), so the trash directory is left alone",
             inside.display()
         ))),
         Err(error) => Err(TrashLeft::kept(format!("the manifest inside {} cannot be removed ({error}), so the trash directory is left alone", inside.display()))),
