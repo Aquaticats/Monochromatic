@@ -38,9 +38,9 @@ use std::path::Path;
 /// ```ts
 /// const remembered = rememberedBeforeGit(facts.removePlan, commonDirectory(facts.identity));
 /// ```
-pub(super) fn remembered_before_git(plan: Option<&RemovePlan>, common_dir: Option<&Path>) -> Option<Remembered> {
-    let plan: &RemovePlan = plan?;
-    let common_dir: &Path = common_dir?;
+pub(super) fn remembered_before_git(the_removal: Option<&RemovePlan>, the_repository: Option<&Path>) -> Option<Remembered> {
+    let plan: &RemovePlan = the_removal?;
+    let common_dir: &Path = the_repository?;
     return remember_before_git(common_dir, plan.target.as_path());
 }
 
