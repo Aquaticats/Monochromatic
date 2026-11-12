@@ -268,6 +268,9 @@ impl StageClaim {
             Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
             Err(_unreadable) => None,
         };
+        // Published whole by one rename and flushed by nobody: this write waited 2.7 to 3.4 seconds of a loaded add
+        // (measured 2026-11-11), a kill keeps it in the page cache, and a record a power cut takes back only makes a later
+        // command keep and report the objects it names, which is the safe direction.
         write_atomic_unsynced(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
         return Ok(());
     }
@@ -553,6 +556,10 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 /// const claim = await claimStageForAddAsOwing({ commonDir, destinationRoot, owner, owed });
 /// ```
 pub fn claim_stage_for_add_as_owing(common_dir: &Path, destination_root: &Path, owner: &CopyOwner, owed: Option<&OwedCopy>) -> Result<StageClaim, WorktreeCopyError> {
+    // Neither record is flushed: a `git worktree add` waited 15 to 44 seconds for these two writes under load (a loaded
+    // host of 2026-11-11, `recordDestination` in the add timing record), and a kill keeps both in the page cache. What a
+    // power cut can take away is the report of an interrupted add and the name of a stage nothing else removes, and the
+    // next command answers a missing record at once (`settle_interrupted_add`) rather than losing anything of the person's.
     let mut claim: StageClaim = claim_stage_for(common_dir, destination_root, owner)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
     write_atomic_unsynced(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
