@@ -86,6 +86,12 @@ Every earlier name keeps working in this release:
 - The commit service units.
   The units this release writes are `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service`,
    and the socket sits under `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/`.
+  The service unit runs `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,
+   a link this wrapper points at the release it is running before every commit that goes to the service,
+   so an upgrade or a downgrade changes no unit text and nothing has to make the user manager re-read what it holds.
+  A `systemctl --user status` of the service shows that link as its program.
+  A unit the manager already holds at an older text is dropped and started again rather than reloaded,
+   which is this worktree's own unit and nobody else's.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -134,7 +140,9 @@ Read-only commands,
    and an assume-unchanged or skip-worktree entry sends the build to the preparation base instead
    (`SPEC.md`,
   "Explicit-path commit").
-  The service is started by the operating system on the first commit (socket activation);
+  The service is started by the operating system on the first commit (socket activation),
+   from the link above,
+   so the release that last pointed it runs;
    the wrapper never starts it,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,

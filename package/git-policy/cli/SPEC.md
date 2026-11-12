@@ -6934,17 +6934,20 @@ on the commit path:
   once;
   a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
-  A unit the manager reports `active` whose service has greeted nothing for `SERVICE_GREETING_SILENCE` is asked to
-  restart,
+  A unit the manager reports `active` whose service has greeted nothing for the whole start ceiling is asked to restart,
   once,
-  and the wait goes on:
+  and the wait goes on with the whole ceiling again:
   a service greets a connection before it restores anything,
-  so a running unit that greets nothing is one whose program stopped inside its own process
+  so a service that has run that long with nothing to say is one whose program stopped inside its own process
   (a frozen control group,
   a debugger,
   a suspended machine,
   a wait in the kernel that nothing ends),
   and no start of a unit the manager believes runs brings it back.
+  Nothing shorter than the ceiling stands in for it:
+  a greeting three seconds late was read as that state on 2026-11-12,
+  and the restart and the manager-wide reload that followed ended the desktop session
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
   The service survives being ended by design
   (its journal,
   its held commits and its work records are durable),
@@ -7420,45 +7423,101 @@ and
   Test:
   `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
   and `an_older_git_is_told_how_to_get_a_service_it_can_work_with`.
-- Provisioning asks the manager for the reload its own writes need,
-  and a kill between writing a template and that reload is repaired
-  by the next commit:
-  the record of the unit texts the manager was told about
+- Provisioning never asks the manager to re-read the units it holds.
+  What a commit changes is two files (`service_provision.rs`):
+  the service template names a per-user program link
+  (`service_instance.rs`,
+  `program_link`,
+  `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`)
+  and not the absolute path of the release that wrote it,
+  so an upgrade,
+  a downgrade and two releases used in turn change no text the manager read.
+  Every commit points that link at the release it is running,
+  the fast path included,
+  because the start that follows may be hours away:
+  the service exits after three idle hours,
+  and the manager starts it again from whatever the link names then.
+  The one thing left is a unit the manager holds at an older text,
+  and it is dropped rather than reloaded (`service_provision_instance_unloaded.rs`):
+  a service that runs is asked to retire first,
+  so the batch it holds is finished,
+  the worktree's socket is stopped,
+  the manager is asked what it holds of the worktree's units until it holds neither,
+  and the socket is started again,
+  so the next start reads the file as it is now.
+  The cost is this worktree's own:
+  measured in a disposable manager holding 4,059 units,
+  the manager held a stopped socket and service no longer on the first 50 ms poll,
+  11 ms after the stop was answered
+  (`doc/planning/git-wrapper-reload-remedy.md`).
+  Why:
+  a reload re-reads every unit the manager holds,
+  at a cost that grows with everything else it runs,
+  and it holds the manager's own event loop for as long as it takes.
+  On 2026-11-12T01:21:10-05:00 one of those,
+  139,770 ms long,
+  expired a reply the manager had already been sent for the desktop session's window manager,
+  and the session ended
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+  The wrapper's client of the manager has no `Reload` member at all (`systemd_dbus.rs`),
+  and the guard on the members it may call fails if one comes back
+  (`source_guard/no_start_at_login_tests.rs`,
+  `ALLOWED_MEMBERS`).
+  Tests:
+  `a_moved_program_moves_only_the_link`,
+  `a_unit_of_an_earlier_release_is_rewritten_and_started`,
+  and the container proof
+  `mise run //package/git-policy/cli:test:service-manager`,
+  whose arm from `main` ends an unrelated `Type=dbus` service and its target and whose arm from this release keeps both.
+- The record of the unit texts the manager last read is per unit instance
   (`service_provision_loaded_unit_texts.rs`,
-  in the notes folder of the runtime unit directory)
-  is written only after the manager accepted the reload,
-  so a commit that finds the files matching and the record older
-  provisions again and asks for the reload,
+  `<instance>.units-the-manager-read` in the notes folder of the runtime unit directory,
+  removed with the note of a stopped instance).
+  Why:
+  the manager holds one instance at a time,
+  so a digest shared by every worktree would call one worktree's freshly loaded units true for another's stale ones.
+  The record is written after the manager was watched dropping the instance and never before,
+  so a commit that finds the files matching and the record older drops the instance and starts it again,
   and the commits after it find the record and take the fast path.
   Without it the killed upgrade's files look like an installation the manager runs,
   every later commit reaches the service of the release that was replaced,
   and ends with "The commit service that is running was started from another release of this git wrapper ...",
   however often it is run.
   Test:
-  `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
-  The record alone cannot tell a state the manager disagrees with:
-  an interrupted downgrade writes and reloads the
-    older release and is killed before it records that,
-  and an interrupted upgrade then writes the newer files without a reload,
-  which leaves the files and the record agreeing while the manager runs the release they replaced.
-  The client knows:
-  another release answering at all is proof that the unit the manager loaded and the files on disk
-  disagree,
-  so `reach_current` drops the record
-  (`units_record_dir` in the client's settings) the moment it first sees that answer,
-  not at the retirement deadline:
-  a service that takes the retire and leaves can be followed by a manager trying a cached executable
-  an upgrade removed,
-  which ends the wait with `DidNotStart` and never reaches the deadline
-  (finding 3 of the round-3 review).
-  The next commit then writes the units and asks for the reload.
-  The message says so,
-  and names the restart for a service that still will not stop.
+  `a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit`.
+  A service of another release answering at all is proof that the manager's copy and the files disagree,
+  and the repair is that service's own retirement:
+  it finishes its batch and exits,
+  the manager unloads the unit once nothing runs in it,
+  and the next start reads the file as it is now.
+  Nothing is asked of the manager for it,
+  and no record is dropped:
+  the record says what the manager read,
+  which the unloaded unit no longer contradicts.
+  Test:
+  `a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_global`.
+- A greeting that has not come is never,
+  by itself,
+  read as a service stopped inside its own process.
+  A start is given the whole start ceiling (`wait_ceilings.rs`,
+  `START_CEILING`,
+  one minute),
+  and only then is a unit the manager reports running restarted once,
+  after which the ceiling is waited out again.
+  Why:
+  on 2026-11-12T01:21:13-05:00 a commit waited three seconds for the greeting of a service that was starting on a
+  machine with dozens of agents on it,
+  read that silence as a service stopped inside its own process,
+  asked the manager to restart it,
+  and the recovery from that asked the manager for the reload that ended the session;
+  the service greeted the next time it was asked,
+  five seconds later.
+  The three seconds had been sized against 52 cold starts measured on an unloaded machine,
+  the slowest 1,041 ms.
   Tests:
-  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`,
+  `a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted`,
   and
-  `a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record`.
-
+  `a_unit_that_never_greets_is_restarted_once_at_the_start_ceiling_and_nothing_global_is_asked`.
 
 #### Commands that add commits
 
