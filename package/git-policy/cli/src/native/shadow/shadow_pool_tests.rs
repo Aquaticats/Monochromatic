@@ -119,6 +119,133 @@ fn an_empty_pool_leaves_the_creation_to_the_commit() {
     remove(root.as_path());
 }
 
+/// What:
+///  A pool folder that is a link is left alone:
+///  nothing is filled into it,
+/// nothing is taken from it,
+/// and the sweep of a killed fill removes nothing through it.
+/// Why:
+///   Every name below the pool folder is the wrapper's own,
+///  so a link there puts a creation, a claim and a removal inside whatever tree somebody else chose.
+/// The sweep is the one that loses data:
+/// it removes a whole tree for each name that looks like a half-made member.
+#[test]
+fn a_pool_folder_that_is_a_link_is_left_alone() {
+    let root: PathBuf = fixture("shadow-pool-linked-folder");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let pool: PathBuf = pool_root(&template);
+    // A tree a process that is not the wrapper made, holding the names a fill, a claim and a sweep use.
+    let elsewhere: PathBuf = root.join("elsewhere");
+    let outside_member: PathBuf = elsewhere.join("main");
+    let half_made: PathBuf = outside_member.join(format!("{FILLING_PREFIX}abandoned"));
+    std::fs::create_dir_all(half_made.as_path()).expect("a half-made member elsewhere");
+    std::fs::write(half_made.join("kept").as_path(), b"x\n").expect("what the sweep would remove");
+    let member: PathBuf = outside_member.join(format!("{MEMBER_PREFIX}elsewhere"));
+    std::fs::create_dir(member.as_path()).expect("a member elsewhere");
+    let folder: &Path = pool.parent().expect("the pool folder's parent");
+    std::os::unix::fs::symlink(elsewhere.as_path(), folder).expect("the pool folder is a link");
+    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "a linked pool folder is not filled");
+    sweep_abandoned(pool.as_path(), SystemTime::now() + FILLING_STALE_AFTER + Duration::from_secs(60));
+    assert!(
+        std::fs::symlink_metadata(half_made.join("kept").as_path()).is_ok(),
+        "the sweep removes nothing inside the tree the link named"
+    );
+    assert!(!take(&template, root.join("shadow").as_path()), "and nothing is taken from it");
+    assert!(std::fs::symlink_metadata(member.as_path()).is_ok(), "the tree the link named keeps its own entries");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree's pool folder that is a link is left alone for the same reason,
+///  since the pool's path has that name as well as the pool folder's.
+/// Why:
+///   A link at either name sends the creation, the claim and the sweep into the tree it names.
+#[test]
+fn a_pool_directory_that_is_a_link_is_left_alone() {
+    let root: PathBuf = fixture("shadow-pool-linked-directory");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let pool: PathBuf = pool_root(&template);
+    std::fs::create_dir_all(pool.parent().expect("the folder's parent")).expect("the folder's parent");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    let half_made: PathBuf = elsewhere.join(format!("{FILLING_PREFIX}abandoned"));
+    std::fs::create_dir_all(half_made.as_path()).expect("a half-made member elsewhere");
+    std::fs::write(half_made.join("kept").as_path(), b"x\n").expect("what the sweep would remove");
+    std::os::unix::fs::symlink(elsewhere.as_path(), pool.as_path()).expect("the worktree's pool folder is a link");
+    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "a linked pool directory is not filled");
+    sweep_abandoned(pool.as_path(), SystemTime::now() + FILLING_STALE_AFTER + Duration::from_secs(60));
+    assert!(
+        std::fs::symlink_metadata(half_made.join("kept").as_path()).is_ok(),
+        "the sweep removes nothing inside the tree the link named"
+    );
+    assert!(!take(&template, root.join("shadow").as_path()), "and nothing is taken from it");
+    remove(root.as_path());
+}
+
+/// A link at a member's name is refused and removed,
+/// and the commit then makes its own creation where the claim was,
+/// as a real directory.
+/// Why:
+///   Reading a member follows a link,
+/// so the claim accepted a tree this invocation never made:
+/// the commit's own writes landed in the tree the link named,
+/// where they are lost once its owner claims it,
+/// and where a write that fails ends the commit real Git would have completed.
+#[test]
+fn a_link_at_a_members_name_is_refused_and_removed() {
+    let root: PathBuf = fixture("shadow-pool-member-link-claim");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, member) = a_member(repo.as_path());
+    // Another process leaves a link where a member belongs,
+    // naming the member a fill published.
+    let moved: PathBuf = root.join("member-outside-the-pool");
+    std::fs::rename(member.as_path(), moved.as_path()).expect("the member out of the pool");
+    let link: PathBuf = pool_root(&template).join(format!("{MEMBER_PREFIX}link"));
+    std::os::unix::fs::symlink(moved.as_path(), link.as_path()).expect("a link at a member's name");
+    let destination: PathBuf = root.join("shadow");
+    assert!(!take(&template, destination.as_path()), "a link is not a member");
+    assert!(std::fs::symlink_metadata(link.as_path()).is_err(), "the refused claim is removed from the pool");
+    assert!(std::fs::symlink_metadata(destination.as_path()).is_err(), "and is not left where the creation runs");
+    assert!(std::fs::symlink_metadata(moved.join("config").as_path()).is_ok(), "the tree the link named is untouched");
+    let capture: InvocationCapture = capture_of(repo.as_path());
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(scratch.as_path()).expect("scratch");
+    let mut clock: BuildPartClock = BuildPartClock::begin("test");
+    take_or_create_shadow(&git_context(), repo.as_path(), &capture, destination.as_path(), scratch.as_path(), false, &mut clock)
+        .expect("the commit's own shadow");
+    assert!(
+        std::fs::symlink_metadata(destination.as_path()).expect("the claim's path").is_dir(),
+        "the commit's own creation is a real directory, never a link another claim would take with it"
+    );
+    remove(root.as_path());
+}
+
+/// A file at a member's name is refused and removed,
+/// so the creation that follows a refused claim never runs at a path another entry holds.
+/// Why:
+///   The pool's names are the wrapper's to repair and not to trust:
+/// a file left at one is refused by the member check,
+///  and a claim that is not removed is a path the creation cannot use,
+/// which ends every later commit of the worktree where real Git would have committed.
+#[test]
+fn a_file_at_a_members_name_is_refused_and_removed() {
+    let root: PathBuf = fixture("shadow-pool-member-file-claim");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let pool: PathBuf = pool_root(&template);
+    std::fs::create_dir_all(pool.as_path()).expect("pool");
+    let file: PathBuf = pool.join(format!("{MEMBER_PREFIX}file"));
+    std::fs::write(file.as_path(), b"not a member\n").expect("a file at a member's name");
+    let destination: PathBuf = root.join("shadow");
+    assert!(!take(&template, destination.as_path()), "a file is not a member");
+    assert!(
+        std::fs::symlink_metadata(destination.as_path()).is_err(),
+        "the refused claim is removed rather than left where the creation runs"
+    );
+    remove(root.as_path());
+}
+
 /// A member that holds something a creation never makes is refused and removed,
 /// so the next claim does not trust it either.
 #[test]

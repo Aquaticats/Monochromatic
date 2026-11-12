@@ -74,13 +74,13 @@ description = "Wait, bounded, for a gate log's verdict line and print it with ne
 run = "node bin/native-gate-verdict.ts"
 
 [tasks."native:ts-checks"]
-description = "Run the TypeScript checks of this package (or of `-- <task>...`) each in its own capped systemd user scope, all at once, and print one line per check with its status and a failing check's lines: `-- [--worktree <path>] [--deadline-seconds <count>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [<task>...]`. Exits 0 when every check passed and 2 when one failed or ran past its deadline; replaces the scratch script `~/temp/agent/gate/ts-checks.ts`"
+description = "Run the TypeScript checks of this package (or of `-- <task>...`) each in its own capped systemd user scope, all at once, and print one line per check with its status and a failing check's lines: `-- [--worktree <path>] [--deadline-seconds <count>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [<task>...]`. Exits 0 when every check passed and 2 when one failed or ran past its deadline; `--deadline-seconds` must be from 1 to 2147483, and every run names its scopes with an identity of its own so two runs of one check are independent; replaces the scratch script `~/temp/agent/gate/ts-checks.ts`"
 # The promoted `~/temp/agent/gate/ts-checks.ts`; the caps, the deadline and the labels live in
 # bin/native-capped-scope-command.ts and bin/native-ts-checks.ts.
 run = "node bin/native-ts-checks.ts"
 
 [tasks."native:install"]
-description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff, converges the installed tools, refuses unless `git --version` names the release, commits the lock when it moved, then prints the newest timing line and the service journal of the sample commit; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
+description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff against the last commit, converges the installed tools, refuses unless `git --version` names the release, commits what the lock then holds unless the last commit already holds it (refusing when another process wrote the lock while the release was installed, and leaving that write as it is), then prints the newest timing line and the service journal of the sample commit; `--deadline-seconds` must be from 1 to 2147483; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
 # The promoted `~/temp/agent/upgrade-wrapper.ts`; the steps, the version check and the bounds live in
 # bin/native-install.ts.
 run = "node bin/native-install.ts"

@@ -8,17 +8,20 @@
  installed tools, refuse unless `git --version` names the release asked for, commit the lock with the release's name, and
  print the newest timing line and the service journal of the sample commit.
 
- Three things are added to what the script did. Every step is bounded, because nothing here may wait forever; a lockfile
- that already names the release commits nothing and says so, instead of failing a commit with nothing to record; and
- `--dry-run` prints the same plan and changes nothing, so a person can read what an install would do first.
+ What is added to what the script did. Every step is bounded, because nothing here may wait forever. The commit is decided
+ from the lockfile as it is after the tools were installed, compared with the commit the checkout points at, so a lock a
+ step had already staged is committed and one another install already committed records nothing instead of failing. A lock
+ another process wrote while the release was installed is never committed under this release's name: the install refuses
+ and leaves that write where it is. And `--dry-run` prints the same plan and changes nothing, so a person can read what an
+ install would do first.
 
  What an install runs and the texts it reads are in `native-install-steps.ts`; this file is the command line and the order.
  */
 import { join } from 'node:path';
 
 import {
+  deadlineMillisecondsOption,
   gateOptions,
-  numberOption,
 } from './native-gate-arguments.ts';
 import { NativeGateError } from './native-gate-error.ts';
 import {
@@ -51,7 +54,6 @@ import {
   wrapperToolName,
   wrapperVersionLine,
 } from './native-install-steps.ts';
-import { millisecondsPerSecond } from './native-release-host-control-requirements.ts';
 
 /**
  Seconds one toolchain step is given when the caller names none.
@@ -223,6 +225,36 @@ async function askGit({
 }
 
 /**
+ The lockfile's difference from the commit the checkout points at, which is what a commit of that path would record.
+
+ Asked again right before the commit, because the worktree can be written between the install of the tools and the
+ commit: another install of the same release then finds nothing to record, and a lockfile another process changed is
+ caught before it is committed.
+
+ @param repository - the checkout to ask
+
+ @returns the diff, empty when the lockfile matches the last commit
+
+ @throws NativeGateError when git cannot answer
+
+ @example
+ ```ts
+ await lockDiffFromCommit({ repository: '/repo' });
+ ```
+ */
+async function lockDiffFromCommit({ repository }: { readonly repository: string; }): Promise<string> {
+  return await askGit({
+    repository,
+    args: [
+      'diff',
+      'HEAD',
+      '--',
+      lockFileName,
+    ],
+  });
+}
+
+/**
  Prints the wrapper's own record of the sample commit and the service journal it was answered in.
 
  @param repository - the checkout the sample commit was made in
@@ -326,11 +358,11 @@ async function main(): Promise<number> {
   /**
    How long one toolchain step may run.
    */
-  const deadlineMilliseconds = numberOption({
+  const deadlineMilliseconds = deadlineMillisecondsOption({
     options,
     name: deadlineOption,
-    fallback: defaultToolchainStepDeadlineSeconds,
-  }) * millisecondsPerSecond;
+    fallbackSeconds: defaultToolchainStepDeadlineSeconds,
+  });
   /**
    The steps of the install, whose commit is only run when the lock moved.
    */
@@ -366,16 +398,20 @@ async function main(): Promise<number> {
   if (updated.trim() === '')
     printLine(`== ${stepNameOf({ step: updateStep, })} printed nothing`);
   /**
-   The lockfile's diff, printed whole, because it is the review surface of a released version (rule `UPN`).
+   The lockfile's text this install resolved, which a writer of another process replaces.
+
+   Read before the diff is asked for, so a writer between the two shows up as a diff this install did not make and is
+   caught after the tools were installed, instead of becoming the text this install calls its own.
    */
-  const diff = await askGit({
+  const resolvedLock = await readOrEmpty({ path: join(
     repository,
-    args: [
-      'diff',
-      '--',
-      lockFileName,
-    ],
-  });
+    lockFileName
+  ), });
+  /**
+   The lockfile's diff against the last commit, printed whole, because it is the review surface of a released version
+   (rule `UPN`), and because it is exactly what a commit of this path would record.
+   */
+  const diff = await lockDiffFromCommit({ repository, });
   printLine(diff.trim() === '' ? `${lockFileName} did not change` : diff.trimEnd());
   await runStep({
     step: installStep,
@@ -399,9 +435,32 @@ async function main(): Promise<number> {
     throw new NativeGateError(`${gitProgram} --version does not name ${version}, so the installed wrapper is not the release that was asked for. What it printed: ${reported.trim() || '(nothing)'}. Check that ${wrapperToolName} resolves to ${version} (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}) and that the wrapper's directory comes before any other ${gitProgram} on PATH.`);
   }
   /**
-   Whether the lock moved, which is whether there is a version to record.
+   The lockfile's text once the tools were installed.
+
+   Nothing can hold another process off the file between this read and the commit, which is why a commit is never made
+   from a decision taken before a step that runs minutes long: what remains is a window of milliseconds, and a write that
+   lands in it is a concurrent edit of a lock no command can own (rule `NLK`).
    */
-  const lockMoved = diff.trim() !== '';
+  const installedLock = await readOrEmpty({ path: join(
+    repository,
+    lockFileName
+  ), });
+  if (installedLock !== resolvedLock) {
+    /**
+     What holds the lock now, printed so a person reads the write this install did not make.
+     */
+    const changed = await lockDiffFromCommit({ repository, });
+    printLine(changed.trim() === '' ? `${lockFileName} now matches the last commit, where this install left a change` : changed.trimEnd());
+    throw new NativeGateError(`${lockFileName} was written by something else while ${version} was installed, so it no longer holds what this install resolved; nothing was committed and that write is left as it is. Run the install again once nothing else is writing the lock, so the release it records is the one the diff shows.`);
+  }
+  /**
+   Whether there is a commit to make, which is whether the lockfile differs from the last commit now.
+
+   Asked after the install and not from the earlier diff, because another process can commit this release in between: an
+   install that lost that race has nothing to record, and a commit with no change would fail where the requested state
+   already holds.
+   */
+  const lockMoved = (await lockDiffFromCommit({ repository, })).trim() !== '';
   if (lockMoved) {
     /**
      The moment the sample commit began, which the journal is read from.

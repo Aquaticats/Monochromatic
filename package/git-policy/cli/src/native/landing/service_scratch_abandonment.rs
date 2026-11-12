@@ -11,8 +11,10 @@
 //!  Age is therefore the only evidence a collection has,
 //!  and a tree is old enough only once nothing that named it can still read it:
 //!  a request whose client went away keeps its tree for the same request sent again,
-//!  and a landing that is reading a tree has it fresh for its own span,
-//!  so a tree goes when it has not been written for `SCRATCH_TREE_ABANDONED_AFTER`,
+//!  a landing that is reading a tree has it fresh for its own span,
+//!  so a tree goes when it has not been written for `SCRATCH_TREE_ABANDONED_AFTER`
+//!  and no request this service holds still names it
+//!  (`service_scratch_trees_of_queued_requests.rs`),
 //!  and the same decision removes the other entries a scratch place holds.
 //!  Reading the process that made a tree instead asked `/proc` a question that cannot answer this:
 //!  a killed client's tree was collected at once,
@@ -39,7 +41,9 @@ use std::time::{Duration, SystemTime};
 ///  ends every wait of a commit at 20 minutes;
 ///  a live command renews its tree every `SCRATCH_REFRESH_EVERY`,
 ///  so only a tree whose command is gone reaches this age,
-///  and the longest a landing reads one (a whole commit at `ANSWER_CEILING`) is far below it.
+///  the longest a landing reads one (a whole commit at `ANSWER_CEILING`) is far below it,
+///  and a tree this service still holds for a queued request is kept against every collection of it
+///  (`service_scratch_trees_of_queued_requests.rs`).
 ///  Two hours is six times that ceiling.
 pub const SCRATCH_TREE_ABANDONED_AFTER: Duration = Duration::from_secs(2 * 60 * 60);
 
@@ -58,9 +62,12 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 /// Why:
 ///   Two rules that disagree undo each other,
 ///  so the sweep of a scratch place and every other collection ask this one question.
-///  A commit tree goes once it has not been written for `SCRATCH_TREE_ABANDONED_AFTER`:
+///  A commit tree goes once it has not been written for `SCRATCH_TREE_ABANDONED_AFTER`
+///  and no request this service holds still names it:
 ///  its command renews it while it lives,
-///  and the landing that reads it does so inside that age.
+///  the landing that reads it does so inside that age,
+///  and a request whose answer was lost before it landed keeps its tree out of a collection's reach
+///  however old it is, until the service is done with that request.
 ///  Every other entry of a scratch place is the wrapper's own and goes by the age the caller gives it,
 ///  because nothing else ever collects it.
 ///  An entry whose age cannot be told,
@@ -74,7 +81,12 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 /// ```
 pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_age: Duration) -> bool {
     let age: Option<Duration> = age_before(metadata, now);
-    let allowed: Duration = if names_a_trees_file(path) && metadata.is_dir() { SCRATCH_TREE_ABANDONED_AFTER } else { max_age };
+    let tree: bool = names_a_trees_file(path) && metadata.is_dir();
+    // A tree one of this service's requests still lands on is nobody's but that request's, however long its queue.
+    if tree && crate::service_scratch_trees_of_queued_requests::is_held(path) {
+        return false;
+    }
+    let allowed: Duration = if tree { SCRATCH_TREE_ABANDONED_AFTER } else { max_age };
     return match age {
         Some(found) => found > allowed,
         None => false,

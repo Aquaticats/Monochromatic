@@ -256,6 +256,80 @@ so only an edit in the same second as that write could reach it,
 and no hook runs between the two steps.
 Per-site results are recorded in #544.
 
+## The Rust wrapper's landing install (2026-11-11)
+
+Measured on Git 2.56.0 in a container
+(`--memory=1g --cpus=1`,
+`localhost/git-policy-native-test:gpc-gate-pass-12-on-3b94069dbf-20261111T153251-0500`).
+The Rust wrapper installs the index a landing built by renaming a private copy over `index`,
+and that copy carried the time it was written at:
+
+- `service_land_copy.rs`'s `PrivateCopy::make` copies the live index with `std::io::copy` into a
+  file created a moment earlier,
+  so the copy's mtime is the copy's own.
+- `index_reset_publish.rs`'s publication writes the copy through a temporary file and renames it,
+  which stamps it again.
+- `commit_index_stat_refresh.rs`'s refresh writes it once more when it records anything.
+
+A person's edit made in the same second as the stat data the live index records differs from that
+data in nothing Git compares
+(`git ls-files --debug` showed an entry of `size: 7` with `mtime: 1794436245:912418674`
+while the file held `mtime: 1794436245:954418329`,
+and `git status --porcelain` printed nothing),
+and `is_racy_stat` is the only reader that would have compared the content:
+it asks whether the entry is as new as the index file,
+which a fresh copy never is.
+
+The same timing against native Git leaves the entry smudged and the edit visible:
+
+```text
+native git, `git commit -- a.txt b.txt ':(exclude)b.txt'`, entry right after the commit:
+  size: 0
+  status:  M b.txt|
+wrapper, the same command and timing:
+  size: 7
+  status: (nothing)
+```
+
+so the wrapper was losing Git's own protection rather than adding a new limit.
+
+### The fix
+
+`PrivateCopy` reads the live index's access and modification times with its bytes
+(`live_times`),
+`publish_with` sets them on the temporary file before its one flush,
+and `PrivateCopy::keep_the_live_times` puts them back after any later writer
+(the stat refresh,
+Git's own `reset`,
+the conflicted autostash's `update-index`),
+in `service_land_follow.rs`'s `build_index` and `keep_the_stat_data`
+and `service_land_finish.rs`'s `follow_up`.
+A copy whose times moved is marked unflushed,
+so the release flushes the metadata it installs.
+
+Controls:
+
+- `landing::service_land::index_stat_tests::a_landing_installs_its_copy_with_the_live_index_times`
+  lands a batch whose refresh rewrites the copy and requires the installed index's mtime to be the
+  live index's.
+- `commit::an_exclusion_keeps_the_unselected_exact_path_out_of_the_commit` reads the installed
+  index's time and the excluded file's bytes.
+  Before the fix it failed one run in two in the container and never on the host,
+  where the base commit and the edit land in different seconds;
+  with the fix it passed every run of the `commit::` family at `--test-threads 12`.
+- `landing::service_land::tests::the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed`
+  keeps the flush set unchanged,
+  which the times-before-the-flush ordering is what buys.
+
+### What remains
+
+An index written by another program after the person's edit
+(a `git add` of something else,
+a `git status` that rewrites the index)
+stamps a newer time again while a same-second edit differs from nothing Git reads,
+and native Git has the same hole.
+Backdating a file's mtime below the index's time and keeping its size stays hidden as well.
+
 ## What does not work
 
 - Relying on commit fixtures that need no fix:

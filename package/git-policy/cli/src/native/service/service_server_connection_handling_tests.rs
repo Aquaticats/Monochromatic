@@ -12,6 +12,7 @@ use super::*;
 use crate::service_fault::hooks::{self, HoldOnAnyThread};
 use crate::service_protocol::{decode_service, encode_client};
 use crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
+use crate::service_scratch_trees_of_queued_requests::{is_held, release};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt};
@@ -221,9 +222,13 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
         assert_eq!(first, ServiceMessage::Heartbeat, "the beat comes while the check waits");
         released.send(()).expect("the check is let go");
         // The request reaches the landing once the check says it is this instance's, and only then is it answered.
-        let Job::Commit(_request, reply, _arrival) = jobs.recv().await.expect("the request is queued") else {
+        let Job::Commit(request, reply, _arrival) = jobs.recv().await.expect("the request is queued") else {
             panic!("a commit request is queued");
         };
+        // A request the service queued holds the tree its landing has still to read, however long the queue before it takes
+        //  (`service_scratch_trees_of_queued_requests.rs`).
+        assert!(is_held(request.scratch.as_path()), "the tree of a queued request is one a collection spares");
+        release(request.id.as_str());
         let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("slow-check"), commit: String::from("c"), already: false, landing: None };
         reply.send(&landed);
         drop(reply);

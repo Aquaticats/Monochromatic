@@ -10,6 +10,10 @@
 //! // lfs/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// The configuration a push carries on its command line,
+/// read by the upload child and by the switch that turns the upload off.
+pub mod lfs_command_line_configuration;
+
 /// When a push needs the Git LFS upload,
 /// and the texts the parent prints around it.
 pub mod lfs_pre_push;
@@ -45,11 +49,6 @@ pub mod lfs_object_plan;
 
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
-
-/// The configuration a push carries on its command line,
-/// as the variables the upload child reads,
-/// beside the run of the upload so that each file passes the package's length limit.
-pub mod lfs_upload_child_configuration;
 
 /// The words a person reads about an upload,
 /// beside the run of it so that each file passes the package's length limit.
