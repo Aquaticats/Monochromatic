@@ -372,7 +372,8 @@ fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
     assert!(notice.contains("exempt from the worktree guard"), "{notice}");
     assert!(notice.contains("MISE_DATA_DIR"), "{notice}");
     assert!(notice.contains("/work/repo"), "{notice}");
-    assert!(notice.contains("Nothing was measured and nothing was saved"), "{notice}");
+    assert!(notice.contains("Nothing was measured"), "{notice}");
+    assert!(notice.contains("copied beside the audit log first"), "{notice}");
     assert!(notice.contains("Hint: if MISE_DATA_DIR does not describe a tool cache"), "{notice}");
     assert!(notice.ends_with('\n'), "{notice}");
     assert_ne!(notice, exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo")));

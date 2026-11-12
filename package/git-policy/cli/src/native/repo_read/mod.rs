@@ -43,6 +43,10 @@ pub mod repository_facts_ignored_files;
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
 
+/// The work a guarded form would discard in a repository no worktree rule refuses:
+///  the uncommitted changes and the files Git does not track.
+pub mod repository_facts_discardable_paths;
+
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 

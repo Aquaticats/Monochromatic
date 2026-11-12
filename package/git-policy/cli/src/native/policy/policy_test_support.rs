@@ -58,6 +58,10 @@ pub(crate) struct ScriptedFacts {
     pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
+    /// The paths where the worktree or the index differs from `HEAD`.
+    pub(crate) uncommitted: Result<Vec<Vec<u8>>, String>,
+    /// The paths Git does not track and the ignore rules do not cover.
+    pub(crate) untracked: Result<Vec<Vec<u8>>, String>,
     /// The paths the dry run of the clean as typed names,
     ///  which is the one carrying the clean's own exclusion patterns.
     pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
@@ -186,6 +190,16 @@ impl RepositoryFacts for ScriptedFacts {
         return self.main_worktree.clone();
     }
 
+    fn uncommitted_paths(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        self.asked.push(String::from("uncommitted"));
+        return self.uncommitted.clone();
+    }
+
+    fn untracked_paths(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        self.asked.push(String::from("untracked"));
+        return self.untracked.clone();
+    }
+
     /// Log the question,
     ///  then prepare with real Git in the scripted repository,
     ///  or fail.
@@ -291,6 +305,8 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         // so the main checkout of a region that refuses there is `/r`.
         main_worktree: Ok(PathBuf::from("/r")),
         ignored_and_tracked: Ok(Vec::<String>::new()),
+        uncommitted: Ok(Vec::<Vec<u8>>::new()),
+        untracked: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),

@@ -28,7 +28,11 @@ use crate::command_clean_nested_repositories::nested_repositories_the_clean_dele
 use crate::conflict_side_guard::prune_after_save;
 use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy};
 /// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
+use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies_and_facts, record_audit_with_facts};
+/// The fact that names the exemption a record ran under.
+use crate::discard_audit_facts::AuditFact;
+/// The copies a record names, as the one list every saving ending writes.
+use crate::conflict_sides::copy_places;
 /// The limits of the folder of saved copies.
 use crate::discarded_prune::Limits;
 /// The move of a nested repository the clean would delete.
@@ -226,6 +230,12 @@ pub(crate) struct AllowedForm<'a> {
     pub(crate) discarded_limits: Limits,
     /// The notices the person reads before Git runs.
     pub(crate) notices: &'a mut Vec<String>,
+    /// The facts a record carries for a repository the allowlist exempts,
+    ///  empty for every other repository.
+    pub(crate) exemption: &'a [AuditFact],
+    /// The copies an exempt repository's own save made before this form,
+    ///  empty when there was none or when the repository is not exempt.
+    pub(crate) saved_by_exemption: &'a [SavedCopy],
 }
 
 /// What:
@@ -247,51 +257,60 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
         match keep_the_nested_repositories_a_clean_would_delete(form.facts, form.location, form.region, form.discarded_limits) {
             NestedRepositories::Nothing => {}
             NestedRepositories::Saved { copies, notice } => {
-                let mut places: Vec<String> = Vec::<String>::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
+                // Every copy this decision made is named in its one line, the exemption's own among them.
+                let mut places: Vec<String> = copy_places(copies.as_slice());
+                places.extend(copy_places(form.saved_by_exemption));
                 form.notices.push(notice);
-                record_audit_with_copies(
+                record_audit_with_copies_and_facts(
                     &form.location.identity,
                     form.command,
                     AuditOutcome::SavedNestedRepository,
                     form.seen,
                     form.dirty,
                     places.as_slice(),
+                    form.exemption,
                 );
                 return clean();
             }
             NestedRepositories::Refused { message, copies } => {
-                let mut places: Vec<String> = Vec::<String>::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
+                let places: Vec<String> = copy_places(copies.as_slice());
                 // A rejection that left a repository under the saved copies names where it is;
                 //  one that left none is a worktree nobody can tell apart from the one before the command.
                 if places.is_empty() {
-                    record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None);
+                    record_audit_with_facts(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None, form.exemption);
                 } else {
-                    record_audit_with_copies(
+                    record_audit_with_copies_and_facts(
                         &form.location.identity,
                         form.command,
                         AuditOutcome::Rejected,
                         form.seen,
                         None,
                         places.as_slice(),
+                        form.exemption,
                     );
                 }
                 return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
             }
         }
+    }
+    // An exempt repository's line says the exemption let the form through, and names the copies it made:
+    //  nothing was at risk, or what was at risk is on disk beside the audit log.
+    if !form.saved_by_exemption.is_empty() {
+        let places: Vec<String> = copy_places(form.saved_by_exemption);
+        record_audit_with_copies_and_facts(
+            &form.location.identity,
+            form.command,
+            AuditOutcome::SavedExempt,
+            form.seen,
+            form.dirty,
+            places.as_slice(),
+            form.exemption,
+        );
+        return clean();
+    }
+    if !form.exemption.is_empty() {
+        record_audit_with_facts(&form.location.identity, form.command, AuditOutcome::Exempt, form.seen, form.dirty, form.exemption);
+        return clean();
     }
     record_audit(&form.location.identity, form.command, AuditOutcome::Allowed, form.seen, form.dirty);
     return clean();

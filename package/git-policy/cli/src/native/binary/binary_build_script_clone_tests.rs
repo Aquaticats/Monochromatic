@@ -2,6 +2,7 @@
 //!  The guard of uncommitted work inside a clone a build step made for itself,
 //! through the built executable:
 //!  the checkout runs where Cargo's `OUT_DIR` or the Cargo build directory holds that clone,
+//! a hard reset or a forced clean there copies what it would discard first and then runs,
 //! and the same checkout in the same clone is still refused where neither names a directory around it.
 //! Why:
 //!  A crate that vendors another project clones it into its own output directory
@@ -116,6 +117,68 @@ fn reset_hard_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path) 
         .current_dir(directory)
         .args(["reset", "--hard", "HEAD"]);
     return observe(&mut command, b"");
+}
+
+/// Run the wrapper in `directory` with each of `variables` set, and with `arguments` after the subcommand.
+/// Why:
+///   A build step's own discard is the same command a person runs,
+///  and only the environment says which tree it runs in.
+fn run_with_variables(
+    fixture: &Fixture,
+    directory: &Path,
+    variables: &[(&str, &OsStr)],
+    arguments: &[&str],
+) -> Observed {
+    let mut command: Command = bounded(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+    );
+    for (name, value) in variables {
+        command.env(name, value);
+    }
+    command.current_dir(directory).args(arguments);
+    return observe(&mut command, b"");
+}
+
+/// The files one repository's saves wrote,
+///  as `<name below the worktree>` and its bytes,
+///  read from the folder below its common Git directory.
+fn saved_copies(common_dir: &Path) -> Vec<(String, Vec<u8>)> {
+    let root: PathBuf = common_dir.join("monochromatic-git-policy-cli/discarded");
+    let mut found: Vec<(String, Vec<u8>)> = Vec::<(String, Vec<u8>)>::new();
+    let Ok(stamps) = std::fs::read_dir(root.as_path()) else {
+        return found;
+    };
+    for stamp in stamps {
+        let Ok(stamp) = stamp else { continue };
+        let Ok(copies) = std::fs::read_dir(stamp.path()) else { continue };
+        for copy in copies {
+            let Ok(copy) = copy else { continue };
+            let name: String = copy.file_name().to_string_lossy().into_owned();
+            let bytes: Vec<u8> = std::fs::read(copy.path()).expect("a copy holds bytes");
+            found.push((name, bytes));
+        }
+    }
+    return found;
+}
+
+/// What the repository's discard audit recorded,
+///  read from every line of the file the wrapper appends to.
+fn audit_lines(common_dir: &Path) -> String {
+    let mut text: String = String::new();
+    let Ok(entries) = std::fs::read_dir(common_dir) else {
+        return text;
+    };
+    for entry in entries {
+        let Ok(entry) = entry else { continue };
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with("monochromatic-git-policy-cli") || !name.contains("audit") || !name.ends_with(".jsonl") {
+            continue;
+        }
+        text.push_str(&std::fs::read_to_string(entry.path()).unwrap_or_default());
+    }
+    return text;
 }
 
 /// What:
@@ -321,5 +384,110 @@ fn a_checkout_in_a_clone_under_a_relative_cargo_build_directory_is_refused() {
         std::fs::read(clone.join("tracked.txt")).expect("the refused command changed nothing"),
         b"edited by the build step\n"
     );
+    remove(&fixture);
+}
+
+/// What:
+///  A hard reset in a clone under the Cargo build directory copies the tracked edit it overwrites and then runs.
+/// Why:
+///   The review of the exemption found this exact loss:
+///  with `CARGO_TARGET_DIR` naming an ancestor,
+///  `git reset --hard HEAD` exited 0 and replaced the uncommitted edit,
+///  and the exemption notice itself said nothing was saved.
+///  A build is not a person and what it discards in its own clone is its own,
+///  so the form must still succeed;
+///  the person's edit inside that tree must still be on disk, which is what the copy is for.
+#[test]
+fn a_hard_reset_in_a_clone_under_the_cargo_build_directory_saves_the_edit_and_runs() {
+    let fixture: Fixture = fixture("cargo-build-directory-reset");
+    source_repository(&fixture);
+    let build_dir: PathBuf = cargo_build_directory(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let observed: Observed = run_with_variables(
+        &fixture,
+        clone.as_path(),
+        &[("CARGO_TARGET_DIR", build_dir.as_os_str())],
+        &["reset", "--hard", "HEAD"],
+    );
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    // The reset ran: Git wrote the committed content over the edit.
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the reset ran"),
+        b"one\n"
+    );
+    // The edit the reset overwrote is on disk beside the audit log.
+    assert_eq!(
+        saved_copies(clone.join(".git").as_path()),
+        vec![(String::from("tracked.txt"), b"edited by the build step\n".to_vec())]
+    );
+    assert!(stderr_of(&observed).contains("tracked.txt => "), "{}", stderr_of(&observed));
+    let audit: String = audit_lines(clone.join(".git").as_path());
+    assert!(audit.contains("\"outcome\":\"saved-exempt\""), "{audit}");
+    assert!(audit.contains("\"exemptedBy\":\"CARGO_TARGET_DIR\""), "{audit}");
+    remove(&fixture);
+}
+
+/// What:
+///  A forced clean in a clone under the Cargo build directory copies the untracked file it deletes and then runs.
+/// Why:
+///   The same review found `git clean -fdx` losing an untracked file there;
+///  a build that cleans its own clone must still succeed,
+///  and the file the clean deletes must be readable in the folder of saved copies.
+#[test]
+fn a_forced_clean_in_a_clone_under_the_cargo_build_directory_saves_the_untracked_file_and_runs() {
+    let fixture: Fixture = fixture("cargo-build-directory-clean");
+    source_repository(&fixture);
+    let build_dir: PathBuf = cargo_build_directory(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    std::fs::write(clone.join("untracked.txt"), b"untracked user bytes\n").expect("the untracked file");
+    let observed: Observed = run_with_variables(
+        &fixture,
+        clone.as_path(),
+        &[("CARGO_TARGET_DIR", build_dir.as_os_str())],
+        &["clean", "-fdx"],
+    );
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    // The clean ran: the file is gone from the worktree.
+    assert!(!clone.join("untracked.txt").exists(), "the clean ran");
+    // Its bytes are on disk beside the audit log.
+    assert_eq!(
+        saved_copies(clone.join(".git").as_path()),
+        vec![(String::from("untracked.txt"), b"untracked user bytes\n".to_vec())]
+    );
+    assert!(stderr_of(&observed).contains("untracked.txt => "), "{}", stderr_of(&observed));
+    remove(&fixture);
+}
+
+/// What:
+///  A relative `CARGO_BUILD_DIR`, which Cargo never reads, does not mask the absolute `CARGO_TARGET_DIR` beside it.
+/// Why:
+///   The review found the checkout refused here,
+///  so a build step that exports the unread name lost the exemption its own absolute directory names;
+///  the checkout runs and Git carries the edit over.
+#[test]
+fn a_checkout_under_an_absolute_cargo_build_directory_runs_beside_a_relative_alias() {
+    let fixture: Fixture = fixture("cargo-build-directory-relative-alias");
+    let commit: String = source_repository(&fixture);
+    let build_dir: PathBuf = cargo_build_directory(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let observed: Observed = run_with_variables(
+        &fixture,
+        clone.as_path(),
+        &[
+            ("CARGO_TARGET_DIR", build_dir.as_os_str()),
+            ("CARGO_BUILD_DIR", OsStr::new("relative-not-read-by-cargo")),
+        ],
+        &["checkout", commit.as_str()],
+    );
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the checkout kept the file"),
+        b"edited by the build step\n"
+    );
+    let moved: Output = git(&fixture, clone.as_path(), &["rev-parse", "HEAD"]);
+    assert_eq!(String::from_utf8_lossy(&moved.stdout).trim(), commit);
     remove(&fixture);
 }

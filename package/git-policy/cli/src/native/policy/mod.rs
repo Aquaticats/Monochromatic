@@ -51,6 +51,10 @@ pub mod policy_checks;
 /// in its own file so the registry of shipped policies stays readable.
 pub mod policy_linked_worktree;
 
+/// The save-first guard a repository the allowlist exempts from the worktree rule keeps:
+///  the work a discarding form would lose is copied beside the audit log, and the form then runs.
+pub mod policy_linked_worktree_exempt_save;
+
 /// Keeping the nested Git repositories a clean would delete,
 ///  and the one place a form is let through.
 pub mod policy_linked_worktree_nested_repositories;

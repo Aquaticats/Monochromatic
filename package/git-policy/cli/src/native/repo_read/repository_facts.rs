@@ -150,6 +150,16 @@ pub trait RepositoryFacts {
     /// Asked before an abort form runs,
     /// so the person's own work is saved first and the operation's own state is let go.
     fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String>;
+    /// The paths where the worktree or the index differs from `HEAD`,
+    ///  each once and in a settled order.
+    /// Asked before a form the worktree rule does not refuse runs,
+    ///  because the form writes a tree or replaces the index,
+    ///  so the work it would discard is copied first.
+    fn uncommitted_paths(&mut self) -> Result<Vec<Vec<u8>>, String>;
+    /// The paths Git does not track and the ignore rules do not cover.
+    /// Asked before a clean that deletes untracked files runs,
+    ///  so the files it would delete are copied first.
+    fn untracked_paths(&mut self) -> Result<Vec<Vec<u8>>, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
@@ -429,6 +439,15 @@ impl RepositoryFacts for GitFacts {
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         let output: MetadataOutput = self.query(arguments, "what the clean would delete")?;
         return clean_deleted_paths_from_answer(&output);
+    }
+
+    fn uncommitted_paths(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        // The two listings and their reading live beside this provider, as `git add`'s fact does.
+        return crate::repository_facts_discardable_paths::uncommitted_paths(self);
+    }
+
+    fn untracked_paths(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        return crate::repository_facts_discardable_paths::untracked_paths(self);
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {

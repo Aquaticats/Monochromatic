@@ -48,6 +48,31 @@ pub use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_p
 /// beside `monochromatic-git-policy-cli-audit.jsonl`.
 pub const SAVED_DIRECTORY: &str = "monochromatic-git-policy-cli/discarded";
 
+/// What:
+///  The copies as one audit record names them,
+///  `<path> => <place>` each,
+///  with `none` for a path that had nothing to copy.
+///  `&[SavedCopy]` borrows the copies.
+/// Why:
+///   Every ending that saves writes that list the same way,
+///  and a later reader looking for a file that vanished finds where its last content went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const places = copies.map((copy) => `${copy.path} => ${copy.savedTo ?? 'none'}`);
+/// ```
+pub fn copy_places(copies: &[SavedCopy]) -> Vec<String> {
+    let mut places: Vec<String> = Vec::new();
+    for copy in copies {
+        let saved_to: String = match copy.saved_to.as_ref() {
+            Some(place) => place.display().to_string(),
+            None => String::from("none"),
+        };
+        places.push(format!("{} => {}", copy.path, saved_to));
+    }
+    return places;
+}
+
 /// One saved file.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SavedCopy {

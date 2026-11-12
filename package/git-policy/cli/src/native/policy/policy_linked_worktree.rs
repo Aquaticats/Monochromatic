@@ -42,7 +42,9 @@ use crate::guarded_forwarded_command::GuardedForwarded;
 /// The named facts a record of an exemption carries.
 use crate::discard_audit_facts::AuditFact;
 /// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies, record_audit_with_facts};
+use crate::discard_audit::{
+    AuditOutcome, record_audit, record_audit_with_copies_and_facts, record_audit_with_facts,
+};
 /// The limits of the folder of saved copies of conflicted files.
 use crate::discarded_prune::Limits;
 /// The sides of a conflicted file,
@@ -76,9 +78,15 @@ use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
+/// The save-first guard an exempt repository keeps around a form that discards work.
+use crate::policy_linked_worktree_exempt_save::{ExemptDiscard, ExemptVerdict, save_the_exempt_discard};
+/// One saved copy,
+///  whose path and place a record names,
+///  and the list of them a record holds.
+use crate::conflict_sides::{SavedCopy, copy_places};
 /// The common Git directory,
 ///  for naming the file every worktree shares.
-use crate::worktree_identity::common_directory;
+use crate::worktree_identity::{WorktreeIdentity, common_directory};
 /// The path with every link resolved as far as it exists,
 ///  for comparing two spellings of one file,
 ///  and the directory a command runs in,
@@ -261,6 +269,116 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
 }
 
 /// What:
+///  The facts a record carries for a repository the allowlist exempts,
+///  and the notice the person reads,
+///  or both empty for a repository no entry holds.
+///  `&[ToolCacheDirectory]` borrows the exempt directories.
+/// Why:
+///   Every decision an exemption lets through names the variable that chose it,
+///  in one place,
+///  so no ending can record the exemption without saying which variable made it
+///  and no ending can print the notice twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exemptionFacts(identity, allowedDirs, notices): AuditFact[];
+/// ```
+fn exemption_facts(
+    identity: &WorktreeIdentity,
+    allowed_worktree_dirs: &[ToolCacheDirectory],
+    notices: &mut Vec<String>,
+) -> Vec<AuditFact> {
+    let Some(found) = matching_allowed_worktree_dir_for_repository(identity, allowed_worktree_dirs) else {
+        return Vec::<AuditFact>::new();
+    };
+    notices.push(exemption_notice(found.named_by, found.path.as_path()));
+    return vec![AuditFact::Text("exemptedBy", found.named_by.to_string())];
+}
+
+/// What:
+///  One exempt repository's discarding form,
+///  with the facts it still asks and the record it leaves.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The two places an exempt repository saves from (a worktree that holds changes,
+///  and a tree that would overwrite an ignored file) hold the same eight things,
+///  so one record keeps them from drifting apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ExemptForm = { facts; discard; location; seen; exemption; dirty; notices; conflictNote };
+/// ```
+struct ExemptForm<'a> {
+    /// The facts the save still asks.
+    facts: &'a mut dyn RepositoryFacts,
+    /// The form and what its copy needs,
+    ///  whose own limits the let-through point applies to a nested repository too.
+    discard: ExemptDiscard<'a>,
+    /// Where the command runs.
+    location: &'a RepositoryLocation,
+    /// The tokens after the subcommand,
+    ///  for the nested repository a clean would delete.
+    region: &'a [OsString],
+    /// The command as Git will run it,
+    /// aliases included.
+    seen: &'a [OsString],
+    /// The exemption the record names.
+    exemption: &'a [AuditFact],
+    /// What the policy measured,
+    ///  or nothing when it asked no question.
+    dirty: Option<bool>,
+    /// The notices the person reads before Git runs.
+    notices: &'a mut Vec<String>,
+    /// The sentence a rejection of the same line gets beside the exemption's own text.
+    conflict_note: &'a str,
+}
+
+/// What:
+///  Copy what an exempt repository's form would discard,
+///  record the decision,
+///  and let the form run.
+/// Why:
+///   The exemption is from the worktree rule, and never from the rule that nothing a person wrote is discarded
+///  unsaved: the form runs with its save,
+///  a save that could not be made stops it with the worktree as it was,
+///  and a form that would lose nothing records the exemption and runs as Git runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function saveAndAllow(form: ExemptForm): PolicyOutcome;
+/// ```
+fn save_and_allow(form: ExemptForm<'_>) -> PolicyOutcome {
+    let command: GuardedCommand = form.discard.command;
+    let discarded_limits: Limits = form.discard.limits;
+    let mut saved: Vec<SavedCopy> = Vec::<SavedCopy>::new();
+    match save_the_exempt_discard(form.facts, form.discard) {
+        ExemptVerdict::Nothing => {}
+        ExemptVerdict::Saved { notice, copies } => {
+            form.notices.push(notice);
+            saved = copies;
+        }
+        ExemptVerdict::Stopped(message) => {
+            record_audit_with_facts(&form.location.identity, command, AuditOutcome::Rejected, form.seen, form.dirty, form.exemption);
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{}", form.conflict_note));
+        }
+    }
+    // The save is on disk, and the form is let through where every letting-through happens, so a clean that would
+    //  delete a nested repository still moves it whole before Git runs.
+    return allow_a_discarding_form(AllowedForm {
+        facts: form.facts,
+        command,
+        location: form.location,
+        region: form.region,
+        seen: form.seen,
+        dirty: form.dirty,
+        discarded_limits,
+        notices: form.notices,
+        exemption: form.exemption,
+        saved_by_exemption: saved.as_slice(),
+    });
+}
+
+/// What:
 ///  The linked-worktree-only check.
 ///  `&[PathBuf]` borrows the exempt tool caches.
 /// Why:
@@ -311,83 +429,86 @@ pub(crate) fn check_linked_worktree(
     };
     let target: EffectiveTarget =
         classify_effective_target(&location.identity, allowed_worktree_dirs);
+    // A form that only moves `HEAD` in an exempt cache asks nothing, so nothing is measured, saved, announced or
+    //  recorded for it.
+    let exempt: bool = target == EffectiveTarget::Allowlisted;
+    if moves_head_only && !matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree) {
+        return clean();
+    }
+    // The environment chose this exemption, so the person is told which variable did it and where it points,
+    //  before Git runs and before anything could be lost;
+    //  every record this decision writes carries the same name.
+    // The exemption is judged on the repository the command runs in, so the notice names the entry that held both
+    //  its Git directory and its worktree top.
+    let exemption: Vec<AuditFact> = if exempt {
+        exemption_facts(&location.identity, allowed_worktree_dirs, notices)
+    } else {
+        Vec::<AuditFact>::new()
+    };
     // During a merge, rebase, cherry-pick or revert, taking a side of conflicted files is let through after the files
     // are saved; the verdict also carries the sentence a rejection of the same line gets.
     let mut conflict_note: String = String::new();
     if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
-        && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
+        && matches!(
+            target,
+            EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree | EffectiveTarget::Allowlisted
+        )
     {
         match judge_conflict_sides(&facts.transaction_context(), seen, now_milliseconds(), discarded_limits) {
             SideVerdict::NotApplicable => {}
             SideVerdict::Refused(note) => conflict_note = note,
             SideVerdict::Allowed { notice, copies } => {
-                let mut places: Vec<String> = Vec::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
-                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, seen, None, places.as_slice());
+                let places: Vec<String> = copy_places(copies.as_slice());
+                record_audit_with_copies_and_facts(
+                    &location.identity,
+                    command,
+                    AuditOutcome::SavedConflict,
+                    seen,
+                    None,
+                    places.as_slice(),
+                    exemption.as_slice(),
+                );
                 notices.push(notice);
                 return clean();
             }
             SideVerdict::CopyFailed(message) => {
-                record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+                record_audit_with_facts(&location.identity, command, AuditOutcome::Rejected, seen, None, exemption.as_slice());
                 return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
             }
         }
     }
-    if moves_head_only {
-        // A `HEAD` move outside a worktree or in an exempt cache is not this policy's concern.
-        if target != EffectiveTarget::MainWorktree && target != EffectiveTarget::LinkedWorktree {
-            return clean();
-        }
-    } else if let Some(message) = resolve_linked_worktree(command, target) {
+    if !moves_head_only
+        && let Some(message) = resolve_linked_worktree(command, target)
+    {
         record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
-    }
-    if target == EffectiveTarget::Allowlisted {
-        // The environment chose this exemption, so the person is told which variable did it and where it points,
-        //  before Git runs and before anything could be lost.
-        // The exemption is judged on the repository the command runs in, so the notice names the entry that held both
-        //  its Git directory and its worktree top.
-        let exemption: Option<&ToolCacheDirectory> =
-            matching_allowed_worktree_dir_for_repository(&location.identity, allowed_worktree_dirs);
-        let mut why: Vec<AuditFact> = Vec::<AuditFact>::new();
-        if let Some(found) = exemption {
-            why.push(AuditFact::Text("exemptedBy", found.named_by.to_string()));
-            notices.push(exemption_notice(found.named_by, found.path.as_path()));
-        }
-        record_audit_with_facts(&location.identity, command, AuditOutcome::Exempt, seen, None, why.as_slice());
-        return clean();
     }
     // A merge, a rebase, a cherry-pick, a revert or an `am` that waits for its conflicts is undone by its own abort,
     //  and the state it left makes `git status` unclean by itself: the operation's own work is what the abort is for, and
     //  the person's own work is copied beside the audit log before the command runs. Where nothing waits, Git refuses the
-    //  abort itself and discards nothing, so the command is left to Git. The exemption above runs first, because an
-    //  exempt repository is one no guard reads.
+    //  abort itself and discards nothing, so the command is left to Git. An exempt repository reaches this carve-out too:
+    //  the exemption is from the worktree rule, which refused no abort here, and it never turned off the copy.
     match judge_abort_discard(facts, command, &location.identity, now_milliseconds(), discarded_limits) {
         AbortVerdict::NotApplicable => {}
         AbortVerdict::LeftToGit => {
             // The command discards nothing this policy knows of, so it runs, and the line says the guard left it alone.
-            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            record_audit_with_facts(&location.identity, command, AuditOutcome::Allowed, seen, None, exemption.as_slice());
             return clean();
         }
         AbortVerdict::Allowed { notice, copies } => {
             if copies.is_empty() {
-                record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+                record_audit_with_facts(&location.identity, command, AuditOutcome::Allowed, seen, None, exemption.as_slice());
             } else {
-                let mut places: Vec<String> = Vec::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
-                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedAbort, seen, None, places.as_slice());
+                let places: Vec<String> = copy_places(copies.as_slice());
+                record_audit_with_copies_and_facts(
+                    &location.identity,
+                    command,
+                    AuditOutcome::SavedAbort,
+                    seen,
+                    None,
+                    places.as_slice(),
+                    exemption.as_slice(),
+                );
             }
             if !notice.is_empty() {
                 notices.push(notice);
@@ -395,14 +516,14 @@ pub(crate) fn check_linked_worktree(
             return clean();
         }
         AbortVerdict::CopyFailed(message) => {
-            record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+            record_audit_with_facts(&location.identity, command, AuditOutcome::Rejected, seen, None, exemption.as_slice());
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
         }
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
     // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
     if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
-        record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
+        record_audit_with_facts(&location.identity, command, AuditOutcome::Allowed, seen, Some(false), exemption.as_slice());
         return clean();
     }
     // The tokens after the subcommand, read once: which tree a forced form writes and which question a clean asks
@@ -425,6 +546,8 @@ pub(crate) fn check_linked_worktree(
             dirty: None,
             discarded_limits,
             notices,
+            exemption: exemption.as_slice(),
+            saved_by_exemption: &[],
         });
     };
     let tree: Option<TargetTree> = target_tree(command, region);
@@ -442,34 +565,86 @@ pub(crate) fn check_linked_worktree(
     };
     match measured {
         Ok(true) => {
+            if exempt {
+                // The exemption runs the form, and "save, then allow" keeps what it would discard. The repository's own
+                //  stash is the one entry no copy here holds, so that form keeps its refusal and the hatch it names.
+                if matches!(question, DirtyQuestion::RepositoryStash) {
+                    record_audit_with_facts(&location.identity, command, AuditOutcome::Rejected, seen, Some(true), exemption.as_slice());
+                    return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
+                }
+                return save_and_allow(ExemptForm {
+                    facts,
+                    discard: ExemptDiscard {
+                        command,
+                        identity: &location.identity,
+                        question: Some(question),
+                        tree: tree.as_ref(),
+                        ignored_paths: None,
+                        limits: discarded_limits,
+                        milliseconds: now_milliseconds(),
+                    },
+                    location: &location,
+                    region,
+                    seen,
+                    exemption: exemption.as_slice(),
+                    dirty: Some(true),
+                    notices,
+                    conflict_note: &conflict_note,
+                });
+            }
             record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
         }
         Ok(false) => {
             // The tracked state being clean says nothing about an ignored file the target tree tracks: a forced
             //  form overwrites that file whatever `--no-overwrite-ignore` says, and the ignored file is where a person
-            //  keeps their environment and their local secrets. The rejected form is not confirmed clean: a tree that
-            //  cannot be read leaves the command unread, never allowed.
-            if let Some(written) = tree.as_ref() {
-                let shared: Vec<String> = match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
+            //  keeps their environment and their local secrets. A tree that cannot be read leaves the command unread,
+            //  never allowed.
+            let shared: Vec<String> = match tree.as_ref() {
+                Some(written) => match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
                     Ok(found) => found,
                     Err(message) => return fact_unavailable(message),
-                };
-                if !shared.is_empty() {
-                    let why: Vec<AuditFact> = vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
-                    record_audit_with_facts(
-                        &location.identity,
+                },
+                None => Vec::<String>::new(),
+            };
+            if exempt {
+                // The exemption runs the form, and an ignored file the written tree tracks is copied first: the
+                //  ignored file is where a person keeps their environment and their local secrets.
+                return save_and_allow(ExemptForm {
+                    facts,
+                    discard: ExemptDiscard {
                         command,
-                        AuditOutcome::Rejected,
-                        seen,
-                        Some(false),
-                        why.as_slice(),
-                    );
-                    return rejected(
-                        LINKED_WORKTREE_REQUIRED_CODE,
-                        format!("{}{conflict_note}", ignored_file_message(command, written.revision.as_deref(), shared.as_slice())),
-                    );
-                }
+                        identity: &location.identity,
+                        question: None,
+                        tree: tree.as_ref(),
+                        ignored_paths: Some(shared),
+                        limits: discarded_limits,
+                        milliseconds: now_milliseconds(),
+                    },
+                    location: &location,
+                    region,
+                    seen,
+                    exemption: exemption.as_slice(),
+                    dirty: Some(false),
+                    notices,
+                    conflict_note: &conflict_note,
+                });
+            }
+            if !shared.is_empty() {
+                let written: &TargetTree = tree.as_ref().expect("only a form that writes a tree names one");
+                let why: Vec<AuditFact> = vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
+                record_audit_with_facts(
+                    &location.identity,
+                    command,
+                    AuditOutcome::Rejected,
+                    seen,
+                    Some(false),
+                    why.as_slice(),
+                );
+                return rejected(
+                    LINKED_WORKTREE_REQUIRED_CODE,
+                    format!("{}{conflict_note}", ignored_file_message(command, written.revision.as_deref(), shared.as_slice())),
+                );
             }
             return allow_a_discarding_form(AllowedForm {
                 facts,
@@ -480,6 +655,8 @@ pub(crate) fn check_linked_worktree(
                 dirty: Some(false),
                 discarded_limits,
                 notices,
+                exemption: exemption.as_slice(),
+                saved_by_exemption: &[],
             });
         }
         Err(message) => return fact_unavailable(message),

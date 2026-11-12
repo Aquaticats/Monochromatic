@@ -374,6 +374,28 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
     remove(root.as_path());
 }
 
+/// The copies one repository's saves wrote,
+///  as `<path below the worktree>` and its bytes,
+///  read from the folder of saved copies.
+fn saved_copies(common_dir: &Path) -> Vec<(String, Vec<u8>)> {
+    let root: PathBuf = common_dir.join("monochromatic-git-policy-cli/discarded");
+    let mut found: Vec<(String, Vec<u8>)> = Vec::<(String, Vec<u8>)>::new();
+    let Ok(stamps) = std::fs::read_dir(root.as_path()) else {
+        return found;
+    };
+    for stamp in stamps {
+        let Ok(stamp) = stamp else { continue };
+        let Ok(copies) = std::fs::read_dir(stamp.path()) else { continue };
+        for copy in copies {
+            let Ok(copy) = copy else { continue };
+            let name: String = copy.file_name().to_string_lossy().into_owned();
+            let bytes: Vec<u8> = std::fs::read(copy.path()).expect("a copy holds bytes");
+            found.push((name, bytes));
+        }
+    }
+    return found;
+}
+
 /// linked-worktree-only:
 ///  a repository under the invocation's Cargo build directory is exempt,
 /// and the same repository keeps its guard when the variable is unset or names a directory beside it.
@@ -381,15 +403,21 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
 ///  The owner's answer of 2026-11-11 exempts the Cargo build directory,
 ///  where a crate that vendors another project keeps that clone (`#3024`),
 ///  so the exemption covers the build step's tree and nothing a person works in.
+///  The exemption is from the worktree rule alone: a form that discards uncommitted work copies it first
+///  (`policy_linked_worktree_exempt_save`), so the build still runs and nothing a person wrote is lost.
 #[test]
 fn linked_worktree_exempts_a_cargo_build_directory() {
     let root: PathBuf = fixture("checks-cargo-build-dir");
     let build_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd");
     let clone: PathBuf = build_dir.join("debug/build/libghostty-vt-sys-1/out/ghostty-src");
     std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    std::fs::write(clone.join("tracked.txt"), b"edited by the build step\n").expect("the work at risk");
     let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
-    let facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
-    // The variable names the build directory: the discard runs, and the notice names the variable that chose it.
+    let mut script: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    script.uncommitted = Ok(vec![b"tracked.txt".to_vec()]);
+    let facts: ScriptedFacts = script;
+    // The variable names the build directory: the discard runs, its copy is on disk first, and the notices name both
+    //  the variable that chose the exemption and the copy that kept the work.
     let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
         facts.clone(),
         os_arguments(&["reset", "--hard"]),
@@ -400,7 +428,24 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
         ),
     );
     assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
-    assert_eq!(exempt.notices, vec![exemption_notice("CARGO_TARGET_DIR", build_dir.as_path())]);
+    // The status says what the form would lose, and the tree it writes is asked which of its paths an ignored file stands at.
+    assert_eq!(
+        exempt.facts.asked,
+        vec![
+            String::from("location"),
+            String::from("dirty:Tracked"),
+            String::from("uncommitted"),
+            String::from("ignored-and-tracked:HEAD"),
+        ]
+    );
+    assert_eq!(exempt.notices.len(), 2, "{:?}", exempt.notices);
+    assert_eq!(exempt.notices[0], exemption_notice("CARGO_TARGET_DIR", build_dir.as_path()));
+    assert!(exempt.notices[1].contains("saved it first"), "{:?}", exempt.notices);
+    assert!(exempt.notices[1].contains("tracked.txt => "), "{:?}", exempt.notices);
+    assert_eq!(
+        saved_copies(clone.join(".git").as_path()),
+        vec![(String::from("tracked.txt"), b"edited by the build step\n".to_vec())]
+    );
     // An unset variable exempts nothing: the same clone is refused while it holds changes.
     let mut unset: ShippedChecks<ScriptedFacts> = shipped_checks(
         facts.clone(),
@@ -433,6 +478,121 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
         one(
             "linked-worktree-required",
             &dirty_worktree_message(GuardedCommand::CheckoutMove)
+        )
+    );
+    remove(root.as_path());
+}
+
+/// linked-worktree-only:
+///  a clean in an exempt repository copies the untracked files it deletes before it runs.
+/// Why:
+///  The exemption exists so a build's own clone is not refused,
+///  and it never covers discarding a person's untracked file unsaved:
+///  the clean runs with its copy, which is what a build needs and what a person in that directory needs.
+#[test]
+fn linked_worktree_exempt_clean_saves_the_untracked_files_it_deletes() {
+    let root: PathBuf = fixture("checks-cargo-build-clean");
+    let build_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd");
+    let clone: PathBuf = build_dir.join("ghostty-src");
+    std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    std::fs::write(clone.join("notes.txt"), b"untracked user bytes\n").expect("the work at risk");
+    let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
+    let mut facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    facts.untracked = Ok(vec![b"notes.txt".to_vec()]);
+    let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts,
+        os_arguments(&["clean", "-fdx"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(OsString::from("CARGO_TARGET_DIR"), build_dir.as_os_str().to_owned())],
+            None,
+        ),
+    );
+    assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
+    assert_eq!(
+        exempt.facts.asked,
+        vec![
+            String::from("location"),
+            String::from("dirty:TrackedAndUntracked"),
+            String::from("untracked"),
+        ]
+    );
+    assert_eq!(
+        saved_copies(clone.join(".git").as_path()),
+        vec![(String::from("notes.txt"), b"untracked user bytes\n".to_vec())]
+    );
+    assert!(exempt.notices.iter().any(|notice| notice.contains("notes.txt => ")), "{:?}", exempt.notices);
+    remove(root.as_path());
+}
+
+/// linked-worktree-only:
+///  a save the exemption cannot read stops the command, and the worktree keeps what it held.
+/// Why:
+///  A listing that never answered says nothing about what the form would lose,
+///  and a command that runs unread is exactly the loss the save exists to prevent.
+#[test]
+fn linked_worktree_exempt_save_that_cannot_be_read_stops_the_command() {
+    let root: PathBuf = fixture("checks-cargo-build-unreadable");
+    let build_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd");
+    let clone: PathBuf = build_dir.join("ghostty-src");
+    std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    std::fs::write(clone.join("tracked.txt"), b"edited by the build step\n").expect("the work at risk");
+    let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
+    let mut facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    facts.uncommitted = Err(String::from("Git could not list the paths this command would discard: fatal"));
+    let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts,
+        os_arguments(&["reset", "--hard"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(OsString::from("CARGO_TARGET_DIR"), build_dir.as_os_str().to_owned())],
+            None,
+        ),
+    );
+    let outcome: PolicyOutcome = exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward);
+    assert!(
+        matches!(outcome, PolicyOutcome::Findings(ref found) if found.len() == 1
+            && found[0].code == "linked-worktree-required"
+            && found[0].message.contains("would discard uncommitted work")
+            && found[0].message.contains("could not be read")),
+        "{outcome:?}"
+    );
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the stopped command changed nothing"),
+        b"edited by the build step\n"
+    );
+    remove(root.as_path());
+}
+
+/// linked-worktree-only:
+///  an exempt repository still refuses to drop the one stash every worktree shares.
+/// Why:
+///  A stash entry belongs to the repository and no copy of it is made here,
+///  so the exemption has nothing to save in its place;
+///  a build never drops a stash, and a person who means it is given the hatch.
+#[test]
+fn linked_worktree_exempt_repository_still_refuses_a_stash_drop() {
+    let root: PathBuf = fixture("checks-cargo-build-stash");
+    let build_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd");
+    let clone: PathBuf = build_dir.join("ghostty-src");
+    std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
+    let mut facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    facts.stash = Ok(true);
+    let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts,
+        os_arguments(&["stash", "drop"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(OsString::from("CARGO_TARGET_DIR"), build_dir.as_os_str().to_owned())],
+            None,
+        ),
+    );
+    assert_eq!(
+        exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
+        one(
+            "linked-worktree-required",
+            &repository_stash_message(GuardedCommand::StashDrop)
         )
     );
     remove(root.as_path());
@@ -683,7 +843,9 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, Some("Tracked"), Some("topic")),
         (vec!["reset"], GuardedCommand::ResetMixed, Some("Tracked"), None),
         (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, Some("Tracked"), None),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, Some("Tracked"), None),
+        // The abort forms are decided by the operation's own state instead of the status: an operation that does not
+        //  wait leaves the command to Git's own refusal, and one that does is judged by what it would discard
+        //  (`abort_discard_guard_tests`, `binary_abort_during_an_operation_tests`).
         (vec!["clean", "-fd"], GuardedCommand::Clean, Some("TrackedAndUntracked"), None),
         (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, Some("TrackedAndUntracked"), None),
         // `-X` deletes ignored files only, so a linked worktree holds nothing this policy protects and it asks
