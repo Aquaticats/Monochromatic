@@ -272,6 +272,10 @@ pub mod service_commit_saved_message;
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
 
+/// The two Git steps a service preparation starts itself,
+/// with the face a task of the runtime asks.
+pub mod service_prepare_own_git_steps;
+
 /// The smaller steps of a service preparation.
 pub mod service_prepare_changes_config_and_pathspec_steps;
 

@@ -36,7 +36,7 @@
 
 use crate::service_prepare_ready_shapes::ReplayConflict;
 pub use crate::service_prepare_ready_shapes::{HandedBackTree, NativeInputs, Prepared, Ready, Scratch};
-pub(crate) use crate::service_prepare_unmerged_staging::unmerged_staging_request;
+use crate::service_prepare_own_git_steps::{base_tree_of, stage_the_unmerged_files};
 use crate::service_prepare_ready_shapes::ReadyShape;
 pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
 use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, the_pathspec_file, zero_object};
@@ -44,7 +44,7 @@ use crate::capture_invocation::{InvocationCapture, base_revision, capture_invoca
 /// A reference name as the bytes Git printed it.
 use crate::ref_name::RefName;
 use crate::commit_prepare_part_durations::PreparePartClock;
-use crate::private_index_request::{CaptureIndexes, indexed_request};
+use crate::private_index_request::CaptureIndexes;
 use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use crate::commit_facts::PrivateIndexFacts;
@@ -74,7 +74,7 @@ use crate::external_hooks::warn_external_hooks;
 use crate::preparation_notice::deliver_notice;
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
-use crate::transaction_git::{GitContext, run_git_checked};
+use crate::transaction_git::GitContext;
 use crate::conclusion_copy::the_state_of_a_conclusion;
 use crate::service_replay_conclusion::{the_same_conclusion, the_state_read_failure};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
@@ -322,12 +322,7 @@ pub fn prepare<F: RepositoryFacts>(
     //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
     part.next("unmergedFiles");
     let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
-    if !unmerged_files.is_empty() {
-        run_git_checked(
-            context,
-            &unmerged_staging_request(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()),
-        )?;
-    }
+    stage_the_unmerged_files(context, cwd, &indexes, unmerged_files.as_slice())?;
     part.next("changedPaths");
     let candidate_paths: Vec<Vec<u8>> =
         list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
@@ -373,9 +368,7 @@ pub fn prepare<F: RepositoryFacts>(
     part.next("treeCheck");
     if eligible && !unborn {
         let intended: String = write_private_tree(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path())?;
-        let mut tree_request = indexed_request(context, cwd, &["rev-parse", "--verify", format!("{base}^{{tree}}").as_str()], None, None);
-        tree_request.without_prefix = true;
-        let base_tree: String = String::from_utf8_lossy(run_git_checked(context, &tree_request)?.stdout.as_slice()).trim().to_string();
+        let base_tree: String = base_tree_of(context, cwd, base.as_str())?;
         if base_tree == intended {
             return normalized(invocation, &capture, base.as_str(), &candidate_paths, records.as_slice(), &(pass.events, changed_passes, changed_paths));
         }
