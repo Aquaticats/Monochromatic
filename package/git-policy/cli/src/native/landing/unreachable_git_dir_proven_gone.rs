@@ -41,7 +41,13 @@
 //! a repository deleted under a directory that is left empty,
 //! and a mount
 //!  point whose directory does not exist,
-//! are the two states this reading can still confuse.
+//! are the two states this reading can still confuse,
+//! and a question the filesystem does not answer proves nothing,
+//! so the plans it is asked about stay.
+//!  Only a name that is not there is absence:
+//! a directory this process may not search answers every question below it with an access error,
+//! and the repository behind it is then invisible,
+//! never deleted.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -132,12 +138,17 @@ pub struct Gone {
 /// What:
 ///  The proof that something may put the Git directory back:
 /// the nearest directory that exists above it,
-/// which holds nothing at all.
+/// which holds nothing at all,
+/// or which could not be read,
+/// or the path itself,
+/// which may be there behind a question the filesystem did not answer.
 /// Why:
 ///   A mount point is an empty directory while its drive is not mounted,
 /// so an empty directory is the look of a
-///  drive that is not there yet,
-/// and the plan is kept for it.
+///  drive that is not there yet;
+/// a directory this process may not search or list is one whose contents are unknown,
+/// and a path no question about it could be answered may be anything;
+/// the plan is kept for each of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -262,6 +273,111 @@ impl Mounts for NothingIsMounted {
 }
 
 /// What:
+///  What one question about a path answered.
+/// Why:
+///   Only a name that is not there says the path is gone.
+/// A directory this process may not search answers every question below it with an access error,
+/// and the repository behind it is then invisible,
+/// not absent:
+/// reading that answer as absence would delete a live repository's plans.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Look = { there: { directory: boolean } } | { absent: true } | { unknown: true };
+/// ```
+enum Look {
+    /// The path is there, and whether it is a directory.
+    There {
+        /// Whether the filesystem said the path is a directory.
+        directory: bool,
+    },
+    /// Nothing is there under that name.
+    Absent,
+    /// The filesystem answered with nothing about whether the name is there.
+    Unknown,
+}
+
+/// What one question about `path` answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const look = (p) => { try { return { there: { directory: statSync(p).isDirectory() } }; } catch (e) { return e.code === 'ENOENT' ? { absent: true } : { unknown: true }; } };
+/// ```
+fn look(path: &Path) -> Look {
+    return match std::fs::metadata(path) {
+        Ok(found) => Look::There { directory: found.is_dir() },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Look::Absent,
+        Err(_unanswered) => Look::Unknown,
+    };
+}
+
+/// What:
+///  What the walk up from a path found:
+///  the nearest directory that is there,
+///  that nothing above the path is,
+///  or that a question on the way was not answered.
+/// Why:
+///   The proof reads the first directory above the missing part that is there,
+/// and which one it is decides the answer;
+/// a walk that was not answered at one step has not seen the whole path,
+/// so it says nothing about what the path was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Nearest = { at: string } | { nothing: true } | { unknown: true };
+/// ```
+enum Nearest {
+    /// The nearest directory that is there.
+    At(PathBuf),
+    /// Nothing above the path is there.
+    Nothing,
+    /// A question on the way was not answered.
+    Unknown,
+}
+
+/// What:
+///  The nearest directory above `path`,
+///  and `path` itself,
+///  that is there.
+/// Why:
+///   A question that was not answered stops the walk:
+/// a directory above it that refused the search hides everything below it,
+/// and reading past that refusal would name a directory the path is not under.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nearestLookedAt = (p) => [p, ...ancestors(p)].reduce(...) // { at } | { nothing } | { unknown }
+/// ```
+fn nearest_looked_at(path: &Path) -> Nearest {
+    for candidate in path.ancestors() {
+        match look(candidate) {
+            Look::There { directory: true } => return Nearest::At(candidate.to_path_buf()),
+            Look::Unknown => return Nearest::Unknown,
+            Look::There { directory: false } | Look::Absent => {}
+        }
+    }
+    return Nearest::Nothing;
+}
+
+/// What:
+///  Whether a directory holds nothing at all,
+///  and why the question was not answered.
+/// Why:
+///   An empty directory may be a mount point waiting for its drive,
+/// and one whose entries could not be listed is not known to hold the other entries of a directory a repository
+///  was deleted from.
+///   The error is given back rather than taken for "holds something".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isEmpty = (dir) => readdirSync(dir).length === 0; // throws when it cannot be read
+/// ```
+fn is_empty_directory(path: &Path) -> std::io::Result<bool> {
+    let mut listing: std::fs::ReadDir = std::fs::read_dir(path)?;
+    return Ok(listing.next().is_none());
+}
+
+/// What:
 ///  Whether a Git directory that cannot be resolved is proven gone,
 /// and what the proof rests on.
 /// Why:
@@ -269,37 +385,48 @@ impl Mounts for NothingIsMounted {
 /// this is the
 ///  question that tells them apart,
 /// asked only after the directory failed to resolve.
-/// Three readings keep a plan,
+/// Four readings keep a plan,
 /// because each of them has
 ///  something that can still put the directory back:
 /// a worktree that is still there,
 /// a directory with nothing in it,
-/// and a path
-///  nothing is known about.
+/// a path
+///  nothing is known about,
+/// and a question the filesystem did not answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const proof = prove(gitDir, worktree, mounts);
 /// ```
 pub fn prove(git_dir: &Path, worktree: Option<&Path>, mounts: &dyn Mounts) -> Proof {
-    // A worktree that is still there is a repository whose own Git directory moved or is away: nothing of the repository was
-    //  deleted, and the plan waits for the directory as it always has.
-    if let Some(root) = worktree
-        && is_directory(root)
-    {
-        return Proof::MayReturn(MayReturn { nearest: root.to_path_buf() });
+    if let Some(root) = worktree {
+        match look(root) {
+            // A worktree that is still there is a repository whose own Git directory moved or is away: nothing of the repository was
+            //  deleted, and the plan waits for the directory as it always has.
+            Look::There { directory: true } => return Proof::MayReturn(MayReturn { nearest: root.to_path_buf() }),
+            // A worktree this process may not look at may be there, and then nothing of the repository was deleted either.
+            Look::Unknown => return Proof::MayReturn(MayReturn { nearest: root.to_path_buf() }),
+            Look::There { directory: false } | Look::Absent => {}
+        }
     }
-    let Some(nearest) = nearest_existing(git_dir) else {
+    let nearest: PathBuf = match nearest_looked_at(git_dir) {
+        Nearest::At(nearest) => nearest,
         // No ancestor at all exists, so nothing is known about the path: it is read as one that may return, which loses nothing.
-        return Proof::MayReturn(MayReturn { nearest: git_dir.to_path_buf() });
+        Nearest::Nothing => return Proof::MayReturn(MayReturn { nearest: git_dir.to_path_buf() }),
+        // Something above the path did not answer, so what the path is was not seen: it may be there behind that answer.
+        Nearest::Unknown => return Proof::MayReturn(MayReturn { nearest: git_dir.to_path_buf() }),
     };
     if mounts.is_mount_point(nearest.as_path()) {
         return Proof::Gone(Gone { nearest, because: GoneBecause::MountedFilesystemRoot });
     }
-    if is_empty_directory(nearest.as_path()) {
-        return Proof::MayReturn(MayReturn { nearest });
-    }
-    return Proof::Gone(Gone { nearest, because: GoneBecause::OrdinaryDirectory });
+    return match is_empty_directory(nearest.as_path()) {
+        // The directory holds nothing, so it may be a mount point waiting for its drive.
+        Ok(true) => Proof::MayReturn(MayReturn { nearest }),
+        // It holds other entries, so the repository was one of them and was deleted.
+        Ok(false) => Proof::Gone(Gone { nearest, because: GoneBecause::OrdinaryDirectory }),
+        // Whether it holds anything was not answered, so it is not read as holding the entries of a directory a repository was deleted from.
+        Err(_unanswered) => Proof::MayReturn(MayReturn { nearest }),
+    };
 }
 
 /// What:
@@ -325,52 +452,6 @@ pub fn gone_line(git_dir: &Path, gone: &Gone, branches: &[String]) -> String {
         gone.nearest.display(),
         gone.because.words()
     );
-}
-
-/// The nearest directory above `path`,
-/// and `path` itself,
-/// that exists.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const nearest = (p) => [p, ...ancestors(p)].find((a) => exists(a) && isDirectory(a));
-/// ```
-fn nearest_existing(path: &Path) -> Option<PathBuf> {
-    for candidate in path.ancestors() {
-        let Ok(metadata) = std::fs::metadata(candidate) else {
-            continue;
-        };
-        if metadata.is_dir() {
-            return Some(candidate.to_path_buf());
-        }
-    }
-    return None;
-}
-
-/// Whether a path is a directory that is there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isDirectory = (p) => statSync(p).isDirectory();
-/// ```
-fn is_directory(path: &Path) -> bool {
-    return match std::fs::metadata(path) {
-        Ok(found) => found.is_dir(),
-        Err(_absent) => false,
-    };
-}
-
-/// Whether a directory holds nothing at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isEmpty = (dir) => readdirSync(dir).length === 0;
-/// ```
-fn is_empty_directory(path: &Path) -> bool {
-    let Ok(mut listing) = std::fs::read_dir(path) else {
-        return false;
-    };
-    return listing.next().is_none();
 }
 
 /// Controls of the proof stay out of the release executable.
