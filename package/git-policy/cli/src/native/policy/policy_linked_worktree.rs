@@ -73,10 +73,8 @@ use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
-/// The save-first guard an exempt repository keeps around a form that discards work.
-use crate::policy_linked_worktree_exempt_save::{
-    ExemptDiscard, ExemptForm, exemption_facts, save_and_allow,
-};
+/// The refusal an exempt repository keeps around a form that would destroy work existing nowhere else.
+use crate::policy_linked_worktree_exempt_guard::{ExemptForm, exemption_facts, refuse_or_allow};
 /// The list of copies a record names.
 use crate::conflict_sides::copy_places;
 /// The tokens after the subcommand word.
@@ -281,9 +279,24 @@ pub(crate) fn check_linked_worktree(
     };
     // Which question this form asks, and the tree a forced form writes, both come from the tokens after it.
     let asked: Option<DirtyQuestion> = dirty_question(command, region);
+    let tree: Option<TargetTree> = target_tree(command, region);
     // A form that loses nothing this policy protects leaves its one line and runs: an ignored file is not a reason
     //  to refuse a clean in a linked worktree (the owner's answer of 2026-11-10, "Allow and log").
     let Some(question) = asked else {
+        if exempt {
+            return refuse_or_allow(ExemptForm {
+                facts,
+                command,
+                location: &location,
+                region,
+                seen,
+                question: None,
+                tree: tree.as_ref(),
+                exemption: exemption.as_slice(),
+                dirty: None,
+                conflict_note: conflict_note.as_str(),
+            });
+        }
         return allow_a_discarding_form(AllowedForm {
             facts,
             command,
@@ -294,10 +307,8 @@ pub(crate) fn check_linked_worktree(
             discarded_limits,
             notices,
             exemption: exemption.as_slice(),
-            saved_by_exemption: &[],
         });
     };
-    let tree: Option<TargetTree> = target_tree(command, region);
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
     //  nothing about it and the repository's own stash is asked instead.
     let (measured, rejection): (Result<bool, String>, String) = match question {
@@ -313,36 +324,40 @@ pub(crate) fn check_linked_worktree(
     match measured {
         Ok(true) => {
             if exempt {
-                // The exemption runs the form, and "save, then allow" keeps what it would discard. The repository's own
-                //  stash is the one entry no copy here holds, so that form keeps its refusal and the hatch it names.
-                if matches!(question, DirtyQuestion::RepositoryStash) {
-                    record_audit_with_facts(&location.identity, command, AuditOutcome::Rejected, seen, Some(true), exemption.as_slice());
-                    return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
-                }
-                return save_and_allow(ExemptForm {
+                // The exemption covers the build step's own uncommitted changes, and never work that exists nowhere
+                //  else: the form is refused over an untracked entry or a nested repository, and runs otherwise with no
+                //  copy made. A stash entry is the one thing no copy of the repository holds, so it keeps its refusal.
+                return refuse_or_allow(ExemptForm {
                     facts,
-                    discard: ExemptDiscard {
-                        command,
-                        identity: &location.identity,
-                        question: Some(question),
-                        tree: tree.as_ref(),
-                        ignored_paths: None,
-                        limits: discarded_limits,
-                        milliseconds: now_milliseconds(),
-                    },
+                    command,
                     location: &location,
                     region,
                     seen,
+                    question: Some(question),
+                    tree: tree.as_ref(),
                     exemption: exemption.as_slice(),
                     dirty: Some(true),
-                    notices,
-                    conflict_note: &conflict_note,
+                    conflict_note: conflict_note.as_str(),
                 });
             }
             record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
         }
         Ok(false) => {
+            if exempt {
+                return refuse_or_allow(ExemptForm {
+                    facts,
+                    command,
+                    location: &location,
+                    region,
+                    seen,
+                    question: Some(question),
+                    tree: tree.as_ref(),
+                    exemption: exemption.as_slice(),
+                    dirty: Some(false),
+                    conflict_note: conflict_note.as_str(),
+                });
+            }
             // The tracked state being clean says nothing about an ignored file the target tree tracks: a forced
             //  form overwrites that file whatever `--no-overwrite-ignore` says, and the ignored file is where a person
             //  keeps their environment and their local secrets. A tree that cannot be read leaves the command unread,
@@ -354,29 +369,6 @@ pub(crate) fn check_linked_worktree(
                 },
                 None => Vec::<String>::new(),
             };
-            if exempt {
-                // The exemption runs the form, and an ignored file the written tree tracks is copied first: the
-                //  ignored file is where a person keeps their environment and their local secrets.
-                return save_and_allow(ExemptForm {
-                    facts,
-                    discard: ExemptDiscard {
-                        command,
-                        identity: &location.identity,
-                        question: None,
-                        tree: tree.as_ref(),
-                        ignored_paths: Some(shared),
-                        limits: discarded_limits,
-                        milliseconds: now_milliseconds(),
-                    },
-                    location: &location,
-                    region,
-                    seen,
-                    exemption: exemption.as_slice(),
-                    dirty: Some(false),
-                    notices,
-                    conflict_note: &conflict_note,
-                });
-            }
             if !shared.is_empty() {
                 let written: &TargetTree = tree.as_ref().expect("only a form that writes a tree names one");
                 let why: Vec<AuditFact> = vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
@@ -403,7 +395,6 @@ pub(crate) fn check_linked_worktree(
                 discarded_limits,
                 notices,
                 exemption: exemption.as_slice(),
-                saved_by_exemption: &[],
             });
         }
         Err(message) => return fact_unavailable(message),

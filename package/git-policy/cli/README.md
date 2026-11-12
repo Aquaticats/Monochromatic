@@ -2399,10 +2399,12 @@ The rule is:
   leaves the later names to be asked.
   An empty value of any of these variables counts as unset.
   The exemption is from the worktree rule alone:
-  a form there that would discard uncommitted work is copied into the folder of saved copies first and then
-  runs,
-  so a build that resets or cleans its own vendored clone still succeeds and nothing written there is lost,
-  and `git stash drop` or `git stash clear` stays refused while the repository holds an entry,
+  the build step's own uncommitted changes still run there,
+  while a command that would overwrite or delete an untracked file or a nested Git repository is refused,
+  names what it would destroy,
+  and runs only with `--no-enforce-worktree` directly after the subcommand,
+  which runs it as real Git would and keeps no copy;
+  `git stash drop` or `git stash clear` stays refused while the repository holds an entry,
   which is not this worktree's.
   The exemption is chosen by the environment of the command itself,
   so the wrapper says on standard error which variable exempted the repository and which directory it named,

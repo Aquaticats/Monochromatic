@@ -21,12 +21,11 @@
 //! // mainWorktreeMessage('restore-staged') === 'monochromatic-git-policy-cli: git restore --staged is rejected in the main git worktree: ...'
 //! ```
 
-use crate::conflict_sides::SavedCopy;
 use crate::rule_linked_worktree::GuardedCommand;
 /// The paths a message names before it counts the rest.
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// The sentence every text ends with:
 /// the one deliberate way to discard work anyway.
@@ -196,7 +195,7 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// What:
 ///  The sentence that says which variable exempted a repository from the worktree guard,
 ///  and that the exemption is from that rule alone.
-///  `&str` borrows the two facts and `&Path` the directory the variable named.
+///  `&str` borrows the variable's name and `&Path` the directory it named.
 /// Why:
 ///   The exemption is chosen by the invocation's own environment,
 ///  so a variable that happens to name the
@@ -205,9 +204,9 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 ///       stop the command or unset the variable.
 ///  It says nothing was measured,
 ///  because an exempt repository asks no worktree question,
-///  and it no longer promises that nothing is saved:
-///  a form that discards uncommitted work copies it first and then runs,
-///  which the saved-copy notice beside this one names.
+///  and it says what the exemption does not cover:
+///  a form that would overwrite or delete an untracked file or a nested Git repository is refused,
+///  and the wrapper keeps no copy.
 ///  The sentence names both paths the exemption asks for,
 ///  so a worktree added outside that directory reads as the person's own work.
 ///
@@ -217,103 +216,76 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// ```
 pub fn exemption_notice(variable: &str, directory: &Path) -> String {
     return format!(
-        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains both its Git directory and its worktree. \
-         Nothing was measured, and the command runs without that rule; a form that discards uncommitted work is copied beside the audit log first and then runs. \
-         Hint: if {variable} does not describe a tool cache on this machine, unset it for this command (env --unset={variable} git ...) or run the command from a shell where it does not name this directory.\n",
+        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains both its Git directory and its worktree.          Nothing was measured, and the command runs without that rule; a form that would overwrite or delete an untracked file or a nested Git repository is still refused, and the wrapper keeps no copy.          Hint: if {variable} does not describe a tool cache on this machine, unset it for this command (env --unset={variable} git ...) or run the command from a shell where it does not name this directory.\n",
         directory.display()
     );
 }
 
 /// What:
-///  The directory this invocation's copies went into,
-///  or nothing when no copy has a place.
+///  The rejection text for a form an exempt repository refuses because it would overwrite or delete
+///  work that exists nowhere else.
+///  `&[String]` borrows the untracked entries,
+///  the nested repositories and the ignored files it would lose.
 /// Why:
-///   The notice shows one directory and the names below it,
-///  instead of repeating a long absolute path once per file.
+///   The exemption covers the worktree rule,
+///  never a file Git did not put there or a nested repository;
+///  the text names each entry,
+///  says the opt-out runs the command as Git would,
+///  and promises no copy,
+///  because the wrapper keeps none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copiesDirectory(copies: SavedCopy[]): PathBuf | undefined;
+/// function exemptAtRiskMessage(command, untracked, nested, ignored): string;
 /// ```
-fn copies_directory(copies: &[SavedCopy]) -> Option<PathBuf> {
-    for copy in copies {
-        let Some(place) = copy.saved_to.as_deref() else {
-            continue;
-        };
-        return place.parent().map(Path::to_path_buf);
+pub fn exempt_at_risk_message(
+    command: GuardedCommand,
+    untracked: &[String],
+    nested: &[String],
+    ignored: &[String],
+) -> String {
+    let (name, _risk, _instead): (&str, &str, &str) = describe(command);
+    let mut listed: Vec<String> = Vec::<String>::new();
+    for path in untracked.iter().take(SHARED_PATHS_NAMED) {
+        listed.push(format!("the untracked entry {path}"));
     }
-    return None;
-}
-
-/// What:
-///  The notice that names the copies an exempt repository made before the form runs.
-///  `&[SavedCopy]` borrows the copies the save step made.
-/// Why:
-///   The form runs although the worktree holds what it overwrites or deletes,
-///  so the person has to learn where their work went before Git starts;
-///  a copy nobody is told about is a copy they will not find.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function exempt_saved_notice(command: GuardedCommand, copies: SavedCopy[]): string;
-/// ```
-pub fn exempt_saved_notice(command: GuardedCommand, copies: &[SavedCopy]) -> String {
-    let (name, _, _): (&str, &str, &str) = describe(command);
-    let mut text: String = format!(
-        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard, and {name} discards uncommitted work; the wrapper saved it \
-         first, so nothing you wrote is lost.\n"
-    );
-    if let Some(directory) = copies_directory(copies) {
-        text.push_str(format!("  copies are under {}\n", directory.display()).as_str());
+    for path in nested.iter().take(SHARED_PATHS_NAMED.saturating_sub(listed.len())) {
+        listed.push(format!("the nested Git repository {path}"));
     }
-    let mut named: usize = 0;
-    let mut more: usize = 0;
-    for copy in copies {
-        if named < SHARED_PATHS_NAMED {
-            match &copy.saved_to {
-                Some(place) => text.push_str(format!("  {} => {}\n", copy.path, place.display()).as_str()),
-                None => text.push_str(
-                    format!("  {} was deleted in the worktree, so there was nothing to copy\n", copy.path).as_str(),
-                ),
-            }
-            named += 1;
-            continue;
-        }
-        more += 1;
+    for path in ignored.iter().take(SHARED_PATHS_NAMED.saturating_sub(listed.len())) {
+        listed.push(format!("the ignored file {path}, which the tree this command writes tracks"));
     }
-    if more > 0 {
-        text.push_str(format!("  and {more} more in the same directory\n").as_str());
+    let total: usize = untracked.len() + nested.len() + ignored.len();
+    let mut what: String = listed.join(", ");
+    if total > listed.len() {
+        what.push_str(format!(", and {} more", total - listed.len()).as_str());
     }
-    text.push_str(format!("  {name} runs now.\n").as_str());
-    return text;
-}
-
-/// What:
-///  The text of a form the exemption stopped because what it would discard could not be copied,
-///  or could not even be listed.
-///  `subject` is the path a copy failed at,
-///  empty when no path is to blame;
-///  `reason` is what the save step or the listing said.
-/// Why:
-///   The command would discard work that is on disk nowhere else,
-///  so it stops and the person is told what to fix;
-///  saving the work by hand and passing the hatch stays the way through.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function exempt_save_stopped_message(command: GuardedCommand, subject: string, reason: string): string;
-/// ```
-pub fn exempt_save_stopped_message(command: GuardedCommand, subject: &str, reason: &str) -> String {
-    let (name, _, _): (&str, &str, &str) = describe(command);
-    let problem: String = if subject.is_empty() {
-        format!("what it would discard could not be read: {reason}")
-    } else {
-        format!("your copy of it could not be saved ({subject}: {reason})")
-    };
+    let plural: bool = total != 1;
     return format!(
-        "monochromatic-git-policy-cli: {name} would discard uncommitted work, and {problem}, so it is rejected and nothing was changed. \
-         Free the space or fix the permissions of the Git directory and run the command again, or save the work yourself and pass \
-         `--no-enforce-worktree` directly after the subcommand."
+        "monochromatic-git-policy-cli: {name} is rejected because it would overwrite or delete {what}, which {} nowhere else, and this repository is exempt from the worktree guard only: the exemption covers a build step's own uncommitted changes, never work Git did not put there. Move {} away first, or pass --no-enforce-worktree directly after the subcommand if you mean to discard {}; the wrapper keeps no copy.",
+        if plural { "exist" } else { "exists" },
+        if plural { "them" } else { "it" },
+        if plural { "them" } else { "it" }
+    );
+}
+
+/// What:
+///  The rejection text for a form an exempt repository refuses because what it would destroy
+///  could not be read.
+///  `reason` is what the reading said.
+/// Why:
+///   The refusal is the whole protection now that the wrapper keeps no copy,
+///  so an answer nobody could make is a refusal and never "nothing to protect";
+///  the person is told what failed and how to run the command anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exemptUnreadableMessage(command, reason: string): string;
+/// ```
+pub fn exempt_unreadable_message(command: GuardedCommand, reason: &str) -> String {
+    let (name, _risk, _instead): (&str, &str, &str) = describe(command);
+    return format!(
+        "monochromatic-git-policy-cli: {name} is rejected because this repository is exempt from the worktree guard and what the command would destroy could not be read ({reason}), so nothing was changed. Fix the reading, or pass --no-enforce-worktree directly after the subcommand to run the command as Git would; the wrapper keeps no copy."
     );
 }
 

@@ -234,9 +234,6 @@ pub(crate) struct AllowedForm<'a> {
     /// The facts a record carries for a repository the allowlist exempts,
     ///  empty for every other repository.
     pub(crate) exemption: &'a [AuditFact],
-    /// The copies an exempt repository's own save made before this form,
-    ///  empty when there was none or when the repository is not exempt.
-    pub(crate) saved_by_exemption: &'a [SavedCopy],
 }
 
 /// What:
@@ -258,9 +255,8 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
         match keep_the_nested_repositories_a_clean_would_delete(form.facts, form.location, form.region, form.discarded_limits) {
             NestedRepositories::Nothing => {}
             NestedRepositories::Saved { copies, notice } => {
-                // Every copy this decision made is named in its one line, the exemption's own among them.
-                let mut places: Vec<String> = copy_places(copies.as_slice());
-                places.extend(copy_places(form.saved_by_exemption));
+                // Every copy this decision made is named in its one line.
+                let places: Vec<String> = copy_places(copies.as_slice());
                 form.notices.push(notice);
                 record_audit_with_copies_and_facts(
                     &form.location.identity,
@@ -294,21 +290,8 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
             }
         }
     }
-    // An exempt repository's line says the exemption let the form through, and names the copies it made:
-    //  nothing was at risk, or what was at risk is on disk beside the audit log.
-    if !form.saved_by_exemption.is_empty() {
-        let places: Vec<String> = copy_places(form.saved_by_exemption);
-        record_audit_with_copies_and_facts(
-            &form.location.identity,
-            form.command,
-            AuditOutcome::SavedExempt,
-            form.seen,
-            form.dirty,
-            places.as_slice(),
-            form.exemption,
-        );
-        return clean();
-    }
+    // An exempt repository's line says the exemption let the form through,
+    //  and names no copy, because the wrapper keeps none.
     if !form.exemption.is_empty() {
         record_audit_with_facts(&form.location.identity, form.command, AuditOutcome::Exempt, form.seen, form.dirty, form.exemption);
         return clean();

@@ -47,6 +47,10 @@ pub mod repository_facts_abort_discard;
 ///  the uncommitted changes and the files Git does not track.
 pub mod repository_facts_discardable_paths;
 
+/// The paths one guarded form writes and the worktree entries that stand where they go,
+///  read beside the provider so its interface file stays within its line bound.
+pub mod repository_facts_paths_the_form_writes;
+
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 

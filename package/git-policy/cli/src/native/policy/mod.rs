@@ -55,10 +55,18 @@ pub mod policy_linked_worktree;
 ///  in its own file so that check stays within its line bound.
 pub mod policy_linked_worktree_shared_remote;
 
-/// The save-first guard a repository the allowlist exempts from the worktree rule keeps:
-///  the work a discarding form would lose is copied beside the audit log,
-///  and the form then runs.
-pub mod policy_linked_worktree_exempt_save;
+/// The refusal a repository the allowlist exempts from the worktree rule keeps:
+///  a form that would destroy an untracked entry or a nested Git repository is refused,
+///  and the command runs as Git would only with the guard's opt-out.
+pub mod policy_linked_worktree_exempt_guard;
+
+/// The paths one guarded form writes into the worktree,
+///  read from the form's own words.
+pub mod policy_linked_worktree_exempt_written_paths;
+
+/// The paths the path forms and the index forms write,
+///  read apart from the three common forms so each file stays within its line bound.
+pub mod policy_linked_worktree_exempt_written_paths_other_forms;
 
 /// Keeping the nested Git repositories a clean would delete,
 ///  and the one place a form is let through.

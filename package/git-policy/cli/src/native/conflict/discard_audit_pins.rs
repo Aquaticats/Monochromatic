@@ -5,7 +5,6 @@
 //! Why:
 //!  A `saved-conflict` line says where the content that vanished from a conflicted path went,
 //!  a `saved-nested-repository` line says where a repository a clean would have deleted went,
-//!  a `saved-exempt` line says where the work an exempt repository's form discarded went,
 //! and such a line is the only account of that place.
 //! A generation that
 //!  names a copy still on disk therefore outlives the bound the other generations live under (the owner's answer of
@@ -30,12 +29,10 @@ use std::path::Path;
 /// The words each line that names a saved copy carries,
 /// which no other line has:
 /// a conflicted file the command replaced,
-/// a nested repository the command would have deleted,
-/// and the work an exempt repository's form discarded.
-const SAVED_COPY_MARKS: [&[u8]; 3] = [
+/// and a nested repository the command would have deleted.
+const SAVED_COPY_MARKS: [&[u8]; 2] = [
     b"\"outcome\":\"saved-conflict\"",
     b"\"outcome\":\"saved-nested-repository\"",
-    b"\"outcome\":\"saved-exempt\"",
 ];
 
 /// The characters that stand for a byte the line's writer could not show as text:

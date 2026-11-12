@@ -1,11 +1,11 @@
 //! What:
-//!  The work a guarded form would discard in a repository no worktree rule refuses:
+//!  The work whose destruction one guarded form asks about:
 //!  the paths where the worktree or the index differs from `HEAD`,
-//!  and the files Git does not track and the ignore rules do not cover.
+//!  and the entries Git does not track and the ignore rules do not cover.
 //! Why:
 //!  An allowlisted repository is exempt from the worktree rule,
-//!  and never from the rule that nothing a person wrote is discarded unsaved,
-//!  so a form there copies what it would lose beside the audit log before Git runs
+//!  and never from the rule that a command which could destroy a file existing nowhere else is refused,
+//!  so a form there is refused over an untracked entry that stands where it writes
 //!  (`policy_linked_worktree`).
 //!  Every answer is Git's own listing of the one question asked,
 //!  and a listing that never answered is a failure,
@@ -64,32 +64,6 @@ fn untracked_query_arguments(global_prefix: &[OsString]) -> Vec<OsString> {
 }
 
 /// What:
-///  The files of one `--others` listing,
-///  without the directories Git names with a trailing separator.
-/// Why:
-///   `ls-files --others` names a nested Git repository as one directory,
-///  because it lists nothing inside one,
-///  and a directory is not a file a copy holds;
-///  a clean's nested repository is kept whole by its own save instead
-///  (`policy_linked_worktree_nested_repositories`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const files = paths.filter((path) => !path.endsWith('/'));
-/// ```
-fn untracked_files(paths: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-    let mut files: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for path in paths {
-        // A directory Git named as one is not a file a copy holds.
-        if path.ends_with(b"/") {
-            continue;
-        }
-        files.push(path);
-    }
-    return files;
-}
-
-/// What:
 ///  The paths where the worktree or the index differs from `HEAD`,
 ///  each once and in a settled order,
 ///  or why Git could not list them.
@@ -109,11 +83,15 @@ pub(super) fn uncommitted_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, St
 }
 
 /// What:
-///  The paths Git does not track and the ignore rules do not cover,
+///  Every entry Git does not track and the ignore rules do not cover,
+///  as Git printed it,
+///  including the directory entry Git prints for a nested Git repository,
 ///  or why Git could not list them.
 /// Why:
 ///   A clean that deletes untracked files loses exactly these,
-///  and it loses no ignored file the copy would have to hold.
+///  and a form that writes a tree replaces the ones that stand at its paths;
+///  a nested repository arrives as one directory entry (`nested/`),
+///  which is the entry a refusal must name whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,5 +100,5 @@ pub(super) fn uncommitted_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, St
 pub(super) fn untracked_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
     let arguments: Vec<OsString> = untracked_query_arguments(facts.global_prefix.as_slice());
     let output: MetadataOutput = facts.query(arguments, "the files Git does not track")?;
-    return Ok(untracked_files(listed_paths(&output)?));
+    return listed_paths(&output);
 }

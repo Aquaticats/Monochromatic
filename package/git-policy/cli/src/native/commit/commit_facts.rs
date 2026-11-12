@@ -137,6 +137,14 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.untracked_paths();
     }
 
+    fn tree_paths(&mut self, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.tree_paths(revision, pathspecs);
+    }
+
+    fn index_paths(&mut self, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.index_paths(pathspecs);
+    }
+
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         return self.inner.clean_deleted_paths(arguments);
     }
@@ -210,6 +218,14 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn untracked_paths(&mut self) -> Result<Vec<Vec<u8>>, String> {
         return (**self).untracked_paths();
+    }
+
+    fn tree_paths(&mut self, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).tree_paths(revision, pathspecs);
+    }
+
+    fn index_paths(&mut self, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).index_paths(pathspecs);
     }
 
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {

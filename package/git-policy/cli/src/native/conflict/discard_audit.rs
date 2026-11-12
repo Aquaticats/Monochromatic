@@ -103,7 +103,6 @@ pub enum AuditOutcome {
     /// The repository lies under an allowlisted tool cache,
     ///  and the command was going to discard uncommitted work there:
     ///  the wrapper saved a copy of it first and the command ran.
-    SavedExempt,
     /// The form is recorded and was never refused:
     ///  it runs as Git runs it,
     ///  by the owner's decision,
@@ -124,7 +123,6 @@ impl AuditOutcome {
             AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
 
             AuditOutcome::SavedAbort => return "saved-abort",
-            AuditOutcome::SavedExempt => return "saved-exempt",
             AuditOutcome::Logged => return "logged",
         }
     }

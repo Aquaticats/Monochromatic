@@ -156,10 +156,20 @@ pub trait RepositoryFacts {
     ///  because the form writes a tree or replaces the index,
     ///  so the work it would discard is copied first.
     fn uncommitted_paths(&mut self) -> Result<Vec<Vec<u8>>, String>;
-    /// The paths Git does not track and the ignore rules do not cover.
-    /// Asked before a clean that deletes untracked files runs,
-    ///  so the files it would delete are copied first.
+    /// Every entry Git does not track and the ignore rules do not cover,
+    ///  including the directory entry Git prints for a nested repository.
+    /// Asked before a form that would overwrite or delete untracked work runs in an exempt repository,
+    ///  because that work exists nowhere else and the form is refused over it.
     fn untracked_paths(&mut self) -> Result<Vec<Vec<u8>>, String>;
+    /// Every path of the revision's tree,
+    ///  or the paths of it the given pathspecs match when there are any.
+    /// Asked before a form that writes a tree into the worktree,
+    ///  because an untracked file at one of those paths exists nowhere else.
+    fn tree_paths(&mut self, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String>;
+    /// Every path the index holds,
+    ///  or the paths of it the given pathspecs match when there are any.
+    /// Asked before a form that writes the index's content over the worktree.
+    fn index_paths(&mut self, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
@@ -448,6 +458,17 @@ impl RepositoryFacts for GitFacts {
 
     fn untracked_paths(&mut self) -> Result<Vec<Vec<u8>>, String> {
         return crate::repository_facts_discardable_paths::untracked_paths(self);
+    }
+
+    fn tree_paths(&mut self, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        // A revision Git cannot resolve is a command Git refuses itself, so it writes no path and destroys nothing.
+        return Ok(
+            crate::repository_facts_paths_the_form_writes::tree_paths(self, revision, pathspecs)?.unwrap_or_default(),
+        );
+    }
+
+    fn index_paths(&mut self, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        return crate::repository_facts_paths_the_form_writes::index_paths(self, pathspecs);
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {

@@ -62,6 +62,10 @@ pub(crate) struct ScriptedFacts {
     pub(crate) uncommitted: Result<Vec<Vec<u8>>, String>,
     /// The paths Git does not track and the ignore rules do not cover.
     pub(crate) untracked: Result<Vec<Vec<u8>>, String>,
+    /// The paths the tree a form writes holds.
+    pub(crate) tree_paths: Result<Vec<Vec<u8>>, String>,
+    /// The paths the index holds.
+    pub(crate) index_paths: Result<Vec<Vec<u8>>, String>,
     /// The paths the dry run of the clean as typed names,
     ///  which is the one carrying the clean's own exclusion patterns.
     pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
@@ -200,6 +204,20 @@ impl RepositoryFacts for ScriptedFacts {
         return self.untracked.clone();
     }
 
+    fn tree_paths(&mut self, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        self.asked.push(format!(
+            "tree-paths:{}:{}",
+            revision.unwrap_or(OsStr::new("HEAD")).to_string_lossy(),
+            pathspecs.len()
+        ));
+        return self.tree_paths.clone();
+    }
+
+    fn index_paths(&mut self, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+        self.asked.push(format!("index-paths:{}", pathspecs.len()));
+        return self.index_paths.clone();
+    }
+
     /// Log the question,
     ///  then prepare with real Git in the scripted repository,
     ///  or fail.
@@ -307,6 +325,8 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         ignored_and_tracked: Ok(Vec::<String>::new()),
         uncommitted: Ok(Vec::<Vec<u8>>::new()),
         untracked: Ok(Vec::<Vec<u8>>::new()),
+        tree_paths: Ok(Vec::<Vec<u8>>::new()),
+        index_paths: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
