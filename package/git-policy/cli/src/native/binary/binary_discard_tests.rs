@@ -1502,16 +1502,23 @@ fn an_alias_reaches_the_transform_that_keeps_ignored_files() {
     remove(&fixture);
 }
 
-/// A clean that deletes ignored files and carries its own exclusion patterns is measured with those patterns,
-/// because Git applies them to the set it deletes.
+/// What:
+///  A clean that deletes ignored files and carries its own exclusion patterns deletes what those patterns make
+///  ignored, exits 0, and leaves its audit line:
+///  no copy, no refusal.
+/// Why:
+///   The owner answered on 2026-11-12 ("Keep allow and log", the answer of 2026-11-10 standing against the audits)
+///  that `git clean -fX` and `-fx` delete ignored files, exit 0 and are logged;
+///  a path the clean's own `-e`/`--exclude` patterns call ignored is one of those files,
+///  so nothing about it is measured or kept.
 #[test]
-fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
+fn a_clean_of_ignored_files_with_an_exclusion_deletes_and_is_logged() {
     let fixture: Fixture = fixture("discard-clean-exclude");
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
     let linked: PathBuf = fixture.root.join("linked");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
     std::fs::write(linked.join("notes.txt"), b"the person notes\n").expect("untracked file");
-    // What real Git does with the same command, so the deletion the guard prevents is measured and not presumed.
+    // What real Git does with the same command, so the control measures the wrapper against Git's own answer.
     let deleted: Observed = run_direct(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
     assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
     assert!(
@@ -1525,29 +1532,25 @@ fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
         vec!["-enotes.txt"],
     ] {
         std::fs::write(linked.join("notes.txt"), b"the person notes\n").expect("untracked file");
+        keep_ignored_work(linked.as_path());
+        let before: usize = audit_lines_of(repo.as_path()).len();
         let mut arguments: Vec<&str> = vec!["clean", "--force", "-X"];
         arguments.extend(exclusion.iter().copied());
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert!(
-            rejected_by_policy(&observed),
-            "{arguments:?} deleted the file: {}",
-            stderr_of(&observed)
-        );
-        assert!(
-            linked.join("notes.txt").exists(),
-            "{arguments:?} deleted the excluded file anyway"
-        );
+        assert!(!rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!linked.join("notes.txt").exists(), "{arguments:?} kept the pattern-ignored file");
+        assert!(!ignored_work_survives(linked.as_path()), "{arguments:?} kept the ignored work");
+        let lines: Vec<String> = audit_lines_since(repo.as_path(), before);
+        assert_eq!(lines.len(), 1, "{arguments:?} left {lines:?}");
+        let last: &str = lines.first().expect("one line");
+        for field in ["\"form\":\"CleanIgnoredOnly\"", "\"outcome\":\"allowed\"", "\"dirty\":null"] {
+            assert!(last.contains(field), "{field} missing from {last}");
+        }
     }
-    // Nothing to delete is nothing to refuse: the same spelling runs where the excluded path is absent.
-    std::fs::remove_file(linked.join("notes.txt")).expect("drop the untracked file");
+    // Nothing to delete is nothing to refuse either: the work is gone, and the same spelling still runs.
     let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
     assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
-    // The ignored work the same spelling deletes is no longer a reason to refuse it, so it runs and goes.
-    keep_ignored_work(linked.as_path());
-    let deleting: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
-    assert!(!rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
-    assert_eq!(deleting.code, Some(0), "{}", stderr_of(&deleting));
-    assert!(!ignored_work_survives(linked.as_path()), "the ignored work stayed");
     remove(&fixture);
 }
 

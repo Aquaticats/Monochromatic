@@ -167,19 +167,14 @@ fn each_form_asks_about_the_state_it_can_destroy() {
             _ => Some(DirtyQuestion::Worktree(DirtyScope::Tracked)),
         };
         if command == GuardedCommand::CleanIgnoredOnly {
-            // A clean that names its own exclusion patterns is asked of Git itself, because the status cannot see
-            //  them; without them it deletes ignored files and nothing else, which is nothing to ask about.
-            assert_eq!(
-                dirty_question(command, os_arguments(&["-fdx", "--exclude=notes.txt"]).as_slice()),
-                Some(DirtyQuestion::CleanDryRun),
-                "{command:?}"
-            );
-            for region in [vec!["-fdx"], vec!["-fdX"], vec!["-X"]] {
-                assert_eq!(dirty_question(command, os_arguments(&region).as_slice()), None, "{region:?}");
+            // An ignored file is no reason to refuse this clean, whether the worktree ignores it itself or only the
+            //  clean's own `-e`/`--exclude` patterns do, so no spelling of it asks anything.
+            for region in [vec!["-fdX"], vec!["-X"], vec!["-fdX", "--exclude=notes.txt"], vec!["-fX", "-enotes.txt"]] {
+                assert_eq!(dirty_question(command), None, "{region:?}");
             }
             continue;
         }
-        assert_eq!(dirty_question(command, &[]), expected, "{command:?}");
+        assert_eq!(dirty_question(command), expected, "{command:?}");
     }
 }
 
@@ -313,7 +308,6 @@ fn each_intent_gets_its_own_alternative() {
         dirty_worktree_message(GuardedCommand::CleanIgnored)
             .contains("has uncommitted changes to tracked files or untracked files")
     );
-    assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("--exclude"));
     assert!(dirty_worktree_message(GuardedCommand::Clean).contains("untracked files"));
     assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("untracked"));
     assert!(main_worktree_message(GuardedCommand::AbortMerge).contains("git merge --quit"));

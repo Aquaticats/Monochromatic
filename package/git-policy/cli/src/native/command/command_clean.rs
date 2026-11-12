@@ -262,45 +262,6 @@ pub fn parse_clean_region(
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, true);
-}
-
-/// What:
-///  The same dry run without the patterns the clean's own `-e`/`--exclude` tokens add to its ignore rules.
-///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
-/// Why:
-///  A pattern can pull into a clean a path the worktree itself does not ignore,
-///  and the difference between
-///  this answer and the typed clean's is exactly what the patterns add
-///  (`paths_only_the_exclusions_add`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
-/// ```
-pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, false);
-}
-
-/// What:
-///  The dry-run arguments of one clean,
-/// with or without its own exclusion patterns.
-///  `bool` says whether the patterns are written.
-/// Why:
-///  Every reading is the same command,
-///  so they share one builder and differ in one step each;
-///  a second copy of the
-///  rebuild would drift from this one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean): string[] | undefined;
-/// ```
-fn dry_run_arguments(
-    global_prefix: &[OsString],
-    region: &[OsString],
-    with_exclusions: bool,
-) -> Option<Vec<OsString>> {
     // The region Git refuses is nothing to ask about; the `?` is that refusal.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
@@ -308,8 +269,7 @@ fn dry_run_arguments(
     let descends: bool = is_enabled(&parsed, DIRECTORIES);
     let mut exclusions: Vec<&[u8]> = Vec::<&[u8]>::new();
     for occurrence in &parsed.occurrences {
-        if with_exclusions
-            && occurrence.id == EXCLUDE
+        if occurrence.id == EXCLUDE
             && let Some(value) = occurrence.value
         {
             exclusions.push(value_bytes(region, value));
@@ -356,8 +316,7 @@ fn dry_run_arguments(
 ///  refuses says nothing either,
 ///  so a failure is an error and never "nothing to delete".
 ///  Two dry runs of the same clean name a path the same way,
-///  which is what makes
-///       their two answers comparable line by line.
+///  which is what lets a second reading be compared with the first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -365,34 +324,6 @@ fn dry_run_arguments(
 /// ```
 pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
     return dry_run_lines_from_answer(answer, CLEAN_DELETION_FACT);
-}
-
-/// What:
-///  The paths one dry-run answer names that the same clean without its exclusion patterns would not delete.
-///  `deleted` and `otherwise_deleted` borrow both answers as Git printed them.
-/// Why:
-///   Git adds the `-e`/`--exclude` patterns to the ignore rules the clean applies,
-///  so a path only the first
-///  answer names is one those patterns call ignored and the worktree does not:
-///  an untracked
-///  file this clean would lose.
-///  A set keeps the comparison linear in the larger answer,
-///  because a
-///  worktree can ignore millions of paths.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function pathsOnlyTheExclusionsAdd(deleted: Buffer[], otherwiseDeleted: Buffer[]): Buffer[];
-/// ```
-pub fn paths_only_the_exclusions_add(deleted: &[Vec<u8>], otherwise_deleted: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    let known: std::collections::BTreeSet<&[u8]> = otherwise_deleted.iter().map(Vec::as_slice).collect();
-    let mut added: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for path in deleted {
-        if !known.contains(path.as_slice()) {
-            added.push(path.clone());
-        }
-    }
-    return added;
 }
 
 /// What:

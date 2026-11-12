@@ -273,16 +273,12 @@ pub enum LinkedWorktreeDecision {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DirtyQuestion = { kind: 'worktree'; scope: DirtyScope } | { kind: 'clean-dry-run' }
-///   | { kind: 'repository-stash' };
+/// type DirtyQuestion = { kind: 'worktree'; scope: DirtyScope } | { kind: 'repository-stash' };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DirtyQuestion {
     /// Ask `git status` for the given scope.
     Worktree(DirtyScope),
-    /// Ask Git what this exact clean would delete only because of the `-e`/`--exclude` patterns it carries,
-    ///  because a status cannot see them.
-    CleanDryRun,
     /// Ask whether the repository holds a stash entry.
     RepositoryStash,
 }
@@ -297,12 +293,14 @@ pub enum DirtyQuestion {
 ///  The owner decided on 2026-11-10 that an ignored file is not a reason to refuse a clean in a linked worktree,
 ///  so a clean that deletes nothing else has nothing to ask and runs,
 ///  and a clean that also deletes untracked files is judged by tracked and untracked work only.
+///  The same answer was kept on 2026-11-12 for the `-e`/`--exclude` patterns of such a clean,
+///  so no spelling of it is read here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dirtyQuestion(command: GuardedCommand, region: string[]): DirtyQuestion | undefined;
+/// function dirtyQuestion(command: GuardedCommand): DirtyQuestion | undefined;
 /// ```
-pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<DirtyQuestion> {
+pub fn dirty_question(command: GuardedCommand) -> Option<DirtyQuestion> {
     match command {
         GuardedCommand::StashDrop => {
             return Some(DirtyQuestion::RepositoryStash);
@@ -312,15 +310,10 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
             return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked));
         }
         GuardedCommand::CleanIgnoredOnly => {
-            // `-X` deletes ignored files and nothing else, so what it would destroy is nothing this policy asks about.
-            // `-e`/`--exclude` adds patterns to the ignore rules this clean applies, so a path the worktree does not
-            //  itself ignore is one this clean deletes, and Git's own dry run is the reading that shows the difference.
-            match parse_clean_region(region, &[]) {
-                Ok(facts) if !facts.exclusions.is_empty() => {
-                    return Some(DirtyQuestion::CleanDryRun);
-                }
-                Ok(_) | Err(_) => {}
-            }
+            // `-X` deletes ignored files and nothing else, and the owner answered on 2026-11-12 ("Keep allow and log",
+            //  the answer of 2026-11-10 standing against the audits) that such a clean deletes them, exits 0 and is
+            //  logged: an ignored file is no reason to refuse it here, whether the worktree ignores it itself or only
+            //  the clean's own `-e`/`--exclude` patterns do.
             return None;
         }
         GuardedCommand::Clean => {

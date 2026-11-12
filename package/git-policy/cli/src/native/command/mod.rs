@@ -84,7 +84,7 @@ pub mod command_add;
 /// The Git 2.56.0 option table of `git clean` and its deletion facts.
 pub mod command_clean;
 
-/// Which nested Git repositories a clean's two dry runs say it would delete.
+/// Which nested Git repositories a clean's own dry run says it would delete.
 pub mod command_clean_nested_repositories;
 
 /// The Git 2.56.0 option table of `git reset` and its mode.

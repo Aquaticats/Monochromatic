@@ -944,73 +944,50 @@ fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
     }
 }
 
-/// linked-worktree-only:
-///  a clean that carries its own exclusion patterns is measured by Git's own dry runs of that clean,
-///  because the status cannot see those patterns,
-///  and only a path the patterns alone call ignored is refused:
-///  an ignored file the worktree itself has is not a reason to refuse the clean in a linked worktree.
+/// What:
+///  linked-worktree-only:
+///  a clean of ignored files runs in a linked worktree whatever its state,
+///  with or without its own `-e`/`--exclude` patterns,
+///  and leaves one `allowed` line that asks no question.
+/// Why:
+///   The owner answered on 2026-11-12 ("Keep allow and log", the answer of 2026-11-10 standing against the audits)
+///  that `git clean -fX` and `-fx` delete ignored files, exit 0 and are logged:
+///  an ignored file is no reason to refuse them,
+///  and a path its `-e` patterns make ignored is one of those files,
+///  so nothing about ignored files is measured in a linked worktree.
 #[test]
-fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
-    let command: GuardedCommand = GuardedCommand::CleanIgnoredOnly;
+fn a_clean_of_ignored_files_runs_in_a_linked_worktree() {
+    // `-X` deletes ignored files and nothing else, so even a dirty worktree and a dry run that names a path ask nothing.
     for values in [
+        vec!["clean", "-fdX"],
         vec!["clean", "-fdX", "--exclude=notes.txt"],
-        vec!["clean", "--force", "-X", "-e", "notes.txt"],
+        vec!["clean", "-f", "-X", "-e", "notes.txt"],
+        vec!["clean", "-fXd", "-enotes.txt"],
     ] {
-        // A path only the typed clean names is one the patterns call ignored, so it is refused.
-        let mut deleting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        let mut deleting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), true);
         deleting.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
-        deleting.clean_deletes_without_exclusions = Ok(Vec::<Vec<u8>>::new());
         let (outcome, questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), deleting);
-        assert_eq!(outcome, one("linked-worktree-required", &dirty_worktree_message(command)), "{values:?}");
-        let question: &String = questions.last().expect("a last question");
-        assert!(question.starts_with("clean-would-delete:"), "{values:?}: {question}");
-        assert!(question.contains("-X"), "{values:?}: {question}");
-        assert!(!question.contains("notes.txt"), "{values:?} the second dry run carries no pattern: {question}");
-        // A path both dry runs name is one the worktree itself ignores, which is no reason to refuse.
-        let mut both: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        let ignored: Vec<Vec<u8>> = vec![b"Would remove .env".to_vec()];
-        both.clean_deletes = Ok(ignored.clone());
-        both.clean_deletes_without_exclusions = Ok(ignored);
-        assert_eq!(
-            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), both).0,
-            clean(),
-            "{values:?} an ignored file"
-        );
-        // A dry run Git cannot answer is a failure, never "nothing to delete".
-        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        unreadable.clean_deletes = Err(String::from("Git could not read what the clean would delete: fatal"));
+        assert_eq!(outcome, clean(), "{values:?}");
         assert!(
-            matches!(
-                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable).0,
-                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
-            ),
-            "{values:?} unreadable"
+            questions.iter().all(|asked_for| { return !asked_for.starts_with("clean-would-delete:"); }),
+            "{values:?}: {questions:?}"
         );
-        // The second dry run Git cannot answer is a failure too.
-        let mut second: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        second.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
-        second.clean_deletes_without_exclusions =
-            Err(String::from("Git could not read what the clean would delete: fatal"));
-        assert!(
-            matches!(
-                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), second).0,
-                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
-            ),
-            "{values:?} second unreadable"
-        );
-        // A clean that would delete nothing runs, and asks the second question nowhere.
-        let empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        let (nothing_outcome, nothing_questions): (PolicyOutcome, Vec<String>) =
-            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty);
-        assert_eq!(nothing_outcome, clean(), "{values:?} nothing to delete");
+    }
+    // `-x` deletes untracked files as well, and those stay a reason to refuse it; its own patterns change nothing there.
+    for values in [vec!["clean", "-fdx"], vec!["clean", "-fdx", "-e", "notes.txt"]] {
+        let mut dirty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), true);
+        dirty.clean_deletes = Ok(vec![b"Would remove notes.txt".to_vec()]);
+        let (outcome, questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), dirty);
         assert_eq!(
-            nothing_questions
-                .iter()
-                .filter(|asked_for| { return asked_for.starts_with("clean-would-delete:"); })
-                .count(),
-            1,
-            "{values:?}: {nothing_questions:?}"
+            outcome,
+            one("linked-worktree-required", &dirty_worktree_message(GuardedCommand::CleanIgnored)),
+            "{values:?}"
+        );
+        assert!(
+            questions.iter().all(|asked_for| { return !asked_for.starts_with("clean-would-delete:"); }),
+            "{values:?}: {questions:?}"
         );
     }
 }

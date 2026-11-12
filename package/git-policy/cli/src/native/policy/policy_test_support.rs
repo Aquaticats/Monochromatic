@@ -58,12 +58,8 @@ pub(crate) struct ScriptedFacts {
     pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
-    /// The paths the dry run of the clean as typed names,
-    ///  which is the one carrying the clean's own exclusion patterns.
+    /// The paths every dry run of a clean names.
     pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
-    /// The paths the same clean names without those patterns;
-    ///  the whole answer is the same when the query carries none.
-    pub(crate) clean_deletes_without_exclusions: Result<Vec<Vec<u8>>, String>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -117,39 +113,19 @@ impl RepositoryFacts for ScriptedFacts {
     }
 
     /// What:
-    ///  Answer the dry runs of one clean apart by what each query carries:
-    ///  a query with `-e`/`--exclude`,
-    /// and the typed clean of a second force,
-    /// name `clean_deletes`;
-    ///  the same clean written with one force and without them names `clean_deletes_without_exclusions`.
+    ///  Answer every dry run of a clean with `clean_deletes`,
+    ///  and log the query it carried.
     /// Why:
-    ///   Only a path the typed dry run names and the other does not is one the patterns alone call ignored,
-    ///  and that path is what the policy still refuses;
-    ///  a clean with a second force is the typed clean whether or not it carries a pattern.
+    ///  The reading is what Git prints for the clean as typed;
+    ///  the log is how a control proves a clean was or was not read.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// cleanDeletedPaths(arguments) {
-    ///   const patterns = arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'));
-    ///   const forces = arguments.filter((one) => one === '-f' || one === '--force').length;
-    ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
-    /// }
+    /// cleanDeletedPaths(arguments) { return this.cleanDeletes; }
     /// ```
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        let mut patterns: bool = false;
-        let mut forces: usize = 0;
-        for argument in &arguments {
-            let bytes: &[u8] = argument.as_encoded_bytes();
-            patterns |= bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude");
-            if bytes == b"-f" || bytes == b"--force" {
-                forces += 1;
-            }
-        }
-        if patterns || forces > 1 {
-            return self.clean_deletes.clone();
-        }
-        return self.clean_deletes_without_exclusions.clone();
+        return self.clean_deletes.clone();
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
@@ -292,7 +268,6 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         main_worktree: Ok(PathBuf::from("/r")),
         ignored_and_tracked: Ok(Vec::<String>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
-        clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

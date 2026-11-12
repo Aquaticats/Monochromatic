@@ -15923,37 +15923,20 @@ and `git clean -fd` keeps the ignored files as it always did.
 A `git clean -X` that carries its own exclusion patterns (`-e`,
 `--exclude`,
 in every spelling Git's table accepts,
-clustered and abbreviated included) is measured by Git itself instead:
-Git adds those patterns to the ignore rules the clean applies,
-so a file the status reports as untracked is one this clean deletes and the status cannot say so.
-The question is two `git clean --dry-run` runs over the same facts,
-rebuilt from them and never edited from the typed region
-(`-n`,
-`-f` as often as Git counts it, and at least once,
-`-d` when written,
-the `-X` or `-x` mode,
-each `-e` pattern,
-then `--` and the paths),
-the second one without the `-e` patterns,
-because an edited region would carry `-i`,
-whose dry run reads the terminal,
-or `-q`,
-which would silence it;
-a dry run that prints nothing deletes nothing,
-and a dry run Git refuses,
-either of the two,
-is a `fact-unavailable` finding.
-Both answers name a path the same way,
-so they are compared as Git printed them:
-only a path the first answer names and the second does not is one the patterns alone call ignored,
-and that path is an untracked file this clean would lose,
-so it is still refused.
-A path both answers name is one the worktree itself ignores,
-which is no reason to refuse anything any more.
-A `-x` clean needs no such reading:
-it deletes every untracked file whether a pattern calls it ignored or not,
-and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
-which the status measurement over-reports rather than under-reports.
+clustered and abbreviated included) asks nothing either:
+those patterns add to the ignore rules the clean applies,
+so every path they pull in is one this clean calls ignored,
+and the owner's answer of 2026-11-12 ("Keep allow and log",
+the answer of 2026-11-10 standing against the audits)
+is that such a clean deletes,
+exits 0 and is logged,
+with no copy and no refusal.
+A path only those patterns call ignored is therefore deleted like the rest,
+and an ignored file is never a reason to refuse a clean in a linked worktree,
+whichever rule calls it ignored.
+A `-x` clean deletes every untracked file whether a pattern calls it ignored or not,
+so a tracked change or an untracked file still refuses it,
+and a plain `-f` clean asks about tracked and untracked work with no reading of its own.
 A clean in a linked worktree that deletes ignored files with two or more forces as Git counts them keeps every nested Git repository first.
 The count is Git's own (`OPTION_COUNTUP`):
 each `-f`/`--force` adds one,
