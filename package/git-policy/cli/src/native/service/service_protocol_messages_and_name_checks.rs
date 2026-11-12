@@ -24,7 +24,15 @@ use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
-/// It is 10 because a landing answers `reference-locked` when a reference lock refused its branch write,
+/// It is 12 because a commit asks for a finished shadow the service drew ahead of it,
+/// and a service of version 11 refuses that message as one it does not know,
+/// which the client reads as no tree and answers by taking the pool's or the creation's path:
+/// the ask is an offer,
+/// so an old service costs a commit today's path and never its commit.
+/// It was 11 because a commit request carries the drawn shadow it was built in,
+/// and a service of version 10 removes only the trees a request names in its scratch field,
+/// so the tree of a landed commit would stay for the sweep.
+/// It was 10 because a landing answers `reference-locked` when a reference lock refused its branch write,
 /// and a client of version 9 reads a failure word it does not know as an answer it cannot read;
 /// It was 9 because a commit request names its scratch tree in its own field,
 /// and a service of version 8 removes only the tree a request's cleanup names,
@@ -37,7 +45,7 @@ use std::path::{Path, PathBuf};
 /// so the version a service announces in its welcome is what is compared,
 /// and a service of another version is asked to retire before any request is sent
 /// (`service_client_reach_service.rs`).
-pub const PROTOCOL_VERSION: u32 = 11;
+pub const PROTOCOL_VERSION: u32 = 12;
 
 /// The release of this build:
 /// the crate version,
@@ -246,6 +254,12 @@ pub struct CommitRequest {
     /// The service removes it once the landing of this request is over,
     /// so the request says where it is instead of the service working it out from a path.
     pub scratch: PathBuf,
+    /// The finished shadow the service drew ahead of this commit and handed it,
+    /// which Git built the commit in;
+    /// nothing when the shadow is the commit's own, inside its scratch tree.
+    /// The service removes it with the scratch tree once this request's landing is over,
+    /// because nothing but that landing says when the commit is done with it.
+    pub shadow: Option<PathBuf>,
     /// When the client finished capturing the worktree's bytes:
     /// nanoseconds of `CLOCK_MONOTONIC`,
     /// which one clock gives every
@@ -394,6 +408,18 @@ pub enum ClientMessage {
         /// never in a work item or on disk.
         review_key: Option<ReviewKey>,
     },
+    /// A finished shadow drawn ahead of a commit, for the commit whose scratch tree is named:
+    /// the answer is where it is, or that the service holds none.
+    /// Nothing is queued and nothing lands,
+    /// so the answer never waits behind another commit's landing.
+    Shadow {
+        /// The worktree's own Git directory,
+        /// which names the instance that serves it.
+        git_dir: PathBuf,
+        /// The commit's scratch tree,
+        /// which names the attempt that asks and is what the tree is drawn for.
+        scratch: PathBuf,
+    },
     /// The rules text of this repository changed (a checkout,
     /// merge or pull of the person's own command);
     /// compile its forbidden-strings rules into the shared cache,
@@ -479,6 +505,16 @@ pub enum ServiceMessage {
     ///  releases before the field existed send none,
     /// which reads as a release that is not this one.
     Welcome { version: u32, release: Option<String> },
+    /// A finished shadow the service drew ahead of the asking commit,
+    /// which that commit now uses where it stands.
+    Drawn {
+        /// The tree,
+        /// inside the drawn folder of the worktree that asked.
+        tree: PathBuf,
+    },
+    /// The service holds no drawn shadow for the asking commit,
+    /// which takes the pool's member or makes its own creation.
+    NoShadow,
     /// The request is queued behind others.
     Position { number: usize, of: usize },
     /// The commit is on the branch;

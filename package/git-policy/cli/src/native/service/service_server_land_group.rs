@@ -164,6 +164,7 @@ pub(crate) fn land_group(
     captures: &mut CaptureMemory,
     place_after: Duration,
     handed_back: &mut std::collections::HashSet<String>,
+    drawn: &std::sync::Arc<crate::service_shadow_draw::DrawnShadows>,
 ) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
@@ -258,6 +259,10 @@ pub(crate) fn land_group(
     //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
     if let Some(first) = requests.first() {
         crate::service_shadow_pool_fill::start(&context.git, first);
+        // What: The next commit in this worktree is handed a finished shadow the service renamed out of the pool before it asked.
+        // Why:  The rename is the call that waited seconds on this volume, and doing it here — on a thread of its own, beside
+        //       this landing — takes it off every commit's wait while leaving every check the claim makes with the commit.
+        crate::service_shadow_draw::start(&context.git, first, drawn);
         // What: The scratch trees a killed command left are collected while this landing runs.
         // Why:  The collection lists the repository scratch directory and asks the file system about every entry, which was
         //       the largest single cause of a commit's own time in the records of 2026-11-11 (13,482 ms of 48). The commit

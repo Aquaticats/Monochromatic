@@ -155,6 +155,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         cleanup: None,
         index: git_dir.join("index"),
         scratch,
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };

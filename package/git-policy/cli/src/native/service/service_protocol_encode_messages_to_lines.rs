@@ -176,6 +176,14 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("version", Value::from(PROTOCOL_VERSION)),
             ("id", Value::from(id.as_str())),
         ]),
+        ClientMessage::Shadow { git_dir, scratch } => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("shadow"));
+            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
+            path_bytes::write_field(&mut fields, "scratch", scratch.as_path());
+            Value::Object(fields).to_string()
+        }
         ClientMessage::Warm { git_dir, repository } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("warm"));
@@ -219,6 +227,9 @@ pub fn commit_line(request: &CommitRequest) -> String {
     path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
     path_bytes::write_field(&mut fields, "index", request.index.as_path());
     path_bytes::write_field(&mut fields, "scratch", request.scratch.as_path());
+    if let Some(shadow) = request.shadow.as_deref() {
+        path_bytes::write_field(&mut fields, "shadow", shadow);
+    }
     // A name that is not text travels as its bytes in the field the reader prefers, and the plain field holds the text
     //  spelling only when text spells every byte of the name (`path_bytes_in_records`).
     if request.reference.is_text() {
@@ -275,6 +286,13 @@ pub fn encode_service(message: &ServiceMessage) -> String {
             }
             object(entries)
         }
+        ServiceMessage::Drawn { tree } => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("drawn"));
+            path_bytes::write_field(&mut fields, "tree", tree.as_path());
+            Value::Object(fields).to_string()
+        }
+        ServiceMessage::NoShadow => object(vec![("type", Value::from("no-shadow"))]),
         ServiceMessage::Position { number, of } => {
             object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
         }

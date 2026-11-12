@@ -385,7 +385,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
-                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. }) => {}
+                // A drawn shadow and the answer that there is none are the other question's answers (`service_client_shadow_hand_out.rs`),
+                // which a commit never sees on the connection of its request.
+                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. } | ServiceMessage::Drawn { .. } | ServiceMessage::NoShadow) => {}
                 Heard::Silent => {
                     last_break_was_silence = true;
                     break None;

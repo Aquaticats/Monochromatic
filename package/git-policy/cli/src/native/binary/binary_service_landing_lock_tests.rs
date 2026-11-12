@@ -292,6 +292,7 @@ fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_ho
         cleanup: None,
         index: git_dir.join("index"),
         scratch: git_dir.join("monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-heartbeat-landing-0"),
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };

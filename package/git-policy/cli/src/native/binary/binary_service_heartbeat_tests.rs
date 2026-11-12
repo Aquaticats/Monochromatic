@@ -112,6 +112,7 @@ fn request() -> CommitRequest {
         cleanup: None,
         index: PathBuf::from("/nowhere/.git/index"),
         scratch: PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-heartbeat-control-0"),
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };

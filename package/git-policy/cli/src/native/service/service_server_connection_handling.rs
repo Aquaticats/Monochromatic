@@ -64,6 +64,9 @@ pub(crate) struct ConnectionShared {
     /// What the landing is inside,
     /// for the notes a waiting client is told.
     pub board: Arc<LandingBoard>,
+    /// The finished shadows this service drew ahead of the commits that ask for one,
+    /// which the answer to a commit's question takes one out of.
+    pub drawn: Arc<crate::service_shadow_draw::DrawnShadows>,
     /// The release the service announces to every client.
     pub release: String,
     /// The worktree this instance serves,
@@ -274,6 +277,34 @@ async fn refuse_a_message_for(git_dir: &std::path::Path, write_half: &mut OwnedW
     send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }).await;
 }
 
+/// What:
+///  Answers a commit's question about the finished shadow drawn ahead of it:
+///  the tree, or that the stock holds none.
+/// Why:
+///   The question is answered here and not by the landing,
+///  from a list held in memory,
+///  so its answer cannot wait for another commit's landing.
+///  A tree leaves the stock with this answer,
+///  so two commits that ask at once never get the same one:
+///  the second is told there is none and takes the pool's member or its own creation.
+///  The commit's scratch tree names the attempt that asked,
+///  which the answer needs nothing more of:
+///  the tree's life is the commit's renewal and the sweep's (`shadow_drawn.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = shared.drawn.handOut(); send(writeHalf, tree ? { type: 'drawn', tree } : { type: 'no-shadow' });
+/// ```
+async fn answer_the_shadow_question(scratch: &std::path::Path, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared) {
+    match shared.drawn.hand_out() {
+        Some(tree) => {
+            crate::diagnostic_log::debug("shadowDrawn", format!("handed {} to the commit that asked from {}", tree.display(), scratch.display()).as_str());
+            send(write_half, &ServiceMessage::Drawn { tree }).await;
+        }
+        None => send(write_half, &ServiceMessage::NoShadow).await,
+    };
+}
+
 /// Tells a client that the service cannot take its request now.
 async fn tell_unavailable(write_half: &mut OwnedWriteHalf) {
     send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable }).await;
@@ -299,6 +330,15 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
                 let _queued = shared.work.send((git_dir, review_key));
                 let _touched = shared.queue.send(Job::Activity);
             }
+            None => tell_unavailable(write_half).await,
+        },
+        // What: A commit asks whether a finished shadow was drawn ahead of it, and where it is.
+        // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
+        //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
+        //       commit's landing, which is the wait the hand-out exists to remove.
+        Ok(ClientMessage::Shadow { git_dir, scratch }) => match is_foreign(shared, git_dir.clone()).await {
+            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
+            Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,
             None => tell_unavailable(write_half).await,
         },
         Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared, git_dir.clone()).await {

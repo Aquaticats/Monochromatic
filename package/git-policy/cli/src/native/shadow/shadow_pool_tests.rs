@@ -277,7 +277,10 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
             }
             let shadow: PathBuf = scratch.join("shadow");
             let mut clock: BuildPartClock = BuildPartClock::begin("test");
-            take_or_create_shadow(&context, repo.as_path(), &capture, shadow.as_path(), scratch.as_path(), false, &mut clock)
+            // A socket nothing listens on is no service, so these controls take the pool's member and make their own
+            //  creation exactly as they did before the service could draw one ahead.
+            let nowhere: crate::service_server_socket_binding::Bind = crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
+            take_or_create_shadow(&context, repo.as_path(), &capture, shadow.as_path(), scratch.as_path(), false, &mut clock, &nowhere)
                 .expect("shadow");
             if pooled {
                 assert!(

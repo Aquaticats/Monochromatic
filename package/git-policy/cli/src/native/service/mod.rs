@@ -26,6 +26,12 @@ pub mod service_repository_scratch_sweep;
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
 
+/// The service's stock of finished shadows drawn ahead of the commits that ask for one.
+pub mod service_shadow_draw;
+
+/// The question a commit asks its service for the finished shadow drawn ahead of it.
+pub mod service_client_shadow_hand_out;
+
 /// Whether a socket of an earlier release's unit listens,
 /// read from the table of unix sockets.
 pub mod earlier_unix_sockets_that_listen;

@@ -127,6 +127,33 @@ pub fn drawn_members(root: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
+///  Whether `tree` is a drawn shadow of the worktree whose two directories are given.
+/// Why:
+///   A request names the tree the service removes once its landing is over,
+///  so the name must be one only the wrapper makes:
+///  directly inside that worktree's drawn folder,
+///  named as a drawn tree,
+///  and with no part that could lead elsewhere.
+///  A request is checked by this rule before it is queued,
+///  and the removal is checked again because a request built in this process never passes the decoder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isADrawnTree(tree, commonDir, gitDir) // tree is one of the wrapper's drawn trees of that worktree
+/// ```
+pub fn is_a_drawn_tree(tree: &Path, common_dir: &Path, git_dir: &Path) -> bool {
+    let root: PathBuf = drawn_root_for(common_dir, git_dir);
+    let Some(name) = tree.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
+    let identity: &str = name.strip_prefix(DRAWN_PREFIX).unwrap_or("");
+    return tree.parent() == Some(root.as_path())
+        && !identity.is_empty()
+        && identity.as_bytes().iter().all(crate::wrapper_names_old_and_new::is_identity_byte)
+        && common_dir.is_absolute()
+        && git_dir.is_absolute()
+        && !tree.to_string_lossy().contains('\0');
+}
+
+/// What:
 ///  Draws one finished shadow out of the pool and answers where it now is,
 ///  or nothing when the pool held none this invocation could use.
 /// Why:

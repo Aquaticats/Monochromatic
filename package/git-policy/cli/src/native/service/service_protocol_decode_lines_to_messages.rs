@@ -52,6 +52,14 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             }
             return Ok(ClientMessage::Withdraw { id: id.to_string() });
         }
+        "shadow" => {
+            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
+            let scratch: PathBuf = path_bytes::read_field(&value, "scratch")?;
+            if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') || !is_scratch_path(scratch.as_path(), git_dir.as_path()) {
+                return Err(String::from("shadow request is not acceptable"));
+            }
+            return Ok(ClientMessage::Shadow { git_dir, scratch });
+        }
         "warm" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
             let repository: PathBuf = path_bytes::read_field(&value, "repository")?;
@@ -112,6 +120,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
         index: path_bytes::read_field(&value, "index")?,
         scratch: path_bytes::read_field(&value, "scratch")?,
+        // A request of an earlier release names no drawn shadow, which is the case every commit had before this one.
+        shadow: match value.get("shadow") {
+            Some(entry) if !entry.is_null() => Some(path_bytes::read_field(&value, "shadow")?),
+            _ => None,
+        },
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         // A request of an earlier release names no holder, which settles nothing and hides nothing.
         holder: value.get("holder").and_then(Value::as_str).unwrap_or_default().to_string(),
@@ -160,6 +173,9 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         //  or a request could name any directory of the account for removal.
         && request.scratch.is_absolute()
         && is_scratch_path(request.scratch.as_path(), request.git_dir.as_path())
+        // The drawn shadow is a tree of the wrapper's own, in the folder the service draws into, so a request cannot name any
+        //  directory of the account for removal.
+        && request.shadow.as_deref().is_none_or(|tree| crate::shadow_drawn::is_a_drawn_tree(tree, request.common_dir.as_path(), request.git_dir.as_path()))
         && !request.committer.contains(['\0', '\n'])
         && author_clean
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
@@ -327,6 +343,8 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
             },
             release: value.get("release").and_then(Value::as_str).map(String::from),
         }),
+        "drawn" => Ok(ServiceMessage::Drawn { tree: path_bytes::read_field(&value, "tree")? }),
+        "no-shadow" => Ok(ServiceMessage::NoShadow),
         "position" => Ok(ServiceMessage::Position { number: number_field(&value, "number")?, of: number_field(&value, "of")? }),
         "landed" => Ok(ServiceMessage::Landed {
             id: field(&value, "id")?.to_string(),

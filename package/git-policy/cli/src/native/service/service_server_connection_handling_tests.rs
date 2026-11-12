@@ -33,7 +33,15 @@ fn shared_in(name: &str) -> (ConnectionShared, UnboundedReceiver<Job>) {
     let (queue, jobs) = unbounded_channel::<Job>();
     let (work, _wakes) = unbounded_channel::<Wake>();
     let board: Arc<LandingBoard> = LandingBoard::new(journal, Duration::from_secs(60));
-    let shared: ConnectionShared = ConnectionShared { queue, work, board, release: String::from("test"), instance: Some(String::from(INSTANCE)), own_git_dir: None };
+    let shared: ConnectionShared = ConnectionShared {
+        queue,
+        work,
+        drawn: crate::service_shadow_draw::DrawnShadows::none_yet(),
+        board,
+        release: String::from("test"),
+        instance: Some(String::from(INSTANCE)),
+        own_git_dir: None,
+    };
     return (shared, jobs);
 }
 
@@ -169,6 +177,7 @@ fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequ
         cleanup: None,
         index: git_dir.join("index"),
         scratch: git_dir.join("monochromatic-git-policy-cli-service-a-0"),
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };
@@ -491,6 +500,53 @@ fn with_threads_a_commit_naming_another_worktree_is_rejected() {    let own: Pat
     });
 }
 
+
+/// What:
+///  A commit's question about a drawn shadow is answered while the landing thread holds a batch it has not begun,
+///  the tree leaves the stock with that answer,
+///  and the question takes no place in the landing's queue.
+/// Why:
+///   A commit's wait for its tree must not grow while another commit lands,
+///  which is the first of the record's four cons for the option the owner chose.
+///  The landing thread here holds one job and has taken nothing,
+///  which is a landing under way from the answering side,
+///  and the answer still comes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queue.send(aCommit); expect(await askForTheTree()).toEqual({ type: 'drawn', tree }); expect(jobs.tryRecv()).toBe(theCommit);
+/// ```
+#[test]
+fn a_question_for_a_drawn_shadow_is_answered_while_the_landing_thread_holds_a_batch() {
+    let root: PathBuf = crate::test_support::fixture("connection-shadow-answer");
+    let git_dir: PathBuf = root.join("gitdir");
+    let drawn: PathBuf = crate::shadow_drawn::drawn_root_for(root.as_path(), git_dir.as_path()).join("drawn-00000000000000000000000000000003");
+    std::fs::create_dir_all(drawn.as_path()).expect("a drawn tree");
+    let (shared, mut jobs) = shared_in("connection-shadow-answer");
+    shared.drawn.note_ready(drawn.clone());
+    let scratch: PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch").join("monochromatic-git-policy-cli-service-ask-0");
+    std::fs::create_dir_all(scratch.parent().expect("the scratch place").to_path_buf().as_path()).expect("the scratch place");
+    let asked: String = encode_client(&ClientMessage::Shadow { git_dir: git_dir.clone(), scratch: scratch.clone() });
+    // A commit the landing thread has been given and has not begun to land.
+    let (reply, _messages) = crate::service_reply::Reply::new();
+    let busy = Job::Commit(Box::new(a_request_at(git_dir.as_path(), "the-commit-in-the-landing")), reply, Arrival { accepted: Instant::now(), read: Duration::ZERO });
+    assert!(shared.queue.send(busy).is_ok(), "one commit is in the landing thread's hands");
+    let ((), _ticks) = with_a_ticker_beside(async move {
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(asked.as_str(), &mut write_half, &shared, Instant::now()).await;
+        drop(write_half);
+        assert_eq!(next_line(&mut client).await, ServiceMessage::Drawn { tree: drawn.clone() }, "the tree is the answer while the landing holds a batch");
+        // A second commit that asks now is told there is none: the first one's tree left the stock with its answer.
+        let again: String = encode_client(&ClientMessage::Shadow { git_dir, scratch });
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(again.as_str(), &mut write_half, &shared, Instant::now()).await;
+        drop(write_half);
+        assert_eq!(next_line(&mut client).await, ServiceMessage::NoShadow, "one tree answers one commit");
+    });
+    assert!(matches!(jobs.try_recv(), Ok(Job::Commit(..))), "the landing's own job is still the queue's whole");
+    assert!(jobs.try_recv().is_err(), "the question took no place in the landing's queue");
+    crate::test_support::remove(root.as_path());
+}
 
 /// The next message a client reads on either half of a connection.
 async fn a_line<Reader: AsyncBufRead + Unpin>(reader: &mut Reader) -> ServiceMessage {

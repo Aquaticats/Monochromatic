@@ -22,6 +22,9 @@
 use crate::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 /// Invocation capture.
 use crate::capture_invocation::{InvocationCapture, InvocationLayout};
+/// What a tree must be for this invocation,
+/// which is the question a claim and a hand-out both ask.
+use crate::shadow_pool_member::refusal;
 /// The in-process entries of an empty bare repository.
 use crate::shadow_skeleton::create_shadow_skeleton;
 /// Format copy and the config bytes.
@@ -503,9 +506,33 @@ pub fn create_shadow_repository_carrying(
 }
 
 /// What:
+///  The shadow one commit was given,
+///  and the finished one the service drew ahead of it when that is where it came from.
+/// Why:
+///   A drawn tree is used where it stands and is not the commit's own,
+///  so the value that keeps it renewed,
+///  releases it,
+///  and tells the request which tree to name travels with the path:
+///  a caller that took the path alone would leave a tree nothing renews.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ShadowTree = { path: string; handed?: HandedShadow };
+/// ```
+pub struct ShadowTree {
+    /// Where the shadow is.
+    pub path: PathBuf,
+    /// The drawn tree the service handed this commit,
+    /// which is renewed while the commit lives and released when the service does not take it;
+    /// nothing when the shadow is inside the commit's own scratch tree.
+    pub handed: Option<crate::shadow_drawn::HandedShadow>,
+}
+
+/// What:
 ///  The shadow of one commit:
-/// a finished one this invocation can use,
-/// or one made here when the pool holds none that is what a creation would make.
+/// a finished one the service drew ahead and handed over,
+/// a finished one this invocation can use from the pool,
+/// or one made here when neither is there.
 /// Why:
 ///   The creation is about 40 calls that create a directory entry on the volume the commit already waits on:
 /// ten `mkdir`,
@@ -535,15 +562,43 @@ pub fn take_or_create_shadow(
     transaction_directory: &Path,
     carry_conclusion: bool,
     clock: &mut BuildPartClock,
-) -> Result<(), GitFailure> {
+    service: &crate::service_server_socket_binding::Bind,
+) -> Result<ShadowTree, GitFailure> {
     let template: ShadowTemplate = ShadowTemplate::of(context, &capture.layout)?;
+    // What: The commit asks whether the service drew a finished shadow ahead of it, and where it is.
+    // Why:  The one write a claim makes is the call that waited seconds on this volume, and the service made it before
+    //       the commit asked. Every check a claim runs is still run here, on the tree the commit was handed, and a tree
+    //       this invocation refuses is handed back and the commit takes the pool's member or makes its own: nothing about
+    //       the question can fail a commit.
+    clock.next("shadow hand-out");
+    if let Some(drawn) = crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory) {
+        match refusal(&template, drawn.as_path()) {
+            Ok(None) => {
+                let handed = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
+                carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock)?;
+                return Ok(ShadowTree { path: drawn, handed: Some(handed) });
+            }
+            Ok(Some(reason)) => crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str(),
+            ),
+            Err(error) => crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!("refused the drawn shadow {}: {error}", drawn.display()).as_str(),
+            ),
+        }
+        // A tree this invocation cannot use is the service's own, and this commit is the last thing that held it.
+        crate::service_scratch_release_removal::start(drawn);
+    }
     clock.next("shadow pool");
     if crate::shadow_pool::take(&template, shadow) {
-        return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+        carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
+        return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
     }
     clock.next("shadow skeleton");
     create_shadow_template(context, &template, shadow, clock)?;
-    return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+    carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
+    return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
 }
 
 /// What:

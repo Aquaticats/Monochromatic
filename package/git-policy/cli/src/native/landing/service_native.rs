@@ -38,7 +38,7 @@ use crate::shadow_create::take_or_create_shadow;
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What the scratch repository's `git commit` made.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -52,6 +52,11 @@ pub struct GitBuilt {
     /// what the person typed,
     /// after Git's clean-up.
     pub message: String,
+    /// The finished shadow the service drew ahead of this commit,
+    /// which Git built the commit in,
+    /// and nothing when the shadow is the commit's own.
+    /// The request names it so the service removes it once that request's landing is over.
+    pub drawn: Option<PathBuf>,
 }
 
 /// What:
@@ -132,6 +137,13 @@ pub struct BuildInput<'a> {
     /// The build phase's clock,
     /// which the shadow's creation and Git's build name their stretches under.
     pub clock: &'a mut BuildPartClock,
+    /// Where the service of this worktree listens,
+    /// which the commit asks for a finished shadow before it builds anything.
+    pub service: &'a crate::service_server_socket_binding::Bind,
+    /// Where the drawn shadow this commit was handed is put,
+    /// so the value that renews and releases it outlives the build:
+    /// a commit in an editor holds it for as long as the person leaves the editor open.
+    pub handed: &'a mut Option<crate::shadow_drawn::HandedShadow>,
 }
 
 /// The parents named by a stored commit's header block.
@@ -203,13 +215,25 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     }
     let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
     // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
-    take_or_create_shadow(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion, input.clock)?;
+    let tree: crate::shadow_create::ShadowTree = take_or_create_shadow(
+        input.context,
+        input.cwd,
+        input.capture,
+        shadow.as_path(),
+        input.scratch,
+        carry_conclusion,
+        input.clock,
+        input.service,
+    )?;
+    let shadow: &Path = tree.path.as_path();
+    let drawn: Option<PathBuf> = tree.handed.as_ref().map(|handed| { return handed.path().to_path_buf(); });
+    *input.handed = tree.handed;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
     let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: input.capture,
-        shadow: shadow.as_path(),
+        shadow,
         commit_index: input.commit_index,
         scratch: input.scratch,
         global_args: globals.as_slice(),
@@ -225,8 +249,8 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         return Err(TransactionStop::NativeExit(status));
     }
     input.clock.next("commit read back");
-    let prepared = read_prepared_commit(input.context, shadow.as_path())?;
-    return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid });
+    let prepared = read_prepared_commit(input.context, shadow)?;
+    return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid, drawn });
 }
 
 /// Controls for building with Git stay out of the release executable.
