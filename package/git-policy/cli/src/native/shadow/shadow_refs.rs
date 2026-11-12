@@ -23,6 +23,11 @@
 /// and their failure text.
 use crate::shadow_git::shadow_request;
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+/// The package's own reader of Git's ref files, which answers without a Git start.
+use crate::repo_read_refs::{RefValue, Refs};
+/// A table keyed by a ref name's bytes,
+/// which keeps the names in Git's own order.
+use std::collections::BTreeMap;
 /// Private file writes for the snapshot,
 /// published whole and not synced.
 use crate::private_storage::write_private_file_unsynced;
@@ -95,8 +100,172 @@ fn packed_refs_failure(error: std::io::Error) -> GitFailure {
     return GitFailure(format!("writing packed-refs failed: {error}"));
 }
 
+/// Which of Git's namespaces a linked worktree keeps in its own Git directory rather than in the shared one.
+///  Git's own table is `parse_worktree_ref` (`refs.c`):
+/// these three are per-worktree,
+/// every other name is shared,
+/// and `git pack-refs` never packs these three.
+pub const PER_WORKTREE_NAMESPACES: [&str; 3] = ["refs/bisect", "refs/worktree", "refs/rewritten"];
+
 /// What:
-///  Lists every real ref of the owning worktree in byte order.
+///  Where a ref snapshot is read from:
+///  the two Git directories of a worktree,
+///  the ref backend and the width of an object name.
+/// Why:
+///   The shared refs live in the common directory and the per-worktree namespaces in the worktree's
+/// own,
+///  so one snapshot needs both paths beside the backend that decides whether files or tables hold them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SnapshotSources = { gitDir: string; commonDir: string; refFormat: RefFormat; hexLength?: number };
+/// ```
+#[derive(Clone, Debug)]
+pub struct SnapshotSources {
+    /// Absolute Git directory of the owning worktree.
+    pub git_dir: PathBuf,
+    /// Absolute common Git directory.
+    pub common_dir: PathBuf,
+    /// Ref storage backend.
+    pub ref_format: RefFormat,
+    /// The number of hexadecimal digits of an object name,
+    /// or `None` for an object format no reader here knows,
+    ///  which sends the snapshot to Git.
+    pub hex_length: Option<usize>,
+}
+
+impl SnapshotSources {
+    /// What:
+    ///  The sources of one worktree of a repository whose object format Git named.
+    /// Why:
+    ///   A caller holds the paths and the format names as Git printed them,
+    /// and the width of an object name is derived once here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// SnapshotSources.of(gitDir, commonDir, refFormat, objectFormat)
+    /// ```
+    pub fn of(git_dir: PathBuf, common_dir: PathBuf, ref_format: RefFormat, object_format: &str) -> SnapshotSources {
+        return SnapshotSources { git_dir, common_dir, ref_format, hex_length: crate::ref_files::hex_length(object_format) };
+    }
+}
+
+/// What:
+///  One ref of the reader as a snapshot entry,
+///  with the object name of a symbolic ref filled in later.
+/// Why:
+///   The reader answers a value in two shapes and the snapshot keeps one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entryOf = (name: string, value: RefValue): RefSnapshotEntry
+/// ```
+fn entry_of(name: &str, value: RefValue) -> RefSnapshotEntry {
+    // A name is bytes in a ref store, and the reader hands it as text only where it is text.
+    let bytes: Vec<u8> = name.as_bytes().to_vec();
+    return match value {
+        RefValue::Direct(oid) => RefSnapshotEntry { name: bytes, oid, symref: Vec::new() },
+        RefValue::Symbolic(target) => RefSnapshotEntry { name: bytes, oid: String::new(), symref: target.into_bytes() },
+    };
+}
+
+/// What:
+///  Every real ref of a worktree,
+///  read from the ref files,
+///  or `None` when only Git can say what it would print.
+/// Why:
+///   `git for-each-ref` over every ref is the whole repository's answer:
+/// 199 KiB for the 1,982 packed and 40 loose refs of this repository,
+/// and as a child of a commit it took 3.8 to 26.4 seconds on 2026-11-12 while real Git answered the
+///  same question in 4 to 5 milliseconds
+/// (`doc/troubleshooting/cli-git-one-child-of-a-commit-takes-seconds.md`).
+///  The reader here is the package's own,
+/// which the policy queries,
+/// the automatic push and the worktree clean already use;
+/// every layout it cannot prove (an unknown object format,
+/// a reftable store,
+/// a ref name it declines,
+///  a damaged `packed-refs`) is `None`,
+/// and the caller then starts Git as before,
+/// so a decline adds a Git start and changes no result.
+///  A symbolic ref's object name is the one its chain ends at,
+/// which is what Git prints beside it,
+/// and a chain that ends nowhere is printed with none,
+/// as Git prints it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refsReadFromFiles = (sources) => sharedRefs.list() + perWorktreeNamespaces;
+/// ```
+fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntry>> {
+    let hex_length: usize = sources.hex_length?;
+    if sources.ref_format != RefFormat::Files {
+        return None;
+    }
+    let shared: Refs = Refs::new(sources.common_dir.as_path(), hex_length);
+    let mut found: BTreeMap<Vec<u8>, RefSnapshotEntry> = BTreeMap::new();
+    for (name, value) in shared.list()? {
+        let entry: RefSnapshotEntry = entry_of(name.as_str(), value);
+        found.insert(entry.name.clone(), entry);
+    }
+    // A worktree that does not own its Git directory keeps these three namespaces in its own, never in `packed-refs`.
+    if sources.git_dir != sources.common_dir {
+        let own: Refs = Refs::new(sources.git_dir.as_path(), hex_length);
+        for namespace in PER_WORKTREE_NAMESPACES {
+            for (name, value) in own.loose_namespace(namespace)? {
+                let entry: RefSnapshotEntry = entry_of(name.as_str(), value);
+                found.insert(entry.name.clone(), entry);
+            }
+        }
+    }
+    let mut entries: Vec<RefSnapshotEntry> = found.into_values().collect();
+    let chains: BTreeMap<Vec<u8>, (String, Vec<u8>)> = entries
+        .iter()
+        .map(|entry| { return (entry.name.clone(), (entry.oid.clone(), entry.symref.clone())); })
+        .collect();
+    for entry in &mut entries {
+        if entry.symref.is_empty() {
+            continue;
+        }
+        // `refs/remotes/origin/HEAD` and a branch that is a symbolic ref both end at a direct ref or nowhere.
+        let mut current: Vec<u8> = entry.symref.clone();
+        for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
+            let Some((oid, symref)) = chains.get(&current) else {
+                break;
+            };
+            if symref.is_empty() {
+                entry.oid = oid.clone();
+                break;
+            }
+            current = symref.clone();
+        }
+    }
+    return Some(entries);
+}
+
+/// What:
+///  Lists every real ref of the owning worktree in byte order,
+/// from the ref files when they can be read,
+///  and from one Git child otherwise.
+/// Why:
+///   The answer is the snapshot the shadow's ref store is written from;
+/// who answers it decides whether a commit starts Git over every ref of the
+///  repository at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refs = refsReadFromFiles(sources) ?? listRealRefs({ gitPath, cwd });
+/// ```
+pub fn list_real_refs_from(context: &GitContext, cwd: &Path, sources: &SnapshotSources) -> Result<Vec<RefSnapshotEntry>, GitFailure> {
+    if let Some(read) = refs_read_from_files(sources) {
+        return Ok(read);
+    }
+    return list_real_refs(context, cwd);
+}
+
+/// What:
+///  Lists every real ref of the owning worktree in byte order,
+/// from one `git for-each-ref`.
 /// Why:
 ///   Sorting by bytes matches the incumbent's `Buffer.compare` order in the packed file.
 ///
@@ -418,14 +587,14 @@ pub fn write_shadow_refs(
     context: &GitContext,
     cwd: &Path,
     shadow: &Path,
-    ref_format: RefFormat,
+    sources: &SnapshotSources,
     target_ref: &RefName,
     symbolic_head: &SymbolicHead,
     base: &Base,
 ) -> Result<(), GitFailure> {
-    let refs: Vec<RefSnapshotEntry> = list_real_refs(context, cwd)?;
-    let files: bool = ref_format == RefFormat::Files;
-    match ref_format {
+    let refs: Vec<RefSnapshotEntry> = list_real_refs_from(context, cwd, sources)?;
+    let files: bool = sources.ref_format == RefFormat::Files;
+    match sources.ref_format {
         RefFormat::Files => {
             // Unsynced: nothing reads the throwaway shadow's refs after a crash on the files backend, so a torn or lost
             // `packed-refs` changes no recovery outcome (`binary_recovery_tearing_shadow_tests.rs`).

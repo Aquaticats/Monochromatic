@@ -41,16 +41,24 @@ fn decorated_repository(root: &Path) -> (PathBuf, String) {
     return (repo, head);
 }
 
-/// Whether the only Git start a files snapshot made is the listing of the real refs.
+/// The sources of a fixture repository whose worktree owns its own Git directory.
 ///
-/// The listing is Git's,
-/// because the wrapper's in-process reader declines a repository this one is too large for,
-///  and every ref write must be the wrapper's own.
+/// A fixture's `HEAD`, refs and `packed-refs` all live in `<repo>/.git`,
+/// so the shared directory and the worktree's own are one path.
+fn sources_of(repo: &Path, ref_format: RefFormat) -> SnapshotSources {
+    let git_dir: PathBuf = repo.join(".git");
+    return SnapshotSources::of(git_dir.clone(), git_dir, ref_format, "sha1");
+}
+
+/// Whether a files snapshot made no Git start at all.
+///
+/// The listing of the real refs is read from `packed-refs` and the loose files themselves,
+/// and every ref write is the wrapper's own,
+///  so a commit's ref snapshot starts no process over the repository.
 #[cfg(unix)]
-fn assert_only_the_listing_started(log: &Path) {
+fn assert_no_start(log: &Path) {
     let starts: Vec<String> = recorded_starts(log);
-    assert_eq!(starts.len(), 1, "{starts:?}");
-    assert!(starts[0].starts_with("for-each-ref "), "{starts:?}");
+    assert!(starts.is_empty(), "{starts:?}");
 }
 
 /// Packed text names the header,
@@ -110,7 +118,7 @@ fn files_shadow_snapshots_refs_and_points_head_at_the_branch() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
@@ -142,13 +150,13 @@ fn a_files_snapshot_writes_every_ref_without_a_git_start() {
         &context,
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
-    assert_only_the_listing_started(log.as_path());
+    assert_no_start(log.as_path());
     assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/heads/main"]), head);
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/tags/v1"]), head);
@@ -170,13 +178,13 @@ fn a_files_detached_head_is_written_where_git_reads_it() {
         &context,
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Detached,
         &Base::Commit(head.clone()),
     )
     .expect("refs");
-    assert_only_the_listing_started(log.as_path());
+    assert_no_start(log.as_path());
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
     remove(root.as_path());
 }
@@ -198,7 +206,7 @@ fn a_files_target_that_is_a_symbolic_ref_is_written_at_the_end_of_its_chain() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/alias"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/alias")),
         &Base::Commit(head.clone()),
@@ -226,7 +234,7 @@ fn the_files_snapshot_is_not_synced() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head),
@@ -248,7 +256,7 @@ fn detached_shadow_head_is_the_base() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("HEAD"),
         &SymbolicHead::Detached,
         &Base::Commit(head.clone()),
@@ -274,7 +282,7 @@ fn detached_without_a_base_fails() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("HEAD"),
         &SymbolicHead::Detached,
         &Base::Unborn,
@@ -296,7 +304,7 @@ fn unborn_branch_has_no_target_ref() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Unborn,
@@ -326,7 +334,7 @@ fn reftable_shadow_snapshots_refs_in_one_transaction() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Reftable,
+        &sources_of(repo.as_path(), RefFormat::Reftable),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
@@ -395,7 +403,7 @@ fn the_files_snapshot_keeps_a_name_that_is_not_text() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Files,
+        &sources_of(repo.as_path(), RefFormat::Files),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
@@ -415,12 +423,155 @@ fn the_reftable_snapshot_keeps_a_name_that_is_not_text() {
         &git_context(),
         repo.as_path(),
         shadow.as_path(),
-        RefFormat::Reftable,
+        &sources_of(repo.as_path(), RefFormat::Reftable),
         &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
     assert_byte_named_refs(shadow.as_path(), head.as_str());
+    remove(root.as_path());
+}
+
+/// How many branches the count control's repository holds above the two its fixture makes.
+///
+/// The number is the fixture's own,
+/// and the control's claim is that no reading of the snapshot is asked about it:
+/// a count smaller than one pipe holds would pass for the wrong reason,
+/// so it is above 64 KiB of `packed-refs` lines.
+const MANY_REFS_ABOVE_THE_FIXTURE: usize = 700;
+
+/// A repository whose ref count the caller chose,
+/// with every branch packed,
+/// as a repository that has been used for a while keeps them.
+fn repository_with_many_refs(root: &Path, above_the_fixture: usize) -> (PathBuf, String) {
+    let repo: PathBuf = repository(root, "repo");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    for index in 0..above_the_fixture {
+        let name: String = format!("refs/heads/counted-{index:04}");
+        git(repo.as_path(), &["update-ref", name.as_str(), head.as_str()]);
+    }
+    git(repo.as_path(), &["pack-refs", "--all"]);
+    return (repo, head);
+}
+
+/// What:
+///  The refs a repository lists,
+///  as the shadow's Git lists them,
+///  for a comparison with the snapshot.
+///
+/// Why:
+///   The snapshot's claim is that it holds every ref Git would print,
+/// so the control compares it with Git's own answer over the same repository.
+fn listed_refs(directory: &Path) -> String {
+    return git_text(directory, &["for-each-ref", "--format=%(refname)"]);
+}
+
+/// A repository of many refs starts no Git child and still holds every ref.
+///
+/// The cost of one commit's ref snapshot must not follow the number of refs the repository has:
+/// on 2026-11-12 the whole listing as a child of a commit took 3.8 to 26.4 seconds while real Git
+///  answered it in 4 to 5 milliseconds,
+/// and this control counts the children the snapshot starts at two sizes of repository.
+#[cfg(unix)]
+#[test]
+fn a_snapshot_of_many_refs_starts_no_git_child() {
+    let mut starts_per_size: Vec<usize> = Vec::new();
+    let mut refs_per_size: Vec<usize> = Vec::new();
+    for above in [0, MANY_REFS_ABOVE_THE_FIXTURE] {
+        let root: PathBuf = fixture(format!("shadow-refs-count-{above}").as_str());
+        let (repo, head) = repository_with_many_refs(root.as_path(), above);
+        let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+        let (context, log) = recording_context(root.as_path());
+        write_shadow_refs(
+            &context,
+            repo.as_path(),
+            shadow.as_path(),
+            &sources_of(repo.as_path(), RefFormat::Files),
+            &crate::ref_name::RefName::from_text("refs/heads/main"),
+            &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
+            &Base::Commit(head.clone()),
+        )
+        .expect("refs");
+        assert_no_start(log.as_path());
+        // The snapshot is the whole listing: every ref the repository lists, and not one more.
+        let expected: String = listed_refs(repo.as_path());
+        let written: String = listed_refs(shadow.as_path());
+        assert_eq!(written, expected, "a repository of {above} refs above the fixture's");
+        starts_per_size.push(recorded_starts(log.as_path()).len());
+        refs_per_size.push(expected.lines().count());
+        remove(root.as_path());
+    }
+    // The repository grew; what the snapshot asked a Git child did not.
+    assert!(refs_per_size[1] > refs_per_size[0] * 10, "{refs_per_size:?}");
+    assert_eq!(starts_per_size, vec![0, 0]);
+}
+
+/// A ref name the reader declines sends the snapshot to Git, which then answers every ref.
+///
+/// The fallback is what keeps a repository this reader cannot prove from changing what a commit does:
+/// a start is added,
+/// and the snapshot is Git's answer,
+/// not a shorter one.
+#[cfg(unix)]
+#[test]
+fn a_ref_name_the_reader_declines_asks_git_for_the_whole_listing() {
+    let root: PathBuf = fixture("shadow-refs-fall-back-to-git");
+    let (repo, head) = byte_named_refs(root.as_path());
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    let (context, log) = recording_context(root.as_path());
+    write_shadow_refs(
+        &context,
+        repo.as_path(),
+        shadow.as_path(),
+        &sources_of(repo.as_path(), RefFormat::Files),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    let starts: Vec<String> = recorded_starts(log.as_path());
+    assert_eq!(starts.len(), 1, "{starts:?}");
+    assert!(starts[0].starts_with("for-each-ref "), "{starts:?}");
+    assert_byte_named_refs(shadow.as_path(), head.as_str());
+    remove(root.as_path());
+}
+
+/// A linked worktree's own namespaces are in the snapshot, and reading them starts no child either.
+///
+/// Git keeps `refs/bisect`, `refs/worktree` and `refs/rewritten` in the worktree's own Git directory,
+///  and `git for-each-ref` in that worktree prints them;
+/// a snapshot read from the shared directory alone would leave them out and change what a hook sees.
+#[cfg(unix)]
+#[test]
+fn a_linked_worktree_keeps_its_own_namespaces_without_a_git_child() {
+    let root: PathBuf = fixture("shadow-refs-linked-worktree");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let linked: PathBuf = root.join("linked");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", linked.to_str().expect("fixture"), "-b", "side"],
+    );
+    // A bisect in progress is what puts a name in `refs/bisect` of that worktree's own Git directory.
+    git(linked.as_path(), &["update-ref", "refs/bisect/bad", head.as_str()]);
+    let git_dir: PathBuf = linked.join(".git");
+    let git_dir_text: String = std::fs::read_to_string(git_dir.as_path()).expect("the worktree's gitdir file");
+    let worktree_git_dir: PathBuf = PathBuf::from(git_dir_text.trim().trim_start_matches("gitdir: "));
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    let (context, log) = recording_context(root.as_path());
+    write_shadow_refs(
+        &context,
+        linked.as_path(),
+        shadow.as_path(),
+        &SnapshotSources::of(worktree_git_dir.clone(), repo.join(".git"), RefFormat::Files, "sha1"),
+        &crate::ref_name::RefName::from_text("refs/heads/side"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/side")),
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    assert_no_start(log.as_path());
+    assert_eq!(listed_refs(shadow.as_path()), listed_refs(linked.as_path()));
+    assert!(listed_refs(shadow.as_path()).contains("refs/bisect/bad\n"), "{}", listed_refs(shadow.as_path()));
     remove(root.as_path());
 }
