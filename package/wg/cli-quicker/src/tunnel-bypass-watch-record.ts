@@ -62,7 +62,10 @@ export async function identityOrNone(
    Where the unreadable record is kept.
    */
   const kept = `${record.path}.unreadable-${String(Date.now(),)}`;
-  await rename(record.path, kept,);
+  await rename(
+    record.path,
+    kept,
+  );
   l.warn(
     `${record.path} held no watcher identity (${record.reason}), so it was moved to ${kept} and no watcher is signalled; `
       + 'a route watcher started by an earlier build may still run, and `pgrep --full bypass-watch.mjs` finds it',

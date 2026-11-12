@@ -193,11 +193,17 @@ export async function judgeWatcherEnd(
      Record now on disk.
      */
     const record = await read({ statePath, },);
-    if ((record.kind === 'identity')
-      && (record.identity.ownerId === identity.ownerId)
-      && (record.identity.pid === identity.pid)
-      && (record.identity.startTime === identity.startTime))
-      return { kind: 'unexpected', };
+    if (record.kind === 'identity') {
+      /**
+       Identity the record holds,
+       which is this watcher's when all three parts match.
+       */
+      const { identity: recordedIdentity, } = record;
+      if ((recordedIdentity.ownerId === identity.ownerId)
+        && (recordedIdentity.pid === identity.pid)
+        && (recordedIdentity.startTime === identity.startTime))
+        return { kind: 'unexpected', };
+    }
     // A record that holds no identity is not this watcher's record either,
     // and the exclusion a stop wrote is the identity.
     return { kind: 'expected', };

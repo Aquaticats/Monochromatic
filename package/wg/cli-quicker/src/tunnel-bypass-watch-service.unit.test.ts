@@ -392,7 +392,7 @@ setInterval(() => {}, 1000);
          The wait is bounded, so a silent stand-in fails this test instead of holding it.
          */
         const childPid = Number(await new Promise(function firstLineOrEnd(resolve,) {
-          const timer = setTimeout(() => resolve('0',), 5000,);
+          const timer = setTimeout(() => resolve('0',), 5_000,);
           started.stdout.once('data', (chunk,) => {
             clearTimeout(timer,);
             resolve(String(chunk,).trim());

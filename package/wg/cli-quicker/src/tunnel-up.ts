@@ -159,7 +159,10 @@ export async function bringUp(
   const at = { does: 'start the up', };
   try {
     /* oxlint-disable eslint/no-await-in-loop -- The steps of an up run in order, and each one depends on the ones before it. */
-    for (const { does, step, } of sequence) {
+    for (const {
+      does,
+      step,
+    } of sequence) {
       at.does = does;
       interruption?.beforeStep(does,);
       await step();
@@ -170,6 +173,9 @@ export async function bringUp(
     await rollback();
     if (interruption === undefined)
       throw error;
-    throw interruption.insteadOfStepFailure(at.does, error,);
+    throw interruption.insteadOfStepFailure(
+      at.does,
+      error,
+    );
   }
 }

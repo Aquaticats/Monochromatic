@@ -219,7 +219,11 @@ await describe({
          How the child ended:
          an interrupt that the watch turned into a rollback leaves a non-zero status.
          */
-        const [code,] = await once(child, 'close',);
+        const closed: readonly unknown[] = await once(child, 'close',);
+        /**
+         Status the interrupt left the child with.
+         */
+        const code = closed.at(0,);
         /**
          Recorded steps of the run.
          */

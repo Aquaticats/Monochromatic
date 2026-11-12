@@ -40,29 +40,52 @@ export type WatcherRecord =
      */
     readonly identity: WatcherProcessIdentity;
   }
-  | {
+    | {
     /**
      No record at all.
      */
-    readonly kind: 'absent';
-  }
-  | {
+      readonly kind: 'absent';
+    }
+    | {
     /**
      A record that holds no identity.
      */
-    readonly kind: 'unreadable';
+      readonly kind: 'unreadable';
 
     /**
      The record's path,
      for the report.
      */
-    readonly path: string;
+      readonly path: string;
 
     /**
      What is wrong with it,
      in the words of the parser.
      */
-    readonly reason: string;
+      readonly reason: string;
+    };
+
+/**
+ What reading the record's text found:
+ its text, or no file at all.
+ */
+type WatcherRecordText =
+  | {
+    /**
+     The record's text.
+     */
+    readonly kind: 'text';
+
+    /**
+     What the file held.
+     */
+    readonly text: string;
+  }
+  | {
+    /**
+     No record file stands at the path.
+     */
+    readonly kind: 'absent';
   };
 
 /**
@@ -183,9 +206,15 @@ function parseWatcherIdentity(
  */
 async function recordText(
   { path, }: { readonly path: string; },
-): Promise<{ readonly kind: 'text'; readonly text: string; } | { readonly kind: 'absent'; }> {
+): Promise<WatcherRecordText> {
   try {
-    return { kind: 'text', text: await readFile(path, 'utf8',), };
+    return {
+      kind: 'text',
+      text: await readFile(
+        path,
+        'utf8',
+      ),
+    };
   }
   catch (error) {
     if (isErrnoException(error,) && (error.code === 'ENOENT'))
@@ -226,12 +255,19 @@ export async function readWatcherRecord(
   try {
     return {
       kind: 'identity',
-      identity: parseWatcherIdentity({ text: record.text, statePath, },),
+      identity: parseWatcherIdentity({
+        text: record.text,
+        statePath,
+      },),
     };
   }
   catch (error) {
     if (error instanceof BypassRouteError)
-      return { kind: 'unreadable', path, reason: error.message, };
+      return {
+        kind: 'unreadable',
+        path,
+        reason: error.message,
+      };
     throw error;
   }
 }
@@ -280,10 +316,16 @@ export async function writeWatcherRecord(
     },
   );
   try {
-    await rename(temporary, path,);
+    await rename(
+      temporary,
+      path,
+    );
   }
   catch (error) {
-    await rm(temporary, { force: true, },);
+    await rm(
+      temporary,
+      { force: true, },
+    );
     throw error;
   }
 }

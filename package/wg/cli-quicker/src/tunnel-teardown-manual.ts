@@ -122,7 +122,13 @@ async function readableWatcherPid(
      absent when it holds none.
      */
     const record = await readWatcherRecord({ statePath, },);
-    return record.kind === 'identity' ? { routeWatcherPid: record.identity.pid, } : {};
+    if (record.kind !== 'identity')
+      return {};
+    /**
+     Identity the record holds.
+     */
+    const { identity: recordedIdentity, } = record;
+    return { routeWatcherPid: recordedIdentity.pid, };
   }
   catch (error) {
     l.error(`the record of the route watcher could not be read for the by-hand steps: ${String(error,)}`,);

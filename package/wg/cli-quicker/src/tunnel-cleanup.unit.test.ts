@@ -159,16 +159,18 @@ await describe({
         const bin = join(scratch, 'bin',);
         await mkdir(bin,);
         await mkdir(join(scratch, 'run',),);
-        for (const [name, text,] of [
-          ['ip', ABSENT_LINK_PROGRAM,],
-          ['nft', SUCCEEDING_PROGRAM,],
-          ['systemd-cat', SUCCEEDING_PROGRAM,],
-          ['busctl', SUCCEEDING_PROGRAM,],
-        ] as const) {
-          const path = join(bin, name,);
-          await writeFile(path, text,);
-          await chmod(path, 0o700,);
-        }
+        await Promise.all(
+          ([
+            ['ip', ABSENT_LINK_PROGRAM,],
+            ['nft', SUCCEEDING_PROGRAM,],
+            ['systemd-cat', SUCCEEDING_PROGRAM,],
+            ['busctl', SUCCEEDING_PROGRAM,],
+          ] as const).map(async ([name, text,]) => {
+            const path = join(bin, name,);
+            await writeFile(path, text,);
+            await chmod(path, 0o700,);
+          }),
+        );
         /**
          The search path the cleanup and the programs it runs see.
          */
@@ -204,11 +206,12 @@ await describe({
         await mkdir(bin,);
         await mkdir(join(scratch, 'run',),);
         await writeFile(calls, '',);
-        for (const name of ['ip', 'nft', 'resolvectl', 'systemd-cat', 'busctl',]) {
-          const path = join(bin, name,);
-          await writeFile(
-            path,
-            `#!/usr/bin/env node
+        await Promise.all(
+          ['ip', 'nft', 'resolvectl', 'systemd-cat', 'busctl',].map(async (name,) => {
+            const path = join(bin, name,);
+            await writeFile(
+              path,
+              `#!/usr/bin/env node
 const fs = require('node:fs');
 const words = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(calls,)}, ${JSON.stringify(`${name} `,)} + words.join(' ') + '\\n',);
@@ -224,7 +227,8 @@ process.exit(0);
 `,
           );
           await chmod(path, 0o700,);
-        }
+          }),
+        );
         /**
          The search path the cleanup and the programs it runs see.
          */

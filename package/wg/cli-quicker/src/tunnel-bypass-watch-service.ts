@@ -81,11 +81,16 @@ export async function registerBypassWatcher(
        Current sidecar identity before owner removal.
        */
       const record = await readWatcherRecord({ statePath, },);
-      if ((record.kind === 'identity')
-        && (record.identity.ownerId === ownerId)
-        && (record.identity.pid === process.pid)
-        && (record.identity.startTime === live.startTime)) {
-        await rm(path,);
+      if (record.kind === 'identity') {
+        /**
+         Identity the record holds,
+         which is this watcher's when all three parts match.
+         */
+        const { identity: recordedIdentity, } = record;
+        if ((recordedIdentity.ownerId === ownerId)
+          && (recordedIdentity.pid === process.pid)
+          && (recordedIdentity.startTime === live.startTime))
+          await rm(path,);
       }
     },
   };

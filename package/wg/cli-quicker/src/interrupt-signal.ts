@@ -49,7 +49,10 @@ export type UpInterruption = {
 
    @returns The refusal to report.
    */
-  readonly insteadOfStepFailure: (step: string, failure: unknown,) => unknown;
+  readonly insteadOfStepFailure: (
+    step: string,
+    failure: unknown,
+  ) => unknown;
 };
 
 /**
@@ -97,7 +100,10 @@ export function watchForInterruption(): UpInterruption & Disposable {
       // The handlers go first, so the re-raised signal has its default action
       // and the process ends the way a shell reports an interrupted program.
       stopWatching();
-      process.kill(process.pid, signal,);
+      process.kill(
+        process.pid,
+        signal,
+      );
       return;
     }
     l.warn(`${signal}: the up stops before its next step, and what this up created is removed`,);
@@ -136,7 +142,10 @@ export function watchForInterruption(): UpInterruption & Disposable {
         return;
       throw refusal(step,);
     },
-    insteadOfStepFailure: function insteadOfStepFailure(step: string, failure: unknown,): unknown {
+    insteadOfStepFailure: function insteadOfStepFailure(
+      step: string,
+      failure: unknown,
+    ): unknown {
       if (arrived.count === 0)
         return failure;
       return refusal(step,);

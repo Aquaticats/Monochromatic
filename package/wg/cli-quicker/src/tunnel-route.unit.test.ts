@@ -120,14 +120,16 @@ async function callsOf(
   const calls = join(scratch, 'calls.txt',);
   await mkdir(bin,);
   await writeFile(calls, '',);
-  for (const [name, text,] of [
-    ['wg', wgStandIn(fwmark,),],
-    ['ip', ipStandIn(calls, taggedDeleteStatus, listedRules,),],
-  ] as const) {
-    const path = join(bin, name,);
-    await writeFile(path, text,);
-    await chmod(path, 0o700,);
-  }
+  await Promise.all(
+    ([
+      ['wg', wgStandIn(fwmark,),],
+      ['ip', ipStandIn(calls, taggedDeleteStatus, listedRules,),],
+    ] as const).map(async ([name, text,]) => {
+      const path = join(bin, name,);
+      await writeFile(path, text,);
+      await chmod(path, 0o700,);
+    }),
+  );
   /**
    The search path the removal sees,
    restored and the scratch folder removed however this call ends.
@@ -165,7 +167,7 @@ await describe({
       name: 'removes the tagged main-table suppression and the interface policy rule for an interface with automatic routing, and names the ownership protocol',
       fn: async () => {
         const calls = await callsOf({ fwmark: POLICY_TABLE, },);
-        expect([...calls,].sort(),).toEqual([
+        expect(calls.toSorted(),).toEqual([
           `-4 rule delete table ${POLICY_TABLE}`,
           `-4 rule delete table main suppress_prefixlength 0 protocol ${POLICY_RULE_PROTOCOL}`,
           `-6 rule delete table ${POLICY_TABLE}`,

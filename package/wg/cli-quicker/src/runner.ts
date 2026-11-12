@@ -361,11 +361,15 @@ async function execute(
     stdout,
     stderr,
   };
-  if (observed.spawnFailure !== PROGRAM_STARTED)
+  /**
+   Why the program did not start, when it did not.
+   */
+  const { spawnFailure, } = observed;
+  if (spawnFailure !== PROGRAM_STARTED)
     throw new CommandSpawnError({
       command,
       args,
-      reason: observed.spawnFailure.message,
+      reason: spawnFailure.message,
     },);
   if (observed.endedByDeadline)
     throw new CommandTimeoutError({

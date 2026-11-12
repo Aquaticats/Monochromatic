@@ -188,9 +188,9 @@ async function removeSuppressRule(
   },
 ): Promise<void> {
   /**
-   What the exact, tagged delete ended with.
+   What the exact, protocol-tagged delete ended with.
    */
-  const tagged = await runAllowingFailure({
+  const deletion = await runAllowingFailure({
     command: 'ip',
     args: [
       proto,
@@ -204,10 +204,15 @@ async function removeSuppressRule(
       String(POLICY_RULE_PROTOCOL,),
     ],
   },);
-  if (tagged.exitCode === 0)
+  if (deletion.exitCode === 0)
     return;
-  if (!isAbsentDelete({ result: tagged, },)) {
-    l.warn(`could not remove the ${proto} main-table suppression: ${tagged.stderr.trim()}`,);
+  if (!isAbsentDelete({ result: deletion, },)) {
+    /**
+     What the delete said when it failed.
+     */
+    const refusal = deletion.stderr
+      .trim();
+    l.warn(`could not remove the ${proto} main-table suppression: ${refusal}`,);
     return;
   }
   if (!automaticRouting)
