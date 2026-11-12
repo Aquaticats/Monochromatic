@@ -951,6 +951,28 @@ Read-only commands,
    ioctl and deletes its administrative directory when the mount has `user_subvol_rm_allowed`
    (the doctor prints the commands that set it);
    in every other case Git removes it.
+  A subvolume or a mount point below the worktree's root that this wrapper did not make is removed around:
+     the wrapper removes every other entry of the worktree,
+     leaves the volume and the directories that lead to it exactly as they stand,
+     deletes the administrative directory so Git forgets the worktree,
+     prints what was left and what frees the path,
+     and exits 0,
+     because the worktree is gone from Git's records.
+     A nested worktree of this repository that stands inside it stays with its registration,
+     its branch and its files.
+  A removal without `--force` whose tree holds such a volume is never handed to Git,
+     whose own removal would delete what is mounted at a mount point;
+     when Git would also refuse what is untracked or modified there,
+     the wrapper refuses with its own report,
+     which names the volumes and gives both ways on,
+     and `--force` removes everything around a volume and still leaves it.
+  A later `git worktree add` at that path meets a directory that is not empty:
+     Git's own line says only that it exists,
+     and the wrapper adds one line naming each volume a removal left and what frees the path.
+  The words are the same ones the automatic removal prints,
+     and a removal it performed is recorded in
+   `<common Git directory>/monochromatic-git-policy-cli/left-in-place-notices`,
+     which the next wrapper command of any worktree of that repository shows once.
   A forced removal is served without the cleanliness proof,
      because Git's own `--force` removal deletes a worktree that holds changes whatever it holds
      (`builtin/worktree.c`:
@@ -1145,9 +1167,6 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    never its own working folder,
    so a program that spawns a wrapped merge with a linked worktree as that folder
    leaves the worktree kept by this rule;
-- no subvolume and no mount point stands below its root,
-   because the kernel can never destroy a subvolume that contains another one,
-   and Git's own removal would delete the files of the worktree inside it;
 - no subvolume and no mount point stands below its Git directory that this wrapper did not make,
    because a registration holding one can never be emptied;
    the wrapper's own folder there is taken first,
@@ -1156,14 +1175,26 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    no tracked file is modified or staged there and no untracked file exists.
 
 A worktree that fails one of those is kept and the report says why.
-A nested worktree of this repository inside it is named with the branch it is on,
-or with the fact that it is on a detached `HEAD`,
-and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
- uncommitted.
-A subvolume or a mount point that is no worktree of this repository is named with what it is,
-with the move or the unmount that keep every file of it first,
-and with a `btrfs subvolume delete` last and for what it destroys,
- because a subvolume there may be another repository's worktree.
+A subvolume or a mount point below the worktree's own root that this wrapper did not make is no longer a reason to
+ keep it:
+the removal goes around it.
+Everything else in the worktree is removed,
+the volume and the directories that lead to it stay exactly as they stand,
+Git forgets the worktree,
+and the line the merge prints names each volume,
+what it is,
+where it stands,
+that the worktree is otherwise gone,
+and what frees the path;
+the same words are recorded in
+ `<git-dir>/monochromatic-git-policy-cli/left-in-place-notices`
+and the next wrapper command of any worktree of that repository shows them once.
+The kernel cannot destroy a subvolume that contains another one,
+and Git's own removal would delete what is mounted at a mount point,
+so neither route may take such a worktree:
+a nested worktree of this repository that stands inside it therefore stays,
+and stays registered,
+with its branch and its files.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -1199,6 +1230,12 @@ The service proves every condition above again,
  the records its Git directory holds,
  the record that this program made the worktree,
  and every commit a reference lock holds.
+It then makes the same look for a subvolume or a mount point it did not make,
+ and goes around one exactly as the merge's own removal does:
+ Git is never started on a tree that holds one,
+ because its removal would delete what is mounted at a mount point.
+A volume that appeared after the merge handed the removal over is therefore left rather than deleted through,
+ and the person reads what stands there and what frees the path on their next command.
 A worktree that no longer meets one of them stays,
  and the next wrapper command in that repository names it once,
  with the path,

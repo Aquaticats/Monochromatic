@@ -89,7 +89,7 @@ pub(crate) enum VolumesBelow {
 /// ```ts
 /// const mine = /^cli-git-deleting-[0-9a-f]{16}$/.test(name);
 /// ```
-fn is_a_leaving_name(path: &Path) -> bool {
+pub(crate) fn is_a_leaving_name(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|name| { return name.to_str() }) else { return false };
     let Some(identifier) = name.strip_prefix(DELETING_PREFIX) else { return false };
     return identifier.len() == IDENTIFIER_DIGITS && identifier.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) });

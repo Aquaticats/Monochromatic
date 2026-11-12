@@ -154,9 +154,9 @@ pub mod worktree_removal_clears_the_pool;
 /// taken out of a worktree's administrative directory before that worktree is removed.
 pub mod worktree_removal_clears_the_ahead_pool;
 
-/// The refusal of a removal for a worktree that holds a subvolume or a mount point of its own,
-/// which the kernel can never destroy in one step.
-pub mod worktree_removal_refuses_a_nested_volume;
+/// The removal that goes around a subvolume or a mount point it did not make,
+/// and the words it says about what it left.
+pub mod worktree_removal_goes_around_a_foreign_volume;
 
 /// The subvolumes this program left inside a worktree for its commit service to delete,
 /// moved out of that tree before its removal hands anything to the kernel or to Git.

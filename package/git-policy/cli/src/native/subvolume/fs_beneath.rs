@@ -204,6 +204,24 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
     return open_beneath(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0);
 }
 
+/// What:
+///  A handle naming the subdirectory `name` of `parent`,
+///  which asks what the entry is without following a link,
+///  crossing a mount or needing any permission on the entry itself.
+/// Why:
+///  A caller that must not change what it judges needs the entry's kind before it opens the entry for reading,
+/// and reading a directory needs access that widening would give by changing its mode.
+/// A mount point is refused with `EXDEV` here exactly as a reading open refuses it,
+/// because the resolution refuses to cross a mount whatever the access asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handle = handleDirectoryAt(parent, name); // throws EXDEV at a mount point
+/// ```
+pub fn handle_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    return open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0);
+}
+
 /// Open the directory at `names` below `root`,
 /// one component at a time,
 /// refusing a link,

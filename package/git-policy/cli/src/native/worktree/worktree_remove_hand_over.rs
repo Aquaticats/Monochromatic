@@ -51,6 +51,8 @@ use crate::worktree_kept_notices::record_kept_worktree;
 use crate::worktree_landed_registrations::branch_of_registration;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_second_look::{SecondLook, why_the_worktree_stays};
+use crate::worktree_remove::{RemoveOutcome, RemoveRequest};
+use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::{Registration, registered_worktree};
 use crate::worktree_registration_proof::read_record_here;
 use crate::private_storage::write_private_file_unsynced;
@@ -959,6 +961,13 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     if let Some(why) = why_the_worktree_stays(&look, target.as_path(), registration.admin.as_path()) {
         return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
     }
+    // A subvolume or mount point that is not this removal's is removed around on this route too, and for the same reason as on
+    // the person's: Git's own removal would delete what is mounted at a mount point and unlink the files of a nested worktree,
+    // and the proofs above were made before such a volume may have appeared. The volume and the directories that lead to it
+    // stay, what is left is recorded for the person, and the same check decides it on both routes.
+    if !crate::worktree_removal_goes_around_a_foreign_volume::volumes_below(target.as_path()).is_empty() {
+        return remove_around_what_is_not_this_removals(item, target.as_path(), &registration);
+    }
     // What Git is about to delete, and that the proofs held for it, is recorded first: a service killed in the middle of
     // the deletion leaves a tree Git refuses, and the next attempt finishes this program's own half-done work from here.
     let identity: String = identity_standing_there(target.as_path(), registration.admin.as_path());
@@ -1003,6 +1012,64 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree(common.as_path(), admin.as_path());
     }
     return Verdict::Done;
+}
+
+/// What:
+///  Remove the worktree around what someone else put inside it,
+///  in this service's own process,
+///  and say what was left where a person finds it.
+/// Why:
+///   The record this service acts on was written before the volume may have appeared,
+/// and Git must not see a tree
+///  holding one:
+/// its removal deletes what is mounted at a mount point and unlinks the files of a nested worktree.
+/// The steps are
+///  the person's own removal, made here with the checks that removal makes,
+/// so the service and the command cannot disagree about
+///  which tree may go.
+/// A removal that refuses keeps the worktree and says why,
+/// and a removal that removed what it could and stopped keeps
+///  it too,
+///  with the words for a tree that is partly gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeAroundWhatIsNotThisRemovals(item, target, registration): Verdict
+/// ```
+fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, registration: &Registration) -> Verdict {
+    let context: GitContext = match the_service_git(item) {
+        Ok(found) => found,
+        Err(reason) => return Verdict::Retry(reason),
+    };
+    let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
+    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
+    match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
+        RemoveOutcome::Removed => Verdict::Done,
+        RemoveOutcome::RemovedAround(left) => {
+            let branch: String = branch_of_registration(registration.admin.as_path()).unwrap_or_else(|| return String::from("a head with no branch"));
+            if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(item.git_dir.as_path(), target, branch.as_str(), left.as_slice()) {
+                crate::service_warn!("the worktree {} was removed around what was left in it, and the record of that could not be written: {reason}", target.display());
+            }
+            for line in crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(target, left.as_slice()).lines() {
+                crate::service_log!("{line}");
+            }
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
+        RemoveOutcome::Refused(report) => return keep_the_worktree(item, target, registration.admin.as_path(), report.as_str(), &[]),
+        RemoveOutcome::Incomplete(report) => return keep_the_worktree(item, target, registration.admin.as_path(), report.as_str(), &[]),
+        // Nothing here was changed and Git's own removal is not this tree's to take, so the worktree stays and the person reads
+        //  why. A record that names no removal this program can make must not be read as one that happened.
+        RemoveOutcome::LeftToGit => {
+            return keep_the_worktree(
+                item,
+                target,
+                registration.admin.as_path(),
+                "a subvolume or mount point that is not this removal's stands inside it, and the removal could not prove it may take the rest",
+                &[],
+            );
+        }
+    }
 }
 
 /// What:

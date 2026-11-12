@@ -422,6 +422,13 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
             let _closed = writeln!(std::io::stderr(), "{notice}");
             return Some(ForwardedRun::Ran(0));
         }
+        RemoveOutcome::RemovedAround(left) => {
+            // The worktree is gone from Git's records and what was not this removal's stands where it was, so the command did
+            // what it was asked and says the rest in the same breath: the path is still taken, and this is what frees it.
+            let report: String = crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(plan.target.as_path(), left.as_slice());
+            let _closed = writeln!(std::io::stderr(), "{report}");
+            return Some(ForwardedRun::Ran(0));
+        }
         RemoveOutcome::Incomplete(report) => {
             return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::action::ENGINE_FAILURE_EXIT_CODE });
         }
@@ -610,6 +617,20 @@ fn run_settled(
                 && let Some(signal) = run_git.signalled
             {
                 return ForwardedRun::Killed(signal);
+            }
+            // Git's own refusal of an occupied destination says only that the directory exists, and a person who removed the
+            // worktree there was told what a removal had to leave. The line names each volume and what frees the path, so
+            // "already exists" is answered by what stands there.
+            if settlement.copy_failure.is_none()
+                && settlement.git.code != Some(0)
+                && let Some(destination) = facts.destination.as_ref()
+            {
+                let left: Vec<crate::subvolume_remove_walk::Boundary> =
+                    crate::worktree_removal_goes_around_a_foreign_volume::volumes_below(destination.as_path());
+                if !left.is_empty() {
+                    let line: String = crate::worktree_removal_goes_around_a_foreign_volume::add_beside_a_volume_line(destination.as_path(), left.as_slice());
+                    let _written = writeln!(stderr, "{line}");
+                }
             }
             // A worktree Git just registered is recorded as one this program made, so a later merge that lands its branch
             // removes it by itself (`worktree_landed_removal.rs`). A record that cannot be written costs that one removal

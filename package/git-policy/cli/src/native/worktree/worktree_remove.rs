@@ -52,13 +52,13 @@ use crate::fs_beneath::{handle_path, identity_at, remove_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
-use crate::subvolume_remove_walk::{empty_directory, find_boundary_below_except, verify_below};
+use crate::subvolume_remove_walk::{Boundary, empty_directory, empty_directory_around, find_boundary_below_except, look_for_boundaries, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::{clear_the_pools_ahead_of_a_worktree, data_folders};
-use crate::worktree_removal_refuses_a_nested_volume::refusal_for_nested_volume;
+use crate::worktree_removal_goes_around_a_foreign_volume::{refused_beside_a_volume_report, stopped_around_report, volumes_below};
 use crate::worktree_removal_takes_its_pending_deletions::{VolumesBelow, take_the_pending_deletions_below};
 use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, pending_deletion_report, registration_volume_report, snapshots_ahead_report, stage_state, unwalkable_registration_report};
 pub use crate::worktree_removal_holds_the_worktree::Held;
@@ -121,6 +121,12 @@ pub enum RemoveOutcome {
     LeftToGit,
     /// The subvolume and the administrative directory are gone.
     Removed,
+    /// The worktree and its registration are gone,
+    /// and what someone else put inside it stands where it was,
+    /// with the directories that lead to it.
+    ///
+    /// The report is for standard error and says what is left and what frees the path.
+    RemovedAround(Vec<Boundary>),
     /// The removal is refused and nothing was changed;
     /// the report is for standard error and says what stands in the way and how to clear it.
     Refused(String),
@@ -328,50 +334,58 @@ fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>)
 }
 
 /// What:
-///  The refusal of a removal whose worktree holds a subvolume or a mount point below its root,
-///  or nothing when every volume below it is this program's own and now out of the way,
-///  or when the walk proves nothing and Git may have the tree.
+///  Remove everything from the worktree except the volumes it did not make and the directories that lead to them,
+///  then forget the worktree in Git.
 /// Why:
-///   Git's own removal unlinks the files of a nested worktree,
-/// so a tree that holds one is never given to it;
-/// a tree
-///  the walk cannot read proves nothing either way,
-/// and the removal is then Git's,
-/// which is what it was before
-///  this proof existed.
-///  The subvolumes this program left there are its own to take,
-/// never a reason to refuse or to hand a
-///  person a command to delete them.
-///  The proof is made twice:
-/// once before anything is renamed or destroyed,
-/// and once after a destroy the
-///  kernel refused,
-/// because the same worktree can be added in the moments between them (a review finding,
-///  F1).
+///   The kernel cannot destroy a subvolume that contains another one,
+/// and Git's own removal would delete what is mounted at
+///  a mount point,
+/// so a tree holding one is emptied here and given up to the kernel nowhere:
+/// every other entry goes,
+///  what was not the removal's stays with the directories that lead to it,
+/// and the registration goes as it does
+///  after a destroy.
+/// A tree that is empty when the pass ends is removed as any other tree is:
+/// the volume went away while the
+///  pass ran,
+///  and nothing is left to keep.
+/// A pass that stops halfway leaves files gone and the registration standing,
+/// which is neither of the two
+///  answers a person can act on and is said in its own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refused = proveTheTreeBelowIsClear(commonDir, held, request); // RemoveOutcome.Refused | undefined
+/// const outcome = goAround({ request, held, registration }); // RemovedAround | Removed | Incomplete
 /// ```
-fn prove_the_tree_below_is_clear(common_dir: &Path, held: &Held, request: &RemoveRequest<'_>) -> Option<RemoveOutcome> {
+fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: &Registration) -> RemoveOutcome {
     let target: &Path = request.plan.target.as_path();
-    return match take_the_pending_deletions_below(common_dir, held, target) {
-        Ok(VolumesBelow::Clear) => None,
-        Ok(VolumesBelow::Foreign(found)) => {
-            let report: String = refusal_for_nested_volume(target, request.common_dir, &found);
+    if let Err(error) = empty_directory_around(&held.target, target) {
+        let report: String = stopped_around_report(target, error.to_string().as_str());
+        warn(TAG, report.as_str());
+        return RemoveOutcome::Incomplete(report);
+    }
+    // What is left is looked at again through the descriptor this removal holds: a volume that went away while the pass ran
+    // leaves a tree that is now empty, and the root then goes with it.
+    let left: Vec<Boundary> = look_for_boundaries(&held.target, target).found;
+    if left.is_empty() {
+        if let Err(error) = remove_at(&held.parent, held.name.as_os_str(), true) {
+            let report: String = stopped_around_report(target, format!("{} cannot be removed ({error})", target.display()).as_str());
             warn(TAG, report.as_str());
-            Some(RemoveOutcome::Refused(report))
+            return RemoveOutcome::Incomplete(report);
         }
-        Ok(VolumesBelow::Unreadable(reason)) => {
-            debug(TAG, format!("{reason}; Git decides").as_str());
-            None
+        let outcome: RemoveOutcome = finish(held, registration, request);
+        if outcome == RemoveOutcome::Removed {
+            forget_destroy(request.common_dir, registration.id.as_os_str());
         }
-        Err(reason) => {
-            let report: String = pending_deletion_report(target, reason.as_str());
-            warn(TAG, report.as_str());
-            Some(RemoveOutcome::Refused(report))
-        }
-    };
+        return outcome;
+    }
+    let outcome: RemoveOutcome = finish(held, registration, request);
+    if outcome != RemoveOutcome::Removed {
+        return outcome;
+    }
+    forget_destroy(request.common_dir, registration.id.as_os_str());
+    debug(TAG, format!("removed the worktree {} around {} volume(s) it did not make", target.display(), left.len()).as_str());
+    return RemoveOutcome::RemovedAround(left);
 }
 
 /// What:
@@ -420,8 +434,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         }
     }
     if !operations.is_subvolume_root(target) {
-        debug(TAG, format!("{} is not a subvolume; Git removes it file by file", target.display()).as_str());
-        return RemoveOutcome::LeftToGit;
+        debug(TAG, format!("{} is not a subvolume; Git removes it file by file unless a volume it did not make stands below it", target.display()).as_str());
     }
     // A conversion's copy beside the worktree is named by the journal in the registration this removal deletes, so a removal
     // now would leave it behind with nothing to find it by. The person finishes or discards it first. What proves the copy is
@@ -433,8 +446,16 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, report.as_str());
         return RemoveOutcome::Refused(report);
     }
-    if !operations.removal_allowed(target) {
-        debug(TAG, format!("the mount of {} lacks {REMOVAL_OPTION}; Git removes the worktree file by file", target.display()).as_str());
+    let subvolume: bool = operations.is_subvolume_root(target);
+    let destroy: bool = subvolume && operations.removal_allowed(target);
+    if subvolume && !destroy {
+        debug(TAG, format!("the mount of {} lacks {REMOVAL_OPTION}; the worktree is removed file by file", target.display()).as_str());
+    }
+    // A tree that holds a subvolume or a mount point this program did not make is never given to Git: Git's own removal
+    // deletes what is mounted at a mount point, and it unlinks the files of a nested worktree before the kernel can refuse
+    // anything. The look is the one every route makes, and it changes nothing.
+    let foreign: Vec<Boundary> = volumes_below(target);
+    if !destroy && foreign.is_empty() {
         return RemoveOutcome::LeftToGit;
     }
     let held: Held = match hold(target, &registration) {
@@ -450,20 +471,52 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if !request.plan.force
         && let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir)
     {
-        debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
-        return RemoveOutcome::LeftToGit;
+        if foreign.is_empty() {
+            debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
+            return RemoveOutcome::LeftToGit;
+        }
+        // Git's own refusal cannot be the answer here: handing the tree to Git would let it delete what is mounted at one of
+        // these. The report says nothing was removed, names each of them, and gives both ways on.
+        let report: String = refused_beside_a_volume_report(
+            target,
+            request.plan.operand.to_string_lossy().as_ref(),
+            foreign.as_slice(),
+            reason.as_str(),
+        );
+        warn(TAG, report.as_str());
+        return RemoveOutcome::Refused(report);
     }
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
     }
-    // The kernel refuses a destroy for a subvolume that contains another one, so a worktree holding a subvolume of its own
-    // could never go this way: it has to be refused while nothing has happened, and never handed to Git, whose removal
-    // unlinks the inner worktree's files. A tree that cannot be walked proves nothing either way, and the removal is then
-    // Git's, which is what it was before this check existed.
-    if let Some(refused) = prove_the_tree_below_is_clear(request.common_dir, &held, request) {
-        return refused;
-    }
+    // The volumes below the tree are the removal's own decision, and this is where it is taken:
+    // what this program left
+    //  for its commit service is moved out,
+    //  and anything else is left where it stands.
+    let goes_around: bool = match take_the_pending_deletions_below(request.common_dir, &held, target) {
+        Ok(VolumesBelow::Clear) => {
+            if !destroy {
+                return RemoveOutcome::LeftToGit;
+            }
+            false
+        }
+        Ok(VolumesBelow::Foreign(_found)) => true,
+        Ok(VolumesBelow::Unreadable(reason)) => {
+            // A tree that cannot be read proves nothing either way, and the destroy is refused by the kernel for a subvolume
+            // that contains another one; Git is not given a tree this program could not look at.
+            debug(TAG, format!("{reason}; the destroy is the kernel's own decision").as_str());
+            if !destroy {
+                return RemoveOutcome::LeftToGit;
+            }
+            false
+        }
+        Err(reason) => {
+            let report: String = pending_deletion_report(target, reason.as_str());
+            warn(TAG, report.as_str());
+            return RemoveOutcome::Refused(report);
+        }
+    };
     // The snapshots ahead of an add are this program's own and stand in the registration the removal empties after the
     // destroy, so they go first: a pool that cannot be taken stops the removal while nothing has happened.
     if let Err(reason) = clear_the_pools_ahead_of_a_worktree(request.common_dir, handle_path(&held.admin).as_path()) {
@@ -505,6 +558,9 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if let Err(reason) = last_look::before_the_destroy(request, target) {
         return RemoveOutcome::Refused(reason);
     }
+    if goes_around {
+        return go_around(request, &held, &registration);
+    }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`
     // could. A record that cannot be written costs that finish and nothing else, so the destruction goes on.
@@ -524,14 +580,20 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             record_destroyed(request.common_dir, registration.id.as_os_str());
             marked = true;
             if let Err(error) = operations.destroy(&held) {
-                debug(TAG, format!("the subvolume of {} was not destroyed ({error}); Git removes it", target.display()).as_str());
+                debug(TAG, format!("the subvolume of {} was not destroyed ({error}); the tree is looked at again", target.display()).as_str());
                 forget_destroy(request.common_dir, registration.id.as_os_str());
                 // The destroy ran after the walk, and the two are not one step: a worktree added below this one since the
                 // walk is what makes the kernel refuse the call (`ENOTEMPTY`), and Git's own removal would unlink that
-                // worktree's files. The tree is proved again before Git is given it, and a refusal leaves the worktree and
-                // every file of it where they are.
-                if let Some(refused) = prove_the_tree_below_is_clear(request.common_dir, &held, request) {
-                    return refused;
+                // worktree's files. A volume the tree holds now is gone around, and anything else is Git's, which is what
+                // it was before this proof existed.
+                match take_the_pending_deletions_below(request.common_dir, &held, target) {
+                    Ok(VolumesBelow::Foreign(_found)) => return go_around(request, &held, &registration),
+                    Err(reason) => {
+                        let report: String = pending_deletion_report(target, reason.as_str());
+                        warn(TAG, report.as_str());
+                        return RemoveOutcome::Refused(report);
+                    }
+                    Ok(VolumesBelow::Clear | VolumesBelow::Unreadable(_)) => {}
                 }
                 return RemoveOutcome::LeftToGit;
             }
