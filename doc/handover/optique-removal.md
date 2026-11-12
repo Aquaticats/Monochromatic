@@ -683,6 +683,43 @@ stash,
 revert,
 or include them in this migration's commits.
 
+## Upstream asked for a reassessment
+
+Optique's maintainer commented on commit `4879a44e6a2460ab3c2531744e24a1f2aef27aeb` on 2026-11-12T03:14:38Z,
+asking whether this project would reassess Optique on 1.3.6 or on upstream `main`,
+"If performance is still a reason for moving away".
+
+What was established that day:
+
+- `doc/research/optique-typo-suggestion-overhead-upstream-record.md` holds the upstream history,
+  the release state,
+  and a measurement of the old commit parser on each version:
+  a thousand-path parse took 2,696 ms on 1.1.1,
+  184 ms on 1.3.6
+  and 95 ms on the pre-release `1.4.0-dev.2971`.
+- `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` holds the cause,
+  a standalone script,
+  and the workarounds.
+- Performance was the recorded reason for one consumer only,
+  `package/git-policy/cli/`,
+  whose TypeScript wrapper was deleted on 2026-10-13 (`642b6d72cb`).
+- The workspace-wide deprecation rests on `doc/decision/cli-arg-validation.md`,
+  amended 2026-10-31,
+  whose context names `node:util` `parseArgs` adoption and Valibot,
+  and no performance reason.
+  The measurement therefore bears on none of the reasons that decision records.
+- For the consumers this handover lists,
+  which pass a handful of tokens,
+  the measured cost of an Optique parse of three tokens was 0.52 to 0.74 ms on every version.
+
+Open,
+and the owner's to decide:
+
+- whether to reply to the maintainer,
+  and with which of the drafted material;
+- whether the reassessment the maintainer asks for should happen at all.
+  This handover's scope and decisions stand until the owner says otherwise.
+
 ## Next action
 
 When the user returns,
