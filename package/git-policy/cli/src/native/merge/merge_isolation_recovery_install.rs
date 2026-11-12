@@ -17,7 +17,8 @@
 //! ```
 
 use crate::inner_git_words::record_words;
-/// Every permission bit a person can set on the entry a take read, and nothing for an entry that was not a regular file.
+/// Every permission bit a person can set on the entry a take read,
+///  and nothing for an entry that was not a regular file.
 #[cfg(unix)]
 use crate::merge_isolation_carry_permissions::the_permission_bits_a_person_set;
 use crate::lazy_runtime::run_on_runtime;
