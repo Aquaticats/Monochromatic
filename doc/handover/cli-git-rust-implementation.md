@@ -214,6 +214,92 @@ move its durable facts to their canonical doc and delete it from this page.
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
 
+#### 0.6.1-alpha.15 published, installed and checked at the user boundary: issue 6287 is closed in the installed release (2026-11-12T11:31:22-05:00)
+
+- Published 11:29:21,
+  eight minutes and seven seconds after the dispatch.
+  The release's commit on `main` is `42535bf679`;
+  the local `main` was fast-forwarded to it.
+- Installed 11:30:22.
+  The install's own sample commit took 2,250 ms.
+  The global tool entry moved from alpha.14 to alpha.15.
+  The user manager recorded no reload between 11:29:00 and 11:30:47:
+  the first install of the day without one
+  (alpha.14 already names a link in the unit text,
+  so a newer release changes no text).
+- Only the newest release is on disk
+  (`~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-git-policy-cli/` holds `0.6.1-alpha.15` and `current`),
+  so no older wrapper could be run beside it as a control.
+- The check,
+  with `~/temp/agent/scratch-scripts/merge-with-a-held-index-lock-in-a-fixture.ts`
+  (a fast-forward merge in a disposable repository with its own `HOME` and `XDG_RUNTIME_DIR`,
+  `index.lock` held open for eight seconds by the script's own process,
+  each run in a service unit of its own;
+  log `~/temp/agent/gate/check-6287-alpha-15.log`):
+  - The control first:
+    the IDE had been restarted since the morning;
+    its watcher now runs as PID 2807684,
+    and descriptor 3 of it reads `anon_inode:inotify` by `readlink`,
+    before and after.
+    How many watches it holds now is not known,
+    since learning that is the read the defect was.
+  - Capped at 4G:
+    exit 0,
+    merged,
+    7.73 s,
+    memory peak 50.2 MB.
+    The wrapper named the holder
+    ("waiting for PID ... (sleep), which holds .../index.lock (proven by an open descriptor)"),
+    so the scan for a holder ran.
+  - Capped at 512 MB,
+    the cap under which the wrapper was killed at 09:40:23:
+    unit result `success`,
+    merged,
+    8.17 s of unit runtime,
+    memory peak 43.3 MB.
+  - The "before" on this machine is the fix's author's own run at about 11:00 against the morning's watcher:
+    53.75 s and a peak of 887,349,248 bytes with the installed alpha.13.
+- What still has the defect:
+  a wrapper built from a branch that does not hold `afc0545123`,
+  and a commit service of an older release that is still running for some agent's worktree.
+  The workaround in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` was rewritten to say exactly that,
+  with the command that tells a branch which side it is on;
+  it is removed when no branch in work is older than that commit.
+
+#### 0.6.1-alpha.15 dispatched with the fix for issue 6287, and the first batches through the package's launcher (2026-11-12T11:23:33-05:00)
+
+- The fix was merged into `main` with `--no-ff` as `afc0545123` at 11:19:04,
+  with `Closes #6287`;
+  the handover commit after it (`8cabbf38fb`) was on the remote before the dispatch.
+- Dispatched 11:21:14,
+  workflow run 43257717414,
+  from 0.6.1-alpha.14 to 0.6.1-alpha.15.
+  A waiter unit watches it.
+  Nothing is committed to `main` until it is published;
+  this section is committed after that.
+- Round 304,
+  a qwen4 review of the fix,
+  started through the package's launcher at 11:23:18.
+  The first try wrote no brief:
+  this session's helper takes the range from the merge base with `main`,
+  and for a branch already merged that range is empty.
+  The brief was written with the range from where the branch left `main` (`0811ce06bd`).
+  The same holds for every review of a branch after its merge.
+- Round 303 (the reference listing on the commit path) was started through the package's launcher at 11:17:13.
+  Six minutes later its run had not begun:
+  the launcher was still inside `git worktree add`,
+  339 seconds old,
+  with `cargo` children,
+  that is,
+  in the repair of package-manager state.
+  Its output file was empty all that time;
+  the launcher says nothing while an add runs.
+  An add of over five minutes,
+  against the bound of sixty seconds,
+  with about forty agents working;
+  one more sighting for the agents on worktree add.
+- All ten Kimi audits were making turns at 11:18:15.
+
 #### The fix for issue 6287 is finished, merges cleanly, and goes out as 0.6.1-alpha.15 (2026-11-12T11:18:42-05:00)
 
 The agent of round 284 ended at 11:18:05 after 217 turns,
