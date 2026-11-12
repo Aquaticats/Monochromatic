@@ -418,6 +418,18 @@ fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, 
                 format!("its batch's own reference `{scratch}` names no commit this command can read").as_str(),
             ));
         }
+        // A symbolic reference names another reference, not an object, and the command that moves the one it leads to takes this
+        //  commit with it: nothing is proven kept here, so no name is kept and the worktree stays.
+        RefValue::Symbolic(target) => {
+            return UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+                record,
+                worktree.as_path(),
+                format!(
+                    "its batch's own reference `{scratch}` is a symbolic reference to `{target}`, which another command can move, so it names no commit this command can prove kept"
+                )
+                .as_str(),
+            ));
+        }
     };
     return match keep_this_commit(git, common_dir, seq, commit.as_str()) {
         Some(name) => UnreadableKeeping::Kept(words_of_a_commit_kept_from_an_unreadable_record(record, scratch.as_str(), commit.as_str(), name.as_str())),
