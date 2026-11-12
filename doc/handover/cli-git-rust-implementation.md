@@ -435,6 +435,13 @@ as `client-signal` with the signal and,
 where the kernel names it,
 the process that sent it.
 
+Two gaps that paragraph left are closed by the same branch at 2026-11-12T09:23:05-05:00:
+the wait answers a hang-up and a quit as it answers an interrupt,
+so a closing terminal's `SIGHUP` no longer ends the commit with no record at all (`fc4ff5e38b`),
+and an exchange with the user service manager that runs out of its time is recorded as `manager-did-not-answer`
+and worded with the time one exchange is given (`f1e236d80d`),
+which is what three of the seven met while the person was told their computer cannot start the service on demand.
+
 #### An unreadable worktree-copy record stops every command in every linked worktree
 
 The first review of "an add's own records flush nothing" ended with one untested claim.
