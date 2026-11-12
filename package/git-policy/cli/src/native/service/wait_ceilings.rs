@@ -59,6 +59,23 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// One minute is 58 times that.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
+/// The longest a service waits for the build of its own multi-thread runtime,
+/// once that build has outlasted `BUILD_DEADLINE`,
+/// before it ends and lets the service manager start it again.
+///  Why it is `START_CEILING`:
+/// the greeting of a connection waits behind that build,
+/// so this wait is inside the time a client gives the service's start.
+/// A service that ended sooner would end a start the person's commit is still waiting for,
+/// which is how a working runtime that arrived 1.76 s after `ready` cost a commit its service
+/// (the gate of 2026-11-11T10:29-05:00,
+/// `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository`),
+/// and one that waited longer would serve a client that has already given up.
+///  Measured:
+/// a build of the runtime takes 0.3 to 0.5 ms when it works,
+/// and the slowest of 52 cold starts greeted in 1,041 ms,
+/// so one minute is far from any ordinary slow start.
+pub const RUNTIME_BUILD_PATIENCE: Duration = START_CEILING;
+
 /// The longest a command waits for the greeting of a service it only has to tell about work whose record it has
 /// already written:
 /// the trash an add sets aside,
