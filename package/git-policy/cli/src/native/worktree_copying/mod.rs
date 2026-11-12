@@ -58,6 +58,11 @@ pub mod worktree_copy_stage_leaf_copying;
 #[cfg(unix)]
 pub mod worktree_copy_settling;
 
+/// The owner's writing on the staged directories above an entry the settling removes or copies again,
+/// and the modes they had before.
+#[cfg(unix)]
+pub mod worktree_copy_settling_stage_writing;
+
 /// The exclusive creation of one destination entry from the stage,
 /// and the identity captured after it.
 #[cfg(unix)]

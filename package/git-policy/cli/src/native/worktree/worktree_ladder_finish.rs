@@ -43,12 +43,13 @@ use crate::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
+use crate::worktree_copy_source_still_being_filled::source_is_still_being_filled;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
-use crate::worktree_slow_route::{SlowRoute, explain_failure};
+use crate::worktree_slow_route::{SlowRoute, explain_failure, explain_source_still_being_filled, explain_unreadable_source_records};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
@@ -405,6 +406,25 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
         }
     };
+    // A source that is itself the destination of a copy that has not finished holds only part of its ignored files, and a
+    //  snapshot carries exactly what it holds: publishing that part as the new worktree's whole ignored state is the one
+    //  thing this rung must never do. The copy below refuses such a source and names it (`worktree_copy_synchronize.rs`), so
+    //  the rung declines before it pays for a snapshot and answers the same way every other refusal does, with Git's own
+    //  checkout making the worktree. A record the check cannot read refuses the snapshot too: this rung cannot tell a whole
+    //  source from one being filled, and the copy below names the record it could not read.
+    let filled: Option<crate::worktree_copy_source_still_being_filled::UnfinishedCopy> = match source_is_still_being_filled(source.common_dir.as_path(), source.root.as_path()) {
+        Ok(filled) => filled,
+        Err(error) => {
+            debug(TAG, format!("the snapshot of {} was not taken: the records of the source cannot be read ({})", plan.destination.display(), error.0).as_str());
+            *slow = Some(explain_unreadable_source_records(error.0.as_str()));
+            return LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) };
+        }
+    };
+    if let Some(unfinished) = filled {
+        debug(TAG, format!("the snapshot of {} was not taken: {} is still being filled by an ignored-state copy", plan.destination.display(), source.root.display()).as_str());
+        *slow = Some(explain_source_still_being_filled(unfinished));
+        return LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) };
+    }
     let mut made: Option<ObjectId> = None;
     return match serve_snapshot(source, plan, stage, &bound, &mut made, run_git, context) {
         Ok(served) => {

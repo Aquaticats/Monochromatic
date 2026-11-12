@@ -1370,6 +1370,38 @@ fn btrfs_a_snapshot_add_that_carried_its_ignored_state_reports_no_missing_copy()
     remove(root.as_path());
 }
 
+/// What:
+///  Run one step of the ladder with real Git:
+/// the person's own `--no-checkout` add for the checkout step,
+/// and the
+///  step's own arguments and variables for every step the ladder runs itself.
+/// Why:
+///   A rung that falls back completes the worktree with Git's own `reset --hard`,
+/// which names its git directory and work
+///  tree in the step's environment;
+/// a runner that ran the add again would answer a reset with Git's refusal of a
+///  destination that exists.
+fn run_a_ladder_step(main: &Path, step: &GitStep<'_>, name: &str, destination: &Path) -> GitStatus {
+    let GitStep::Other { arguments, environment } = step else {
+        return run_real(main, add_without_checkout(name, destination).as_slice());
+    };
+    let output: Output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(main)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+        .envs(environment.iter().cloned())
+        .args(*arguments)
+        .output()
+        .expect("Git starts");
+    return GitStatus { code: output.status.code() };
+}
+
 /// A source whose own ignored-state copy still runs is no source for a snapshot either:
 /// the worktree is made,
 /// nothing of the half-filled ignored state reaches it,
@@ -1396,7 +1428,7 @@ fn btrfs_a_snapshot_add_from_a_source_still_being_filled_names_the_missing_copy(
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &invocation,
-        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_without_checkout("topic", topic.as_path()).as_slice())),
+        &mut |step: &GitStep<'_>| return Ok(run_a_ladder_step(main.as_path(), step, "topic", topic.as_path())),
         &mut stderr,
     )
     .expect("settled");

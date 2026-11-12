@@ -660,3 +660,34 @@ fn a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_
     assert_eq!(staged.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry a worktree cannot hold is named");
     remove(root.as_path());
 }
+
+/// What:
+///  The stage of a copy that could not be filled is removed with everything in it,
+///  even where it carries a directory of the source that grants no writing.
+/// Why:
+///  A copy that stops part-way holds the source's own modes in its stage,
+/// and a source directory may be readable
+///  and searchable only;
+/// a plain recursive removal is refused there,
+/// so the stage and its claim stand for good,
+/// and
+///  the person reads `Permission denied (os error 13)` instead of the reason the copy stopped
+/// (audit of 0.6.1-alpha.12).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stage = fixture(...); mkdirSync(join(stage, 'payload/cache')); writeFileSync(join(stage, 'payload/cache/a.txt'), 'staged'); chmodSync(join(stage, 'payload/cache'), 0o500); removeStageThatCouldNotBeFilled(stage); expect(existsSync(stage)).toBe(false);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_stage_that_could_not_be_filled_is_removed_below_a_directory_without_write_permission() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("stage-cleanup-read-only-directory");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-cleanup");
+    std::fs::create_dir_all(stage.join("payload/cache")).expect("the private stage");
+    std::fs::write(stage.join("payload/cache/a.txt"), b"staged\n").expect("a staged file");
+    std::fs::set_permissions(stage.join("payload/cache"), std::fs::Permissions::from_mode(0o500)).expect("the source's read-only mode");
+    remove_a_stage_that_could_not_be_filled(stage.as_path()).expect("a stage holding a read-only directory is removed");
+    assert!(!stage.exists(), "the stage is gone");
+    remove(root.as_path());
+}

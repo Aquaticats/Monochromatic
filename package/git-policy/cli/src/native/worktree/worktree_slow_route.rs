@@ -275,6 +275,53 @@ pub fn explain_failure(reason: &str) -> SlowRoute {
 }
 
 /// What:
+///  The sentence for a snapshot declined because the worktree it would copy is itself being filled by
+///  another command's ignored-state copy.
+/// Why:
+///   The rung's whole promise is the source's ignored state at one instant,
+/// and a source that is still
+///  receiving that state at that instant holds only part of it,
+/// so no snapshot is taken;
+/// the person hears
+///  the cause the copy's own line names,
+/// with what makes the next add quick.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const route = explainSourceStillBeingFilled('running');
+/// ```
+pub fn explain_source_still_being_filled(unfinished: crate::worktree_copy_source_still_being_filled::UnfinishedCopy) -> SlowRoute {
+    use crate::worktree_copy_source_still_being_filled::UnfinishedCopy;
+    let sentence: String = match unfinished {
+        UnfinishedCopy::Running => format!("the worktree it copies from is itself being filled by another `git worktree add`, so a snapshot of it would hold only the part of its ignored files that copy has installed so far. Run this line again once that add has finished, {THEN_QUICK}."),
+        UnfinishedCopy::Interrupted => format!("the ignored-state copy of the worktree it copies from was interrupted before it finished, so a snapshot of it would hold only the part that copy installed. Run any command in that worktree to have the copy completed, {THEN_QUICK}."),
+        UnfinishedCopy::LeftUnfilled => format!("the ignored-state copy of the worktree it copies from ended before it was whole, so a snapshot of it would hold less than that worktree's own source ignores. Settle that copy in that worktree, {THEN_QUICK}."),
+    };
+    return SlowRoute { word: "source-being-filled", detail: String::from("the worktree this add copies from is itself receiving an ignored-state copy"), sentence };
+}
+
+/// What:
+///  The sentence for a snapshot declined because the records that would say whether the source is whole
+///  cannot be read.
+/// Why:
+///   The rung cannot tell a whole source from one another copy is filling,
+/// so it takes no snapshot and the
+///  copy below names the record it could not read;
+/// a silent snapshot there could publish part of a source as a whole one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const route = explainUnreadableSourceRecords(reason);
+/// ```
+pub fn explain_unreadable_source_records(reason: &str) -> SlowRoute {
+    return SlowRoute {
+        word: "source-records-unreadable",
+        detail: reason.to_string(),
+        sentence: format!("the records that would say whether the worktree it copies from is whole could not be read ({}), so no snapshot of it was taken. Check that the repository's Git directory is readable, {THEN_QUICK}.", plain(reason)),
+    };
+}
+
+/// What:
 ///  The sentence for the cheap refusals (the source is no subvolume,
 /// or the two sides are not on one filesystem),
 /// or nothing

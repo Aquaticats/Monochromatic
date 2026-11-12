@@ -24,7 +24,7 @@ use crate::diagnostic_log::debug;
 use crate::transaction_git::GitContext;
 use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_notices::{DestinationOwnership, UNKNOWN_DESTINATION_NOTICE, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registered_by_another_notice, registration_changed, unconfirmed_destination_notice, uncopiable_notice, unreadable_notice, unsettled_notice};
+use crate::worktree_copy_notices::{DestinationOwnership, UNKNOWN_DESTINATION_NOTICE, appeared_notice, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registered_by_another_notice, registration_changed, unconfirmed_destination_notice, uncopiable_notice, unreadable_notice, unsettled_notice};
 use crate::worktree_subvolume::Reservation;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_journal::create_journal;
@@ -168,9 +168,10 @@ pub fn synchronize_created_worktree_noting(
     let pending: PendingJournal = match create_journal(common_dir, destination_root, &snapshot) {
         Ok(pending) => pending,
         Err(error) => {
-            // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
-            std::fs::remove_dir_all(snapshot.stage_container.as_path())
-                .map_err(raw_failure_of)?;
+            // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there; the removal
+            //  gives the owner writing on every staged directory first, so a stage holding one of the source's read-only ones
+            //  still goes and the journal's own words are what the person reads.
+            crate::worktree_copy_journal_removal::remove_stage(snapshot.stage_container.as_path())?;
             // As above: the record of the unfilled destination outlives this command.
             return Err(error);
         }
@@ -220,6 +221,10 @@ pub fn synchronize_created_worktree_noting(
             if !snapshot.unsettled.is_empty() {
                 // The same writer and the same silence: an entry a build kept writing stays in its source, named.
                 let _written = notice.write_all(unsettled_notice(source_root, snapshot.unsettled.as_slice()).as_bytes());
+            }
+            if !snapshot.appeared.is_empty() {
+                // The same writer and the same silence: an entry the source gained after the listing is not in this worktree, named.
+                let _written = notice.write_all(appeared_notice(source_root, snapshot.appeared.as_slice()).as_bytes());
             }
             Ok(copied)
         }

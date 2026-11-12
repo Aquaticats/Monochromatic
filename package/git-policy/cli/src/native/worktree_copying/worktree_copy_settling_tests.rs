@@ -546,3 +546,45 @@ fn a_pipe_that_replaces_a_file_after_the_copy_is_named_by_the_settling_pass() {
     drop(held);
     remove(root.as_path());
 }
+
+/// What:
+///  An ignored entry the source gained after the copy's listing is in neither the stage nor the manifest,
+///  and the settling names it.
+/// Why:
+///   A build writes a new cache file while an add copies the same directory,
+/// and the listing the copy staged
+///  was taken before it,
+/// so the entry is never copied and nothing said;
+/// the worktree must not look whole when it
+///  is short of what its source held,
+/// and the entry stays in the source for the person to copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copied = copyManifestEntriesWith(...); writeFileSync(join(source, 'cache/appeared.txt'), 'new'); const settled = settleTheCopy(...); expect(settled.appeared).toEqual(['cache/appeared.txt']); expect(existsSync(join(stage, 'cache/appeared.txt'))).toBe(false);
+/// ```
+#[test]
+fn an_entry_the_source_gained_while_it_was_copied_is_named_and_not_staged() {
+    let (held, root, source, stage, entries) = two_ignored_files("settling-appeared", UNCHANGED);
+    let copied: CopiedManifest = copy_manifest_entries_with(source.as_path(), stage.as_path(), entries.as_slice(), changing_clone, &CopyCeiling::unbounded()).expect("both entries are copied");
+    std::fs::write(source.join("cache/appeared.txt"), b"written while the copy ran\n").expect("the entry a build wrote");
+    let settled: Settled = settle_the_copy(SettlingRequest {
+        source_root: source.as_path(),
+        stage_root: stage.as_path(),
+        selected_roots: [b"cache".to_vec()].as_slice(),
+        excluded_source_roots: &[],
+        prune: Prune::Never,
+        entries,
+        stamps: copied.stamps,
+        clone: changing_clone,
+        gone: copied.gone,
+    })
+    .expect("an entry the source gained is no failure of the settling");
+    assert_eq!(settled.appeared, vec![b"cache/appeared.txt".to_vec()], "the entry the stage never held is named");
+    assert!(!stage.join("cache/appeared.txt").exists(), "nothing of it was staged");
+    let line: String = crate::worktree_copy_notices::appeared_notice(source.as_path(), settled.appeared.as_slice());
+    assert!(line.contains("cache/appeared.txt"), "the person reads which entries the worktree does not hold: {line:?}");
+    assert!(line.contains("copy the ones the new worktree needs from there"), "and what to do about them: {line:?}");
+    drop(held);
+    remove(root.as_path());
+}

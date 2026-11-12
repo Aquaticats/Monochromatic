@@ -176,6 +176,7 @@ pub fn snapshot_from_journal(
         unreadable: Vec::new(),
         uncopiable: Vec::new(),
         unsettled: Vec::new(),
+        appeared: Vec::new(),
     });
 }
 

@@ -78,6 +78,11 @@ pub struct StagedSnapshot {
     /// Repository paths that kept changing under the copy and were left in their source;
     ///  empty for a stage rebuilt from a journal.
     pub unsettled: Vec<Vec<u8>>,
+    /// Repository paths the source gained after the copy's listing,
+    /// which the stage therefore does not hold;
+    ///  empty for a stage rebuilt from a journal,
+    /// which installs what the copy that made it staged.
+    pub appeared: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -214,6 +219,30 @@ pub fn new_stage_container(destination_root: &Path) -> Result<PathBuf, WorktreeC
 }
 
 /// What:
+///  Remove the stage container of a copy that could not be staged,
+/// bound or journaled,
+/// with everything in it.
+/// Why:
+///   A copy that stopped part-way holds the source's own modes in its stage,
+/// and one of them may grant its
+///  owner reading and searching only,
+/// so a plain recursive removal is refused with `Permission denied` and
+///  replaces the reason the copy stopped with the system's answer;
+/// the removal gives the owner writing on
+///  every directory of the stage first,
+/// as the removal of a completed transaction does,
+/// so the copy's own
+///  words are what the person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await removeStageThatCouldNotBeFilled(stageContainer);
+/// ```
+fn remove_a_stage_that_could_not_be_filled(stage_container: &Path) -> Result<(), WorktreeCopyError> {
+    return crate::worktree_copy_journal_removal::remove_stage(stage_container);
+}
+
+/// What:
 ///  Stages every selected ignored entry of one source into a named stage container.
 /// Why:
 ///   The stage is removed on any failure,
@@ -269,7 +298,7 @@ pub fn stage_ignored_snapshot_for(
     if let Some(bound) = binding
         && let Err(error) = crate::worktree_copy_stage_binding::record_stage_binding(stage_container, bound)
     {
-        std::fs::remove_dir_all(stage_container).map_err(raw_failure_of)?;
+        remove_a_stage_that_could_not_be_filled(stage_container)?;
         return Err(error);
     }
     let stage_root: PathBuf = stage_container.join(PAYLOAD_NAME);
@@ -289,8 +318,7 @@ pub fn stage_ignored_snapshot_for(
         Ok(snapshot) => return Ok(snapshot),
         Err(error) => {
             // A failed removal replaces the copy failure, as the incumbent's cleanup throws its own error there.
-            std::fs::remove_dir_all(stage_container)
-                .map_err(raw_failure_of)?;
+            remove_a_stage_that_could_not_be_filled(stage_container)?;
             return Err(words_for_source(error, source_root));
         }
     }
@@ -443,6 +471,7 @@ fn stage_into(
         unreadable: left_out.unreadable,
         uncopiable,
         unsettled: settled.unsettled,
+        appeared: settled.appeared,
     });
 }
 

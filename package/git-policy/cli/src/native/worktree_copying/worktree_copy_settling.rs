@@ -31,6 +31,7 @@ use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, retained_mode};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_settling_stage_writing::{OpenedForWriting, open_the_staged_directories};
 use crate::worktree_copy_stage_leaf_copying::{CopiedLeaf, copy_one_leaf};
 use crate::worktree_copy_vanished_entry::{lstat_or_absent, went_away};
 use std::path::{Path, PathBuf};
@@ -115,7 +116,9 @@ pub struct SettlingRequest<'a> {
 ///  The manifest the stage now holds,
 /// its stamps,
 /// the entries left in their source because they would not settle,
-/// and the names that hold something a worktree cannot copy.
+/// the names that hold
+///  something a worktree cannot copy,
+/// and the names the source gained after the copy's listing.
 /// Why:
 ///   The caller installs exactly these entries and tells the person about the others;
 /// nothing left out is
@@ -123,7 +126,7 @@ pub struct SettlingRequest<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Settled = { entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; unsettled: Uint8Array[]; uncopiable: Uint8Array[] };
+/// type Settled = { entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; unsettled: Uint8Array[]; uncopiable: Uint8Array[]; appeared: Uint8Array[] };
 /// ```
 pub struct Settled {
     /// The entries the stage holds.
@@ -139,6 +142,10 @@ pub struct Settled {
     /// left out of the stage and named with the entries the walk itself left out,
     /// as the bytes of each name.
     pub uncopiable: Vec<Vec<u8>>,
+    /// The names the source gained after the copy's listing,
+    /// which the stage never holds,
+    /// as the bytes of each name.
+    pub appeared: Vec<Vec<u8>>,
     /// How many manifest entries the source no longer held when their turn came.
     pub gone: usize,
 }
@@ -227,8 +234,11 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
             entries.as_slice(),
             &FinalCheck { prune: request.prune, stamps: stamps.as_slice() },
         )?;
+        // An entry the source gained after the listing was never in the manifest, so the stage cannot hold it and the pass
+        //  that ends the settling is the one that says which they are: the caller names them, because a worktree short of what
+        //  its source held must not look whole.
         if differences.gone.is_empty() && differences.changed.is_empty() {
-            return Ok(Settled { entries, stamps, unsettled, uncopiable, gone: gone_count });
+            return Ok(Settled { entries, stamps, unsettled, uncopiable, appeared: differences.appeared, gone: gone_count });
         }
         // An entry the source removed has no stage file to keep and nothing to install; a name that now holds a socket,
         // a named pipe or a device node is the entry the person is told a worktree cannot hold.
@@ -289,10 +299,14 @@ fn next_pass(pass: usize, dropped: &[Vec<u8>]) -> Result<usize, WorktreeCopyErro
 ///  changed directory has its mode applied once this pass copied the leaves,
 /// never its staged tree removed:
 ///  a removal there would take the staged children with it and re-copy nothing into their place.
+/// The directory that holds a leaf may forbid the writing the removal and the copy need,
+/// because the settling
+///  already gave the stage the source's modes;
+/// the leaf is made again inside the one window that widening covers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const path of changed) { const entry = entries.find((e) => e.relativePath === path); if (entry.kind === 'directory') { reMode.push(entry); continue; } rm(join(stageRoot, path), { recursive: true, force: true }); stamps[slot] = copyOneLeaf(...); } for (const entry of reMode) reMode(entry);
+/// for (const path of changed) { const entry = entries.find((e) => e.relativePath === path); if (entry.kind === 'directory') { reMode.push(entry); continue; } const opened = openTheStagedDirectories(stageRoot, path); rm(join(stageRoot, path), { recursive: true, force: true }); stamps[slot] = copyOneLeaf(...); opened.putTheModesBack(); } for (const entry of reMode) reMode(entry);
 /// ```
 fn copy_again(
     entries: &mut [WorktreeCopyEntry],
@@ -310,12 +324,14 @@ fn copy_again(
             continue;
         }
         let stage_path: PathBuf = filesystem_path(stage_root, path.as_slice())?;
-        remove_the_staged_copy(stage_path.as_path())?;
         let entry: WorktreeCopyEntry = entries[index].clone();
-        let copied: CopiedLeaf = copy_one_leaf(source_root, stage_path.as_path(), &entry, clone)?;
-        // The comparison compares modes, and a copy makes its own file with the private one, so the source's mode is put
-        //  back before the next pass reads it.
-        apply_entry_modes(stage_root, std::slice::from_ref(&entry))?;
+        // The stage carries the source's modes from the first pass on, so the directory that holds this entry may forbid the
+        //  writing its retry needs; the widening covers the removal and the copy, and the modes go back on whatever either answered.
+        let opened: OpenedForWriting = open_the_staged_directories(stage_root, path.as_slice())?;
+        let copied: Result<CopiedLeaf, WorktreeCopyError> = copy_the_staged_leaf_again(source_root, stage_root, stage_path.as_path(), &entry, clone);
+        let put_back: Result<(), WorktreeCopyError> = opened.put_the_modes_back();
+        let copied: CopiedLeaf = copied?;
+        put_back?;
         stamps[index] = match copied {
             CopiedLeaf::Staged(stamp) => stamp,
             // The source removed it between the comparison and this copy, so the next pass drops it.
@@ -335,16 +351,50 @@ fn copy_again(
 }
 
 /// What:
+///  One staged leaf made again:
+/// the staged copy goes,
+/// the source's bytes take its place,
+/// and the entry's
+///  own mode is applied.
+/// Why:
+///   The removal and the copy both write in the directory that holds the entry,
+/// so both happen inside the one
+///  window `copy_again` opens for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm(join(stageRoot, entry.relativePath), { force: true }); const copied = copyOneLeaf({ sourceRoot, stagePath, entry, clone }); applyEntryModes({ root: stageRoot, entries: [entry] }); return copied;
+/// ```
+fn copy_the_staged_leaf_again(
+    source_root: &Path,
+    stage_root: &Path,
+    stage_path: &Path,
+    entry: &WorktreeCopyEntry,
+    clone: fn(&std::fs::File, &std::fs::File) -> bool,
+) -> Result<CopiedLeaf, WorktreeCopyError> {
+    remove_the_staged_copy(stage_path)?;
+    let copied: CopiedLeaf = copy_one_leaf(source_root, stage_path, entry, clone)?;
+    // The comparison compares modes, and a copy makes its own file with the private one, so the source's mode is put
+    //  back before the next pass reads it.
+    apply_entry_modes(stage_root, std::slice::from_ref(entry))?;
+    return Ok(copied);
+}
+
+/// What:
 ///  Drop the given entries from the manifest and the stage.
 /// Why:
 ///   An entry the stage does not hold is no entry of the manifest,
 /// and one the source no longer holds
 ///  leaves nothing to install;
-/// the stage file goes so the staged tree names only what will be installed.
+/// the stage file goes so the staged tree names only what will be installed,
+/// and the
+///  directory that holds it may forbid the writing its removal needs,
+/// so the mode the source recorded is put back
+///  around that one removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const path of paths) { rm(join(stageRoot, path), { force: true }); entries = entries.filter((e) => e.relativePath !== path); }
+/// for (const path of paths) { const opened = openTheStagedDirectories(stageRoot, path); rm(join(stageRoot, path), { recursive: true, force: true }); opened.putTheModesBack(); entries = entries.filter((e) => e.relativePath !== path); }
 /// ```
 fn leave_out(
     entries: &mut Vec<WorktreeCopyEntry>,
@@ -353,13 +403,34 @@ fn leave_out(
     stage_root: &Path,
 ) -> Result<(), WorktreeCopyError> {
     for path in paths {
-        let stage_path: PathBuf = filesystem_path(stage_root, path.as_slice())?;
-        remove_the_staged_copy(stage_path.as_path())?;
+        remove_the_staged_entry(stage_root, path.as_slice())?;
         let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
         entries.remove(index);
         stamps.remove(index);
     }
     return Ok(());
+}
+
+/// What:
+///  Remove one staged entry with the owner's writing put back on the directories above it afterwards.
+/// Why:
+///   The settling applies the source's modes before it compares,
+/// so an entry the source removed or replaced sits
+///  below a directory whose mode may forbid the writing its removal needs;
+/// the mode is the source's retained state and goes
+///  back as soon as the entry is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const opened = openTheStagedDirectories(stageRoot, path); const removed = rm(join(stageRoot, path), { recursive: true, force: true }); const putBack = opened.putTheModesBack(); removed.catch((e) => { throw e }); putBack.catch((e) => { throw e });
+/// ```
+fn remove_the_staged_entry(stage_root: &Path, path: &[u8]) -> Result<(), WorktreeCopyError> {
+    let stage_path: PathBuf = filesystem_path(stage_root, path)?;
+    let opened: OpenedForWriting = open_the_staged_directories(stage_root, path)?;
+    let removed: Result<(), WorktreeCopyError> = remove_the_staged_copy(stage_path.as_path());
+    let put_back: Result<(), WorktreeCopyError> = opened.put_the_modes_back();
+    removed?;
+    return put_back;
 }
 
 /// What:

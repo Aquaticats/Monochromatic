@@ -282,6 +282,37 @@ pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[Vec<u8>]) -> Str
 pub const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
+///  The one notice line for ignored entries the source gained while it was copied,
+/// which the new worktree therefore
+///  does not hold.
+/// Why:
+///   A build that writes a new cache file while an add runs leaves it out of the listing the copy staged,
+/// so the
+///  worktree is short of what its source held a moment later;
+/// the person sees how many and which first ones,
+///  and knows that they stay in the source.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: left out ${count} ignored ${noun} that ${source} gained while it was copied: ${first.join(', ')}${more}. They stay in that worktree, so copy the ones the new worktree needs from there.\n`
+/// ```
+pub(crate) fn appeared_notice(source_root: &Path, appeared: &[Vec<u8>]) -> String {
+    let mut named: Vec<String> = Vec::new();
+    for path in appeared.iter().take(NOTICE_PATHS) {
+        named.push(quote(shown_repository_path(path.as_slice()).as_str()));
+    }
+    let rest: usize = appeared.len().saturating_sub(NOTICE_PATHS);
+    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
+    let noun: &str = if appeared.len() == 1 { "entry" } else { "entries" };
+    return format!(
+        "monochromatic-git-policy-cli: left {} ignored {noun} out of the new worktree because {} gained them while it was copied: {}{more}; they stay in that worktree, so copy the ones the new worktree needs from there.\n",
+        appeared.len(),
+        quote(source_root.to_string_lossy().as_ref()),
+        named.join(", ")
+    );
+}
+
+/// What:
 ///  The one notice line for ignored entries no worktree can hold:
 /// sockets,
 /// named pipes and device nodes.
