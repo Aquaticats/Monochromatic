@@ -160,9 +160,37 @@ Three commits on alpha.11 in the main checkout, each one file:
 - The same command again, 20:04:39 to 20:04:50, committed (`c9d2b92aaf`).
 
 One failed commit in three is against "Commits should never fail."
-alpha.11 stays installed: the failure says what happened, the retry lands, and going back would give up the 25 merged fixes.
-This is the coordinator's decision under the owner's delegation; the count of failed commits on alpha.11 is read from the timing log
-at each hourly pass, and a rate that makes agents lose work is the reason to reinstall 0.6.1-alpha.10.
+
+Every agent's commits, from the timing log (`monochromatic-git-policy-cli-commit-timing.jsonl` and its generations), read at 20:14:
+
+- 0.6.1-alpha.10, its last hour (00:00 to 01:02Z, 52 commits, the gate's build running for the last eleven minutes):
+  `totalMs` median 2,645, ninetieth percentile 14,391; `provisionMs` median 0, ninetieth percentile 21, largest 2,771;
+  all landed but three ended on a policy finding.
+- 0.6.1-alpha.10 over its whole life (667 commits, 12.5 hours): median 2,711, ninetieth percentile 16,718, 234 over 5 s;
+  641 landed, 10 ended on a finding, 16 stopped (14 of kind "unidentified", one at the scratch `git commit` ceiling at 16:54Z).
+- 0.6.1-alpha.11, its first ten minutes (01:02 to 01:12Z, 17 commits): median 14,619, ninetieth percentile 28,616, 15 over 5 s;
+  14 landed, 3 stopped: the scratch ceiling once (not new: alpha.10 has one), and two commits in two agent worktrees
+  in the same second (01:11:32Z) at `provisionMs` 20,000 and 20,002, kind "unidentified", exit 1.
+  `provisionMs` was over a second in 8 of the 17, on worktrees whose service had already been started on the new release
+  (the main checkout paid 17,621, then 7,822, then 3,521; the user journal shows its unit started once).
+
+So provisioning costs seconds again and again on alpha.11 where it cost nothing on alpha.10, and it failed two agent commits.
+Ten minutes during a change of release, with every worktree's service being started anew, is a small and unfair sample:
+the same numbers are read again at each hourly pass.
+
+There is no tested way back. Only `0.6.1-alpha.11` is left under the toolchain folder
+(`mpm-shadow`: "older repository tools are never kept once a newer one is installed"),
+and `native:install -- --dry-run 0.6.1-alpha.10` shows it would run `toolchain:update`, which resolves the newest release, and then refuse.
+So alpha.11 stays, and what it does badly is fixed forward:
+round 246's two agents (the provision agent has the seventeen commits' table by inbox note, with the requirement that a commit
+never fails because provisioning is slow), and alpha.12 from pass 15.
+Decided under the owner's delegation; for the owner's return: whether the toolchain should keep the previous release of the wrapper
+so that a bad release can be undone.
+
+A worktree add on alpha.11, for pass 15's own worktree: started about 20:09:40, the folder was there at 20:12,
+and at 20:16 the add was still running `cargo clean --offline --package ...` and `cargo metadata` for the new worktree
+(the package repair, inline in the add), six and a half minutes in.
+Six stage folders `.cli-git-worktree-copy-<uuid>` of other adds made between 20:14 and 20:16 stood beside it, and one from 20:01.
 
 Pushes on alpha.11: the lock commit `cda4585cf2` and the handover commit `c9d2b92aaf` were both on the remote at 20:07:00
 with no hand push, where alpha.10's `d9580168f5` had sat unpushed for three and a half minutes.
