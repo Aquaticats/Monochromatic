@@ -736,3 +736,45 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
     );
     assert_eq!(seen.stall_ceiling, Some(A_STALL_BOUND), "the record names the bound the step then ran under: {seen:?}");
 }
+
+/// What:
+///  The thread that watches a step the kernel holds prints no line of its own about the stand-aside.
+/// Why:
+///   Finding 3 of the 2026-11-12 review of the stand-aside:
+///  both enforcers stood aside for the same step and each handed the same sentence to the one writer,
+///  so the person read it twice in one commit.
+///  The line belongs to the wait that owns the child, which always runs and is the one that lasts
+///  (`process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`);
+///  this thread says the later bound in its waiting lines and nothing more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // plantTheStallCeiling(30_000); const step = sh('sleep 120'); theKernelHolds(step.pid); await sleep(1_000); expect(sink).not.toContain('reached its ceiling')
+/// ```
+#[cfg(all(test, target_os = "linux"))]
+#[test]
+fn the_ceiling_that_stood_aside_prints_no_line_of_its_own() {
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
+    let mut step: std::process::Child = sleeping_step();
+    let sink: Buffer = Buffer::default();
+    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: A_CEILING_A_STEP_OUTLASTS,
+        sink: Box::new(sink.clone()),
+    });
+    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(step_number(&step), "git");
+    notice.step_started(step_number(&step));
+    std::thread::sleep(A_CEILING_A_STEP_OUTLASTS * 5);
+    let seen: ScratchStepFacts = notice.finish();
+    step.kill().expect("cleanup");
+    step.wait().expect("reaped");
+    assert_eq!(seen.stall_ceiling, Some(A_STALL_BOUND), "the ceiling stood aside: {seen:?}");
+    let said: String = text_of(&sink);
+    assert!(!said.contains("reached its ceiling"), "the thread that watches the step printed the wait's line: {said}");
+    assert!(!said.contains("waits for it instead of failing the commit"), "the stand-aside is said by the wait that owns the step, once: {said}");
+}

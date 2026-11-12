@@ -139,7 +139,7 @@ pub enum RemoveOutcome {
 /// ```ts
 /// type RemoveRequest = { context: GitContext; plan: RemovePlan; commonDir: string };
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct RemoveRequest<'a> {
     /// How to start real Git for the cleanliness proof.
     pub context: &'a GitContext,
@@ -147,7 +147,17 @@ pub struct RemoveRequest<'a> {
     pub plan: &'a RemovePlan,
     /// The canonical common Git directory of the repository the command was run in.
     pub common_dir: &'a Path,
+    /// The question the caller asks again as the removal runs,
+    /// immediately before anything is destroyed,
+    /// whose refusal is why nothing is removed.
+    pub last_look: Option<&'a dyn LastLook>,
 }
+
+/// The question a removal's caller asks again as the removal runs,
+/// and the printing of a request that carries one.
+#[path = "worktree_remove_last_look.rs"]
+mod last_look;
+pub use last_look::LastLook;
 
 /// What:
 ///  The operations of one removal that touch the kernel or start Git,
@@ -488,6 +498,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
+    }
+    // The caller's own last look comes after the proof of cleanliness and after every check above it: a worktree a command
+    // added inside this one, or a record written into its Git directory, can arrive while that proof runs, and a caller
+    // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses.
+    if let Err(reason) = last_look::before_the_destroy(request, target) {
+        return RemoveOutcome::Refused(reason);
     }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`

@@ -24,16 +24,33 @@ import {
   keepFailedOutput,
   reportOnStandardError,
 } from './kept-start-failure.ts';
-import { parseBatchOptions, } from './parse-batch-options.ts';
+import {
+  BATCH_USAGE,
+  parseBatchOptions,
+} from './parse-batch-options.ts';
 import {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
+import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: BATCH_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  What this run of the command was asked for.
  */
 const options = parseBatchOptions(argv.slice(2,),);
+
 
 /**
  The retrying start this package ships beside this command.
@@ -52,9 +69,12 @@ const entries = batchEntriesIn({
 },);
 
 /**
- The line each entry ended with.
+ The line each entry ended with, and the entries that did not start.
  */
-const lines = await startBatch({
+const {
+  lines,
+  failed,
+} = await startBatch({
   entries,
   runsFolder: options.runsFolder,
   deadlineSeconds: options.deadlineSeconds,
@@ -63,6 +83,7 @@ const lines = await startBatch({
       entry: retryingStart,
       words,
       environment: env,
+      report: reportOnStandardOutput,
     },);
   },
   wait,
@@ -82,4 +103,13 @@ const lines = await startBatch({
 for (const line of lines) {
   process.stdout
     .write(`${line}\n`,);
+}
+
+// A batch that printed a failure and exited 0 told its caller nothing: a unit that ran it reads 0 as every entry started, and a
+// coordinator reading that unit cannot tell this batch from one whose entries all started. The lines above say which entry
+// failed and why, so the status only has to say that one did.
+if (failed.length > 0) {
+  process.stderr
+    .write(`${String(failed.length,)} of ${String(entries.length,)} entries failed: ${failed.join(', ')}\n`,);
+  process.exitCode = 1;
 }

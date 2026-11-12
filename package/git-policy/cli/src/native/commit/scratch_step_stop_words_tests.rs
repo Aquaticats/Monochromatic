@@ -1,17 +1,18 @@
 //! Controls for the words a stopped scratch `git commit` prints.
 
 use super::*;
+use crate::scratch_step_held_by_the_kernel::HeldProgram;
+use crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor;
 
 /// One stop's words,
 /// with the fields a control is not asking about left at their quietest.
 fn a_stop(waited: u64, ceiling: u64, signs: bool, below_unlisted: bool, below_unended: u32) -> ScratchStepStop {
     return ScratchStepStop {
         waited: Duration::from_secs(waited),
-        ceiling: Duration::from_secs(ceiling),
+        bound_that_ended_it: TheBoundThatEndedACommit::TheUsualCeiling(Duration::from_secs(ceiling)),
         signs,
         below_unlisted,
         below_unended,
-        waited_while_the_kernel_held_it: false,
     };
 }
 
@@ -61,19 +62,55 @@ fn the_words_say_when_a_program_below_could_not_be_ended() {
 }
 
 /// What:
-///  A stop of a step the kernel held in a disk wait says the step was already waited for.
+///  A stop of a step the kernel held in a disk wait says the longer bound that ended it,
+///  and that the step was already waited for.
 /// Why:
 ///   The ceiling stood aside once before the step was ended,
 ///  and a person who is not told reads the stop as one that ended a step working on its own.
+///  The longer bound is not the usual ceiling,
+///  so the words may not explain it as the usual one
+///  (finding 2 of the 2026-11-12 review of the stand-aside).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // expect(stopWords({ ...aStop(), waitedWhileTheKernelHeldIt: true })).toContain('held it in a disk wait')
+/// // expect(stopWords({ ...aStop(), boundThatEndedIt: stallBound(300, 'the-kernel-held-it') })).toContain('held it in a disk wait')
 /// ```
 #[test]
 fn the_words_say_when_the_kernel_held_the_step_before_it_was_stopped() {
     let quiet: String = stop_words(a_stop(1261, 1260, false, false, 0));
-    let held: String = stop_words(ScratchStepStop { waited_while_the_kernel_held_it: true, ..a_stop(1261, 1260, false, false, 0) });
+    let held: String = stop_words(ScratchStepStop {
+        bound_that_ended_it: TheBoundThatEndedACommit::TheStallBound {
+            bound: Duration::from_secs(300),
+            why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram { number: 4242, name: String::from("git") }),
+        },
+        ..a_stop(301, 1260, false, false, 0)
+    });
     assert!(!quiet.contains("held it in a disk wait"), "{quiet}");
     assert!(held.contains("The kernel held it in a disk wait, so it was waited for to that bound before it was stopped."), "{held}");
+    assert!(held.contains("(300 seconds)"), "the bound that ended it is the one named: {held}");
+    assert!(!held.contains("three times"), "the longer bound is not explained as the usual ceiling: {held}");
+}
+
+/// What:
+///  A stop of a step nothing could be learned about says so,
+///  and never that the kernel held it.
+/// Why:
+///   The bound is the same longer one,
+///  and the reason is different:
+///  a look at `/proc` failed,
+///  so no process was seen in uninterrupted sleep and naming one would state a fact no look found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(stopWords({ ...aStop(), boundThatEndedIt: stallBound(300, 'its-state-could-not-be-read') })).not.toContain('The kernel held it')
+/// ```
+#[test]
+fn the_words_say_when_nothing_could_be_learned_about_the_step() {
+    let unknown: String = stop_words(ScratchStepStop {
+        bound_that_ended_it: TheBoundThatEndedACommit::TheStallBound { bound: Duration::from_secs(300), why: WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead },
+        ..a_stop(301, 1260, false, false, 0)
+    });
+    assert!(!unknown.contains("The kernel held it"), "a state nothing read is not said as a disk wait: {unknown}");
+    assert!(unknown.contains("Its state could not be read") && unknown.contains("waited for to that bound"), "{unknown}");
+    assert!(unknown.contains("(300 seconds)"), "{unknown}");
 }
