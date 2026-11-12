@@ -66,12 +66,13 @@ export const installStandInLockUnchangedVariable = 'INSTALL_STAND_IN_LOCK_UNCHAN
 export const installStandInConcurrentLockVersionVariable = 'INSTALL_STAND_IN_CONCURRENT_LOCK_VERSION';
 
 /**
- Environment variable that, when it is `1`, makes the stand-in `git` commit this release's lock itself at `--version`.
+ Environment variable that names when the stand-in `git` lands another install's commit of this release's lock.
 
- That is another install of the same release finishing its commit first, which leaves this install with nothing to
- record and must not be an error.
+ Two moments are named, because they reach different code: `beforeTheDecision` commits at `--version`, before this
+ install asks whether the lock moved, and `atTheCommit` commits when this install asks Git to commit, in the window
+ between that decision and its own commit.
  */
-export const installStandInConcurrentCommitVariable = 'INSTALL_STAND_IN_CONCURRENT_COMMIT';
+export const installStandInConcurrentCommitAtVariable = 'INSTALL_STAND_IN_CONCURRENT_COMMIT_AT';
 
 /**
  The commit identity every fixture commit is made with, so a fixture never depends on this machine's Git configuration.
@@ -154,12 +155,17 @@ if (args.includes('--version')) {
   if (concurrentLockVersion !== '') {
     fs.writeFileSync(path.join(process.cwd(), 'toolchain.lock.json'), '{"tools":{"cargo:monochromatic-git-policy-cli":"' + concurrentLockVersion + '"}}\\n');
   }
-  if (process.env.${installStandInConcurrentCommitVariable} === '1') {
+  if (process.env.${installStandInConcurrentCommitAtVariable} === 'beforeTheDecision') {
     const done = runReal(['commit', '--message=chore(toolchain): monochromatic-git-policy-cli ' + version, '--', 'toolchain.lock.json']);
     if (done.status !== 0) process.exit(done.status === null ? 1 : done.status);
   }
   process.stdout.write('git version 2.56.0\\nmonochromatic-git-policy-cli ' + version + ', shadowing git at /usr/bin/git\\n');
   process.exit(0);
+}
+if (args.includes('commit') && process.env.${installStandInConcurrentCommitAtVariable} === 'atTheCommit') {
+  // Another install of this release lands its commit first, so the commit asked for here finds nothing to record.
+  const other = runReal(['commit', '--message=chore(toolchain): monochromatic-git-policy-cli ' + version, '--', 'toolchain.lock.json']);
+  if (other.status !== 0) process.exit(other.status === null ? 1 : other.status);
 }
 const done = runReal(args);
 process.exit(done.status === null ? 1 : done.status);
@@ -219,8 +225,9 @@ export function lockRecordText({ version }: { readonly version: string; }): stri
  @param options - what the fixture's stand-ins are told: `lockUnchanged` leaves the lockfile as it is, which is an
    install of a release already recorded, `stagedLockVersion` writes that release into the lockfile and stages it before
    the install begins, `concurrentLockVersion` is a release another process writes into the lockfile while the install
-   runs, `concurrentCommit` makes another process commit this release's lock first, `failStep` names the step whose
-   stand-in fails, and `timingLine` is one recorded timing line to write beside the common Git directory
+   runs, `concurrentCommitAt` makes another process commit this release's lock first at one of two moments,
+   `initialCommit` false leaves the checkout with no commit at all, `failStep` names the step whose stand-in fails, and
+   `timingLine` is one recorded timing line to write beside the common Git directory
 
  @returns the fixture; declare it with `await using`
 
@@ -238,7 +245,8 @@ export async function createInstallFixture({
     readonly lockUnchanged?: boolean;
     readonly stagedLockVersion?: string;
     readonly concurrentLockVersion?: string;
-    readonly concurrentCommit?: boolean;
+    readonly concurrentCommitAt?: 'beforeTheDecision' | 'atTheCommit';
+    readonly initialCommit?: boolean;
     readonly failStep?: string;
     readonly timingLine?: string;
   };
@@ -321,24 +329,26 @@ export async function createInstallFixture({
       '.',
     ],
   });
-  await fixtureGit({
-    directory: repository,
-    args: [
-      'add',
-      'toolchain.lock.json',
-    ],
-  });
-  await fixtureGit({
-    directory: repository,
-    args: [
-      ...fixtureIdentity,
-      'commit',
-      '--quiet',
-      '-m',
-      'first',
-      'toolchain.lock.json',
-    ],
-  });
+  if (options.initialCommit !== false) {
+    await fixtureGit({
+      directory: repository,
+      args: [
+        'add',
+        'toolchain.lock.json',
+      ],
+    });
+    await fixtureGit({
+      directory: repository,
+      args: [
+        ...fixtureIdentity,
+        'commit',
+        '--quiet',
+        '-m',
+        'first',
+        'toolchain.lock.json',
+      ],
+    });
+  }
   if (options.stagedLockVersion !== undefined) {
     await writeFile(
       join(
@@ -383,7 +393,7 @@ export async function createInstallFixture({
       ...(options.failStep === undefined ? {} : { [installStandInFailStepVariable]: options.failStep }),
       ...(options.lockUnchanged === true ? { [installStandInLockUnchangedVariable]: '1' } : {}),
       ...(options.concurrentLockVersion === undefined ? {} : { [installStandInConcurrentLockVersionVariable]: options.concurrentLockVersion }),
-      ...(options.concurrentCommit === true ? { [installStandInConcurrentCommitVariable]: '1' } : {}),
+      ...(options.concurrentCommitAt === undefined ? {} : { [installStandInConcurrentCommitAtVariable]: options.concurrentCommitAt }),
     } as Readonly<Record<string, string>>,
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(

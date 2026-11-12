@@ -362,7 +362,7 @@ await describe({
       fn: async () => {
         await using fixture = await createInstallFixture({
           version: releaseVersion,
-          options: { concurrentCommit: true, },
+          options: { concurrentCommitAt: 'beforeTheDecision', },
         });
         /**
          How the install ended.
@@ -386,6 +386,66 @@ await describe({
           directory: fixture.directory,
           fileName: 'journalctl.jsonl',
         }),).toHaveLength(0,);
+      },
+    }),
+    it({
+      name: 'records nothing and exits 0 when another install commits the release while this commit runs',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseVersion,
+          options: { concurrentCommitAt: 'atTheCommit', },
+        });
+        /**
+         How the install ended, whose commit step found the lock already committed.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseVersion,],
+        });
+        expect(printed.status,).toBe(0,);
+        expect(printed.stderr,).not.toContain('did not succeed',);
+        expect(printed.stdout,).toContain(`installed ${releaseVersion}; ${lockFileName} already named it, so nothing was committed`,);
+        // The refusal-free path says whose commit it found, so a log reads why this install sampled no commit itself.
+        expect(printed.stdout,).toContain(`another install committed ${lockFileName}`,);
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual([
+          `chore(toolchain): monochromatic-git-policy-cli ${releaseVersion}`,
+          'first',
+        ],);
+        expect(await committedFileText({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(releaseVersion,);
+        // No sample commit was made here, so no journal is read for one.
+        expect(await recordedCalls({
+          directory: fixture.directory,
+          fileName: 'journalctl.jsonl',
+        }),).toHaveLength(0,);
+      },
+    }),
+    it({
+      name: 'installs into a checkout with no commit yet, where Git refuses HEAD as a revision',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseVersion,
+          options: { initialCommit: false, },
+        });
+        /**
+         How the install ended in a checkout whose HEAD is unborn.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseVersion,],
+        });
+        expect(printed.status,).toBe(0,);
+        // A revision a commit-less checkout cannot answer is never asked for, so no raw Git error reaches the caller.
+        expect(printed.stderr,).not.toContain('bad revision',);
+        expect(printed.stdout,).toContain(`installed ${releaseVersion}; the checkout has no commit yet, so ${lockFileName} is left for the first one`,);
+        // The release the tools resolved is what the worktree holds, and nothing was staged behind the caller's back.
+        expect(await fileTextOf({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(releaseVersion,);
+        expect(await stagedPathNames({ repository: fixture.repository, }),).toEqual([],);
       },
     }),
     it({
