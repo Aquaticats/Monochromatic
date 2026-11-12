@@ -207,6 +207,32 @@ fn the_unplaced_notice_says_what_the_client_knows_and_no_more() {
     }
 }
 
+/// What:
+///  A commit whose service has been quiet for one silence bound is told how long,
+///  what the command does about it,
+///  and that nothing is asked of the reader.
+/// Why:
+///  The person cannot tell a busy service from a stopped one,
+///  so the words may not claim a stop the client has not seen:
+///  the service that printed this line on 2026-11-11 had landed the commit
+///  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+#[test]
+fn the_silent_notice_names_the_seconds_and_asks_nothing_of_the_reader() {
+    let waited: String = silent_notice(Duration::from_secs(5));
+    assert_eq!(
+        waited,
+        "The commit service has said nothing for 5 seconds, so the same commit is being sent to it again; \
+         a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do."
+    );
+    assert_eq!(
+        silent_notice(Duration::from_millis(400)),
+        "The commit service has said nothing for 1 second, so the same commit is being sent to it again; \
+         a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do.",
+        "a part second is a second waited"
+    );
+    assert!(!waited.contains("stopped"), "the client cannot say the service stopped: {waited}");
+}
+
 /// The denylist check can fail:
 /// a text that leaks is caught,
 /// and a word inside another word is not.

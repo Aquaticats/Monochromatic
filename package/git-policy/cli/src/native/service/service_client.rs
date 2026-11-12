@@ -33,7 +33,7 @@ use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
 use crate::service_client_waiting_words::{place_number, say_the_write_it_is_inside, say_where_it_stands};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE};
+use crate::service_messages::{ClientFailure, silent_notice};
 use crate::service_client_why_withdrawn::WhyWithdrawn;
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
@@ -410,7 +410,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
         }
         if last_break_was_silence {
-            let _written = writeln!(notices, "{SILENT_NOTICE}");
+            let _written = writeln!(notices, "{}", silent_notice(config.heartbeat_silence));
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }
