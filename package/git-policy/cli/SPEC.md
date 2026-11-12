@@ -6589,11 +6589,19 @@ on the commit path:
   and the message says so and gives
   `git log -1` and `git status`.
 - A commit the person interrupts while it waits is not made.
-  The client watches the two signals a waiting commit answers,
-  the interrupt a terminal sends and a stop's `SIGTERM`,
+  The client watches the four signals a waiting commit answers,
+  the interrupt a terminal sends,
+  a stop's `SIGTERM`,
+  the hang-up a closing terminal or `loginctl terminate-session` sends,
+  and a quit (`src/native/service/service_client_interrupted.rs`),
   notes which one came,
-  and wakes the read it is inside even when the kernel delivers the signal to another thread of the process
-  (`src/native/service/service_client_interrupted.rs`).
+  and wakes the read it is inside even when the kernel delivers the signal to another thread of the process.
+  The hang-up and the quit were not watched,
+  so their default action ended the process where it arrived
+  and a commit that was waiting left no record at all;
+  both are answered as the interrupt is,
+  and the command still ends by the one that came,
+  so a quit keeps the core file the system would make for it.
   It then withdraws its request exactly as a wait that reached its ceiling does,
   and the service's answer decides the ending:
   a request that landed before the signal came is reported as the commit it made,
@@ -15522,6 +15530,9 @@ with `reason` the one word that failure goes by (`src/native/landing/service_mes
 `failure_code`:
 `did-not-start` and `nothing-answered` for the start bound that ran out,
 `no-activation` and `could-not-start` for a service manager that could not be asked,
+`manager-did-not-answer` for an exchange with the manager that ran out of the time it was given,
+which says nothing about whether the manager is there
+(`src/native/landing/service_messages_of_a_manager_that_did_not_answer.rs`),
 `other-release` and `no-common-version` for a service of another release that would not retire,
 `still-with-service` and `withdrawal-unconfirmed` for the answer ceiling,
 `service-silent` and `may-not-have-landed` for a service that stopped,
@@ -16661,7 +16672,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16751,7 +16763,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.
