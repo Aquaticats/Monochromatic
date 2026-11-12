@@ -1016,9 +1016,10 @@ fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
         "nothing writes a reference another Git holds"
     );
     assert!(
-        shown.contains("could not update the tracking reference refs/remotes/origin/main"),
-        "the push names the reference it could not write: {shown}"
+        shown.contains("another Git held the lock of refs/remotes/origin/main"),
+        "the push names the reference and the one cause that stopped it: {shown}"
     );
+    assert!(!shown.contains("could not update the tracking reference"), "the lock is named as a lock and not as a write Git refused for no reason: {shown}");
     // The person clears the lock the notice names, and the next push of the branch writes the reference.
     std::fs::remove_file(stage.lock_of("refs/remotes/origin/main")).expect("the lock goes");
     let mut again: Vec<u8> = Vec::new();
