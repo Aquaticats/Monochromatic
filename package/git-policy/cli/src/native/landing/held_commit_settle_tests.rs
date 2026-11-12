@@ -502,3 +502,59 @@ fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kep
     assert!(!said.contains("refus"), "a commit that is kept is not one that was refused: {said}");
     remove(root.as_path());
 }
+
+/// What:
+///  A lock on another reference does not keep a held commit from landing once the lock on its own branch is gone.
+/// Why:
+///   The settlement moves `refs/heads/main` and lets go of the batch's own side reference;
+///  a lock on `refs/heads/unrelated` can refuse neither write,
+///  and native Git commits on `main` under exactly that lock,
+///  so a settlement that waits for it keeps a person's commit held for as long as another program's lock exists
+///  (the owner's choice "Make it, hold until lock goes" is about the lock that held this branch write).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// take('refs/heads/unrelated.lock'); one(held, Clearing.Never) // { landed: held.new }
+/// ```
+#[test]
+fn a_lock_on_another_reference_does_not_keep_a_held_commit_from_landing() {
+    let (root, repo, context) = repository("held-settle-unrelated-lock");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    // The lock that held this batch's branch write is gone, and a lock on another branch stands.
+    let unrelated: PathBuf = repo.join(".git/refs/heads/unrelated.lock");
+    std::fs::write(unrelated.as_path(), "").expect("a lock another program left on another branch");
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    assert!(unrelated.exists(), "a lock nothing proves gone is left where it is");
+    assert_eq!(settled, Settled::Landed { commit: held.new.clone() });
+    assert_eq!(head_of(repo.as_path()), held.new, "the branch names the commit the batch made");
+    remove(root.as_path());
+}
+
+/// What:
+///  The line about a held commit names the lock that stands now, and no lock of another reference.
+/// Why:
+///   A message names what really stops the command at the moment it is printed:
+///  the record names the locks that stood when the commit was held,
+///  and one of those is gone by the time the next command prints the line,
+///  so a line worded from the record names a cause that is no longer true.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// take('refs/heads/main.lock'); take('refs/heads/unrelated.lock'); words(one(held)) // names only main.lock
+/// ```
+#[test]
+fn the_line_about_a_held_commit_names_only_the_locks_that_stand_now() {
+    let (root, repo, context) = repository("held-settle-line-names-standing");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    let standing: PathBuf = repo.join(".git/refs/heads/main.lock");
+    std::fs::write(standing.as_path(), "").expect("the lock that holds this batch's branch write");
+    let unrelated: PathBuf = repo.join(".git/refs/heads/unrelated.lock");
+    std::fs::write(unrelated.as_path(), "").expect("a lock another program left on another branch");
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    let Settled::WaitsForLocks(named) = &settled else { panic!("the branch's own lock holds this settlement: {settled:?}") };
+    let logged: String = crate::held_commit_settle_outcomes::settled_words(1, &held, &settled);
+    remove(root.as_path());
+    assert_eq!(named, &vec![standing.clone()], "only the lock that can refuse this branch write is named");
+    assert!(logged.contains("refs/heads/main.lock"), "the line names the lock that stands: {logged}");
+    assert!(!logged.contains("unrelated"), "the line names no lock of another reference: {logged}");
+}
