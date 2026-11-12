@@ -1,4 +1,4 @@
-import { spawn, } from 'node:child_process';
+import { spawn, type ChildProcess, } from 'node:child_process';
 import { createHash, } from 'node:crypto';
 import { once, } from 'node:events';
 import {
@@ -18,10 +18,15 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { readLinuxProcessIdentity, } from '../dist/final/node/linux-process-identity.mjs';
+import {
+  PROCESS_ZOMBIE_STATE,
+  readLinuxProcessIdentity,
+} from '../dist/final/node/linux-process-identity.mjs';
 import {
   waitForWatcherStop,
   watcherIsRunning,
+  watcherProcessGroupExists,
+  watcherProcessGroupHasRunningMember,
 } from '../dist/final/node/tunnel-bypass-watch-process-group.mjs';
 import { stopBypassWatcher, } from '../dist/final/node/tunnel-bypass-watch-service.mjs';
 
@@ -58,6 +63,77 @@ async function presenceOf(path: string,): Promise<'present' | 'removed'> {
  Reader of the live process as the function under test declares it.
  */
 type ProcessReader = NonNullable<Parameters<typeof watcherIsRunning>[0]['read']>;
+
+/**
+ Whether an answer is anything at all.
+
+ @param answer - What a bounded read answered.
+
+ @returns Whether the answer is not empty.
+
+ @example
+ ```ts
+ nonempty('42');
+ ```
+ */
+function nonempty(answer: string,): boolean {
+  return answer !== '';
+}
+
+/**
+ Waits until a read answers something the caller wants,
+ and fails when it never does.
+
+ The wait is bounded so a wrong state fails this file with a sentence instead of holding it.
+
+ @param what - What the wait is for, for the failure's words.
+
+ @param read - Reader tried again after each pause;
+ an empty answer means "not yet".
+
+ @param until - Whether an answer is the one waited for;
+ any nonempty answer by default.
+
+ @returns The answer it stopped at.
+
+ @throws {@link Error} when no answer arrived within the bound.
+
+ @example
+ ```ts
+ await pollFor({ what: 'the member pid', read: () => readFile(pidFile, 'utf8') });
+ ```
+ */
+async function pollFor(
+  {
+    what,
+    read,
+    until = nonempty,
+  }: {
+    readonly what: string;
+    readonly read: () => Promise<string>;
+    readonly until?: (answer: string,) => boolean;
+  },
+): Promise<string> {
+  /**
+   Attempts made so far.
+   */
+  const attempts = { count: 0, };
+  /* oxlint-disable eslint/no-await-in-loop -- Each attempt must follow the one before it. */
+  while (attempts.count < 300) {
+    /**
+     What this attempt read.
+     */
+    const answer = await read();
+    if (until(answer,))
+      return answer;
+    attempts.count += 1;
+    await new Promise(function later(resolve,) {
+      setTimeout(resolve, 20,);
+    },);
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  throw new Error(`the wait for ${what} never saw it: the last read answered nothing usable.`,);
+}
 
 /**
  Script and state arguments a watcher is expected to run with.
@@ -177,7 +253,7 @@ await describe({
       name: 'says not running for another start time, a zombie, and a process that is gone',
       fn: async () => {
         expect(await outcomeOf({ read: observing({ state: 'S', startTime: '1', commandLine: ['/node', WATCHER_PATH, STATE_PATH,], },), },),).toBe('false',);
-        expect(await outcomeOf({ read: observing({ state: 'Z', commandLine: [], },), },),).toBe('false',);
+        expect(await outcomeOf({ read: observing({ state: PROCESS_ZOMBIE_STATE, commandLine: [], },), },),).toBe('false',);
         /**
          A child that ended, so its pid reads as gone.
          */
@@ -211,7 +287,7 @@ await describe({
           { state: 'R', commandLine: [], },
           { state: 'R', commandLine: [], },
           { state: 'R', commandLine: [], },
-          { state: 'Z', commandLine: [], },
+          { state: PROCESS_ZOMBIE_STATE, commandLine: [], },
         ];
         /**
          Reads made so far and pauses taken.
@@ -226,7 +302,7 @@ await describe({
           /**
            Observation for this read.
            */
-          const observation = script[Math.min(seen.reads, script.length - 1,)] ?? { state: 'Z', commandLine: [], };
+          const observation = script[Math.min(seen.reads, script.length - 1,)] ?? { state: PROCESS_ZOMBIE_STATE, commandLine: [], };
           seen.reads += 1;
           return Promise.resolve({ pid: IDENTITY.pid, startTime: IDENTITY.startTime, ...observation, },);
         }
@@ -251,11 +327,231 @@ await describe({
   ],
 },);
 
+/**
+ A process group whose only member has exited and was never reaped.
+
+ A holder starts the member as its own group, writes its pid into a file of the
+ case's scratch directory, and stops itself.
+ A stopped process runs no `wait`, so the exited member stays a task the kernel
+ still counts in the group, and the kernel still answers `kill(-pgid, 0)` for it.
+ That is the shape a stop finds when the process that adopted the member has not
+ reached its `wait` yet, which is what a reaping process under load does.
+
+ @param directory - Scratch directory of the case, which holds the pid file.
+
+ @returns The member's pid and start time, with the guard that ends the fixture.
+
+ @throws {@link Error} when the fixture never reaches the state the case needs.
+
+ @example
+ ```ts
+ await using member = await zombieGroupMember({ directory });
+ ```
+ */
+async function zombieGroupMember(
+  { directory, }: { readonly directory: string; },
+): Promise<{
+  readonly pid: number;
+  readonly startTime: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+}> {
+  /**
+   File the holder writes the member's pid into before it stops itself.
+   */
+  const pidFile = join(directory, 'member-pid.txt',);
+  /**
+   Holder of the member: it starts the member as its own group,
+   names it, and stops itself so that it cannot reap it.
+   */
+  const holder = spawn(process.execPath, [
+    '--eval',
+    `const { spawn } = require('node:child_process');
+const { writeFileSync } = require('node:fs');
+const member = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+writeFileSync(${JSON.stringify(pidFile,)}, String(member.pid));
+process.kill(process.pid, 'SIGSTOP');`,
+  ], { stdio: 'ignore', },);
+  /**
+   The member's pid, once the holder has named it.
+   */
+  const named = await pollFor({
+    what: 'the member pid',
+    read: async () => {
+      try {
+        return (await readFile(pidFile, 'utf8',)).trim();
+      }
+      catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+          return '';
+        throw error;
+      }
+    },
+  },);
+  /**
+   The member as the kernel holds it.
+   */
+  const pid = Number(named,);
+  return {
+    pid,
+    startTime: await stopHolderAndEndMember({ holder, pid, }),
+    async [Symbol.asyncDispose](): Promise<void> {
+      if (holder.pid !== undefined) {
+        try {
+          process.kill(holder.pid, 'SIGKILL',);
+        }
+        catch (error: unknown) {
+          // The holder is gone already, which is what this cleanup is for.
+          l.debug(`the holder was gone before the cleanup: ${String(error,)}`,);
+        }
+      }
+      try {
+        process.kill(-pid, 'SIGKILL',);
+      }
+      catch (error: unknown) {
+        // The member's group is gone already, which is what this cleanup is for.
+        l.debug(`the member's group was gone before the cleanup: ${String(error,)}`,);
+      }
+    },
+  };
+}
+
+/**
+ Waits for the holder to stop itself, ends the member, and answers the member's start time.
+
+ @param holder - The process that owns the member and must not reap it.
+
+ @param pid - The member's process identifier.
+
+ @returns The member's start time, read while the kernel still lists it.
+
+ @throws {@link Error} when the holder cannot be read or the member never becomes a zombie.
+
+ @example
+ ```ts
+ await stopHolderAndEndMember({ holder, pid: 4242 });
+ ```
+ */
+async function stopHolderAndEndMember(
+  {
+    holder,
+    pid,
+  }: {
+    readonly holder: ChildProcess;
+    readonly pid: number;
+  },
+): Promise<string> {
+  // A holder that is still running when the member ends would reap it and leave no task behind.
+  await pollFor({
+    what: 'the holder to stop itself',
+    read: async () => {
+      /**
+       Holder's state as procfs holds it, or nothing when procfs has no entry.
+       */
+      const live = await readLinuxProcessIdentity({ pid: holder.pid ?? 0, },);
+      return ((typeof live) === 'symbol') ? '' : live.state;
+    },
+    until: (state,) => state === 'T',
+  },);
+  process.kill(pid, 'SIGKILL',);
+  await pollFor({
+    what: 'the member to become a zombie',
+    read: async () => {
+      /**
+       Member's state as procfs holds it, or nothing when procfs has no entry.
+       */
+      const live = await readLinuxProcessIdentity({ pid, },);
+      return ((typeof live) === 'symbol') ? '' : live.state;
+    },
+    until: (state,) => state === PROCESS_ZOMBIE_STATE,
+  },);
+  /**
+   Identity the kernel still holds for the exited member.
+   */
+  const identity = await readLinuxProcessIdentity({ pid, },);
+  if ((typeof identity) === 'symbol')
+    throw new Error('The exited member left procfs, so its start time cannot be read.',);
+  return identity.startTime;
+}
+
+await describe({
+  name: watcherProcessGroupHasRunningMember.name,
+  children: [
+    it({
+      name: 'says a group whose only member has exited has nothing left that can run, though the kernel still answers for the group until the member is reaped',
+      fn: async () => {
+        /**
+         Scratch directory of this case.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-group-member-',),);
+        await using scratch = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        await using member = await zombieGroupMember({ directory, },);
+        // The kernel still answers for the group, which is what a stop read as a monitor still running.
+        expect(watcherProcessGroupExists({ pid: member.pid, },),).toBe(true,);
+        expect(await watcherProcessGroupHasRunningMember({ pid: member.pid, },),).toBe(false,);
+      },
+    },),
+  ],
+},);
+
 await describe({
   name: stopBypassWatcher.name,
   // One at a time: each case owns the runtime directory of the process.
   concurrency: 1,
   children: [
+    it({
+      name: 'removes the record of a watcher whose group holds only a member that has exited, where the group still answering used to fail the stop',
+      fn: async () => {
+        /**
+         Scratch runtime directory standing in for /run/wg-quicker.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-group-gone-',),);
+        /**
+         Runtime directory the process had before this test.
+         */
+        const previous = process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+        process.env.WG_QUICKER_RUNTIME_DIRECTORY = directory;
+        await using scratch = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            if (previous === undefined)
+              delete process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+            else
+              process.env.WG_QUICKER_RUNTIME_DIRECTORY = previous;
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        await using member = await zombieGroupMember({ directory, },);
+        /**
+         State path of the fixture interface.
+         */
+        const statePath = join(directory, `interface-${createHash('sha256',).update('wgfixture',).digest('hex',).slice(0, 32,)}.json`,);
+        /**
+         The state a completed up leaves behind.
+         */
+        const state = {
+          version: 2,
+          interfaceName: 'wgfixture',
+          mark: 100,
+          table: 52_000,
+          preference: 50,
+          ownerId: 'owner-1',
+          routes: [],
+        } as const;
+        await writeFile(statePath, JSON.stringify(state,),);
+        // The record names the exited member, so the stop finds a group the kernel still answers for.
+        await writeFile(`${statePath}.watcher.json`, JSON.stringify({
+          ownerId: state.ownerId,
+          pid: member.pid,
+          startTime: member.startTime,
+        },),);
+        expect(watcherProcessGroupExists({ pid: member.pid, },),).toBe(true,);
+        await stopBypassWatcher({ state, },);
+        expect(await presenceOf(`${statePath}.watcher.json`,),).toBe('removed',);
+      },
+    },),
     it({
       name: 'stops cleanly when the record holds no identity, keeps the fragment beside it, and lets the next stop and start through, where a kill during the write used to wedge every later lifecycle',
       fn: async () => {
@@ -421,9 +717,12 @@ setInterval(() => {}, 1000);
         await stopBypassWatcher({ state, watcherPath: script, },);
         /**
          What became of the child the leader started.
+         A monitor that exited cannot do anything,
+         and one the kernel still holds as a zombie until its reaper collects it is that same claim:
+         its socket and everything else it held are closed.
          */
         const child = await readLinuxProcessIdentity({ pid: childPid, },);
-        expect((typeof child) === 'symbol' ? 'gone' : child.state,).toBe('gone',);
+        expect((typeof child) === 'symbol' ? 'gone' : ((child.state === PROCESS_ZOMBIE_STATE) ? 'gone' : child.state),).toBe('gone',);
         expect(await presenceOf(`${statePath}.watcher.json`,),).toBe('removed',);
       },
     },),

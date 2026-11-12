@@ -14,8 +14,10 @@ import {
 } from './errors.ts';
 import {
   PROCESS_ABSENT,
+  PROCESS_ZOMBIE_STATE,
   processArgumentsMatch,
   readLinuxProcessIdentity,
+  readProcessGroupMembers,
 } from './linux-process-identity.ts';
 import type { WatcherProcessIdentity, } from './tunnel-bypass-watcher-sidecar.ts';
 
@@ -98,7 +100,7 @@ export async function watcherIsRunning(
   const live = await read({ pid: identity.pid, },);
   if ((live === PROCESS_ABSENT)
     || (live.startTime !== identity.startTime)
-    || (live.state === 'Z')) {
+    || (live.state === PROCESS_ZOMBIE_STATE)) {
     return false;
   }
   if (live.commandLine
@@ -191,6 +193,45 @@ export function watcherProcessGroupExists(
   }
 }
 
+
+/**
+ Reports whether a detached watcher group still holds a member that can run.
+
+ A member that exited released everything the group could hold,
+ the route monitor's netlink socket included,
+ and only its task entry waits for whoever adopted it to reap it.
+ The kernel keeps answering `kill(-pgid, 0)` until that reap,
+ so a check of the group's existence alone calls a monitor that has gone still running
+ and fails a stop that has nothing left to stop.
+
+ @param pid - Positive process-group leader identity.
+
+ @param members - Reader of the group's members,
+ replaceable in tests.
+
+ @returns Whether a member is in a state other than `Z`.
+
+ @example
+ ```ts
+ await watcherProcessGroupHasRunningMember({ pid: 123 });
+ ```
+ */
+export async function watcherProcessGroupHasRunningMember(
+  {
+    pid,
+    members = readProcessGroupMembers,
+  }: {
+    readonly pid: number;
+    readonly members?: typeof readProcessGroupMembers;
+  },
+): Promise<boolean> {
+  if ((!Number.isSafeInteger(pid,)) || (pid <= 0))
+    throw new BypassRouteError(`Invalid process-group identifier: ${String(pid,)}`,);
+  return (await members({ pgid: pid, },))
+    .some(function stillRunning(member,): boolean {
+      return member.state !== PROCESS_ZOMBIE_STATE;
+    },);
+}
 
 /**
  Waits bounded interval for exact watcher group to disappear.
@@ -298,6 +339,9 @@ function alreadyGone(): Promise<boolean> {
  @param groupExists - Process-group check,
  replaceable in tests.
 
+ @param groupHasRunningMember - Check for a member that can still run,
+ replaceable in tests.
+
  @param pause - Wait between checks,
  replaceable in tests.
 
@@ -315,6 +359,7 @@ export async function stopLeftoverGroup(
     watcherPath = WATCHER_PATH,
     read = readLinuxProcessIdentity,
     groupExists = watcherProcessGroupExists,
+    groupHasRunningMember = watcherProcessGroupHasRunningMember,
     pause = wait,
   }: {
     readonly identity: WatcherProcessIdentity;
@@ -322,6 +367,7 @@ export async function stopLeftoverGroup(
     readonly watcherPath?: string;
     readonly read?: typeof readLinuxProcessIdentity;
     readonly groupExists?: typeof watcherProcessGroupExists;
+    readonly groupHasRunningMember?: typeof watcherProcessGroupHasRunningMember;
     readonly pause?: (milliseconds: number,) => Promise<unknown>;
   },
 ): Promise<void> {
@@ -359,6 +405,12 @@ export async function stopLeftoverGroup(
     groupExists,
     pause,
   },))) {
+    // A member that has exited cannot run anything and cannot hold the monitor's socket,
+    // so a group of them is gone for every purpose this program has:
+    // the kernel only keeps answering the group until whoever adopted the member reaps it,
+    // and that moment is not this program's to wait for.
+    if (!(await groupHasRunningMember({ pid: identity.pid, },)))
+      return;
     throw new BypassRouteError(
       `The process group of bypass watcher PID ${String(identity.pid,)} outlived it and survived SIGKILL; the record is kept.`,
     );
