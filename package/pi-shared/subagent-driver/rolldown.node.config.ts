@@ -24,6 +24,7 @@ const config: NodeFlavorConfig = nodeConfig({
       './src/print-the-final-report-of-the-newest-run-of-each-agent.ts',
     'list-launchers-whose-unit-has-ended': './src/list-launchers-whose-unit-has-ended.ts',
     'remove-finished-worktrees': './src/remove-finished-worktrees.ts',
+    'start-a-batch-in-its-own-unit': './src/start-a-batch-in-its-own-unit.ts',
   },
 },);
 

@@ -150,3 +150,13 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('remove-finished-worktrees')
 """
+
+[tasks."start-a-batch-in-its-own-unit"]
+description = "Start a batch list in a systemd user unit of its own, so its launchers outlive the process that asked for them"
+usage = 'arg "[args]" var=#true help="--batch-file=<file> [--deadline-seconds=<n>] [--output-file=<file>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-a-batch-in-its-own-unit')
+"""

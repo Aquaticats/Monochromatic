@@ -218,6 +218,22 @@ export {
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 /**
+ A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.
+ */
+export {
+  BATCH_UNIT_CPU_PERCENT,
+  BATCH_UNIT_IO_WEIGHT,
+  BATCH_UNIT_MEMORY,
+  BATCH_UNIT_SECONDS,
+  BATCH_UNIT_TASK_COUNT,
+  type BatchUnitRequest,
+  batchOutputFileOf,
+  batchUnitCommandOf,
+  batchUnitNameOf,
+  startedLineOf,
+} from './batch-run-as-a-unit.ts';
+
+/**
  Which run worktrees are finished, and whether one may be removed: `remove-finished-worktrees.ts`.
  */
 export {

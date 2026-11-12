@@ -248,6 +248,27 @@ Entries start twenty seconds apart,
 and the command prints one line per entry once every run it started has ended,
 keeping the end of both streams so a failure says why.
 
+### `start-a-batch-in-its-own-unit`
+
+`--batch-file`,
+`--deadline-seconds`,
+and `--output-file`.
+
+A batch ran as a background shell of the process that asked for it until 2026-11-11,
+when that process was restarted,
+about fifty launchers ended with it while every agent kept running in its own `pi-*` unit,
+and the launchers' after-run steps were lost.
+This command starts `start-pi-runs-from-a-batch-list` as a systemd user unit of its own,
+named `launch-<the list's name>` and never `pi-*`,
+because the slot count reads every `pi-*` unit as a run.
+Its caps are the batch's own: four processors, 16G of memory and 4096 tasks,
+since the launchers only link dependencies and wait while the agents work in units of theirs,
+and its `RuntimeMaxSec` is two days,
+which bounds the longest run, a flex pool's doubled wall clock and the wakes that may resume it.
+Both streams go to the list's own name and `.out` beside it,
+and nowhere else,
+because a unit has no terminal.
+
 ## Removing finished worktrees
 
 ### `remove-finished-worktrees`
