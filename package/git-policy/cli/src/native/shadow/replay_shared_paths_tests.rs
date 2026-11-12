@@ -168,3 +168,40 @@ fn sides_that_changed_different_paths_share_none() {
     assert!(shared.is_empty(), "no path was changed on both sides: {shared:?}");
     remove(root.as_path());
 }
+
+/// AUDIT CONTROL (temporary, not committed):
+/// the synthetic base record must name the path with the bytes Git reported.
+#[test]
+fn audit_the_synthetic_base_record_names_the_path_git_reported() {
+    let root: PathBuf = fixture("audit-path-bytes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let name: &str = "café.txt";
+    std::fs::write(repo.join(name), "one\n").expect("base bytes");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    std::fs::write(repo.join(name), "two\n").expect("landed bytes");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=landed"]);
+    let current: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let shared: Vec<SharedPath> = list_shared_paths(
+        &git_context(),
+        repo.join(".git").as_path(),
+        repo.as_path(),
+        base.as_str(),
+        current.as_str(),
+        current.as_str(),
+    )
+    .expect("shared paths");
+    assert_eq!(shared.len(), 1, "one shared path: {shared:?}");
+    let record: Vec<u8> = crate::replay_subsumption::subsumed_record(&shared[0]);
+    let wanted: &[u8] = name.as_bytes();
+    let found: bool = record.windows(wanted.len()).any(|window| { return window == wanted; });
+    remove(root.as_path());
+    assert!(
+        found,
+        "the record names {:?} but Git's bytes are {:?}",
+        record,
+        String::from_utf8_lossy(wanted)
+    );
+}

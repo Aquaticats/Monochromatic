@@ -232,3 +232,19 @@ fn reftable_shadow_snapshots_refs_in_one_transaction() {
     assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
     remove(root.as_path());
 }
+
+/// AUDIT CONTROL (temporary, not committed):
+/// a ref name that is not UTF-8 must not stop the snapshot.
+#[test]
+fn audit_a_ref_name_that_is_not_utf8_is_listed() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt as _;
+    let root: PathBuf = fixture("audit-ref-bytes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let tag: OsString = OsString::from_vec(b"caf\xe9".to_vec());
+    let arguments: Vec<OsString> = vec![OsString::from("tag"), tag];
+    git(repo.as_path(), arguments.as_slice());
+    let refs: Result<Vec<RefSnapshotEntry>, GitFailure> = list_real_refs(&git_context(), repo.as_path());
+    remove(root.as_path());
+    assert!(refs.is_ok(), "listing the real refs failed: {:?}", refs.err());
+}
