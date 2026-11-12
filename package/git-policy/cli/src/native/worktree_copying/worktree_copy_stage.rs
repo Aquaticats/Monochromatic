@@ -446,6 +446,14 @@ fn stage_into(
     // so one notice counts and names them all.
     let mut uncopiable: Vec<Vec<u8>> = left_out.uncopiable;
     uncopiable.extend(settled.uncopiable);
+    // An entry the staging's own walk already named as unreadable is named there, and the source's final walk cannot read
+    //  it either, so it stays out of the line that names what the copy never took.
+    let mut appeared: Vec<Vec<u8>> = Vec::new();
+    for path in settled.appeared {
+        if !left_out.unreadable.contains(&path) {
+            appeared.push(path);
+        }
+    }
     debug(
         "worktreeCopyStage",
         format!(
@@ -471,7 +479,7 @@ fn stage_into(
         unreadable: left_out.unreadable,
         uncopiable,
         unsettled: settled.unsettled,
-        appeared: settled.appeared,
+        appeared,
     });
 }
 

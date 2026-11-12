@@ -229,10 +229,16 @@ pub fn entry_matches_stamped(
 
 /// What:
 ///  The manifest of the source under the leave-out rule,
-/// as the final check walks it on a job of the blocking pool beside the stage's walk.
+/// as the final check walks it on a job of the blocking pool beside the stage's walk,
+/// with the
+///  entries that walk could not read.
 /// Why:
-///   Entries the walk cannot read are not reported here:
-/// the final check compares the whole manifest and fails on any difference.
+///   A name the walk could not read is in no manifest,
+/// and a copy that finishes without it must be able to say which one
+///  it was;
+/// the final check itself compares the whole manifest and fails on any difference,
+/// so the list is
+///  carried out rather than judged here.
 /// The walk is a wait on storage,
 /// so it belongs on the blocking pool and never on a worker that polls tasks,
 /// and a job of the pool owns what it reads,
@@ -240,20 +246,21 @@ pub fn entry_matches_stamped(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
+/// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with its unreadable list
 /// ```
 fn walk_source_pruned(
     (source_root, selected_roots, excluded_source_roots, prune): (PathBuf, Vec<Vec<u8>>, Vec<PathBuf>, Prune),
-) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+) -> Result<(Vec<WorktreeCopyEntry>, crate::worktree_copy_manifest::LeftOut), WorktreeCopyError> {
     let mut left_out: crate::worktree_copy_manifest::LeftOut = crate::worktree_copy_manifest::LeftOut::default();
-    return collect_pruned_manifest(
+    let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root.as_path(),
         selected_roots.as_slice(),
         excluded_source_roots.as_slice(),
         prune,
         &mut left_out,
         &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
-    );
+    )?;
+    return Ok((entries, left_out));
 }
 
 /// What:
@@ -412,7 +419,9 @@ async fn assert_final_source_equivalence_pruned_awaiting(
 /// a vanished entry has nothing left to copy,
 /// an entry that
 ///  keeps changing is retried and then left in its source,
-/// and an entry that appeared was never in the listing.
+/// and an entry that appeared was never in the listing,
+/// as is one
+///  the final walk could not read.
 /// Paths,
 ///  not positions,
 /// are what makes the three tellable apart once the walks disagree on how many entries there are.
@@ -431,6 +440,7 @@ pub struct Differences {
     pub changed: Vec<Vec<u8>>,
     /// Source paths the listing did not name,
     /// which appeared while the copy ran,
+    /// or which its final walk could not read,
     /// as the bytes of each name.
     pub appeared: Vec<Vec<u8>>,
 }
@@ -457,18 +467,20 @@ pub async fn differences_from_the_source(
     check: &FinalCheck<'_>,
 ) -> Result<Differences, WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
-    let (source_joined, stage_walked): (Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>, crate::blocking_job::BlockingJobError>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
-        run_beside_the_caller_on_the_runtime(
-            ((source_root.to_path_buf(), selected_roots.to_vec(), excluded_source_roots.to_vec(), check.prune), walk_source_pruned),
-            ((stage_root.to_path_buf(), selected_roots.to_vec()), walk_stage),
-        )
-        .await;
-    let source_walked: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = match source_joined {
+    let (source_joined, stage_walked): (
+        Result<Result<(Vec<WorktreeCopyEntry>, crate::worktree_copy_manifest::LeftOut), WorktreeCopyError>, crate::blocking_job::BlockingJobError>,
+        Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>,
+    ) = run_beside_the_caller_on_the_runtime(
+        ((source_root.to_path_buf(), selected_roots.to_vec(), excluded_source_roots.to_vec(), check.prune), walk_source_pruned),
+        ((stage_root.to_path_buf(), selected_roots.to_vec()), walk_stage),
+    )
+    .await;
+    let source_walked: Result<(Vec<WorktreeCopyEntry>, crate::worktree_copy_manifest::LeftOut), WorktreeCopyError> = match source_joined {
         Ok(walked) => walked,
         Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
         Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a manifest walk did not run ({refused})")))),
     };
-    let final_source: Vec<WorktreeCopyEntry> = source_walked?;
+    let (final_source, source_left_out): (Vec<WorktreeCopyEntry>, crate::worktree_copy_manifest::LeftOut) = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
     let mut by_source: BTreeMap<&[u8], &WorktreeCopyEntry> = BTreeMap::new();
     for entry in &final_source {
@@ -508,6 +520,14 @@ pub async fn differences_from_the_source(
     for path in by_source.keys() {
         if !staged_paths.contains(path) {
             differences.appeared.push((*path).to_vec());
+        }
+    }
+    // A name the walk could not read is in no manifest either, so the worktree will not hold it and nothing else would
+    //  say so: it is named with the entries the listing never named. A name the staging already reported as unreadable is
+    //  named there, and the caller drops it from this list.
+    for path in source_left_out.unreadable {
+        if !staged_paths.contains(path.as_slice()) && !differences.appeared.contains(&path) {
+            differences.appeared.push(path);
         }
     }
     return Ok(differences);

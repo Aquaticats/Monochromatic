@@ -999,6 +999,10 @@ and every mode the settling recorded
  goes back before the next comparison reads it,
 so a restrictive mode is retained state of the source and never a reason
  for the copy to fail (`worktree_copy_settling_stage_writing.rs`).
+A directory the settling drops is a removal of a whole tree,
+so every directory below it takes the owner's
+ writing before the removal,
+and nothing of that tree has a mode to put back.
 An entry the source gains after the copy's listing was in no manifest the copy staged,
 so the stage cannot hold
  it:
@@ -1007,6 +1011,9 @@ and one stderr line gives the count and the first
  three paths with the sentence that they stay in the source worktree,
 so copy the ones the new worktree needs from
  there.
+A name the copy's final walk could not read is in no manifest either,
+and it is named on the same line
+ unless the staging's own walk already named it as unreadable.
 The copy covers one interval:
 it names what the source held at its last comparison,
 and an entry written after

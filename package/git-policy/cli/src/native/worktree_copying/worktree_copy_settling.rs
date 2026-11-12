@@ -31,7 +31,7 @@ use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, retained_mode};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_settling_stage_writing::{OpenedForWriting, open_the_staged_directories};
+use crate::worktree_copy_settling_stage_writing::{OpenedForWriting, open_the_staged_directories, open_the_staged_tree_for_removal};
 use crate::worktree_copy_stage_leaf_copying::{CopiedLeaf, copy_one_leaf};
 use crate::worktree_copy_vanished_entry::{lstat_or_absent, went_away};
 use std::path::{Path, PathBuf};
@@ -426,18 +426,58 @@ fn leave_out(
 ///  below a directory whose mode may forbid the writing its removal needs;
 /// the mode is the source's retained state and goes
 ///  back as soon as the entry is gone.
+/// A directory taken whole carries those modes below it too,
+/// so every directory the removal
+///  goes through gets the owner's writing first,
+/// and nothing of that tree has a mode to put back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const opened = openTheStagedDirectories(stageRoot, path); const removed = rm(join(stageRoot, path), { recursive: true, force: true }); const putBack = opened.putTheModesBack(); removed.catch((e) => { throw e }); putBack.catch((e) => { throw e });
+/// const opened = openTheStagedDirectories(stageRoot, path); if (isDirectory(join(stageRoot, path))) openTheStagedTreeForRemoval(join(stageRoot, path)); const removed = rm(join(stageRoot, path), { recursive: true, force: true }); const putBack = opened.putTheModesBack(); removed.catch((e) => { throw e }); putBack.catch((e) => { throw e });
 /// ```
 fn remove_the_staged_entry(stage_root: &Path, path: &[u8]) -> Result<(), WorktreeCopyError> {
     let stage_path: PathBuf = filesystem_path(stage_root, path)?;
     let opened: OpenedForWriting = open_the_staged_directories(stage_root, path)?;
-    let removed: Result<(), WorktreeCopyError> = remove_the_staged_copy(stage_path.as_path());
+    let removed: Result<(), WorktreeCopyError> = remove_the_staged_copy_beneath(stage_path.as_path());
     let put_back: Result<(), WorktreeCopyError> = opened.put_the_modes_back();
     removed?;
     return put_back;
+}
+
+/// What:
+///  Remove one staged path,
+/// giving the owner writing on every directory below it first when it is a directory.
+/// Why:
+///   `remove_dir_all` cannot unlink what sits inside a directory of mode 0500,
+/// and a staged directory holds the
+///  source's modes at every level;
+/// the tree is leaving the stage,
+/// so no mode of it is put back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (lstat(path)?.isDirectory()) openTheStagedTreeForRemoval(path); return removeTheStagedCopy(path);
+/// ```
+/// What:
+///  Whether one staged name the removal looked at is a directory it takes whole.
+/// Why:
+///   `is_ok_and` hands the metadata over by value,
+/// so the answer is a function of its own rather than a method of the
+///  metadata that a closure would spell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isADirectory = (stat) => stat.isDirectory();
+/// ```
+fn is_a_directory(metadata: std::fs::Metadata) -> bool {
+    return metadata.is_dir();
+}
+
+fn remove_the_staged_copy_beneath(stage_path: &Path) -> Result<(), WorktreeCopyError> {
+    if std::fs::symlink_metadata(stage_path).is_ok_and(is_a_directory) {
+        open_the_staged_tree_for_removal(stage_path)?;
+    }
+    return remove_the_staged_copy(stage_path);
 }
 
 /// What:

@@ -590,3 +590,108 @@ fn an_entry_the_source_gained_while_it_was_copied_is_named_and_not_staged() {
     drop(held);
     remove(root.as_path());
 }
+
+/// What:
+///  A directory the source removed while the copy ran is dropped from the stage even where the modes it recorded
+///  below it grant no writing,
+///  and the add goes on.
+/// Why:
+///   A build removes a whole cache directory whose own subdirectories are readable and searchable only,
+///  and the staged copy of that tree carries those modes at every level:
+/// `remove_dir_all` unlinks what sits inside a directory by holding the directory that holds it,
+///  so the drop failed with `Permission denied` and the add failed where real Git's own succeeds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { source, stage } = fixtureWithNestedReadOnlyDirectories(); const entries = collect(...); copyManifestEntriesWith(...); chmod(source/'cache/deep', 0o700); chmod(source/'cache/deep/inner', 0o700); rmSync(source/'cache/deep', { recursive: true }); const settled = settleTheCopy(...); expect(settled.entries.map((e) => e.relativePath)).toEqual(['cache', 'cache/a.txt']);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_removed_directory_below_a_read_only_directory_is_left_out_and_not_a_failure() {
+    use std::os::unix::fs::PermissionsExt;
+    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME.lock().expect("no other control holds the clone request");
+    let root: PathBuf = fixture("settling-removed-read-only-directory");
+    let source: PathBuf = root.join("source");
+    std::fs::create_dir_all(source.join("cache/deep/inner")).expect("the ignored cache");
+    std::fs::write(source.join("cache/a.txt"), b"the first one\n").expect("a");
+    std::fs::write(source.join("cache/deep/inner/file.txt"), b"the deep one\n").expect("deep file");
+    // Retained modes of the source: reading and searching at both levels, and no writing.
+    std::fs::set_permissions(source.join("cache/deep/inner").as_path(), std::fs::Permissions::from_mode(READ_ONLY_DIRECTORY)).expect("the inner directory keeps its mode");
+    std::fs::set_permissions(source.join("cache/deep").as_path(), std::fs::Permissions::from_mode(READ_ONLY_DIRECTORY)).expect("the deep directory keeps its mode");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(&stage).expect("the stage");
+    *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
+    MODE.store(UNCHANGED, Ordering::SeqCst);
+    COPIES.store(0, Ordering::SeqCst);
+    CHANGED.store(false, Ordering::SeqCst);
+    let mut left_out: LeftOut = LeftOut::default();
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut left_out, &CopyCeiling::unbounded()).expect("the manifest");
+    assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
+    let copied: CopiedManifest = copy_manifest_entries_with(source.as_path(), stage.as_path(), entries.as_slice(), changing_clone, &CopyCeiling::unbounded()).expect("the tree is copied, read-only directories included");
+    // A build removes the whole deep cache between the copy and the comparison, giving itself the writing it needs to do so.
+    std::fs::set_permissions(source.join("cache/deep/inner").as_path(), std::fs::Permissions::from_mode(0o700)).expect("the build gives itself its own writing");
+    std::fs::set_permissions(source.join("cache/deep").as_path(), std::fs::Permissions::from_mode(0o700)).expect("the build gives itself its own writing");
+    std::fs::remove_dir_all(source.join("cache/deep").as_path()).expect("the source's deep cache goes away");
+    let settled: Settled = settle_the_copy(SettlingRequest {
+        source_root: source.as_path(),
+        stage_root: stage.as_path(),
+        selected_roots: [b"cache".to_vec()].as_slice(),
+        excluded_source_roots: &[],
+        prune: Prune::Never,
+        entries,
+        stamps: copied.stamps,
+        clone: changing_clone,
+        gone: copied.gone,
+    })
+    .expect("a removed directory holding a read-only directory is no failure");
+    let staged: Vec<Vec<u8>> = settled.entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.clone(); }).collect();
+    assert_eq!(staged, vec![b"cache".to_vec(), b"cache/a.txt".to_vec()], "the directory the source removed and everything below it are not in the stage");
+    assert!(!stage.join("cache/deep").exists(), "nothing of the removed tree is left in the stage");
+    assert_eq!(mode_of(stage.join("cache").as_path()), mode_of(source.join("cache").as_path()), "the directory that stays keeps the source's mode");
+    assert!(settled.unsettled.is_empty(), "{:?}", settled.unsettled);
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  An ignored entry the source gained while it was copied and the copy cannot read is named too,
+///  and is not staged.
+/// Why:
+///   The final walk leaves an unreadable name out of its manifest and the listing never saw it,
+/// so nothing else
+///  would say the new worktree does not hold it;
+/// a copy that is short of its source must name every entry it knows of,
+///  including the ones it could not look into.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copied = copyManifestEntriesWith(...); mkdirSync(join(source, 'cache/closed')); writeFileSync(join(source, 'cache/closed/secret'), 'x'); chmodSync(join(source, 'cache/closed'), 0o000); const settled = settleTheCopy(...); expect(settled.appeared).toEqual(['cache/closed']);
+/// ```
+#[cfg(unix)]
+#[test]
+fn an_unreadable_entry_the_source_gained_is_named_and_not_staged() {
+    use std::os::unix::fs::PermissionsExt;
+    let (held, root, source, stage, entries) = two_ignored_files("settling-appeared-unreadable", UNCHANGED);
+    let copied: CopiedManifest = copy_manifest_entries_with(source.as_path(), stage.as_path(), entries.as_slice(), changing_clone, &CopyCeiling::unbounded()).expect("both entries are copied");
+    std::fs::create_dir_all(source.join("cache/closed")).expect("the entry a build wrote");
+    std::fs::write(source.join("cache/closed/secret.txt"), b"not for the copy\n").expect("a file inside it");
+    std::fs::set_permissions(source.join("cache/closed").as_path(), std::fs::Permissions::from_mode(0o000)).expect("a directory the running user cannot read");
+    let settled: Settled = settle_the_copy(SettlingRequest {
+        source_root: source.as_path(),
+        stage_root: stage.as_path(),
+        selected_roots: [b"cache".to_vec()].as_slice(),
+        excluded_source_roots: &[],
+        prune: Prune::Never,
+        entries,
+        stamps: copied.stamps,
+        clone: changing_clone,
+        gone: copied.gone,
+    })
+    .expect("a directory the source gained and the copy cannot read is no failure");
+    assert_eq!(settled.appeared, vec![b"cache/closed".to_vec()], "the entry the copy never took is named");
+    assert!(!stage.join("cache/closed").exists(), "nothing of it was staged");
+    std::fs::set_permissions(source.join("cache/closed").as_path(), std::fs::Permissions::from_mode(0o700)).expect("the fixture gives itself its own access back");
+    drop(held);
+    remove(root.as_path());
+}
