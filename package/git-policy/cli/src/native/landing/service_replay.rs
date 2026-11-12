@@ -740,3 +740,8 @@ pub fn already_committed_result(branch: &str) -> TransactionResult {
 #[cfg(test)]
 #[path = "service_replay_tests.rs"]
 mod tests;
+
+/// Controls for the awaited faces of the replay's own reads stay out of the release executable.
+#[cfg(test)]
+#[path = "service_replay_awaiting_tests.rs"]
+mod awaiting_tests;
