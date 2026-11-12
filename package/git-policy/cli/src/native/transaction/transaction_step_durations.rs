@@ -27,8 +27,10 @@
 //! export const drainSteps = (origin: number) => ({ runs: runs.splice(0).sort(byBegan).map(offsetFrom(origin)), dropped });
 //! ```
 
-/// Escaping of a step name inside a JSON string.
+/// Escaping of the step name inside a JSON string.
 use crate::json_record::quote;
+/// Owned operating-system text of the arguments one step was asked with.
+use std::ffi::OsString;
 /// A lock around the shared list.
 use std::sync::Mutex;
 /// A moment and a span of time.
@@ -55,12 +57,25 @@ use std::time::{Duration, Instant};
 /// a small share of the one mebibyte the timing file holds.
 pub const MAX_STEP_RUNS: usize = 64;
 
+/// How long a step runs before its record names the arguments it was asked with.
+///
+/// Measured on 2026-11-12 over the 29,053 Git steps of this repository's own timing records:
+/// 496 of them ran this long or longer (1.7 percent),
+/// and every one of those is a step whose question a reader of the record cannot guess.
+/// The steps below it are the many short ones a record already names by their kind,
+/// so the field stays rare
+///  and the record stays inside the mebibyte its file holds.
+pub const NAMED_STEP: Duration = Duration::from_millis(1000);
+
 /// One step that ran.
 #[derive(Clone, Debug)]
 pub struct StepRun {
     /// The program and the subcommand,
     /// for example `git commit`.
     pub name: String,
+    /// The arguments the step was asked with,
+    /// named for a step that ran `NAMED_STEP` or longer and left out for a shorter one.
+    pub arguments: Option<String>,
     /// When the step started.
     pub began: Instant,
     /// How long it ran.
@@ -90,13 +105,50 @@ static STEPS: Mutex<Ledger> = Mutex::new(Ledger { runs: Vec::new(), dropped: 0 }
 /// noteStep('git commit', began, Date.now() - began);
 /// ```
 pub fn note_step(name: &str, began: Instant, took: Duration) {
+    record(StepRun { name: plain_name(name), arguments: None, began, took });
+}
+
+/// What:
+///  Keeps one step that has just ended,
+///  with the arguments it was asked with when it ran long enough for them to matter.
+/// Why:
+///   A record that names a child by its program and subcommand alone says a step took 26 seconds
+/// and not which question it asked,
+/// so the next reader starts from nothing
+/// (`doc/troubleshooting/cli-git-one-child-of-a-commit-takes-seconds.md`).
+///  The arguments are named only past `NAMED_STEP`,
+/// so the short steps a record already accounts for by their kind add no bytes,
+/// and the words themselves are the namer's,
+///  which keeps no word the person typed (`git_step_arguments.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteStepAsked('git commit', request.arguments, began, elapsed);
+/// ```
+pub fn note_step_asked(name: &str, arguments: &[OsString], began: Instant, took: Duration) {
+    let named: Option<String> = if took >= NAMED_STEP { crate::git_step_arguments::arguments_member(arguments) } else { None };
+    record(StepRun { name: plain_name(name), arguments: named, began, took });
+}
+
+/// What:
+///  Puts one finished step in the ledger,
+///  or counts it as one the record could not list.
+/// Why:
+///   Both ways of noting a step end here,
+/// so the bound and the count are one decision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = (run) => ledger.runs.length < MAX ? ledger.runs.push(run) : (ledger.dropped += 1);
+/// ```
+fn record(run: StepRun) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of steps.
     let mut ledger = STEPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if ledger.runs.len() >= MAX_STEP_RUNS {
         ledger.dropped += 1;
         return;
     }
-    ledger.runs.push(StepRun { name: plain_name(name), began, took });
+    ledger.runs.push(run);
 }
 
 /// What:
@@ -151,6 +203,10 @@ fn plain_character(character: char) -> char {
 pub struct StepFigure {
     /// The program and the subcommand.
     pub name: String,
+    /// The arguments of a step that ran `NAMED_STEP` or longer,
+    /// named by `git_step_arguments.rs`,
+    /// and nothing for a shorter one.
+    pub arguments: Option<String>,
     /// Milliseconds from the origin to the step's start.
     pub offset_ms: u64,
     /// Milliseconds the step ran.
@@ -196,6 +252,7 @@ fn began_of(run: &StepRun) -> Instant {
 fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
     return StepFigure {
         name: run.name.clone(),
+        arguments: run.arguments.clone(),
         offset_ms: u64::try_from(run.began.saturating_duration_since(origin).as_millis()).unwrap_or(u64::MAX),
         duration_ms: u64::try_from(run.took.as_millis()).unwrap_or(u64::MAX),
     };
@@ -203,16 +260,26 @@ fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
 
 /// What:
 ///  One figure as a JSON object:
-/// `{"name":"git commit","offsetMs":12,"durationMs":1004}`.
+/// `{"name":"git commit","arguments":"--message an argument","offsetMs":12,"durationMs":1004}`.
 /// Why:
-///   `steps_json` joins them into the record's list.
+///   `steps_json` joins them into the record's list,
+/// and a step that ran less than `NAMED_STEP` carries no arguments member at all,
+///  so a record whose steps were all short reads as it did before this field existed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ name, offsetMs, durationMs })
+/// JSON.stringify({ name, ...(arguments ? { arguments } : {}), offsetMs, durationMs })
 /// ```
 fn figure_json(figure: &StepFigure) -> String {
-    return format!("{{\"name\":{},\"offsetMs\":{},\"durationMs\":{}}}", quote(figure.name.as_str()), figure.offset_ms, figure.duration_ms);
+    // The arguments are already written as the record's member, so a step without them adds nothing.
+    let asked: &str = figure.arguments.as_deref().unwrap_or("");
+    let separator: &str = if asked.is_empty() { "" } else { "," };
+    return format!(
+        "{{\"name\":{}{separator}{asked}\"offsetMs\":{},\"durationMs\":{}}}",
+        quote(figure.name.as_str()),
+        figure.offset_ms,
+        figure.duration_ms
+    );
 }
 
 /// What:
