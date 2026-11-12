@@ -26,6 +26,9 @@ use std::sync::{Mutex, MutexGuard};
 /// and the kernel's name of it,
 /// or nothing when no control states one.
 static HELD: Mutex<Option<(i32, String)>> = Mutex::new(None);
+/// The name a control gives whichever process a look finds,
+/// or nothing when no control states that one is held at all.
+static HOLDS_WHATEVER_IT_FINDS: Mutex<Option<String>> = Mutex::new(None);
 /// How many of the next looks a control states cannot be made.
 static LOOKS_THAT_CANNOT_BE_MADE: AtomicUsize = AtomicUsize::new(0);
 /// Held by the control that plants anything here.
@@ -45,6 +48,7 @@ pub(crate) fn take_the_window() -> MutexGuard<'static, ()> {
     // A poisoned lock means another control panicked while holding it; nothing planted is still nothing planted.
     let taken: MutexGuard<'static, ()> = WINDOW.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    *HOLDS_WHATEVER_IT_FINDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     LOOKS_THAT_CANNOT_BE_MADE.store(0, Ordering::SeqCst);
     return taken;
 }
@@ -68,6 +72,33 @@ pub(crate) fn the_kernel_holds(number: i32, name: &str) {
 /// or nothing when it states none.
 pub(crate) fn a_control_says_the_kernel_holds() -> Option<(i32, String)> {
     return HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+}
+
+/// What:
+///  State that the kernel holds whichever process a look finds,
+///  under `name`,
+///  as no control on this host can make it do.
+/// Why:
+///  A control that runs the real commit cannot know the number of the `git commit` its scratch repository runs
+///  before that step starts,
+///  so it cannot name that process.
+///  What it can state is the kernel's answer about the process the step is:
+///  a step waiting for a disk.
+///  The step comes first in a look,
+///  so the process this states is the step itself and never a program below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theKernelHoldsWhateverTheLookFinds('git'); // a stand-in for a step in state `D`
+/// ```
+pub(crate) fn the_kernel_holds_whatever_the_look_finds(name: &str) {
+    *HOLDS_WHATEVER_IT_FINDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(name.to_string());
+}
+
+/// The name a control gives whichever process a look finds,
+/// or nothing when no control states one is held.
+pub(crate) fn the_name_a_control_gives_the_process_it_holds() -> Option<String> {
+    return HOLDS_WHATEVER_IT_FINDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
 }
 
 /// State that the next `count` looks cannot be made.

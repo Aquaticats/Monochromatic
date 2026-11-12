@@ -64,7 +64,7 @@ fn a_step_that_ends_by_itself_is_reported_with_no_ceiling_stop() {
     let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(
         adopt(step),
         None,
-        Duration::from_secs(30),
+        Ceilings::of(Duration::from_secs(30)),
         "a step",
         None,
     ))
@@ -94,7 +94,7 @@ fn a_step_that_outlasts_its_ceiling_is_ended_and_reaped_here() {
     let number: i32 = i32::try_from(step.id()).expect("a process number");
     let ceiling: Duration = Duration::from_millis(200);
     let began: Instant = Instant::now();
-    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceiling, "a step", None))
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(ceiling), "a step", None))
         .expect("the runtime")
         .expect("the wait answers");
     let lasted: Duration = began.elapsed();
@@ -129,7 +129,7 @@ fn a_step_that_ended_before_the_signal_is_reported_by_its_own_status() {
         command.arg("-c").arg("sleep 0.2; exit 0").stdin(Stdio::null());
         let step: Child = crate::test_support::spawn_owned(&mut command).expect("a step that ends by itself");
         a_control_ends_the_step_here();
-        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Duration::from_millis(20), "a step", None).await.expect("the wait answers");
+        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(Duration::from_millis(20)), "a step", None).await.expect("the wait answers");
     })
     .expect("the runtime");
     assert_eq!(outcome, ChildOutcome::Exited(0), "a step that finished between the ceiling and the signal landed, and its own status decides");
@@ -162,7 +162,7 @@ fn a_program_the_kernel_refused_to_signal_is_recorded_in_the_stop() {
     // The step's own descriptor is opened first, so the refusal falls on the helper's.
     let owned: OwnedChild = adopt(step);
     crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(1);
-    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(owned, None, Duration::from_millis(400), "a step", None))
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(owned, None, Ceilings::of(Duration::from_millis(400)), "a step", None))
         .expect("the runtime")
         .expect("the wait answers");
     assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL), "the step itself is ended through the child this wait owns");
@@ -207,7 +207,7 @@ fn a_program_the_step_started_is_ended_with_it() {
         BufReader::new(output).read_line(&mut line).expect("a number");
         line.trim().parse::<i32>().expect("a process number")
     };
-    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceiling, "a step", None))
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(ceiling), "a step", None))
         .expect("the runtime")
         .expect("the wait answers");
     assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL));
@@ -244,7 +244,7 @@ fn a_stop_of_the_service_ends_the_step_before_its_ceiling() {
         assert!(stop.is_some(), "the service hands each waiter an arm");
         return tokio::join!(
             async move {
-                let answered = wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), stop, Duration::from_secs(60), "a step", None).await;
+                let answered = wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), stop, Ceilings::of(Duration::from_secs(60)), "a step", None).await;
                 drop(unfinished);
                 return answered;
             },

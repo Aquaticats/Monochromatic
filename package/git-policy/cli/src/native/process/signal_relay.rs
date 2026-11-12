@@ -599,19 +599,18 @@ impl SignalGuard {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingDuty = { told: ChildNumber; bound?: number };
+/// type CeilingDuty = { told: ChildNumber; bound?: Ceilings; lines?: Queue };
 /// ```
 pub struct CeilingDuty<'a> {
     /// The spot the step's number is published into the moment it starts.
     pub told: &'a crate::child_number_told_at_start::ChildNumber,
-    /// The ceiling the step is under,
-    /// counted from its start;
+    /// The two moments that end the step,
+    /// both counted from its start;
     /// nothing when a message may be typed into an editor in it.
-    pub bound: Option<std::time::Duration>,
-    /// Where the command says that the kernel has not released the step it stopped,
-    /// and how often it says it again while this wait lasts;
-    /// nothing when the command has no line to say.
-    pub while_held: Option<crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords<'a>>,
+    pub bound: Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::Ceilings>,
+    /// The queue the command says through the writer thread it hands the step's lines to,
+    /// and nothing when the command has no line to say.
+    pub while_held: Option<&'a std::sync::mpsc::SyncSender<String>>,
 }
 
 /// What:
@@ -686,10 +685,10 @@ async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_
     //       The notice's own ceiling stays as the second enforcer of the same bound,
     //       and a stop is recorded once, by whichever of the two ended the step.
     let waited: (ChildOutcome, Option<CeilingStop>) = match duty.bound {
-        Some(ceiling) => crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_exits_the_stop_or_the_ceiling(
+        Some(ceilings) => crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_exits_the_stop_or_the_ceiling(
             owned,
             stop,
-            ceiling,
+            ceilings,
             "a Git step of a commit",
             duty.while_held,
         )

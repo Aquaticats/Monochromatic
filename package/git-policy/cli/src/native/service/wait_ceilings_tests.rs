@@ -84,18 +84,47 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS") && !decision.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
 }
 
-/// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:
-/// the owner's answer of 2026-11-08 ("About 16 seconds"),
-/// 3 x 5,444 ms,
-/// with no rounding up.
+/// The scratch repository's `git commit` is stopped at three times the slowest step record that ended by itself,
+/// and never sooner than the floor a rotated log cannot lower,
+/// so that an ordinary slow disk does not reach it.
+/// Measured on 2026-11-12 over the eight generations the timing log held:
+/// 3 x 12,735 ms is 38,205 ms,
+/// the floor is 60,000 ms,
+/// so the ceiling is the floor.
 #[test]
-fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_step_record() {
-    assert_eq!(SLOWEST_MEASURED_COMMIT_STEP, Duration::from_millis(5_444), "the figure of the records below 16 s");
+fn the_scratch_commit_step_is_stopped_at_a_floor_or_three_times_the_slowest_step_that_ended() {
+    assert_eq!(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF, Duration::from_millis(12_735), "the slowest step that landed, of 1,433 steps");
     assert_eq!(SCRATCH_COMMIT_STEP_MARGIN, 3);
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SLOWEST_MEASURED_COMMIT_STEP * SCRATCH_COMMIT_STEP_MARGIN);
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_millis(16_332), "about 16 s, the owner's answer");
+    assert_eq!(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN, Duration::from_millis(38_205));
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING_FLOOR, Duration::from_secs(60));
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SCRATCH_COMMIT_STEP_CEILING_FLOOR, "the floor holds this population above it, so the ceiling is the floor");
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_secs(60), "one minute, 4.7 times the slowest step that ended by itself");
+    assert!(SCRATCH_COMMIT_STEP_CEILING > SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN - SCRATCH_COMMIT_STEP_CEILING_FLOOR,
+        "the ceiling is above the slowest ordinary step by the margin or by the floor, whichever is later");
     let source: &str = include_str!("../commit/commit_preparation.rs");
     assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
+}
+
+/// What:
+///  A step the kernel holds in a disk wait is waited for to a bound far from an ordinary slow shelf,
+///  and never sooner than the ceiling the commit ran under.
+/// Why:
+///   Ending a step that is waiting for the disk fails a commit that would have landed,
+///  and on 2026-11-11 two commits failed that way,
+///  their steps held for 37,153 and 47,978 ms under a 16,332 ms ceiling.
+///  Five minutes is 6.2 times the slower of those two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stallCeilingOf(ceiling).toBe(max(ceiling, 300_000)))
+/// ```
+#[test]
+fn a_step_the_kernel_holds_is_waited_for_to_a_bound_far_from_an_ordinary_slow_disk() {
+    assert_eq!(SCRATCH_COMMIT_STEP_STALL_CEILING, Duration::from_secs(300));
+    assert!(SCRATCH_COMMIT_STEP_STALL_CEILING > SCRATCH_COMMIT_STEP_CEILING * 4, "the bound is far above the ceiling a step is noticed at");
+    assert!(SCRATCH_COMMIT_STEP_STALL_CEILING > Duration::from_millis(47_978) * 6, "the bound is 6 times the longest step the kernel ever held here");
+    assert_eq!(stall_ceiling_of(Duration::from_secs(1)), SCRATCH_COMMIT_STEP_STALL_CEILING, "a short ceiling is raised to the bound");
+    assert_eq!(stall_ceiling_of(Duration::from_secs(600)), Duration::from_secs(600), "a ceiling a person set above the bound is never lowered");
 }
 
 /// What:

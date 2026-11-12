@@ -103,10 +103,30 @@ pub(crate) fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
     // Why:  The kernel's answer about a process in an uninterruptible call is what such a control states,
     //       so a look answers the step the way it answers every other fact it reads.
     #[cfg(all(test, target_os = "linux"))]
+    if let Some(name) = the_controls_window::the_name_a_control_gives_the_process_it_holds() {
+        the_first_process_is_stated_to_be_held(&mut found, name.as_str());
+    }
+    #[cfg(all(test, target_os = "linux"))]
     if let Some((held, name)) = the_controls_window::a_control_says_the_kernel_holds() {
         the_state_a_control_states(&mut found, step, (held, name));
     }
     return Some(found);
+}
+
+/// What:
+///  Put the state a control stated for whichever process the look found into the first of them.
+/// Why:
+///  A control that runs the real commit cannot know the step's number before it starts,
+///  and the step comes first in a look,
+///  so the process it states is held is the step itself
+///  (`the_controls_window::the_kernel_holds_whatever_the_look_finds`).
+#[cfg(all(test, target_os = "linux"))]
+fn the_first_process_is_stated_to_be_held(found: &mut [(i32, ProcessUse)], name: &str) {
+    let Some(first) = found.first_mut() else {
+        return;
+    };
+    first.1.state = 'D';
+    first.1.name = name.to_string();
 }
 
 /// What:
@@ -124,6 +144,27 @@ fn the_state_a_control_states(found: &mut Vec<(i32, ProcessUse)>, step: i32, hel
         None if number == step => found.insert(0, (number, stated)),
         None => found.push((number, stated)),
     }
+}
+
+/// What:
+///  The process the kernel holds in a disk wait, below a step,
+///  read in one look.
+/// Why:
+///  A ceiling that comes for a step the kernel holds must stand aside instead of ending it,
+///  and a step inside an uninterruptible call is the one fact that tells those two apart.
+///  The look is the one the notice also makes,
+///  and a control may state its answer
+///  (`the_controls_window`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = theKernelHoldsTheStep(pid); // { number, name } | undefined
+/// ```
+pub(crate) fn the_kernel_holds_the_step(step: u32) -> Option<crate::scratch_step_held_by_the_kernel::HeldProgram> {
+    let number: i32 = i32::try_from(step).ok()?;
+    let below: Vec<(i32, ProcessUse)> = look_below(number)?;
+    let (found, used) = the_process_the_kernel_holds(below.as_slice())?;
+    return Some(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *found, name: used.name.clone() });
 }
 
 /// The number of one member of a tree.
