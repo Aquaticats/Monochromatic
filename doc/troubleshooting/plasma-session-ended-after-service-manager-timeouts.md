@@ -684,6 +684,13 @@ not a patch for upstream:
 it does not re-arm the subscription the manager never installed,
 so a unit can run unwatched until the next reload installs the match again,
 and no test in the clone's own suite covers the change.
+The whole change is saved as
+`${HOME}/temp/agent/plasma-reload-probe-2026-11-12/candidate-repair.patch`.
+A refusal arm built on a bus policy does not work and was measured as such:
+`dbus-daemon` accepts an `AddMatch` rule its own policy denies
+(a private bus answered the call successfully,
+and the container arm left the unit running),
+so the harness checks a real loss of the bus instead.
 Upstream `main` at `4c213bab55c53682e6e3af6353bd201a4b27ac2a`
 and the released `v262.2` carry the same callbacks.
 No host or repository change was made from it.
