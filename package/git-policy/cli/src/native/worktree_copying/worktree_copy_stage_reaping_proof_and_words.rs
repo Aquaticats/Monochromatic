@@ -11,7 +11,7 @@
 //!  wrapper itself writes there later.
 //! A record that names no object proves the folder by what the filesystem wrote into it:
 //! the source the snapshot was taken from,
-//! and a creation transaction later than the one the record holds.
+//! and a creation instant that is not older than the one the record holds.
 //! Everything else keeps the folder,
 //! and the reason is the words the person reads,
 //! so this
@@ -140,16 +140,17 @@ pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance
     }
     // The record a command writes before it creates the container names the container, the instant and no identity,
     // because an object's identity cannot be read before it exists. Such a record names the source the snapshot is
-    // taken from and the transaction it must follow, and the filesystem writes both into the snapshot itself, so the
-    // folder is judged by what it was made from and when, never by its shape: a plain directory answers with the
-    // subvolume that holds it, and a snapshot another party took before that transaction answers with an earlier one.
+    // taken from and the instant its creation cannot be older than, and the filesystem writes both into the snapshot
+    // itself, so the folder is judged by what it was made from and when, never by its shape: a plain directory answers
+    // with the subvolume that holds it, and a snapshot another party took before that instant answers with an earlier
+    // creation time.
     if made.object.is_none() {
         let Some(origin) = made.snapshot.as_ref() else {
             return Ok(Provenance::Unproved(String::from(
                 "the record of the object its creation made names no object and no source the snapshot was taken from, so nothing proves which folder this is",
             )));
         };
-        return match crate::worktree_copy_stage_snapshot_origin::proved_created_after_the_record(container, origin) {
+        return match crate::worktree_copy_stage_snapshot_origin::prove_made_from_the_recorded_source(container, origin) {
             Ok(()) => Ok(Provenance::Proved),
             Err(reason) => Ok(Provenance::Unproved(reason)),
         };

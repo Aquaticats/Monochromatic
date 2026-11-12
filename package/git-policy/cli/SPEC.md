@@ -3553,27 +3553,42 @@ and it is the whole evidence a kill in the instant between the creation of a sna
 leaves.
 That record also names the source the snapshot is taken from,
 in `snapshotParent=<the source subvolume's UUID in lowercase hexadecimal>`,
-and the transaction its creation must follow,
-in `after=<the generation of the subvolume holding the journal directory>`,
-read from the last flushed write before this record,
-which is the binding record the add writes immediately before the snapshot rung,
+and the instant its creation cannot be older than,
+in `createdAfter=<whole seconds since the epoch>.<nanoseconds>`,
+read from the coarse realtime clock before the snapshot exists,
 because the filesystem writes both facts into every subvolume itself
 (`BTRFS_IOC_GET_SUBVOL_INFO`):
-the subvolume a snapshot was taken from,
-and the transaction that created it.
+the subvolume a snapshot was taken from (`parent_uuid`),
+and the instant it was created (`otime`,
+which `create_pending_snapshot` writes from `current_time()`, `fs/btrfs/transaction.c` and `fs/inode.c`).
 A later command removes that folder only when it is a btrfs subvolume root,
 taken from the recorded source,
-and created in a transaction later than the recorded one,
+and created no earlier than the recorded instant,
 so a plain directory another party put at that name,
 and a snapshot another party took before the record,
 is kept and named.
+No transaction number is recorded, and none is compared:
+a subvolume's `generation` only advances with the transactions that write its own tree
+(`btrfs_update_root`, `fs/btrfs/root-tree.c`),
+so it can be older than the filesystem's last commit,
+and a snapshot a person made after that commit carries a later creation transaction and was proved to be the
+wrapper's own: the deletion this record exists to prevent.
+Telling those two apart by transaction would need a committed transaction read before the creation,
+and obtaining one is a flush of the whole filesystem on the add's waiting path,
+which "Local durability follows what the remote already holds" forbids.
+A record an earlier release wrote at that window names the transaction in place of the instant,
+and no creation instant,
+so it proves nothing and its folder is kept and named;
+a record an earlier release wrote after the snapshot existed names the object and no source,
+and is judged by that object as before.
 The owner answered the choice between naming such a folder for ever and keeping the automatic removal with
 "Keep removing,
 fix the check" (2026-11-11):
 nothing at the name is deleted on the shape of a folder alone.
-What this proves is when the folder was made and which subvolume it was taken from,
+What this proves is when the folder came into being and which subvolume it was taken from,
 never who made it:
-a snapshot another party makes between that read and this command's own creation carries a later transaction too,
+a snapshot another party makes between that read and this command's own creation carries a later creation instant
+too,
 and it must then also be renamed onto the reserved stage name before the reaping runs.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
@@ -3838,18 +3853,21 @@ its lines being `stage=<the container's bytes in lowercase hexadecimal>`,
 `object=<device:inode:birth seconds:birth nanoseconds>` when the identity is recorded,
 and
 `written=<seconds>.<nanoseconds>`,
-with `snapshotParent=<the source's UUID>` and `after=<the transaction the creation must follow>` on a record written
-before the snapshot exists,
+with `snapshotParent=<the source's UUID>` and `createdAfter=<seconds>.<nanoseconds>` on a record written before the
+snapshot exists,
 and the object at the container's name is still that identity,
 and no entry of the folder is born after the record's `written` instant
 except the ones the wrapper itself writes there after that instant:
 the trash parent `.claude/cli-git-trash` with everything below it,
 `.claude` itself,
 and `.git` with everything below it.
+A record written before the snapshot exists proves its folder by what the filesystem wrote into the snapshot instead:
+the recorded source,
+and a creation instant no earlier than the recorded one.
 A record that is absent,
 that does not read as this release writes it,
 that names another container,
-that names no object and no source and transaction,
+that names no object and no source and creation instant,
 that names one of the pair without the other,
 or that is not the identity at the name keeps the stage:
 the notice names the stage,

@@ -339,13 +339,16 @@ pub fn record_made_of_the_stage(source: &SnapshotSource, stage: &Path, made: Opt
 /// await takeSnapshot({ source, plan, stage, admin, pointer, environment, service });
 /// ```
 pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8], environment: &ConversionEnvironment) -> Result<Snapshotted, SnapshotFailure> {
-    // The record comes first, and names the container, the instant, and the source and transaction the snapshot below must
-    // follow, while it holds no object yet: the identity of an object cannot be read before it exists, and a kill between
-    // the creation below and the record of the identity left a whole snapshot nothing could prove the wrapper made
-    // (`worktree_copy_stage_reaping_proof_and_words.rs`). The binding record this rung wrote a moment ago was flushed, so
-    // the journal's own subvolume carries the last committed transaction, and the snapshot made now is later than it.
+    // The record comes first, and names the container, the instant, and the source and creation instant the snapshot
+    // below must answer for, while it holds no object yet: the identity of an object cannot be read before it exists, and
+    // a kill between the creation below and the record of the identity left a whole snapshot nothing could prove the
+    // wrapper made (`worktree_copy_stage_reaping_proof_and_words.rs`). No transaction number is recorded: a subvolume's
+    // generation only advances with the transactions that write its own tree, so it cannot order a creation, and a
+    // committed one would cost a flush of the whole filesystem here (`SPEC.md`, "Local durability follows what the
+    // remote already holds"). The instant is read from the coarse clock the filesystem stamps a creation with, so a
+    // folder that stood at this name before the record is older than it and is kept.
     let origin: Option<crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin> =
-        crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), source.common_dir.as_path());
+        crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path());
     if let Err(error) = crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now(), origin.as_ref()) {
         warn(TAG, format!("monochromatic-git-policy-cli: the creation of the stage {} could not be recorded ({}); a stage a kill leaves behind will be reported and not removed", stage.display(), error.0).as_str());
     }

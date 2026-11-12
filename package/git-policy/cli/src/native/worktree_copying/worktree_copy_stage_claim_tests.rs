@@ -1834,6 +1834,22 @@ fn a_stage_name_no_claim_reserves_gets_no_record() {
 /// const { root, repo, claim } = await killedSnapshotAdd('claim-add-snapshot'); expect(isSubvolume(claim.container)).toBe(true);
 /// ```
 fn killed_snapshot_add(name: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    return killed_snapshot_add_with_its_last_write_recorded(name, false);
+}
+
+/// What:
+///  The stage a real killed snapshot add left,
+/// with the record of its object raised once more when `raised`,
+/// which is the write the ladder makes before it swaps.
+/// Why:
+///   Two steps of an add leave this one shape,
+///  and the cut-off the record holds is what differs between them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { root, common, container } = await killedSnapshotAdd('...', true); // the raise the ladder makes before the exchange
+/// ```
+fn killed_snapshot_add_with_its_last_write_recorded(name: &str, raised: bool) -> Option<(PathBuf, PathBuf, PathBuf)> {
     let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture(name)?;
     let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
     let common: PathBuf = repo.join(".git");
@@ -1856,6 +1872,9 @@ fn killed_snapshot_add(name: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
     assert!(crate::fs_kind::is_subvolume_root(container.as_path()).expect("probe"), "the stage is a subvolume");
     assert!(container.join("ignored/pkg/index.js").is_file(), "the stage holds the snapshot of the ignored state");
     assert!(container.join(".git").is_file(), "the stage holds the pointer the ladder writes in place of the source's .git");
+    if raised {
+        crate::worktree_snapshot::record_made_of_the_stage(&source, container.as_path(), crate::worktree_add_binding::path_identity(container.as_path()));
+    }
     // The process dies here: neither the claim nor its records are released.
     std::mem::forget(claim);
     return Some((root, common, container));
@@ -2224,8 +2243,8 @@ fn a_record_written_before_the_container_exists_names_no_object() {
     remove(root.as_path());
 }
 
-/// A record written before the container exists names the source the snapshot is taken from and the transaction it
-/// must follow,
+/// A record written before the container exists names the source the snapshot is taken from and the instant its
+/// creation cannot be older than,
 /// and this release reads both back.
 #[test]
 fn a_record_written_before_the_container_exists_names_the_snapshot_it_will_make() {
@@ -2234,14 +2253,47 @@ fn a_record_written_before_the_container_exists_names_the_snapshot_it_will_make(
     abandoned_stage(claim.container());
     let container: PathBuf = claim.container().to_path_buf();
     let written: std::time::SystemTime = std::time::SystemTime::now();
-    let origin = crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin { parent: [7u8; 16], after: 42 };
+    let origin = crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin { parent: [7u8; 16], created_after: written };
     record_creating_at(common.as_path(), container.as_path(), written, Some(&origin)).expect("the record of the creation");
     assert_eq!(
         read_made(claim.path.as_path()),
         Some(MadeObject { container: container.clone(), object: None, snapshot: Some(origin), written }),
-        "the record names the container, the instant, and the source and transaction the snapshot must follow"
+        "the record names the container, the instant, and the source and creation instant the snapshot must answer for"
     );
     claim.release().expect("release");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// The transaction an earlier release recorded beside the source of a snapshot its command was about to make,
+/// and the instant it recorded after it:
+/// this release reads neither as a fact,
+/// so both only have to spell a record of that release's shape.
+const A_RECORDED_TRANSACTION: u64 = 42;
+const A_RECORDED_INSTANT: &str = "1794498329.605144934";
+
+/// A record an earlier release wrote at the window names the source and the transaction its creation had to follow,
+/// and no creation instant,
+/// so this release reads nothing from it and keeps the folder it names.
+/// Why the control reads this way:
+///  a transaction number cannot order a creation,
+///  and a record that names no instant says nothing about what stood at the name before this command acted.
+#[test]
+fn a_record_of_the_earlier_window_shape_proves_nothing() {
+    let (root, common, destination) = scene("claim-made-earlier-window");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    let earlier: String = format!(
+        "stage={}\nsnapshotParent={}\nafter={}\nwritten={}\n",
+        crate::path_bytes_in_records::hex_of_path(container.as_path()),
+        crate::path_bytes_in_records::hex_of_bytes(&[7u8; 16]),
+        A_RECORDED_TRANSACTION,
+        A_RECORDED_INSTANT
+    );
+    std::fs::write(made_record_beside_claim(claim.path.as_path()).as_path(), earlier.as_bytes()).expect("the record of the earlier release");
+    assert_eq!(read_made(claim.path.as_path()), None, "the earlier shape names no creation instant, so it proves nothing: {earlier}");
+    std::mem::forget(claim);
     make_removable(container.as_path());
     remove(root.as_path());
 }
@@ -2295,14 +2347,10 @@ fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf
     let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
     let container: PathBuf = claim.container().to_path_buf();
-    // The repository subvolume was made in the transaction that still runs, and a subvolume made there reports
-    // that transaction as its generation until the transaction ends; a snapshot made before the end carries the
-    // same id, so the record's "followed" transaction and the snapshot's creation transaction could not be told
-    // apart. Every repository outside this control has been committed many times, so the control commits once,
-    // and the kill it stages is the one a person's repository can really leave.
-    crate::fs_btrfs_test_support::commit_the_filesystem(repo.as_path());
     // The record comes first, and then the creation: the kill follows the ioctl and comes before the identity is read.
-    let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), common.as_path());
+    // Nothing is committed here: a source whose tree was last written before the filesystem's last commit is the state
+    // every repository outside a control is in, and the stage a kill leaves there must still be settled.
+    let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path());
     record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), origin.as_ref()).expect("the record of the creation");
     crate::fs_btrfs_ioctl::snapshot_create_at(source.root.as_path(), container.as_path()).expect("the snapshot the killed command made");
     assert!(crate::fs_kind::is_subvolume_root(container.as_path()).expect("probe"), "the stage is a snapshot");
@@ -2312,16 +2360,76 @@ fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf
     return Some((root, common, container, repo));
 }
 
+/// A stage the wrapper made is recognised and removed after a kill at each step of an add,
+/// and the step that creates no folder leaves none.
+/// Why the control walks the steps this way:
+///  the snapshot rung and the exchange leave three shapes at the stage name,
+///  and each one has to be settled by the next command:
+///  a record with no folder (the kill came before the creation),
+///  a folder with a record that names no object (the kill came in the instant between the creation and the record of
+///  its object),
+///  a folder with a record that names its object (the kill came anywhere after that record),
+///  and the same with the cut-off the ladder raises before the swap.
+///  A kill inside the exchange is another module's (`worktree_copy_swapped_add_settlement.rs`).
+#[test]
+fn a_stage_the_wrapper_made_is_removed_after_a_kill_at_each_step_of_the_add() {
+    // The kill comes after the record of the creation and before the snapshot exists: nothing stands at the name, and
+    // the worktree Git registered is named to the person instead of being removed.
+    {
+        let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture("kill-step-before-the-creation").expect("a btrfs fixture");
+        let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+        let common: PathBuf = repo.join(".git");
+        let destination: PathBuf = root.join("topic");
+        let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+        crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
+        let container: PathBuf = claim.container().to_path_buf();
+        let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &crate::worktree_ladder_test_support::main_identity(repo.as_path())).expect("source");
+        let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path());
+        record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), origin.as_ref()).expect("the record of the creation");
+        std::mem::forget(claim);
+        let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+        assert!(!container.exists(), "no folder was made, so none is removed");
+        assert!(notices.iter().all(|notice: &String| { return !notice.contains("removed the stage"); }), "nothing is removed where nothing stands: {notices:?}");
+        assert!(notices.iter().any(|notice: &String| { return notice.contains("left") && notice.contains("registered"); }), "the worktree Git registered is named: {notices:?}");
+        remove(root.as_path());
+    }
+    // The kill comes in the instant between the creation and the record of its object.
+    {
+        let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("kill-step-window") else { return };
+        let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+        assert!(!container.exists(), "the snapshot the kill left is removed: {notices:?}");
+        remove(root.as_path());
+    }
+    // The kill comes after the rung's own writes, the trash the leave-out made and the pointer among them.
+    {
+        let Some((root, common, container)) = killed_snapshot_add("kill-step-rung") else { return };
+        let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+        assert!(!container.exists(), "the stage the rung left is removed: {notices:?}");
+        remove(root.as_path());
+    }
+    // The kill comes after the record was raised with the last write of the ladder inside it.
+    {
+        let Some((root, common, container)) = killed_snapshot_add_with_its_last_write_recorded("kill-step-raised", true) else { return };
+        let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+        assert!(!container.exists(), "the stage the ladder left before its swap is removed: {notices:?}");
+        remove(root.as_path());
+    }
+}
+
 /// The snapshot a kill left between the wrapper's creation of the stage and the record of its object is settled by
 /// the next command,
 /// not kept for ever,
-/// because the record names the source it was taken from and the transaction it had to follow,
+/// because the record names the source it was taken from and the instant its creation cannot be older than,
 /// and the filesystem says this snapshot was
-///  made after it.
+///  made from that source, after it.
 /// Why the control reads this way:
 ///  the owner answered the choice between naming such a snapshot and never removing it and keeping the automatic removal
 ///  with "Keep removing,
 /// fix the check" (2026-11-11).
+///  Nothing is committed before the record is read:
+///  a source whose tree was last written before the filesystem's last commit is the state every repository outside a
+///  control is in,
+///  and the stage a kill leaves there is settled all the same.
 #[test]
 fn btrfs_the_snapshot_created_before_its_record_is_removed() {
     let Some((root, common, container, _repo)) = killed_snapshot_add_before_its_record("claim-add-window") else { return };
@@ -2375,14 +2483,14 @@ fn a_snapshot_holding_a_newer_entry_is_kept() {
     remove(root.as_path());
 }
 
-/// A snapshot a person made before the record is not the stage that record's creation made,
-/// although the filesystem's own numbers run the way a proof by transaction needs them to.
+/// A snapshot a person made before the record is not the stage that record's creation made:
+/// it came into being before the instant the record holds,
+/// so the creation instant the filesystem writes into it is what tells the two apart.
 /// Why the control reads this way:
-///  a source subvolume's generation only advances with the transactions that write its own tree,
-///  while a snapshot made later carries the transaction that ran when it was made,
-///  so a proof that compares the two can call a person's snapshot the wrapper's and delete the only copy of a file in it.
-///  The commit below puts the control in that state every time instead of waiting for another writer of this
-///  machine's filesystem to commit it, which is how the failure was found: once in a suite of 476 controls.
+///  a reaping that takes the shape for the identity deletes the person's snapshot and the only copy of a file in it.
+///  The commit below holds the state a proof by transaction reads wrongly every time: the source's generation is older
+///  than the last committed transaction, and the person's snapshot carries the transaction that ran next. That proof
+///  called this snapshot the wrapper's and removed it; this control failed for it on every run.
 #[test]
 fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left() {
     let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("claim-add-window-replacement") else { return };
@@ -2406,7 +2514,7 @@ fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left()
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
     let container: PathBuf = claim.container().to_path_buf();
     let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &crate::worktree_ladder_test_support::main_identity(repo.as_path())).expect("source");
-    let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), common.as_path());
+    let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path());
     record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), origin.as_ref()).expect("the record of the creation");
     crate::fs_btrfs_ioctl::snapshot_create_at(source.root.as_path(), container.as_path()).expect("the snapshot the killed add made");
     // The kill: the claim stays, and the record never gained an identity.
@@ -2418,8 +2526,8 @@ fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left()
     assert!(container.join("mine.txt").exists(), "the person's snapshot and the only copy of the file survive: {notices:?}");
     assert!(interrupted.exists(), "the stage the add made and another command moved aside is not this claim's to remove");
     assert!(
-        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("made in transaction"); }),
-        "the folder is kept and the reason names when the filesystem says it was made: {notices:?}"
+        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("came into being before this command wrote the record"); }),
+        "the folder is kept and the reason names when the filesystem says it came into being: {notices:?}"
     );
     crate::fs_btrfs_ioctl::subvolume_destroy_at(interrupted.as_path()).expect("the add's snapshot");
     crate::fs_btrfs_ioctl::subvolume_destroy_at(container.as_path()).expect("the control's snapshot");

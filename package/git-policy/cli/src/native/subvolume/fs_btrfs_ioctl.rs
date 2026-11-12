@@ -48,6 +48,7 @@ use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
+use std::time::SystemTime;
 
 /// `BTRFS_IOCTL_MAGIC`.
 const BTRFS_IOCTL_MAGIC: u32 = 0x94;
@@ -677,6 +678,7 @@ pub fn snapshot_create_at(source: &Path, destination: &Path) -> Result<(), Primi
 ///  The facts the subvolume's own record gives about it:
 /// its identity,
 /// the subvolume it is a snapshot of,
+/// the instant it was created,
 /// its latest transaction,
 /// and the transaction that created it.
 /// Why:
@@ -686,7 +688,7 @@ pub fn snapshot_create_at(source: &Path, destination: &Path) -> Result<(), Primi
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SubvolumeInfo = { uuid: Uint8Array /* 16 */; parentUuid: Uint8Array /* 16 */; generation: bigint; transidAtCreation: bigint };
+/// type SubvolumeInfo = { uuid: Uint8Array /* 16 */; parentUuid: Uint8Array /* 16 */; created: Date; generation: bigint; transidAtCreation: bigint };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SubvolumeInfo {
@@ -695,6 +697,11 @@ pub struct SubvolumeInfo {
     /// The UUID of the subvolume this one is a snapshot of,
     /// all zero for any other subvolume.
     pub parent_uuid: [u8; 16],
+    /// The instant this subvolume was created,
+    /// from the root item's `otime`,
+    /// which `create_pending_snapshot` writes from `current_time()` (`fs/btrfs/transaction.c`).
+    /// That is the coarse realtime clock (`fs/inode.c`), so it is compared with an instant read from the same clock.
+    pub created: SystemTime,
     /// The latest transaction that changed this subvolume.
     pub generation: u64,
     /// The transaction that created this subvolume.
@@ -710,7 +717,7 @@ pub struct SubvolumeInfo {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const info = await subvolumeInfo(path); // { uuid, parentUuid, generation, transidAtCreation }
+/// const info = await subvolumeInfo(path); // { uuid, parentUuid, created, generation, transidAtCreation }
 /// ```
 pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
     let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
@@ -725,6 +732,7 @@ pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
     return Ok(SubvolumeInfo {
         uuid: arguments.uuid,
         parent_uuid: arguments.parent_uuid,
+        created: SystemTime::UNIX_EPOCH + std::time::Duration::new(arguments.otime.sec, arguments.otime.nsec),
         generation: arguments.generation,
         transid_at_creation: arguments.otransid,
     });
