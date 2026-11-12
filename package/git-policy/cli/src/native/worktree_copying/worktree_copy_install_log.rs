@@ -257,12 +257,15 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
 }
 
 impl InstallLog {
-    /// Appends one line, published to every other process and flushed by nobody;
+    /// Appends one line,
+    /// published to every other process and flushed by nobody;
     /// an empty batch writes nothing.
     /// The line names what the copy is about to create,
     /// which a power cut can lose without losing a byte of a person's:
-    /// the source keeps every entry, and the record of an unfilled worktree names the worktree
-    /// (`SPEC.md`, "The records an add writes for itself").
+    /// the source keeps every entry,
+    /// and the record of an unfilled worktree names the worktree
+    /// (`SPEC.md`,
+    /// "The records an add writes for itself").
     fn append_line(&mut self, line: &str) -> Result<(), WorktreeCopyError> {
         let written: std::io::Result<()> = self.file.write_all(line.as_bytes());
         if let Err(error) = written {

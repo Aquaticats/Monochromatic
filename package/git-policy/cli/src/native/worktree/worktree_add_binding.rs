@@ -627,7 +627,8 @@ pub enum RegistrationOwner {
 /// whose writes stay in the page cache,
 /// and native Git flushes nothing for the worktree add it serves,
 /// while a flush of it is a commit of the whole btrfs filesystem on the add's waiting path
-/// (`SPEC.md`, "Local durability follows what the remote already holds").
+/// (`SPEC.md`,
+/// "Local durability follows what the remote already holds").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

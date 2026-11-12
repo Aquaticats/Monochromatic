@@ -65,7 +65,8 @@ fn appended_records_are_read_back_on_reopen() {
 /// so a power cut costs the rollback of a partial installation and never a byte of a person's;
 /// native Git flushes nothing for the worktree add it serves,
 /// and a flush per batch is a commit of the whole btrfs filesystem on the add's waiting path
-/// (`SPEC.md`, "The records an add writes for itself").
+/// (`SPEC.md`,
+/// "The records an add writes for itself").
 /// The control that the recorders see a flush is a durable private file.
 ///
 /// In TS you'd write (pseudocode):

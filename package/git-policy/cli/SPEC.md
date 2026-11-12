@@ -3436,7 +3436,8 @@ The reason is the rule above,
 what these records guard is a command that was killed,
 whose writes the page cache keeps,
 and native Git flushes nothing for the worktree add they serve
-(measured 2026-11-11: a native `git worktree add` of this repository's tree makes no `fsync` at all,
+(measured 2026-11-11:
+a native `git worktree add` of this repository's tree makes no `fsync` at all,
 while the same add through the wrapper made twelve,
 43 s of its 82 s under a load average of 95,
 `doc/planning/cli-git-worktree-add-records-flushed-by-nobody.md`).

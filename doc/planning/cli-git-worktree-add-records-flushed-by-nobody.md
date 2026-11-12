@@ -37,9 +37,12 @@ load average 90 to 100 while other sessions worked):
 - one `btrfs subvolume snapshot` of that clone per measured add,
   so every add starts from the same bytes and the source is a subvolume root,
   which is what the ladder's snapshot rung needs;
-- two arms: `git worktree add --quiet -b <name> .claude/worktrees/<name> HEAD` spelled identically,
+- two arms:
+  `git worktree add --quiet -b <name> .claude/worktrees/<name> HEAD` spelled identically,
   through the wrapper (its own `bin/git` link leading `PATH`) and natively (`PATH` without that link);
-- each arm twice, from separate fixtures, so a difference between two copies of one binary bounds the spread;
+- each arm twice,
+  from separate fixtures,
+  so a difference between two copies of one binary bounds the spread;
 - a home and a runtime directory of its own per arm,
   a `DBUS_SESSION_BUS_ADDRESS` naming a socket that does not exist
   (so neither arm can reach a commit service or this machine's session bus),
@@ -59,35 +62,59 @@ not a second instrument.
 
 ## The measurements
 
-Two runs of the fixture above, four arms each (the base commit's wrapper, this branch's wrapper,
-and native Git twice), every add warmed the same way and every arm drawn in a rotating order:
+Two runs of the fixture above,
+four arms each (the base commit's wrapper,
+this branch's wrapper,
+and native Git twice),
+every add warmed the same way and every arm drawn in a rotating order:
 
-- `pair-2`, 2026-11-11T23:45:00Z-05:00, this branch with the add's own records changed:
-  before median 13,027 ms (MAD 7,049 ms, largest 26,645 ms),
-  after median 11,209 ms (MAD 7,611 ms, largest 28,742 ms),
+- `pair-2`,
+  2026-11-11T23:45:00Z-05:00,
+  this branch with the add's own records changed:
+  before median 13,027 ms (MAD 7,049 ms,
+  largest 26,645 ms),
+  after median 11,209 ms (MAD 7,611 ms,
+  largest 28,742 ms),
   native median 3,078 ms and 3,442 ms.
-- `pair-3`, 2026-11-12T00:45:00Z-05:00, this branch with the copy's records changed too,
+- `pair-3`,
+  2026-11-12T00:45:00Z-05:00,
+  this branch with the copy's records changed too,
   while a gate built in another worktree:
-  before median 41,477 ms, after median 43,075 ms, native median 16,066 ms and 21,065 ms,
+  before median 41,477 ms,
+  after median 43,075 ms,
+  native median 16,066 ms and 21,065 ms,
   and the two native copies differed by up to 40,692 ms in one round.
 
 The spread of one binary against itself is larger than any difference between the arms in both runs,
 so the wall clock of one add cannot judge this change on this host.
 What does judge it is the same instrument on the same add:
-the step record the wrapper writes, and the syscalls a `strace -f` counts:
+the step record the wrapper writes,
+and the syscalls a `strace -f` counts:
 
-- `fsync` calls in one add: none in native Git, twelve before, one after.
-- Time in `fsync`: none in native Git, 12,646 ms in one traced add before and 43,437 ms in another,
+- `fsync` calls in one add:
+  none in native Git,
+  twelve before,
+  one after.
+- Time in `fsync`:
+  none in native Git,
+  12,646 ms in one traced add before and 43,437 ms in another,
   15 ms after.
-- `recordDestination`: 1,015 ms at the median and 5,932 ms at the largest before, 1 ms after.
-- `recordBinding`: 109 ms at the median and 6,488 ms at the largest before, nothing after.
-- `copyIgnored`: 5,795 ms at the median and 15,433 ms at the largest before, 878 ms in the traced add after.
+- `recordDestination`:
+  1,015 ms at the median and 5,932 ms at the largest before,
+  1 ms after.
+- `recordBinding`:
+  109 ms at the median and 6,488 ms at the largest before,
+  nothing after.
+- `copyIgnored`:
+  5,795 ms at the median and 15,433 ms at the largest before,
+  878 ms in the traced add after.
 
 The steps that remain in a wrapped add are the tree's own work:
 `git status` of the clean check,
 the snapshot's ioctl and index install inside `finishRung`,
 and `git ls-files`,
-which take 12.4 s, 20.4 s and 9.1 s in a traced add on a host whose load average was 95 and whose
+which take 12.4 s,
+20.4 s and 9.1 s in a traced add on a host whose load average was 95 and whose
 native `git worktree add` took 8.5 s to 45 s in the same hours.
 
 ## What an add spends, and what native Git spends
@@ -97,15 +124,27 @@ same environment,
 same tree
 (`--trace=fsync,fdatasync,syncfs,sync_file_range,ioctl,renameat2,rename,unlinkat`):
 
-- native `git worktree add`: no `fsync` at all, four `rename` calls, 8.5 s wall clock;
-- the wrapped add: twelve `fsync` calls summing 43.4 s of 82.5 s wall clock.
+- native `git worktree add`:
+  no `fsync` at all,
+  four `rename` calls,
+  8.5 s wall clock;
+- the wrapped add:
+  twelve `fsync` calls summing 43.4 s of 82.5 s wall clock.
 
 The twelve were
 the stage claim and its journal directory (1.98 s + 9.92 s),
-the destination record written three times, planned, named, bound (4.62 s + 1.88 s and two more),
+the destination record written three times,
+planned,
+named,
+bound (4.62 s + 1.88 s and two more),
 the registration's owner proof (3.35 s),
-the copy's install log, its stage binding and its container directory (2.84 s, 2.54 s, 2.24 s, 1.87 s),
-and the record of an unfilled worktree (0.93 s, 0.82 s).
+the copy's install log,
+its stage binding and its container directory (2.84 s,
+2.54 s,
+2.24 s,
+1.87 s),
+and the record of an unfilled worktree (0.93 s,
+0.82 s).
 
 One `fsync` of a small file on this volume,
 measured on its own while other sessions wrote,
@@ -118,18 +157,23 @@ The same wait is why `mark_complete_unsynced` already existed for an add whose d
 
 The four records an add writes for itself are published by an atomic rename and flushed by nobody:
 
-- the stage claim `<id>.stage`, written before the container exists;
-- the destination record `<id>.add`, written planned before real Git runs and rewritten when the add names its Git
+- the stage claim `<id>.stage`,
+  written before the container exists;
+- the destination record `<id>.add`,
+  written planned before real Git runs and rewritten when the add names its Git
   and when the binding is recorded;
 - the proof `monochromatic-git-policy-cli-copy-owner` in the new registration's administrative directory;
 - the removals the recovery makes when it settles a dead add's claim and its journal root.
 
 Nothing else changes:
 
-- the completion marker keeps its flush, because recovery removes a registered worktree whose add has no marker,
+- the completion marker keeps its flush,
+  because recovery removes a registered worktree whose add has no marker,
   so a lost marker would remove a worktree a person was told about;
-- the journal of a copy, its install log and the record of an unfilled worktree keep theirs;
-- the trash and the set-aside entries keep theirs, which is the rule's own case of a person's uncommitted bytes
+- the journal of a copy,
+  its install log and the record of an unfilled worktree keep theirs;
+- the trash and the set-aside entries keep theirs,
+  which is the rule's own case of a person's uncommitted bytes
   being moved.
 
 ## The controls
@@ -139,11 +183,11 @@ Nothing else changes:
 
 before the change it failed with
 
-```
+```text
 assertion `left == right` failed: an add's own records flush no file
   left: [".../ac7208a8-...stage....tmp", ".../ac7208a8-....add....tmp", "...add....tmp", "...add....tmp"]
  right: []
-```
+```text
 
 and it also holds the positive control that the recorders see a flush:
 the same claim's completion marker is still flushed.
@@ -153,11 +197,11 @@ the same claim's completion marker is still flushed.
 
 before the change it failed with
 
-```
+```text
 assertion `left == right` failed: the proof of who made the registration flushes no file
   left: [".../repo/.git/worktrees/topic/monochromatic-git-policy-cli-copy-owner/monochromatic-git-policy-cli-copy-owner"]
  right: []
-```
+```text
 
 `worktree_copy_stage_claim_tests.rs`,
 `an_absent_destination_record_costs_no_flush_and_loses_no_bytes`,
@@ -167,11 +211,11 @@ then the next command:
 
 before the change it failed with
 
-```
+```text
 assertion `left == right` failed: and none for a directory
   left: [".../worktree-copy/v1"]
  right: []
-```
+```text
 
 and after it the recovery asks for no filesystem commit,
 the person's source keeps its bytes,
