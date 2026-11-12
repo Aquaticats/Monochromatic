@@ -240,14 +240,11 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     began.elapsed().as_millis()
                 );
             }
-            Verdict::Delivered { commit: sent, said } => {
+            Verdict::Delivered { .. } => {
                 // This push landed on the branch's retry plan, so its account is a record the next command shows exactly as the
                 //  round's own push leaves one: without it a server's line about a push the service made after a failure would
                 //  reach nobody, and nothing makes an accepted push say it again. The step itself says in the journal what it could
                 //  not record, with the words.
-                if !said.is_empty() {
-                    let _recorded: bool = record_push_report_awaiting(git_dir, branch, sent.as_str(), said.as_str()).await.is_ok();
-                }
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
                 replanning.forget(git_dir, branch);
                 crate::service_log!(
@@ -281,14 +278,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     //  is written: a kill between the two would otherwise leave neither the plan nor the notice, nothing would try the
                     //  branch again, and the server's refusal would be said to nobody. A refusal the storage refused stays in the plan
                     //  for a later look, which asks the server again and says the same thing.
-                    let recorded: bool = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await.is_ok();
-                    if recorded {
-                        replanning.forget(git_dir, branch);
-                    } else if let Some(first) = replanning.first {
-                        // The refusal could not be written, so the plan stays: its next look asks the server again and says the same
-                        //  thing. It is planned again so that the look comes after a pause and not at once.
-                        let _planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, said.as_str());
-                    }
+                    replanning.forget(git_dir, branch);
+                    let _recorded: bool = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await.is_ok();
                     continue;
                 }
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.

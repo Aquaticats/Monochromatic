@@ -128,9 +128,6 @@ pub(super) async fn settle_after_the_push(
                 }
                 None => true,
             };
-            if !recorded {
-                return Some(held);
-            }
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Skipped(text) => {
