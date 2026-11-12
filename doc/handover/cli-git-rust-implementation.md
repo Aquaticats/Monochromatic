@@ -135,6 +135,45 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The coordinator broke every Pi start for half an hour, and the fifth cull pass (2026-11-11T21:50:01-05:00)
+
+What happened. After merging the notification change into `main` (`92745e2835`, 21:18) the coordinator rebuilt the extension
+in the main checkout (21:19) without first linking the checkout's dependencies. The merge had added
+`@monochromatic-dev/async-time-core` to that package, the link was not there, the build left the import outside the bundle,
+and from 21:19 every new Pi process ended at once with
+`Failed to load extension ".../agent-settled-notification/dist/final/node/index.mjs": ... Cannot find module '@monochromatic-dev/async-time-core/ts'`.
+Thirteen runs started in that window ended `pi-exited, 0 turns`:
+the seven of round 251, the second landed-sweep review (252), the `wg` follow-up (253), the clean-inside-an-alias agent (254),
+the gate-failures agent (255), one qwen4 review of round 250, and the one real review the review-commands agent tried at the end of its run.
+Runs already going were not touched. Any other Pi session started on this machine between 21:19 and 21:50 failed the same way.
+It was seen at the 21:50 pass, from the list of runs that had ended.
+
+Repair, 21:50:30 to 21:50:53: `mise exec -- pnpm install --offline --frozen-lockfile` in the main checkout (it made the missing link),
+the extension's `build`, and its `verify:extension` ("agent-settled-notification extension verified").
+The rebuilt bundle names no workspace package any more.
+Twelve of the thirteen were started again at 21:51 (rounds 251 and 256, the same briefs; their worktrees had been kept).
+
+What this shows, as defects to fix and not as lessons to remember:
+
+- The landing agent's report said the main checkout "must be rebuilt after the branch lands"; it did not say "install first",
+  and the build task does not refuse to build with a workspace dependency that is not linked. It should.
+- `verify:extension` passed on the landing agent's tree, and nothing checks that Pi itself can load the extension from the main checkout.
+- A launcher that sees Pi exit before its first turn says only `status 1` and a memory line in the batch output.
+  The package's new failed-start line covers the launcher's own refusals, not a Pi that dies at once.
+
+These three go to the agent that repairs the driver's tests (round 251, by note).
+
+The fifth cull pass:
+
+- Nothing running was stopped, and no running task rests on a changed decision.
+- alpha.11's commits, read again (102 since the install): 93 landed, median 6,594 ms, ninetieth percentile 27,698, 57 over 5 s.
+  By window: 01:02 to 01:50Z 45 commits, median 12,348; 01:50 to 02:20Z 20, median 10,108; 02:20 to 02:52Z 37, median 2,969.
+  Not landed: the scratch ceiling once, the 20 s provision ceiling twice (none after 01:12Z), five refused by a policy finding,
+  and one `stopped: native-exit/git commit` in the last window, not yet looked at.
+  The last half hour is back at alpha.10's level (alpha.10's last hour: median 2,645), while far fewer agents were starting,
+  because of the breakage this section is about; so it does not yet show that alpha.11 settled.
+- Pools at 21:50, emptied by the dead starts: qwen plan DeepSeek 9 of 18, DeepSeek flex 5 of 20, Kimi flex 5 of 20, qwen4 1 of 18.
+
 ### The gate's verdict on the alpha.11 code (2026-11-11T21:30:00-05:00)
 
 The gate of `08ece74c5e` (unit and log `gpc-gate-wrapper-next-alpha-on-08ece74c5e-20261111T204545-0500`) ended:
