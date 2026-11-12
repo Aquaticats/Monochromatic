@@ -32,6 +32,32 @@ use crate::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsString;
 
 /// What:
+///  Which of the worktree's entries at a written path Git writes over:
+///  every one, or only the ones its ignore rules cover.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///   A forced move of `HEAD` replaces or deletes any entry in its way,
+///  untracked or ignored alike;
+///  a `reset --merge` or `reset --keep` refuses the untracked one and writes over the ignored one
+///  (measured on this host with native Git 2.56.0:
+///  `Untracked working tree file 'b.txt' would be overwritten` and stop,
+///  against an ignored `b.txt` replaced with exit 0),
+///  so asking about the untracked entries there would copy a file Git keeps
+///  and leave a notice that says the opposite.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WrittenEntries = 'every-entry' | 'only-ignored';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WrittenEntries {
+    /// Every entry at the path, whether Git's rules cover it or not.
+    EveryEntry,
+    /// Only the entries the worktree's ignore rules cover.
+    OnlyIgnored,
+}
+
+/// What:
 ///  The paths one form writes, as the source of them.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
@@ -43,7 +69,8 @@ use std::ffi::OsString;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WrittenPaths = { kind: 'tree'; revision?: string } | { kind: 'matching-tree'; revision?: string; pathspecs: string[] }
+/// type WrittenPaths = { kind: 'tree'; revision?: string; entries: WrittenEntries }
+///   | { kind: 'matching-tree'; revision?: string; pathspecs: string[] }
 ///   | { kind: 'index'; pathspecs: string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,6 +81,8 @@ pub enum WrittenPaths {
         /// The revision the form names,
         ///  or nothing for `HEAD`.
         revision: Option<OsString>,
+        /// Which entries at those paths Git writes over.
+        entries: WrittenEntries,
     },
     /// The paths of the revision's tree that the form's own pathspecs match.
     MatchingTree {
@@ -87,7 +116,8 @@ impl WrittenPaths {
     /// ```
     pub fn kind(&self) -> &'static str {
         return match self {
-            WrittenPaths::Tree { .. } => "tree",
+            WrittenPaths::Tree { entries: WrittenEntries::EveryEntry, .. } => "tree",
+            WrittenPaths::Tree { entries: WrittenEntries::OnlyIgnored, .. } => "tree-of-ignored-entries",
             WrittenPaths::MatchingTree { .. } => "matching-tree",
             WrittenPaths::Index { .. } => "index",
         };
@@ -101,13 +131,15 @@ impl WrittenPaths {
 /// Why:
 ///   A forced move of `HEAD` and a path form write files;
 ///  a `clean` deletes what Git's own dry run names,
-///  a `rm` and a `mv` reach only paths their index already holds,
-///  and a `read-tree` without `-u` writes no worktree file,
+///  and a `rm` and a `mv` reach only paths their index already holds,
 ///  so none of those is read here.
-///  A `reset --merge` or `reset --keep` over a file Git did not put there is refused by Git itself,
-///  which deletes nothing,
-///  so only a hard reset is read:
-///  saving a copy for a command Git then refuses would move nothing and say nothing true.
+///  A `read-tree` with `-u` writes worktree files and is not read here either:
+///  an ignored file in the way of `read-tree -m -u` is the one known loss
+///  (`SPEC.md`, the discarding-commands section).
+///  A hard reset writes over every entry at the tree's paths;
+///  `reset --merge` and `reset --keep` write the tree too,
+///  but refuse an untracked entry and write over an ignored one,
+///  so their reading asks about the ignored entries alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,16 +148,24 @@ impl WrittenPaths {
 pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<WrittenPaths> {
     match command {
         GuardedCommand::ResetHard => {
-            // `--soft` writes nothing and is not guarded; `--merge` and `--keep` leave a path Git did not write alone.
+            // `--soft` and `--mixed` write no worktree file; `--merge` and `--keep` write the tree but refuse an
+            //  untracked entry in its way, so only the entries their ignore rules cover are asked about.
             let parsed = parse_reset_region(region, &[]).ok()?;
-            if parsed.mode != Some(ResetMode::Hard) {
-                return None;
-            }
-            return Some(WrittenPaths::Tree { revision: crate::command_discard::revision_before_paths(region, RESET_TABLE) });
+            let revision: Option<OsString> = crate::command_discard::revision_before_paths(region, RESET_TABLE);
+            return match parsed.mode {
+                Some(ResetMode::Hard) => Some(WrittenPaths::Tree { revision, entries: WrittenEntries::EveryEntry }),
+                Some(ResetMode::Merge) | Some(ResetMode::Keep) => {
+                    Some(WrittenPaths::Tree { revision, entries: WrittenEntries::OnlyIgnored })
+                }
+                _ => None,
+            };
         }
         GuardedCommand::CheckoutPaths => return checkout_written_paths(region),
         GuardedCommand::SwitchForce => {
-            return Some(WrittenPaths::Tree { revision: first_positional(region, SWITCH_TABLE) });
+            return Some(WrittenPaths::Tree {
+                revision: first_positional(region, SWITCH_TABLE),
+                entries: WrittenEntries::EveryEntry,
+            });
         }
         GuardedCommand::RestoreWorktree => return restore_written_paths(region),
         _ => return None,
@@ -172,7 +212,10 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     if !is_enabled(&parsed, FORCE) {
         return None;
     }
-    return Some(WrittenPaths::Tree { revision: names.first().map(|name| return (*name).clone()) });
+    return Some(WrittenPaths::Tree {
+        revision: names.first().map(|name| return (*name).clone()),
+        entries: WrittenEntries::EveryEntry,
+    });
 }
 
 /// What:

@@ -15,7 +15,7 @@
 //! //   === { kind: 'matching-tree', revision: 'other', pathspecs: ['b.txt'] }
 //! ```
 
-use super::{WrittenPaths, written_paths};
+use super::{WrittenEntries, WrittenPaths, written_paths};
 use crate::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsString;
 
@@ -24,10 +24,21 @@ fn words(values: &[&str]) -> Vec<OsString> {
     return values.iter().map(OsString::from).collect();
 }
 
-/// The whole tree of a named revision.
+/// The whole tree of a named revision,
+/// with every entry at its paths written over.
 fn tree(revision: Option<&str>) -> Option<WrittenPaths> {
     return Some(WrittenPaths::Tree {
         revision: revision.map(OsString::from),
+        entries: WrittenEntries::EveryEntry,
+    });
+}
+
+/// The whole tree of a named revision,
+/// with only the entries the ignore rules cover written over.
+fn tree_of_ignored_entries(revision: Option<&str>) -> Option<WrittenPaths> {
+    return Some(WrittenPaths::Tree {
+        revision: revision.map(OsString::from),
+        entries: WrittenEntries::OnlyIgnored,
     });
 }
 
@@ -40,16 +51,17 @@ fn matching(revision: Option<&str>, pathspecs: &[&str]) -> Option<WrittenPaths> 
 }
 
 /// A hard reset writes the named tree whole,
-/// a merge or keep reset writes nothing Git would not refuse over,
-/// and a soft one is not guarded at all.
+/// a merge or keep reset writes the tree over the ignored entries in its way alone,
+/// because Git keeps an untracked one and refuses itself,
+/// and a soft or mixed one is not read at all.
 #[test]
-fn a_hard_reset_writes_the_tree_it_names() {
+fn a_reset_writes_the_tree_it_names() {
     for (values, expected) in [
         (vec!["--hard"], tree(None)),
         (vec!["--hard", "other"], tree(Some("other"))),
         (vec!["other", "--hard"], tree(Some("other"))),
-        (vec!["--merge", "other"], None),
-        (vec!["--keep", "other"], None),
+        (vec!["--merge", "other"], tree_of_ignored_entries(Some("other"))),
+        (vec!["--keep", "other"], tree_of_ignored_entries(Some("other"))),
         (vec!["--soft", "other"], None),
         (vec!["other"], None),
     ] {

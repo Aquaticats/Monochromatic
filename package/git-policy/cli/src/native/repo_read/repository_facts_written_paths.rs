@@ -45,7 +45,7 @@ use std::ffi::{OsStr, OsString};
 /// ```
 pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<Vec<u8>>, String> {
     let paths: Vec<Vec<u8>> = match written {
-        WrittenPaths::Tree { revision } => tree_paths(facts, revision.as_deref(), &[])?,
+        WrittenPaths::Tree { revision, .. } => tree_paths(facts, revision.as_deref(), &[])?,
         WrittenPaths::MatchingTree { revision, pathspecs } => tree_paths(facts, revision.as_deref(), pathspecs.as_slice())?,
         WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice())?,
     };

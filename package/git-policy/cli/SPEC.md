@@ -16188,6 +16188,17 @@ A region Git refuses,
 like `-u` without `-m`,
 `--reset` or `--prefix`,
 is the refusal and passes.
+A `read-tree` with `-u` writes worktree files,
+and no written path is read for it,
+so the file it writes over is decided by the status question alone
+and an ignored file in the way is not saved:
+`git read-tree -m -u HEAD other` over an ignored `b.txt` that `other` tracks exits 0 with the
+file replaced, in native Git and through the wrapper
+(measured on this host with Git 2.56.0,
+2026-11-12).
+An untracked file in the same place is refused by Git itself,
+which is the one case this leaves safe.
+This is the known hole of this reading.
 The word this reading reads is the word Git will run.
 An ordinary alias (`alias.<name>`,
 either spelling) is expanded the way Git expands it,
@@ -16567,11 +16578,20 @@ asked of Git and not guessed from the words
 (`command/command_written_paths.rs`):
 a forced `checkout`,
 a forced `switch`,
-a hard `reset` (`--hard` only:
-`--merge` and `--keep` leave a path Git did not write alone and refuse it themselves)
+a `reset` in the hard,
+merge and keep modes,
 and the index's own paths for a restore without a source write a whole tree,
 read with `git ls-tree -r -z --name-only <revision>`,
-`HEAD` when the form names no tree;
+`HEAD` when the form names no tree.
+The three reset modes differ in which of the worktree's entries they write over,
+measured on this host with native Git 2.56.0:
+`--hard` writes over or deletes every entry at those paths,
+and `--merge` and `--keep` refuse an untracked one
+(`Untracked working tree file 'b.txt' would be overwritten` and exit 128)
+while writing over the one their ignore rules cover, with exit 0.
+The merge and keep modes are therefore asked about the ignored entries alone;
+asking about the untracked ones as well would copy a file Git keeps and say a loss happened that
+did not.
 a `checkout <revision> -- <paths>` and a `restore` with a source write the tree paths their own
 pathspecs reach,
 which Git matches itself;

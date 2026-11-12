@@ -12,6 +12,11 @@
 //!  each row says what real Git does to the file (the positive control, without which a
 //!  passing row proves nothing) and what the wrapper leaves behind.
 //!  `skip-worktree` is beside the marks because it must stay the one case Git itself keeps.
+//!  The file in the way is untracked, ignored, a file where the target needs a directory,
+//!  and a nested repository's own work.
+//!  `clean` has no row here: its deletion of untracked and ignored files runs and is logged
+//!  by the owner's answer, so the promise in these rows is not the one it keeps;
+//!  its nested repositories and its pathspec forms are covered by the `discard::` controls.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,6 +36,8 @@ const PRECIOUS: &[u8] = b"PRECIOUS UNTRACKED\n";
 enum InTheWay {
     /// A file the tree holds as a file.
     File,
+    /// An ignored file the tree holds as a file: Git writes over it without a word.
+    Ignored,
     /// A file where the tree needs a directory (`b.txt/inner.txt`).
     FileWhereADirectoryMustGo,
     /// A nested Git repository with uncommitted work where the tree needs a directory.
@@ -72,10 +79,15 @@ fn prepared(name: &str, shape: InTheWay) -> (Fixture, PathBuf, PathBuf) {
     }
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=other"]);
     git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    if matches!(shape, InTheWay::Ignored) {
+        std::fs::write(repo.join(".gitignore"), b"b.txt\n").expect("ignore rules");
+        git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    }
     let linked: PathBuf = fixture.root.join("linked");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
     match shape {
-        InTheWay::File | InTheWay::FileWhereADirectoryMustGo => {
+        InTheWay::File | InTheWay::Ignored | InTheWay::FileWhereADirectoryMustGo => {
             std::fs::write(linked.join("b.txt"), PRECIOUS).expect("the person's file");
         }
         InTheWay::Repository => {
@@ -172,7 +184,9 @@ fn every_form_over_an_untracked_file_keeps_or_saves_it() {
     }
 }
 
-/// The forms the marked matrix runs.
+/// The forms the marked matrix runs,
+/// including a forced form spelled with the shortest abbreviation Git's own table accepts:
+/// a reading that carried its own minimum length read `--f` as no force at all.
 fn marked_forms() -> Vec<Vec<&'static str>> {
     return vec![
         vec!["reset", "--hard"],
@@ -191,8 +205,47 @@ fn marked_forms() -> Vec<Vec<&'static str>> {
         vec!["stash", "push", "--include-untracked"],
         vec!["read-tree", "--reset", "-u", "HEAD"],
         vec!["checkout-index", "-f", "-a"],
+        vec!["checkout-index", "--f", "-a"],
         vec!["rm", "-f", "a.txt"],
+        vec!["rm", "--f", "a.txt"],
+        vec!["mv", "--f", "a.txt", "b.txt"],
     ];
+}
+
+/// A forced form over the ignored file the target tree tracks is never the file's loss:
+/// the wrapper either saves it and runs, or lets Git refuse the switch in its own words.
+/// The positive control is the same form over the same shape in real Git,
+/// which writes over the file without a word.
+///  `read-tree` has no row here:
+///  with `-u` it writes worktree files and the guard asks no written path for it,
+///  so a `read-tree -m -u HEAD other` over an ignored file still loses it
+///  (`SPEC.md`, the discarding-commands section, says so and why).
+#[test]
+fn an_ignored_file_in_the_way_is_never_lost() {
+    let mut measured: usize = 0;
+    for (index, arguments) in forms().into_iter().enumerate() {
+        if arguments.first() == Some(&"read-tree") {
+            continue;
+        }
+        let label: String = format!("discard-ignored-{index}");
+        let (control, control_repo, control_linked): (Fixture, PathBuf, PathBuf) =
+            prepared(label.as_str(), InTheWay::Ignored);
+        let _direct: Observed = run_direct(&control, control_linked.as_path(), arguments.as_slice());
+        let lost_by_git: bool = !still_where_it_was(control_linked.as_path(), "b.txt", PRECIOUS)
+            && !saved_copy_holds(control_repo.as_path(), PRECIOUS);
+        remove(&control);
+        let (wrapped_fixture, repo, linked): (Fixture, PathBuf, PathBuf) =
+            prepared(format!("{label}-wrapped").as_str(), InTheWay::Ignored);
+        let observed: Observed = run_wrapped(&wrapped_fixture, linked.as_path(), arguments.as_slice());
+        let kept: bool =
+            still_where_it_was(linked.as_path(), "b.txt", PRECIOUS) || saved_copy_holds(repo.as_path(), PRECIOUS);
+        if lost_by_git {
+            measured += 1;
+        }
+        assert!(kept, "{arguments:?} over {label} lost the ignored file: {}", stderr_of(&observed));
+        remove(&wrapped_fixture);
+    }
+    assert!(measured > 0, "no form of this matrix writes over the ignored file in real Git, so it proves nothing");
 }
 
 /// The edit a person made,
@@ -231,7 +284,9 @@ fn a_marked_edit_is_treated_as_the_edit_it_is() {
             let label: String = format!("discard-marked-{mark}-{index}");
             let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = marked(label.as_str(), Some(mark));
             let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-            let kept: bool = still_where_it_was(linked.as_path(), "a.txt", EDIT);
+            // A `mv` that runs carries the edit to the path it names, which is no loss of it.
+            let kept: bool = still_where_it_was(linked.as_path(), "a.txt", EDIT)
+                || still_where_it_was(linked.as_path(), "b.txt", EDIT);
             assert!(
                 kept || observed.code != Some(0),
                 "{arguments:?} with {mark} exited 0 and lost the edit: {}",

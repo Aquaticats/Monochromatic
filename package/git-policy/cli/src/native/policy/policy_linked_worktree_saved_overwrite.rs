@@ -216,7 +216,7 @@ fn save_entries(request: &SaveRequest<'_>, written: WrittenPaths, paths: &[Strin
     }
     let unpruned: String = prune_after_save(common_dir, copies.as_slice(), request.milliseconds, request.limits);
     let revision: Option<&std::ffi::OsStr> = match &written {
-        WrittenPaths::Tree { revision } | WrittenPaths::MatchingTree { revision, .. } => revision.as_deref(),
+        WrittenPaths::Tree { revision, .. } | WrittenPaths::MatchingTree { revision, .. } => revision.as_deref(),
         WrittenPaths::Index { .. } => None,
     };
     let shown: String = match revision {

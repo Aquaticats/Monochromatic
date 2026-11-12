@@ -27,8 +27,9 @@
 /// The provider whose Git,
 ///  global options and environment answer the queries.
 use super::repository_facts::GitFacts;
-/// The written-path reading the question starts from.
-use crate::command_written_paths::WrittenPaths;
+/// The written-path reading the question starts from,
+///  and which entries at those paths Git writes over.
+use crate::command_written_paths::{WrittenEntries, WrittenPaths};
 /// The paths the form writes,
 ///  each with each directory on the way to it.
 use crate::repository_facts_written_paths::paths_the_tree_writes;
@@ -70,8 +71,9 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
     //  is either a path the form writes, one below it, or a directory that holds it.
     //  Both listings collapse a directory the worktree holds whole into one entry (`nested/`), which is the entry a
     //  save must keep whole, and a nested repository is reported exactly that way.
-    for ignored in [false, true] {
-        let output: MetadataOutput = facts.query(worktree_entry_query(facts.global_prefix.as_slice(), ignored), "the files this command writes over")?;
+    //  A form that writes over only the entries its ignore rules cover asks the ignored listing alone.
+    for ignored in listings(written) {
+        let output: MetadataOutput = facts.query(worktree_entry_query(facts.global_prefix.as_slice(), *ignored), "the files this command writes over")?;
         for entry in worktree_entries_from_answer(&output)? {
             if !asked.iter().any(|path| return related(path.as_slice(), entry.as_slice())) {
                 continue;
@@ -80,6 +82,26 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
         }
     }
     return Ok(outermost_entries(found));
+}
+
+/// What:
+///  Which of the two listings the form's written paths need,
+///  the untracked one first and the ignored one after it.
+///  `bool` is true for the listing of the entries Git's ignore rules cover.
+/// Why:
+///   A form that writes over every entry needs both;
+///  a form that writes its tree over the ignored entries alone needs only the second,
+///  and asking the first would copy a file Git keeps and name a loss that never happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function listings(written: WrittenPaths): boolean[];
+/// ```
+fn listings(written: &WrittenPaths) -> &'static [bool] {
+    return match written {
+        WrittenPaths::Tree { entries: WrittenEntries::OnlyIgnored, .. } => &[true],
+        _ => &[false, true],
+    };
 }
 
 /// What:
