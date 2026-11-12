@@ -4655,6 +4655,11 @@ and "never discard user data"):
   and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
+  The ref goes only once no record that is still there names its commit
+  (`a_record_still_names_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
+  a merge that saves its result for a later finish writes a second record beside the first,
+  both name one capture,
+  and the record settled first must not take the ref the other one still needs for the person's bytes.
   The objects are written and the ref exists before the first byte of the checkout changes.
   That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
   Git's own status,
@@ -4730,8 +4735,21 @@ and "never discard user data"):
   so the line that names it is true.
   A mode the person set without touching the bytes is theirs as the bytes are:
   the merge's own content is written with their mode,
-  and a staged mode stays staged over the merge's object
-  (`plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
+  and a staged mode stays staged over the merge's object,
+  where every permission bit Git does not record (the read and write bits of each of the owner,
+  the group and
+  everyone,
+  and the setuid,
+  setgid and sticky bits above them) is kept from the entry the write replaces and
+  only the execute bits come from Git's entry
+  (`keep_the_permissions_of_the_entry_it_replaces` in `src/native/merge/merge_isolation_carry_place.rs`,
+  and `plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`
+  for the execute bits and the staged mode).
+  A saved merge's install gives the files it wrote the permission bits the command judged before the carry
+  writes over them
+  (`give_back_the_permissions_of_the_files_the_install_wrote` in
+  `src/native/merge/merge_isolation_recovery_install.rs`),
+  because `checkout-index` writes the mode Git's entry implies and the chmod the judgement saw is nowhere else.
   A mode at a path the merge deletes keeps the person's side whole and is named with the others,
   because nothing of the merge's stands there to take it
   (`the_mode_a_deletion_would_leave` in `src/native/merge/merge_isolation_carry_layers.rs`).
@@ -14617,14 +14635,30 @@ so a copy no later merge touches is not a file no command ever ends:
 a copy whose merge still runs is left for that merge to finish,
 because a command beside a live merge that put the copy back under it would make Git refuse the checkout the
 merge was part way through making,
+and a copy whose merge key names a record that was written after the command read the owners is left too:
+the records are read again beside the copy it decides,
+so a merge that started in the moment between the two
+keeps the file it took instead of meeting it again under the path it cleared,
 a copy whose path is empty and whose merge stopped without finishing goes back,
 a copy whose bytes the file at its path holds again,
 and whose permissions that file has too,
 is removed only on the
 proof its own removal asks for:
 the identity and the bytes it read are still its own,
-and no process this command can read holds it open,
+no process this command can read holds it open,
+and the file at its path is still the entry the comparison read,
+holding those bytes with those permissions,
+because a save or a chmod that arrived after the comparison would leave the copy the last name of the older
+bytes or the older mode,
 a copy whose bytes that file holds but whose permissions it does not keeps its bytes and is named with that reason,
+where the permissions are every bit a person can set,
+the setuid,
+setgid and sticky bits above the read,
+write and execute bits of each of the owner,
+the group and
+everyone,
+because Git records only the execute ones and a copy that is the only entry carrying a special bit is
+not the second file of those bytes,
 and so does a copy a program still holds open,
 a copy whose bytes the branch's own commit holds for that path is removed with that commit named and with the
 `git restore` command that reaches those bytes,
@@ -14699,7 +14733,15 @@ because it was saved again after the merge was saved,
 is not written over at all:
 the record goes,
 the merge's commit stays on its ref,
-and the line names that ref and the `git merge` command that makes the merge on the bytes the file holds now.
+and the line names that ref and the `git merge` command that makes the merge on the bytes the file holds now,
+where a recorded ref another command repointed is not that promise:
+the commit is kept on a name of the
+command's own,
+written with an all-zero old value so no other command's commit is replaced,
+and the line names
+that name too,
+because a commit whose record and ref are both gone is collected by `git gc`
+(`keep_the_merge_on_a_side_ref_awaiting` in `src/native/merge/merge_isolation_recovery_cleanup.rs`).
 A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
 another branch's checkout has nothing for it to finish and nothing of it was saved,
 so the record goes and the merge is run again on the branch it is for.
