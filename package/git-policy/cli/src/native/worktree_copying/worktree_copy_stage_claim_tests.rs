@@ -1951,11 +1951,14 @@ fn the_record_of_a_binding_is_published_without_flushing() {
     remove(root.as_path());
 }
 
-/// A reaping that removed nothing flushes nothing;
-/// one that removed a dead owner's stage flushes the directory whose entries changed.
+/// A reaping flushes nothing, whether it removed anything or not.
 ///
-/// The flush is the directory's,
-/// so an add that found other adds' live claims paid a filesystem commit for no removal at all:
+/// The removals are the wrapper's own bookkeeping of a command that died:
+/// their absence costs a repeated notice and never a byte of a person's,
+/// and native Git flushes nothing for the worktree add they serve,
+/// while a flush of the journal root is a commit of the whole btrfs filesystem on the path of every
+/// command of the repository.
+/// A conditional flush still charged that commit to every add that settled one record:
 /// measured 2026-11-11 as 4,617 ms of one add and 4,619,
 /// 13,792 and 13,886 ms of three others,
 /// out of the `recover` step of five concurrent adds.
@@ -1981,7 +1984,12 @@ fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
     let removed: Vec<String> = reap_abandoned_stages(dead_common.as_path()).expect("reap");
     assert!(removed.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "the dead owner's stage is removed: {removed:?}");
     assert!(!container.exists(), "the stage is gone");
-    assert_eq!(take_directory_syncs(), vec![std::fs::canonicalize(journal_root(dead_common.as_path())).expect("canonical")], "the directory whose entries changed is flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the removals are published and the journal root is not flushed for them");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "nor is anything else of the reaping");
+    // The recorder's own control: a flush this test makes is seen, so the empty answers above are the reaping's.
+    let control: PathBuf = dead_common.join("recorder-control");
+    crate::private_storage::write_private_file(control.as_path(), b"x").expect("a flushed control");
+    assert!(!take_file_syncs().is_empty(), "the recorder sees a flushed write");
     remove(dead_root.as_path());
 }
 
