@@ -126,7 +126,7 @@ fn to_hex_for_test(name: &[u8]) -> String {
 fn each_difference_is_refused_with_its_reason() {
     let root: PathBuf = fixture("clean-dirty");
     type Make = fn(&Path);
-    let cases: [(&str, &str, CleanRefusalKind, Make); 10] = [
+    let cases: [(&str, &str, CleanRefusalKind, Make); 11] = [
         ("rewritten content", "a.txt differs from its index entry", CleanRefusalKind::StatStale, |tree| { std::fs::write(tree.join("a.txt"), b"ALPHA\n").expect("write"); }),
         ("deleted", "dir/b.txt is missing", CleanRefusalKind::FileChanged, |tree| { std::fs::remove_file(tree.join("dir/b.txt")).expect("remove"); }),
         ("executable bit", "a.txt changed its executable bit", CleanRefusalKind::FileChanged, |tree| {
@@ -148,6 +148,9 @@ fn each_difference_is_refused_with_its_reason() {
             std::fs::write(tree.join(".git/MERGE_HEAD"), head.as_bytes()).expect("write");
         }),
         ("held index lock", "index.lock exists", CleanRefusalKind::OperationInProgress("index.lock"), |tree| { std::fs::write(tree.join(".git/index.lock"), b"").expect("write"); }),
+        // The state `git bisect start` leaves when it is killed before it opens its log, which it writes after these two
+        // (`BISECT_START`, then `BISECT_NAMES`, then `BISECT_LOG`; measured with Git 2.56 under `strace`).
+        ("bisect killed before its log", "BISECT_START exists", CleanRefusalKind::OperationInProgress("BISECT_START"), |tree| { std::fs::write(tree.join(".git/BISECT_START"), b"feature\n").expect("write"); }),
     ];
     for (label, expected, kind, make) in cases {
         let one: PathBuf = repository(root.as_path(), format!("case-{}", label.replace(' ', "-")).as_str());

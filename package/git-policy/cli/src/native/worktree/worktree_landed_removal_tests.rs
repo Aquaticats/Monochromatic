@@ -837,6 +837,37 @@ fn a_landed_worktree_with_a_bisect_in_progress_stays() {
 }
 
 /// What:
+///  A landed worktree holding a bisect that was killed before it opened its log stays,
+///  and so do the files Git wrote before the kill.
+/// Why:
+///  `git bisect start` writes `BISECT_START`,
+/// then `BISECT_NAMES`,
+/// and only then opens `BISECT_LOG`
+///  (measured with Git 2.56 under `strace`),
+///  so a process killed between those writes leaves a bisect in progress whose marks are the two files it wrote first,
+///  and a sweep that knew only the log removed the worktree with them
+///  (a cross-vendor audit of the landed sweep).
+///  The control takes the log away after real Git wrote it,
+///  which leaves exactly the state the kill leaves and names the files after Git's own writing,
+///  not after a guess about them.
+#[test]
+fn a_landed_worktree_with_a_bisect_killed_before_its_log_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-bisect-killed");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    git(landed.worktree.as_path(), &["bisect", "start"]);
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    std::fs::remove_file(admin.join("BISECT_LOG")).expect("the log Git opens last, as a kill before that open leaves the rest");
+    assert!(admin.join("BISECT_START").exists() && admin.join("BISECT_NAMES").exists(), "the kill leaves the two files Git wrote first");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.failed.is_none(), "{:?}", sweep.failed);
+    assert!(sweep.removed.is_empty(), "nothing is removed while a bisect is unfinished there: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(sweep.kept[0].why.contains("a bisect is unfinished there"), "the reason says what holds it: {}", sweep.kept[0].why);
+    assert!(admin.join("BISECT_START").exists() && admin.join("BISECT_NAMES").exists(), "the bisect's own files stay with its worktree");
+    assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
 ///  A landed worktree the command itself was started in stays.
 /// Why:
 ///  `-C` names the repository a command works on,
