@@ -123,3 +123,35 @@ fn btrfs_a_snapshot_is_emptied_and_the_original_nested_subvolume_stays() {
     assert_eq!(std::fs::read(original.join("file")).expect("kept"), b"x");
     remove(root.as_path());
 }
+
+/// What:
+///  The folder the caller names as its own is left out of the walk,
+///  a volume inside it is no boundary,
+///  and one
+///  beside it still is.
+/// Why:
+///   A caller that keeps its own state in a folder below the top removes that folder itself,
+/// and a volume a fill made
+///  there in the moments since it was cleared is the caller's own:
+/// a walk that refused it as somebody else's would
+///  stop a removal over state this program made.
+/// The boundary beside it is what proves the walk still looks at everything else.
+#[test]
+fn btrfs_the_folder_the_caller_names_is_left_out_and_a_volume_beside_it_is_not() {
+    let Some(root) = btrfs_fixture("walk-except") else { return };
+    let tree: PathBuf = root.join("tree");
+    let own: PathBuf = tree.join("monochromatic-git-policy-cli");
+    std::fs::create_dir_all(own.join("ahead")).expect("the caller's own folder");
+    subvolume_create_at(own.join("ahead/member").as_path()).expect("a volume the caller made inside its own folder");
+    std::fs::write(tree.join("file"), b"x").expect("file");
+    let held: File = open_root(tree.as_path()).expect("open the top");
+    let nothing: Option<Boundary> = find_boundary_below_except(&held, tree.as_path(), &[own.as_path()]).expect("walk");
+    assert!(nothing.is_none(), "the caller's own folder is not a boundary: {nothing:?}");
+    // The same walk without the exclusion refuses the volume inside that folder, which is what makes the exclusion a decision.
+    let refused: Boundary = find_boundary_below(&held, tree.as_path()).expect("walk").expect("the volume inside the caller's folder is a boundary");
+    assert!(refused.path.ends_with("ahead/member"), "{}", refused.path.display());
+    subvolume_create_at(tree.join("beside").as_path()).expect("a volume the caller did not make");
+    let found: Boundary = find_boundary_below_except(&held, tree.as_path(), &[own.as_path()]).expect("walk").expect("a volume beside the caller's folder is a boundary");
+    assert!(found.path.ends_with("beside"), "{}", found.path.display());
+    remove(root.as_path());
+}

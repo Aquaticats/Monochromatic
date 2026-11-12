@@ -35,7 +35,7 @@ use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, o
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
-use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
+use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::plain_file::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
@@ -411,7 +411,7 @@ fn remove_recorded_registration(worktrees: &File, id: &OsStr, admin: &Path, reco
     // The snapshots ahead of an add are this program's own and stand in the registration, and the walk below refuses every
     // nested subvolume, so they go first: a removal this program began on an earlier build left them here, and nothing a
     // person put in the registration is touched by this clear.
-    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held).as_path()) {
+    if let Err(reason) = clear_the_pools_ahead_of_a_worktree(handle_path(&held).as_path()) {
         return Err(format!("its snapshots ahead of an add cannot be removed ({reason}): {}", admin.display()));
     }
     step_reason(verify_below(&held, admin), admin, "it holds something this command does not delete")?;
