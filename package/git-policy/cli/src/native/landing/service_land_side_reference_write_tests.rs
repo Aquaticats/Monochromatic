@@ -130,6 +130,9 @@ fn a_side_ref_write_whose_wait_ran_out_is_answered_by_the_reference() {
 fn a_held_commit_git_built_is_kept_when_its_side_ref_write_outlasts_the_wait_for_it() {
     let mut world: World = world("service-land-side-ref-held-slow");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    // The repository flushes the files of its reference store, which is one of the settings whose write the landing leaves
+    //  to Git (`side_reference_written_here.rs`): this control is about the wait for Git's write, so it must be Git's.
+    git(world.repo.as_path(), &["config", "core.fsync", "reference"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     let lock: PathBuf = world.repo.join(".git/refs/heads/main.lock");
