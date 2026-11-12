@@ -1702,6 +1702,43 @@ fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
 }
 
 /// What:
+///  A repository that comes back before a round's forget lands keeps the retry of its push,
+///  and the drain of that try keeps the plan's file again.
+/// Why:
+///  The proof that a repository is gone is a reading of the filesystem,
+///  and the plan's file goes while that reading holds;
+///  the loop asks the filesystem once more before it drops the branch from the list it owns,
+///  so a repository renamed back by then keeps the plan the round took out of the list,
+///  and the running service tries the push instead of waiting for a restart.
+/// The file the worker took is written again by the drain that plans a new try,
+///  which is what a service restarted before that try reads.
+#[test]
+fn a_repository_that_returns_before_the_forget_lands_keeps_its_retry() {
+    let returning: Repo = repo("work-retry-forget-returns");
+    let plans: PathBuf = returning.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let gone: PathBuf = returning.root.join("gone").join(".git");
+    let due: WorkItem = item(&returning, WorkKind::Push, OID, BRANCH);
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
+        .expect("the plan the proof was asked about");
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 });
+    assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the proof of a gone repository ends the file of its plan where it is made");
+    // The repository is renamed back while the round still holds the change.
+    std::fs::create_dir_all(gone.as_path()).expect("the repository is back");
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    retries.apply(replanning.changes);
+
+    let due_again: Vec<Due> = retries.take_due(gone.as_path(), Instant::now());
+    assert_eq!(due_again.len(), 1, "BUG: the service kept no try for a repository that came back before the forget landed");
+    assert_eq!(due_again[0].item.branch_ref, BRANCH, "the try is for the branch the reading ended");
+    // The drain of that try keeps the plan's file again, as every drain that plans a try does.
+    let next: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    assert!(next.keep_the_plan(gone.as_path(), &due_again[0].item, due_again[0].attempt), "the try's plan is kept");
+    assert_eq!(crate::push_retry_store::load(plans.as_path()).len(), 1, "a service restarted before the try reads the plan of a repository that is there");
+    remove(returning.root.as_path());
+}
+
+/// What:
 ///  A retryable answer leaves the record where it is:
 /// the round settles nothing for it,
 /// so it keeps its lease,

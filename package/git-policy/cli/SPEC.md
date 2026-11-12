@@ -4343,7 +4343,12 @@ The one push that gives a branch its upstream names the branch,
 because Git sets an upstream only from a refspec that names a branch
 (measured with Git 2.56.0:
 `git push --set-upstream origin <commit>:refs/heads/new` delivers the commit and leaves `branch.new.merge` unset),
-and every later push of that branch is fixed again.
+and it may name the branch only while the branch still names the commit that push may send:
+a push a verdict stops before,
+or one whose branch moved after the reading,
+sends that commit alone and leaves the upstream to the first push that can name the branch.
+Naming the branch whatever the verdicts said published the refused commit on a branch's first push,
+while the result still said the branch was held back.
 A reconcile publishes a merge made from the same commit:
 a commit that lands while a reconcile runs goes out with its own push,
 and the branch that moved is left where it is with the report saying why.
@@ -4354,10 +4359,15 @@ because one refspec names one commit and no commit is invented for the other sid
 a blocked commit with no parent has nothing below it,
 so that push sends nothing.
 A push under `push.default=matching` names no refspec at all,
-so a stop cannot be expressed there and the push sends nothing,
-and no commit is fixed for a push no verdict holds back either:
-a commit that lands while such a push runs is published by it,
-and a refusal written afterwards cannot take it back.
+so a stop cannot be expressed there and the push sends nothing;
+such a push also runs only while the branch still names the commit the push read,
+because Git resolves the branch itself,
+and a branch that moved sends nothing and is tried again.
+A commit that lands while Git resolves the branch to match is published by it,
+which no refspec of this push can prevent.
+A first push that gives a branch its upstream names the branch for the same reason,
+so a commit that lands between the question above and Git's own resolution of the branch is published by it;
+Git sets an upstream from no refspec that names a commit.
 The upstream tracking ref can lag the remote,
 so a verdict already on the remote but not yet fetched still holds the branch back;
 that costs a push that could have run and publishes nothing it should not.
@@ -7571,6 +7581,8 @@ in-process reader can) gives every value of the multi-valued keys.
   or that names another object,
   proves nothing and leaves the push the failure it was,
   so the retry that publishes the branch is still planned.
+  It runs only while the recorded branch still names the commit the push read;
+  a branch that moved sends nothing and its retry plan tries it again.
 
 #### Reconcile and bounds
 
