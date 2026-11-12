@@ -6588,6 +6588,13 @@ on the commit path:
   and the person is told the commit's name and that reference,
   so a built commit is never one no reference names
   (`src/native/landing/service_land_side_reference_write.rs`).
+  A batch whose own reference the write did not put the commit on has nothing to leave there:
+  the landing keeps it on `refs/cli-git/kept/<batch>` and names that reference,
+  and where the write of that reference is refused as well it names the commit object itself
+  and the command that makes a reference of it,
+  because by then nothing names the commit
+  (`keep_what_a_side_reference_write_left`,
+  `src/native/landing/service_land_side_reference_write.rs`).
 - A client whose wait passes `ANSWER_CEILING` asks the service,
   on a new connection,
   to withdraw its request (protocol version 7:

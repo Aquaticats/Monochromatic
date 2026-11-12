@@ -555,3 +555,80 @@ fn the_awaited_kept_commit_is_the_one_the_synchronous_line_names() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A Git that refuses every reference write it is asked for,
+/// in words of its own,
+/// and does everything else the real Git does.
+/// Why:
+///  The ending this control is about is the one where no reference can be written at all:
+///  the batch's own side reference,
+///  and the kept reference beside it.
+///  A stand-in that refuses both is the only way to reach it,
+///  because a repository whose reference store refuses every write would refuse the fixture's own too
+///  (`a_commit_no_reference_can_keep_is_named_to_the_person`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusing = script({ on: 'update-ref', answer: () => { stderr('fatal: cannot lock ref'); exit(1) } });
+/// ```
+fn git_that_refuses_every_reference_write(world: &World) -> PathBuf {
+    let program: PathBuf = world.root.join("git-that-refuses-reference-writes");
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{invocations}'\ncase \" $* \" in\n  *\" update-ref \"*) printf '%s\\n' 'fatal: cannot lock ref: the stand-in refuses every reference write' >&2; exit 1;;\nesac\nexec '{real}' \"$@\"\n",
+        invocations = side_ref_git_invocations(world).display(),
+        real = crate::test_support::REAL_GIT
+    );
+    std::fs::write(program.as_path(), script.as_str()).expect("the program");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// What:
+///  A commit no reference can be made to name is named to the person,
+/// with what to do about it.
+/// Why:
+///  Every other ending of a landing that answers a batch as not made keeps the commit on a reference
+///  and says which.
+///  Here the reference of the batch could not be written and the kept reference could not either,
+///  so the commit object is named by nothing at all,
+/// and a maintenance that drops what no reference names takes it.
+///  The one thing the wrapper can still give the person is the object's own name,
+/// so it does
+///  (the owner's rule "never discard user data",
+/// `keep_what_a_side_reference_write_left`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseEveryReferenceWrite(); expect((await landBatch(built)).error).toEqual('unavailable'); expect(announced()).toContain('no reference'); expect(announced()).toContain(commit)
+/// ```
+#[test]
+fn a_commit_no_reference_can_keep_is_named_to_the_person() {
+    let mut world: World = world("service-land-side-ref-every-write-refused");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    // The repository names a shared-file mode, so the landing leaves the write of the batch's own reference to Git
+    //  (`side_reference_written_here.rs`), and the stand-in below is the Git that refuses it.
+    git(world.repo.as_path(), &["config", "core.sharedRepository", "false"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().expect("the commit Git built");
+    world.context.git.real_git = git_that_refuses_every_reference_write(&world);
+    let announced: Announced = Announced(RefCell::new(Vec::new()));
+    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        return land_batch_announcing(&world.context, 1, std::slice::from_ref(&built), &announced);
+    });
+    let kept_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", kept_ref(1).as_str()]);
+    let scratch_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch_ref(1).as_str()]);
+    let still_there: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    let lines: Vec<String> = announced.0.borrow().clone();
+    let asked: String = invocations_of(&world);
+    remove(world.root.as_path());
+    assert_eq!(landed.err(), Some(FailureCode::Unavailable), "the batch is not made; the Git asked was:\n{asked}");
+    assert!(!kept_read.status.success(), "no kept reference names the commit");
+    assert!(!scratch_read.status.success(), "the batch's own reference names nothing");
+    assert!(still_there.status.success(), "the commit object is still in the store");
+    let named: Option<&String> = lines.iter().find(|line| { return line.contains(commit.as_str()); });
+    let Some(named) = named else {
+        panic!("the person is told the commit's name; the lines were {lines:?}");
+    };
+    assert!(named.contains("no reference"), "the line says no reference is proven to name it: {named}");
+}

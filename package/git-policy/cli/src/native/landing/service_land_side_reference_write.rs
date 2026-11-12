@@ -730,6 +730,10 @@ pub(crate) fn keep_what_a_side_reference_write_left(context: &LandContext, annou
 ///  and the commit must still be findable:
 ///  the name is the one the ceiling of an ended step keeps its commit on,
 ///  so a person who looks for a commit the wrapper kept looks in one family.
+///  A kept write that is refused too leaves the commit named by nothing at all,
+///  and the one thing this landing can still give the person is the object's own name,
+///  with what to do with it before a maintenance that drops what no reference names takes it
+///  (the owner's rule "never discard user data").
 fn keep_the_tip_a_side_reference_did_not_hold(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
     let name: String = kept_ref(seq);
     let refused: Option<String> = keep_the_batches_commit(git, repository, seq, tip);
@@ -739,6 +743,6 @@ fn keep_the_tip_a_side_reference_did_not_hold(git: &GitContext, repository: &Pat
         );
     };
     return format!(
-        "monochromatic-git-policy-cli: the commit built for you could not be kept on a side reference either ({words}); your staged changes and your worktree are as they were, so run the commit again.\n"
+        "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side reference either ({words}), and no reference is proven to name it, so a maintenance that drops what no reference names would take it; keep it with `git update-ref refs/heads/<the name you want> {tip}`, and your staged changes and your worktree are as they were. Run the commit again.\n"
     );
 }
