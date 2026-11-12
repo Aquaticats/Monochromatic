@@ -506,13 +506,17 @@ fn names_of(inside: &[&Registration]) -> String {
 /// bisectMarkIn(admin) // 'BISECT_NAMES'
 /// ```
 fn bisect_mark_in(admin: &Path) -> Option<String> {
-    let marks: Vec<String> = std::fs::read_dir(admin)
-        .ok()?
-        .flatten()
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|name: &String| name.starts_with(BISECT_MARK_PREFIX))
-        .collect();
-    return marks.into_iter().min();
+    let mut marks: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(admin).ok()?.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if name.starts_with(BISECT_MARK_PREFIX) {
+            marks.push(name);
+        }
+    }
+    marks.sort();
+    return marks.into_iter().next();
 }
 
 /// What one candidate came to.
