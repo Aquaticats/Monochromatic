@@ -999,9 +999,13 @@ fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache
         synced_directories.iter().any(|path| return path.ends_with("v1")),
         "the settlement's own directory syncs are still recorded: {synced_directories:?}"
     );
+    // The install log's batch lines are published by their writes and flushed by nobody,
+    // like every other record of a copy (`SPEC.md`, "The records an add writes for itself"):
+    // a flush of one is a commit of the whole btrfs filesystem on the add's waiting path, and a power cut that loses a
+    // line costs the resumption of one installation, never a byte of a person's.
     assert!(
-        synced_files.iter().any(|path| return path.ends_with("install-log.jsonl")),
-        "the install log's own file sync is still recorded: {synced_files:?}"
+        !synced_files.iter().any(|path| return path.ends_with("install-log.jsonl")),
+        "the install log's batch lines are not flushed: {synced_files:?}"
     );
     remove(root.as_path());
 }
