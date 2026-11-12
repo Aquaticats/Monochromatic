@@ -148,8 +148,25 @@ and started `crate-release.yml` run 43130367751, which completed with success;
 (log `${HOME}/temp/agent/gate/release-wait-0.6.1-alpha.11.log`).
 The full gate runs beside it, not waited for:
 unit `gpc-gate-wrapper-next-alpha-on-7e3b74281a-20261111T195115-0500`, log of the same name under `${HOME}/temp/agent/gate/`.
-Still to do: install, a sample commit whose push is left alone until it is seen to leave by itself, the timings against the estimate,
+Published at 19:59:41: `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.11`, with the x86_64 and aarch64 Linux tarballs
+(crates.io skipped, as for every alpha).
+Timings against the estimate for an alpha with no extra work (about 64 to 71 s for the release job and 342 s for the publish):
+`crate-release.yml` 77 s (00:51:35Z to 00:52:52Z), `cargo-publish.yml` 411 s (00:52:50Z to 00:59:41Z),
+486 s from the first run's creation to the second's end. No host gate ran and no `cargo check` step held the release.
+The publish run's time is the compile of the two binaries, which a release cannot do without:
+detection 36 s, then the x86_64 build 355 s and the aarch64 build 301 s side by side (the crate job beside them took 40 s).
+The earlier release with the btrfs gate waited 3,286 s before it dispatched anything.
+`native:install -- 0.6.1-alpha.11` started at 20:00:52 in unit `gpc-install-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/install-0.6.1-alpha.11.log`).
+Still to do: read the install's sample commit, watch whether a commit's push leaves by itself on alpha.11,
 the gate's verdict when it comes, and the Kimi and Sonnet audits of the released commit.
+
+Whether a queued push leaves by itself, on alpha.10: the handover commit `d9580168f5` (19:57:14) was made without a hand push,
+and was still not on the remote at 19:58:10 and at 20:00:43, three and a half minutes later,
+while every Git command in the checkout kept saying a commit "is queued for its push".
+The commit before it had gone out with its own command
+("push: origin/main had new commits, so the merge 46dc24847a... of main and origin/main was published").
+So on alpha.10 a queued push can sit for minutes; the same watch is repeated on alpha.11.
 
 A measurement of the installed 0.6.1-alpha.10 from this landing:
 `git merge --ff-only` of the integration branch in the main checkout had moved `refs/heads/main` by 19:50,
