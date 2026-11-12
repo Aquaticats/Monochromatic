@@ -1835,3 +1835,193 @@ fn a_deletion_of_a_revision_that_is_no_branch_leaves_no_line() {
     assert!(line.contains("\"referenceHex\":\"726566732f68656164732f48454144\""), "{line}");
     remove(&fixture);
 }
+
+/// What:
+///  A linked worktree with one command run from a directory below its root,
+///  where the root-only policy is off and the repository defines `name`.
+/// Why:
+///  The two clean readings of a `!` alias are measured from the top of the working tree,
+///  which is not where the caller stands;
+///  `require-root` refuses a command below the root before any of that,
+///  and turning it off here is what leaves the measurement itself on trial.
+///  The alias is written into the repository's own configuration,
+///  so the words Git receives are the alias word alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { found, below } = linkedWorktreeBelowItsRootWithAlias(fixture, 'spring', '!git clean -fX -e notes.txt');
+/// ```
+fn linked_worktree_below_its_root_with_alias(
+    fixture: &Fixture,
+    found: &NestedRepository,
+    name: &str,
+    value: &str,
+) -> PathBuf {
+    let below: PathBuf = found.linked.join("below");
+    std::fs::create_dir_all(below.as_path()).expect("subdirectory of the linked worktree");
+    std::fs::write(
+        found.linked.join("monochromatic-git-policy-cli.config.jsonc"),
+        b"{ \"policies\": { \"require-root\": \"off\" } }\n",
+    )
+    .expect("settings");
+    git(fixture, found.repo.as_path(), &["config", format!("alias.{name}").as_str(), value]);
+    return below;
+}
+
+/// What:
+///  A `!git clean` alias below the worktree root is refused when its `-e` pattern would delete
+///  an untracked file above the caller.
+/// Why:
+///  Git runs the shell of a `!` alias at the top of the working tree
+///  (`git.c:388` to `git.c:407`),
+///  so the pattern-only ignored file at the top is one that clean deletes;
+///  a dry run started in the caller's directory printed nothing,
+///  the policy read no pattern at all,
+///  and the untracked file was deleted without a refusal or a copy.
+///  The two halves are both on trial:
+///  the words the rules read are the shell's,
+///  and the dry runs start where Git runs the clean.
+///  Real Git is the oracle:
+///  the same alias in the same directory deletes that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runWrapped(fixture, linked/below, ['spring']) // exit 1, notes.txt survives
+/// runDirect(fixture, linked/below, ['spring'])  // exit 0, notes.txt gone
+/// ```
+#[test]
+fn a_clean_a_shell_alias_runs_is_measured_where_git_runs_it() {
+    let fixture: Fixture = fixture("discard-clean-shell-alias-exclusion");
+    let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+    let below: PathBuf =
+        linked_worktree_below_its_root_with_alias(&fixture, &found, "spring", "!git clean -fX -e notes.txt");
+    // The untracked file above the caller that only the pattern calls ignored.
+    let notes: PathBuf = found.linked.join("notes.txt");
+    std::fs::write(notes.as_path(), b"the person wrote this and committed nothing\n").expect("untracked file");
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let observed: Observed = run_wrapped(&fixture, below.as_path(), &["spring"]);
+    assert_eq!(
+        observed.code,
+        Some(1),
+        "a shell alias's exclusion was not measured at the top of the worktree: {}",
+        stderr_of(&observed)
+    );
+    assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert!(notes.exists(), "the refusal stands while the clean it refuses already deleted the file");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let line: &String = lines.first().expect("one line");
+    assert!(line.contains("\"outcome\":\"rejected\""), "{line}");
+    assert!(line.contains("\"form\":\"CleanIgnoredOnly\""), "{line}");
+    // The oracle: real Git deletes that file through the same words from the same directory.
+    let oracle: Observed = run_direct(&fixture, below.as_path(), &["spring"]);
+    assert_eq!(oracle.code, Some(0), "real Git refused its own alias: {}", stderr_of(&oracle));
+    assert!(
+        !notes.exists(),
+        "real Git kept the untracked file, so the refusal above proves nothing"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  A `!git clean` alias with a second force below the worktree root keeps the nested repository
+///  above the caller whole before Git deletes it.
+/// Why:
+///  Git deletes a nested repository whole at the second `-f`,
+///  and one above the caller is outside the subtree a dry run started in the caller's directory
+///  measures;
+///  the reading then named no repository,
+///  nothing was saved,
+///  and the nested history and its uncommitted files were gone.
+///  Both the shell's words and the shell's directory are on trial.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runWrapped(fixture, linked/below, ['sweep']) // exit 0, nested/ moved to the discarded folder
+/// ```
+#[test]
+fn a_clean_a_shell_alias_runs_keeps_the_nested_repository_where_git_runs_it() {
+    let fixture: Fixture = fixture("discard-clean-shell-alias-nested");
+    let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+    let below: PathBuf = linked_worktree_below_its_root_with_alias(&fixture, &found, "sweep", "!git clean -ffdX");
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let observed: Observed = run_wrapped(&fixture, below.as_path(), &["sweep"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert!(!found.nested.exists(), "the clean left the nested repository where Git deletes it");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    let line: String = saved_nested_repository_line(lines.as_slice());
+    assert!(line.contains("\"form\":\"CleanIgnoredOnly\""), "{line}");
+    // The place holds the work and the nested repository's own history, not only its files.
+    let place: PathBuf = saved_place(line.as_str(), "nested");
+    assert_eq!(
+        std::fs::read_to_string(place.join("tracked.txt")).expect("kept tracked file"),
+        "modified user data\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(place.join("untracked.txt")).expect("kept untracked file"),
+        "untracked user data\n"
+    );
+    assert!(place.join(".git").exists(), "the kept repository lost its own history");
+    // The person is told where it went, before Git ran.
+    let said: String = stderr_of(&observed);
+    assert!(said.contains("nested"), "{said}");
+    assert!(said.contains(place.to_str().expect("utf-8 fixture path")), "{said}");
+    remove(&fixture);
+}
+
+/// What:
+///  A `!` alias whose text a shell reads is left to Git:
+///  the wrapper decides nothing about it,
+///  so it records no line,
+///  saves no copy,
+///  and refuses nothing,
+///  while Git runs what the alias says.
+/// Why:
+///  A shell command cannot be judged by reading it:
+///  `cd`,
+///  quotes and separators decide in the shell which command runs and where,
+///  and an alias that names another shell alias is left unread on purpose
+///  (`forwarded_command.rs`).
+///  What a control must rule out is the other direction:
+///  the wrapper claiming a decision about a command it never read,
+///  which would put a refusal or a save where Git runs something else.
+///  `cd .` keeps the shell at the top so every spelling here deletes the same nested repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [name, value] of [['moves', '!cd . && git clean -ffdX'], ['quoted', "!sh -c 'git clean -ffdX'"]] ) {
+///   runWrapped(fixture, linked/below, [name]) // exit 0, no audit line, nested/ deleted by Git
+/// }
+/// ```
+#[test]
+fn a_shell_alias_the_wrapper_cannot_read_is_left_to_git() {
+    for (name, value) in [
+        // The shell changes directory inside the alias, so no single directory describes the command.
+        ("moves", "!cd . && git clean -ffdX"),
+        // A quote means the shell, not this wrapper, decides the words.
+        ("quoted", "!sh -c 'git clean -ffdX'"),
+        // A separator starts a second command the value's words do not describe.
+        ("separated", "!git clean -ffdX; echo done"),
+        // An alias that names another shell alias is read one shell deep and no further.
+        ("chained", "!git inner"),
+    ] {
+        let fixture: Fixture = fixture("discard-clean-shell-alias-unread");
+        let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+        let below: PathBuf = linked_worktree_below_its_root_with_alias(&fixture, &found, name, value);
+        git(&fixture, found.repo.as_path(), &["config", "alias.inner", "!git clean -ffdX"]);
+        let before: usize = audit_lines_of(found.repo.as_path()).len();
+        let observed: Observed = run_wrapped(&fixture, below.as_path(), &[name]);
+        assert_eq!(observed.code, Some(0), "{name}: {}", stderr_of(&observed));
+        let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+        assert!(
+            lines.is_empty(),
+            "{name}: the wrapper recorded a decision about a command it cannot read: {lines:?}"
+        );
+        assert!(
+            !found.nested.exists(),
+            "{name}: the wrapper kept the nested repository, so it judged a command Git did not run"
+        );
+        remove(&fixture);
+    }
+}
