@@ -1498,7 +1498,15 @@ or run the command again after it ends.
 A word that is an absolute path to a folder that is not there is the one exception:
  such a folder holds none of the worktree's batches,
 so the program holds nothing back unless the path names one of the worktree's earlier journals,
- which is how a starting helper is recognised before it makes that folder.
+ which is how a starting helper is recognised before it makes that folder,
+or the same command line names this worktree's instance (the 32 hexadecimal digits of its commit service).
+The earlier release's unit started a helper of one worktree with that instance,
+ so a program that also names it is read as that helper:
+a link in the journal spelling it was given may have
+ been removed after it started,
+while the folder it writes is still there with the batch it may be finishing.
+A word that resolves to a folder that is there and is no earlier journal's holds nothing back:
+ the program writes its batches in that folder.
 Its other arguments are never printed or logged,
 because any of them can be a secret.
 It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
