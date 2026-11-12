@@ -4531,9 +4531,17 @@ the ceiling and the notice below are all read from a clock the run has not reach
 (`src/native/repair/package_repair_start.rs`,
 `start_within`).
 The start runs on a job of the blocking pool,
-so a fork that does not answer holds no worker of the runtime,
-and a child that appears after the bound is stopped with its whole process group and collected by a reaper,
+so a start that does not answer holds no worker of the runtime.
+The child reports itself through a pipe before its own `exec` and waits there for the run to let it go,
+so a start that reaches the bound has run nothing of the tool:
+the run closes that gate when it answers,
+and a child the kernel only forks after that bound leaves before its `exec`,
 because the finding has already said the tool did not start and named the command to run by hand.
+A child that was let go and whose own `exec` then gives no answer within the same bound is the one case a start cannot
+promise that nothing ran:
+it is stopped through the descriptor the kernel made at its report,
+and the finding says it was stopped,
+because what it wrote before that stands.
 A tool that shows no sign of work for the quiet window (600 seconds;
 the longest quiet gap measured is 30.3 s,
 see "The quiet
@@ -4555,6 +4563,15 @@ and both bounds that end it
 That line is a notice and not a bound:
 nothing ends at it,
 and the quiet window and the ceiling above it are what end a tool.
+Its own write is bounded:
+a standard error whose reader has stopped draining waits in the kernel,
+and a write that waited there would hold the thread that reads the quiet window and the ceiling,
+so neither would ever end the tool.
+The line is given up at `REPAIR_NOTICE_WRITE_CEILING`
+(the 250 ms the commit's optional warning takes,
+`src/native/service/wait_ceilings.rs`),
+which is logged,
+and the bounds that end the tool go on being read.
 It exists because an add whose `pnpm` never ended printed its last line at two seconds
 and nothing for the next 613 s,
 which a person cannot tell from a hang
