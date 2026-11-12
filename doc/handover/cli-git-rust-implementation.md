@@ -135,6 +135,80 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The desktop session was lost at 01:24:54; state before the owner's restart of the machine (2026-11-12T03:32:55-05:00)
+
+#### What happened
+
+The graphical session ended at 01:24:54 after a reload of the user service manager that took 139,770 ms,
+requested by the wrapper from inside an agent's unit.
+The record is `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` (issue 6286),
+written by another session; that session is investigating, and this one changed nothing in the wrapper.
+The coordinating session ended with the desktop; it was started again at about 03:25.
+The machine itself has been up since 2026-11-05.
+
+The owner, at about 03:25: "There was a kinda serious issue in which the wrapper contributed to a whole desktop crash.
+GPT is investigating it. I need to reboot anyway. Please tell me when is a good time to reboot."
+
+#### What was found at 03:26
+
+- `main` is on the remote at `1d90bd6d00` (`git ls-remote`).
+- No release, install or launcher unit is running. 0.6.1-alpha.13 has not been released.
+- Ten agent units are still active. Twenty-nine runs ended with a summary between 01:05 and 03:26.
+- Five runs have no summary and no unit, so they were killed:
+  `tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted-1`,
+  and the qwen4 reviews of the vendored-clone exemption, the shadow hand-out, the package-repair fix and the clean fix (round 275).
+- Free space is 202 GiB.
+
+#### Pass 16 is finished
+
+Its second run ended at 01:52 with a full report: `/home/user/temp/agent/pi-integration-pass-16/report-second-run.md`.
+Tip `844c85d3d5`. Twenty-one of twenty-three branches are merged.
+Two are not, each a conflict that needs design work and not a resolution:
+the held-commit-survives-a-prune branch (against the awaited faces of the message slice)
+and the commit-options branch (bytes on one side, strings on the other).
+The build, both test compiles and Clippy pass at the tip; the eleven tests of the scratch-commit ceiling fix pass;
+the two landed-removal controls that failed the alpha.12 gate still fail, as recorded.
+The one place a side was dropped is merge 17, `worktree_copy_stage_claim_reaping.rs`: no flush, by choice, said in the commit's body.
+
+#### Pushes failed for want of a login after the session was lost
+
+From about 01:27, agents' pushes were refused: "could not read Username ... terminal prompts disabled".
+Pushes from the coordinating session's shell work.
+At 03:31 the coordinating session pushed, never forced, the eighteen branches of this session's agents that held commits the remote lacked
+(`~/temp/agent/scratch-scripts/push-branches-the-remote-lacks.ts --push <branches>`), the integration branch among them; all eighteen were accepted.
+Why the commit service inside an agent's unit has no login after a lost session is not established.
+
+Eleven older local branches also hold commits the remote lacks and were left alone, since nothing says they were meant to be pushed:
+`e2e-trace-diagnosis-20261101`, `feat/cli-git-worktree-copy` (thirty-eight commits ahead of the remote),
+`issue-150-isolated-dts`, four `research/depot-*` branches, `spike/linter-closure-static`,
+`translation-repair-prerebase-backup`, and two `trial/depot-*` branches.
+
+#### What is on this disk only
+
+- The ten running agents were sent a note at 03:30 to commit what they have, finished or not, and to write down where they are;
+  every one shows the note as delivered. Their branches need one more push after they have committed.
+- The killed tokio agent's worktree is in the middle of its second merge:
+  four conflicted files, three new `*_awaiting.rs` files, three more modified.
+  Those thirty-two files are saved as commit `520e63bf01` under
+  `refs/rescue/2026-11-12T0335/pi-tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted`, which is on the remote;
+  it was made with an index of its own and the worktree is as the agent left it
+  (`~/temp/agent/scratch-scripts/snapshot-uncommitted-files-of-worktrees-to-rescue-refs.ts <label> <worktree paths>`).
+  `git fetch origin 'refs/rescue/*:refs/rescue/*'` brings such commits back.
+- About fifty older worktrees hold a few uncommitted files each (the `pi-ready-issues-*` runs, `agent-*`, `fix-ureq` and others);
+  `~/temp/agent/scratch-scripts/worktrees-holding-work-that-is-only-on-this-disk.ts` lists them.
+- Everything under `~/temp/agent`: the audit reports and their reproductions, the digests, the reviews, the briefs,
+  the run folders with the final reports of the twenty-nine ended runs, and the Pi sessions under `~/.pi`.
+
+#### After the restart, in this order
+
+1.  Issue 6286 first, one agent alone: the wrapper never asks the user manager for a manager-wide reload.
+    Until that is in an installed release, every agent that commits can end the desktop session again.
+2.  0.6.1-alpha.13 from `844c85d3d5` (trial merge with `git merge-tree`, merge into `main`, release, install), unless the owner wants the fix of step 1 in it.
+3.  A digest of the twenty-nine ended runs, then reviews and the next integration pass.
+4.  The five killed runs, started again; the tokio one from its rescue commit.
+5.  The agents that were running at the restart, continued from their last commits.
+6.  Whether an agent's push has a login again.
+
 ### Pass 16 closed by its driver with two merges to go, and continued (2026-11-12T01:19:27-05:00)
 
 The first run of integration pass 16 ended at 01:16:47, `endReason` `idle`, after 238 turns.
