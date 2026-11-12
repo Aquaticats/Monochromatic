@@ -1152,6 +1152,10 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 - no subvolume and no mount point stands below its root,
    because the kernel can never destroy a subvolume that contains another one,
    and Git's own removal would delete the files of the worktree inside it;
+- no subvolume and no mount point stands below its Git directory that this wrapper did not make,
+   because a registration holding one can never be emptied;
+   the wrapper's own folder there is taken first,
+   and a volume it did not make refuses the removal while every file of the worktree is still there;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
 
@@ -1307,8 +1311,25 @@ The removal of a worktree that was the source of an add takes these copies with 
  before it hands the worktree's own subvolume over,
  because the kernel cannot destroy a subvolume that contains another one and they stand in that worktree's
  Git directory.
+A pool a removal renamed to `removing-<identity>` and was killed before emptying goes with the next one,
+ so the
+ removal a person runs again finishes by itself rather than refusing a volume the wrapper made.
+What else the Git
+ directory holds stays:
+ the push-failure notices nobody has read yet,
+ the files a pull kept out of the way,
+ and the
+ service's work queue.
 A copy that cannot be taken stops the removal with a report naming the folder and the way to take each entry,
  so a worktree is never destroyed while its registration could not be cleared afterwards.
+A subvolume or a mount point below the Git directory that the wrapper did not make stops it the same way,
+ while the worktree
+ and every file of it are still there,
+ because a registration holding one can never be emptied;
+ what stands in the pool,
+ or in a name a clear of it wrote,
+ is treated as the wrapper's own,
+ and nothing else in that Git directory is.
 
 ## Other processes changing files
 
@@ -2007,6 +2028,10 @@ its content is not part of the tree.
 delete it with `btrfs subvolume delete`,
 or unmount it,
 then run the deletion again.
+A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
+with the same reason and the same ways forward;
+the entries the deletion had already removed from that directory stay removed,
+and everything beside them is left as it is.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`,
 which the kernel allows for an empty subvolume root.
@@ -2883,6 +2908,8 @@ No write to another file is rejected either:
 and a `--file` whose path is not the shared file:
 the path is resolved from the directory the command runs in,
 which the command's `-C` chain moves and `--work-tree` does not,
+and which is the top of the working tree for the Git a `!` alias's shell runs,
+because Git changes there before it starts that shell,
 so `git config --file ../repo/.git/config <key> <value>`,
 the same relative path under a `--work-tree` that names another directory,
 an absolute spelling,
@@ -3699,7 +3726,11 @@ none is waited out or retried on the moved head yet:
    commit landed at that moment the command reports success.
    Five seconds without a word ask the service again with the same
    commit,
-  and a service that does not answer then ends the command with "The commit service stopped answering".
+  and the line that says so names how long the service has said nothing,
+  that the commit cannot land twice,
+  and that this command goes on by itself,
+  so the person reading it is asked to do nothing;
+  a service that does not answer then ends the command with "The commit service stopped answering".
    That silence is measured against a service that beats once a second while it works,
   and the beats never wait for the
    background work the same service does:
@@ -4570,33 +4601,31 @@ Each line names what the command waits for,
    and says when the step is stopped.
    When the message came with the command (`-m`,
   `-F`,
-  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (16,332 ms,
-  three times the slowest
-  `git commit` step record that is not one of the three over 26 s,
-  5,444 ms,
-  over 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5;
-  owner,
-  2026-11-08,
-  "About 16 seconds",
-  after "About 3 s now" on the same day and "limit unless editor" on 2026-11-07;
+  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (60,000 ms:
+  three times the slowest `git commit` step that ended by itself,
+  12,735 ms,
+  over the 1,433 steps of the eight generations the timing log held on 2026-11-12,
+  raised to the one-minute floor `SCRATCH_COMMIT_STEP_CEILING_FLOOR` because a ceiling read from one generation
+  swings with the rotation;
   `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds):
    everything below the command is ended,
    nothing is committed,
    the person's index and files are as they were,
    and the same command can be run again.
-   The owner chose this knowing that on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s;
-   those builds were a retry index without stat data,
-   which is fixed.
-   On the log of 2026-11-08 it still refuses three commits,
-   whose steps ran 26,256,
-   36,651 and 171,383 ms,
-   and the owner asked for each of them to be investigated.
+   A step that reaches that ceiling while the kernel holds it in a disk wait is slow and not stuck,
+   so the ceiling stands aside once for it and the step is waited for to `SCRATCH_COMMIT_STEP_STALL_CEILING`
+   (300,000 ms,
+  6.2 times the slower of the two steps the kernel held here on 2026-11-11),
+  and one line says the ceiling stood aside and names that bound.
+   The 16,332 ms this replaces was three times a 5,444 ms record,
+   and on 2026-11-11 it failed two ordinary commits whose steps were waiting for the disk
+  (37,153 and 47,978 ms).
    A step the kernel does not release is waited for with no bound:
    a process in uninterruptible sleep (state `D`,
    a stalled disk or a file system that stopped answering)
    cannot act on the `SIGKILL` until the call it is inside returns,
    so the wait that keeps waiting says,
-   once and again for as long as it lasts,
+   once,
    that the stop was sent and the kernel has not released the step,
    names that `git commit` and the process the kernel is holding
    (the step itself or a program it started),
@@ -5683,6 +5712,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   and a check still running then has its scope ended by name and is reported as stopped at its deadline
   rather than waited on:
   killing the `systemd-run` client alone would leave the command running in the scope.
+  The deadline is refused when it is 0,
+  because a step started with no bound could wait forever,
+  and when it is longer than 2147483 seconds,
+  which is the longest delay Node's timers honour;
+  either refusal exits 1 before a scope starts.
+  A scope name carries the run's own identity beside its label and second-precise stamp
+  (`bin/native-capped-scope-command.ts`),
+  so two runs of one check started in the same second ask the manager for two names:
+  one shared name would make the manager refuse the second run's scope while the first was active,
+  which ended that check with status 2 without running it.
   The caps the scopes carry are the ones the scratch script used
   (`CPUQuota=200%`,
   `MemoryMax=4G`,
@@ -5708,14 +5747,25 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   the lock committed as `chore(toolchain): monochromatic-git-policy-cli <version>`,
   and then the newest line of the wrapper's commit timing record beside the common Git directory
   and the service journal of that commit.
-  A lockfile that already names the release commits nothing and says so,
+  The commit is decided from the lockfile as it is after the tools were installed,
+  compared with the commit the checkout points at,
+  rather than from the diff printed before the install:
+  that is what a commit of the path would record,
+  so a lockfile an earlier step had already staged is committed,
+  and an install of a release another install committed in the meantime records nothing and says so instead of
+  failing a commit with nothing to record,
   and reads no journal,
-  because there is then no sample commit;
-  an install of a release already recorded therefore survives instead of failing a commit with nothing to stage.
+  because there is then no sample commit.
+  A lockfile another process writes while the release is installed is never committed under this release's name:
+  the install prints the write it found,
+  refuses,
+  and leaves that write exactly where it is,
+  so a concurrent `toolchain:update` of another tool is never recorded as this release.
   Every toolchain step is bounded by `--deadline-seconds`
   (1800 by default;
   no run of either step was timed,
-  so the bound is a ceiling that a slower host overrides rather than a measurement),
+  so the bound is a ceiling that a slower host overrides rather than a measurement;
+  a deadline of 0 or of more than 2147483 seconds is refused before the first step runs),
   each git query by the same ten minutes the other gate commands give git,
   and the journal read by one minute.
   `--repository <path>` names the checkout

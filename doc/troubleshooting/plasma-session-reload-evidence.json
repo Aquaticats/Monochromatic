@@ -1,0 +1,2295 @@
+{
+  "intervalStart": "2026-11-11T14:00:00-05:00",
+  "intervalEnd": "2026-11-12T02:39:00-05:00",
+  "timestampSource": "_SOURCE_REALTIME_TIMESTAMP, falling back to __REALTIME_TIMESTAMP",
+  "records": [
+    {
+      "time": "2026-11-11T19:32:46.575Z",
+      "kind": "request",
+      "pid": 1669819,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T19:32:48.305Z",
+      "kind": "completion",
+      "milliseconds": 1700
+    },
+    {
+      "time": "2026-11-11T19:33:02.310Z",
+      "kind": "request",
+      "pid": 1669889,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T19:33:03.947Z",
+      "kind": "completion",
+      "milliseconds": 1631
+    },
+    {
+      "time": "2026-11-11T19:33:05.693Z",
+      "kind": "request",
+      "pid": 1683315,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T19:33:07.372Z",
+      "kind": "completion",
+      "milliseconds": 1674
+    },
+    {
+      "time": "2026-11-11T19:33:51.833Z",
+      "kind": "request",
+      "pid": 1741891,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T19:33:53.032Z",
+      "kind": "completion",
+      "milliseconds": 1197
+    },
+    {
+      "time": "2026-11-11T19:40:09.496Z",
+      "kind": "request",
+      "pid": 2053258,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T19:40:11.362Z",
+      "kind": "completion",
+      "milliseconds": 1781
+    },
+    {
+      "time": "2026-11-11T19:43:16.778Z",
+      "kind": "request",
+      "pid": 2271126,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T19:43:22.978Z",
+      "kind": "completion",
+      "milliseconds": 6131
+    },
+    {
+      "time": "2026-11-11T19:52:24.124Z",
+      "kind": "request",
+      "pid": 2753793,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T19:52:25.388Z",
+      "kind": "completion",
+      "milliseconds": 1235
+    },
+    {
+      "time": "2026-11-11T19:53:02.809Z",
+      "kind": "request",
+      "pid": 2848485,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T19:53:04.042Z",
+      "kind": "completion",
+      "milliseconds": 1229
+    },
+    {
+      "time": "2026-11-11T20:00:03.054Z",
+      "kind": "request",
+      "pid": 3245228,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:00:04.841Z",
+      "kind": "completion",
+      "milliseconds": 1760
+    },
+    {
+      "time": "2026-11-11T20:00:37.779Z",
+      "kind": "request",
+      "pid": 3363473,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:00:38.883Z",
+      "kind": "completion",
+      "milliseconds": 1103
+    },
+    {
+      "time": "2026-11-11T20:12:02.855Z",
+      "kind": "request",
+      "pid": 3987299,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:12:05.088Z",
+      "kind": "completion",
+      "milliseconds": 1637
+    },
+    {
+      "time": "2026-11-11T20:12:26.276Z",
+      "kind": "request",
+      "pid": 4082046,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:12:27.705Z",
+      "kind": "completion",
+      "milliseconds": 1427
+    },
+    {
+      "time": "2026-11-11T20:14:12.213Z",
+      "kind": "request",
+      "pid": 10104,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T20:14:13.349Z",
+      "kind": "completion",
+      "milliseconds": 1135
+    },
+    {
+      "time": "2026-11-11T20:15:15.373Z",
+      "kind": "request",
+      "pid": 68165,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:15:16.419Z",
+      "kind": "completion",
+      "milliseconds": 1044
+    },
+    {
+      "time": "2026-11-11T20:16:56.071Z",
+      "kind": "request",
+      "pid": 94795,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:16:57.095Z",
+      "kind": "completion",
+      "milliseconds": 1023
+    },
+    {
+      "time": "2026-11-11T20:17:08.602Z",
+      "kind": "request",
+      "pid": 142143,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:17:09.889Z",
+      "kind": "completion",
+      "milliseconds": 1286
+    },
+    {
+      "time": "2026-11-11T20:22:05.954Z",
+      "kind": "request",
+      "pid": 343171,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:22:07.386Z",
+      "kind": "completion",
+      "milliseconds": 1429
+    },
+    {
+      "time": "2026-11-11T20:22:19.028Z",
+      "kind": "request",
+      "pid": 427151,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:22:20.286Z",
+      "kind": "completion",
+      "milliseconds": 1257
+    },
+    {
+      "time": "2026-11-11T20:22:22.807Z",
+      "kind": "request",
+      "pid": 433245,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T20:22:23.899Z",
+      "kind": "completion",
+      "milliseconds": 1091
+    },
+    {
+      "time": "2026-11-11T20:22:30.798Z",
+      "kind": "request",
+      "pid": 437890,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:22:32.045Z",
+      "kind": "completion",
+      "milliseconds": 1242
+    },
+    {
+      "time": "2026-11-11T20:22:32.598Z",
+      "kind": "request",
+      "pid": 440634,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T20:22:33.681Z",
+      "kind": "completion",
+      "milliseconds": 1082
+    },
+    {
+      "time": "2026-11-11T20:23:02.122Z",
+      "kind": "request",
+      "pid": 429860,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:23:03.513Z",
+      "kind": "completion",
+      "milliseconds": 1390
+    },
+    {
+      "time": "2026-11-11T20:23:03.668Z",
+      "kind": "request",
+      "pid": 435932,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:23:04.922Z",
+      "kind": "completion",
+      "milliseconds": 1252
+    },
+    {
+      "time": "2026-11-11T20:29:44.111Z",
+      "kind": "request",
+      "pid": 746511,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:29:45.476Z",
+      "kind": "completion",
+      "milliseconds": 1334
+    },
+    {
+      "time": "2026-11-11T20:30:01.426Z",
+      "kind": "request",
+      "pid": 750506,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:30:03.027Z",
+      "kind": "completion",
+      "milliseconds": 1599
+    },
+    {
+      "time": "2026-11-11T20:30:03.247Z",
+      "kind": "request",
+      "pid": 807805,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:30:04.485Z",
+      "kind": "completion",
+      "milliseconds": 1236
+    },
+    {
+      "time": "2026-11-11T20:33:11.718Z",
+      "kind": "request",
+      "pid": 895158,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:33:13.146Z",
+      "kind": "completion",
+      "milliseconds": 1384
+    },
+    {
+      "time": "2026-11-11T20:33:48.498Z",
+      "kind": "request",
+      "pid": 899657,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:33:50.112Z",
+      "kind": "completion",
+      "milliseconds": 1601
+    },
+    {
+      "time": "2026-11-11T20:35:23.524Z",
+      "kind": "request",
+      "pid": 981545,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:35:25.389Z",
+      "kind": "completion",
+      "milliseconds": 1859
+    },
+    {
+      "time": "2026-11-11T20:35:28.718Z",
+      "kind": "request",
+      "pid": 930979,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:35:30.286Z",
+      "kind": "completion",
+      "milliseconds": 1564
+    },
+    {
+      "time": "2026-11-11T20:35:30.469Z",
+      "kind": "request",
+      "pid": 934407,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:35:31.708Z",
+      "kind": "completion",
+      "milliseconds": 1238
+    },
+    {
+      "time": "2026-11-11T20:35:31.877Z",
+      "kind": "request",
+      "pid": 1017347,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:35:33.000Z",
+      "kind": "completion",
+      "milliseconds": 1122
+    },
+    {
+      "time": "2026-11-11T20:35:47.648Z",
+      "kind": "request",
+      "pid": 993725,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:35:48.971Z",
+      "kind": "completion",
+      "milliseconds": 1322
+    },
+    {
+      "time": "2026-11-11T20:36:47.159Z",
+      "kind": "request",
+      "pid": 958405,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:36:49.231Z",
+      "kind": "completion",
+      "milliseconds": 1995
+    },
+    {
+      "time": "2026-11-11T20:36:49.376Z",
+      "kind": "request",
+      "pid": 954725,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:36:50.958Z",
+      "kind": "completion",
+      "milliseconds": 1582
+    },
+    {
+      "time": "2026-11-11T20:38:52.193Z",
+      "kind": "request",
+      "pid": 1092278,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:38:55.117Z",
+      "kind": "completion",
+      "milliseconds": 2751
+    },
+    {
+      "time": "2026-11-11T20:39:12.882Z",
+      "kind": "request",
+      "pid": 1184581,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:39:14.181Z",
+      "kind": "completion",
+      "milliseconds": 1291
+    },
+    {
+      "time": "2026-11-11T20:41:41.839Z",
+      "kind": "request",
+      "pid": 1269321,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:41:43.349Z",
+      "kind": "completion",
+      "milliseconds": 1482
+    },
+    {
+      "time": "2026-11-11T20:41:51.893Z",
+      "kind": "request",
+      "pid": 1365525,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:41:54.163Z",
+      "kind": "completion",
+      "milliseconds": 2258
+    },
+    {
+      "time": "2026-11-11T20:44:56.074Z",
+      "kind": "request",
+      "pid": 1500409,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:44:57.432Z",
+      "kind": "completion",
+      "milliseconds": 1340
+    },
+    {
+      "time": "2026-11-11T20:45:16.978Z",
+      "kind": "request",
+      "pid": 1617561,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T20:45:18.771Z",
+      "kind": "completion",
+      "milliseconds": 1792
+    },
+    {
+      "time": "2026-11-11T21:04:22.409Z",
+      "kind": "request",
+      "pid": 2800767,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T21:04:24.405Z",
+      "kind": "completion",
+      "milliseconds": 1935
+    },
+    {
+      "time": "2026-11-11T21:05:18.741Z",
+      "kind": "request",
+      "pid": 2842758,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T21:05:20.060Z",
+      "kind": "completion",
+      "milliseconds": 1316
+    },
+    {
+      "time": "2026-11-11T21:19:23.351Z",
+      "kind": "request",
+      "pid": 3602049,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T21:19:24.759Z",
+      "kind": "completion",
+      "milliseconds": 1375
+    },
+    {
+      "time": "2026-11-11T21:20:21.375Z",
+      "kind": "request",
+      "pid": 3661196,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T21:20:22.555Z",
+      "kind": "completion",
+      "milliseconds": 1179
+    },
+    {
+      "time": "2026-11-11T21:20:51.517Z",
+      "kind": "request",
+      "pid": 3694182,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T21:20:52.779Z",
+      "kind": "completion",
+      "milliseconds": 1260
+    },
+    {
+      "time": "2026-11-11T21:21:29.828Z",
+      "kind": "request",
+      "pid": 3685022,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T21:21:31.145Z",
+      "kind": "completion",
+      "milliseconds": 1316
+    },
+    {
+      "time": "2026-11-11T21:22:10.410Z",
+      "kind": "request",
+      "pid": 3769809,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T21:22:11.986Z",
+      "kind": "completion",
+      "milliseconds": 1574
+    },
+    {
+      "time": "2026-11-11T21:22:23.735Z",
+      "kind": "request",
+      "pid": 3751909,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T21:22:25.344Z",
+      "kind": "completion",
+      "milliseconds": 1605
+    },
+    {
+      "time": "2026-11-11T22:24:14.113Z",
+      "kind": "request",
+      "pid": 2677397,
+      "caller": "systemctl"
+    },
+    {
+      "time": "2026-11-11T22:24:16.041Z",
+      "kind": "completion",
+      "milliseconds": 1849
+    },
+    {
+      "time": "2026-11-11T22:24:16.169Z",
+      "kind": "request",
+      "pid": 2678460,
+      "caller": "systemctl"
+    },
+    {
+      "time": "2026-11-11T22:24:17.564Z",
+      "kind": "completion",
+      "milliseconds": 1393
+    },
+    {
+      "time": "2026-11-11T22:24:17.714Z",
+      "kind": "request",
+      "pid": 2679424,
+      "caller": "systemctl"
+    },
+    {
+      "time": "2026-11-11T22:24:19.037Z",
+      "kind": "completion",
+      "milliseconds": 1321
+    },
+    {
+      "time": "2026-11-11T23:58:38.173Z",
+      "kind": "request",
+      "pid": 3595043,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T23:58:39.898Z",
+      "kind": "completion",
+      "milliseconds": 1687
+    },
+    {
+      "time": "2026-11-11T23:59:05.663Z",
+      "kind": "request",
+      "pid": 3611389,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T23:59:06.738Z",
+      "kind": "completion",
+      "milliseconds": 1074
+    },
+    {
+      "time": "2026-11-11T23:59:06.857Z",
+      "kind": "request",
+      "pid": 3616013,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T23:59:07.914Z",
+      "kind": "completion",
+      "milliseconds": 1056
+    },
+    {
+      "time": "2026-11-11T23:59:14.820Z",
+      "kind": "request",
+      "pid": 3622863,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T23:59:15.916Z",
+      "kind": "completion",
+      "milliseconds": 1094
+    },
+    {
+      "time": "2026-11-11T23:59:27.832Z",
+      "kind": "request",
+      "pid": 3637054,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-11T23:59:28.869Z",
+      "kind": "completion",
+      "milliseconds": 1036
+    },
+    {
+      "time": "2026-11-11T23:59:47.854Z",
+      "kind": "request",
+      "pid": 3676606,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-11T23:59:48.902Z",
+      "kind": "completion",
+      "milliseconds": 1047
+    },
+    {
+      "time": "2026-11-12T00:00:02.858Z",
+      "kind": "request",
+      "pid": 3694329,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:00:03.903Z",
+      "kind": "completion",
+      "milliseconds": 1044
+    },
+    {
+      "time": "2026-11-12T00:00:18.028Z",
+      "kind": "request",
+      "pid": 3703416,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:00:19.040Z",
+      "kind": "completion",
+      "milliseconds": 1011
+    },
+    {
+      "time": "2026-11-12T00:00:23.186Z",
+      "kind": "request",
+      "pid": 3706510,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:00:24.219Z",
+      "kind": "completion",
+      "milliseconds": 1032
+    },
+    {
+      "time": "2026-11-12T00:00:53.029Z",
+      "kind": "request",
+      "pid": 3724432,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:00:54.119Z",
+      "kind": "completion",
+      "milliseconds": 1089
+    },
+    {
+      "time": "2026-11-12T00:00:57.935Z",
+      "kind": "request",
+      "pid": 3729720,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:00:59.121Z",
+      "kind": "completion",
+      "milliseconds": 1185
+    },
+    {
+      "time": "2026-11-12T00:00:59.251Z",
+      "kind": "request",
+      "pid": 3730275,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:01:00.552Z",
+      "kind": "completion",
+      "milliseconds": 1299
+    },
+    {
+      "time": "2026-11-12T00:03:08.016Z",
+      "kind": "request",
+      "pid": 3842957,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:03:09.122Z",
+      "kind": "completion",
+      "milliseconds": 1104
+    },
+    {
+      "time": "2026-11-12T00:03:13.460Z",
+      "kind": "request",
+      "pid": 3892674,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:03:14.474Z",
+      "kind": "completion",
+      "milliseconds": 1013
+    },
+    {
+      "time": "2026-11-12T00:04:05.982Z",
+      "kind": "request",
+      "pid": 3928523,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:04:07.009Z",
+      "kind": "completion",
+      "milliseconds": 1026
+    },
+    {
+      "time": "2026-11-12T00:04:32.227Z",
+      "kind": "request",
+      "pid": 3944267,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:04:33.274Z",
+      "kind": "completion",
+      "milliseconds": 1046
+    },
+    {
+      "time": "2026-11-12T00:06:55.062Z",
+      "kind": "request",
+      "pid": 4029986,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:06:56.223Z",
+      "kind": "completion",
+      "milliseconds": 1136
+    },
+    {
+      "time": "2026-11-12T00:07:17.635Z",
+      "kind": "request",
+      "pid": 4043501,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:07:19.143Z",
+      "kind": "completion",
+      "milliseconds": 1500
+    },
+    {
+      "time": "2026-11-12T00:07:38.194Z",
+      "kind": "request",
+      "pid": 4036236,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:07:39.375Z",
+      "kind": "completion",
+      "milliseconds": 1180
+    },
+    {
+      "time": "2026-11-12T00:07:43.577Z",
+      "kind": "request",
+      "pid": 4058334,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:07:44.711Z",
+      "kind": "completion",
+      "milliseconds": 1133
+    },
+    {
+      "time": "2026-11-12T00:07:48.928Z",
+      "kind": "request",
+      "pid": 4048490,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:07:50.021Z",
+      "kind": "completion",
+      "milliseconds": 1091
+    },
+    {
+      "time": "2026-11-12T00:07:50.133Z",
+      "kind": "request",
+      "pid": 4061569,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T00:07:51.180Z",
+      "kind": "completion",
+      "milliseconds": 1046
+    },
+    {
+      "time": "2026-11-12T00:08:13.222Z",
+      "kind": "request",
+      "pid": 4060234,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:08:14.334Z",
+      "kind": "completion",
+      "milliseconds": 1110
+    },
+    {
+      "time": "2026-11-12T00:19:46.614Z",
+      "kind": "request",
+      "pid": 300079,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:19:50.590Z",
+      "kind": "completion",
+      "milliseconds": 3863
+    },
+    {
+      "time": "2026-11-12T00:20:10.688Z",
+      "kind": "request",
+      "pid": 343813,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:11.860Z",
+      "kind": "completion",
+      "milliseconds": 1171
+    },
+    {
+      "time": "2026-11-12T00:20:11.978Z",
+      "kind": "request",
+      "pid": 343826,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:13.138Z",
+      "kind": "completion",
+      "milliseconds": 1159
+    },
+    {
+      "time": "2026-11-12T00:20:13.279Z",
+      "kind": "request",
+      "pid": 343909,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:14.419Z",
+      "kind": "completion",
+      "milliseconds": 1140
+    },
+    {
+      "time": "2026-11-12T00:20:14.567Z",
+      "kind": "request",
+      "pid": 343851,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:15.706Z",
+      "kind": "completion",
+      "milliseconds": 1138
+    },
+    {
+      "time": "2026-11-12T00:20:15.842Z",
+      "kind": "request",
+      "pid": 343948,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:16.970Z",
+      "kind": "completion",
+      "milliseconds": 1127
+    },
+    {
+      "time": "2026-11-12T00:20:17.104Z",
+      "kind": "request",
+      "pid": 343963,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:18.299Z",
+      "kind": "completion",
+      "milliseconds": 1194
+    },
+    {
+      "time": "2026-11-12T00:20:18.459Z",
+      "kind": "request",
+      "pid": 343973,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:19.635Z",
+      "kind": "completion",
+      "milliseconds": 1174
+    },
+    {
+      "time": "2026-11-12T00:20:19.819Z",
+      "kind": "request",
+      "pid": 344009,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:20.962Z",
+      "kind": "completion",
+      "milliseconds": 1142
+    },
+    {
+      "time": "2026-11-12T00:20:21.120Z",
+      "kind": "request",
+      "pid": 343958,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T00:20:22.282Z",
+      "kind": "completion",
+      "milliseconds": 1161
+    },
+    {
+      "time": "2026-11-12T01:01:46.706Z",
+      "kind": "request",
+      "pid": 1832701,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:02:00.176Z",
+      "kind": "completion",
+      "milliseconds": 13324
+    },
+    {
+      "time": "2026-11-12T01:02:01.256Z",
+      "kind": "request",
+      "pid": 1842676,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:02:04.058Z",
+      "kind": "completion",
+      "milliseconds": 2793
+    },
+    {
+      "time": "2026-11-12T01:02:22.224Z",
+      "kind": "request",
+      "pid": 1852199,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:02:24.693Z",
+      "kind": "completion",
+      "milliseconds": 2466
+    },
+    {
+      "time": "2026-11-12T01:02:25.087Z",
+      "kind": "request",
+      "pid": 1857809,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:02:26.807Z",
+      "kind": "completion",
+      "milliseconds": 1718
+    },
+    {
+      "time": "2026-11-12T01:02:32.502Z",
+      "kind": "request",
+      "pid": 1864715,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:02:36.657Z",
+      "kind": "completion",
+      "milliseconds": 4138
+    },
+    {
+      "time": "2026-11-12T01:02:36.878Z",
+      "kind": "request",
+      "pid": 1865392,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:02:39.353Z",
+      "kind": "completion",
+      "milliseconds": 2475
+    },
+    {
+      "time": "2026-11-12T01:06:44.707Z",
+      "kind": "request",
+      "pid": 1989923,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:47.289Z",
+      "kind": "completion",
+      "milliseconds": 2450
+    },
+    {
+      "time": "2026-11-12T01:06:47.519Z",
+      "kind": "request",
+      "pid": 1990256,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:48.905Z",
+      "kind": "completion",
+      "milliseconds": 1385
+    },
+    {
+      "time": "2026-11-12T01:06:49.087Z",
+      "kind": "request",
+      "pid": 1990016,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:50.437Z",
+      "kind": "completion",
+      "milliseconds": 1348
+    },
+    {
+      "time": "2026-11-12T01:06:50.911Z",
+      "kind": "request",
+      "pid": 1990312,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:52.627Z",
+      "kind": "completion",
+      "milliseconds": 1715
+    },
+    {
+      "time": "2026-11-12T01:06:52.901Z",
+      "kind": "request",
+      "pid": 1990396,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:54.576Z",
+      "kind": "completion",
+      "milliseconds": 1674
+    },
+    {
+      "time": "2026-11-12T01:06:54.950Z",
+      "kind": "request",
+      "pid": 1989997,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:56.319Z",
+      "kind": "completion",
+      "milliseconds": 1368
+    },
+    {
+      "time": "2026-11-12T01:06:56.540Z",
+      "kind": "request",
+      "pid": 1990130,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:58.045Z",
+      "kind": "completion",
+      "milliseconds": 1504
+    },
+    {
+      "time": "2026-11-12T01:06:58.307Z",
+      "kind": "request",
+      "pid": 1989921,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:06:59.822Z",
+      "kind": "completion",
+      "milliseconds": 1514
+    },
+    {
+      "time": "2026-11-12T01:07:00.057Z",
+      "kind": "request",
+      "pid": 1989945,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:07:01.661Z",
+      "kind": "completion",
+      "milliseconds": 1603
+    },
+    {
+      "time": "2026-11-12T01:07:02.337Z",
+      "kind": "request",
+      "pid": 1990119,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:07:03.795Z",
+      "kind": "completion",
+      "milliseconds": 1457
+    },
+    {
+      "time": "2026-11-12T01:07:04.094Z",
+      "kind": "request",
+      "pid": 1990101,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:07:05.777Z",
+      "kind": "completion",
+      "milliseconds": 1682
+    },
+    {
+      "time": "2026-11-12T01:07:28.042Z",
+      "kind": "request",
+      "pid": 2019309,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:07:30.418Z",
+      "kind": "completion",
+      "milliseconds": 2373
+    },
+    {
+      "time": "2026-11-12T01:07:30.745Z",
+      "kind": "request",
+      "pid": 2021995,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:07:33.547Z",
+      "kind": "completion",
+      "milliseconds": 2793
+    },
+    {
+      "time": "2026-11-12T01:07:34.182Z",
+      "kind": "request",
+      "pid": 2021719,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:07:35.591Z",
+      "kind": "completion",
+      "milliseconds": 1407
+    },
+    {
+      "time": "2026-11-12T01:08:30.528Z",
+      "kind": "request",
+      "pid": 2050482,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:33.339Z",
+      "kind": "completion",
+      "milliseconds": 2790
+    },
+    {
+      "time": "2026-11-12T01:08:33.718Z",
+      "kind": "request",
+      "pid": 2050493,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:35.537Z",
+      "kind": "completion",
+      "milliseconds": 1808
+    },
+    {
+      "time": "2026-11-12T01:08:35.793Z",
+      "kind": "request",
+      "pid": 2050513,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:37.954Z",
+      "kind": "completion",
+      "milliseconds": 2160
+    },
+    {
+      "time": "2026-11-12T01:08:38.360Z",
+      "kind": "request",
+      "pid": 2050641,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:40.356Z",
+      "kind": "completion",
+      "milliseconds": 1995
+    },
+    {
+      "time": "2026-11-12T01:08:40.880Z",
+      "kind": "request",
+      "pid": 2054017,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:42.808Z",
+      "kind": "completion",
+      "milliseconds": 1927
+    },
+    {
+      "time": "2026-11-12T01:08:43.389Z",
+      "kind": "request",
+      "pid": 2050557,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:44.743Z",
+      "kind": "completion",
+      "milliseconds": 1353
+    },
+    {
+      "time": "2026-11-12T01:08:45.004Z",
+      "kind": "request",
+      "pid": 2050645,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:49.841Z",
+      "kind": "completion",
+      "milliseconds": 4837
+    },
+    {
+      "time": "2026-11-12T01:08:50.461Z",
+      "kind": "request",
+      "pid": 2050549,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:08:56.751Z",
+      "kind": "completion",
+      "milliseconds": 6290
+    },
+    {
+      "time": "2026-11-12T01:10:08.656Z",
+      "kind": "request",
+      "pid": 2107847,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:10:11.584Z",
+      "kind": "completion",
+      "milliseconds": 2814
+    },
+    {
+      "time": "2026-11-12T01:11:06.893Z",
+      "kind": "request",
+      "pid": 2153155,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:11:26.849Z",
+      "kind": "completion",
+      "milliseconds": 19841
+    },
+    {
+      "time": "2026-11-12T01:11:27.407Z",
+      "kind": "request",
+      "pid": 2133975,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:11:33.885Z",
+      "kind": "completion",
+      "milliseconds": 6477
+    },
+    {
+      "time": "2026-11-12T01:11:34.753Z",
+      "kind": "request",
+      "pid": 2143114,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:11:36.654Z",
+      "kind": "completion",
+      "milliseconds": 1885
+    },
+    {
+      "time": "2026-11-12T01:11:36.945Z",
+      "kind": "request",
+      "pid": 2135420,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:11:39.088Z",
+      "kind": "completion",
+      "milliseconds": 2142
+    },
+    {
+      "time": "2026-11-12T01:12:02.340Z",
+      "kind": "request",
+      "pid": 2182227,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:12:10.153Z",
+      "kind": "completion",
+      "milliseconds": 7752
+    },
+    {
+      "time": "2026-11-12T01:19:39.117Z",
+      "kind": "request",
+      "pid": 2193369,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:20:18.985Z",
+      "kind": "completion",
+      "milliseconds": 37586
+    },
+    {
+      "time": "2026-11-12T01:21:59.602Z",
+      "kind": "request",
+      "pid": 2420440,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:22:04.182Z",
+      "kind": "completion",
+      "milliseconds": 4498
+    },
+    {
+      "time": "2026-11-12T01:23:28.560Z",
+      "kind": "request",
+      "pid": 2461505,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:23:35.291Z",
+      "kind": "completion",
+      "milliseconds": 6676
+    },
+    {
+      "time": "2026-11-12T01:27:37.743Z",
+      "kind": "request",
+      "pid": 2589849,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:27:46.092Z",
+      "kind": "completion",
+      "milliseconds": 8125
+    },
+    {
+      "time": "2026-11-12T01:29:37.112Z",
+      "kind": "request",
+      "pid": 2658105,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:29:45.822Z",
+      "kind": "completion",
+      "milliseconds": 8508
+    },
+    {
+      "time": "2026-11-12T01:31:33.764Z",
+      "kind": "request",
+      "pid": 2696042,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:31:36.313Z",
+      "kind": "completion",
+      "milliseconds": 2539
+    },
+    {
+      "time": "2026-11-12T01:35:55.691Z",
+      "kind": "request",
+      "pid": 2831121,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:36:01.086Z",
+      "kind": "completion",
+      "milliseconds": 4993
+    },
+    {
+      "time": "2026-11-12T01:43:08.476Z",
+      "kind": "request",
+      "pid": 2955098,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:43:17.438Z",
+      "kind": "completion",
+      "milliseconds": 8484
+    },
+    {
+      "time": "2026-11-12T01:48:00.123Z",
+      "kind": "request",
+      "pid": 3103788,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T01:48:02.102Z",
+      "kind": "completion",
+      "milliseconds": 1964
+    },
+    {
+      "time": "2026-11-12T02:11:08.209Z",
+      "kind": "request",
+      "pid": 3738526,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:11:16.944Z",
+      "kind": "completion",
+      "milliseconds": 8640
+    },
+    {
+      "time": "2026-11-12T02:11:17.259Z",
+      "kind": "request",
+      "pid": 3746175,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:11:18.756Z",
+      "kind": "completion",
+      "milliseconds": 1496
+    },
+    {
+      "time": "2026-11-12T02:16:46.083Z",
+      "kind": "request",
+      "pid": 3895398,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:16:51.150Z",
+      "kind": "completion",
+      "milliseconds": 4967
+    },
+    {
+      "time": "2026-11-12T02:16:51.473Z",
+      "kind": "request",
+      "pid": 3893719,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:16:54.521Z",
+      "kind": "completion",
+      "milliseconds": 3047
+    },
+    {
+      "time": "2026-11-12T02:17:40.393Z",
+      "kind": "request",
+      "pid": 3918104,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:17:42.537Z",
+      "kind": "completion",
+      "milliseconds": 2116
+    },
+    {
+      "time": "2026-11-12T02:19:38.366Z",
+      "kind": "request",
+      "pid": 3986265,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:19:40.584Z",
+      "kind": "completion",
+      "milliseconds": 2149
+    },
+    {
+      "time": "2026-11-12T02:19:44.723Z",
+      "kind": "request",
+      "pid": 3990145,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:19:46.228Z",
+      "kind": "completion",
+      "milliseconds": 1504
+    },
+    {
+      "time": "2026-11-12T02:20:03.408Z",
+      "kind": "request",
+      "pid": 3976160,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:20:05.045Z",
+      "kind": "completion",
+      "milliseconds": 1635
+    },
+    {
+      "time": "2026-11-12T02:20:05.224Z",
+      "kind": "request",
+      "pid": 4003259,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:20:07.067Z",
+      "kind": "completion",
+      "milliseconds": 1838
+    },
+    {
+      "time": "2026-11-12T02:20:07.271Z",
+      "kind": "request",
+      "pid": 4004759,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:20:08.642Z",
+      "kind": "completion",
+      "milliseconds": 1370
+    },
+    {
+      "time": "2026-11-12T02:20:08.793Z",
+      "kind": "request",
+      "pid": 4005225,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:20:10.186Z",
+      "kind": "completion",
+      "milliseconds": 1392
+    },
+    {
+      "time": "2026-11-12T02:20:10.371Z",
+      "kind": "request",
+      "pid": 3989179,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:20:11.827Z",
+      "kind": "completion",
+      "milliseconds": 1455
+    },
+    {
+      "time": "2026-11-12T02:20:27.601Z",
+      "kind": "request",
+      "pid": 4002343,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:20:29.106Z",
+      "kind": "completion",
+      "milliseconds": 1503
+    },
+    {
+      "time": "2026-11-12T02:21:02.552Z",
+      "kind": "request",
+      "pid": 4043486,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:21:05.542Z",
+      "kind": "completion",
+      "milliseconds": 2910
+    },
+    {
+      "time": "2026-11-12T02:21:33.969Z",
+      "kind": "request",
+      "pid": 4018373,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:21:35.449Z",
+      "kind": "completion",
+      "milliseconds": 1479
+    },
+    {
+      "time": "2026-11-12T02:25:51.988Z",
+      "kind": "request",
+      "pid": 27979,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:25:53.901Z",
+      "kind": "completion",
+      "milliseconds": 1824
+    },
+    {
+      "time": "2026-11-12T02:26:17.599Z",
+      "kind": "request",
+      "pid": 52657,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:26:19.404Z",
+      "kind": "completion",
+      "milliseconds": 1800
+    },
+    {
+      "time": "2026-11-12T02:26:34.676Z",
+      "kind": "request",
+      "pid": 45742,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:26:36.063Z",
+      "kind": "completion",
+      "milliseconds": 1386
+    },
+    {
+      "time": "2026-11-12T02:28:35.693Z",
+      "kind": "request",
+      "pid": 190351,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:28:37.307Z",
+      "kind": "completion",
+      "milliseconds": 1578
+    },
+    {
+      "time": "2026-11-12T02:29:20.447Z",
+      "kind": "request",
+      "pid": 214402,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:29:22.808Z",
+      "kind": "completion",
+      "milliseconds": 2353
+    },
+    {
+      "time": "2026-11-12T02:29:54.866Z",
+      "kind": "request",
+      "pid": 264564,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:29:56.777Z",
+      "kind": "completion",
+      "milliseconds": 1901
+    },
+    {
+      "time": "2026-11-12T02:29:56.941Z",
+      "kind": "request",
+      "pid": 258895,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:29:58.251Z",
+      "kind": "completion",
+      "milliseconds": 1309
+    },
+    {
+      "time": "2026-11-12T02:30:02.724Z",
+      "kind": "request",
+      "pid": 274263,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T02:30:04.387Z",
+      "kind": "completion",
+      "milliseconds": 1661
+    },
+    {
+      "time": "2026-11-12T02:30:17.558Z",
+      "kind": "request",
+      "pid": 298271,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:30:19.059Z",
+      "kind": "completion",
+      "milliseconds": 1501
+    },
+    {
+      "time": "2026-11-12T02:35:57.341Z",
+      "kind": "request",
+      "pid": 668764,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:35:59.046Z",
+      "kind": "completion",
+      "milliseconds": 1664
+    },
+    {
+      "time": "2026-11-12T02:37:59.893Z",
+      "kind": "request",
+      "pid": 777756,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T02:38:01.234Z",
+      "kind": "completion",
+      "milliseconds": 1340
+    },
+    {
+      "time": "2026-11-12T03:04:26.673Z",
+      "kind": "request",
+      "pid": 1948770,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T03:04:28.463Z",
+      "kind": "completion",
+      "milliseconds": 1720
+    },
+    {
+      "time": "2026-11-12T03:04:47.500Z",
+      "kind": "request",
+      "pid": 1962975,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:04:49.286Z",
+      "kind": "completion",
+      "milliseconds": 1785
+    },
+    {
+      "time": "2026-11-12T03:36:01.590Z",
+      "kind": "request",
+      "pid": 3352202,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:36:03.484Z",
+      "kind": "completion",
+      "milliseconds": 1868
+    },
+    {
+      "time": "2026-11-12T03:37:06.249Z",
+      "kind": "request",
+      "pid": 3415995,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:37:08.298Z",
+      "kind": "completion",
+      "milliseconds": 2046
+    },
+    {
+      "time": "2026-11-12T03:37:08.505Z",
+      "kind": "request",
+      "pid": 3421984,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:37:10.212Z",
+      "kind": "completion",
+      "milliseconds": 1704
+    },
+    {
+      "time": "2026-11-12T03:37:10.411Z",
+      "kind": "request",
+      "pid": 3371235,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:37:11.841Z",
+      "kind": "completion",
+      "milliseconds": 1429
+    },
+    {
+      "time": "2026-11-12T03:37:12.060Z",
+      "kind": "request",
+      "pid": 3390190,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:37:13.461Z",
+      "kind": "completion",
+      "milliseconds": 1400
+    },
+    {
+      "time": "2026-11-12T03:37:13.666Z",
+      "kind": "request",
+      "pid": 3378384,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:37:15.251Z",
+      "kind": "completion",
+      "milliseconds": 1584
+    },
+    {
+      "time": "2026-11-12T03:38:05.079Z",
+      "kind": "request",
+      "pid": 3413226,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:38:06.723Z",
+      "kind": "completion",
+      "milliseconds": 1643
+    },
+    {
+      "time": "2026-11-12T03:45:03.565Z",
+      "kind": "request",
+      "pid": 3896186,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:45:07.731Z",
+      "kind": "completion",
+      "milliseconds": 3978
+    },
+    {
+      "time": "2026-11-12T03:46:38.470Z",
+      "kind": "request",
+      "pid": 3959376,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:46:42.220Z",
+      "kind": "completion",
+      "milliseconds": 3687
+    },
+    {
+      "time": "2026-11-12T03:48:34.546Z",
+      "kind": "request",
+      "pid": 4021513,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:48:39.929Z",
+      "kind": "completion",
+      "milliseconds": 5341
+    },
+    {
+      "time": "2026-11-12T03:49:40.559Z",
+      "kind": "request",
+      "pid": 4063628,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:50:08.958Z",
+      "kind": "completion",
+      "milliseconds": 28179
+    },
+    {
+      "time": "2026-11-12T03:50:46.964Z",
+      "kind": "request",
+      "pid": 4086805,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:51:08.326Z",
+      "kind": "completion",
+      "milliseconds": 20893
+    },
+    {
+      "time": "2026-11-12T03:52:38.938Z",
+      "kind": "request",
+      "pid": 4067800,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:52:41.538Z",
+      "kind": "completion",
+      "milliseconds": 2477
+    },
+    {
+      "time": "2026-11-12T03:52:41.862Z",
+      "kind": "request",
+      "pid": 4088442,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:52:43.397Z",
+      "kind": "completion",
+      "milliseconds": 1533
+    },
+    {
+      "time": "2026-11-12T03:53:01.131Z",
+      "kind": "request",
+      "pid": 4151219,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T03:53:04.316Z",
+      "kind": "completion",
+      "milliseconds": 3175
+    },
+    {
+      "time": "2026-11-12T04:06:28.854Z",
+      "kind": "request",
+      "pid": 453966,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:06:30.977Z",
+      "kind": "completion",
+      "milliseconds": 2058
+    },
+    {
+      "time": "2026-11-12T04:06:51.234Z",
+      "kind": "request",
+      "pid": 458049,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:06:52.741Z",
+      "kind": "completion",
+      "milliseconds": 1502
+    },
+    {
+      "time": "2026-11-12T04:07:23.263Z",
+      "kind": "request",
+      "pid": 489877,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:07:24.638Z",
+      "kind": "completion",
+      "milliseconds": 1370
+    },
+    {
+      "time": "2026-11-12T04:13:22.304Z",
+      "kind": "request",
+      "pid": 670493,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T04:13:50.511Z",
+      "kind": "completion",
+      "milliseconds": 27979
+    },
+    {
+      "time": "2026-11-12T04:13:59.526Z",
+      "kind": "request",
+      "pid": 679837,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:14:01.186Z",
+      "kind": "completion",
+      "milliseconds": 1655
+    },
+    {
+      "time": "2026-11-12T04:14:58.154Z",
+      "kind": "request",
+      "pid": 716636,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:15:08.319Z",
+      "kind": "completion",
+      "milliseconds": 10127
+    },
+    {
+      "time": "2026-11-12T04:15:08.650Z",
+      "kind": "request",
+      "pid": 718439,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:15:14.324Z",
+      "kind": "completion",
+      "milliseconds": 5651
+    },
+    {
+      "time": "2026-11-12T04:18:25.439Z",
+      "kind": "request",
+      "pid": 834478,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T04:18:35.742Z",
+      "kind": "completion",
+      "milliseconds": 9551
+    },
+    {
+      "time": "2026-11-12T04:19:50.410Z",
+      "kind": "request",
+      "pid": 874474,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:19:54.281Z",
+      "kind": "completion",
+      "milliseconds": 3812
+    },
+    {
+      "time": "2026-11-12T04:19:54.992Z",
+      "kind": "request",
+      "pid": 871360,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:20:04.784Z",
+      "kind": "completion",
+      "milliseconds": 9006
+    },
+    {
+      "time": "2026-11-12T04:25:43.878Z",
+      "kind": "request",
+      "pid": 1045060,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:26:39.049Z",
+      "kind": "completion",
+      "milliseconds": 52258
+    },
+    {
+      "time": "2026-11-12T04:27:03.671Z",
+      "kind": "request",
+      "pid": 1066290,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:27:07.408Z",
+      "kind": "completion",
+      "milliseconds": 3681
+    },
+    {
+      "time": "2026-11-12T04:37:52.158Z",
+      "kind": "request",
+      "pid": 1261671,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:38:22.179Z",
+      "kind": "completion",
+      "milliseconds": 29517
+    },
+    {
+      "time": "2026-11-12T04:40:03.115Z",
+      "kind": "request",
+      "pid": 1331169,
+      "caller": "systemctl"
+    },
+    {
+      "time": "2026-11-12T04:40:13.838Z",
+      "kind": "completion",
+      "milliseconds": 10684
+    },
+    {
+      "time": "2026-11-12T04:40:17.960Z",
+      "kind": "request",
+      "pid": 1334450,
+      "caller": "systemctl"
+    },
+    {
+      "time": "2026-11-12T04:40:29.712Z",
+      "kind": "completion",
+      "milliseconds": 11750
+    },
+    {
+      "time": "2026-11-12T04:40:30.065Z",
+      "kind": "request",
+      "pid": 1335274,
+      "caller": "systemctl"
+    },
+    {
+      "time": "2026-11-12T04:40:31.656Z",
+      "kind": "completion",
+      "milliseconds": 1590
+    },
+    {
+      "time": "2026-11-12T04:52:43.118Z",
+      "kind": "request",
+      "pid": 1715527,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T04:52:53.201Z",
+      "kind": "completion",
+      "milliseconds": 5946
+    },
+    {
+      "time": "2026-11-12T05:29:37.384Z",
+      "kind": "request",
+      "pid": 2876674,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T05:29:40.644Z",
+      "kind": "completion",
+      "milliseconds": 3194
+    },
+    {
+      "time": "2026-11-12T05:55:16.461Z",
+      "kind": "request",
+      "pid": 3934694,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T05:55:18.827Z",
+      "kind": "completion",
+      "milliseconds": 2351
+    },
+    {
+      "time": "2026-11-12T05:55:32.096Z",
+      "kind": "request",
+      "pid": 3945013,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T05:55:34.083Z",
+      "kind": "completion",
+      "milliseconds": 1967
+    },
+    {
+      "time": "2026-11-12T05:55:34.351Z",
+      "kind": "request",
+      "pid": 3946842,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T05:55:35.942Z",
+      "kind": "completion",
+      "milliseconds": 1590
+    },
+    {
+      "time": "2026-11-12T06:22:34.294Z",
+      "kind": "request",
+      "pid": 750614,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:24:54.128Z",
+      "kind": "completion",
+      "milliseconds": 139770
+    },
+    {
+      "time": "2026-11-12T06:35:07.517Z",
+      "kind": "request",
+      "pid": 1258715,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T06:35:09.293Z",
+      "kind": "completion",
+      "milliseconds": 1763
+    },
+    {
+      "time": "2026-11-12T06:36:19.145Z",
+      "kind": "request",
+      "pid": 1307256,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T06:36:20.894Z",
+      "kind": "completion",
+      "milliseconds": 1748
+    },
+    {
+      "time": "2026-11-12T06:37:05.057Z",
+      "kind": "request",
+      "pid": 1343976,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:37:06.627Z",
+      "kind": "completion",
+      "milliseconds": 1566
+    },
+    {
+      "time": "2026-11-12T06:37:31.742Z",
+      "kind": "request",
+      "pid": 1364028,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T06:37:33.162Z",
+      "kind": "completion",
+      "milliseconds": 1419
+    },
+    {
+      "time": "2026-11-12T06:37:50.566Z",
+      "kind": "request",
+      "pid": 1371052,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:37:52.631Z",
+      "kind": "completion",
+      "milliseconds": 2062
+    },
+    {
+      "time": "2026-11-12T06:39:38.407Z",
+      "kind": "request",
+      "pid": 1452668,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T06:39:40.143Z",
+      "kind": "completion",
+      "milliseconds": 1683
+    },
+    {
+      "time": "2026-11-12T06:40:14.630Z",
+      "kind": "request",
+      "pid": 1498896,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:40:17.335Z",
+      "kind": "completion",
+      "milliseconds": 2699
+    },
+    {
+      "time": "2026-11-12T06:40:17.463Z",
+      "kind": "request",
+      "pid": 1513056,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:40:19.068Z",
+      "kind": "completion",
+      "milliseconds": 1601
+    },
+    {
+      "time": "2026-11-12T06:40:53.915Z",
+      "kind": "request",
+      "pid": 1560377,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:40:55.307Z",
+      "kind": "completion",
+      "milliseconds": 1390
+    },
+    {
+      "time": "2026-11-12T06:41:07.044Z",
+      "kind": "request",
+      "pid": 1566847,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:41:09.510Z",
+      "kind": "completion",
+      "milliseconds": 2464
+    },
+    {
+      "time": "2026-11-12T06:42:31.980Z",
+      "kind": "request",
+      "pid": 1605390,
+      "caller": "git"
+    },
+    {
+      "time": "2026-11-12T06:42:33.782Z",
+      "kind": "completion",
+      "milliseconds": 1788
+    },
+    {
+      "time": "2026-11-12T06:43:57.805Z",
+      "kind": "request",
+      "pid": 1664923,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:44:00.419Z",
+      "kind": "completion",
+      "milliseconds": 2583
+    },
+    {
+      "time": "2026-11-12T06:44:27.796Z",
+      "kind": "request",
+      "pid": 1691681,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:44:29.616Z",
+      "kind": "completion",
+      "milliseconds": 1783
+    },
+    {
+      "time": "2026-11-12T06:45:18.689Z",
+      "kind": "request",
+      "pid": 1725892,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:45:21.556Z",
+      "kind": "completion",
+      "milliseconds": 2846
+    },
+    {
+      "time": "2026-11-12T06:46:26.132Z",
+      "kind": "request",
+      "pid": 1736247,
+      "caller": "monochromatic-g"
+    },
+    {
+      "time": "2026-11-12T06:46:29.283Z",
+      "kind": "completion",
+      "milliseconds": 3124
+    }
+  ]
+}

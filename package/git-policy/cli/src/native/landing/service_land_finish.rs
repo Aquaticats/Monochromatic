@@ -112,6 +112,9 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
             return false;
         }
     }
+    // Every writer of the copy is done, so it takes the live index's times for the last time before it is installed:
+    // an index newer than the stat data it holds hides a same-second edit from Git (`PrivateCopy::keep_the_live_times`).
+    crate::service_land_follow::put_the_live_times_back(&built);
     let recorded: RecordIndexed<'_> = RecordIndexed { journal, intent };
     let installed: bool = lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok();
     if installed {
