@@ -409,7 +409,12 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
     };
     match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
         RemoveOutcome::LeftToGit => return None,
-        RemoveOutcome::Removed => {
+        RemoveOutcome::Removed(kept) => {
+            // A commit a reference lock held in the worktree reached a reference of the common Git directory just before the
+            // destroy, so the person reads where it is kept before reading that the worktree went.
+            for line in kept {
+                let _closed = writeln!(std::io::stderr(), "{}: {line}", crate::wrapper_names_old_and_new::PROGRAM.current);
+            }
             // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
             let notice: &str = match plan.force {
                 true => crate::worktree_remove::DESTROY_FORCED_NOTICE,

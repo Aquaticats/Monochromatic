@@ -1182,7 +1182,8 @@ The record names one worktree and not a path:
  it is keyed by the path and by the identity of the registration standing beside it,
  and the service recomputes that name before it removes anything.
 A worktree you removed by hand and added again at the same path is therefore a different worktree,
- and the record of the earlier one leaves it exactly as it is.
+ and the record of the earlier one leaves it exactly as it is,
+ naming it on your next command with the reason it was left.
 
 **What goes with the worktree.**
 The files Git ignores in it go too,
@@ -1218,6 +1219,12 @@ A worktree whose records could not all be copied stays,
 A commit a reference lock held in that worktree is kept the same way,
  on `refs/cli-git/kept/<batch>` of this repository,
  before anything is removed.
+That keeping is made in the process that removes and destroys the worktree,
+ not only before the removal was recorded,
+ so a commit held after the merge returned is kept too;
+ when no reference of the repository can be written for such a commit,
+ nothing is removed,
+ and the notice names the commit and the reference that could not be written.
 
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,

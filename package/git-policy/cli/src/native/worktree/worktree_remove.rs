@@ -26,6 +26,18 @@
 //!  Git,
 //! which then words the refusal itself.
 //!
+//!  A commit a reference lock holds in the worktree lives on the worktree's own reference and in a record in its
+//!  administrative directory,
+//!  and this removal empties that directory,
+//!  so every such commit reaches `refs/cli-git/kept/<batch>` of the common Git directory before the destroy
+//!  (`worktree_removal_held_commits.rs`).
+//!  The keeper runs here,
+//!  in the code that destroys,
+//!  rather than only where the removal was decided,
+//!  because a batch can meet a reference lock in the whole time between that decision and this destroy.
+//!  A commit no reference of this repository can hold stops the removal while nothing has happened,
+//!  because the destroy would take the only two things that name it.
+//!
 //!  The check and the destroy are not one step,
 //!  as Git's check and its deletion are not.
 //!  Three things keep the
@@ -55,6 +67,7 @@ use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
+use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
@@ -107,18 +120,21 @@ pub const DESTROY_FORCED_NOTICE: &str = "monochromatic-git-policy-cli: removed t
 /// or the files are gone and the registration
 ///  is not,
 /// which only the person can finish and which must never reach Git.
+///  A removal that is done names every commit it kept on a reference of the common Git directory first,
+/// because the person has to be able to find a held commit after the worktree that held it is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemoveOutcome = { kind: 'left-to-git' } | { kind: 'removed' } | { kind: 'refused'; report: string } | { kind: 'incomplete'; report: string };
+/// type RemoveOutcome = { kind: 'left-to-git' } | { kind: 'removed'; keptCommits: string[] } | { kind: 'refused'; report: string } | { kind: 'incomplete'; report: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RemoveOutcome {
     /// Nothing was changed;
     /// real Git removes the worktree or states its refusal.
     LeftToGit,
-    /// The subvolume and the administrative directory are gone.
-    Removed,
+    /// The subvolume and the administrative directory are gone,
+    /// and these are the lines that say where each commit a reference lock held is kept.
+    Removed(Vec<String>),
     /// The removal is refused and nothing was changed;
     /// the report is for standard error and says what stands in the way and how to clear it.
     Refused(String),
@@ -265,10 +281,13 @@ impl RemoveOperations for LinuxOperations {
 /// which
 ///  succeeds only for an empty directory;
 /// a registration that another process replaced is therefore never touched.
+///  Nothing was removed while this answers `Err`,
+/// and `Ok` is the removal the caller reports as done,
+/// which is why the caller adds the lines about the commits it kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function finish(held: Held, registration: Registration, request: RemoveRequest): Promise<RemoveOutcome>;
+/// async function finish(held: Held, registration: Registration, request: RemoveRequest): Promise<void | RemoveOutcome>;
 /// ```
 /// The outcome of a removal whose subvolume is gone but whose registration could not be cleared:
 /// the report is also logged.
@@ -278,41 +297,41 @@ fn incomplete(registration: &Registration, request: &RemoveRequest<'_>, reason: 
     return RemoveOutcome::Incomplete(report);
 }
 
-fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>) -> RemoveOutcome {
+fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>) -> Result<(), RemoveOutcome> {
     let target: &Path = request.plan.target.as_path();
     match identity_at(&held.worktrees, registration.id.as_os_str()) {
         Ok(found) if found == held.admin_identity => {}
-        Ok(_other) => return incomplete(registration, request, String::from("another registration took its place while the worktree was being removed, and it was left untouched")),
+        Ok(_other) => return Err(incomplete(registration, request, String::from("another registration took its place while the worktree was being removed, and it was left untouched"))),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             debug(TAG, format!("the registration {} is already gone", registration.admin.display()).as_str());
-            return RemoveOutcome::Removed;
+            return Ok(());
         }
-        Err(error) => return incomplete(registration, request, format!("it cannot be looked up ({error})")),
+        Err(error) => return Err(incomplete(registration, request, format!("it cannot be looked up ({error})"))),
     }
     let admin: File = match held.admin.try_clone() {
         Ok(admin) => admin,
-        Err(error) => return incomplete(registration, request, format!("its directory cannot be used ({error})")),
+        Err(error) => return Err(incomplete(registration, request, format!("its directory cannot be used ({error})"))),
     };
     // The snapshots ahead of an add are this program's own and sit in the registration, so they go before the walk that
     // refuses every nested subvolume. A pool a fill made in the moments since the removal cleared it is the one case this
     // second clear answers, and a member that cannot go is the reason the registration stays.
     if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
-        return incomplete(registration, request, format!("its content cannot be removed ({reason})"));
+        return Err(incomplete(registration, request, format!("its content cannot be removed ({reason})")));
     }
     let emptied = match verify_below(&admin, registration.admin.as_path()) {
         Ok(()) => empty_directory(&admin, registration.admin.as_path()),
         Err(error) => Err(error),
     };
     if let Err(error) = emptied {
-        return incomplete(registration, request, format!("its content cannot be removed ({error})"));
+        return Err(incomplete(registration, request, format!("its content cannot be removed ({error})")));
     }
     if let Err(error) = remove_at(&held.worktrees, registration.id.as_os_str(), true) {
-        return incomplete(registration, request, format!("the directory cannot be removed from {} ({error})", registration.worktrees.display()));
+        return Err(incomplete(registration, request, format!("the directory cannot be removed from {} ({error})", registration.worktrees.display())));
     }
     // Git removes the `worktrees` directory when the last registration goes; a directory that still holds others stays.
     let _kept = std::fs::remove_dir(registration.worktrees.as_path());
     debug(TAG, format!("destroyed the subvolume {} and its administrative directory", target.display()).as_str());
-    return RemoveOutcome::Removed;
+    return Ok(());
 }
 
 /// What:
@@ -418,6 +437,18 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         warn(TAG, report.as_str());
         return RemoveOutcome::Refused(report);
     }
+    // A commit a reference lock holds in the worktree lives on its per-worktree reference and in its held record, both in the
+    // administrative directory this removal empties, and the destroy takes the reference with the subvolume. The sweep and the
+    // command that may remove a worktree keep what they see when they run (`worktree_removal_held_commits.rs`), and a batch can
+    // meet a reference lock in the whole time after that, so what is held now is kept here, where the destruction is, and the
+    // person reads where before reading that the worktree went. A commit no reference of this repository can hold stops the
+    // removal while nothing has happened, because the destroy would delete the only thing that names it.
+    let kept: KeptCommits = keep_held_commits(request.common_dir, request.context);
+    if !kept.refused.is_empty() {
+        let report: String = kept.refused.join("\n");
+        warn(TAG, report.as_str());
+        return RemoveOutcome::Refused(report);
+    }
     // The walk and the clear above took time, and the destroy names the held subvolume, so the names and the lock are looked
     // at once more: what the first look proved is what this destroy answers for, and a lock or a swap since it is Git's.
     if let Err(reason) = confirm(&held, &registration) {
@@ -446,13 +477,14 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // Either the kernel call returned or the directory was renamed away, so the record now proves the files are gone from the
     // path the person named; only that proof lets a later command remove the registration.
     record_destroyed(request.common_dir, registration.id.as_os_str());
-    let outcome: RemoveOutcome = finish(&held, &registration, request);
-    // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
-    // record, which is what the next command finishes.
-    if outcome == RemoveOutcome::Removed {
-        forget_destroy(request.common_dir, registration.id.as_os_str());
+    if let Err(outcome) = finish(&held, &registration, request) {
+        // The registration stayed, so what the next command finishes is this program's own half-done work; nothing about the
+        // commits kept above changes that, and the record of the destroy is what names it.
+        return outcome;
     }
-    return outcome;
+    // A removal that finished has nothing left for a later command.
+    forget_destroy(request.common_dir, registration.id.as_os_str());
+    return RemoveOutcome::Removed(kept.said);
 }
 
 /// Subvolume removal controls stay out of the release executable.

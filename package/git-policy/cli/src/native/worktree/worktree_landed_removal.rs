@@ -93,6 +93,10 @@
 //!  so every held commit reaches `refs/cli-git/kept/<batch>` of the common Git directory before a candidate is examined
 //!  (`worktree_removal_held_commits.rs`),
 //!  and the person reads where the commit is before reading that the worktree went.
+//!  The removal keeps them again for the candidate it is about to destroy,
+//!  because a batch can meet a reference lock in the whole time after that first keeping,
+//!  and the lines it kept there are printed with this sweep's own lines.
+//!  A commit no reference of this repository can hold then keeps the candidate rather than being destroyed with it.
 //!  A removal that the fast destroy cannot take is handed to the commit service instead of run here:
 //!  removing a worktree Git removes file by file reads every tracked file of it and can take minutes,
 //!  and it is a step that may not be run twice,
@@ -486,7 +490,12 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             continue;
         }
         match examine_and_remove(place, &told, one, registered.as_slice()) {
-            Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::Removed(kept_by_the_destroy) => {
+                // A commit a reference lock held in this worktree reached a reference of the common Git directory just before
+                // its destroy, and the notice says where before it says the worktree went.
+                sweep.kept_commits.extend(kept_by_the_destroy);
+                sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+            }
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
             Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
             Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record }),
@@ -507,11 +516,12 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Attempt = { kind: 'removed' } | { kind: 'unfinished'; report: string } | { kind: 'refused'; report: string } | { kind: 'handed'; record } | { kind: 'kept'; why: string };
+/// type Attempt = { kind: 'removed'; keptCommits: string[] } | { kind: 'unfinished'; report: string } | { kind: 'refused'; report: string } | { kind: 'handed'; record } | { kind: 'kept'; why: string };
 /// ```
 enum Attempt {
-    /// The worktree and its registration are gone.
-    Removed,
+    /// The worktree and its registration are gone,
+    /// and these are the lines that say where each commit a reference lock held is kept.
+    Removed(Vec<String>),
     /// The files are gone and the registration stayed,
     /// with what finishes it.
     Unfinished(String),
@@ -550,9 +560,9 @@ fn remove_here_or_hand_over(place: &LandedPlace<'_>, told: &dyn Fn(&GitContext, 
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
     match remove_subvolume_worktree(&request) {
-        RemoveOutcome::Removed => {
+        RemoveOutcome::Removed(kept) => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
-            return Attempt::Removed;
+            return Attempt::Removed(kept);
         }
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
@@ -567,8 +577,9 @@ fn remove_here_or_hand_over(place: &LandedPlace<'_>, told: &dyn Fn(&GitContext, 
 
 /// What one candidate came to.
 enum Examined {
-    /// The worktree and its registration are gone.
-    Removed,
+    /// The worktree and its registration are gone,
+    /// with the lines that say where each commit a reference lock held is kept.
+    Removed(Vec<String>),
     /// The removal refused,
     /// so nothing there changed and the report says what clears the way.
     Refused(String),
@@ -626,13 +637,13 @@ fn examine_and_remove(place: &LandedPlace<'_>, told: &dyn Fn(&GitContext, &Path)
         return Examined::Kept(why);
     }
     let removal: Attempt = remove_here_or_hand_over(place, told, one);
-    if matches!(removal, Attempt::Removed) {
+    if matches!(removal, Attempt::Removed(_)) {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
         clear_the_pool_of_a_removed_worktree(place.common_dir, one.admin.as_path());
     }
     return match removal {
-        Attempt::Removed => Examined::Removed,
+        Attempt::Removed(kept) => Examined::Removed(kept),
         Attempt::Unfinished(report) => Examined::Unfinished(report),
         Attempt::Refused(report) => Examined::Refused(report),
         Attempt::Handed(record) => Examined::Handed(record),

@@ -3036,6 +3036,13 @@ A worktree whose branch a merge landed is removed by those same routes,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
  the worktree's own Git directory goes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
+ That keeping is made in the process that destroys,
+ and it is made by the same code on every route that destroys a worktree:
+ the hand-over's own destroy (`src/native/worktree/worktree_remove_hand_over.rs`)
+ and the subvolume destroy and Git removal every other removal runs (`src/native/worktree/worktree_remove.rs`).
+ Where no reference of the repository can be written for such a commit,
+ that process removes nothing and says which commit still needs a name,
+ because the destroy would take the only two things that name it.
  The registration the record names must still be the one standing beside that path,
  which is what the next paragraph says the record carries.
  A worktree the service keeps is named in a record under the common Git directory,
@@ -3058,9 +3065,15 @@ A worktree whose branch a merge landed is removed by those same routes,
  registration.
  A worktree a person removed and added again at the same path is two other directories,
  so the earlier record removes nothing there,
- and it settles as one whose worktree is gone,
- which is what its state has always meant,
- with a line in the service's journal.
+ and it settles as a removal whose worktree stayed rather than as one that happened:
+ the worktree standing at the path is named in the kept-worktree record,
+ with the reason,
+ because `done` under a record means the worktree is gone.
+ A path no registration of this repository stands beside is the same,
+ whether the person put something else there or the registration went first:
+ nothing there is this record's to remove,
+ nothing is removed,
+ and the path is named in the kept-worktree record with what was read instead.
  A record whose hand-over wrote no such identity,
  which is every record an earlier release queued,
  is compared with the name it was keyed by,

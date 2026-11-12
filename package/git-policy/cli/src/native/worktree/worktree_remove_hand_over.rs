@@ -940,15 +940,18 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     let registration: Registration = match registered_worktree(item.git_dir.as_path(), target.as_path()) {
         Ok(found) => found,
         // A directory the repository does not register under that path is no worktree this record may remove, and Git
-        // would refuse to remove it too.
-        Err(reason) => return Verdict::Failed(format!("nothing was removed: {reason}")),
+        // would refuse to remove it too. Nothing stands to be removed, and nothing is removed: the path is named in the
+        // repository's kept-worktree notices, because a record that settles `failed` means a worktree was kept, and its
+        // reason belongs on the person's next command rather than only in this service's journal.
+        Err(reason) => return keep_the_worktree_without_a_registration(item, target.as_path(), format!("nothing was removed: {reason}").as_str()),
     };
     // A path names whatever stands there when this service runs, so the worktree in front of this removal has to be the
     // one the proof was made for: the hand-over wrote that worktree's identity beside the registration, and a worktree a
-    // person added at the same path since is another directory with another identity.
+    // person added at the same path since is another directory with another identity. It stays, and it is named: a record
+    // that settles `done` says the worktree is gone, and this one stands there.
     if let Some(why) = why_this_is_another_worktree(item, target.as_path(), registration.admin.as_path()) {
         debug(TAG, format!("{why}").as_str());
-        return Verdict::Skipped(why);
+        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), &[]);
     }
     // Read before Git deletes the worktree: the registration names the pool this worktree's shadow lives in, and a path
     //  that is gone names nothing.
@@ -1050,13 +1053,45 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
 /// ```
 fn keep_the_worktree(item: &WorkItem, target: &Path, registration: &Path, why: &str, kept_commits: &[String]) -> Verdict {
     let branch: String = branch_of_registration(registration).unwrap_or_else(|| return String::from("a head with no branch"));
+    return keep_the_worktree_and_say(item, target, branch.as_str(), why, kept_commits);
+}
+
+/// What:
+///  The same keep,
+///  for a path no registration of this repository stands beside,
+///  which has no branch to name.
+/// Why:
+///  A record whose worktree the person removed and whose path now holds something else removes nothing,
+///  and the promise the merge's line makes is that `failed` names the worktree on the person's next command:
+///  a service journal line reaches nobody,
+///  so the path is named in the notices like every other worktree this removal keeps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepTheWorktreeWithoutARegistration(item, target, why): Verdict
+/// ```
+fn keep_the_worktree_without_a_registration(item: &WorkItem, target: &Path, why: &str) -> Verdict {
+    return keep_the_worktree_and_say(item, target, "a head this repository does not register", why, &[]);
+}
+
+/// What:
+///  Write the notice about the worktree that stays,
+///  and answer the failing verdict that keeps the record from being read as a removal that happened.
+/// Why:
+///  The branch is read by the caller because a path no registration stands beside has none to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepTheWorktreeAndSay(item, target, branch, why, keptCommits): Verdict
+/// ```
+fn keep_the_worktree_and_say(item: &WorkItem, target: &Path, branch: &str, why: &str, kept_commits: &[String]) -> Verdict {
     // A commit a reference lock held reached a reference of this repository before anything was read here, and a person
     //  who reads why their worktree stayed should read that too.
     let said: String = match kept_commits.is_empty() {
         true => why.to_owned(),
         false => format!("{}. {why}", kept_commits.join(". ")),
     };
-    if let Err(reason) = record_kept_worktree(item.git_dir.as_path(), target, branch.as_str(), said.as_str()) {
+    if let Err(reason) = record_kept_worktree(item.git_dir.as_path(), target, branch, said.as_str()) {
         crate::service_warn!("the worktree {} was left in place and the notice about it could not be written: {reason}", target.display());
     }
     return Verdict::Failed(format!("the worktree was left in place, and the next command of this repository names it: {said}"));

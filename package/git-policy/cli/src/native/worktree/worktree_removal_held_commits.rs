@@ -23,6 +23,11 @@
 //!  before Git runs,
 //!  because the wrapper hands the removal to Git and cannot look afterwards
 //!  (`worktree_removal_rescue.rs`).
+//!  Every route that destroys a worktree calls this keeper immediately before it empties the worktree's own Git
+//!  directory
+//!  (`worktree_remove.rs`,
+//!  `worktree_remove_hand_over.rs`),
+//!  so a batch held after the command that decided the removal ran is kept as well.
 //!  The questions and the write are asked in the common Git directory,
 //!  which is there whenever a registration is there to remove:
 //!  `git worktree prune` exists for the state a person leaves by deleting a checkout,

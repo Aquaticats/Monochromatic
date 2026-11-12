@@ -147,7 +147,7 @@ fn a_forced_removal_of_a_changed_worktree_is_served_and_an_unforced_one_is_not()
     assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
     assert_eq!(std::fs::read(worktree.join("tracked.txt")).expect("the change is still there"), b"unsaved work\n");
     // With it the removal answers for the worktree, as Git's own `--force` does.
-    assert_eq!(run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed(Vec::new()));
     assert!(!worktree.exists(), "the forced removal destroyed it");
     remove(root.as_path());
 }
@@ -190,7 +190,7 @@ fn a_worktree_of_another_repository_is_left_to_git() {
     assert!(foreign.join("tracked.txt").is_file(), "the foreign worktree is untouched");
     assert!(repo_b.join(".git/worktrees/wb").is_dir(), "its registration too");
     // The same worktree asked of the repository that owns it is served.
-    assert_eq!(run(&stand, repo_b.as_path(), &plan_named(foreign.as_path(), "../wb")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo_b.as_path(), &plan_named(foreign.as_path(), "../wb")), RemoveOutcome::Removed(Vec::new()));
     remove(root.as_path());
 }
 
@@ -208,9 +208,9 @@ fn a_name_that_git_resolves_by_its_last_components_is_left_to_git() {
     assert_eq!(run(&stand, repo.as_path(), &plan_named(other.as_path(), "topic")), RemoveOutcome::LeftToGit);
     assert!(other.join("tracked.txt").is_file() && topic.join("tracked.txt").is_file(), "both worktrees are untouched");
     // A name whose only match is the target itself, and a path that matches no registered name, are served.
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(other.as_path(), "other")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(other.as_path(), "other")), RemoveOutcome::Removed(Vec::new()));
     assert!(!other.exists());
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(topic.as_path(), "../y/topic")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(topic.as_path(), "../y/topic")), RemoveOutcome::Removed(Vec::new()));
     assert!(!topic.exists());
     remove(root.as_path());
 }
@@ -352,7 +352,7 @@ fn the_snapshots_ahead_are_gone_before_the_subvolume_is_destroyed() {
     let seen: PathBuf = member.clone();
     let mut stand: Stand = Stand::new(vec![worktree.clone()]);
     stand.during_destroy = RefCell::new(Some(Box::new(move || { watch.set(seen.exists()); })));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed(Vec::new()));
     assert!(!there_at_the_destroy.get(), "the pool of the worktree went before the destroy, not after it");
     assert!(!admin.exists(), "the registration went with it");
     remove(root.as_path());
@@ -656,7 +656,7 @@ fn a_stale_record_whose_stage_is_gone_does_not_stop_the_removal() {
     };
     crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed(Vec::new()));
     assert!(!worktree.exists(), "the removal ran");
     remove(root.as_path());
 }
@@ -680,7 +680,7 @@ fn a_record_whose_stage_name_holds_another_object_does_not_stop_the_removal() {
     };
     crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed(Vec::new()));
     assert!(sibling.join("d/theirs").is_file(), "the object that is not the recorded one is left alone");
     remove(root.as_path());
 }
@@ -702,7 +702,7 @@ fn a_directory_beside_a_worktree_that_no_conversion_recorded_does_not_stop_its_r
     std::fs::create_dir_all(sibling.join("d")).expect("a directory of the person's own beside the worktree");
     std::fs::write(sibling.join("d/theirs"), b"theirs\n").expect("its file");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed(Vec::new()));
     assert!(sibling.join("d/theirs").is_file(), "the directory that no conversion recorded is left alone");
     remove(root.as_path());
 }
@@ -733,7 +733,7 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
     // A removal that finished leaves nothing behind for a later command to do.
     let other: PathBuf = clean_worktree(repo.as_path(), root.join("wt2").as_path(), "other");
     let second: Stand = Stand::new(vec![other.clone()]);
-    assert_eq!(run(&second, repo.as_path(), &plan_named(other.as_path(), "../wt2")), RemoveOutcome::Removed);
+    assert_eq!(run(&second, repo.as_path(), &plan_named(other.as_path(), "../wt2")), RemoveOutcome::Removed(Vec::new()));
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
     assert!(!record.parent().expect("record folder").exists(), "a finished removal records nothing");
     remove(root.as_path());

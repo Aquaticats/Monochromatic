@@ -22,6 +22,10 @@
 //! A record whose worktree is still there is dropped:
 //! the destroy did not happen,
 //!  so nothing is removed.
+//!  The commit a reference lock held in that worktree was kept on a reference of the common Git directory by the
+//!  removal that wrote the record,
+//!  before it wrote it,
+//!  so emptying the registration here takes no reference that names a commit alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

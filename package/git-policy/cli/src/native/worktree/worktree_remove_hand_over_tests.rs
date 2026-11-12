@@ -141,7 +141,7 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path() });
     assert!(stand.handed.get(), "the removal handed the subvolume over");
     assert!(!stand.destroyed.get(), "and did not destroy it on the person's path");
-    assert_eq!(outcome, RemoveOutcome::Removed, "{outcome:?}");
+    assert!(matches!(outcome, RemoveOutcome::Removed(_)), "{outcome:?}");
     remove(root.as_path());
 }
 
@@ -845,7 +845,8 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
 
 /// What:
 ///  A record of a removal whose worktree was removed and whose path a person added a worktree at again removes nothing,
-///  and leaves the new worktree and its ignored files exactly as they are.
+///  leaves the new worktree and its ignored files exactly as they are,
+///  and names it in the repository's kept-worktree notices instead of settling `done` in silence.
 /// Why:
 ///  The record names a path,
 ///  and a path names whatever stands there when the service runs.
@@ -856,8 +857,15 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
 ///  and the stale record removed that new worktree with everything Git ignores in it
 ///  (a review of the hand-over,
 ///  finding 3.3).
+///  The worktree standing there is kept,
+///  and a record that settles `done` says the worktree is gone,
+///  which the person reads as one thing while a worktree stands at the path:
+///  the removal that keeps a worktree names it,
+///  as every other keep of this removal does
+///  (a review of the landed removal,
+///  finding 2).
 #[test]
-fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_named() {
+fn a_record_of_a_removal_whose_worktree_is_gone_names_the_worktree_standing_there() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-reused-path", "*.log\n");
     let item: WorkItem = handed_over(&linked, Some(linked.root.as_path()));
     // The person takes the README's advice and removes the handed-over worktree by hand.
@@ -869,11 +877,58 @@ fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_n
     std::fs::write(written.as_path(), b"the new worktree's own ignored state\n").expect("an ignored file of the new worktree");
     let verdict: Verdict = delete_subvolume_of(&item);
     assert!(
-        matches!(&verdict, Verdict::Skipped(words) if words.contains("nothing proves the worktree standing at") && words.contains(linked.worktree.display().to_string().as_str())),
-        "the record's worktree is gone, and the one standing there now is nothing to it: {verdict:?}"
+        matches!(&verdict, Verdict::Failed(words) if words.contains("nothing proves the worktree standing at") && words.contains(linked.worktree.display().to_string().as_str())),
+        "the record's worktree is gone, the one standing there now is nothing to it, and the failure says both: {verdict:?}"
     );
     assert!(linked.worktree.is_dir(), "the new worktree stays");
     assert_eq!(std::fs::read(written.as_path()).expect("the ignored file is still there"), b"the new worktree's own ignored state\n");
+    let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
+    assert_eq!(texts.len(), 1, "the person is told about the worktree that stands there rather than reading silence: {texts:?}");
+    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
+    assert!(texts[0].contains("nothing proves the worktree standing at"), "and says why it was left exactly as it is: {texts:?}");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A record whose identity beside the registration belongs to another directory names the worktree standing there,
+///  keeps it,
+///  and a record that carries the identity of the worktree standing there still removes it.
+/// Why:
+///  A record outlives the worktree it names,
+///  and the identity the hand-over wrote is what tells the two apart.
+///  The other branch of that answer,
+///  taken when the registration standing there carries an identity that is not the one standing there,
+///  settled the record `done` with nothing said,
+///  while the merge's own line reads `done` as "the worktree is gone".
+///  Unreachable route: a worktree's own record cannot write an identity that lies about the worktree standing beside it,
+///  so this writes the record by hand.
+#[test]
+fn a_record_whose_identity_beside_the_registration_belongs_to_another_directory_names_the_one_standing_there() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-identity-of-another");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let admin: PathBuf = linked.common.join("worktrees").join("topic");
+    // The identity beside the registration names a directory that does not stand at the path, which is what a checkout
+    //  restored or moved over the path leaves behind.
+    std::fs::write(admin.join(IDENTITY_RECORD_NAME), b"1:1 1:1\n").expect("an identity of another directory");
+    let theirs: PathBuf = linked.worktree.join("theirs.txt");
+    std::fs::write(theirs.as_path(), b"work the person has not committed\n").expect("a file of the worktree standing there");
+    let verdict: Verdict = delete_subvolume_of(&item);
+    assert!(
+        matches!(&verdict, Verdict::Failed(words) if words.contains("the worktree the record was written for is gone")),
+        "the record of the worktree that went removes nothing, and says why: {verdict:?}"
+    );
+    assert!(linked.worktree.is_dir(), "the worktree standing there stays");
+    assert_eq!(std::fs::read(theirs.as_path()).expect("the file is still there"), b"work the person has not committed\n");
+    let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
+    assert_eq!(texts.len(), 1, "and the person reads it rather than silence: {texts:?}");
+    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
+    // The control: a record that carries the identity of the worktree standing there removes it. The identity a hand-over
+    // writes is create-only, so the control gives the name back before it hands the removal over again.
+    std::fs::remove_file(theirs.as_path()).expect("the person's file goes before the worktree may");
+    std::fs::remove_file(admin.join(IDENTITY_RECORD_NAME)).expect("the identity that names another directory gives its name back");
+    let again: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    assert_eq!(delete_subvolume_of(&again), Verdict::Done, "the identity of the worktree standing there makes it this record's");
+    assert!(!linked.worktree.exists(), "and its removal removes it");
     remove(linked.root.as_path());
 }
 
