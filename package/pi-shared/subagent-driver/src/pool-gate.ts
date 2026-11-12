@@ -96,9 +96,16 @@ export function poolChoiceFor({
   if (requested.holds !== 'a-pool') {
     return { destination: 'its-own-provider', };
   }
-  if (requested.pool
-    .takesDefaultRuns
-    && ((!resumes) || poolTakesNoNewRun({ pool: requested.pool, },))) {
+  /**
+   The pool the run names, as the table being counted holds it, so a limit a caller set applies to a run naming that pool's own
+   model as much as to a run that names none.
+   */
+  const pool = countedPool({
+    pool: requested.pool,
+    tallies,
+  },);
+  if (pool.takesDefaultRuns
+    && ((!resumes) || poolTakesNoNewRun({ pool, },))) {
     /**
      The first pool of the owner's order with room.
      */
@@ -113,14 +120,49 @@ export function poolChoiceFor({
   }
   return poolHasRoom({
     tallies,
-    pool: requested.pool,
+    pool,
   },)
     ? {
       destination: 'a-pool',
-      pool: requested.pool,
+      pool,
       movesTheRun: false,
     }
     : { destination: 'no-room', };
+}
+
+/**
+ Reads one pool as the table being counted holds it.
+
+ A count is taken against the pools a caller handed over, which carry the limits a caller set; the pool a run's own words name
+ comes from the shipped table, which knows neither that limit nor a closing. Reading the room off the shipped pool is how a
+ pool closed through the variable still took runs that named its model.
+
+ @param pool - the pool the run's own words name
+
+ @param tallies - the pools that were counted, with the limits they were given
+
+ @returns the counted pool of that name, or the one given when the table being counted does not hold it
+
+ @example
+ ```ts
+ const counted = countedPool({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, tallies },);
+ ```
+ */
+function countedPool({
+  pool,
+  tallies,
+}: {
+  readonly pool: ProviderPool;
+  readonly tallies: PoolTallies;
+},): ProviderPool {
+  /**
+   The counted pool of that name, when the table being counted holds one.
+   */
+  const counted = tallies.pools
+    .find(function isTheSamePool(held,) {
+      return held.name === pool.name;
+    },);
+  return counted ?? pool;
 }
 
 /**
