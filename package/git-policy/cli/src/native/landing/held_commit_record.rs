@@ -46,6 +46,14 @@ pub const HELD_EXTENSION: &str = "held";
 /// never read as one.
 const TEMPORARY_EXTENSION: &str = "tmp";
 
+/// How many bytes of one record this reads.
+/// Why:
+///   A record holds a handful of fields,
+///  each a path or a commit in hexadecimal,
+///  and a file past this bound is not one this build wrote:
+///  reading it whole would let a file beside a checkout decide how much memory a command reads.
+const RECORD_LIMIT: u64 = 1 << 20;
+
 /// Separates the items of one field.
 const ITEM: &str = "\t";
 
@@ -330,7 +338,13 @@ pub fn list(git_dir: &Path) -> (Vec<Held>, Vec<PathBuf>) {
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(HELD_EXTENSION) {
             continue;
         }
-        match std::fs::read_to_string(path.as_path()).ok().as_deref().and_then(parse) {
+        // Read as a plain file: a name in a worktree's own Git directory may hold a named pipe, and an open that waited
+        // for a writer there would hold the command that reads the records for ever (`plain_file.rs`).
+        let record: Option<Held> = match crate::plain_file::read_plain_file(path.as_path(), RECORD_LIMIT) {
+            Ok(bytes) => std::str::from_utf8(bytes.as_slice()).ok().and_then(parse),
+            Err(_unreadable) => None,
+        };
+        match record {
             Some(held) => found.push(held),
             None => damaged.push(path),
         }

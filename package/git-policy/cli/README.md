@@ -1112,6 +1112,11 @@ A worktree whose records could not all be copied stays,
 A commit a reference lock held in that worktree is kept the same way,
  on `refs/cli-git/kept/<batch>` of this repository,
  before anything is removed.
+A held record this program cannot read still names its batch in its own file name,
+ so the commit behind it is read from the worktree's per-worktree reference and kept there too,
+ and the record is named with the path it is at;
+ when nothing can be read for such a record,
+ the worktree stays and the notice says which record and where.
 
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,

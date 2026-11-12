@@ -892,6 +892,43 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
 }
 
 /// What:
+///  A landed worktree whose held record this build cannot read keeps the commit that record named,
+///  from the worktree's own reference, and only then is removed.
+/// Why:
+///  `keep_held_commits` read every record it could parse and dropped the ones it could not,
+///  so a batch whose record another release wrote,
+///  or a record cut short,
+///  was kept on no reference at all.
+///  The sweep then removed the worktree,
+///  and its own Git directory and its per-worktree reference,
+///  the commit's last two holders,
+///  went with it until `git gc --prune=now` took the commit
+///  (a review of the landed sweep,
+///  round 210).
+#[test]
+fn a_landed_worktree_whose_held_record_cannot_be_read_keeps_its_commit() {
+    let landed: Landed = a_repository_with_a_worktree("landed-held-commit-unreadable");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: String = hold_a_commit_in_the_worktree(&landed, 8);
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let record_path: PathBuf = crate::held_commit_record::path_of(admin.as_path(), 8);
+    // The record another release wrote: this build cannot parse it, and its file name is the only field it can read.
+    std::fs::write(record_path.as_path(), b"a record another release wrote\n").expect("a record this build cannot read");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed once its commit is kept: {sweep:?}");
+    assert!(
+        sweep.kept_commits.iter().any(|line| return line.contains(record_path.display().to_string().as_str())),
+        "the person reads which record could not be read: {sweep:?}"
+    );
+    let kept: String = String::from("refs/cli-git/kept/8");
+    assert_eq!(git_text(landed.main.as_path(), &["rev-parse", kept.as_str()]), held, "the commit behind the unreadable record is kept");
+    // Real Git's maintenance is what takes a commit no reference names, so the proof runs it.
+    git(landed.main.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+    git(landed.main.as_path(), &["gc", "--prune=now"]);
+    assert_eq!(git_text(landed.main.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is still there after the removal");
+}
+
+/// What:
 ///  A landed worktree whose batch kept reference already names another commit keeps its held commit on the reference
 ///  beside it,
 /// so that commit survives the removal and Git's own maintenance.

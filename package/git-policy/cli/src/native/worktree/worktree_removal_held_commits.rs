@@ -51,6 +51,16 @@
 //!  The sentence is printed whether Git then removes the worktree or refuses it:
 //!  the commit is kept either way,
 //!  and a refused removal leaves a reference that names a commit the batch still holds.
+//!  A record this build cannot read names a batch whose commit is held by the per-worktree reference alone,
+//!  and the removal deletes that reference with the worktree's own Git directory:
+//!  so the commit is read from that reference and kept where a removal cannot reach it,
+//!  and the record that could not be read is said with the path it is at.
+//!  When that reference names nothing this command can read,
+//!  or no reference of the repository can be written,
+//!  the worktree stays:
+//!  going on as though an unreadable record were no record left the commit with nothing that names it
+//!  (a review of the landed sweep,
+//!  round 210).
 //!  Nothing here removes a lock or a record.
 //!
 //! In TS you'd write (pseudocode):
@@ -60,8 +70,9 @@
 
 use crate::held_commit_record::{Held, list};
 use crate::held_commit_words::{locks_named, removal};
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
 use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref_only_if_free;
-use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, rescue_ref, value_of};
+use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, rescue_ref, scratch_ref, value_of};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 
@@ -262,6 +273,178 @@ fn standing_locks(common_dir: &Path, names: &[String]) -> Vec<PathBuf> {
 }
 
 /// What:
+///  What keeping the commit behind a record this build cannot read came to.
+/// Why:
+///   Two outcomes decide what the command does next:
+///  the commit now has a reference a removal leaves,
+///  or no removal may run because nothing else would name it.
+///  The record itself is never removed here,
+///  because removing it would leave a commit nothing points at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnreadableKeeping = { kind: 'kept'; line: string } | { kind: 'refused'; line: string };
+/// ```
+enum UnreadableKeeping {
+    /// A reference of this repository now names the commit,
+    /// and this is the line the person reads.
+    Kept(String),
+    /// Nothing a removal spares names the commit,
+    /// and this is the paragraph that keeps the worktree.
+    Refused(String),
+}
+
+/// What:
+///  The sentence for a commit kept from the worktree's own reference of a batch whose record cannot be read.
+/// Why:
+///   The person has to know which record was unreadable,
+///  which reference was read instead and where the commit is now,
+///  because the record they may have to clear is the only other account of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the record ${record} cannot be read ... the commit ${commit} is kept at ${name}`
+/// ```
+fn words_of_a_commit_kept_from_an_unreadable_record(record: &Path, scratch: &str, commit: &str, name: &str) -> String {
+    return format!(
+        "the record {} cannot be read by this build, so the commit {} that its batch's own reference `{}` names is kept at `{}`: \
+         a command that removes that worktree leaves no record there that could move the branch, and that reference is the \
+         commit's only other holder. The record itself is left where it is.",
+        record.display(),
+        commit,
+        scratch,
+        name
+    );
+}
+
+/// What:
+///  The paragraph that keeps a worktree whose held record cannot be read and whose commit nothing a removal spares names.
+/// Why:
+///   The worktree's own Git directory holds the record and the per-worktree reference,
+///  and a removal deletes both,
+///  so the removal is what must not run,
+///  and the person reads which record it was and what stood in the way of keeping the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the record ${record} cannot be read ... so the worktree ${worktree} stays`
+/// ```
+fn words_of_a_commit_nothing_keeps_behind_an_unreadable_record(record: &Path, worktree: &Path, why: &str) -> String {
+    return format!(
+        "the record {} cannot be read by this build, and {}: so no reference of this repository names the commit behind it, and \
+         the worktree {} stays, because its own Git directory and that reference are the only holders of whatever the record \
+         names. Keep the commit first, or clear the record yourself once you know what it held.",
+        record.display(),
+        why,
+        worktree.display()
+    );
+}
+
+/// What:
+///  The worktree root a registration names,
+///  read from its `gitdir` record without waiting for a writer,
+///  or nothing when that record cannot be read.
+/// Why:
+///   A paragraph that keeps a worktree names the command that finishes the removal,
+///  which is the worktree's own path,
+///  and the record a registration keeps it in is a file any process may replace with a pipe.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// worktreeOf(gitDir) // '<the worktree root>' | undefined
+/// ```
+fn worktree_of(git_dir: &Path) -> Option<PathBuf> {
+    let recorded: Vec<u8> = read_plain_file(git_dir.join("gitdir").as_path(), SMALL_FILE_LIMIT).ok()?;
+    let named: PathBuf = PathBuf::from(String::from_utf8_lossy(recorded.as_slice()).trim().to_owned());
+    let pointer: PathBuf = if named.is_absolute() { named } else { git_dir.join(named) };
+    let root: PathBuf = pointer.parent()?.to_path_buf();
+    return root.is_dir().then_some(root);
+}
+
+/// What:
+///  The commit behind a record this build cannot read,
+///  kept where a removal cannot reach it,
+///  or the refusal that keeps its worktree.
+/// Why:
+///   A record this build cannot parse still names its batch in its file name,
+///  and that batch's per-worktree reference is the only other holder of the commit.
+///  Reading that reference and keeping the commit on the common Git directory's reference
+///  is what makes the removal safe,
+///  and a batch whose commit no reference can be read or written for keeps its worktree
+///  (`worktree_removal_held_commits.rs`,
+///  the module doc).
+///  The questions and writes are the ones `keep_one` uses,
+///  so an unreadable record can never be kept differently from a readable one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepTheCommitOfAnUnreadableRecord(git, commonDir, gitDir, record) // { kind, line }
+/// ```
+fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, git_dir: &Path, record: &Path) -> UnreadableKeeping {
+    let worktree: PathBuf = worktree_of(git_dir).unwrap_or_else(|| return git_dir.to_path_buf());
+    let Some(seq) = record.file_stem().and_then(|stem| return stem.to_str()).and_then(|text| return text.parse::<u64>().ok()) else {
+        return UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+            record,
+            worktree.as_path(),
+            "its name is no batch number, so no reference of that batch can be found",
+        ));
+    };
+    let scratch: String = scratch_ref(seq);
+    let commit: String = match value_of(git, git_dir, scratch.as_str()) {
+        RefValue::Names(found) => found,
+        RefValue::Absent | RefValue::Unasked => {
+            return UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+                record,
+                worktree.as_path(),
+                format!("its batch's own reference `{scratch}` names no commit this command can read").as_str(),
+            ));
+        }
+    };
+    match keep_this_commit(git, common_dir, seq, commit.as_str()) {
+        Some(name) => UnreadableKeeping::Kept(words_of_a_commit_kept_from_an_unreadable_record(record, scratch.as_str(), commit.as_str(), name.as_str())),
+        None => UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+            record,
+            worktree.as_path(),
+            format!(
+                "neither `{}` nor `{}` could be written for the commit `{scratch}` names, and a name another commit holds is never replaced",
+                kept_ref(seq),
+                rescue_ref(seq)
+            )
+            .as_str(),
+        )),
+    }
+}
+
+/// What:
+///  The name a reference of the common Git directory now holds `commit` under,
+///  for a batch whose own record cannot be read.
+/// Why:
+///   The batch's reference is read first and the name beside it second,
+///  as a readable record's commit is,
+///  and a name another commit holds is left where it is.
+///  An answer of nothing means no reference of the repository names this commit,
+///  which is the one state in which the worktree must stay.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepThisCommit(git, commonDir, seq, commit) // the name it is kept at, or undefined
+/// ```
+fn keep_this_commit(git: &GitContext, common_dir: &Path, seq: u64, commit: &str) -> Option<String> {
+    for name in [kept_ref(seq), rescue_ref(seq)] {
+        if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit) {
+            return Some(name);
+        }
+        if keep_on_a_side_ref_only_if_free(git, common_dir, name.as_str(), commit).is_none() {
+            return Some(name);
+        }
+        if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit) {
+            return Some(name);
+        }
+    }
+    return None;
+}
+
+/// What:
 ///  The lines the person reads about the commits that are kept,
 /// and the paragraphs that stop the command for the ones no reference could hold.
 /// Why:
@@ -316,7 +499,7 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
     // The worktrees whose commit no reference could hold, which is what the closing paragraph names the removal of.
     let mut unkept_worktrees: Vec<PathBuf> = Vec::new();
     for git_dir in directories {
-        let (records, _damaged) = list(git_dir.as_path());
+        let (records, damaged) = list(git_dir.as_path());
         for held in records {
             match keep_one(git, &held, common_dir) {
                 Keeping::Nothing => {}
@@ -328,6 +511,19 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
             }
             tried.push(kept_ref(held.seq));
             tried.push(rescue_ref(held.seq));
+        }
+        // A record this build cannot read names a batch whose commit the per-worktree reference holds alone, and a removal
+        // deletes that reference with the worktree's own Git directory. The commit is read from it and kept where a removal
+        // cannot reach it; a batch nothing of this repository can name keeps the worktree
+        // (a review of the landed sweep, round 210).
+        for record in damaged {
+            match keep_the_commit_of_an_unreadable_record(git, common_dir, git_dir.as_path(), record.as_path()) {
+                UnreadableKeeping::Kept(line) => kept.said.push(line),
+                UnreadableKeeping::Refused(line) => {
+                    kept.refused.push(line);
+                    unkept_worktrees.push(worktree_of(git_dir.as_path()).unwrap_or_else(|| return git_dir.clone()));
+                }
+            }
         }
     }
     if !kept.refused.is_empty() {

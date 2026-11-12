@@ -7,7 +7,7 @@
 //! and a command that cannot make any such reference stops instead of removing the last holder.
 
 use super::keep_held_commits;
-use crate::held_commit_record::{Held, write};
+use crate::held_commit_record::{Held, path_of, write};
 use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref_only_if_free;
 use crate::test_support::{fixture, git, git_text, remove};
 use crate::transaction_git::GitContext;
@@ -309,5 +309,70 @@ fn a_side_reference_another_command_wrote_is_never_replaced() {
     assert!(refused.as_deref().unwrap_or_default().contains("cannot lock ref"), "Git's own words say why: {refused:?}");
     assert_eq!(git_text(repo.as_path(), &["rev-parse", name.as_str()]).trim(), elsewhere, "the commit the name already held stays named");
     assert_ne!(elsewhere, held_commit, "the control keeps two different commits");
+    remove(root.as_path());
+}
+
+/// What:
+///  A held record this build cannot read keeps its commit from the worktree's own reference,
+///  and the person reads which record could not be read and where the commit went.
+/// Why:
+///  `keep_held_commits` read every record it could parse and dropped the ones it could not,
+///  so the batch's commit reached no reference of this repository at all,
+///  and the removal that followed deleted the worktree's own Git directory and its per-worktree reference,
+///  the last two holders of that commit
+///  (a review of the landed sweep,
+///  round 210).
+#[test]
+fn a_record_this_build_cannot_read_keeps_its_commit_from_the_worktrees_own_reference() {
+    let (root, repo, _linked, held_commit) = a_linked_worktree_with_a_held_commit("removal-held-record-unreadable");
+    let git_dir: PathBuf = repo.join(".git");
+    let admin: PathBuf = git_dir.join("worktrees/linked");
+    let record: PathBuf = path_of(admin.as_path(), SEQ);
+    std::fs::write(record.as_path(), b"a record another release wrote\n").expect("a record this build cannot read");
+    let kept = keep_held_commits(git_dir.as_path(), &context(git_dir.as_path()));
+    assert!(kept.refused.is_empty(), "the commit was kept, so nothing stopped the command: {:?}", kept.refused);
+    assert_eq!(kept.said.len(), 1, "the person is told about the one unreadable record: {:?}", kept.said);
+    assert!(
+        kept.said[0].contains(record.display().to_string().as_str()),
+        "the line names the record it cannot read: {}",
+        kept.said[0]
+    );
+    let kept_name: String = the_kept_name(SEQ);
+    assert!(kept.said[0].contains(kept_name.as_str()), "the line names where the commit is kept: {}", kept.said[0]);
+    assert_eq!(
+        git_text(repo.as_path(), &["rev-parse", kept_name.as_str()]).trim(),
+        held_commit,
+        "the commit behind the unreadable record is kept on the reference of the common Git directory"
+    );
+    assert!(record.exists(), "the record that could not be read is left where it is");
+    remove(root.as_path());
+}
+
+/// What:
+///  A held record this build cannot read whose worktree reference names nothing keeps the worktree,
+///  and the person reads which record it was and where it is.
+/// Why:
+///  Going on as though an unreadable record were no record left its commit held only by the worktree's own Git
+///  directory and per-worktree reference,
+///  and the removal that followed deleted both
+///  (a review of the landed sweep,
+///  round 210).
+#[test]
+fn a_record_this_build_cannot_read_whose_reference_names_nothing_keeps_the_worktree() {
+    let (root, repo, linked, _held_commit) = a_linked_worktree_with_a_held_commit("removal-held-record-unreadable-nothing");
+    let git_dir: PathBuf = repo.join(".git");
+    let admin: PathBuf = git_dir.join("worktrees/linked");
+    let record: PathBuf = path_of(admin.as_path(), SEQ);
+    git(linked.as_path(), &["update-ref", "--no-deref", "-d", format!("refs/worktree/cli-git-service/{SEQ}").as_str()]);
+    std::fs::write(record.as_path(), b"a record another build wrote\n").expect("a record this build cannot read");
+    let kept = keep_held_commits(git_dir.as_path(), &context(git_dir.as_path()));
+    assert!(kept.said.is_empty(), "nothing was kept: {:?}", kept.said);
+    let refused: String = kept.refused.join("\n");
+    assert!(refused.contains(record.display().to_string().as_str()), "the paragraph names the record: {refused}");
+    assert!(refused.contains(linked.display().to_string().as_str()), "the paragraph names the worktree that stays: {refused}");
+    assert!(
+        refused.contains("`git worktree remove"),
+        "the paragraph names the command that finishes the removal: {refused}"
+    );
     remove(root.as_path());
 }

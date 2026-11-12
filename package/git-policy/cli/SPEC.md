@@ -3164,6 +3164,14 @@ The question about that reference and its write run in the common Git directory,
 not in the worktree,
 because `git worktree prune` exists for the state a person leaves by deleting a checkout,
 and Git cannot answer a question asked in a directory that is not there.
+A held record this build cannot read still names its batch in its file name,
+and that batch's per-worktree reference is the only other holder of its commit,
+so the commit is read from that reference and kept on `refs/cli-git/kept/<batch>` like one a readable record names,
+and the record that could not be read is said with the path it is at;
+when that reference names no commit the command can read,
+or no reference of the repository can be written for it,
+the worktree stays and the command stops saying which record and where it is,
+because a removal would delete the last two holders of whatever that record named.
 A kept reference that already names another commit is left alone and the person is told,
 and the commit is kept on `refs/cli-git/kept/<batch>-rescue` beside it,
 because a name that holds another commit keeps nothing of this one;
