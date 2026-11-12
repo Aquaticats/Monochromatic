@@ -713,13 +713,30 @@ What was established that day:
   Which of the consumers this handover lists pass many such tokens was not checked;
   the section "Existing consumer constraints" names forwarding ones.
 
-Open,
-and the owner's to decide:
+Decided by the owner on 2026-11-12:
 
-- whether to reply to the maintainer,
-  and with which of the drafted material;
-- whether the reassessment the maintainer asks for should happen at all.
-  This handover's scope and decisions stand until the owner says otherwise.
+- The removal plan stays as it is ("Keep the removal plan").
+  No reassessment of Optique is scheduled.
+- The data reply to the maintainer goes out only after the owner has edited it
+  (the option chosen reads "I edit,
+  then post").
+  The draft is in the troubleshooting doc;
+  no agent posts it.
+- Nobody for this project reported the cost upstream before 2026-09-28
+  (the option chosen reads "No,
+  nobody reported it").
+
+Open:
+
+- Which further questions go to the maintainer.
+  The owner's instruction on 2026-11-12:
+  "You're supposed to put on your statistician and mathmatician and software engineer's hats
+  to resolve questions we can resolve first."
+  So each drafted question is first answered here by analysis,
+  measurement or source reading where that is possible,
+  and only what is left is offered for sending.
+  The drafted questions are in `${HOME}/temp/agent/optique-questions-for-maintainer-2026-11-12.md`,
+  which is scratch and not committed.
 
 ## Next action
 

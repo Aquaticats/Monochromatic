@@ -653,7 +653,7 @@ So #992 removed 93% of it and #997 about half of the rest. Three things you may 
 
 - On 1.3.6, a CPU profile still puts about three quarters of the parse in `suggestion.js` and `usage.js`
   (`traverseUsage`, `findSimilar`, `createErrorWithSuggestions`); `levenshteinDistance` itself is down to 6%.
-- `main` at #997's base was 24% slower than 1.3.6 on this input.
+- `main` at #997's base, which contains 1.3.2, took 229 ms on this input against 180 ms for 1.3.2 itself.
 - Short tokens did improve at 1.3.2 here (300 ms to 185 ms for a thousand 1 to 3 character names), unlike the
   short-path note in #992. This parser's option names are long, so the length check rejects them.
 

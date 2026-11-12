@@ -306,7 +306,10 @@ for `performance`,
 No report from this project is on upstream's tracker:
 `gh issue list --repo dahlia/optique --state all --author Aquaticat` returns no issue,
 and a search of upstream's issues for `Monochromatic` returns only the maintainer's own four.
-Whether anyone told upstream by another channel is not in the record.
+The owner confirmed on 2026-11-12 that nobody reported it by any channel:
+asked whether anyone for this project told the maintainer before 2026-09-28,
+the answer was "No,
+nobody reported it".
 This project measured the cost on 2026-07-15 and replaced the parser the same day.
 It recorded the finding in its commit messages and,
 from 2026-08-14,
@@ -606,9 +609,16 @@ What this shows:
    between 1.3.1 and 1.3.2.
 - 1.3.6 still takes 184 ms for this parse,
    0.18 ms per path.
-- `main` had become 24% slower than 1.3.6 by the commit [pull request 997][] started from,
+- The 1.4 line was slower than the 1.3 line at the same patch level.
+   `1.4.0-dev.2664` was built on 2026-09-29 from a commit that contains tag 1.3.2 and no later 1.3 tag,
+   and took 229.0 ms where 1.3.2 took 180.0 ms:
+   27% more,
    which is beyond the spread.
-   That pull request then cut the time by 61%.
+   An earlier wording here compared it with 1.3.6 and said `main` "had become" slower than it;
+   1.3.6 was tagged on 2026-10-15,
+   after that build,
+   so that comparison was out of order.
+   [Pull request 997][] then cut the 1.4 line's time by 61%.
 - The current pre-release takes 95 ms,
    about half of 1.3.6.
 - The parse grows with the number of paths in every Optique arm.
@@ -768,7 +778,7 @@ These need the maintainer's own account:
 - whether the cost that remains after [pull request 997][],
    where every token is still offered to every option parser,
    is the intended end state;
-- why `main` was slower than 1.3.6 before that pull request;
+- why the 1.4 line was slower than 1.3.2 before that pull request;
 - when 1.4.0 is expected.
 
 [maintainer comment]: https://github.com/Aquaticats/Monochromatic/commit/4879a44e6a2460ab3c2531744e24a1f2aef27aeb#commitcomment-209502949
