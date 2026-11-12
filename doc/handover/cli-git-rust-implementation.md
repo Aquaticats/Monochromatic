@@ -217,6 +217,25 @@ round 210 review of `fix/git-policy-cli-worktree-remove-does-not-wait-on-a-read-
 a read-only `status` whose descendant ignores `SIGTERM` holds a removal 7.2 s, past the audit's two-second ceiling,
 because the watcher's five-second stop grace is waited out afterwards.
 
+Round 240 (`fix/git-policy-cli-commit-service-silence-on-an-ordinary-commit`, on the pass 14 branch) takes the notice
+"The commit service stopped answering; asking it again with the same commit, which cannot land twice."
+seen on a one-file docs commit in the main checkout this afternoon (minute not kept):
+it counts the day's commits that took the silence path from the timing log and the service's log, finds the cause,
+says whether the pass 14 branch still has it, and fixes it if so.
+
+Round 241, four agents that each bring finished changes outside the wrapper up to date with `main`, run the package's own tasks,
+check at the place the change is used, and end with a verdict; none merges into `main` (the coordinator does, on a "fit" verdict):
+`integrate/cargo-shadow-lean-runs-continuously-onto-main` (also lists the commands a real install of the unit takes),
+`integrate/pi-plugin-agent-settled-notification-delivers-under-load-onto-main`,
+`integrate/pi-shared-subagent-driver-429s-and-preflight-onto-main` (the 429 branch and the preflight branch together),
+`integrate/wg-lifecycle-and-its-review-findings-onto-main` (also lists the other unmerged `wg` branches and the deploy commands; it runs none).
+
+Stale notices seen through the evening on alpha.10: "the commit 389eac3daa... is queued for its push ... N more commits are queued"
+on every Git command in the main checkout, after those commits had been pushed by hand (`b2a2c50fa1..389eac3daa` at 19:10).
+The fix is in pass 14 (`fix/git-policy-cli-held-notice-names-a-published-commit-and-reviews-stay-claimed` is an ancestor of it).
+Whether a queued push ever leaves without a later hand push is not shown either way: each was pushed by hand at once.
+After alpha.11 is installed, the sample commit is left alone until its push is seen to leave by itself.
+
 Inbox notes sent at 19:18, none changing a task: to the three agents working on the pooled shadow
 (`kimi-findings-pooled-shadow-review-findings`, `kimi-findings-pooled-shadow-symlink-round-210-findings`,
 `kimi-findings-commits-within-5-s-round-208-findings`), the decision that the service hands a commit its shadow and which branch builds it;
