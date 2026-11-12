@@ -5335,6 +5335,51 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 Each item names what remains,
 where it lives and its evidence.
 
+### A removal of a worktree the wrapper had just added left a folder nothing named (closed 2026-11-11T21:30-05:00)
+
+The owner reported a worktree added at 19:03:06 and removed at 19:04:36 with
+`error: failed to delete '<path>': Directory not empty`,
+gone from `git worktree list`,
+its folder left with `node_modules` written in the second the walk gave up,
+no wrapper line and no record anywhere.
+The writer was the wrapper's own relink:
+the add hands `pnpm install --offline --frozen-lockfile` in the new worktree to the repository's commit service
+(`src/native/repair/package_repair_relink_job.rs`),
+whose ceiling is `REPAIR_TOOL_CEILING` (eighteen minutes),
+and the removal stopped only the removed worktree's own units,
+which are another instance's.
+The reason the folder went to Git's walk at all is that the stat-only clean proof refuses a worktree whose files
+are as new as its index,
+which every freshly added worktree is,
+and Git deletes the registration whether or not its walk emptied the folder
+(`builtin/worktree.c`,
+`remove_worktree`:
+"continue on even if ret is non-zero, there's no going back from here";
+`remove_dir_recurse` in `dir.c` leaves the entries after the first one it cannot remove and prints the child's
+`ENOTEMPTY` from `error_errno` in the caller).
+Both are fixed for this branch:
+the removal proves those entries by content
+(`check_clean_by_content`),
+and a removal handed to Git records the folder's entries before Git runs and finishes what the walk could not empty,
+or keeps and names an entry that appeared while it ran
+(`src/native/worktree/worktree_removal_left_behind_record.rs`,
+`worktree_removal_left_behind_folder.rs`),
+settled by the command itself, by every later command of the repository, and by the landed sweep's own route.
+Evidence:
+`mise run //package/git-policy/cli:native:test:host:btrfs -- -E "test(/(freshly_added|walk_could_not_empty|while_the_relink|left_behind|preceded)/)"`,
+the six controls failing on the change neutralised and 25 of 25 passing with it,
+and 180 of 180 removal-related tests passing.
+SPEC.md, "The proof of cleanliness and the worktree the wrapper has just made" and
+"The folder Git's own removal could not empty", carry the promises.
+
+What remains open from it:
+a removal form the wrapper does not parse (`git worktree prune`,
+a second `--force`) still leaves the folder to Git alone,
+because the wrapper never learns which folder the command names;
+and an entry written *inside* a directory the record names goes with that directory,
+which is the risk `git worktree remove` states and the removal's notice repeats.
+
+
 ### A landing that withdraws leaves its lock marker sync unmade (2026-11-11T03:50:00Z)
 
 `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote` fails on the jam-fix integration base
