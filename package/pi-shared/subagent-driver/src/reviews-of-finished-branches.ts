@@ -42,11 +42,12 @@ export const REVIEW_START_DEADLINE_SECONDS = 21_600;
 export const REVIEW_WALL_SECONDS = 14_400;
 
 /**
- The longest a review of a finished branch ran, in turns, among the 28 measured on 2026-11-11 while the Kimi flex pool read 22:
- they ended at turn 16 to 37. A review gets a quarter above the longest of them, the same margin the worktree launcher sizes a
- cap with, because a review whose cap is reached loses its findings.
+ The longest a review of a finished branch has used, in turns, read on 2026-11-11 from the `turns` of every review run's
+ `summary.json` under the coordinator's runs folder: 226 review runs held one, 172 of them ended on their own terms, and those
+ used 3 to 156 turns with a median of 51 and 147, 153 and 156 at the top. The 28 reviews measured earlier that day ended at 16 to
+ 37 turns, which is why a cap of 47 cut two reviews off mid-reading: they were not the long ones.
  */
-export const LONGEST_MEASURED_REVIEW_TURNS = 37;
+export const LONGEST_MEASURED_REVIEW_TURNS = 156;
 
 /**
  How many model turns a review may start.
@@ -127,6 +128,12 @@ export type ReviewStartingSeams = {
    The integration branch's own first-parent merges, each as `<merge> <parent>...`.
    */
   readonly integrationMerges: () => Promise<readonly string[]>;
+
+  /**
+   Shows one line as it happens, so a review that starts, fails or ends is read within minutes rather than after the last one: on
+   2026-11-11 four reviews were lost while the command printed nothing until every review had ended.
+   */
+  readonly report?: (line: string) => void;
 
   /**
    Writes one review's brief and the diff it reads.
@@ -255,6 +262,15 @@ export async function startReviews({
    */
   const lines: string[] = [];
   /**
+   Records one line, and shows it as it happens when the caller asked to see it.
+
+   @param line - the line to record
+   */
+  function note(line: string,): void {
+    lines.push(line,);
+    seams.report?.(line,);
+  }
+  /**
    One start per review, each resolving when its run has ended, kept beside the review it reads.
    */
   const starts: {
@@ -273,7 +289,7 @@ export async function startReviews({
      */
     const run = runNameOfAReview({ review, },);
     if (await seams.reviewIsWritten({ review, },)) {
-      lines.push(`${run}: already reviewed`,);
+      note(`${run}: already reviewed`,);
       continue;
     }
     /**
@@ -297,10 +313,11 @@ export async function startReviews({
       commit,
       range,
     },);
-    lines.push(briefed.line,);
+    note(briefed.line,);
     if (!briefed.written) {
       continue;
     }
+    note(`${runNameOfAReview({ review, },)}: started`,);
     starts.push({
       review,
       start: seams.start({
@@ -341,17 +358,17 @@ export async function startReviews({
      */
     const run = runNameOfAReview({ review, },);
     if (start.status !== 0) {
-      lines.push(entryLineOf({
+      note(entryLineOf({
         name: run,
         started: start,
         ...((start.keptAt === undefined) ? {} : { keptAt: start.keptAt, }),
       },),);
     }
     // oxlint-disable-next-line eslint/no-await-in-loop -- one review after another, because a saved file is read from that review's own run; see doc/lint/sequential-awaits.md
-    lines.push((await seams.save({ review, },)).line,);
+    note((await seams.save({ review, },)).line,);
   }
   if (statuses.length > 0) {
-    lines.push(`reviews ended with statuses ${statuses.join(' ',)}`,);
+    note(`reviews ended with statuses ${statuses.join(' ',)}`,);
   }
   return {
     lines,

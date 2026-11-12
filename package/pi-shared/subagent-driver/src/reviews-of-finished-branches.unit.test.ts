@@ -161,6 +161,7 @@ type Asked = {
   readonly saves: string[];
   readonly waits: number[];
   readonly briefs: { readonly review: string; readonly commit: string; readonly range: string }[];
+  readonly shown: string[];
 };
 
 /**
@@ -196,15 +197,20 @@ function seamsAnswering({
     saves: string[];
     waits: number[];
     briefs: { review: string; commit: string; range: string }[];
+    shown: string[];
   } = {
     starts: [],
     saves: [],
     waits: [],
     briefs: [],
+    shown: [],
   };
   return {
     asked,
     seams: {
+      report: function report(line,) {
+        asked.shown.push(line,);
+      },
       reviewIsWritten: async function reviewIsWritten({ review, },) {
         return written.includes(review,);
       },
@@ -344,6 +350,8 @@ await describe({
             expect(started.lines,).toEqual([`${runNameOfAReview({ review: aChange(), },)}: already reviewed`,],);
             expect(started.statuses,).toEqual([],);
             expect(asked.starts,).toEqual([],);
+            // Every line is also shown as it happens, so a reader sees a review that is already done without waiting for the rest.
+            expect(asked.shown,).toEqual(started.lines,);
           },
         },),
         it({

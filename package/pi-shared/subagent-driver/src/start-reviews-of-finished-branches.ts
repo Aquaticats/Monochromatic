@@ -128,6 +128,12 @@ const started = await startReviews({
     },);
   },
   seams: {
+    // Every line shows as it happens: a review that fails, or a start that never ends, is then read within minutes rather than
+    // after the last review, which is what hid four lost reviews on 2026-11-11.
+    report: function report(line,) {
+      process.stdout
+        .write(`${line}\n`,);
+    },
     reviewIsWritten,
     branchTip: async function branchTip({ branch, },) {
       return (await outputOfGit({
@@ -213,10 +219,7 @@ const started = await startReviews({
   },
 },);
 
-for (const line of started.lines) {
-  process.stdout
-    .write(`${line}\n`,);
-}
+// The lines were shown as they happened, so only the status this command answers with is left.
 process.exitCode = started.statuses
   .every(function endedWell(status,) {
     return status === '0';

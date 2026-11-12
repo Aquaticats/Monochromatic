@@ -30,6 +30,11 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
+ The code the operating system gives a path that is not there.
+ */
+const MISSING_PATH_CODE = 'ENOENT';
+
+/**
  A folder a test throws away.
 
  @returns the folder, and how to remove it
@@ -227,20 +232,46 @@ await describe({
           },
         },),
         it({
-          name: 'answers a line, rather than ending the command, for a run whose summary names no session file: a run that never started Pi has no last message',
+          name: 'writes nothing for a run a cap, a wall clock or an abort ended, and says why the review is missing',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The run's folder, whose summary names no session.
+             The run's folder, whose summary says a cap ended it before it wrote its findings.
              */
             const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'c-round-1', },)}-1`,);
+            /**
+             The session the cut-off run left, whose last message is the sentence it was at.
+             */
+            const sessionFile = join(folder.path, 'session.jsonl',);
             await mkdir(runFolder, { recursive: true, },);
-            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({ endReason: 'pi-exited', },),);
-            expect((await saveTheLastMessage({
+            await writeFile(sessionFile, JSON.stringify({
+              type: 'message',
+              message: {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Let me check the build target location.', },],
+              },
+            },),);
+            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
+              endReason: 'turn-cap',
+              sessionStats: { sessionFile, },
+            },),);
+            const saved = await saveTheLastMessage({
               runsFolder: join(folder.path, 'runs',),
               reviewFolder: folder.path,
               review: 'c-round-1',
-            },)).line,).toContain('names no readable session',);
+            },);
+            expect(saved.saved,).toBe(false,);
+            expect(saved.line,).toContain('ended turn-cap',);
+            // Nothing that reads as a review is written, because the sentence the run was at is not one.
+            /**
+             The file a review would have been written to.
+             */
+            const reviewFile = join(
+              folder.path,
+              'c-round-1',
+              'review.md',
+            );
+            await expect(readFile(reviewFile,),).rejects.toThrow(MISSING_PATH_CODE,);
           },
         },),
       ],

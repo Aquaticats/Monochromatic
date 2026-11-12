@@ -15,7 +15,7 @@ import type {
 /**
  Reasons a run ends on its own terms.
  */
-export const CLEAN_END_REASONS: ReadonlySet<EndReason> = new Set<EndReason>([
+export const CLEAN_END_REASONS: ReadonlySet<string> = new Set<string>([
   'idle',
   'stop-file',
 ],);
@@ -81,6 +81,23 @@ export function finalEndReason(
   const { code, } = piExit;
   // A run that ended on its own terms was not supposed to see Pi fail afterwards, such as while it was asked for statistics.
   return ((code === undefined) || (code === 0)) ? endReason : 'pi-exited';
+}
+
+/**
+ Says whether a reason a summary names is one a run ends on its own terms with, which is what a run whose last message is worth
+ reading must have.
+
+ @param endReason - the reason a summary names, of any shape
+
+ @returns whether that reason is one of {@link CLEAN_END_REASONS}
+
+ @example
+ ```ts
+ const finished = endedOnItsOwnTerms('idle');
+ ```
+ */
+export function endedOnItsOwnTerms(endReason: unknown,): boolean {
+  return ((typeof endReason) === 'string') && CLEAN_END_REASONS.has(endReason,);
 }
 
 /**

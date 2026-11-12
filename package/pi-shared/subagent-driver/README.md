@@ -507,8 +507,12 @@ The run's words are fixed here,
 with the reasons beside them in `src/reviews-of-finished-branches.ts`:
 its worktree starts at the branch's tip;
 its wall is six hours;
-its turn cap is a quarter above the longest of the 28 reviews measured on 2026-11-11;
+its turn cap is a quarter above the longest review measured on 2026-11-11,
+156 turns of the 172 reviews that ended on their own terms (median 51),
+so the cap is 195;
 and it names the reviewer's provider and model.
+The cap that cut two reviews off mid-reading that day was 47,
+taken from 28 reviews that had ended at 16 to 37 turns and were not the long ones.
 Starts go twenty seconds apart,
 and the command waits for every review it started before it answers.
 A start that failed prints its reason,
