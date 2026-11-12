@@ -298,7 +298,7 @@ fn a_record_past_the_bound_is_a_file_that_may_be_held() {
     let head: String = format!("pos:\t0\nmnt_id:\t7\nino:\t{}\n", metadata.ino());
     let filler: String = "x".repeat(crate::descriptor_record::RECORD_BYTES_AT_MOST - head.len() + 1);
     std::fs::write(table.join("fdinfo").join("3"), format!("{head}{filler}\n")).expect("a record past the bound");
-    match descriptor_is_file(table.as_path(), std::ffi::OsStr::new("3"), metadata.dev(), metadata.ino()) {
+    match descriptor_is_file_with(table.as_path(), std::ffi::OsStr::new("3"), metadata.dev(), metadata.ino(), read_the_link) {
         Err(Unread::File(reason)) => assert!(
             reason.contains(&crate::descriptor_record::RECORD_BYTES_AT_MOST.to_string()),
             "the reason says how long the scan reads: {reason}"
@@ -306,6 +306,15 @@ fn a_record_past_the_bound_is_a_file_that_may_be_held() {
         other => panic!("a record past the bound is a file that may be held: {other:?}"),
     }
     remove(root.as_path());
+}
+
+/// The reader of a descriptor's open file that a control uses for its own `/proc`:
+/// the file its link names,
+/// which is what a directory of links can say and what no judgement reads.
+fn read_the_link(process: &Path, fd: &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile> {
+    use std::os::unix::fs::MetadataExt as _;
+    let opened: std::fs::Metadata = std::fs::metadata(process.join("fd").join(fd))?;
+    return Ok(crate::open_file_of_a_descriptor::OpenedFile { device: opened.dev(), inode: opened.ino() });
 }
 
 /// A scan that reached the moment it was given says it did not finish,

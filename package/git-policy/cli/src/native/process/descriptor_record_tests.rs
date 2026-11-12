@@ -23,7 +23,7 @@ fn table(root: &Path, fd: &str, target: &str, record: Option<&str>) -> PathBuf {
 #[test]
 fn a_descriptor_that_is_not_a_file_is_answered_without_opening_its_record() {
     let root: PathBuf = fixture("descriptor-record-anonymous");
-    let process: PathBuf = table(root.as_path(), "3", "anon_inode:[inotify]", None);
+    let process: PathBuf = table(root.as_path(), "3", "anon_inode:inotify", None);
     std::fs::create_dir_all(process.join("fdinfo").join("3")).expect("a record no read can open");
     assert_eq!(descriptor_record(process.as_path(), std::ffi::OsStr::new("3"), Targeted::RealFile), Record::NotTheTarget);
     remove(root.as_path());
@@ -42,7 +42,7 @@ fn an_anonymous_target_reads_a_pipe_and_skips_a_kernel_anonymous_inode() {
         descriptor_record(pipe.as_path(), std::ffi::OsStr::new("5"), Targeted::AnonymousFile),
         Record::Text(String::from("pos:\t0\nflags:\t00\nmnt_id:\t9\nino:\t42\n"))
     );
-    let inotify: PathBuf = table(root.as_path(), "6", "anon_inode:[inotify]", None);
+    let inotify: PathBuf = table(root.as_path(), "6", "anon_inode:inotify", None);
     std::fs::create_dir_all(inotify.join("fdinfo").join("6")).expect("a record no read can open");
     assert_eq!(descriptor_record(inotify.as_path(), std::ffi::OsStr::new("6"), Targeted::AnonymousFile), Record::NotTheTarget);
     remove(root.as_path());
