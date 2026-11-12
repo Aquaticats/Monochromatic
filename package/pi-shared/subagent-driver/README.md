@@ -961,6 +961,14 @@ which names every process it waits for;
 when the work is gone the driver sends the agent a message naming what ended and asking it to read the result with the `process` tool,
 notes a `wake` line with Pi's answer,
 and goes on.
+A run the driver woke does not end as `idle` until the reply to that message settles:
+the silence spent waiting for the work is not the silence of an agent with nothing left,
+so a driver that ended the run one look after sending the message cut off the agent it had just woken.
+A message Pi handled without starting a turn is never answered by one,
+so nothing is owed and the run ends as it did before;
+one Pi refuses ends the run `prompt-rejected`,
+and the `wake` line carries the refusal,
+because the agent was never told its work ended and that run must not read as one that came back.
 The run's own wall clock bounds that wait:
 a run whose work outlasts it ends `wall-clock`,
 and its feed gains a `problem` line naming the work it waited for,

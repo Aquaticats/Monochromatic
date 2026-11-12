@@ -42,7 +42,7 @@ export type WorkWaitedFor = {
  the settle after it, are what the driver is up. Counting from the settle before the message went means a fast reply satisfies
  this at once, and no reply at all keeps the run up until its own wall clock ends it.
 
- @param waited - where the driver stands with the work the run left, which carries the count the message went at
+ @param wokenAtSettle - how many settles Pi had when that message went, or nothing while no message is owed a reply
 
  @param settledNow - how many settles Pi has produced
 
@@ -50,19 +50,16 @@ export type WorkWaitedFor = {
 
  @example
  ```ts
- const free = answeredItsWake({ waited: {}, settledNow: 3, },);
+ const free = answeredItsWake({ settledNow: 3, },);
  ```
  */
-export function answeredItsWake(
-  { waited, settledNow, }: {
-    readonly waited: WorkWaitedFor;
-    readonly settledNow: number
-  },
-): boolean {
-  /**
-   How many settles Pi had when the message went, or nothing when no message is owed a reply.
-   */
-  const { wokenAtSettle, } = waited;
+export function answeredItsWake({
+  wokenAtSettle,
+  settledNow,
+}: {
+  readonly wokenAtSettle?: number;
+  readonly settledNow: number
+},): boolean {
   return (wokenAtSettle === undefined) || (settledNow > wokenAtSettle);
 }
 
@@ -173,7 +170,7 @@ export async function askAboutItsWork({
     },);
   delete waited.work;
   // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
-  if ((answer.ending === 'answered') && (answer.record.success === false)) {
+  if (refusedByIt({ answer, },)) {
     return 'refused';
   }
   // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles. A message Pi handled
@@ -182,6 +179,29 @@ export async function askAboutItsWork({
     waited.wokenAtSettle = settledBefore;
   }
   return 'resumed';
+}
+
+/**
+ Tells whether Pi refused the message itself, which is no answer and no run started.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns whether Pi answered with a refusal
+
+ @example
+ ```ts
+ const refused = refusedByIt({ answer: { ending: 'answered', record: { success: false } }, },);
+ ```
+ */
+function refusedByIt({ answer, }: { readonly answer: CommandAnswer },): boolean {
+  if (answer.ending !== 'answered') {
+    return false;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  return record.success === false;
 }
 
 /**

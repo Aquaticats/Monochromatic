@@ -122,6 +122,11 @@ const CLEAN_STATUS = 0;
 const FAILED_STATUS = 1;
 /** Seconds a test allows a driver beyond the run's own wall limit, so a stalled driver fails rather than hangs it. */
 const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
+/**
+ Seconds a run may last when its subject is work that outlives it: above the start-up and the turn that leaves the work, and
+ short so the test is quick. The work itself is set far beyond this, so only the wall clock can end the run.
+ */
+const WORK_OUTLASTED_WALL_SECONDS = 3;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /**
@@ -477,6 +482,56 @@ async function stopBounded(child: ChildProcess,): Promise<void> {
 }
 
 /**
+ Ends the work a stand-in left running, by the number the stand-in logged, so no fixture outlives its test.
+
+ A process the test did not start is never signalled: the number is only acted on when the process folder still names `sleep`
+ under it, which is what the play started.
+
+ @param markers - the markers the stand-in wrote
+ */
+async function endTheWorkLeftRunning(markers: readonly string[],): Promise<void> {
+  /**
+   The numbers the plays logged, which is one per play that left work running.
+   */
+  const pids = markers.map(function numberLogged(marker,) {
+    return Number(marker.replace('work ', '',),);
+  },)
+    .filter(function isANumber(number,) {
+      return Number.isInteger(number,);
+    },);
+  await Promise.all(pids.map(async function endOne(pid,) {
+    /**
+     What the process folder says that process runs.
+     */
+    const named = await nameOfProcess(pid,);
+    // Only the `sleep` a play started is signalled: a number that names anything else belongs to somebody else.
+    if (named !== 'sleep') {
+      return;
+    }
+    process.kill(pid, 'SIGKILL',);
+  },),);
+}
+
+/**
+ Reads what a process runs, by its number.
+
+ @param pid - the process's number
+
+ @returns the program's name, or empty text when the process folder no longer holds it
+ */
+async function nameOfProcess(pid: number,): Promise<string> {
+  try {
+    return (await readFile(`/proc/${String(pid,)}/comm`, 'utf8',)).trim();
+  }
+  catch (error) {
+    if (isMissingFile(error,)) {
+      return '';
+    }
+    throw error;
+  }
+}
+
+/**
  Owns a driver process a test started, so every way out of a test ends it before its folder goes.
 
  @param running - the driver's own promise, which holds its process
@@ -682,6 +737,55 @@ await describe({
         const run = await runDriver({ scenario: 'statless', },);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.sessionStats,).toBeNull();
+      },
+    },),
+    it({
+      name: 'keeps a run whose agent ended its turn with a build still running, sends the agent back when the build ends, and'
+        + ' reads its reply',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'leaves-work-running', },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        // The agent was woken, and its reply is what the run ended with rather than the turn it had already finished.
+        expect(run.summary.lastAssistantText,).toBe('the build finished and the task goes on',);
+        /**
+         The messages the driver sent Pi, in order.
+         */
+        const prompts = run.sentCommands.filter((command,) => command.type === 'prompt',)
+          .map((command,) => String(command.message,),);
+        expect(prompts.length,).toBe(2,);
+        expect(prompts[1],).toContain('The work you left running when your turn ended has ended:',);
+        expect(prompts[1],).toContain('native-build',);
+        /**
+         The feed's own record of the wait and of the wake, in the order the driver wrote them.
+         */
+        const waiting = run.feed.findIndex((entry,) => entry.kind === 'waiting',);
+        const woke = run.feed.findIndex((entry,) => entry.kind === 'wake',);
+        expect(waiting,).toBeGreaterThanOrEqual(0,);
+        expect(String(run.feed[waiting]?.problem,),).toContain('native-build',);
+        expect(woke,).toBeGreaterThan(waiting,);
+        expect(run.feed[woke]?.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'ends a run at its wall clock while the build it left still runs, and says on the feed what it waited for',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'leaves-work-running-past-its-wall-clock',
+          wallSeconds: WORK_OUTLASTED_WALL_SECONDS,
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        // Nothing was sent after the prompt: the work never ended, so no message woke the agent.
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(1,);
+        /**
+         The feed's own record of the wait, and of why the run ended while it waited.
+         */
+        const waiting = run.feed.find((entry,) => entry.kind === 'waiting',);
+        expect(String(waiting?.problem,),).toContain('native-build',);
+        expect(run.feed.some((entry,) => String(entry.problem,).includes('waited for the work it left running',)),)
+          .toBe(true,);
+        await endTheWorkLeftRunning(run.markers,);
       },
     },),
     it({

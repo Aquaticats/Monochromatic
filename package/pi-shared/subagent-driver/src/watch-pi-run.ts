@@ -15,7 +15,6 @@ import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   FEED_PREVIEW_CHARACTERS,
-  MILLISECONDS_PER_SECOND,
   POLL_MILLISECONDS,
   STOP_FILE_NAME,
 } from './driver-constants.ts';
@@ -31,11 +30,11 @@ import {
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
-  answeredItsWake,
   askAboutItsWork,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
+import { mayEndIdle, } from './when-a-run-may-end.ts';
 
 /**
  The code the operating system gave a failure, when it gave one.
@@ -397,54 +396,6 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
 }
 
 /**
- Tells whether Pi has rested for long enough that the run is over.
-
- @param watch - watch request
-
- @returns whether the idle wait has passed
- */
-function idleLongEnough(watch: WatchRequest,): boolean {
-  return (!watch.record
-    .isRunning())
-    && (watch.record
-      .settledCount()
-      >= 1)
-    && (watch.record
-      .silentMilliseconds()
-      > (watch.options
-        .idleSeconds
-        * MILLISECONDS_PER_SECOND));
-}
-
-/**
- Tells whether the run may end as one that came back with nothing to report: Pi has rested long enough, no failure it settled on
- is still unanswered, and no message the driver sent it is still owed a reply.
-
- A failure stays until a reply succeeds, so a prompt Pi only handled leaves the run ending on that failure rather than making it
- look like a run that finished its task with nothing to say. A run the driver sent back to work it left is up until the reply to
- that message settles: the message went a moment ago, and the silence before it is not the silence of a run with nothing left.
-
- @param watch - watch request
-
- @param waited - where the driver stands with the work the run left running
-
- @returns whether nothing stands between the run and its end but the rest it has had
- */
-function mayEndIdle(watch: WatchRequest, waited: WorkWaitedFor,): boolean {
-  /**
-   The failure the run settled on, when nothing after it recovered.
-   */
-  const failure = watch.record
-    .unrecoveredModelError();
-  return (!failure.failed) && idleLongEnough(watch,)
-    && answeredItsWake({
-      waited,
-      settledNow: watch.record
-        .settledCount(),
-    },);
-}
-
-/**
  Checks the limits and delivers the next inbox message, on every tick, until something ends the run. One message per tick keeps
  them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
  stalled answer cannot keep the stop file or the wall clock from being seen.
@@ -466,7 +417,7 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
   /**
    The work this run left running, once the driver has seen it and is waiting for it to end; nothing until then.
    */
-  const waited: { work?: readonly string[] } = {};
+  const waited: WorkWaitedFor = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -514,7 +465,11 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       },);
     }
     // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.owed === undefined) && (mayEndIdle(watch, waited,))) {
+    else if ((retry.owed === undefined)
+      && (mayEndIdle({
+        watch,
+        ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
+      },))) {
       /**
        What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
        build compiled is waiting for that build, so the run is kept, and sent back to it once it is over.
