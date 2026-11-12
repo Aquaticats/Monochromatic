@@ -4,6 +4,8 @@
  @module
  */
 
+/* oxlint-disable unicorn/custom-error-definition -- No class in this package writes a name: the base class derives it, which is the whole point; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
+
 /**
  Error subclass whose `name` follows the concrete class that constructed it.
 
@@ -28,8 +30,16 @@ export abstract class NamedError extends Error {
 
    @param options - native error options, forwarded unchanged so a chained `cause` survives
    */
-  public constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
+  public constructor(
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(
+      message,
+      options,
+    );
     this.name = new.target.name;
   }
 }
+
+/* oxlint-enable unicorn/custom-error-definition */

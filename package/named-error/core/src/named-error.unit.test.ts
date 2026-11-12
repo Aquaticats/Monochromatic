@@ -16,6 +16,8 @@ import {
 
 import { NamedError, } from '../dist/final/neutral/index.mjs';
 
+/* oxlint-disable unicorn/custom-error-definition -- These classes exist to prove the base class names them, so none writes a name; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
+
 /**
  Error carrying nothing but a message, the shape most sites take.
  */
@@ -48,6 +50,8 @@ class QuotaExceededError extends NamedError {
  Error built on another named error, to prove a subclass names itself.
  */
 class SpecialisedTabbyMissingError extends TabbyMissingError {}
+
+/* oxlint-enable unicorn/custom-error-definition */
 
 await describe({
   name: '',
