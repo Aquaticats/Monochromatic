@@ -41,6 +41,32 @@ fn removal_command(worktree: &Path) -> String {
 }
 
 /// What:
+///  The paths of the worktrees found inside,
+/// as the person reads them,
+///  a few named and the rest counted.
+/// Why:
+///  A person decides about their own worktrees,
+///  so the ones that keep this one are named,
+///  and a list longer than a few would bury the sentence it sits in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesOf(inside) // '`a` and 2 more'
+/// ```
+pub(crate) fn names_of_the_worktrees_inside(inside: &[&crate::worktree_landed_registrations::Registration]) -> String {
+    const SHOWN: usize = 2;
+    let mut parts: Vec<String> = Vec::new();
+    for other in inside.iter().take(SHOWN) {
+        parts.push(format!("`{}`", other.worktree.display()));
+    }
+    let rest: usize = inside.len().saturating_sub(parts.len());
+    if rest > 0 {
+        parts.push(format!("and {rest} more"));
+    }
+    return parts.join(", ");
+}
+
+/// What:
 ///  The lines one sweep prints on standard error,
 ///  each without its newline.
 /// Why:

@@ -490,7 +490,8 @@ fn check_tracked_files_by_content_in_a_job((root, git_dir, common_dir, context):
 /// and a removal that refused it handed the whole tree to Git's file-by-file walk,
 /// where anything still writing into the tree leaves a directory Git cannot empty
 /// (`SPEC.md`,
-/// "Cheap worktree creation and removal on btrfs, XFS and overlayfs").
+/// "Cheap worktree creation and removal on btrfs,
+/// XFS and overlayfs").
 /// Every other refusal stays a refusal:
 /// only the two stat verdicts a content comparison settles are read,
 /// and a file whose bytes differ is refused with the reason the comparison gives.

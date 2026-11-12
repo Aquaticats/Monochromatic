@@ -249,3 +249,7 @@ pub mod worktree_copy_after_lock;
 /// Which forwarded invocations the copy applies to,
 /// and the child run that performs it.
 pub mod worktree_copy_forward;
+
+/// What one forwarded `git worktree remove` does with the folder Git's own walk could not empty.
+#[cfg(unix)]
+pub mod worktree_copy_forward_removal_left_behind;

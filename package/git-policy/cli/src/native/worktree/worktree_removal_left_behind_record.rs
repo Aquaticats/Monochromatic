@@ -7,7 +7,8 @@
 //!  Git deletes a worktree's registration whether or not its walk emptied the folder
 //! (`builtin/worktree.c`,
 //! `remove_worktree`:
-//!  "continue on even if ret is non-zero, there's no going back from here"),
+//!  "continue on even if ret is non-zero,
+//! there's no going back from here"),
 //!  and something writing into the folder while the walk runs makes it fail
 //!  with `Directory not empty`.
 //!  What the walk left is the folder the person asked to be gone,
@@ -52,6 +53,48 @@ const OWNER_PREFIX: &str = "owner=";
 /// The line that says Git returned,
 /// without its terminator.
 const RETURNED_LINE: &[u8] = b"returned=1";
+
+/// What:
+///  Whether one byte ends a line.
+/// Why:
+///   Git's own ref files and the destroy records are read line by line,
+///  and a named predicate keeps every reader of this one spelling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isALineFeed = (byte: number) => byte === 10;
+/// ```
+fn is_a_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  Whether one byte is the zero that ends a name in the record's body.
+/// Why:
+///   A name cannot hold a zero byte,
+///  so the body needs no escaping and the predicate is the separator itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAZeroByte = (byte: number) => byte === 0;
+/// ```
+fn is_a_zero_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one header line names the process that wrote the record.
+/// Why:
+///   The reader skips the header to reach the entries,
+///  and only this prefix makes a line a header.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAnOwnerLine = (line: Uint8Array) => new TextDecoder().decode(line).startsWith('owner=');
+/// ```
+fn is_an_owner_line(line: &[u8]) -> bool {
+    return std::str::from_utf8(line).is_ok_and(|text: &str| { return text.starts_with(OWNER_PREFIX); });
+}
 
 /// The path of the record of one registration.
 fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
@@ -145,11 +188,16 @@ pub fn record_before_git_with_owner(common_dir: &Path, id: &OsStr, target: &Path
 /// const entriesOf = (path) => readdir(path);
 /// ```
 pub fn entries_of(target: &Path) -> Result<Vec<OsString>, String> {
-    let listing = std::fs::read_dir(target).map_err(|error| format!("{} cannot be listed ({error})", target.display()))?;
+    let listing = match std::fs::read_dir(target) {
+        Ok(opened) => opened,
+        Err(error) => return Err(format!("{} cannot be listed ({error})", target.display())),
+    };
     let mut names: Vec<OsString> = Vec::new();
     for listed in listing {
-        let found = listed.map_err(|error| format!("{} cannot be read ({error})", target.display()))?;
-        names.push(found.file_name());
+        match listed {
+            Ok(found) => names.push(found.file_name()),
+            Err(error) => return Err(format!("{} cannot be read ({error})", target.display())),
+        }
     }
     return Ok(names);
 }
@@ -247,11 +295,9 @@ fn header_length(bytes: &[u8]) -> usize {
     loop {
         // The body starts where this piece starts when the piece is no header line, which is also the answer for a file
         // whose first line never ends.
-        let Some(split) = rest.iter().position(|byte: &u8| { return *byte == b'\n'; }) else { return bytes.len() - rest.len() };
+        let Some(split) = rest.iter().position(is_a_line_feed) else { return bytes.len() - rest.len() };
         let (line, after): (&[u8], &[u8]) = rest.split_at(split);
-        let is_returned: bool = line == RETURNED_LINE;
-        let is_owner: bool = std::str::from_utf8(line).is_ok_and(|text: &str| { return text.starts_with(OWNER_PREFIX); });
-        if !is_returned && !is_owner {
+        if line != RETURNED_LINE && !is_an_owner_line(line) {
             return bytes.len() - rest.len();
         }
         rest = after.strip_prefix(b"\n").unwrap_or(after);
@@ -275,7 +321,7 @@ pub fn read_record(bytes: &[u8]) -> Result<LeftBehindRecord, String> {
     let mut returned: bool = false;
     // The header comes first, one line each, so no path and no entry can be taken for one of them.
     loop {
-        let Some(split) = rest.iter().position(|byte: &u8| { return *byte == b'\n'; }) else { break };
+        let Some(split) = rest.iter().position(is_a_line_feed) else { break };
         let (line, after): (&[u8], &[u8]) = rest.split_at(split);
         if line == RETURNED_LINE {
             returned = true;
@@ -288,12 +334,15 @@ pub fn read_record(bytes: &[u8]) -> Result<LeftBehindRecord, String> {
         rest = after.strip_prefix(b"\n").unwrap_or(after);
         break;
     }
-    let mut pieces: Vec<&[u8]> = rest.split(|byte: &u8| { return *byte == 0; }).collect();
+    let mut pieces: Vec<&[u8]> = rest.split(is_a_zero_byte).collect();
     let Some(target) = pieces.pop() else { return Err(String::from("it names no folder")) };
     if target.is_empty() {
         return Err(String::from("it names no folder"));
     }
-    let seen: Vec<OsString> = pieces.iter().map(|name: &&[u8]| { return OsStr::from_bytes(name).to_os_string(); }).collect();
+    let mut seen: Vec<OsString> = Vec::with_capacity(pieces.len());
+    for name in pieces {
+        seen.push(OsStr::from_bytes(name).to_os_string());
+    }
     return Ok(LeftBehindRecord { owner, returned, seen, target: PathBuf::from(OsStr::from_bytes(target)) });
 }
 

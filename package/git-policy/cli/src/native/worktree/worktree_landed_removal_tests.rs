@@ -490,7 +490,8 @@ fn a_landed_clean_worktree_is_removed_and_its_branch_stays() {
 ///   Git deletes the registration whether or not its walk emptied the folder
 ///  (`builtin/worktree.c`,
 ///  `remove_worktree`:
-///  "continue on even if ret is non-zero, there's no going back from here"),
+///  "continue on even if ret is non-zero,
+/// there's no going back from here"),
 ///  so a walk something defeats leaves a folder no registration names.
 ///  A directory the owner cannot write makes that failure certain:
 ///  Git cannot unlink the file inside it,

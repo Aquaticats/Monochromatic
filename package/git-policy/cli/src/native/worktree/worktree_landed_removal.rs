@@ -82,7 +82,7 @@ use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
-use crate::worktree_removal_left_behind_folder::{LeftBehind, Remembered, finish_after_git, finished_notice, kept_notice, remember_before_git};
+use crate::worktree_removal_left_behind_folder::{HandedToGit, Remembered, finish_a_removal_handed_to_git, remember_before_git};
 use crate::worktree_removal_rescue::snapshot_linked_worktrees;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
@@ -496,27 +496,16 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
     // What: The folder's entries are recorded before Git runs, so a walk that something defeats is finished here instead
     //       of leaving a folder no registration names.
     // Why:  Git deletes the registration whether or not its walk emptied the folder, and a write into the folder while
-    //       the walk runs makes it fail with `Directory not empty`
-    //       (`worktree_removal_left_behind_folder.rs`).
+    //       the walk runs makes it fail with `Directory not empty`.
     let remembered: Option<Remembered> = remember_before_git(place.common_dir, one.worktree.as_path());
     let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Attempt::Kept(format!("Git could not be started to remove it ({error})")),
     };
-    let Some(recorded_folder) = remembered else {
-        return match output.code {
-            Some(0) => Attempt::Removed,
-            _ => Attempt::Kept(format!("Git refused to remove it: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
-        };
-    };
-    return match finish_after_git(&recorded_folder) {
-        LeftBehind::Removed => Attempt::RemovedAfterGitCouldNotEmpty(finished_notice(one.worktree.as_path())),
-        LeftBehind::Kept { names, reason } => Attempt::Kept(kept_notice(one.worktree.as_path(), names.as_slice(), reason.as_str())),
-        // Git emptied the folder and took the registration, or refused and nothing moved: Git's own words are the answer.
-        LeftBehind::Nothing => match output.code {
-            Some(0) => Attempt::Removed,
-            _ => Attempt::Kept(format!("Git refused to remove it: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
-        },
+    return match finish_a_removal_handed_to_git(remembered, output.code, output.stderr.as_slice(), one.worktree.as_path()) {
+        HandedToGit::Removed => Attempt::Removed,
+        HandedToGit::FinishedAfterTheWalk { line } => Attempt::RemovedAfterGitCouldNotEmpty(line),
+        HandedToGit::Left { line } => Attempt::Kept(line),
     };
 }
 
@@ -549,32 +538,6 @@ fn worktrees_inside<'a>(one: &Registration, registered: &'a [Registration]) -> V
         }
     }
     return inside;
-}
-
-/// What:
-///  The paths of the worktrees found inside,
-/// as the person reads them,
-///  a few named and the rest counted.
-/// Why:
-///  A person decides about their own worktrees,
-///  so the ones that keep this one are named,
-///  and a list longer than a few would bury the sentence it sits in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// namesOf(inside) // '`a` and 2 more'
-/// ```
-fn names_of(inside: &[&Registration]) -> String {
-    const SHOWN: usize = 2;
-    let mut parts: Vec<String> = Vec::new();
-    for other in inside.iter().take(SHOWN) {
-        parts.push(format!("`{}`", other.worktree.display()));
-    }
-    let rest: usize = inside.len().saturating_sub(parts.len());
-    if rest > 0 {
-        parts.push(format!("and {rest} more"));
-    }
-    return parts.join(", ");
 }
 
 /// What:
@@ -636,7 +599,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     if !inside.is_empty() {
         return Examined::Kept(format!(
             "another worktree this repository registers is inside it ({}), and a removal of this one would take that worktree's files and its own record with it",
-            names_of(inside.as_slice())
+            crate::worktree_landed_sweep_notice::names_of_the_worktrees_inside(inside.as_slice())
         ));
     }
     if one.admin.join("locked").exists() {
