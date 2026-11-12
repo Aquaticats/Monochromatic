@@ -132,9 +132,9 @@ fn the_words_of_the_command_start_after_the_subcommand() {
 /// and any other reference as it is.
 #[test]
 fn a_switched_branch_is_named_as_the_person_knows_it() {
-    assert_eq!(switched_branch_name("HEAD"), "a detached head");
-    assert_eq!(switched_branch_name("refs/heads/main"), "main");
-    assert_eq!(switched_branch_name("refs/heads/topic/deep"), "topic/deep");
-    assert_eq!(switched_branch_name("refs/tags/v1"), "refs/tags/v1");
-    assert_ne!(switched_branch_name("HEADS"), "a detached head", "only the word HEAD is a detached head");
+    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("HEAD")), "a detached head");
+    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("refs/heads/main")), "main");
+    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("refs/heads/topic/deep")), "topic/deep");
+    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("refs/tags/v1")), "refs/tags/v1");
+    assert_ne!(switched_branch_name(&crate::ref_name::RefName::from_text("HEADS")), "a detached head", "only the word HEAD is a detached head");
 }

@@ -128,7 +128,7 @@ pub struct FreshScratch {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; socketUnit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; socketUnit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean; restart: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -159,6 +159,10 @@ pub struct ManagerWatch {
     /// so a start is not refused as repeated too quickly;
     /// whether the manager took the request.
     pub reset: fn(&std::path::Path, &str) -> bool,
+    /// Asks the manager to stop the unit and start it again,
+    /// which is the one repair of a unit it reports `active` whose program stopped inside its own process;
+    /// whether the manager took the request.
+    pub restart: fn(&std::path::Path, &str) -> bool,
     /// Asks the manager to read the unit files again,
     /// which is what makes it forget a unit whose executable is gone;
     /// whether the manager took the request.
@@ -199,6 +203,14 @@ pub(crate) fn reset_failed_unit(bus: &std::path::Path, unit: &str) -> bool {
     return connection.reset_failed(unit).is_ok();
 }
 
+/// Asks the manager to stop `unit` and start it again;
+/// whether the request was taken.
+/// A unit the manager reports `active` whose program stopped inside its own process is repaired by no start.
+pub(crate) fn restart_unit(bus: &std::path::Path, unit: &str) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.restart_unit(unit).is_ok();
+}
+
 /// What:
 ///  The watch that asks the account's service manager about the worktree's service unit.
 /// Why:
@@ -218,6 +230,7 @@ pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
         state: unit_state,
         start: start_unit,
         reset: reset_failed_unit,
+        restart: restart_unit,
         reload: reload_units,
     };
 }

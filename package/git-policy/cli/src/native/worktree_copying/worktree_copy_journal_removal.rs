@@ -11,7 +11,7 @@
 //! await removePendingJournal(pending); // removes the stage, then the journal and its unfinished writes
 //! ```
 
-use crate::blocking_job::BlockingJobError;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::sync_directory;
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
@@ -301,23 +301,44 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
 /// as the removal it serves did before the pool was asked,
 /// and the control that runs it with no
 ///  thread to start still removes the tree.
+/// The pool queues a job's closure before it asks the system for a thread
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`),
+/// so only a refusal that took the claim on the job's work
+/// (`run_a_job_or_in_turn`,
+/// and `a_refused_thread_start`)
+/// proves the queued closure will do nothing and the same walk may run here:
+/// walking in turn beside a queued walk that runs later deletes an entry a later writer put at that path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
 /// ```
 async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-    let walking: PathBuf = path.to_path_buf();
-    return match crate::blocking_job::run_blocking_job(move || { return walk_to_the_split_depth(walking.as_path()); }).await {
+    return match run_a_job_or_in_turn(path.to_path_buf(), walk_to_the_split_depth_of).await {
         Ok(lists) => lists,
-        Err(BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused) => {
-            return walk_to_the_split_depth(path);
-        }
+        // Another answer leaves the walk on another thread, outlasting its ceiling, or ended with the runtime, so no
+        //  result of it can be read here and nothing is walked in turn.
         Err(other) => Err(std::io::Error::other(format!(
-            "the walk to the split depth below {} did not run ({other})",
+            "the walk to the split depth below {} has no result this call can read ({other})",
             path.display()
         ))),
     };
+}
+
+/// What:
+///  `walk_to_the_split_depth` as the work a place of the process's bound covers,
+/// for the runners that take a function and its state.
+/// Why:
+///   `run_a_job_or_in_turn` hands the state to a function of its own on both paths,
+/// so the walk reads the path it was given either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walkToTheSplitDepthOf(path: string): [string[], string[]]
+/// ```
+fn walk_to_the_split_depth_of(path: PathBuf) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    return walk_to_the_split_depth(path.as_path());
 }
 
 /// What:
@@ -451,6 +472,28 @@ pub fn remove_file_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
+///  Remove one file and say whether it was there.
+/// Why:
+///   A sweep that flushes the directory it changed must know whether it changed it:
+/// a removal that found nothing costs no filesystem commit,
+/// and one that found a file does.
+/// Absence is no failure,
+/// as it is for [`remove_file_if_present`].
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = await removeFileSayingWhetherItWasThere(path); // false when nothing stood there
+/// ```
+pub fn remove_file_and_say(path: &Path) -> Result<bool, WorktreeCopyError> {
+    // `match` on the removal: absence answers false and every other refusal is reported.
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(raw_failure(&error)),
+    };
+}
+
+/// What:
 ///  Removes the temporary writes an interrupted write of one journal left beside it.
 /// Why:
 ///   Only temporaries named after this journal are removed,
@@ -477,3 +520,8 @@ pub fn remove_unfinished_writes(path: &Path) -> Result<(), WorktreeCopyError> {
     }
     return Ok(());
 }
+
+/// Removal controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_copy_journal_removal_tests.rs"]
+mod tests;

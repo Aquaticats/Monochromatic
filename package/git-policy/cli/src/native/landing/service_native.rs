@@ -87,20 +87,6 @@ fn parent_of_line(line: &str) -> Option<String> {
     return line.strip_prefix("parent ").map(str::to_string);
 }
 
-/// What:
-///  An argument as text,
-/// with bytes that are not valid text replaced.
-/// Why:
-///  The commit options are read as text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lossyText = (token: Buffer) => token.toString('utf8');
-/// ```
-fn lossy_text(token: &OsString) -> String {
-    return token.to_string_lossy().into_owned();
-}
-
 /// The message after the header block of a stored commit.
 pub fn message_of(raw: &[u8]) -> String {
     // The message starts after the first blank line; a stored commit without one has none.
@@ -131,8 +117,9 @@ pub struct BuildInput<'a> {
     /// global options included.
     pub arguments: &'a [OsString],
     /// The positional pathspecs of the command line,
-    /// which the private index already holds.
-    pub pathspecs: &'a [String],
+    /// which the private index already holds,
+    /// each with its own bytes.
+    pub pathspecs: &'a [OsString],
     /// Whether the line commits named paths or the index.
     pub mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
@@ -170,16 +157,14 @@ pub fn parents_of(raw: &[u8]) -> Vec<String> {
 /// ```
 pub fn private_invocation(
     arguments: &[OsString],
-    pathspecs: &[String],
+    pathspecs: &[OsString],
     mode: TransactionMode,
     staged_all: bool,
     selected_privately: bool,
-) -> (Vec<String>, Vec<String>) {
-    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
-    let private_args: Vec<String> = resolve_private_commit_args(text.as_slice(), pathspecs, mode, selected_privately);
-    let owned: Vec<OsString> = private_args.iter().map(OsString::from).collect();
-    let index: usize = global_layout(owned.as_slice()).prefix_len;
-    let (globals, commit_args): (Vec<String>, Vec<String>) = split_commit_invocation(private_args.as_slice(), index);
+) -> (Vec<OsString>, Vec<OsString>) {
+    let private_args: Vec<OsString> = resolve_private_commit_args(arguments, pathspecs, mode, selected_privately);
+    let index: usize = global_layout(private_args.as_slice()).prefix_len;
+    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = split_commit_invocation(private_args.as_slice(), index);
     return if staged_all { (globals, without_all_flag(commit_args.as_slice())) } else { (globals, commit_args) };
 }
 
@@ -221,7 +206,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     take_or_create_shadow(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion, input.clock)?;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
-    let (globals, commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
+    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: input.capture,
         shadow: shadow.as_path(),

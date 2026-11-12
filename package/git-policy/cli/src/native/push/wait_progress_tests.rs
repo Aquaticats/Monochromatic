@@ -120,6 +120,7 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
         limit_note: " (CLI_GIT_CHILD_WAIT_SECONDS changes this)",
         repeat: false,
         ends_when_quiet: true,
+        left_running_after: None,
     };
     let first: String = child_wait_line(&facts);
     assert_eq!(
@@ -138,6 +139,45 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
         writer,
         "monochromatic-git-policy-cli: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is a step that may not be run twice, so it is waited for as long as it lives."
     );
+}
+
+/// What:
+///  The notice of a step the wrapper never ends,
+///  that the command stops waiting for,
+/// names that bound instead of saying it is waited for as long as the step lives.
+/// Why:
+///   A write of one of the wrapper's own side references is never ended,
+///  and the command that started it does stop waiting,
+///  at the step's class ceiling plus the short extra wait:
+///  the release gate of 0.6.1-alpha.11 read a notice that said the write "is waited for as long as it lives"
+///  of a write whose wait had ended at 127 seconds,
+///  which names a wait with no bound where the wrapper has one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(childWaitLine({ ...facts, endsWhenQuiet: false, leftRunningAfter: 127 })).toContain('stops waiting for it after 127 seconds and leaves it running')
+/// ```
+#[test]
+fn a_notice_of_a_step_left_running_names_the_bound_the_wait_ends_at() {
+    let facts: ChildWaitFacts<'_> = ChildWaitFacts {
+        waiting_for: "git update-ref --no-deref refs/worktree/cli-git-service/1, a quick query step",
+        pid: 4242,
+        waited: Duration::from_secs(5),
+        limit: Duration::from_secs(60),
+        limit_note: " (CLI_GIT_CHILD_WAIT_SECONDS changes this)",
+        repeat: false,
+        ends_when_quiet: false,
+        left_running_after: Some(Duration::from_secs(127)),
+    };
+    let line: String = child_wait_line(&facts);
+    assert!(
+        line.contains("the wrapper never ends it, and this command stops waiting for it after 127 seconds and leaves it running"),
+        "the notice names the bound the wait ends at: {line}"
+    );
+    assert!(!line.contains("as long as it lives"), "no step whose wait has a bound is called unbounded: {line}");
+    assert!(!line.contains("CLI_GIT_CHILD_WAIT_SECONDS"), "the quiet window is not what ends this wait: {line}");
+    let repeated: String = child_wait_line(&ChildWaitFacts { repeat: true, ..facts });
+    assert!(!repeated.contains("Hint:"), "a repeat keeps the line short: {repeated}");
 }
 
 /// The reporter reports no notice due and prints nothing before the grace,

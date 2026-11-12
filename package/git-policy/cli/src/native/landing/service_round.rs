@@ -34,7 +34,7 @@ use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 use crate::parallel_runner_on_the_runtime::OrderedRunError;
 use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
 use crate::push_retry::{RetryChange, Retrying};
-use crate::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_of, drain_common_records_planned_awaiting, drain_planned_awaiting};
+use crate::service_work::{CLAIM_LEASE, Drained, PUSH_KINDS, WorkHandlers, common_directory_of, drain_common_records_planned_awaiting, drain_planned_awaiting};
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use std::collections::HashMap;
 use std::future::Future;
@@ -259,14 +259,18 @@ fn lanes_of(keys: &[PathBuf]) -> Vec<Vec<usize>> {
 /// (`service_round_tests.rs`)
 /// both run this one body,
 /// so a difference between them is the runner's and never the drain's.
+/// It claims the pushes alone (`PUSH_KINDS`):
+/// the kinds that can take minutes are claimed by the slow lane,
+/// which the loop asks beside this round
+///  (`service_work_slow_lane.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [wait, changes] = await drainOne(handlers, now, assignment)
 /// ```
 async fn drain_one<H: WorkHandlers + Sync>(handlers: &H, now: &ClaimTime, assignment: &Assignment) -> (Option<Duration>, Vec<RetryChange>) {
-    let own: Drained = drain_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying).await;
-    let common: Drained = drain_common_records_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying).await;
+    let own: Drained = drain_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying, &PUSH_KINDS).await;
+    let common: Drained = drain_common_records_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying, &PUSH_KINDS).await;
     let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
     return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
 }

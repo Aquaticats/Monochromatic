@@ -395,6 +395,10 @@ fn reports_the_file_and_the_write_of_a_region() {
         ("get remote.origin.url", Shared, Nothing),
         ("--edit", Shared, EditAction),
         ("edit", Shared, EditAction),
+        // The subcommand form takes no argument ("wrong number of arguments, should be 0"),
+        // while the legacy `--edit` runs the editor whatever follows it.
+        ("edit user.name", Shared, Nothing),
+        ("--edit user.name", Shared, EditAction),
         // Git's argument count decides the form without a subcommand word:
         //  one argument reads,
         //  two store,
@@ -408,6 +412,59 @@ fn reports_the_file_and_the_write_of_a_region() {
         let found: ConfigRegion = region(line);
         assert_eq!((found.file, found.write), (file, write), "{line}");
     }
+}
+
+/// The path `--file` names is reported for the caller that compares it with the file every
+///  worktree shares,
+///  and `--blob` names no path at all.
+#[test]
+fn reports_the_file_a_region_names() {
+    for (line, expected) in [
+        ("--file other remote.origin.url one", Some("other")),
+        ("--file=other remote.origin.url one", Some("other")),
+        ("-f other remote.origin.url one", Some("other")),
+        ("set --file other remote.origin.url one", Some("other")),
+        // The last use wins, as Git's own variables do.
+        ("--file first --file second remote.origin.url one", Some("second")),
+        ("--file other --edit", Some("other")),
+        // A read names the file it reads, and this reader reports it all the same.
+        ("--file other remote.origin.url", Some("other")),
+        // A blob is no path, and a region Git refuses names neither.
+        ("--blob HEAD:.gitmodules remote.origin.url one", None),
+        // Two scope options at once is a region Git refuses, and the path it names is still reported
+        //  for the one file the region would have read.
+        ("--file other --global remote.origin.url one", Some("other")),
+        ("remote.origin.url one", None),
+        ("--global remote.origin.url one", None),
+    ] {
+        assert_eq!(region(line).named_file, expected.map(PathBuf::from), "{line}");
+    }
+    // Real Git writes the file this reader names, leaves the shared one as it was,
+    //  and refuses the subcommand form with an argument.
+    let directory: PathBuf = fixture("config-named-file");
+    let root: PathBuf = repository(directory.as_path(), "repository");
+    let shared: PathBuf = root.join(".git").join("config");
+    let before: Vec<u8> = std::fs::read(shared.as_path()).expect("shared configuration");
+    let named: PathBuf = root.join("other");
+    git(
+        root.as_path(),
+        &["config", "--file", "other", "remote.origin.url", "one"],
+    );
+    let written: String = std::fs::read_to_string(named.as_path()).expect("named configuration");
+    assert!(written.contains("one"), "the named file was not written: {written}");
+    assert_eq!(
+        std::fs::read(shared.as_path()).expect("shared configuration"),
+        before,
+        "a write to a named file changed the shared configuration"
+    );
+    let refused: Output = git_status(root.as_path(), &["config", "edit", "user.name"]);
+    assert!(!refused.status.success(), "Git accepted an argument after the edit subcommand");
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("wrong number of arguments"),
+        "Git refused the edit subcommand for another reason: {}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    remove(directory.as_path());
 }
 
 /// The tokens Git hands the command as arguments are reported by region position,

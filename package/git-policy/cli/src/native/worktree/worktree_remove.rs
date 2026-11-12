@@ -48,21 +48,22 @@
 //! ```
 
 use crate::diagnostic_log::{debug, warn};
-use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, open_file_at, open_root, remove_at};
+use crate::fs_beneath::{handle_path, identity_at, remove_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
-use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
-use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, stage_state};
+use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
+use crate::worktree_removal_refuses_a_nested_volume::refusal_for_nested_volume;
+use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, snapshots_ahead_report, stage_state};
+pub use crate::worktree_removal_holds_the_worktree::Held;
+use crate::worktree_removal_holds_the_worktree::{confirm, hold, lock_state};
 use crate::worktree_remove_registry::{Registration, registration_of};
-use std::ffi::OsString;
 use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -94,28 +95,6 @@ pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrf
 ///  and the files leave later than the path does,
 /// because the same commit service the unforced line names deletes them after this command returns.
 pub const DESTROY_FORCED_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the forced removal in one step, without checking it for changes first, as `--force` asks, and the commit service deletes the files after this command returns (normally within a second); this cannot be undone, and everything the worktree held went with it, which is the set `git worktree remove --force` deletes (the risk of git worktree remove, here faster).";
-
-/// What:
-///  Whether the administrative directory holds a `locked` entry.
-/// Why:
-///   A lock is a promise to keep the worktree.
-/// Only an entry that is certainly absent (`NotFound`) means unlocked;
-/// any
-///  other failure to look it up leaves the lock unknown,
-/// and an unknown lock is not a reason to destroy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function lockState(admin: string): boolean; // throws when the entry cannot be looked up
-/// ```
-fn lock_state(admin: &Path) -> Result<bool, String> {
-    let entry: PathBuf = admin.join("locked");
-    return match entry.symlink_metadata() {
-        Ok(_found) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(format!("the lock entry {} cannot be looked up ({error}), so the worktree is not known to be unlocked", entry.display())),
-    };
-}
 
 /// What:
 ///  How one attempt to remove a worktree with a subvolume destroy ended.
@@ -166,43 +145,6 @@ pub struct RemoveRequest<'a> {
     pub plan: &'a RemovePlan,
     /// The canonical common Git directory of the repository the command was run in.
     pub common_dir: &'a Path,
-}
-
-/// What:
-///  The directories one removal holds open from before the proof of cleanliness to the destroy,
-/// and the identities they
-///  had when they were looked at.
-/// Why:
-///   A descriptor names the object it was opened on,
-/// whatever happens to the path afterwards;
-/// the identities let the
-///  last look before the destroy tell a swapped name from the held object.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Held = { parent: FileHandle; name: string; target: FileHandle; identity: ObjectId; admin: FileHandle; ... };
-/// ```
-#[derive(Debug)]
-pub struct Held {
-    /// The directory that holds the worktree directory.
-    pub parent: File,
-    /// The canonical path of `parent`,
-    /// for messages and for the check that the path still names it.
-    pub parent_path: PathBuf,
-    /// The name of the worktree directory in `parent`.
-    pub name: OsString,
-    /// The worktree directory itself (the root of its subvolume).
-    pub target: File,
-    /// The identity of `target` when it was opened.
-    pub identity: ObjectId,
-    /// The identity of `parent` when it was opened.
-    pub parent_identity: ObjectId,
-    /// The `worktrees` directory of the repository.
-    pub worktrees: File,
-    /// The administrative directory of the worktree.
-    pub admin: File,
-    /// The identity of `admin` when it was opened.
-    pub admin_identity: ObjectId,
 }
 
 /// What:
@@ -315,110 +257,6 @@ impl RemoveOperations for LinuxOperations {
 }
 
 /// What:
-///  Open the worktree directory,
-/// its parent,
-/// and its registration,
-/// and record what each one is.
-/// Why:
-///   Everything after this point is about these objects,
-/// not about the paths that name them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function hold(target: string, registration: Registration): Promise<Held>; // throws the reason
-/// ```
-/// A step of holding the worktree's directories with its failure worded as a refusal to open `what` at `path` without
-///  following a link.
-fn refused<T>(outcome: std::io::Result<T>, what: &str, path: &Path) -> Result<T, String> {
-    return match outcome {
-        Ok(value) => Ok(value),
-        Err(error) => Err(format!("{what} {} cannot be opened without following a link ({error})", path.display())),
-    };
-}
-
-/// A read of a held object's identity with its failure worded as the identity of `target` being unreadable.
-fn identity_unreadable<T>(outcome: std::io::Result<T>, target: &Path) -> Result<T, String> {
-    return match outcome {
-        Ok(value) => Ok(value),
-        Err(error) => Err(format!("the identity of {} cannot be read ({error})", target.display())),
-    };
-}
-
-fn hold(target: &Path, registration: &Registration) -> Result<Held, String> {
-    let Some(parent_of_target) = target.parent() else {
-        return Err(format!("{} has no parent directory", target.display()));
-    };
-    let parent_path: PathBuf = parent_of_target.to_path_buf();
-    let Some(last_component) = target.file_name() else {
-        return Err(format!("{} has no last component", target.display()));
-    };
-    let name: OsString = last_component.to_os_string();
-    let parent: File = refused(open_root(parent_path.as_path()), "the directory", parent_path.as_path())?;
-    let held_target: File = refused(open_directory_at(&parent, name.as_os_str()), "the worktree", target)?;
-    let worktrees: File = refused(open_root(registration.worktrees.as_path()), "the directory", registration.worktrees.as_path())?;
-    let admin: File = refused(open_directory_at(&worktrees, registration.id.as_os_str()), "the registration", registration.admin.as_path())?;
-    return Ok(Held {
-        identity: identity_unreadable(identity_of(&held_target), target)?,
-        parent_identity: identity_unreadable(identity_of(&parent), target)?,
-        admin_identity: identity_unreadable(identity_of(&admin), target)?,
-        parent,
-        parent_path,
-        name,
-        target: held_target,
-        worktrees,
-        admin,
-    });
-}
-
-/// What:
-///  The last look before the destroy:
-/// the lock,
-/// and that the names still lead to the objects that were held and proven.
-/// Why:
-///   The proof of cleanliness takes time (it starts Git);
-/// a lock taken,
-/// a directory moved away and another put in its
-///  place,
-/// an ancestor replaced by a link,
-/// or a registration replaced in that time must stop the destroy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function confirm(held: Held, registration: Registration): Promise<void>; // throws the reason
-/// ```
-fn confirm(held: &Held, registration: &Registration) -> Result<(), String> {
-    let shown: PathBuf = held.parent_path.join(held.name.as_os_str());
-    if lock_state(handle_path(&held.admin).as_path())? {
-        return Err(format!("{} was locked after it was proven clean", shown.display()));
-    }
-    let named_now: ObjectId = path_failure(identity_at(&held.parent, held.name.as_os_str()), shown.as_path(), "cannot be looked up again")?;
-    if named_now != held.identity {
-        return Err(format!("{} is not the directory that was proven clean any more", shown.display()));
-    }
-    let parent_now: File = path_failure(open_root(held.parent_path.as_path()), held.parent_path.as_path(), "cannot be opened again without following a link")?;
-    if path_failure(identity_of(&parent_now), held.parent_path.as_path(), "cannot be looked up again")? != held.parent_identity {
-        return Err(format!("{} is not the directory that held the worktree any more", held.parent_path.display()));
-    }
-    let admin_now: ObjectId = path_failure(identity_at(&held.worktrees, registration.id.as_os_str()), registration.admin.as_path(), "cannot be looked up again")?;
-    if admin_now != held.admin_identity {
-        return Err(format!("{} is not the registration that was proven any more", registration.admin.display()));
-    }
-    let recorded: Vec<u8> = path_failure(read_held_file(held, "gitdir"), registration.admin.join("gitdir").as_path(), "cannot be read again")?;
-    if recorded != registration.gitdir_text {
-        return Err(format!("{} changed after it was proven", registration.admin.join("gitdir").display()));
-    }
-    return Ok(());
-}
-
-/// The bytes of a file of the held administrative directory.
-fn read_held_file(held: &Held, name: &str) -> std::io::Result<Vec<u8>> {
-    let mut file: File = open_file_at(&held.admin, std::ffi::OsStr::new(name))?;
-    let mut bytes: Vec<u8> = Vec::new();
-    file.read_to_end(&mut bytes)?;
-    return Ok(bytes);
-}
-
-/// What:
 ///  After the destroy,
 /// remove the registration through the descriptors that were held,
 /// and report how that ended.
@@ -455,6 +293,12 @@ fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>)
         Ok(admin) => admin,
         Err(error) => return incomplete(registration, request, format!("its directory cannot be used ({error})")),
     };
+    // The snapshots ahead of an add are this program's own and sit in the registration, so they go before the walk that
+    // refuses every nested subvolume. A pool a fill made in the moments since the removal cleared it is the one case this
+    // second clear answers, and a member that cannot go is the reason the registration stays.
+    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
+        return incomplete(registration, request, format!("its content cannot be removed ({reason})"));
+    }
     let emptied = match verify_below(&admin, registration.admin.as_path()) {
         Ok(()) => empty_directory(&admin, registration.admin.as_path()),
         Err(error) => Err(error),
@@ -550,6 +394,32 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     }
+    if let Err(reason) = confirm(&held, &registration) {
+        debug(TAG, format!("{reason}; Git decides").as_str());
+        return RemoveOutcome::LeftToGit;
+    }
+    // The kernel refuses a destroy for a subvolume that contains another one, so a worktree holding a subvolume of its own
+    // could never go this way: it has to be refused while nothing has happened, and never handed to Git, whose removal
+    // unlinks the inner worktree's files. A tree that cannot be walked proves nothing either way, and the removal is then
+    // Git's, which is what it was before this check existed.
+    match find_boundary_below(&held.target, target) {
+        Ok(None) => {}
+        Ok(Some(found)) => {
+            let report: String = refusal_for_nested_volume(target, request.common_dir, &found);
+            warn(TAG, report.as_str());
+            return RemoveOutcome::Refused(report);
+        }
+        Err(error) => debug(TAG, format!("the tree of {} cannot be walked for a subvolume of its own ({error}); Git decides", target.display()).as_str()),
+    }
+    // The snapshots ahead of an add are this program's own and stand in the registration the removal empties after the
+    // destroy, so they go first: a pool that cannot be taken stops the removal while nothing has happened.
+    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
+        let report: String = snapshots_ahead_report(target, registration.admin.as_path(), reason.as_str());
+        warn(TAG, report.as_str());
+        return RemoveOutcome::Refused(report);
+    }
+    // The walk and the clear above took time, and the destroy names the held subvolume, so the names and the lock are looked
+    // at once more: what the first look proved is what this destroy answers for, and a lock or a swap since it is Git's.
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;

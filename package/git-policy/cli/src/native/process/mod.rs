@@ -42,6 +42,10 @@ pub mod process_start;
 /// and relaying only process-sent signals.
 pub mod signal_relay;
 
+/// The stop signal this process relayed to a child,
+/// kept for the command that waits after it.
+pub mod signal_relay_relayed_stop;
+
 /// Whether this process has a controlling terminal,
 /// and so may have a person to answer a login question.
 pub mod control_terminal;

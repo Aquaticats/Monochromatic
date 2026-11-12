@@ -16,13 +16,19 @@
 //!  The owner's rule is "never discard user data",
 //!  so the control asks for the two records by name:
 //!  the repaid commit's intent and the record of the index update it still owes.
+//!  A hold the settlement finishes in one go is the other end of this path:
+//!  every obligation is met,
+//!  the record and the intent are gone,
+//!  and a restart that says nothing about it leaves the person who asked what became of the batch with no answer
+//!  (a Kimi K3.1 Pro review of the jam-fix integration,
+//! its finding that a settled held batch is left out of the report).
 
 use crate::held_commit_record::{Held, Holding, hold};
 use crate::owed_index_update;
 use crate::service_fault::hooks;
-use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, parse_intent, write_intent, write_start};
+use crate::service_journal::{Intent, OPEN_EXTENSION, Recovery, batch_path, parse_intent, write_intent, write_start};
 use crate::service_land::{LandContext, recover};
-use crate::service_land_finish::RecoveryReport;
+use crate::service_land_finish::{Handled, RecoveryReport};
 use crate::service_land_start::witness_of;
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use crate::transaction_git::GitContext;
@@ -126,11 +132,12 @@ fn held_batch(world: &World) -> Held {
         seq: SEQ,
         repository: repo.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: base,
         new: held_commit.clone(),
         ids: vec![String::from("request-1")],
         commits: vec![held_commit],
+        holders: vec![String::new()],
         paths: vec![THE_HELD_FILE.as_bytes().to_vec()],
         derived: false,
         cleanup: None,
@@ -148,7 +155,7 @@ fn held_batch(world: &World) -> Held {
         common_dir: git_dir.as_path(),
         git_dir: git_dir.as_path(),
         index: intent.index.as_path(),
-        reference: intent.reference.as_str(),
+        reference: &intent.reference,
         seq: SEQ,
         intent: &intent,
         locks: vec![git_dir.join("refs/heads/main.lock")],
@@ -209,4 +216,43 @@ fn a_restart_that_replayed_a_held_commit_keeps_the_index_update_it_owes() {
     assert!(!owed.exists(), "the owed record goes once its update is installed: {afterwards:?}");
     assert!(open_intent(&world).is_none(), "the intent is marked done once nothing is owed: {afterwards:?}");
     assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "", "the index shows the landing");
+}
+
+/// What:
+///  A restart that finishes a held batch in one go reports it as finished,
+///  with its branch moved and nothing left owed.
+/// Why:
+///  The settlement removes the held record when nothing is owed and marks the batch done by renaming its intent,
+///  so a record of the batch can no longer be read afterwards;
+///  a restart that reports only the batches whose intent it still reads says nothing about the one it just finished.
+///  `git monochromatic-git-policy-cli service settle-earlier-batches` builds its whole answer from these reports:
+///  a batch in neither the settled list nor the unanswered one is printed nowhere,
+///  and the command ends with empty standard output and exit 0 after it changed the worktree
+///  (`earlier_service_journal_adopted.rs`,
+/// `settle_on_request`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reports = recover(context); expect(reports).toEqual([{ seq: 1, decision: 'finish', handled: 'finished' }]);
+/// ```
+#[test]
+fn a_hold_the_restart_finishes_is_reported_as_finished() {
+    let world: World = world("land-finish-held-finished");
+    let held: Held = held_batch(&world);
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    assert_eq!(
+        reports,
+        vec![
+            RecoveryReport {
+                seq: SEQ,
+                repository: world.repo.clone(),
+                decision: Recovery::Finish,
+                handled: Handled::Finished,
+            },
+        ],
+        "the batch this restart landed and finished is reported"
+    );
+    assert_eq!(head_of(world.repo.as_path()), held.new, "the report is about a batch whose branch really moved");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "", "the index shows the landing");
+    assert!(!crate::held_commit_record::path_of(world.repo.join(".git").as_path(), SEQ).exists(), "nothing of the hold is left");
 }

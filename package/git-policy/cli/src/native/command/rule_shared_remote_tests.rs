@@ -19,8 +19,8 @@
 //! ```
 
 /// The decision,
-///  its result type and the tokenizer helpers the cases use.
-use super::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite, shared_remote_write};
+///  its result types and the tokenizer helpers the cases use.
+use super::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange, SharedRemoteWrite, shared_remote_write};
 use crate::command_test_support::{fixture, git, git_status, os_arguments, output_text, remove, repository};
 /// The refusal text,
 ///  whose words the README has to carry too.
@@ -31,13 +31,19 @@ use std::path::{Path, PathBuf};
 /// The remote URL every fixture repository starts with.
 const ORIGIN_URL: &str = "https://example.invalid/origin.git";
 
-/// The decision for a space-separated command line,
+/// The whole decision for a space-separated command line,
 ///  split at its first space into the word and the region.
-fn decided(line: &str) -> Option<SharedRemoteWrite> {
+fn decided_change(line: &str) -> Option<SharedRemoteChange> {
     let values: Vec<&str> = line.split(' ').collect();
     // `split_first` is `Some((first, rest))` for any non-empty list.
     let (word, region) = values.split_first().expect("a command word");
     return shared_remote_write(word.as_bytes(), os_arguments(region).as_slice());
+}
+
+/// The setting the decision for a space-separated command line names,
+///  which is every case about a file the command does not name.
+fn decided(line: &str) -> Option<SharedRemoteWrite> {
+    return decided_change(line).map(|change| { return change.setting; });
 }
 
 /// Where one spelling of a key or section belongs,
@@ -146,10 +152,10 @@ fn every_config_write_to_a_remote_key_is_refused() {
 }
 
 /// A read,
-///  an editor,
-///  another section and another file name nothing this rule refuses.
+///  another section,
+///  a blob and a region Git refuses name nothing this rule refuses.
 #[test]
-fn reads_editors_other_sections_and_other_files_are_left_alone() {
+fn reads_other_sections_and_regions_git_refuses_are_left_alone() {
     for line in [
         "config remote.origin.url",
         "config --get remote.origin.url",
@@ -159,14 +165,17 @@ fn reads_editors_other_sections_and_other_files_are_left_alone() {
         "config list",
         "config --list",
         "config -l",
-        "config --edit",
-        "config edit",
         // Another file is not the one every worktree shares.
         "config --global remote.origin.url https://example.invalid/two.git",
         "config --system remote.origin.url https://example.invalid/two.git",
         "config --worktree remote.origin.url https://example.invalid/two.git",
-        "config --file other.config remote.origin.url https://example.invalid/two.git",
         "config --blob HEAD:.gitmodules remote.origin.url https://example.invalid/two.git",
+        // An editor of another file changes no setting of this repository.
+        "config --global --edit",
+        "config --system --edit",
+        "config --worktree --edit",
+        // Git refuses the subcommand form with any argument ("wrong number of arguments, should be 0").
+        "config edit user.name",
         // Another section.
         "config user.origin.url https://example.invalid/two.git",
         "config --unset user.origin.url",
@@ -175,9 +184,87 @@ fn reads_editors_other_sections_and_other_files_are_left_alone() {
         // A region Git refuses runs nothing.
         "config remote.origin.url one two three",
         "config remote.origin.url one two three four",
+        "config --edit --get remote.origin.url",
+        "config --edit --remove-section remote.origin",
         "config",
     ] {
         assert_eq!(decided(line), None, "{line}");
+    }
+}
+
+/// An editor session on the shared file is the same write with no key named,
+///  so it is refused wherever it can reach a remote setting.
+#[test]
+fn an_editor_session_on_the_shared_file_is_refused() {
+    for line in [
+        "config --edit",
+        "config -e",
+        "config edit",
+        // The legacy form runs the editor whatever follows it, as real Git does below.
+        "config --edit user.name",
+        "config --local --edit",
+        "config edit --local",
+    ] {
+        assert_eq!(decided(line), Some(SharedRemoteWrite::Edit), "{line}");
+    }
+}
+
+/// A write that names a file is this rule's only once the caller compares the path with the
+///  shared file,
+///  so the decision carries it.
+#[test]
+fn a_write_that_names_a_file_carries_its_path() {
+    let origin_url: SharedRemoteWrite = SharedRemoteWrite::Key(String::from("remote.origin.url"));
+    let origin_section: SharedRemoteWrite = SharedRemoteWrite::Section(String::from("remote.origin"));
+    for (line, path, setting) in [
+        (
+            "config --file other.config remote.origin.url https://example.invalid/two.git",
+            "other.config",
+            origin_url.clone(),
+        ),
+        (
+            "config --file=other.config remote.origin.url https://example.invalid/two.git",
+            "other.config",
+            origin_url.clone(),
+        ),
+        (
+            "config -f other.config remote.origin.url https://example.invalid/two.git",
+            "other.config",
+            origin_url.clone(),
+        ),
+        (
+            "config set --file other.config remote.origin.url https://example.invalid/two.git",
+            "other.config",
+            origin_url.clone(),
+        ),
+        (
+            "config --file other.config --remove-section remote.origin",
+            "other.config",
+            origin_section,
+        ),
+        ("config --file other.config --edit", "other.config", SharedRemoteWrite::Edit),
+        // The last use wins, and a relative path is kept exactly as written for the caller to resolve.
+        (
+            "config --file first.config --file ../other.config remote.origin.url x",
+            "../other.config",
+            origin_url,
+        ),
+    ] {
+        let Some(change) = decided_change(line) else {
+            panic!("{line}");
+        };
+        assert_eq!(change.named_file, Some(PathBuf::from(path)), "{line}");
+        assert_eq!(change.setting, setting, "{line}");
+    }
+    // A read,
+    //  a write to another section and a blob name no path this rule asks about.
+    for line in [
+        "config --file other.config remote.origin.url",
+        "config --file other.config user.name x",
+        "config --file other.config --remove-section user.origin",
+        "config --blob HEAD:.gitmodules remote.origin.url https://example.invalid/two.git",
+    ] {
+        assert_eq!(decided_change(line), None, "{line}");
     }
 }
 
@@ -315,7 +402,7 @@ fn the_guard_decides_the_shared_remote_write() {
     for (values, expected) in cases {
         let decided: LinkedWorktreeDecision = decide_linked_worktree(os_arguments(values).as_slice());
         let found: Option<SharedRemoteWrite> = match decided {
-            LinkedWorktreeDecision::SharedRemote(write) => Some(write),
+            LinkedWorktreeDecision::SharedRemote(change) => Some(change.setting),
             _ => None,
         };
         assert_eq!(found, expected, "{values:?}");

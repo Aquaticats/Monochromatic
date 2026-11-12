@@ -12,6 +12,9 @@
 //! // cleanChangesWorktree(parseCleanRegion(['-ndX'])) === false
 //! ```
 
+/// The reading every `git clean --dry-run` answer gets,
+///  which one function owns because both a deletion and a kept repository are read from one.
+use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 use crate::command_options::{
     Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
 };
@@ -35,6 +38,26 @@ use crate::command_options_query::{
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+
+/// The fact the reading of a clean's own dry run names when it fails.
+/// Why:
+///  A refusal means Git deleted nothing,
+/// while a reading that never answered could hide a deletion;
+/// the two fail apart because one lets the command run and the other stops it.
+pub const CLEAN_DELETION_FACT: &str = "what the clean would delete";
+
+/// The words that begin a failed reading of a clean's own dry run.
+/// Why:
+///  The message is this crate's own,
+/// so the caller that must tell Git's refusal of the clean from a reading that never answered matches its start.
+pub const UNREADABLE_CLEAN_DELETION: &str = "Git could not read what the clean would delete:";
+
+/// The words that begin the reading of a clean's own dry run that never answered.
+/// Why:
+///  Git's refusal of the clean deletes nothing and is Git's own answer to the person,
+///  while a read that ended without an exit status says nothing about what the clean would delete;
+///  the two sentences differ so the caller can let the first run and stop the second.
+pub const CLEAN_READ_NEVER_ANSWERED: &str = "Git never answered what the clean would delete:";
 
 /// `-n`,
 ///  `--dry-run`.
@@ -231,10 +254,10 @@ pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], re
 /// What:
 ///  The dry-run arguments of one clean,
 /// with or without its own exclusion patterns.
-///  `bool` says whether they are written.
+///  `bool` says whether the patterns are written.
 /// Why:
-///  Both readings are the same command,
-///  so they share one builder and differ in one step;
+///  Every reading is the same command,
+///  so they share one builder and differ in one step each;
 ///  a second copy of the
 ///  rebuild would drift from this one.
 ///
@@ -275,12 +298,14 @@ fn dry_run_arguments(
     if descends {
         arguments.push(OsString::from("-d"));
     }
-    // Only the two ignored modes need a mode token; a plain clean deletes non-ignored files and `-e` only removes
-    //  files from that set, which the status measurement over-reports rather than under-reports.
+    // Every ignored-mode token the person wrote is written too, in Git's own order: `git clean` refuses `-x` with `-X`
+    //  inside its own process (`cmd_clean`), and a rebuilt reading that dropped one of them succeeded where the command
+    //  the person typed cannot, so the wrapper moved a repository for a clean Git never ran.
+    if include_ignored {
+        arguments.push(OsString::from("-x"));
+    }
     if ignored_only {
         arguments.push(OsString::from("-X"));
-    } else if include_ignored {
-        arguments.push(OsString::from("-x"));
     }
     for pattern in exclusions {
         arguments.push(OsString::from("-e"));
@@ -312,24 +337,7 @@ fn dry_run_arguments(
 /// function cleanDeletedPathsFromAnswer(answer: MetadataOutput): Buffer[]; // throws
 /// ```
 pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
-    if !answer.success {
-        let detail: String = String::from_utf8_lossy(&answer.stderr)
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .trim()
-            .to_string();
-        return Err(format!("Git could not read what the clean would delete: {detail}"));
-    }
-    let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for line in answer.stdout.split(is_newline) {
-        // A dry run that would delete nothing prints nothing, and a line of whitespace alone names no path.
-        if line.iter().all(is_ascii_whitespace) {
-            continue;
-        }
-        paths.push(line.to_vec());
-    }
-    return Ok(paths);
+    return dry_run_lines_from_answer(answer, CLEAN_DELETION_FACT);
 }
 
 /// What:
@@ -358,35 +366,6 @@ pub fn paths_only_the_exclusions_add(deleted: &[Vec<u8>], otherwise_deleted: &[V
         }
     }
     return added;
-}
-
-/// What:
-///  Whether one byte of the dry run's answer is whitespace.
-/// Why:
-///   A dry run that would delete nothing prints nothing,
-/// and a named function keeps that pass free of a
-///  closure that captures nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => /\s/.test(String.fromCharCode(byte))
-/// ```
-fn is_ascii_whitespace(byte: &u8) -> bool {
-    return byte.is_ascii_whitespace();
-}
-
-/// What:
-///  Whether a byte of the dry run's answer ends a line.
-/// Why:
-///   The dry run answers one path per line,
-/// and a named function keeps that pass free of a closure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => byte === 0x0a
-/// ```
-fn is_newline(byte: &u8) -> bool {
-    return *byte == b'\n';
 }
 
 /// What:

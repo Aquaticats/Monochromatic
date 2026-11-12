@@ -25,6 +25,8 @@ use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
+use crate::rule_linked_worktree::GuardedCommand;
+use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::rule_worktree_dirty::DirtyScope;
 /// The image's real Git,
 ///  which prepares candidates for scripted facts.
@@ -45,6 +47,9 @@ pub(crate) struct ScriptedFacts {
     pub(crate) index: Result<IndexVsHead, String>,
     /// The answer to `sequencer_state`.
     pub(crate) sequencer: Result<SequencerState, String>,
+    /// The answer to `abort_discard`,
+    ///  whatever the command.
+    pub(crate) abort_discard: Result<AbortDiscard, String>,
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
@@ -112,28 +117,37 @@ impl RepositoryFacts for ScriptedFacts {
     }
 
     /// What:
-    ///  Answer the two dry runs of one clean apart by the patterns the query carries:
-    ///  the one written with `-e`/`--exclude` names `clean_deletes`,
-    ///  and the same clean without them names `clean_deletes_without_exclusions`.
+    ///  Answer the dry runs of one clean apart by what each query carries:
+    ///  a query with `-e`/`--exclude`,
+    /// and the typed clean of a second force,
+    /// name `clean_deletes`;
+    ///  the same clean written with one force and without them names `clean_deletes_without_exclusions`.
     /// Why:
     ///   Only a path the typed dry run names and the other does not is one the patterns alone call ignored,
-    ///  and that path is what the policy still refuses.
+    ///  and that path is what the policy still refuses;
+    ///  a clean with a second force is the typed clean whether or not it carries a pattern.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// cleanDeletedPaths(arguments) {
-    ///   return arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'))
-    ///     ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
+    ///   const patterns = arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'));
+    ///   const forces = arguments.filter((one) => one === '-f' || one === '--force').length;
+    ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
     /// }
     /// ```
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        // The script answers the two dry runs of one clean apart by the patterns the query carries.
+        let mut patterns: bool = false;
+        let mut forces: usize = 0;
         for argument in &arguments {
             let bytes: &[u8] = argument.as_encoded_bytes();
-            if bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude") {
-                return self.clean_deletes.clone();
+            patterns |= bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude");
+            if bytes == b"-f" || bytes == b"--force" {
+                forces += 1;
             }
+        }
+        if patterns || forces > 1 {
+            return self.clean_deletes.clone();
         }
         return self.clean_deletes_without_exclusions.clone();
     }
@@ -154,6 +168,11 @@ impl RepositoryFacts for ScriptedFacts {
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         self.asked.push(String::from("sequencer"));
         return self.sequencer.clone();
+    }
+
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        self.asked.push(format!("abort-discard:{command:?}"));
+        return self.abort_discard.clone();
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
@@ -259,6 +278,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         location: Ok(main_worktree("/r", "")),
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
+        abort_discard: Ok(AbortDiscard::NothingWaiting),
         dirty: Ok(false),
         selection: Ok(StagedSelection {
             selected: 0,

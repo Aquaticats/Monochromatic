@@ -16,6 +16,7 @@ import {
   hostControlTask,
   millisecondsPerSecond,
 } from './native-release-host-control-requirements.ts';
+import { stopProcessGroup, } from './process-group-stop.ts';
 
 //region How a run ended
 
@@ -107,51 +108,6 @@ function endingOf(child: ChildProcess): HostControlEnding {
   };
 }
 
-/**
- Whether a caught value is a system error, which carries the code that says why a call was refused.
-
- @param value - the caught value
-
- @returns true for an error with a `code` field
-
- @example
- ```ts
- isSystemError(new Error('not a system error'));
- ```
- */
-function isSystemError(value: unknown): value is NodeJS.ErrnoException {
-  return ((typeof value) === 'object') && (value !== null)
-    && ('code' in value);
-}
-
-/**
- Stop a command and everything it started, so the deadline leaves no test behind.
-
- @param child - the started command, made a process group leader when it was spawned
- */
-function stopGroup(child: ChildProcess): void {
-  /**
-   The command's own handle, whose process ID is also its group's because it was spawned detached.
-   */
-  const { pid } = child;
-  if (pid === undefined) {
-    child.kill('SIGKILL');
-    return;
-  }
-  try {
-    process.kill(
-      -pid,
-      'SIGKILL'
-    );
-  }
-  catch (error) {
-    // A group the kernel no longer has answers ESRCH; the command itself may still run, so it is stopped as well.
-    if ((!isSystemError(error)) || (error.code !== 'ESRCH'))
-      throw error;
-    child.kill('SIGKILL');
-  }
-}
-
 //endregion Reading the command
 
 //region The run on this host
@@ -218,7 +174,7 @@ export async function runHostControlsOnThisHost({
   const deadline = setTimeout(
     function stopAtDeadline() {
       deadlineState.timedOut = true;
-      stopGroup(child);
+      stopProcessGroup({ child, },);
     },
     limitSeconds * millisecondsPerSecond
   );

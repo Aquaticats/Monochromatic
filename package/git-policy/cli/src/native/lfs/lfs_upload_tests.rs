@@ -34,13 +34,27 @@ fn run(root: &std::path::Path, path: &[&std::path::Path], global_prefix: &[&str]
     return run_with(root, path, global_prefix, upload, &[("XDG_STATE_HOME", root.join("state").to_str().expect("UTF-8"))]);
 }
 
-/// The same with the given environment variables besides `PATH`.
+/// The same with the given environment variables besides `PATH`,
+/// and no variable added to the child's environment.
 fn run_with(
     root: &std::path::Path,
     path: &[&std::path::Path],
     global_prefix: &[&str],
     upload: &UploadPlan,
     variables: &[(&str, &str)],
+) -> (Option<i32>, String) {
+    return run_with_overlay(root, path, global_prefix, upload, variables, &[]);
+}
+
+/// The same with the given variables added to the child's environment,
+/// which is where the wrapper puts the never-prompt pair of a command that has no controlling terminal.
+fn run_with_overlay(
+    root: &std::path::Path,
+    path: &[&std::path::Path],
+    global_prefix: &[&str],
+    upload: &UploadPlan,
+    variables: &[(&str, &str)],
+    overlay: &[(&str, &str)],
 ) -> (Option<i32>, String) {
     let real: PathBuf = root.join("real");
     std::fs::create_dir_all(&real).expect("real git directory");
@@ -51,13 +65,17 @@ fn run_with(
         return (OsString::from(name), OsString::from(value));
     }));
     let mut diagnostics: Vec<u8> = Vec::new();
+    let overlay_owned: Vec<(OsString, OsString)> = overlay
+        .iter()
+        .map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); })
+        .collect();
     let code = run_upload_interactive(
         upload,
         words(global_prefix).as_slice(),
         root,
         real.join("git").as_path(),
         environment.as_slice(),
-        &[],
+        overlay_owned.as_slice(),
         &mut diagnostics,
     );
     return (code, String::from_utf8_lossy(diagnostics.as_slice()).into_owned());
@@ -139,26 +157,165 @@ fn the_global_options_reach_the_child() {
     remove(root.as_path());
 }
 
-/// Pairs the environment already holds come first,
-/// so the global options win as they do in Git.
+/// A stand-in `git-lfs` that records the configuration variables it was given and nothing else of its environment,
+/// then exits successfully.
+/// Why:
+///  A failing control prints what it recorded,
+/// and the whole environment of a child holds what must never reach a log;
+/// these variables are the fixture's own.
+fn configuration_stand_in(directory: &std::path::Path, record: &std::path::Path) {
+    std::fs::create_dir_all(directory).expect("bin directory");
+    let source: String = format!("#!/bin/sh\n/usr/bin/env | /usr/bin/grep '^GIT_CONFIG' > '{}'\nexit 0\n", record.display());
+    executable(directory.join("git-lfs").as_path(), source.as_bytes());
+}
+
+/// The `GIT_CONFIG_*` lines a stand-in recorded,
+/// sorted,
+/// so the whole numbered configuration can be compared at once.
+fn recorded_configuration(record: &std::path::Path) -> Vec<String> {
+    let text: String = std::fs::read_to_string(record).unwrap_or_default();
+    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
+    lines.sort();
+    return lines;
+}
+
+/// The fixture's real Git stand-in and the environment of the child,
+/// `PATH` included.
+fn upload_environment(root: &std::path::Path, variables: &[(&str, &str)]) -> (PathBuf, Vec<(OsString, OsString)>) {
+    let real: PathBuf = root.join("real");
+    std::fs::create_dir_all(&real).expect("real git directory");
+    executable(real.join("git").as_path(), b"#!/bin/sh\n");
+    let mut environment: Vec<(OsString, OsString)> = vec![(
+        OsString::from("PATH"),
+        std::env::join_paths([root.join("bin"), root.join("real")]).expect("PATH"),
+    )];
+    environment.push((OsString::from("XDG_STATE_HOME"), root.join("state").into_os_string()));
+    environment.extend(variables.iter().map(|(name, value)| {
+        return (OsString::from(*name), OsString::from(*value));
+    }));
+    return (real.join("git"), environment);
+}
+
+/// What:
+///  The caller's `-c` pairs reach the child beside the pair the wrapper adds for its own lock ownership.
+/// Why:
+///   The invocation's overlay appends `core.lockfilePid` in the next numbered slot,
+/// and a caller's pair numbered before it took that slot and was overwritten,
+/// so `-c remote.origin.pushurl=...`
+///  never reached `git-lfs`
+/// and the object of the pushed pointer travelled to the fetch remote.
+/// The numbered configuration stays contiguous,
+/// the wrapper's own pair first and the caller's
+///  after it,
+/// so a caller's setting of the same key still wins as it does in Git.
 #[test]
-fn the_variables_continue_after_the_environments_own_pairs() {
-    let environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_CONFIG_COUNT"), OsString::from("3"))];
-    let variables = prefix_variables(words(&["-c", "a=b"]).as_slice(), environment.as_slice());
-    let named = |name: &str| -> Option<String> {
-        return variables
-            .iter()
-            .find(|(key, _)| {
-                return key == name;
-            })
-            .map(|(_, value)| {
-                return value.to_string_lossy().into_owned();
-            });
-    };
-    assert_eq!(named("GIT_CONFIG_COUNT").as_deref(), Some("4"));
-    assert_eq!(named("GIT_CONFIG_KEY_3").as_deref(), Some("a"));
-    assert_eq!(named("GIT_CONFIG_VALUE_3").as_deref(), Some("b"));
-    assert!(prefix_variables(&[], &[]).is_empty());
+fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
+    let root = fixture("lfs-upload-prefix-beside-overlay");
+    let record: PathBuf = root.join("record.txt");
+    configuration_stand_in(root.join("bin").as_path(), record.as_path());
+    let (real_git, environment) = upload_environment(root.as_path(), &[]);
+    // The overlay the invocation adds, computed from this environment as `plan_with_real_git` computes it.
+    let overlay: Vec<(OsString, OsString)> = crate::child_environment::child_environment_overlay(environment.as_slice(), real_git.as_path());
+    let prefix: Vec<&str> = vec!["-c", "lfs.url=http://example.invalid/x"];
+    let mut diagnostics: Vec<u8> = Vec::new();
+    let code = run_upload_interactive(
+        &plan(),
+        words(prefix.as_slice()).as_slice(),
+        root.as_path(),
+        real_git.as_path(),
+        environment.as_slice(),
+        overlay.as_slice(),
+        &mut diagnostics,
+    );
+    assert_eq!(code, None, "{}", String::from_utf8_lossy(diagnostics.as_slice()));
+    let mut expected: Vec<String> = vec![
+        String::from("GIT_CONFIG_COUNT=2"),
+        String::from("GIT_CONFIG_KEY_0=core.lockfilePid"),
+        String::from("GIT_CONFIG_VALUE_0=true"),
+        String::from("GIT_CONFIG_KEY_1=lfs.url"),
+        String::from("GIT_CONFIG_VALUE_1=http://example.invalid/x"),
+    ];
+    expected.sort();
+    assert_eq!(recorded_configuration(record.as_path()), expected);
+    remove(root.as_path());
+}
+
+/// What:
+///  A configuration the caller names through the environment reaches the child as the pair it sets,
+/// in both spellings
+///  Git accepts.
+/// Why:
+///   `git-lfs` reads Git's configuration through the numbered variables only,
+/// so a `--config-env` that is not translated there is a
+///  setting the upload never sees;
+/// a push URL given that way sent the object to the fetch remote while the ref went to the push remote.
+#[test]
+fn a_configuration_from_the_environment_reaches_the_child_in_both_spellings() {
+    let root = fixture("lfs-upload-config-env");
+    for prefix in [
+        vec!["--config-env=remote.origin.pushurl=POLICY_PUSH_URL"],
+        vec!["--config-env", "remote.origin.pushurl=POLICY_PUSH_URL"],
+    ] {
+        let record: PathBuf = root.join("record.txt");
+        let _removed = std::fs::remove_file(record.as_path());
+        configuration_stand_in(root.join("bin").as_path(), record.as_path());
+        let (real_git, environment) = upload_environment(root.as_path(), &[("POLICY_PUSH_URL", "http://example.invalid/from-environment")]);
+        let mut diagnostics: Vec<u8> = Vec::new();
+        let code = run_upload_interactive(
+            &plan(),
+            words(prefix.as_slice()).as_slice(),
+            root.as_path(),
+            real_git.as_path(),
+            environment.as_slice(),
+            &[],
+            &mut diagnostics,
+        );
+        assert_eq!(code, None, "{prefix:?}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
+        let mut expected: Vec<String> = vec![
+            String::from("GIT_CONFIG_COUNT=1"),
+            String::from("GIT_CONFIG_KEY_0=remote.origin.pushurl"),
+            String::from("GIT_CONFIG_VALUE_0=http://example.invalid/from-environment"),
+        ];
+        expected.sort();
+        assert_eq!(recorded_configuration(record.as_path()), expected, "{prefix:?}");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A `--config-env` the invocation's environment cannot answer starts no upload at all.
+/// Why:
+///   Git refuses such a command line itself,
+/// so the push never runs;
+/// an upload started now would send the objects to
+///  whichever server the setting that could not be read does not name.
+#[test]
+fn a_configuration_the_environment_cannot_answer_starts_no_upload() {
+    let root = fixture("lfs-upload-config-env-unanswerable");
+    for prefix in [
+        vec!["--config-env=remote.origin.pushurl=POLICY_PUSH_URL_NOT_SET"],
+        vec!["--config-env=remote.origin.pushurl"],
+        vec!["--config-env=remote.origin.pushurl="],
+    ] {
+        let record: PathBuf = root.join("record.txt");
+        let _removed = std::fs::remove_file(record.as_path());
+        configuration_stand_in(root.join("bin").as_path(), record.as_path());
+        let (real_git, environment) = upload_environment(root.as_path(), &[("POLICY_PUSH_URL", "http://example.invalid/from-environment")]);
+        let mut diagnostics: Vec<u8> = Vec::new();
+        let code = run_upload_interactive(
+            &plan(),
+            words(prefix.as_slice()).as_slice(),
+            root.as_path(),
+            real_git.as_path(),
+            environment.as_slice(),
+            &[],
+            &mut diagnostics,
+        );
+        assert_eq!(code, None, "{prefix:?}");
+        assert!(diagnostics.is_empty(), "{prefix:?}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
+        assert_eq!(recorded_configuration(record.as_path()), Vec::<String>::new(), "{prefix:?}: the upload ran");
+    }
+    remove(root.as_path());
 }
 
 /// A failing upload stops with its own status and the explanation;
@@ -497,6 +654,10 @@ fn an_upload_that_shows_no_sign_of_work_is_stopped_at_the_stall_window() {
 /// as Git 2.56.0 writes it.
 const LOGIN_NEEDED_LINE: &str = "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address";
 
+/// The line git-lfs 3.8.1 prints when every login it was given was refused,
+/// which is a login failure too and is not the wrapper's refusal to prompt.
+const REFUSED_LOGIN_LINE: &str = "too many authentication attempts";
+
 /// A destination that carries a user and a token,
 /// as the incident's `lfs.url` did.
 const CREDENTIALED_DESTINATION: &str = "https://user:secret@lfs.example.invalid/objects";
@@ -536,10 +697,48 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, LOGIN_NEEDED_LINE, 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    // The command has no controlling terminal, so the wrapper adds the never-prompt pair to its children.
+    let never_prompt: [(&str, &str); 2] = [(crate::child_environment::ASKPASS_VARIABLE, ""), (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0")];
+    let (code, diagnostics) =
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &never_prompt);
     assert_eq!(code, Some(128), "{diagnostics}");
     assert!(diagnostics.contains("the server `lfs.example.invalid`"), "the server is named: {diagnostics}");
     assert!(diagnostics.contains("no controlling terminal"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
+    assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
+    assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A login failure at a terminal is not diagnosed as terminal-less:
+/// the wrapper added no never-prompt pair,
+/// and its words must say what it did instead of claiming a terminal and a prompt nobody had.
+/// Why:
+///   A stand-in at a terminal opens `/dev/tty` and prints the refusal git-lfs prints when every login it was given is
+///   rejected (`too many authentication attempts`);
+///  a refusal that says the command had no terminal sends its reader to fix a cause that was never there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('has a controlling terminal'); expect(diagnostics).not.toContain('no controlling terminal');
+/// ```
+#[test]
+fn an_upload_that_needed_a_login_at_a_terminal_is_not_told_there_was_none() {
+    let root: PathBuf = fixture("lfs-upload-login-at-terminal");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, REFUSED_LOGIN_LINE, 128);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    // No overlay: the command has a controlling terminal, so no never-prompt pair reaches the child.
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    assert_eq!(code, Some(128), "{diagnostics}");
+    assert!(diagnostics.contains("has a controlling terminal"), "the terminal this command had is stated: {diagnostics}");
+    assert!(!diagnostics.contains("no controlling terminal"), "nothing claims the command had no terminal: {diagnostics}");
+    assert!(
+        !diagnostics.contains(&format!("{}` set to the empty string", crate::child_environment::ASKPASS_VARIABLE)),
+        "nothing claims the prompt variables were set: {diagnostics}"
+    );
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
     assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
     assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");

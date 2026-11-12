@@ -45,13 +45,14 @@ use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
-use crate::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
+use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
 use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
-use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
+use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
-use crate::worktree_trash::{PendingTrash, TrashManifest, delete_trash, record_the_trash};
+use crate::worktree_trash::{PendingTrash, TrashManifest};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -127,7 +128,6 @@ struct Served {
 /// ```ts
 /// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
-#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the two seams of the snapshot ahead are kept past this call with the context and the source a named function would have to be handed through signatures that do not carry them"))]
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
@@ -135,15 +135,8 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
     let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
-    // The service that makes the snapshots ahead is this repository's commit service, and the add asks it for one only when
-    //  it can reach it: a control hands in a service that reaches nothing, and then the add takes its own snapshot.
-    // The rung keeps both seams for as long as it runs, with the context and the source this call cannot pass on.
-    let ask = || { return crate::worktree_snapshot_ahead::ask_for_one(context, source); };
-    let hand_over = |stale: &[std::ffi::OsString]| { return crate::worktree_snapshot_ahead::hand_over_to_the_service(context, source, stale); };
-    let service: crate::worktree_snapshot_ahead::AheadService<'_> =
-        crate::worktree_snapshot_ahead::AheadService { ask: &ask, hand_over: &hand_over, ceiling: crate::wait_ceilings::SNAPSHOT_AHEAD_CEILING };
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
-    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &service);
+    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
     end_step(take_snapshot_entered);
     let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
         Ok(taken) => {
@@ -160,7 +153,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  reset to the new worktree's HEAD from the index the snapshot carries, which is one instant with its files.
     if source.dirty.is_some() || state == CopyState::ChangedUnderCopy {
         let restore_dirty_entered: bool = begin_step("restoreDirty");
-        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context);
+        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context, &environment);
         end_step(restore_dirty_entered);
         restore_dirty_outcome?;
     } else {
@@ -198,56 +191,6 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
     return Ok(Served { line: target.line, placed, trash: handed_later });
-}
-
-/// What:
-///  Write the trash's record now that the worktree holding it is published,
-/// and answer what the hand-over still owes,
-///  which is the same trash when the record is written.
-/// Why:
-///   The record is what outlives the command,
-/// so it is written before the rung returns,
-/// and a command killed after
-///  the swap leaves a trash the service empties.
-/// A record that cannot be written is a trash nothing will ever empty,
-/// and the add
-///  pays the emptying itself in that case,
-/// which no ordinary add reaches;
-/// a trash that then stays is reported with its path
-///  and the reason.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const recordBeforeTheRungReturns = (pending) => { try { recordTheTrash(pending); return pending; } catch (reason) { warn(reason); deleteTrash(pending); return undefined; } };
-/// ```
-fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash> {
-    let shown: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
-    if let Err(reason) = record_the_trash(&pending) {
-        warn(TAG, format!("monochromatic-git-policy-cli: the record of the trash {} could not be written ({reason}), so this add empties it before it returns", shown.display()).as_str());
-        if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
-            warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
-        }
-        return None;
-    }
-    return Some(pending);
-}
-
-/// What:
-///  The paths the source has changed since its last commit,
-/// when there are any.
-/// Why:
-///   A snapshot carries the source's uncommitted state,
-/// so the person is told which of it was left out of the new worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// source.dirty?.hasChanges() ? source.dirty : undefined
-/// ```
-fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
-    return match source.dirty.as_ref() {
-        Some(found) if found.has_changes() => Some(found),
-        _ => None,
-    };
 }
 
 /// What:

@@ -32,7 +32,9 @@ use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
+use crate::service_client_waiting_words::{place_number, say_the_write_it_is_inside, say_where_it_stands};
+use crate::service_messages::{ClientFailure, SILENT_NOTICE};
+use crate::service_client_why_withdrawn::WhyWithdrawn;
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -100,15 +102,15 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
         FailureCode::PermissionDenied => ClientFailure::PermissionDenied(repository),
         FailureCode::IndexInUse => ClientFailure::IndexInUse(String::from("Another program")),
         FailureCode::ReferenceLocked => ClientFailure::ReferenceLocked {
-            branch: request.reference.trim_start_matches("refs/heads/").to_string(),
+            branch: request.reference.short().spoken(),
             words: String::new(),
         },
         FailureCode::Rejected => ClientFailure::Refused,
         FailureCode::BranchKeepsChanging => ClientFailure::BranchKeepsChanging {
-            branch: request.reference.trim_start_matches("refs/heads/").to_string(),
+            branch: request.reference.short().spoken(),
             times: crate::service_land::LANDING_ATTEMPTS,
         },
-        FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
+        FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.short().spoken() },
         FailureCode::StepTooSlow => ClientFailure::StepTooSlow,
         FailureCode::Unavailable => ClientFailure::Unavailable,
     };
@@ -148,7 +150,11 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
 /// ```
 pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let began: Instant = Instant::now();
+    // The signals a waiting commit answers are watched only while it waits: a Ctrl-C before the commit exists, or after it
+    //  landed, keeps the ending it has, and the actions that were in place come back with the watch.
+    let stop_watch: crate::service_client_interrupted::StopWatch = crate::service_client_interrupted::watch_for_a_stop();
     let answered = submit_loop(config, request, notices, trace);
+    drop(stop_watch);
     trace.total += began.elapsed();
     return answered;
 }
@@ -180,59 +186,6 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
     }
 }
 
-/// What:
-///  The number of the place the service named,
-/// which is the part of it the person is told.
-/// Why:
-///   A place says which commit it is (`number`) and how many the batch holds (`of`),
-/// and every wording of it derives from the number alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// placeNumber([3, 7]) // 3
-/// ```
-fn place_number(place: (usize, usize)) -> usize {
-    let (number, _of) = place;
-    return number;
-}
-
-/// What:
-///  Says where a waiting commit stands once it has waited long enough to matter:
-/// how many commits the service put before it,
-/// or that the service has not said where it stands.
-/// Why:
-///   Two commits waited 62 and 32 seconds and said nothing about themselves,
-/// and a person cannot tell a commit the service has not
-///  reached from one it has lost.
-/// The telling costs one clock read of the loop the client already runs and one line;
-/// it waits for nothing,
-///  takes no lock and writes no file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// sayWhereItStands(notices, config, parked, place, told)
-/// ```
-fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, place: Option<(usize, usize)>, told: &mut Option<Option<usize>>) {
-    let Some(since) = parked else {
-        return;
-    };
-    if since.elapsed() < config.waiting_notice_after {
-        return;
-    }
-    // What the person was last told: the place the service named, or nothing when it named none.
-    let named: Option<usize> = place.map(place_number);
-    if *told == Some(named) {
-        return;
-    }
-    *told = Some(named);
-    let words: String = match place {
-        Some((number, of)) => position_notice(number, of),
-        // What the client knows and no more: the service named no place, and how long the commit has waited.
-        None => unplaced_notice(since.elapsed()),
-    };
-    let _written = writeln!(notices, "{words}");
-}
-
 /// The sends and the waits of `submit_traced`.
 ///
 /// The wait for the answer lasts as long as the service keeps sending,
@@ -261,11 +214,26 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut last_blocker: Option<String> = None;
     // Whether the service said this request is inside its stuck branch write, and when the extra wait for that write ends.
     let mut inside_write: bool = false;
+    // The words of the write this command's own request is inside that the person was told last.
+    let mut inside_told: Option<String> = None;
     // The wait for the answer ends here, and the extra wait for a write the request is inside ends the extra wait after it: both
     // are measured from the start of the wait, not from the moment a loop first notices them.
     let answer_deadline: Instant = waiting_since + config.answer_ceiling;
     let mut last_renewed: Option<Instant> = None;
     loop {
+        // What:
+        //  A person who interrupts the commit withdraws its request.
+        // Why:
+        //  Native Git makes no commit when it is interrupted,
+        //  and the request this command sent is the service's,
+        //  so ending here would leave it to land with nobody to read the answer.
+        //  The withdrawal is asked for and its answer is the command's end:
+        //  a commit that landed before the signal came stays landed and says so,
+        //  and one the service gives up was not made.
+        if let Some(signal) = crate::service_client_interrupted::stop_requested() {
+            trace.answer_wait += waiting_since.elapsed();
+            return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+        }
         // What:
         //  The place the service named,
         // which belongs to this connection and to no other.
@@ -278,6 +246,15 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         // and
         //  what the person was already told (`told_place`) is what outlives it.
         let mut last_place: Option<(usize, usize)> = None;
+        // What:
+        //  The words the service on this connection said about the write this command's own request is inside,
+        // held until the wait has mattered.
+        // Why:
+        //  They name that service's write,
+        // so they do not outlive the connection that said them,
+        // as the place of a batch does not;
+        // what the person was told (`inside_told`) is what outlives it.
+        let mut inside_words: Option<String> = None;
         // What:
         //  The connection that can answer this request,
         // or the end of the command when no service can.
@@ -321,10 +298,22 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         renew_scratch(config, &mut last_renewed);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
+            if let Some(signal) = crate::service_client_interrupted::stop_requested() {
+                trace.answer_wait += written_at.elapsed();
+                return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+            }
             // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
             //  in the same words as one that only beats: neither has started on this commit.
             say_where_it_stands(notices, config, parked, last_place, &mut told_place);
-            let heard: Heard = listen(&mut reader);
+            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            // What: The connection is declared for this one read, so a stop delivered to another thread of this process can
+            //  wake it.
+            // Why:  The kernel hands a process-directed signal to any thread, and a thread that is not the waiting one only
+            //  writes the flag the wait reads after its own read gives up, which can be a whole silence bound later.
+            let heard: Heard = {
+                let _awake = crate::service_client_interrupted::waking_the_read_of(reader.get_ref());
+                listen(&mut reader)
+            };
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
             }
@@ -340,7 +329,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::Held { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
                 if !inside_write {
                     trace.answer_wait += written_at.elapsed();
-                    return withdraw(config, request.id.as_str(), last_blocker.take(), answer_deadline);
+                    return withdraw(config, request.id.as_str(), last_blocker.take(), answer_deadline, WhyWithdrawn::Ceiling { minutes: config.answer_ceiling.as_secs() / 60 });
                 }
                 if Instant::now() >= answer_deadline + config.extra_wait {
                     trace.answer_wait += written_at.elapsed();
@@ -379,7 +368,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                         Some(who) => who,
                         None => format!("The reference lock of {} stands in the way, and nothing proves that a Git process still holds it.", request.reference),
                     };
-                    break Some(Err(ClientFailure::ReferenceLocked { branch: request.reference.trim_start_matches("refs/heads/").to_string(), words }));
+                    break Some(Err(ClientFailure::ReferenceLocked { branch: request.reference.short().spoken(), words }));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
                 Heard::Message(ServiceMessage::Waiting { text }) => {
@@ -392,7 +381,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Heard::Message(ServiceMessage::InsideWrite { text }) => {
                     last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
-                    let _written = write!(notices, "{text}");
+                    inside_words = Some(text);
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
@@ -406,6 +395,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     break None;
                 }
             }
+            // Words about the write that came with this message are said at once when they differ from the ones already said,
+            // so a write that has stayed stuck a new minute is not held until the beat after it.
+            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {
@@ -425,45 +417,49 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
 }
 
 /// What:
-///  Withdraws the request after the answer ceiling:
+///  Withdraws the request:
 /// asks the service,
 /// on a connection of its own,
 /// to drop the request of this
 ///  identity,
 /// and turns its answer into the command's end.
 /// Why:
-///   The owner's answer is that a wait that reaches its bound returns an error and the commit never lands later by itself.
-/// The
-///  service takes the withdrawal between two landings,
+///   The owner's answer is that a wait that reaches its bound returns an error and the commit never lands later by itself,
+/// and an interrupted commit is not made at all.
+/// The service takes the withdrawal between two landings,
 /// so either the commit landed first (the answer is `Landed`,
 /// and the command
 ///  succeeds) or it never will (`Withdrawn`).
 /// A service that does not answer within the withdrawal ceiling leaves it unknown.
+///  What the request was withdrawn for decides which of the two ends the command reports.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const answer = await askToWithdraw(config, id); // 'landed' | 'withdrawn' | undefined
 /// ```
-fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answer_deadline: Instant) -> Result<Submitted, ClientFailure> {
-    let minutes: u64 = config.answer_ceiling.as_secs() / 60;
+fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answer_deadline: Instant, why: WhyWithdrawn) -> Result<Submitted, ClientFailure> {
     // What the service says it is stuck in on this connection replaces what it said on the first one: it is the newer.
     let mut blocker: Option<String> = heard_blocker;
     let mut announced: bool = true;
     let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
-        return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
+        return Err(why.not_known(blocker));
     };
     let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
     asking.push('\n');
     if reader.get_mut().write_all(asking.as_bytes()).is_err() {
-        return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
+        return Err(why.not_known(blocker));
     }
     let mut deadline: Instant = Instant::now() + config.withdraw_ceiling;
     while Instant::now() < deadline {
         // No read waits past the withdrawal's ceiling, whatever the silence bound says.
         let _timeout = reader.get_ref().set_read_timeout(Some(deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)).min(config.heartbeat_silence)));
-        match listen(&mut reader) {
+        let heard: Heard = {
+            let _awake = crate::service_client_interrupted::waking_the_read_of(reader.get_ref());
+            listen(&mut reader)
+        };
+        match heard {
             Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
-            Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(ClientFailure::StillWithService { minutes, blocker }),
+            Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(why.it_will_not_land(blocker)),
             Heard::Message(ServiceMessage::Waiting { text }) => blocker = Some(text.trim().to_string()),
             // The service says the request is inside its stuck write: the withdrawal cannot be answered before the write returns,
             // and the commit may be on the branch, so the wait ends at the same moment it would have ended had the notice come before
@@ -473,10 +469,10 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
                 deadline = deadline.min(answer_deadline + config.extra_wait);
             }
             Heard::Message(_) => {}
-            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed { blocker }),
+            Heard::Silent | Heard::Closed => return Err(why.not_known(blocker)),
         }
     }
-    return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
+    return Err(why.not_known(blocker));
 }
 
 /// What:

@@ -1,11 +1,11 @@
 [tasks."native:test:container"]
-description = "Run native wrapper tests and Clippy in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
+description = "Run native wrapper tests and Clippy together in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override this gate's own bounds of 2g, 4 CPUs and 256 processes per test thread, which is 1024, and a --pids-limit below that floor is raised (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
 # Mechanism D: the run-record retention of this package's target/verification runs before a run writes a new record,
 # through cargo-shadow's own sweep so the task does not reimplement it (doc/handover/cargo-shadow-lean-build-folders.md).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts"]
 
 [tasks."native:mutation"]
-description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
+description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at its own default bounds (run native:test:container with its own options first to change them)"
 # The gate step sweeps this package's run records before either step writes another (mechanism D).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
 
@@ -72,6 +72,18 @@ run = "node bin/native-gate-main-tip.ts"
 description = "Wait, bounded, for a gate log's verdict line and print it with nextest's summary and the failures: `-- <log path> <deadline seconds>`. Exits zero as soon as a verdict line is there whatever the gate's own status was, and nonzero when the deadline passed without one; the printed `gate-exit-status=<n>` line carries the gate's status"
 # The promoted `~/temp/agent/gate/wait-for-gate-verdict.ts`.
 run = "node bin/native-gate-verdict.ts"
+
+[tasks."native:ts-checks"]
+description = "Run the TypeScript checks of this package (or of `-- <task>...`) each in its own capped systemd user scope, all at once, and print one line per check with its status and a failing check's lines: `-- [--worktree <path>] [--deadline-seconds <count>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [<task>...]`. Exits 0 when every check passed and 2 when one failed or ran past its deadline; replaces the scratch script `~/temp/agent/gate/ts-checks.ts`"
+# The promoted `~/temp/agent/gate/ts-checks.ts`; the caps, the deadline and the labels live in
+# bin/native-capped-scope-command.ts and bin/native-ts-checks.ts.
+run = "node bin/native-ts-checks.ts"
+
+[tasks."native:install"]
+description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff, converges the installed tools, refuses unless `git --version` names the release, commits the lock when it moved, then prints the newest timing line and the service journal of the sample commit; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
+# The promoted `~/temp/agent/upgrade-wrapper.ts`; the steps, the version check and the bounds live in
+# bin/native-install.ts.
+run = "node bin/native-install.ts"
 
 [tasks."native:lock:check"]
 description = "Ask cargo whether every manifest the gate builds still resolves against its own lockfile, and print one line per manifest with the status, the directory and cargo's first error: `-- [--checkout <path>] [--refresh] [<directory>...]`. `--refresh` re-resolves the locked entries first, which writes a lockfile, and prints both answers; the exit status is nonzero when any locked check failed. Replaces the scratch scripts `locked-check.ts` and `lock-refresh.ts`"

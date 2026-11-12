@@ -17,9 +17,9 @@
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
 use super::{
-    CLEAN_TABLE, CleanRegion, clean_changes_worktree, clean_deleted_paths_from_answer,
-    clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, parse_clean_region,
-    paths_only_the_exclusions_add,
+    CLEAN_READ_NEVER_ANSWERED, CLEAN_TABLE, CleanRegion, UNREADABLE_CLEAN_DELETION, clean_changes_worktree,
+    clean_deleted_paths_from_answer, clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions,
+    parse_clean_region, paths_only_the_exclusions_add,
 };
 use crate::command_options::OptionErrorKind;
 use crate::command_test_completion::{git_completion, render_completion};
@@ -255,6 +255,17 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
         clean_dry_run_arguments(&[], os_arguments(&["-d"]).as_slice()),
         Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "--"]))
     );
+    // Both ignored modes together are Git's own refusal, so the rebuilt reading carries both and meets it too: a reading
+    //  that dropped one succeeded where the command the person typed cannot, and the clean then moved a repository for a
+    //  command Git never ran.
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-f", "-f", "-d", "-x", "-X"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-f", "-d", "-x", "-X", "--"]))
+    );
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-Xfd", "-x"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "-x", "-X", "--"]))
+    );
     // A region Git refuses is nothing to ask about.
     assert_eq!(clean_dry_run_arguments(&[], os_arguments(&["--no-such-option"]).as_slice()), None);
     // The same clean without its own patterns is the second reading: every fact is the same but each `-e` pattern,
@@ -268,6 +279,32 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
         Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "--"]))
     );
     assert_eq!(clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["--no-such-option"]).as_slice()), None);
+}
+
+/// What:
+///  A dry run that never answered is told apart from Git's own refusal of the clean.
+/// Why:
+///  Git's refusal means nothing would be deleted,
+/// so the clean can run and Git says why;
+///  a read that ended without an exit status says nothing at all,
+///  and a clean that ran on that assumption deleted a nested repository no copy held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(cleanDeletedPathsFromAnswer({ success: false, code: null })).toMatch(/^Git never answered/)
+/// ```
+#[test]
+fn a_dry_run_that_never_answered_is_not_gits_refusal() {
+    let killed = MetadataOutput {
+        success: false,
+        code: None,
+        stdout: Vec::<u8>::new(),
+        stderr: Vec::<u8>::new(),
+    };
+    let failure: String = clean_deleted_paths_from_answer(&killed).expect_err("a read that ended without an answer");
+    assert_eq!(CLEAN_READ_NEVER_ANSWERED, "Git never answered what the clean would delete:");
+    assert!(failure.starts_with(CLEAN_READ_NEVER_ANSWERED), "{failure}");
+    assert!(!failure.starts_with(UNREADABLE_CLEAN_DELETION), "{failure}");
 }
 
 /// A dry run that prints nothing would delete nothing,
@@ -295,6 +332,11 @@ fn a_silent_dry_run_deletes_nothing() {
             "Git could not read what the clean would delete: fatal: clean.requireForce is true"
         ))
     );
+    // The policy tells Git's refusal of the clean from a reading that never answered by these words,
+    //  so the sentence must begin with them.
+    assert_eq!(UNREADABLE_CLEAN_DELETION, "Git could not read what the clean would delete:");
+    let failure: String = clean_deleted_paths_from_answer(&answer(false, b"", b"fatal: refused\n")).expect_err("a refusal");
+    assert!(failure.starts_with(UNREADABLE_CLEAN_DELETION), "{failure}");
 }
 
 /// Only the paths the typed answer names and the answer without the patterns does not are what those patterns add,

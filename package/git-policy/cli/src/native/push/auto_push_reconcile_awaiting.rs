@@ -27,12 +27,12 @@ use crate::auto_push_reconcile_basics_and_limits::{
 };
 use crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting;
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_output_awaiting};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::auto_push_destination::{Destination, read_destination_awaiting};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
 use crate::merge_second_pass_tree::announce;
-use crate::push_retry::CONFLICT_PHRASE;
+use crate::push_retry_failure::CONFLICT_PHRASE;
 use std::ffi::OsString;
 use std::future::Future;
 use std::pin::Pin;
@@ -279,18 +279,20 @@ pub async fn integrate_and_push_awaiting(
 }
 
 /// What:
-///  The awaited reconcile of a push a moved remote branch rejected.
+///  The awaited reconcile of a push a moved remote branch rejected,
+///  merging the commit the push was allowed to send and never a commit that landed after it.
 /// Why:
 ///   The push of the landing round is a task,
 /// and every step below this one is a start of Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function reconcileDivergentPushOnTheRuntime({ git, branchRef, rejected }): Promise<PushAttempt>;
+/// async function reconcileDivergentPushOnTheRuntime({ git, branchRef, local, rejected }): Promise<PushAttempt>;
 /// ```
 pub async fn reconcile_divergent_push_awaiting(
     git: &PushGit,
     branch_ref: &str,
+    local: &str,
     rejected: PushAttempt,
 ) -> Result<PushAttempt, SingleFlightError> {
     if !was_rejected_as_stale(&rejected.output) {
@@ -303,14 +305,9 @@ pub async fn reconcile_divergent_push_awaiting(
         );
         return Ok(rejected);
     };
-    let local: String = git_output_awaiting(
-        git,
-        &argv(&["rev-parse", "--verify", &format!("{branch_ref}^{{commit}}")]),
-    )
-    .await?;
     let plan = Reconcile {
         destination,
-        local,
+        local: local.to_owned(),
         branch_ref: Some(branch_ref),
         label: "auto-push",
         explicit: false,

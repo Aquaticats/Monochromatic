@@ -14,21 +14,25 @@
 
 use super::{BorrowedAuthor, Settled, borrows_its_author, rewords_a_commit, rewords_another_commit, without_selection_letters, without_settled_options};
 use crate::commit_args::normalise_commit_args;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
+
+/// The words of one command line as the walk reads them.
+fn words(items: &[&str]) -> Vec<OsString> {
+    return items.iter().map(OsString::from).collect();
+}
 
 /// What one region keeps,
-/// as text,
+/// each token with its own bytes,
 /// with the settled options taken out.
 /// Why:
 ///   The walk reads the region the way `reissued_arguments` hands it over,
 ///  with a value inside a short cluster split out and the paths after the separator untouched.
-fn kept(words: &[&str], interactive: bool, borrowed: Option<&BorrowedAuthor>) -> Vec<String> {
-    let typed: Vec<String> = words.iter().map(|word| { return (*word).to_string(); }).collect();
-    let region: Vec<String> = normalise_commit_args(typed.as_slice());
+fn kept(items: &[&str], interactive: bool, borrowed: Option<&BorrowedAuthor>) -> Vec<OsString> {
+    let region: Vec<OsString> = normalise_commit_args(words(items).as_slice());
     return match without_settled_options(region.as_slice(), interactive, borrowed) {
         Settled::Line(tokens) => tokens,
-        Settled::NeedsTheAuthorship => panic!("the walk asked for an authorship it was given none of: {words:?}"),
-        Settled::Cannot => panic!("the walk refused a line it should rebuild: {words:?}"),
+        Settled::NeedsTheAuthorship => panic!("the walk asked for an authorship it was given none of: {items:?}"),
+        Settled::Cannot => panic!("the walk refused a line it should rebuild: {items:?}"),
     };
 }
 
@@ -52,7 +56,7 @@ fn reused() -> BorrowedAuthor {
 /// ```
 #[test]
 fn a_settled_selection_loses_every_option_that_would_ask_again() {
-    for words in [
+    for items in [
         vec!["--patch"],
         vec!["--interactive"],
         vec!["-p"],
@@ -60,22 +64,23 @@ fn a_settled_selection_loses_every_option_that_would_ask_again() {
         vec!["-qp"],
         vec!["-e", "--patch", "-S"],
     ] {
-        let tokens: Vec<String> = kept(words.as_slice(), true, None);
+        let tokens: Vec<OsString> = kept(items.as_slice(), true, None);
         for token in &tokens {
-            assert!(!token.contains('p') && !token.contains('i'), "{words:?} kept the selection option {token}");
+            let text: String = token.to_string_lossy().into_owned();
+            assert!(!text.contains('p') && !text.contains('i'), "{items:?} kept the selection option {text}");
         }
     }
     // The rest of a cluster survives, and a key that follows `-S` is never read as a flag.
-    assert_eq!(kept(&["-qp"], true, None), vec![String::from("-q")]);
-    assert_eq!(kept(&["-Skey-with-p"], true, None), vec![String::from("-Skey-with-p")]);
-    assert_eq!(kept(&["--quiet", "--patch", "--no-verify"], true, None), vec![String::from("--quiet"), String::from("--no-verify")]);
+    assert_eq!(kept(&["-qp"], true, None), vec![OsString::from("-q")]);
+    assert_eq!(kept(&["-Skey-with-p"], true, None), vec![OsString::from("-Skey-with-p")]);
+    assert_eq!(kept(&["--quiet", "--patch", "--no-verify"], true, None), words(&["--quiet", "--no-verify"]));
 }
 
 /// A selection that was not settled keeps the options the person typed.
 #[test]
 fn a_selection_that_was_not_settled_keeps_its_options() {
-    assert_eq!(kept(&["--patch"], false, None), vec![String::from("--patch")]);
-    assert_eq!(kept(&["-p"], false, None), vec![String::from("-p")]);
+    assert_eq!(kept(&["--patch"], false, None), vec![OsString::from("--patch")]);
+    assert_eq!(kept(&["-p"], false, None), vec![OsString::from("-p")]);
 }
 
 /// What:
@@ -94,7 +99,7 @@ fn a_selection_that_was_not_settled_keeps_its_options() {
 #[test]
 fn a_reused_authorship_leaves_its_option_and_the_authorship_the_person_typed() {
     let borrowed: BorrowedAuthor = reused();
-    for words in [
+    for items in [
         vec!["-C", "HEAD"],
         vec!["-CHEAD"],
         vec!["-c", "HEAD"],
@@ -103,21 +108,21 @@ fn a_reused_authorship_leaves_its_option_and_the_authorship_the_person_typed() {
         vec!["--author=Me <me@example.com>", "-C", "HEAD"],
         vec!["-C", "HEAD", "--date=2020-01-01T00:00:00Z"],
     ] {
-        let tokens: Vec<String> = kept(words.as_slice(), false, Some(&borrowed));
-        assert!(tokens.is_empty(), "{words:?} kept {tokens:?}");
+        let tokens: Vec<OsString> = kept(items.as_slice(), false, Some(&borrowed));
+        assert!(tokens.is_empty(), "{items:?} kept {tokens:?}");
     }
     // An author the person typed beside a borrowed commit is in the commit Git built, which the rebuild reads it from.
-    assert_eq!(kept(&["--author=Me <me@example.com>", "-C", "HEAD"], false, Some(&borrowed)), Vec::<String>::new());
+    assert_eq!(kept(&["--author=Me <me@example.com>", "-C", "HEAD"], false, Some(&borrowed)), Vec::<OsString>::new());
 }
 
 /// A line that borrows an authorship nobody read yet asks for it.
 #[test]
 fn a_line_that_borrows_an_authorship_says_so_once() {
-    let region: Vec<String> = vec![String::from("-C"), String::from("HEAD")];
+    let region: Vec<OsString> = words(&["-C", "HEAD"]);
     assert!(matches!(without_settled_options(region.as_slice(), false, None), Settled::NeedsTheAuthorship));
-    assert!(borrows_its_author("-C"));
-    assert!(borrows_its_author("--reuse-message=HEAD"));
-    assert!(!borrows_its_author("-m"));
+    assert!(borrows_its_author(OsStr::new("-C")));
+    assert!(borrows_its_author(OsStr::new("--reuse-message=HEAD")));
+    assert!(!borrows_its_author(OsStr::new("-m")));
 }
 
 /// What:
@@ -139,13 +144,13 @@ fn a_line_that_borrows_an_authorship_says_so_once() {
 /// ```
 #[test]
 fn a_fixup_that_commits_the_index_goes_and_a_reword_does_not() {
-    for words in [vec!["--fixup=HEAD"], vec!["--fixup", "HEAD"], vec!["--fixup=amend:HEAD"], vec!["--squash=HEAD"]] {
-        assert!(kept(words.as_slice(), false, None).is_empty(), "{words:?}");
+    for items in [vec!["--fixup=HEAD"], vec!["--fixup", "HEAD"], vec!["--fixup=amend:HEAD"], vec!["--squash=HEAD"]] {
+        assert!(kept(items.as_slice(), false, None).is_empty(), "{items:?}");
     }
-    for words in [vec!["--fixup=reword:HEAD"], vec!["--squash=reword:HEAD"]] {
-        assert!(rewords_another_commit(words[0]), "{words:?}");
-        let region: Vec<String> = words.iter().map(|word| { return (*word).to_string(); }).collect();
-        assert!(matches!(without_settled_options(region.as_slice(), false, None), Settled::Cannot), "{words:?}");
+    for items in [vec!["--fixup=reword:HEAD"], vec!["--squash=reword:HEAD"]] {
+        assert!(rewords_another_commit(OsStr::new(items[0])), "{items:?}");
+        let region: Vec<OsString> = words(items.as_slice());
+        assert!(matches!(without_settled_options(region.as_slice(), false, None), Settled::Cannot), "{items:?}");
     }
 }
 
@@ -163,9 +168,8 @@ fn a_fixup_that_commits_the_index_goes_and_a_reword_does_not() {
 #[test]
 fn a_reword_fixup_is_the_line_that_asks_for_an_empty_commit() {
     // The subcommand's index is the caller's: a global option before `commit` moves it.
-    let asks = |words: &[&str], subcommand: usize| -> bool {
-        let arguments: Vec<OsString> = words.iter().map(OsString::from).collect();
-        return rewords_a_commit(arguments.as_slice(), subcommand);
+    let asks = |items: &[&str], subcommand: usize| -> bool {
+        return rewords_a_commit(words(items).as_slice(), subcommand);
     };
     assert!(asks(&["commit", "--fixup=reword:HEAD"], 0));
     assert!(asks(&["commit", "--squash=reword:HEAD"], 0));
@@ -191,9 +195,9 @@ fn a_reword_fixup_is_the_line_that_asks_for_an_empty_commit() {
 /// ```
 #[test]
 fn a_message_that_reads_like_a_dropped_option_is_kept() {
-    assert_eq!(kept(&["-m", "--patch"], true, None), vec![String::from("-m"), String::from("--patch")]);
-    assert_eq!(kept(&["--message=-p"], true, None), vec![String::from("--message=-p")]);
-    assert_eq!(kept(&["-m", "-C"], false, None), vec![String::from("-m"), String::from("-C")]);
+    assert_eq!(kept(&["-m", "--patch"], true, None), words(&["-m", "--patch"]));
+    assert_eq!(kept(&["--message=-p"], true, None), vec![OsString::from("--message=-p")]);
+    assert_eq!(kept(&["-m", "-C"], false, None), words(&["-m", "-C"]));
 }
 
 /// Everything after the separator is a path,
@@ -202,14 +206,14 @@ fn a_message_that_reads_like_a_dropped_option_is_kept() {
 fn every_path_after_the_separator_is_kept_as_it_is() {
     assert_eq!(
         kept(&["--patch", "--", "-p", "--fixup=reword:HEAD"], true, None),
-        vec![String::from("--"), String::from("-p"), String::from("--fixup=reword:HEAD")]
+        words(&["--", "-p", "--fixup=reword:HEAD"])
     );
 }
 
 /// A cluster keeps the letters a rebuild does not supply itself.
 #[test]
 fn a_cluster_keeps_every_letter_a_rebuild_does_not_supply() {
-    assert_eq!(without_selection_letters("-qpa"), Some(String::from("-qa")));
-    assert_eq!(without_selection_letters("-pi"), None);
-    assert_eq!(without_selection_letters("-Spq"), Some(String::from("-Spq")));
+    assert_eq!(without_selection_letters(OsStr::new("-qpa")), Some(OsString::from("-qa")));
+    assert_eq!(without_selection_letters(OsStr::new("-pi")), None);
+    assert_eq!(without_selection_letters(OsStr::new("-Spq")), Some(OsString::from("-Spq")));
 }
