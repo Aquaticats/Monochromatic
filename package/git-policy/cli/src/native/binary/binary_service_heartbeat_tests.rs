@@ -25,7 +25,7 @@
 use git_policy_cli::commit_timing::SubmitTrace;
 use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
 use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
-use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
+use git_policy_cli::service_messages::{ClientFailure, position_notice, silent_notice};
 
 /// The words a commit the service named no place for is told,
 /// as the person reads them,
@@ -159,7 +159,7 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
     (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
-    assert!(!notices.contains(SILENT_NOTICE), "a service that beats is never called silent: {notices:?}");
+    assert!(!notices.contains(silent_notice(QUICK_SILENCE).as_str()), "a service that beats is never called silent: {notices:?}");
 }
 
 /// What:
@@ -190,7 +190,7 @@ fn a_commit_the_service_named_no_place_for_is_told_the_service_has_not_said_wher
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert_eq!(notices.matches(UNPLACED_SAID).count(), 1, "said once, and only once: {notices:?}");
     assert!(!notices.contains("has not started on this commit") && !notices.contains("still reading it"), "the client cannot know that the landing has not begun: {notices:?}");
-    assert!(!notices.contains(SILENT_NOTICE), "the service was never silent: {notices:?}");
+    assert!(!notices.contains(silent_notice(QUICK_SILENCE).as_str()), "the service was never silent: {notices:?}");
 }
 
 /// How long the commit of the stalled-stream control may take to answer:
@@ -404,13 +404,20 @@ fn a_commit_the_service_places_after_a_wait_says_how_many_go_before_it() {
 }
 
 /// A service that stops sending beats ends the wait:
-/// the client says so,
+/// the client says how long it has been quiet,
+/// says that the same commit is being sent again,
 /// asks again with the same request,
 /// and meets a
 /// service that accepts and greets nothing,
 /// which is the same silence;
 /// it ends with the plain failure that says whether the
 /// commit may have been made and what to do.
+/// Why the notice names the seconds:
+///  a service that is busy and one that has stopped look the same from the client,
+///  and the person decides whether to wait or to run something else,
+///  so the older line that claimed a stop and named no duration sent them to a log about a service that was working
+///  (the record of 2026-11-11 in
+///  `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
 #[test]
 fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent_again() {
     let name: String = address("goes-silent");
@@ -437,7 +444,9 @@ fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent
     assert_eq!(answered, Err(ClientFailure::ServiceSilent), "{notices}");
     assert_eq!(held.len(), 2, "the client asked again once, and was met by the same silence");
     assert_eq!(sends.load(Ordering::SeqCst), 1, "only the first connection was greeted, so only it got the request");
-    assert!(notices.contains(SILENT_NOTICE), "{notices:?}");
+    assert!(notices.contains("1 second"), "the notice names the seconds the service was quiet: {notices:?}");
+    assert!(notices.contains("nothing for you to do"), "the notice says that nothing is asked of the reader: {notices:?}");
+    assert!(notices.contains(silent_notice(QUICK_SILENCE).as_str()), "{notices:?}");
 }
 
 /// Whether the fake manager says the unit failed.

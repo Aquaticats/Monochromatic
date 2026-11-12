@@ -3682,7 +3682,11 @@ none is waited out or retried on the moved head yet:
    commit landed at that moment the command reports success.
    Five seconds without a word ask the service again with the same
    commit,
-  and a service that does not answer then ends the command with "The commit service stopped answering".
+  and the line that says so names how long the service has said nothing,
+  that the commit cannot land twice,
+  and that this command goes on by itself,
+  so the person reading it is asked to do nothing;
+  a service that does not answer then ends the command with "The commit service stopped answering".
    That silence is measured against a service that beats once a second while it works,
   and the beats never wait for the
    background work the same service does:
