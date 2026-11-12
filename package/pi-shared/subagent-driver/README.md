@@ -322,6 +322,136 @@ Both streams go to the list's own name and `.out` beside it,
 and nowhere else,
 because a unit has no terminal.
 
+## Reviewing a change
+
+A review of the change `x` is the run `review-x`,
+on branch `test/review-x`,
+with everything it writes in `<reviews folder>/x`:
+the diff it read (`change.diff`),
+its brief (`brief.md`),
+its reproduction scripts (`reproductions/`),
+and its findings (`review.md`).
+The reviews folder is `$HOME/temp/agent/change-reviews` unless a command is given another,
+and that name says what the folder holds and no model's name.
+
+The reviewer's provider and model are named once, in `src/reviewer-of-a-change.ts`:
+`qwen-token-plan-individual` and `qwen4-max-preview`,
+the qwen plan's review pool.
+No command, option, run, branch or folder carries a model's name,
+so a review of another model is one edit there and no new names.
+
+A review's worktree starts at the commit the review reads,
+which the launcher's `--base` takes.
+A branch of that name that already exists is added as it is,
+so a second review of the same change needs the old branch removed first;
+the launcher's own line says which of the two it did.
+
+### `write-a-brief-for-a-review`
+
+`--review`,
+the change's name;
+`--commit`,
+the commit under review;
+`--range`,
+what changed, repeatable because a branch the integration merged more than once is read over each merge's own range;
+`--source`,
+the folder whose changes are reviewed;
+`--focus`,
+what the reviewer looks hardest at,
+which defaults to data loss, a failed or doubled commit or merge, an unbounded wait,
+and a race with commands running at the same time or a process killed at any instruction;
+`--reviews-folder`;
+`--runs-folder`,
+the folder every run of this package writes into,
+which the brief lists among the folders a reviewer must not read;
+and `--rules-file`,
+which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
+
+It writes the diff of the ranges under the source folder,
+the brief that names the code files among them,
+and an empty `reproductions/` folder,
+and prints one line:
+
+```text
+# --review=rewrite-the-gate --commit=abc1234 --range=main...fix/rewrite-the-gate --source=package/git-policy/cli/src/native
+review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/brief.md; its worktree starts at abc1234. Its folder is <reviews>/rewrite-the-gate
+```
+
+The files are the `.rs` and `.ts` code the ranges touched,
+without their tests and test stand-ins,
+and without a file the reviewed commit does not hold.
+A change that leaves no such file under the source folder writes nothing,
+prints `nothing to review under <source> in <ranges>`,
+and exits `1`:
+a reviewer given no file reports nothing,
+which reads as a clean review although nothing was reviewed.
+
+### `start-reviews-of-finished-branches`
+
+`--branch`,
+repeatable;
+`--integration`,
+the branch a branch's change is read against;
+`--source`;
+`--reviews-folder`;
+and `--runs-folder`.
+
+For each branch it writes the brief through the command above,
+then starts its review through the retrying start,
+so the review waits for a slot of the review pool instead of refusing.
+The run's words are fixed here,
+with the reasons beside them in `src/reviews-of-finished-branches.ts`:
+its worktree starts at the branch's tip;
+its wall is six hours;
+its turn cap is a quarter above the longest of the 28 reviews measured on 2026-11-11;
+and it names the reviewer's provider and model.
+Starts go twenty seconds apart,
+and the command waits for every review it started before it answers.
+
+A branch already reviewed,
+one whose change leaves nothing to review,
+and one whose brief could not be written are each one line,
+and the rest go on:
+the scratch starter stopped at the first of them,
+and two reviews of round 231 were lost that way with no line anyone read.
+
+When a review ends,
+the command saves its last assistant message as its `review.md` when the review wrote none,
+through `save-the-final-message-of-a-review-that-wrote-no-review-file`.
+It ends with `reviews ended with statuses <status>...`,
+one status per review,
+`none` for a start that could not be run at all,
+and exits `0` only when every start ended `0`.
+
+### `write-a-fix-brief-for-each-review`
+
+`--review`,
+repeatable;
+`--base`,
+the commit or branch every fix starts at;
+`--branch-prefix`,
+the namespace a fix's branch lives under, such as `fix/`;
+`--package`,
+the package the fix changes;
+`--reviews-folder`;
+`--runs-folder`;
+`--wall-seconds`,
+six hours by default;
+and `--batch-file`,
+which, when given, is written as the list that starts those agents.
+
+A fix is named after the change its review read,
+without the `-round-<n>` that says which round wrote the review,
+and its branch is the prefix and that name.
+Each brief is written to `<runs folder>/<fix name>-prompt.md`,
+names the rules file first,
+quotes the ban on synthetic host load,
+states the requirements as the project's own,
+and names no owner, no hurry and no due date.
+A review whose `review.md` or `change.diff` is not there gets no brief:
+the line names the missing file and the rest go on,
+and the command exits `1` when any review was left without one.
+
 ## Removing finished worktrees
 
 ### `remove-finished-worktrees`
@@ -695,11 +825,12 @@ the wait ends after its silence bound and the run ends as `prompt-rejected`.
 `--review` (repeatable),
 `--runs-folder`,
 and `--review-folder`.
-A Kimi review that ends without writing `review.md` leaves its findings only in its last message,
+A review that ends without writing `review.md` leaves its findings only in its last message,
 and a review's worktree is kept until that file exists.
 This reads the last assistant message whole from the Pi session file the newest finished
-`kimi-review-<review>-<n>` run names,
+`review-<review>-<n>` run names,
 and writes it as `<review-folder>/<review>/review.md` with a note saying which run it came from.
+The review folder is `$HOME/temp/agent/change-reviews` unless the caller names another.
 The summary's own `lastAssistantText` cannot be the source:
 it is cut to 900 characters.
 A review that wrote its own file is left alone,

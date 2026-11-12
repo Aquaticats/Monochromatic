@@ -1,7 +1,7 @@
 /**
- A Kimi review that ends without writing `review.md` leaves its findings only in its last message, and a review worktree is kept
- until that file exists. This reads the last message whole out of the Pi session file the newest finished run names, and writes it
- as the review.
+ A review that ends without writing `review.md` leaves its findings only in its last message, and a review's worktree is kept until
+ that file exists. This reads the last message whole out of the Pi session file the newest finished run names, and writes it as
+ the review.
 
  The summary's own `lastAssistantText` cannot be the source: it is cut to `FEED_PREVIEW_CHARACTERS.assistantText`, which is 900
  characters, and a review of six findings is longer than that.
@@ -22,22 +22,16 @@ import {
   fieldsOf,
   isRecord,
 } from './read-pi-fields.ts';
+import {
+  REVIEW_FILE_NAME,
+  runNameOfAReview,
+} from './reviewer-of-a-change.ts';
 import { sessionFileInSummary, } from './session-file-of-a-run.ts';
 
 /**
  The code the operating system gives a path that is not there.
  */
 const MISSING_PATH_CODE = 'ENOENT';
-
-/**
- The start of the run folder of a review of one name.
- */
-const REVIEW_RUN_PREFIX = 'kimi-review-';
-
-/**
- The file a review's findings are read from.
- */
-export const REVIEW_FILE_NAME = 'review.md';
 
 /**
  The note a saved review carries, so a reader knows the file was written after the run rather than by it.
@@ -161,7 +155,7 @@ export async function newestRunOf({
   /**
    The run's name, which every folder of it starts with.
    */
-  const run = `${REVIEW_RUN_PREFIX}${review}`;
+  const run = runNameOfAReview({ review, },);
   /**
    The entries of the runs folder, of which a folder that is not there holds none.
    */

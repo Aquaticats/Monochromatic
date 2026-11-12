@@ -200,7 +200,6 @@ export { optionIn, } from './option-in.ts';
  `save-the-final-message-of-a-review-that-wrote-no-review-file.ts`.
  */
 export {
-  REVIEW_FILE_NAME,
   SAVED_REVIEW_NOTE,
   type SavedReview,
   lastAssistantTextIn,

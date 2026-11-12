@@ -160,3 +160,33 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('start-a-batch-in-its-own-unit')
 """
+
+[tasks."write-a-brief-for-a-review"]
+description = "Write what one review of a change reads: the diff of its ranges under the reviewed source folder, the brief naming its files, and its reproductions folder"
+usage = 'arg "[args]" var=#true help="--review=<change> --commit=<commit> --range=<a>...<b>... --source=<folder> [--focus=<text>] [--reviews-folder=<folder>] [--runs-folder=<folder>] [--rules-file=<file>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('write-a-brief-for-a-review')
+"""
+
+[tasks."start-reviews-of-finished-branches"]
+description = "Write and start one review of each finished branch, on the review pool, and save the last message of a review that wrote no review file"
+usage = 'arg "[args]" var=#true help="--branch=<branch>... --integration=<branch> --source=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-reviews-of-finished-branches')
+"""
+
+[tasks."write-a-fix-brief-for-each-review"]
+description = "Write one brief for each review whose defects a fix answers, and the batch list that starts those agents"
+usage = 'arg "[args]" var=#true help="--review=<name>... --base=<commit or branch> --branch-prefix=<prefix> --package=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>] [--batch-file=<file>] [--wall-seconds=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('write-a-fix-brief-for-each-review')
+"""

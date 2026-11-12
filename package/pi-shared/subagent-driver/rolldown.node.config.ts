@@ -25,6 +25,9 @@ const config: NodeFlavorConfig = nodeConfig({
     'list-launchers-whose-unit-has-ended': './src/list-launchers-whose-unit-has-ended.ts',
     'remove-finished-worktrees': './src/remove-finished-worktrees.ts',
     'start-a-batch-in-its-own-unit': './src/start-a-batch-in-its-own-unit.ts',
+    'write-a-brief-for-a-review': './src/write-a-brief-for-a-review.ts',
+    'start-reviews-of-finished-branches': './src/start-reviews-of-finished-branches.ts',
+    'write-a-fix-brief-for-each-review': './src/write-a-fix-brief-for-each-review.ts',
   },
 },);
 
