@@ -5023,7 +5023,10 @@ the notice then carries only Git's own words
 The file of a branch that needs no new try goes the same way:
 the worker that decided it removes that branch's file as it decides
 (`Replanning::forget`),
-so the loop writes no plan's file at all and replays nothing onto the journal
+and only after the record of what ended the plan is written,
+so a service killed between the two leaves the plan and a later service tries the push once more,
+never a notice that promises a retry nothing schedules.
+The loop writes no plan's file at all and replays nothing onto the journal
 (`PushRetries::apply` changes only the list it owns).
 Each statement about a branch is therefore made once,
 when its worker decides it,

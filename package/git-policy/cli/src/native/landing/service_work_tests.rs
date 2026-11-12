@@ -8,7 +8,7 @@ use crate::push_retry::{Due, PushRetries};
 use crate::service_work_common_directory::is_bare_common_directory;
 use crate::service_work_run_round::run_round;
 use super::*;
-use crate::push_failure_notice::{PushOutcome, push_failure_text, push_failures};
+use crate::push_failure_notice::{PushOutcome, notice_directory, push_failure_text, push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{RENEWALS_PER_LEASE, renewal_interval};
 use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
@@ -16,6 +16,7 @@ use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
 use std::cell::RefCell;
 use std::ffi::OsString;
+use std::os::unix::fs::OpenOptionsExt as _;
 use std::time::{Duration, Instant};
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -1210,6 +1211,96 @@ fn a_retry_the_plan_cannot_keep_is_not_promised() {
     assert!(!shown[0].contains("tries this push again by itself"), "no promise the plan cannot keep: {shown:?}");
     assert!(shown[0].contains("the network is down"), "Git's own words are kept: {shown:?}");
     assert_eq!(drained.changes.len(), 1, "the service that is running goes on trying the push");
+    remove(repo.root.as_path());
+}
+
+/// How long the control below lets the record of a refusal appear before it lets the plan's own file answer:
+/// long enough for one job of the blocking pool to start and write a file on a contended host,
+/// and short enough to keep the control quick.
+const BEFORE_THE_PLANS_FILE_ANSWERS: Duration = Duration::from_secs(5);
+
+/// What:
+///  Open the pipe at `path` for writing and close it again,
+/// which ends a read of it that waited for a writer.
+/// Why:
+///  A read the control's own code makes waits for a writer that never comes,
+/// so the control releases it here rather than holding the suite for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// close(openSync(path, 'w')); // the read that waited for a writer ends
+/// ```
+fn release_the_plan_pipe(path: &Path) {
+    let began: Instant = Instant::now();
+    while began.elapsed() < BEFORE_THE_PLANS_FILE_ANSWERS {
+        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+            Ok(writer) => {
+                drop(writer);
+                return;
+            }
+            // No reader is in the pipe yet, so this is the moment before the read starts.
+            Err(_no_reader) => std::thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
+
+/// How many records of failed pushes a Git directory holds for the person.
+fn notices_of(git_dir: &Path) -> usize {
+    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |entries| { return entries.flatten().count(); });
+}
+
+/// What:
+///  The record of a push the person must act on is written before the branch's plan file is taken away.
+/// Why:
+///  The notice an earlier round wrote says another try is coming,
+/// and the plan's file is what makes that true.
+/// A service killed between the removal of that file and the record of the refusal leaves the item in `failed`,
+/// which nothing scans,
+/// so the person keeps a promise nothing schedules instead of the refusal that needs them.
+/// The control makes the removal wait: the branch's own plan file is a pipe nobody writes to,
+/// and the process has one place of its blocking bound,
+/// so a record that is written while the removal waits was written first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await save(plans, plan); mkfifo(planPath); const drained = drain(); expect(notices(gitDir)).toHaveLength(1);
+/// ```
+#[test]
+fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
+    crate::parallel_test_support::room_for("the record of a terminal failure goes before the plan's file", crate::parallel_test_support::ONE_PLACE);
+    let repo: Repo = repo("work-terminal-record-before-the-plan-goes");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let waiting: crate::push_retry_store::StoredPlan =
+        crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 };
+    crate::push_retry_store::save(plans.as_path(), &waiting).expect("the plan of the try that failed");
+    // The plan's own file becomes a pipe with no writer, which is a record the removal cannot read.
+    let reading: PathBuf = plans.join(crate::push_retry_store::name_of(&waiting));
+    std::fs::remove_file(reading.as_path()).expect("the plan's file makes way for the pipe");
+    let text: std::ffi::CString = std::ffi::CString::new(reading.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the pipe stands where the plan's file was: {}", std::io::Error::last_os_error());
+    let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from("the server declined the push")));
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: vec![Due { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 }], plans: Some(plans.clone()) };
+    let recorded_first: bool = std::thread::scope(|scope| {
+        let pipe: &Path = reading.as_path();
+        let watcher = scope.spawn(|| {
+            let seen: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor {
+                window: BEFORE_THE_PLANS_FILE_ANSWERS,
+                done: &|| { return notices_of(repo.common.as_path()) > 0; },
+            });
+            release_the_plan_pipe(pipe);
+            return seen;
+        });
+        let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+        assert_eq!(drained.changes.len(), 1, "the worker still asks the plan to drop the branch");
+        return watcher.join().expect("the watcher ends");
+    });
+    assert!(
+        recorded_first,
+        "the refusal was recorded while the plan's file still waited for a writer, so the record goes first and a kill between the two leaves the plan"
+    );
+    assert!(reading.exists(), "the plan's file the removal could not read stays, so a later service tries the push the notice promised");
     remove(repo.root.as_path());
 }
 
