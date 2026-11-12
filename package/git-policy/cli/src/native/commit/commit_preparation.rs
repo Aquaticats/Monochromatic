@@ -288,13 +288,14 @@ pub fn run_native_commit_within(
     // Why:  A step the kernel held ran under the longer bound the package measured,
     //       and the stop's words must name the bound that ended it and never the one it passed.
     let bound_that_ended_it: std::time::Duration = facts.stall_ceiling.unwrap_or(ceiling);
+    let waited_while_the_kernel_held_it: bool = facts.stall_ceiling.is_some();
     crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), bound_that_ended_it.as_millis()).as_str());
         // A step the ceiling ended never exited by itself, so the note carries its name and no status.
         crate::git_step_failure::note_failed_step(step.as_str(), None);
-        let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling: bound_that_ended_it, signs, below_unlisted, below_unended };
+        let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling: bound_that_ended_it, signs, below_unlisted, below_unended, waited_while_the_kernel_held_it };
         return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
     let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = match finished {

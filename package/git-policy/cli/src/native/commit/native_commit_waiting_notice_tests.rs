@@ -677,3 +677,62 @@ fn a_finished_command_prints_nothing_more() {
     let after: usize = written.lock().expect("written").len();
     assert!(after <= when_over + 1, "a line was printed after the command was over: {} lines, {when_over} of them before it ended", after);
 }
+
+/// The ceiling a control gives a step that outlasts it:
+/// short enough that a loaded host still reaches it.
+const A_CEILING_A_STEP_OUTLASTS: Duration = Duration::from_millis(200);
+
+/// The bound a control plants for a step the kernel holds:
+/// no test waits the five minutes the shipped bound allows.
+const A_STALL_BOUND: Duration = Duration::from_secs(30);
+
+/// What:
+///  The ceiling stands aside once for a step the kernel holds in a disk wait,
+///  and the step runs on.
+/// Why:
+///   Ending a step that waits for the disk fails a commit that would have landed:
+///  on 2026-11-11 two commits failed that way,
+///  their steps held for 37,153 and 47,978 ms under a 16,332 ms ceiling.
+///  The step here is a real child of this process;
+///  what a control states is the kernel's answer about its state,
+///  which no run on this host can make real (`scratch_step_look_below_control_window.rs`).
+///  The record says the ceiling stood aside and names the bound the step then ran under,
+///  so the next reading of the log can tell a slow step from a stopped one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // plantTheStallCeiling(30_000); const step = sh('sleep 120'); theKernelHolds(step.pid); await sleep(1_000); expect(endedWithin(step)).toBeUndefined(); expect(seen.stoppedAfter).toBeUndefined(); expect(seen.stallCeilingMs).toBe(30_000)
+/// ```
+#[cfg(all(test, target_os = "linux"))]
+#[test]
+fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
+    let mut step: std::process::Child = sleeping_step();
+    let sink: Buffer = Buffer::default();
+    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: A_CEILING_A_STEP_OUTLASTS,
+        sink: Box::new(sink.clone()),
+    });
+    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(step_number(&step), "git");
+    notice.step_started(step_number(&step));
+    std::thread::sleep(A_CEILING_A_STEP_OUTLASTS * 5);
+    let ended: Option<i32> = ended_within(&mut step, A_CEILING_A_STEP_OUTLASTS);
+    let seen: ScratchStepFacts = notice.finish();
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert_eq!(ended, None, "the ceiling ended a step the kernel held past it: {seen:?}");
+    assert_eq!(seen.stopped_after, None, "the ceiling stood aside, so no stop is recorded: {seen:?}");
+    assert!(
+        seen.held_after_ceiling.is_some_and(|waited| { return waited >= A_CEILING_A_STEP_OUTLASTS; }),
+        "the record does not say when the ceiling stood aside: {seen:?}"
+    );
+    assert_eq!(seen.stall_ceiling, Some(A_STALL_BOUND), "the record names the bound the step then ran under: {seen:?}");
+}

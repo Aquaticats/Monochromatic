@@ -99,8 +99,10 @@ fn the_scratch_commit_step_is_stopped_at_a_floor_or_three_times_the_slowest_step
     assert_eq!(SCRATCH_COMMIT_STEP_CEILING_FLOOR, Duration::from_secs(60));
     assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SCRATCH_COMMIT_STEP_CEILING_FLOOR, "the floor holds this population above it, so the ceiling is the floor");
     assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_secs(60), "one minute, 4.7 times the slowest step that ended by itself");
-    assert!(SCRATCH_COMMIT_STEP_CEILING > SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN - SCRATCH_COMMIT_STEP_CEILING_FLOOR,
-        "the ceiling is above the slowest ordinary step by the margin or by the floor, whichever is later");
+    assert!(
+        SCRATCH_COMMIT_STEP_CEILING >= SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN,
+        "the ceiling is the later of the margin over the slowest ordinary step and the floor"
+    );
     let source: &str = include_str!("../commit/commit_preparation.rs");
     assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
 }

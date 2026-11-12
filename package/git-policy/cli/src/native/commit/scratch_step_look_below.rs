@@ -103,30 +103,10 @@ pub(crate) fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
     // Why:  The kernel's answer about a process in an uninterruptible call is what such a control states,
     //       so a look answers the step the way it answers every other fact it reads.
     #[cfg(all(test, target_os = "linux"))]
-    if let Some(name) = the_controls_window::the_name_a_control_gives_the_process_it_holds() {
-        the_first_process_is_stated_to_be_held(&mut found, name.as_str());
-    }
-    #[cfg(all(test, target_os = "linux"))]
     if let Some((held, name)) = the_controls_window::a_control_says_the_kernel_holds() {
         the_state_a_control_states(&mut found, step, (held, name));
     }
     return Some(found);
-}
-
-/// What:
-///  Put the state a control stated for whichever process the look found into the first of them.
-/// Why:
-///  A control that runs the real commit cannot know the step's number before it starts,
-///  and the step comes first in a look,
-///  so the process it states is held is the step itself
-///  (`the_controls_window::the_kernel_holds_whatever_the_look_finds`).
-#[cfg(all(test, target_os = "linux"))]
-fn the_first_process_is_stated_to_be_held(found: &mut [(i32, ProcessUse)], name: &str) {
-    let Some(first) = found.first_mut() else {
-        return;
-    };
-    first.1.state = 'D';
-    first.1.name = name.to_string();
 }
 
 /// What:
@@ -139,10 +119,14 @@ fn the_first_process_is_stated_to_be_held(found: &mut [(i32, ProcessUse)], name:
 fn the_state_a_control_states(found: &mut Vec<(i32, ProcessUse)>, step: i32, held: (i32, String)) {
     let (number, name) = held;
     let stated: ProcessUse = ProcessUse { name, started: 0, state: 'D', cpu: Duration::ZERO };
+    // What: A control marks a process the look found, and never adds one.
+    // Why:  A control's words are the kernel's answer about a process of the step's own tree,
+    //       and a process a control named that no look found is not one this step started:
+    //       a plant that added it would let one control's statement into another test's look.
     match found.iter().position(|entry| { return entry.0 == number; }) {
         Some(at) => found[at] = (number, stated),
         None if number == step => found.insert(0, (number, stated)),
-        None => found.push((number, stated)),
+        None => {}
     }
 }
 

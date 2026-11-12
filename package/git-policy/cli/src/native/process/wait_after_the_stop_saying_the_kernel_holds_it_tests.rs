@@ -356,10 +356,20 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
         ceiling: Duration::from_millis(300),
         sink: Box::new(sink.clone()),
     });
-    let step: std::process::Child = sleeping_step();
-    let mut helper: std::process::Child = std::process::Command::new("sleep").arg("120").spawn().expect("a helper");
+    // The step starts a helper of its own and prints its number, so the helper a control holds is really below the step:
+    //  a control marks a process the look found and never adds one
+    //  (`scratch_step_look_below_control_window.rs`).
+    let mut command: std::process::Command = std::process::Command::new("sh");
+    command.arg("-c").arg("sleep 600 & echo $!; wait").stdout(std::process::Stdio::piped());
+    let mut step: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
+    let helper_number: i32 = {
+        use std::io::{BufRead, BufReader};
+        let printed = step.stdout.take().expect("the helper's number");
+        let mut line: String = String::new();
+        BufReader::new(printed).read_line(&mut line).expect("a number");
+        line.trim().parse::<i32>().expect("a process number")
+    };
     let step_number: i32 = number_of(&step);
-    let helper_number: i32 = number_of(&helper);
     the_look_controls::the_kernel_holds(helper_number, "ssh-keygen");
     the_controls_window::hold_the_reap();
     let release = std::thread::spawn(|| {
@@ -369,8 +379,6 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
     let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
-    helper.kill().expect("cleanup");
-    helper.wait().expect("reaped");
     assert!(
         said.contains(format!("(process {helper_number})").as_str()) && said.contains("ssh-keygen"),
         "the line did not name the program the kernel is holding: {said:?}"
