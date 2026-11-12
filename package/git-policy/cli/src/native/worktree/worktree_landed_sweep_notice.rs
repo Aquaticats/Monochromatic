@@ -84,6 +84,11 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             sweep.landed_branch
         ));
     }
+    // A removal this sweep had to finish itself says why Git's own walk could not, so the writer the person never sees is
+    //  named rather than a worktree that simply went.
+    for line in &sweep.left_behind {
+        lines.push(line.clone());
+    }
     for unfinished in &sweep.unfinished {
         lines.push(format!(
             "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}, and could not remove its registration, so Git still lists the worktree as missing; this is what finishes it:",

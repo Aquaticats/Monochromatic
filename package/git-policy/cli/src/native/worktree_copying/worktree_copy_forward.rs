@@ -28,6 +28,7 @@ use crate::hooks_off::StartOwner;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
+use crate::worktree_removal_left_behind_folder::{LeftBehind, Remembered, finish_after_git, finished_notice, kept_notice, remember_before_git};
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
@@ -376,7 +377,84 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
     if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
         return finished;
     }
-    return run_settled(real_git, arguments, overlay, facts);
+    // What: A removal handed to Git records the folder's entries before Git runs, so whatever its walk cannot empty is
+    //       finished here or by the next command (`worktree_removal_left_behind_folder.rs`).
+    // Why:  Git deletes the registration whether or not its walk emptied the folder, and something writing into the
+    //       folder while the walk runs makes the walk fail with `Directory not empty`.
+    let remembered: Option<Remembered> = removal_about_to_be_handed_to_git(facts);
+    let finished: ForwardedRun = run_settled(real_git, arguments, overlay, facts);
+    return finished_after_git(remembered, finished);
+}
+
+/// What:
+///  The folder of a `git worktree remove` this run is about to hand to Git,
+///  recorded with the entries it holds now,
+///  or nothing when the command is not a removal or the repository does not register its folder.
+/// Why:
+///   Only a removal can leave a folder behind,
+///  and only a registered worktree's folder can be left by Git's own walk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remembered = facts.removePlan && commonDirectory(facts.identity) ? rememberBeforeGit(commonDir, plan.target) : undefined;
+/// ```
+#[cfg(unix)]
+fn removal_about_to_be_handed_to_git(facts: &CopyFacts) -> Option<Remembered> {
+    let plan: &RemovePlan = facts.remove_plan.as_ref()?;
+    let common_dir: &Path = common_directory(&facts.identity)?;
+    return remember_before_git(common_dir, plan.target.as_path());
+}
+
+/// What:
+///  Finish the folder the removal recorded once Git returned,
+///  say what happened on standard error,
+///  and keep Git's own status.
+/// Why:
+///   A folder Git could not empty is the removal's to finish,
+///  and the person has to read why their worktree needed it:
+///  a removal whose notice says nothing is the failure this answers.
+///  The status stays Git's whatever the finish did,
+///  because the command the person ran is the one Git answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (remembered && finished.kind !== 'ran-ok') { const outcome = finishAfterGit(remembered); stderr.write(noticeOf(outcome)); }
+/// return finished;
+/// ```
+#[cfg(unix)]
+fn finished_after_git(remembered: Option<Remembered>, finished: ForwardedRun) -> ForwardedRun {
+    use std::io::Write;
+    let Some(remembered) = remembered else { return finished };
+    // A removal this program could not start did not hand the folder to Git, so its record names a folder it never walked.
+    if matches!(finished, ForwardedRun::Failed { .. }) {
+        return finished;
+    }
+    let outcome: LeftBehind = finish_after_git(&remembered);
+    for line in notice_of(&outcome, remembered.target.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
+    return finished;
+}
+
+/// What:
+///  The lines the person reads about the folder a removal left,
+///  and none when nothing was left.
+/// Why:
+///   The words belong to the completion module,
+///  and a control that takes a different route through the run reads the same ones.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = noticeOf(outcome, target);
+/// ```
+#[cfg(unix)]
+fn notice_of(outcome: &LeftBehind, target: &Path) -> Vec<String> {
+    return match outcome {
+        LeftBehind::Nothing => Vec::new(),
+        LeftBehind::Removed => vec![finished_notice(target)],
+        LeftBehind::Kept { names, reason } => vec![kept_notice(target, names.as_slice(), reason.as_str())],
+    };
 }
 
 /// What:

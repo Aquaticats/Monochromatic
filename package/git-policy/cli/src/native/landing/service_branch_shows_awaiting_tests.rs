@@ -21,9 +21,7 @@ use std::path::PathBuf;
 /// const [sync, awaited] = bothAnswers(context, repo, reference, prepared);
 /// ```
 fn both_answers(context: &GitContext, repo: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
-    // The read takes the bytes Git printed for the name, so the control's text becomes one of those here.
-    let reference: crate::ref_name::RefName = crate::ref_name::RefName::from_text(reference);
-    let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, &reference, prepared);
+    let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, reference, prepared);
     let awaited: WhatTheBranchShows =
         crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, &reference, prepared)).expect("the runtime");
     return (synchronous, awaited);

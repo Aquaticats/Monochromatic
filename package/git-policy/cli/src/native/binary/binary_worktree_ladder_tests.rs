@@ -172,6 +172,86 @@ fn a_subvolume_worktree_is_removed_and_a_dirty_one_is_refused() {
     remove(&fixture);
 }
 
+/// A worktree the wrapper has just added is removed by the one-call destroy without any aging of its files.
+/// Why:
+///  `git worktree add` writes a worktree's files and its index in the same instant,
+///  so every tracked entry is as new as the index and its recorded stat data proves nothing
+///  (`worktree_clean_stat_verdicts.rs`,
+///  `Racy`).
+///  The proof that read the stat data alone refused exactly that state,
+///  which handed every freshly added worktree to Git's file-by-file walk of the whole tree,
+///  and the package-manager relink of that same worktree writes its links into it while the walk runs.
+///  The proof by content is what the snapshot rung and the conversion already use,
+///  and it settles the same worktree without waiting for its files to age.
+#[test]
+fn a_freshly_added_worktree_is_destroyed_without_aging_its_files() {
+    let fixture: Fixture = fixture("ladder-remove-fresh");
+    if !on_btrfs_or_acknowledged(&fixture, "ladder-remove-fresh") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = populated_repository(&fixture, false);
+    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "fresh", "../fresh"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let fresh: PathBuf = fixture.root.join("fresh");
+    assert!(is_subvolume_root(fresh.as_path()).expect("probe"), "the add made a subvolume");
+    // No aging here: the files and the index were written in the same instant, which is the state this control is about.
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../fresh"]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
+    assert!(!fresh.exists(), "the worktree is gone");
+    assert!(!listing(&fixture, repo.as_path()).contains("/fresh\n"), "the registration is gone");
+    let said: String = stderr_of(&removed);
+    if removal_allowed(fixture.root.as_path()) {
+        assert!(said.contains(DESTROY_NOTICE), "the one-call destroy is stated, so Git's walk did not take it: {said}");
+    }
+    remove(&fixture);
+}
+
+/// What:
+///  A removal whose own Git walk cannot empty the folder ends with the folder gone and one line saying so.
+/// Why:
+///  Git's walk deletes the registration whether or not it emptied the folder
+///  (`builtin/worktree.c`,
+///  `remove_worktree`:
+///  "continue on even if ret is non-zero, there's no going back from here"),
+///  so a walk something defeats leaves a folder no registration names and nothing finishes.
+///  A directory the owner cannot write makes that failure certain:
+///  a worktree real Git made is an ordinary directory, so the wrapper hands its removal to Git,
+///  and Git cannot unlink the file inside the directory and takes the registration anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runDirect(['worktree','add','-b','topic','../topic']); chmod(join(topic,'deep'), 0o500);
+/// const removed = runWrapped(['worktree','remove','../topic']);
+/// expect(existsSync(topic)).toBe(false); expect(removed.stderr).toContain('Git could not empty');
+/// ```
+#[test]
+fn a_removal_gits_walk_could_not_empty_leaves_no_folder() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture: Fixture = fixture("ladder-remove-walk-defeated");
+    let repo: PathBuf = populated_repository(&fixture, false);
+    let topic: PathBuf = fixture.root.join("topic");
+    // Real Git makes an ordinary directory, which is the removal this program hands back to Git.
+    let created: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let deep: PathBuf = topic.join("deep");
+    std::fs::create_dir_all(deep.as_path()).expect("a directory Git must empty");
+    std::fs::write(deep.join("leaf.txt"), b"leaf\n").expect("a file inside it");
+    git(&fixture, topic.as_path(), &["add", "--", "deep/leaf.txt"]);
+    git(&fixture, topic.as_path(), &["commit", "--quiet", "--message=the deep file"]);
+    std::fs::set_permissions(deep.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory Git cannot write");
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    let _restored = std::fs::set_permissions(deep.as_path(), std::fs::Permissions::from_mode(0o700));
+    let said: String = stderr_of(&removed);
+    assert_ne!(removed.code, Some(0), "Git's own refusal is the status the person sees: {said}");
+    assert!(said.contains("failed to delete"), "Git said its walk failed: {said}");
+    assert!(said.contains("Git could not empty"), "and the wrapper says it finished the removal: {said}");
+    assert!(!topic.exists(), "the folder is gone, so nothing unregistered stands there");
+    assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
+    assert!(!repo.join(".git/monochromatic-git-policy-cli/left-behind-removals").exists(), "nothing is left to finish");
+    remove(&fixture);
+}
+
 /// A clean subvolume worktree named by the last component of its path is removed by the one-call destroy:
 /// Git picks a worktree by the last path components of every registered path before it resolves a real path
 /// (`find_worktree` in Git's `worktree.c`),

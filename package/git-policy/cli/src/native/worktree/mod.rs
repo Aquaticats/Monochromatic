@@ -142,6 +142,15 @@ pub mod worktree_removal_clears_the_ahead_pool;
 /// which the kernel can never destroy in one step.
 pub mod worktree_removal_refuses_a_nested_volume;
 
+/// What one removal handed to Git wrote down before Git ran:
+/// the entries the folder held,
+/// the process that wrote the record and whether Git returned.
+pub mod worktree_removal_left_behind_record;
+
+/// What a removal does with the folder Git's walk could not empty,
+/// and with the record that names it.
+pub mod worktree_removal_left_behind_folder;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;

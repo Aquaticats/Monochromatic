@@ -30,6 +30,7 @@
 use super::commit::remove_settled;
 use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
+use git_policy_cli::worktree_remove::DESTROY_NOTICE as WORKTREE_DESTROY_NOTICE;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -242,6 +243,70 @@ const HOLD_PAUSE_MILLISECONDS: u32 = 50;
 
 /// How long the control waits between two glances at whether the held repair has started.
 const START_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// How long the held relink writes one link before its next, in seconds as a shell reads it.
+const LINK_PAUSE: &str = "0.020";
+
+/// `git worktree remove` of a worktree whose package-manager links the commit service is still writing ends with the
+///  worktree gone and its folder off the person's path.
+/// Why:
+///  The relink is the wrapper's own writer:
+///  it runs `pnpm install --offline --frozen-lockfile` in the new worktree (`package_repair_pnpm.rs`),
+///  in the repository's service instance,
+///  which is another instance than the removed worktree's own,
+///  and its ceiling is eighteen minutes (`wait_ceilings.rs`,
+///  `REPAIR_TOOL_CEILING`).
+///  Nothing in the removal waited for it,
+///  so a removal that walked the tree file by file met its writes and Git could not empty a directory
+///  (`error: failed to delete ...: Directory not empty`),
+///  and Git deletes the registration whether or not its walk emptied the folder
+///  (`builtin/worktree.c`,
+///  `remove_worktree`:
+///  "continue on even if ret is non-zero, there's no going back from here").
+///  A folder no registration names is what this control watches for.
+#[test]
+fn a_removal_while_the_relink_writes_leaves_no_folder() {
+    let fixture: Fixture = fixture("repair-removal-while-relinking");
+    if !on_btrfs_or_acknowledged(&fixture, "a_removal_while_the_relink_writes_leaves_no_folder") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = repository_with_node_modules(&fixture);
+    let record: PathBuf = fixture.root.join("pnpm-record");
+    let started: PathBuf = fixture.root.join("relink-started");
+    let release: PathBuf = fixture.root.join("relink-release");
+    // The links a relink writes, one after the next, for as long as this control holds it.
+    executable(
+        bin(&fixture).join("pnpm").as_path(),
+        format!(
+            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{record}'\n: > '{started}'\nround=0\nwhile [ ! -e '{release}' ] && {lives}; do\n  : > \"node_modules/link-$round\" 2>/dev/null\n  round=$((round+1))\n  sleep {pause}\ndone\nexit 0\n",
+            record = record.display(),
+            started = started.display(),
+            release = release.display(),
+            lives = while_test_lives(fixture.root.as_path()),
+            pause = LINK_PAUSE,
+        )
+        .as_bytes(),
+    );
+    let added: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).output().expect("the add runs");
+    assert_eq!(added.status.code(), Some(0), "{}", String::from_utf8_lossy(added.stderr.as_slice()));
+    let one: PathBuf = fixture.root.join("one");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !started.exists() {
+        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service has not started the relink after {} s; the tools it ran wrote {:?}", SERVICE_WORK_PATIENCE.as_secs(), recorded(record.as_path()));
+        std::thread::sleep(START_PAUSE);
+    }
+    let removed: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "remove", "../one"]).output().expect("the removal runs");
+    let said: String = String::from_utf8_lossy(removed.stderr.as_slice()).into_owned();
+    assert_eq!(removed.status.code(), Some(0), "{said}");
+    assert!(!one.exists(), "the worktree is gone while the relink still wrote into it: {said}");
+    assert!(said.contains(WORKTREE_DESTROY_NOTICE), "the one-call destroy is stated: {said}");
+    std::fs::write(&release, b"go").expect("release the relink");
+    settle_service_work(repo.as_path());
+    let listing: String = String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["worktree", "list", "--porcelain"]).stdout).into_owned();
+    assert!(!listing.contains(one.to_str().expect("utf8")), "the registration is gone: {listing}");
+    remove_settled(&fixture);
+}
 
 /// While the commit service runs one add's repair,
 /// another add in the same repository is not held by it:

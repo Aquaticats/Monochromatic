@@ -39,6 +39,7 @@ use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
+use crate::worktree_removal_left_behind_folder::finish_left_behind_folders;
 use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
@@ -171,6 +172,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // A removal this program began and its process did not finish (its registration outlived its files) is finished here,
     // so the path it used is free again without the person being sent to `git worktree prune`.
     for problem in finish_interrupted_destroys(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{problem}");
+    }
+    // A removal whose process died before Git's walk ended leaves a folder no registration names; this command finishes it,
+    //  or names what appeared in it while that removal ran, so the folder is never one nothing points at.
+    for problem in finish_left_behind_folders(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }

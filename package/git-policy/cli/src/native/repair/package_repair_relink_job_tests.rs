@@ -152,6 +152,37 @@ fn replacing_tool(scene: &Scene) -> String {
 }
 
 /// What:
+///  A relink record whose worktree a removal already took runs no tool,
+///  writes nothing,
+///  and settles as skipped.
+/// Why:
+///  The record outlives the worktree it was written for,
+///  and the removal does not wait for it:
+///  the add hands it over and returns,
+///  so a person who removes the worktree straight away leaves exactly this record.
+///  A tool started there would rewrite link layouts in a directory a removal is about to delete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// remove(worktree); expect(relink(item)).toMatchObject({ kind: 'skipped' }); expect(recorded(record)).toEqual([]);
+/// ```
+#[test]
+fn a_record_a_removal_preceded_starts_no_tool() {
+    let scene: Scene = scene("relink-job-removed");
+    executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
+    executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
+    // The removal took the folder and its registration, which is the state `git worktree remove` leaves.
+    std::fs::remove_dir_all(scene.worktree.as_path()).expect("the folder goes");
+    std::fs::remove_dir_all(scene.common.join("worktrees").as_path()).expect("the registration goes");
+    let verdict: Verdict = relink(&scene, &item);
+    let Verdict::Skipped(reason) = verdict else { panic!("a worktree that is gone is left alone: {verdict:?}") };
+    assert!(reason.contains("no worktree of the repository"), "{reason}");
+    assert!(starts(&scene).is_empty(), "no tool ran: {:?}", starts(&scene));
+    remove(scene.root.as_path());
+}
+
+/// What:
 ///  Both tools run in the worktree,
 /// in the order the record names them,
 /// and the relink is done.

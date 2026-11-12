@@ -483,6 +483,49 @@ fn a_landed_clean_worktree_is_removed_and_its_branch_stays() {
     assert!(landed.root.join("main").exists(), "the repository itself stays");
 }
 
+/// What:
+///  A landed worktree whose own Git walk cannot empty it is still removed by the sweep,
+///  and the sweep says why the walk failed.
+/// Why:
+///   Git deletes the registration whether or not its walk emptied the folder
+///  (`builtin/worktree.c`,
+///  `remove_worktree`:
+///  "continue on even if ret is non-zero, there's no going back from here"),
+///  so a walk something defeats leaves a folder no registration names.
+///  A directory the owner cannot write makes that failure certain:
+///  Git cannot unlink the file inside it,
+///  stops its walk,
+///  and takes the registration anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod(join(worktree, 'deep'), 0o500); const sweep = landFeature(landed);
+/// expect(sweep.removed).toHaveLength(1); expect(sweep.leftBehind).toHaveLength(1); expect(worktree).not.toExist();
+/// ```
+#[test]
+fn a_landed_worktree_gits_walk_could_not_empty_is_removed_and_the_failure_is_said() {
+    use std::os::unix::fs::PermissionsExt;
+    let landed: Landed = a_repository_with_a_worktree("landed-walk-defeated");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let deep: PathBuf = landed.worktree.join("deep");
+    std::fs::create_dir_all(deep.as_path()).expect("a directory Git must empty");
+    std::fs::write(deep.join("leaf.txt"), b"leaf\n").expect("a tracked file inside it");
+    // Tracked, so Git's own cleanliness proof passes: a removal refuses a worktree holding a file no rule ignores.
+    git(landed.worktree.as_path(), &["add", "--", "deep/leaf.txt"]);
+    git(landed.worktree.as_path(), &["commit", "--quiet", "--message=the deep file"]);
+    std::fs::set_permissions(deep.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory Git cannot write");
+    let sweep: LandedSweep = land_feature(&landed);
+    let _restored = std::fs::set_permissions(deep.as_path(), std::fs::Permissions::from_mode(0o700));
+    assert!(sweep.failed.is_none(), "{:?}", sweep.failed);
+    assert_eq!(sweep.removed.len(), 1, "the worktree the walk could not empty is removed: {sweep:?}");
+    assert_eq!(sweep.left_behind.len(), 1, "the sweep says why Git's own walk failed: {sweep:?}");
+    assert!(sweep.left_behind[0].contains("Git could not empty"), "{:?}", sweep.left_behind);
+    assert!(!landed.worktree.exists(), "the folder is gone, so nothing unregistered stands there");
+    let registration: PathBuf = landed.common.join("worktrees/feature");
+    assert!(!registration.exists(), "the registration Git deleted stays deleted");
+    assert!(landed.root.join("main").exists(), "the repository itself stays");
+}
+
 #[test]
 fn a_landed_worktree_with_uncommitted_work_stays() {
     let landed: Landed = a_repository_with_a_worktree("landed-dirty");

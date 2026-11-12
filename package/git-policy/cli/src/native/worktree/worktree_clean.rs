@@ -459,6 +459,97 @@ fn check_tracked_files_in_a_job((root, git_dir, common_dir): (PathBuf, PathBuf, 
 }
 
 /// What:
+///  `check_tracked_files_in_a_job` that settles every entry the stat data cannot vouch for by comparing the file with
+///  the committed blob,
+/// under the configuration and attributes of `context`.
+/// Why:
+///   A worktree that was checked out in the same instant its index was written records stat data for every file that
+/// proves nothing (`worktree_clean_stat_verdicts.rs`,
+/// `Racy`),
+/// and the snapshot rung and the conversion settle exactly that state by content.
+/// A removal that wants Git's own answer for such a worktree asks the same question the same way,
+/// so it costs one hash of the files stat cannot vouch for instead of Git's file-by-file walk of the whole tree.
+/// The environment is read inside the job,
+/// because the facts it holds come from a Git start and the blocking pool is where a Git start belongs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkTrackedFilesByContentInAJob([root, gitDir, commonDir, context]): CleanSource; // throws the reason
+/// ```
+fn check_tracked_files_by_content_in_a_job((root, git_dir, common_dir, context): (PathBuf, PathBuf, PathBuf, GitContext)) -> Result<CleanSource, CleanRefusal> {
+    let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(&context);
+    return check_tracked(root.as_path(), git_dir.as_path(), common_dir.as_path(), Some(&environment), false);
+}
+
+/// What:
+///  The clean check of a worktree as Git itself would answer it about the tracked files:
+/// the same checks as `check_clean`,
+/// except that a file the recorded stat data cannot vouch for is read and compared with the blob its entry names.
+/// Why:
+///   A freshly added worktree is exactly the state the stat-only check refuses,
+/// and a removal that refused it handed the whole tree to Git's file-by-file walk,
+/// where anything still writing into the tree leaves a directory Git cannot empty
+/// (`SPEC.md`,
+/// "Cheap worktree creation and removal on btrfs, XFS and overlayfs").
+/// Every other refusal stays a refusal:
+/// only the two stat verdicts a content comparison settles are read,
+/// and a file whose bytes differ is refused with the reason the comparison gives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkCleanByContentAwaiting({ context, root, gitDir, commonDir }): Promise<CleanSource>; // throws the reason
+/// ```
+pub async fn check_clean_by_content_awaiting(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+    let (untracked, tracked): (Result<Option<String>, CleanRefusal>, Result<Result<CleanSource, CleanRefusal>, BlockingJobError>) = tokio::join!(
+        scan_for_untracked_file_awaiting((context, root)),
+        run_a_job_or_in_turn((root.to_path_buf(), git_dir.to_path_buf(), common_dir.to_path_buf(), context.clone()), check_tracked_files_by_content_in_a_job),
+    );
+    let proof: Result<CleanSource, CleanRefusal> = match tracked {
+        Ok(verdict) => verdict,
+        Err(refused) => Err(a_refused_job_is_a_refusal(refused)),
+    };
+    return the_clean_verdict((proof, untracked));
+}
+
+/// What:
+///  `check_clean_by_content_awaiting` for a caller that is not a task of the runtime,
+/// with the same answer as `check_clean` where no runtime can be built.
+/// Why:
+///   The removal of a worktree is a synchronous caller,
+/// and it enters the runtime for this proof the way it does for the stat-only one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkCleanByContent({ context, root, gitDir, commonDir }): CleanSource; // throws the reason
+/// ```
+pub fn check_clean_by_content(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+    return match run_on_runtime(check_clean_by_content_awaiting(context, root, git_dir, common_dir)) {
+        Ok(verdict) => verdict,
+        Err(refusal) => {
+            crate::diagnostic_log::debug("checkClean", format!("the content proof and the untracked scan run one after another ({refusal})").as_str());
+            let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
+            the_clean_verdict((check_tracked(root, git_dir, common_dir, Some(&environment), false), scan_for_untracked_file((context, root))))
+        }
+    };
+}
+
+/// What:
+///  Whether a refusal is one a comparison with the committed blob could settle,
+/// which is the only state `check_clean_by_content` is asked about.
+/// Why:
+///   The two stat verdicts are the ones Git re-hashes;
+/// every other refusal is a state no read of the file's bytes can clear,
+/// so the removal keeps Git's own answer for those.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settlesByContent = (kind) => kind === 'racy' || kind === 'stat-stale';
+/// ```
+pub fn settles_by_content(kind: CleanRefusalKind) -> bool {
+    return matches!(kind, CleanRefusalKind::Racy | CleanRefusalKind::StatStale);
+}
+
+/// What:
 ///  The answer two verdicts make:
 /// the tracked proof's refusal first,
 /// then the untracked file's.

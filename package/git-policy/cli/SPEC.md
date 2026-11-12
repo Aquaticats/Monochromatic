@@ -157,6 +157,9 @@ and that command's `--help` is Git's own (`DESTROY_NOTICE`,
 `src/native/worktree/worktree_remove.rs`).
 A removal the person forced words its own line (`DESTROY_FORCED_NOTICE` in the same module),
 because nothing was checked for changes before that destroy.
+A removal the wrapper handed to Git and had to finish after the walk failed says the same risk once,
+in the line that names the folder Git could not empty
+(`finished_notice` in `src/native/worktree/worktree_removal_left_behind_folder.rs`).
 
 The sections that describe those commands carry the same statement beside their guards:
 "Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot,
@@ -2840,6 +2843,92 @@ Every other case,
 and a refusal by the kernel,
 is Git's own removal,
 which words its own refusal.
+
+#### The proof of cleanliness and the worktree the wrapper has just made
+
+The proof is the one `worktree_clean.rs` makes over the index and the tree of `HEAD`:
+the index equals that tree,
+and every tracked file has the size,
+times and inode its entry records,
+unless those fields cannot vouch for it.
+An entry that is as new as the index file is the state Git re-hashes rather than trusts,
+and the wrapper settles it the same way,
+by comparing the file with the blob the entry names
+(`check_clean_by_content`,
+the reading the snapshot rung and the conversion already make).
+Every other refusal stands as it was,
+and a file whose bytes differ is refused with the reason the comparison gives.
+
+This matters because the wrapper's own add writes a worktree's files and its index in the same instant,
+so every freshly added worktree is exactly that state,
+and the package-manager relink of that same worktree
+(`src/native/repair/package_repair_relink_job.rs`)
+runs `pnpm install --offline --frozen-lockfile` inside it,
+in the repository's commit service,
+for as long as its own ceiling allows (`REPAIR_TOOL_CEILING`).
+Measured on 2026-11-11 about 19:03-05:00 with the installed 0.6.1-alpha.10:
+a worktree added 19:03:06 was removed with
+`error: failed to delete '<path>': Directory not empty` at 19:04:36,
+`git worktree list` no longer held it,
+and the folder stood there with `node_modules` still being written in the second the walk gave up.
+The refusal of the stat data alone handed it to Git's file-by-file walk,
+the walk met the relink's writes,
+and Git deletes the registration whether or not its walk emptied the folder
+(`builtin/worktree.c`,
+`remove_worktree`:
+"continue on even if ret is non-zero, there's no going back from here").
+The removal therefore proves such a worktree by content,
+and the folder leaves the person's path in one call,
+so a writer the wrapper started cannot keep it there.
+Nothing in the removal waits for that writer,
+and its own run ends at its own ceiling in the service.
+
+#### The folder Git's own removal could not empty
+
+A removal the wrapper hands to Git is a walk this program does not control,
+and anything writing into the folder while the walk runs can defeat it.
+A folder nothing registers is the one outcome a removal must never leave,
+so the removal writes a record before Git runs
+(`src/native/worktree/worktree_removal_left_behind_record.rs`):
+the entries the folder holds at that moment,
+the process that wrote it,
+and whether Git had returned,
+under the registration's name in
+`<common>/monochromatic-git-policy-cli/left-behind-removals/`.
+
+After Git returns,
+and on every later command of the repository for a removal whose process died,
+the record is settled the same way
+(`src/native/worktree/worktree_removal_left_behind_folder.rs`):
+
+- A registration that is still there means Git refused the removal and nothing moved,
+  so the folder is where it belongs and the record is dropped.
+- A folder that is gone means the removal finished, so the record is dropped.
+- A folder that is still there with nothing in it the record does not name is the removal's own:
+  it is destroyed in one call when it is a subvolume root on a mount that allows the ioctl,
+  and emptied and removed by name otherwise,
+  and the record is dropped.
+  This is the common case, and it is what makes a walk that met a writer end as the removal the person asked for.
+- An entry the record does not name appeared while the removal was running,
+  so it is somebody's:
+  every entry the record does name still goes,
+  that entry stays with the folder around it,
+  and the record stays so that the next command finishes the removal once the entry is gone.
+  Nothing is deleted from a folder that holds a mount point or a subvolume of its own;
+  such a folder stays and is named.
+
+The command that asked for the removal says what happened on standard error
+(`finished_notice` and `kept_notice` in the same module),
+and so does every later command that finds a record it cannot finish yet,
+until it can.
+A write into an entry the record does name, made while the removal runs, goes with that entry:
+the removal was asked for the whole worktree,
+which is the risk of `git worktree remove` stated above.
+
+The landed-worktree sweep removes a candidate the same way
+(`src/native/worktree/worktree_landed_removal.rs`),
+writes the same record,
+and reports a removal it had to finish with the line that says why Git's walk failed.
 
 The destroy is not run in the person's command:
 it waits for whatever snapshot another add is committing and for the running btrfs transaction,

@@ -82,6 +82,7 @@ use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
+use crate::worktree_removal_left_behind_folder::{LeftBehind, Remembered, finish_after_git, finished_notice, kept_notice, remember_before_git};
 use crate::worktree_removal_rescue::snapshot_linked_worktrees;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
@@ -206,6 +207,9 @@ pub struct LandedSweep {
     pub landed_branch: String,
     /// What it removed.
     pub removed: Vec<RemovedWorktree>,
+    /// The lines about removals this sweep had to finish itself,
+    /// each naming the folder Git could not empty and why.
+    pub left_behind: Vec<String>,
     /// What it left,
     /// with the reason.
     pub kept: Vec<KeptWorktree>,
@@ -418,6 +422,10 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
         match examine_and_remove(place, one, registered.as_slice()) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::RemovedAfterGitCouldNotEmpty(line) => {
+                sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+                sweep.left_behind.push(line);
+            }
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
             Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
             Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
@@ -442,6 +450,10 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 enum Attempt {
     /// The worktree and its registration are gone.
     Removed,
+    /// Git's own walk could not empty the folder and the removal finished it here;
+    /// the line says why the walk failed,
+    /// which is the writer the person never sees.
+    RemovedAfterGitCouldNotEmpty(String),
     /// The files are gone and the registration stayed,
     /// with what finishes it.
     Unfinished(String),
@@ -481,15 +493,31 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
         RemoveOutcome::LeftToGit => {}
     }
     let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), one.worktree.clone().into_os_string()];
+    // What: The folder's entries are recorded before Git runs, so a walk that something defeats is finished here instead
+    //       of leaving a folder no registration names.
+    // Why:  Git deletes the registration whether or not its walk emptied the folder, and a write into the folder while
+    //       the walk runs makes it fail with `Directory not empty`
+    //       (`worktree_removal_left_behind_folder.rs`).
+    let remembered: Option<Remembered> = remember_before_git(place.common_dir, one.worktree.as_path());
     let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Attempt::Kept(format!("Git could not be started to remove it ({error})")),
     };
-    if output.code == Some(0) {
-        return Attempt::Removed;
-    }
-    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-    return Attempt::Kept(format!("Git refused to remove it: {words}"));
+    let Some(remembered) = remembered else {
+        return match output.code {
+            Some(0) => Attempt::Removed,
+            _ => Attempt::Kept(format!("Git refused to remove it: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+        };
+    };
+    return match finish_after_git(&remembered) {
+        LeftBehind::Removed => Attempt::RemovedAfterGitCouldNotEmpty(finished_notice(one.worktree.as_path())),
+        LeftBehind::Kept { names, reason } => Attempt::Kept(kept_notice(one.worktree.as_path(), names.as_slice(), reason.as_str())),
+        // Git emptied the folder and took the registration, or refused and nothing moved: Git's own words are the answer.
+        LeftBehind::Nothing => match output.code {
+            Some(0) => Attempt::Removed,
+            _ => Attempt::Kept(format!("Git refused to remove it: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+        },
+    };
 }
 
 /// What:
@@ -572,6 +600,9 @@ fn unfinished_operation_reason(marker: &str) -> String {
 enum Examined {
     /// The worktree and its registration are gone.
     Removed,
+    /// They are gone because this sweep finished what Git's own walk could not,
+    /// and the line says why the walk failed.
+    RemovedAfterGitCouldNotEmpty(String),
     /// The removal refused,
     /// so nothing there changed and the report says what clears the way.
     Refused(String),
@@ -648,6 +679,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     }
     return match removal {
         Attempt::Removed => Examined::Removed,
+        Attempt::RemovedAfterGitCouldNotEmpty(line) => Examined::RemovedAfterGitCouldNotEmpty(line),
         Attempt::Unfinished(report) => Examined::Unfinished(report),
         Attempt::Refused(report) => Examined::Refused(report),
         Attempt::Kept(why) => Examined::Kept(why),

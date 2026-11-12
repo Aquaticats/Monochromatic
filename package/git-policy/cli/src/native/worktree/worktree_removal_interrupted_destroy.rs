@@ -317,7 +317,7 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
 /// ```ts
 /// const running = recordOwnerMayBeRunning(record.owner); // true when nothing proves the owner left
 /// ```
-fn record_owner_may_be_running(owner: Option<&String>) -> bool {
+pub(crate) fn record_owner_may_be_running(owner: Option<&String>) -> bool {
     let Some(spelled) = owner else { return true };
     let Some((spelled_pid, identity)) = spelled.split_once(':') else { return true };
     let Ok(pid) = spelled_pid.parse::<i64>() else { return true };

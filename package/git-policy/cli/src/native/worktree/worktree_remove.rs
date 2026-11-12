@@ -54,7 +54,7 @@ use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, verify_below};
 use crate::transaction_git::GitContext;
-use crate::worktree_clean::check_clean;
+use crate::worktree_clean::{check_clean, check_clean_by_content, settles_by_content};
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
@@ -218,8 +218,18 @@ impl RemoveOperations for LinuxOperations {
     }
 
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
-        return match check_clean(request.context, request.plan.target.as_path(), admin, common_dir) {
+        let target: &Path = request.plan.target.as_path();
+        return match check_clean(request.context, target, admin, common_dir) {
             Ok(_proof) => Ok(()),
+            // What: A worktree whose recorded stat data proves nothing about its files is proven by their content.
+            // Why:  The wrapper's own add writes a worktree's files and its index in the same instant, so every fresh
+            //       worktree is that state, and refusing it handed the folder to Git's file-by-file walk while the
+            //       package-manager relink of that same worktree was still writing into it (`SPEC.md`, "Cheap worktree
+            //       creation and removal on btrfs, XFS and overlayfs").
+            Err(refusal) if settles_by_content(refusal.kind) => match check_clean_by_content(request.context, target, admin, common_dir) {
+                Ok(_proof) => Ok(()),
+                Err(changed) => Err(changed.reason),
+            },
             Err(refusal) => Err(refusal.reason),
         };
     }
