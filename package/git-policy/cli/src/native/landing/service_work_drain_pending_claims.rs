@@ -148,6 +148,32 @@ fn may_start_housekeeping(slice: &HousekeepingOfOneRound, started: &mut bool) ->
 }
 
 /// What:
+///  The items of one housekeeping step this round may start, in the order they were claimed,
+///  and the ones it leaves for a later round.
+/// Why:
+///   A step runs its items as one batch of waves (`service_work_items_side_by_side.rs`),
+/// so the round answers "may I start this one now" for the whole batch before it begins,
+///  the first item whatever the slice has spent and the rest only while it has room
+/// (`housekeeping_of_one_round.rs`);
+/// an item it may not start is handed back by the caller and named in the round's line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const starting = whatTheRoundMayStart(items, slice, started, left); // the rest go to left
+/// ```
+fn what_the_round_may_start(items: Vec<Claimed>, slice: &HousekeepingOfOneRound, started: &mut bool, left_for_a_later_round: &mut Vec<Claimed>) -> Vec<Claimed> {
+    let mut starting: Vec<Claimed> = Vec::new();
+    for item in items {
+        if !may_start_housekeeping(slice, started) {
+            left_for_a_later_round.push(item);
+            continue;
+        }
+        starting.push(item);
+    }
+    return starting;
+}
+
+/// What:
 ///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
 /// until none is left;
 /// the claims held are renewed every third of `lease`,
@@ -380,25 +406,21 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
         }
         // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
         //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
-        let mut prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
+        // The step runs in the waves the round may start, and the items it may not start are the housekeeping a later round
+        //  is named.
+        let prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
             Some((back, mine)) => {
                 held = back;
                 mine
             }
             None => break 'round,
         };
-        // The whole prewarm step of this round is one batch of waves, so a round with no housekeeping left defers the step
-        //  itself rather than start it and leave its records claimed, as the deletion step below does. A step with nothing in
-        //  it neither starts nor spends the round's first start: it is the items that are housekeeping and not the kinds.
-        if !prewarmed.is_empty() {
-            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
-                left_for_a_later_round.append(&mut prewarmed);
-            } else {
-                let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), &host);
-                match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, prewarmed, prewarms_wide, "prewarm", ask_prewarm).await {
-                    Some(back) => held = back,
-                    None => break 'round,
-                }
+        let starting: Vec<Claimed> = what_the_round_may_start(prewarmed, &slice, &mut housekeeping_has_started, &mut left_for_a_later_round);
+        if !starting.is_empty() {
+            let prewarms_wide: usize = slow_items_side_by_side(starting.len(), &host);
+            match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, starting, prewarms_wide, "prewarm", ask_prewarm).await {
+                Some(back) => held = back,
+                None => break 'round,
             }
         }
         // The review of a commit runs before the steps that free space: it is bounded by its own ceiling (`REVIEW_CEILING`), it
@@ -434,8 +456,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
             }
         }
-        // The left-out files of a snapshot-made worktree are emptied last: freeing them is a local job nothing waits for, and a
-        //  trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
+        // The left-out files of a snapshot-made worktree are emptied last, in the waves the round may start: freeing them is
+        //  a local job nothing waits for, and a trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
+        //  The items the round may not start are the housekeeping a later round is named.
         let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
             Some((back, mine)) => {
                 held = back;
@@ -443,18 +466,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             }
             None => break 'round,
         };
-        // The whole trash step of this round is one batch of waves, so a round with no housekeeping left defers the step
-        //  itself rather than start it and leave its records claimed, as the deletion step above does. A step with nothing in
-        //  it neither starts nor spends the round's first start: it is the items that are housekeeping and not the kinds.
-        if !trashed.is_empty() {
-            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
-                left_for_a_later_round.extend(trashed);
-            } else {
-                let trashes_wide: usize = slow_items_side_by_side(trashed.len(), &host);
-                match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, trashed, trashes_wide, "trash", ask_trash).await {
-                    Some(back) => held = back,
-                    None => break 'round,
-                }
+        let emptying: Vec<Claimed> = what_the_round_may_start(trashed, &slice, &mut housekeeping_has_started, &mut left_for_a_later_round);
+        if !emptying.is_empty() {
+            let trashes_wide: usize = slow_items_side_by_side(emptying.len(), &host);
+            match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, emptying, trashes_wide, "trash", ask_trash).await {
+                Some(back) => held = back,
+                None => break 'round,
             }
         }
         // The housekeeping this round did not start goes back to `pending` for a later round, named here once, so a person
