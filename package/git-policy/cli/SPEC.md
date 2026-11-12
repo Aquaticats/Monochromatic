@@ -5100,6 +5100,89 @@ That pause doubles with each attempt whose job outlasted its ceiling,
 because such a job still holds a place of the blocking bound until the journal answers,
 while an attempt the pool gave no thread for promised that nothing ran and is made again at the same pause.
 
+#### One install in a worktree at a time
+
+Two isolated merges in one worktree install nothing soundly beside each other:
+each clears the paths the merge changes
+and each carries the person's own work back,
+and their steps interleave.
+Measured on release 0.6.1-alpha.12 with this package's own phase hook holding the first merge part-way
+(`F12` of the alpha.12 audit):
+held at `merge-cleared`,
+both merges exited 0 and the index lacked two files the merge commit holds,
+so the next
+commit deleted them from the branch without anyone asking,
+and held at `merge-clear-file`,
+the first exited 2,
+its record was kept,
+and every later command in that worktree,
+`git status` included,
+exited 2.
+
+So a worktree's install has one owner.
+The mark is the file `<git-dir>/monochromatic-git-policy-cli-merges/.installing`,
+created with `O_EXCL`,
+which one `open` decides,
+and named by the same owner record an intent record carries
+(`src/native/merge/merge_install_guard.rs`).
+A mark whose owner runs is never touched;
+a mark whose owner is gone holds nothing,
+and the next command clears it on the proof recovery acts on for a dead record,
+so a killed merge leaves nothing for a person to remove,
+and a live owner stays told from a dead one by one rule.
+The mark covers one worktree's install and nothing else:
+a worktree's records live in its own Git directory,
+so a merge in another worktree of the same repository installs beside this one.
+
+A merge that finds the mark waits for it,
+and the wait has a bound and a line.
+The first line names the merge it waits for,
+the process that holds it and where the mark is,
+and it repeats at the notice interval.
+The bound is `MERGE_LOCK_CEILING`,
+the ceiling a merge already waits for a live `index.lock`,
+because a merge can stop for good (a stopped process,
+a device that went away)
+and nothing waits forever.
+At the bound the wait says so,
+and the merge saves itself the way a merge that met a live `index.lock` does:
+its commit on `refs/cli-git/kept/<number>`,
+a record that names that ref,
+exit 0,
+and the next command in the worktree finishes it.
+A merge that is met by the mark again at its own install takes that answer without waiting again,
+and a record it writes then names no capture of the person's work,
+because nothing of that merge was installed and their bytes are where they were
+(`merge_isolation_apply.rs`,
+`save_behind_a_merge_that_installs`).
+A merge that waited and found the mark gone computes its round again on the branch as it is then,
+so it merges into what the other merge left instead of into a branch that moved under it.
+
+#### A merge that is partly installed stops writes, never reads
+
+A merge whose process died can leave part of itself in the index and the worktree,
+and a state no settling can finish:
+a path holding bytes that are neither the branch's,
+the merge's nor the newer commit's,
+a staged entry a settling would replace,
+or a branch this worktree does not have checked out.
+Recovery keeps the record then,
+and says so.
+That sentence stops the commands that would write to the checkout,
+because a commit or a merge that read the state would take a half-installed index for the worktree's own.
+It does not stop a command that only reads:
+`git status`,
+`git log`,
+`git diff` and every other inspection command answer,
+print the state and the way out,
+and exit 0
+(`src/native/invocation/startup_gate.rs`,
+`recover_for_a_read_of_the_checkout`).
+Measured on 0.6.1-alpha.12,
+every command in such a worktree exited 2,
+`git status` included,
+and the way out the refusal named was itself refused (`F12` of the alpha.12 audit).
+
 #### Git steps, tools and checks end only on no progress
 
 The owner decided (2026-11-03,
@@ -5166,6 +5249,35 @@ of the review call and of the whole review).
   and was
   stopped`,
   which names the variable and what to do.
+  A step whose caller puts back every byte it changed keeps its ceiling too,
+  and the caller proves that,
+  not the step's name:
+  `GitRequest::ended_at_its_bound` (`transaction_git_request_and_reply_types.rs`) is set by the one caller that
+  answers for the state,
+  and `may_be_ended` and `may_be_ended_when_quiet` read it
+  (`transaction_git_step_rerun_and_end_rules.rs`).
+  The isolated merge sets it on the `git merge --ff-only` that writes the merge into the checkout,
+  which may have to download the content it writes
+  (`merge_isolation_apply.rs`).
+  A `git-lfs` smudge whose server accepts the request and never answers held that Git and its filter process running
+  with `index.lock` held for good,
+  and the wrapper exited 2 after 607 seconds with both still there (`F13` of the alpha.12 audit,
+  measured at 642 seconds against a real `git-lfs` 3.8.1).
+  A real `git-lfs` does bound each attempt (`lfs.activitytimeout`,
+  30 seconds by default) and retries it (`lfs.transfer.maxretries`,
+  8 by default,
+  9 attempts in all),
+  which measured 642 seconds for one smudge,
+  longer than the wrapper's own bound;
+  the wrapper's own ending is what leaves nothing behind.
+  Measured with it:
+  the step ends at its bound,
+  every path it had begun to write is put back to what the branch holds,
+  the `index.lock` the ended Git left is cleared on recovery's own proof of disuse,
+  the record goes,
+  and the merge is refused with the reason and the state
+  (`merge_isolation_apply_stops.rs`,
+  `put_back_a_merge_whose_checkout_did_not_finish`).
   Only a step that is safe to run twice is ended:
   the reads,
   the writers of content-addressed objects and the changes

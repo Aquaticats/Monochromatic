@@ -260,7 +260,8 @@ mod merge_carries_edits;
 #[path = "binary_merge_carries_edits_kill_tests.rs"]
 mod merge_carries_edits_kill;
 
-/// One merge installs in a worktree at a time: a second merge waits for the first and the worktree ends in one
+/// One merge installs in a worktree at a time:
+/// a second merge waits for the first and the worktree ends in one
 /// whole state,
 /// a merge that is partly installed names its state to a read and stops a write,
 /// and a checkout that never gets its

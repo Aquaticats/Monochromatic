@@ -54,7 +54,9 @@ use crate::merge_install_guard::{GuardWait, wait_for_the_installing_merge};
 use crate::merge_isolation_recovery::recover_interrupted_merges;
 /// The person's own work in the paths the merge changes,
 /// and the durable ref that keeps it.
-use crate::merge_isolation_carry::{capture_work, keep_capture};
+/// The capture of the person's own work,
+/// and the words for a merge whose editor left no message.
+use crate::merge_isolation_round_parts::{capture_for, editor_stopped};
 /// The directory a merge would replace with a file,
 /// and the sentence that stops the merge instead.
 use crate::merge_isolation_a_directory_the_merge_replaces::{a_directory_the_merge_would_replace, the_line};
@@ -418,49 +420,6 @@ fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -> Result<Ve
         }
     }
     return Ok(paths);
-}
-
-/// What:
-///  The person's own work in `paths`,
-/// captured as objects and kept on a ref of its own.
-/// Why:
-///   A ref written before the record and before the checkout changes is what makes the bytes survive a kill at any
-///  instant (`SPEC.md`,
-/// "Merges and commits never fail").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function captureFor(context, root, paths): Promise<Capture | null>;
-/// ```
-fn capture_for(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Option<Capture>, String> {
-    if paths.is_empty() {
-        return Ok(None);
-    }
-    let capture: Capture = capture_work(context, root, paths)?;
-    return Ok(Some(keep_capture(context, root, &capture)?));
-}
-
-/// What:
-///  The words for a merge whose editor left no message.
-/// Why:
-///   Everything the command would have changed is still as it was,
-/// so the outcome is the person's message to rewrite,
-///  and the sentence says both.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function editorStopped(reference: string, refusal: EditorRefusal): string;
-/// ```
-fn editor_stopped(reference: &str, refusal: &EditorRefusal) -> String {
-    let reason: &str = match refusal {
-        EditorRefusal::Stopped(detail) => detail.as_str(),
-        EditorRefusal::Empty => "the editor left an empty message",
-        EditorRefusal::NoEditor => "Git resolved no editor for this environment",
-    };
-    return format!(
-        "monochromatic-git-policy-cli: git merge {reference}: {reason}, so the merge was not made and nothing in the repository changed. \
-         Run the merge again to write the message.\n"
-    );
 }
 
 /// What:

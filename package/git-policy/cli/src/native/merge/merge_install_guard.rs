@@ -6,10 +6,12 @@
 //! Why:
 //!  Two merges in one worktree each clear the paths the merge changes and each carry the person's own work back,
 //!  and their steps interleave:
-//!  measured, a second merge that starts while the first is part-way leaves an index that lacks two files the merge
+//!  measured,
+//! a second merge that starts while the first is part-way leaves an index that lacks two files the merge
 //!  commit holds (`F12` of the alpha.12 audit),
 //!  or wedges the worktree so every later command exits 2.
-//!  A lock is the smallest answer for the one thing that cannot be shared, so it covers one worktree's install and
+//!  A lock is the smallest answer for the one thing that cannot be shared,
+//! so it covers one worktree's install and
 //!  nothing else,
 //!  and it is taken with `O_EXCL`,
 //!  which is atomic on every filesystem this program runs on.
@@ -19,7 +21,9 @@
 //!  a dead owner's mark is removed by the next command,
 //!  and nothing is left for a person to remove.
 //!  A command that arrives while the mark is held waits at most `MERGE_LOCK_CEILING`
-//!  and says what it waits for and who holds it (`AGENTS.md`, `SLD`: nothing waits forever).
+//!  and says what it waits for and who holds it (`AGENTS.md`,
+//! `SLD`:
+//! nothing waits forever).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -296,7 +300,8 @@ pub fn clear_install_guard(git_dir: &Path) -> Result<(), RecoveryError> {
 }
 
 /// What:
-///  Wait, bounded,
+///  Wait,
+/// bounded,
 /// for the merge that is installing in this worktree,
 /// saying what is waited for and who holds it.
 /// Why:

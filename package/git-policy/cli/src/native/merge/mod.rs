@@ -165,6 +165,11 @@ pub mod pull_untracked_paths_in_the_way_kept_copies;
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 
+/// The merges a command keeps for a later finish:
+/// one that met another merge installing here,
+/// and one that met a live index lock.
+pub mod merge_isolation_apply_saving;
+
 /// A true merge completed in isolation while the index holds staged changes.
 pub mod merge_isolation;
 
@@ -277,6 +282,9 @@ pub mod merge_isolation_editor;
 /// The words of the editor command,
 /// which no shell makes.
 pub mod merge_isolation_editor_words;
+
+/// The capture and the editor words of an isolated merge's round.
+pub mod merge_isolation_round_parts;
 
 /// The values an isolated merge passes between its steps.
 pub mod merge_isolation_run_types;

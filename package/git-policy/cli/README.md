@@ -3304,6 +3304,71 @@ a held lock fails the merge in a few milliseconds.
 A merge that native Git runs (a conflict,
 an editor) waits for the lock first in the same way.
 
+#### One install in a worktree at a time
+
+Two merges that complete themselves in one worktree cannot install beside each other:
+each clears the paths the
+merge changes and carries the person's own work back,
+and the steps of one land between the steps of the other.
+Measured on release 0.6.1-alpha.12,
+the merge held part-way by this package's own phase hook:
+held at `merge-cleared`,
+both merges exited 0 and the index lacked two files the merge commit holds,
+so the next commit would have deleted them from the branch,
+and held at `merge-clear-file`,
+the first exited 2,
+its record was kept,
+and every later command in that worktree,
+`git status` included,
+exited 2.
+
+So one merge installs in a worktree at a time.
+The worktree's install has a mark,
+`<git-dir>/monochromatic-git-policy-cli-merges/.installing`,
+taken with `O_EXCL`,
+and named by the same owner record an intent record carries.
+A mark whose merge still runs is never touched.
+A mark a killed merge left holds nothing:
+the next command clears it,
+by the same rule that tells a live record from a dead one,
+so nothing is left for you to remove.
+The mark covers one worktree,
+so a merge in another worktree of the same repository installs beside this one.
+
+A merge that finds the mark waits for it.
+The first line names the merge,
+the process that holds it and where the mark is,
+and repeats every `CLI_GIT_WAIT_NOTICE_SECONDS`.
+The wait ends at `MERGE_LOCK_CEILING` (1 minute),
+the ceiling a merge already waits for a live `index.lock`,
+because a merge can stop for good.
+At the bound the merge is saved on `refs/cli-git/kept/<n>`,
+exits 0 and changes nothing,
+as "A merge saved for a later command" says,
+and the next command in the worktree finishes it.
+A merge that waited and found the mark gone merges into what the other merge left.
+
+#### A merge that is partly installed stops writes, never reads
+
+A merge whose process died can leave part of itself in the index and the worktree and a state no settling can finish:
+a path holding bytes that are neither the branch's,
+the merge's nor the newer commit's,
+a staged entry a settling would replace,
+or a branch this worktree does not have checked out.
+Recovery keeps the record then and says so.
+A command that would write to the checkout stops with status 2,
+because a commit or a merge that read the state would take a half-installed index for your own.
+A command that only reads does not:
+`git status`,
+`git log`,
+`git diff` and the other inspection commands answer,
+name the state and the way out,
+and exit 0.
+Measured on 0.6.1-alpha.12,
+every command in such a worktree exited 2,
+`git status` included,
+and the way out the refusal named was itself refused.
+
 #### A merge saved for a later command
 
 When the lock is still held after the bound,
@@ -3374,6 +3439,21 @@ Each with its cause:
   which fails on the held lock;
   a merge the wrapper completes is saved on a side ref and exits 0 instead,
   as "A merge saved for a later command" says.
+- The step that writes the merge into the checkout showed no sign of work for its whole window and was ended,
+  or it ran to its bound (exit 2).
+  That step may have to download the content it writes,
+  so a `git-lfs` server that accepts the request and never answers is its usual cause:
+  a real `git-lfs` bounds each attempt,
+  retries it,
+  and took 642 seconds to give up in the measurement,
+  longer than the wrapper waits.
+  Every path the step had begun to write is put back to what the branch holds,
+  your own work in them is where it was,
+  the record and the copy it kept of that work are gone,
+  the `index.lock` the ended Git left is cleared,
+  and no program of the step is left running.
+  Check that the LFS server answers,
+  then run the merge again.
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
   run it again.

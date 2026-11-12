@@ -29,7 +29,9 @@ use std::time::{Duration, Instant};
 const MARKER_PATIENCE: Duration = Duration::from_secs(120);
 
 /// The status one merge of `feature` into this shape leaves:
-/// the unstaged edit, the staged edit, the untracked file and the ignored file,
+/// the unstaged edit,
+/// the staged edit,
+/// the untracked file and the ignored file,
 /// each carried the way a
 ///  single merge carries it.
 const THE_SINGLE_MERGE_STATUS: &str = " M a.txt\nM  b.txt\n M c.txt\n M d.txt\n";
@@ -77,7 +79,9 @@ fn an_unrelated_staged_file(fixture: &Fixture, repo: &Path) {
 }
 
 /// The person's own work at every path the merge writes:
-/// one unstaged edit, one staged edit, one untracked file and one ignored file.
+/// one unstaged edit,
+/// one staged edit,
+/// one untracked file and one ignored file.
 fn persons_work(fixture: &Fixture, repo: &Path) {
     std::fs::write(repo.join("a.txt"), b"MARK-A-UNSTAGED\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n").expect("file");
     std::fs::write(repo.join("b.txt"), b"MARK-B-STAGED\nb2\nb3\nb4\nb5\nb6\nb7\nb8\n").expect("file");
@@ -125,7 +129,8 @@ impl Drop for Held {
     }
 }
 
-/// Hold a merge of `feature` at `phase`, and answer once it is there.
+/// Hold a merge of `feature` at `phase`,
+/// and answer once it is there.
 fn hold_the_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> Held {
     let markers: PathBuf = fixture.root.join(format!("markers-{phase}-{}", std::process::id()));
     std::fs::create_dir_all(markers.as_path()).expect("the marker directory");
@@ -221,12 +226,14 @@ fn a_second_merge_waits_for_the_install_and_the_worktree_ends_in_one_whole_state
 ///  and stops a command that would write.
 /// Why:
 ///  `F12` wedged a worktree:
-/// after the second merge, a record was kept and every later command,
+/// after the second merge,
+/// a record was kept and every later command,
 /// `git status` included,
 ///  exited 2,
 /// and the way out the refusal named was itself refused.
 /// Reading the checkout cannot make such a state
-///  worse, and it is what a person does first;
+///  worse,
+/// and it is what a person does first;
 /// a commit or a merge that read it would take the half-applied state for the worktree's own.
 ///
 /// In TS you'd write (pseudocode):
@@ -282,6 +289,28 @@ fn a_gone_owner(transaction_id: &str) -> git_policy_cli::transaction_owner::Tran
     };
 }
 
+/// Processes whose current directory is inside this fixture,
+/// which is what a step that was left running looks like from here.
+fn processes_in(fixture: &Fixture) -> Vec<String> {
+    let root: String = fixture.root.to_string_lossy().into_owned();
+    let mut found: Vec<String> = Vec::new();
+    let Ok(entries) = std::fs::read_dir("/proc") else { return found };
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if !name.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+            continue;
+        }
+        let Ok(cwd) = std::fs::read_link(format!("/proc/{name}/cwd")) else { continue };
+        if cwd.to_string_lossy().starts_with(root.as_str()) {
+            let command: String = std::fs::read(format!("/proc/{name}/cmdline"))
+                .map(|bytes| { return String::from_utf8_lossy(&bytes).replace('\0', " "); })
+                .unwrap_or_default();
+            found.push(format!("{name}: {command}"));
+        }
+    }
+    return found;
+}
+
 /// A filter program that never answers,
 /// its clean side passing the bytes through,
 /// as a stand-in for a `git-lfs` download from a server that accepts the request and never answers.
@@ -289,7 +318,8 @@ fn a_gone_owner(transaction_id: &str) -> git_policy_cli::transaction_owner::Tran
 ///   The control must not need a network,
 /// and the shape is the same:
 /// the checkout writes a path whose content a filter must
-///  produce, and that filter never returns.
+///  produce,
+/// and that filter never returns.
 const NEVER_ANSWERS: &str = "#!/bin/sh\ncase \"$1\" in\nclean) cat ;;\n*) sleep 3000 ;;\nesac\n";
 
 /// What:
@@ -356,6 +386,8 @@ fn a_merge_whose_checkout_never_answers_ends_and_puts_back_what_it_held() {
     assert!(!repo.join(".git/monochromatic-git-policy-cli-merges/.installing").exists(), "no mark of an install is left");
     let after: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain"]);
     assert_eq!(after, before, "the paths the merge had begun to write are back where they were");
+    let left: Vec<String> = processes_in(&fixture);
+    assert_eq!(left, Vec::<String>::new(), "no program of the ended step is left running");
     let later: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["status", "--porcelain"]), b"");
     assert_eq!(later.code, Some(0), "the next command reads the worktree: {}", stderr_of(&later));
     remove_settled(&fixture);

@@ -203,9 +203,13 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 /// and the next command
 ///  would read it as another session's staged work.
 /// A record of a merge that still runs is left alone.
-///  A merge that is partly installed and cannot be finished now stops a command that would write to the checkout, and
-///  only names the state to a command that reads it: a worktree no command may look at is one no person can get out of
-///  (`SPEC.md`, "A merge that is partly installed stops writes, never reads").
+///  A merge that is partly installed and cannot be finished now stops a command that would write to the checkout,
+/// and
+///  only names the state to a command that reads it:
+/// a worktree no command may look at is one no person can get out of
+///  (`SPEC.md`,
+/// "A merge that is partly installed stops writes,
+/// never reads").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,8 +290,11 @@ pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeId
 /// Why:
 ///   A merge that is partly installed and cannot be finished now leaves the index and the worktree as they are;
 /// reading
-///  them is what a person does next, and stopping `git status` with exit 2 leaves them nothing to read and not even the
-///  way out the refusal names (`SPEC.md`, "A merge that is partly installed stops writes, never reads").
+///  them is what a person does next,
+/// and stopping `git status` with exit 2 leaves them nothing to read and not even the
+///  way out the refusal names (`SPEC.md`,
+/// "A merge that is partly installed stops writes,
+/// never reads").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

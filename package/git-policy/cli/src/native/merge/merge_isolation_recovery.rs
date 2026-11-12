@@ -401,8 +401,10 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
 /// A merge whose own carry runs asks the same question about the branch it landed on
 ///  (`merge_isolation_apply_moved.rs`).
 ///  `git merge-base --is-ancestor` answers `0` for yes and `1` for no;
-/// any other exit, and a command that never
-///  started, is a read that failed.
+/// any other exit,
+/// and a command that never
+///  started,
+/// is a read that failed.
 /// The exit status is read here rather than the failure's wording,
 /// as `ancestry_of` reads the
 ///  same command (`push/auto_push_reconcile_basics_and_limits.rs`).

@@ -1,6 +1,9 @@
 //! Controls for the lines the isolated merge's apply writes when another program holds the index.
 
 use super::*;
+/// The lines this file checks,
+/// which the saving of a deferred merge writes.
+use crate::merge_isolation_apply_findings::{a_deferred_save_finding, a_merge_that_could_not_be_saved, a_deferred_save_behind_a_merge};
 /// The fixtures a linked worktree needs,
 /// and the identity of a Git context.
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
@@ -97,4 +100,29 @@ fn a_settlement_place_names_the_repositorys_common_git_directory() {
     let read: RecoveryPlace = RecoveryPlace::settling(&bare.context, git_dir.as_path(), worktree.as_path());
     assert_eq!(read.common_dir, common_dir, "the worktree's own Git directory names the common one in its `commondir` file");
     remove(root.as_path());
+}
+
+/// What:
+///  A merge saved because another merge is installing in the same worktree says where it went,
+///  who was installing,
+///  and that nothing of it is in the checkout.
+/// Why:
+///  The command exits 0 and the branch has not moved,
+/// so the person must be told where the merge is and what finishes it,
+///  and never be left to read a success as a merge that landed (`SPEC.md`,
+/// "One install in a worktree at a time").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(aDeferredSaveBehindAMerge('feature', 4242, 'refs/cli-git/kept/1794200000000')).toContain('process 4242');
+/// ```
+#[test]
+fn the_line_for_a_merge_saved_behind_an_install_names_the_holder_and_the_ref() {
+    let said: String = a_deferred_save_behind_a_merge("feature", 4242, "refs/cli-git/kept/1794200000000");
+    assert!(said.contains("git merge feature:"), "{said}");
+    assert!(said.contains("another merge is installing its result in this worktree (process 4242)"), "{said}");
+    assert!(said.contains("saved on refs/cli-git/kept/1794200000000"), "{said}");
+    assert!(said.contains("Nothing of it is in the checkout and the branch has not moved"), "{said}");
+    assert!(said.contains("the next git command in this worktree finishes it"), "{said}");
+    assert!(said.ends_with('\n'), "the line ends the paragraph it is: {said}");
 }
