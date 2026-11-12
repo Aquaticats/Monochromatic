@@ -937,4 +937,37 @@ runs in the lean member and lands both.
 
 ### What the hand-out costs
 
-Not written yet: measured on this machine, after the change, as the sections above this one were.
+Measured on this machine, after the change, with the harness of
+"Where the numbers come from" and the same disposable repository shape:
+80 wrapped SSH-signed commits per arm, four arms alternating the two builds,
+so each build met the load twice and the spread of an unchanged build sits beside the difference.
+The host's load average was 149 to 168 over eight processors while these ran,
+and no trace was taken: every figure below is the commit's own timing record,
+which "The wrapped commits" showed agrees with its trace to a median of 0.25 ms.
+
+A commit's tree, as its own record names it:
+the hand-out (or the claim, and a fallback's hand-out too) or the creation's three stretches.
+
+- Before, first arm: 80 claims, no hand-out and no creation.
+  `median 0.00 ms, p90 110, p99 1,975, largest 1,975; 9 of 80 over 100 ms, none over 2 s`.
+- Before, second arm: 80 claims.
+  `median 0.00 ms, p90 10, p99 7,106, largest 7,106; 2 of 80 over 100 ms, 1 over 2 s`.
+- After, first arm: 79 hand-outs and one fallback (an empty stock, 7 ms in the claim).
+  `median 0.00 ms, p90 2, p99 143, largest 143; 1 of 80 over 100 ms, none over 2 s`.
+- After, second arm: 80 hand-outs.
+  `median 0.00 ms, p90 0, p99 1, largest 1; none over 100 ms, none over 2 s`.
+
+What these say, and what they do not:
+
+- The ceiling moved. A claim in these arms waited up to 7,106 ms in the call that takes no argument,
+  and a hand-out waited at most 143 ms, which is inside the 250 ms the question is given.
+  That is the difference the option was chosen for, and it is a bound rather than a smaller average:
+  a hand-out cannot wait longer than its deadline, and a commit that runs out of it takes the claim or the creation.
+- The counts over 100 ms are too few to separate the builds on their own:
+  11 of 160 before against 1 of 160 after, where the unchanged build alone spread from 9 to 2 of 80.
+  The record's earlier window found 22 of 330, so this one was calmer for the claim and rougher for the whole commit.
+- The whole commit is not the measure of this change:
+  its medians were 599.5 and 167.5 ms before against 122.5 and 41 ms after,
+  with p90 of 6,654 and 1,339 against 603 and 61,
+  and the volume's bursts fall unevenly on the arms.
+  What a commit's tree costs is the figure above; the rest of a commit is the work this record never measured.
