@@ -1,11 +1,9 @@
 //! What:
-//!  Everything the wrapper keeps in the administrative directory of a worktree that is being removed,
-//! taken
-//!  before anything irreversible happens to that worktree:
-//! the snapshots it made ahead of an add,
-//! the
-//!  pools an interrupted take left,
-//! and the folder that holds them.
+//!  The pools of snapshots the wrapper made ahead of an add,
+//! and every pool a clear took and a kill left,
+//!  taken out of the administrative directory of a worktree that is being removed,
+//! before anything irreversible happens to
+//!  that worktree.
 //! Why:
 //!  A worktree that was the source of one `git worktree add` holds
 //! `<admin>/monochromatic-git-policy-cli/ahead`,
@@ -32,24 +30,33 @@
 //! and an add that
 //!  finds no pool makes its own copy,
 //! so nothing an add needs is lost with it.
-//! `<admin>/monochromatic-git-policy-cli` is the wrapper's own folder:
-//! no other program writes there,
-//!  and everything in it is a copy of that worktree,
-//! so the whole folder goes rather than the one pool under it.
-//! That is what makes an interrupted take resumable:
-//! a clear renames a pool to `removing-<identity>`
-//!  before it deletes a member of it,
-//! so a command killed between those two steps leaves a pool no fill reads under a
-//!  name that is still inside the wrapper's own folder,
-//! and the next removal takes that name too rather than refusing a
-//!  volume it is certain it made.
-//! A pool is taken out of its own name with one rename before anything of it is
-//!  removed:
-//! a fill claims a member by renaming it out of that name,
-//! so a member is either taken before the rename,
-//!  and then it is not below the tree the deletion was given,
-//! or the pool's name is gone and the fill makes its
-//!  own.
+//! What is taken is what this program wrote,
+//! never a guess about the volumes:
+//! the pool a fill reads,
+//! and a
+//!  pool a clear renamed to `removing-<identity>` and a kill left before it emptied it.
+//! That second name is a
+//!  record this program keeps of a pool it was taking,
+//! and it is what makes an interrupted take resumable:
+//! the next
+//!  removal takes that pool rather than refusing a volume it made itself.
+//! The data folder around them stays,
+//!  because it also holds what a person reads:
+//! the notices of a push that failed,
+//! the files a pull kept out of
+//!  the way,
+//! and the service's own work queue,
+//! none of which a removal may delete.
+//! A pool is taken out of its own name
+//!  with one rename before anything of it is removed:
+//! a fill makes a member in the pool's own name,
+//! so after the
+//!  rename it finds no pool and makes its own,
+//! while the members this clear was given stand under a name nothing
+//!  else reads.
+//! An older release spelled the data folder another way,
+//! so both spellings are cleared and neither folder is
+//!  moved.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
