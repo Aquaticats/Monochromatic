@@ -1482,6 +1482,17 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   which cannot land twice.",
   connects again and sends the same request
   identity.
+  Since 2026-11-11 that sentence reads "the commit service has said nothing for 5 seconds,
+  so the same commit is being sent to it again;
+  a commit cannot land twice,
+  and this command goes on by itself,
+  so there is nothing for you to do"
+  (`service_messages_of_a_wait_for_the_service.rs`,
+  `silent_notice`):
+  the record of a commit that printed the older words showed a service that had been landing it the whole time,
+  so the sentence names the quiet instead of claiming a stop,
+  and says that nothing is asked of the reader
+  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
   A service that greets nothing then ends the command with `ServiceSilent`:
   "The commit service stopped answering
   while this commit waited,

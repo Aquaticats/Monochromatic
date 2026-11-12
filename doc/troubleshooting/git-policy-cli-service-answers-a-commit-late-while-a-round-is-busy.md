@@ -217,3 +217,36 @@ after 5 s before the reply change),
 `worktree_trash_entries::tests::a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client` (fails after 10 s
 before the place change) and
 `service_work::tests::a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round`.
+
+## The same sentence on 2026-11-11, printed on a landing and not on a trash
+
+The release installed for that whole day was `0.6.1-alpha.10`, which does not carry the change above
+(`git merge-base --is-ancestor 28f5f7b14f monochromatic-git-policy-cli-v0.6.1-alpha.10` fails).
+One commit of that day printed the sentence again, and its records put the silence on a landing:
+
+- the day's only timing record with `sends=2` is `refs/heads/main` at 18:05:32 local (`23:05:32Z`),
+  with `submitMs=5453`, `answerWaitMs=5428`, `totalMs=6645`, outcome `landed`.
+- the service's own line for request `3ef36edc-cc1c-48ea-9250-e005673b9c45`
+  (`journalctl --user --identifier=monochromatic-git-policy-cli`) answers it with `read_ms=0`,
+  `landing_ms=4737` (`index_update_ms=3447`, `ref_ms=1241`) and `answer_ms=8`:
+  the request was read at once, the landing worked for 4.7 s, and the answer was written 8 ms after it ended.
+- no beat reached the client during those 4.7 s, so what it spent (5.4 s) was the landing plus the silence it
+  gave up on, and neither the read of its request nor the write of its answer was late.
+- the only step between two beats in that release was the note, and the note was a job of the blocking pool
+  awaited with no ceiling. That pool was occupied then: the landing's own record syncs were queued when it
+  answered and logged 19.7 s later ("the background sync of 6 records of a landing took 547 ms" at 18:05:58).
+
+What those records do not say is which job held the pool, or whether the note's own read of the board was slow,
+so the note cannot be blamed beyond this: it was the one step between beats, it had no ceiling, and the pool it
+ran on was held past the five seconds a client allows. Both halves of the change above remove it, which is why a
+`0.6.1-alpha.10` still shows it and the branch does not.
+
+The controls that hold it are the three the "Fixed" section names, and `service_reply_tests.rs` adds
+`a_note_that_takes_a_while_is_written_after_the_beat` and
+`a_note_that_outlives_its_beat_is_left_for_the_next_beat`.
+
+What the person read is now `silent_notice` in
+`package/git-policy/cli/src/native/landing/service_messages_of_a_wait_for_the_service.rs`: it names the seconds the
+service has said nothing, says that the same commit is sent again, and says that the command goes on by itself, so
+nothing is asked of the reader. The older words claimed the service had stopped answering, which the records above
+show it had not, and named no duration.
