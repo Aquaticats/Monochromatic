@@ -3804,7 +3804,8 @@ so one shadow could reach every other member,
 and whether the folder existed would decide what a claimed member has to hold:
 the first fill of a repository would refuse the member it had just made.
 
-An in-place note, 2026-11-11:
+An in-place note,
+2026-11-11:
 `is_private_shadow_entry` no longer exists.
 A shadow links the named entries a commit reads and nothing else
 (`SHARED_ENTRY_NAMES` in `shadow_links.rs`),
@@ -5090,3 +5091,282 @@ no flush is left to wait for the disk.
   which is a manager reload and two starts against the owner's user manager.
   A one-time cost of an install,
   not of a commit.
+
+## The landing's side reference, written without a Git start (2026-11-11T18:31:02-05:00)
+
+What this answers:
+what `objects_ms` in the service's `answered` line times,
+whether the person's `git commit` waits for it and has to,
+and the change that takes the one Git start out of that wait,
+with the before and after of the stretch,
+the spread of one binary,
+and the calls a commit makes.
+
+### What `objects_ms` times
+
+`objects_ms` is one call of `objects_of_batch`
+(`src/native/landing/service_land_objects_of_batch.rs`),
+and what that call spends depends on which of two shapes the batch is:
+
+- A commit Git built,
+  which every signed commit and every merge conclusion is here:
+  `read_commit` and `adds_only_present_objects`
+  (`service_built_checks.rs`,
+  both in process),
+  the batch's marker file in the journal,
+  and one `git update-ref --no-deref refs/worktree/cli-git-service/<batch> <commit>`,
+  the reference that keeps the batch's commits reachable until the branch moves.
+- A commit the wrapper builds from the request's changes:
+  one `git fast-import`,
+  which writes the objects and moves that same reference itself.
+
+The objects of a commit Git built are not written by the service at all:
+the client's shadow `git commit` wrote the commit,
+its trees and its blobs into the repository's object store,
+and the private index wrote the blobs under it (`commit/private_index_stage.rs`).
+So for that shape `objects_ms` is a check,
+a marker and one reference write,
+and the reference is what the person waits on.
+
+The wait is real and it is the answer's:
+the service sends `Landed` only after `land_batch_timed` returns,
+and the branch move is one transaction that updates the branch and deletes that reference,
+so the reference has to exist before the move.
+The guarantee it carries is recorded (`SPEC.md`,
+"Maintenance that may run while a commit is made",
+and the held path of "Merges and commits never fail"):
+while the batch is in the landing,
+a maintenance that drops objects no reference names cannot take its commits.
+That guarantee is why the write stays before the branch move;
+nothing in it says a Git process has to make the write.
+
+### The evidence that the wait was a Git start
+
+The two records the earlier section left as a disk stall,
+read from the journal of the installed `0.6.1-alpha.10` on this machine
+(`journalctl --user`,
+2026-11-11T13:48:24-05:00 and 13:52:45-05:00):
+
+- `objects_ms=5651` with steps `git config@168+23;git config@168+22;git rev-parse@195+7;git rev-parse@196+10;git update-ref@544+5314;git update-ref@5894+86;git update-index@6363+51`,
+  so 5,314 of 5,651 ms are one `git update-ref`.
+- `objects_ms=12695` with steps `git config@1229+4;git config@1229+3;git rev-parse@1236+144;git rev-parse@1237+153;git update-ref@1417+12659;git update-ref@14329+76;git update-index@15348+151`,
+  so 12,659 of 12,695 ms are one `git update-ref`.
+
+Both are the batch's own reference,
+the first of the two `update-ref` steps (the second is the branch move).
+
+What that child spends is not the write.
+Traced on a disposable clone (`strace --follow-forks --syscall-times`),
+the write is `mkdir` 83 us,
+the exclusive lock file 68 us,
+two writes of the object name and a rename of 364 us,
+and no `fsync` or `fdatasync` at all,
+because Git does not flush loose references by default.
+The child that makes it ends 13 to 36 ms after its `execve` in the ordinary case,
+and the 311 ms case in the same trace spends 188 ms of that in one gap between two of its own calls.
+So the span the person waits on is a process start,
+a start that the host's congestion stretches to seconds sometimes.
+
+### The change
+
+`src/native/landing/side_reference_written_here.rs` writes that reference itself,
+and Git writes it wherever the landing cannot prove its write is Git's.
+The name is the wrapper's own:
+a number below a directory the wrapper makes,
+never packed,
+never symbolic,
+and never given a reflog,
+because the write this replaces passes `core.logAllRefUpdates=false`.
+The file is written where a per-worktree reference lives,
+which is the worktree's own Git directory
+(measured on Git 2.56.0:
+in a linked worktree `update-ref` writes
+`.git/worktrees/<id>/refs/worktree/cli-git-service/<batch>`,
+and `git rev-parse --git-path` names that same file).
+A repository that sets `core.lockfilePid` gets the `~pid.lock` mark Git writes beside the lock,
+with this process's number,
+removed once the rename names the commit.
+
+The write is left to Git for every shape whose write Git would make differently:
+a reference store `core.fsync` flushes,
+a `core.sharedRepository` repository,
+whose reference files Git widens to the shared mode,
+a `core.lockfilePid` value that is not a plain boolean,
+a storage that is not plain files,
+a configuration the landing read with the caller's own global options,
+which proves nothing about the store,
+a name that is not the wrapper's own,
+an object name that is not whole,
+a lock another writer already holds,
+a symbolic reference at the name,
+and a path this writer cannot make.
+Every one of those answers `LeftToGit` and nothing else changes:
+Git writes the reference and words its refusal as it always did.
+
+Red controls first:
+
+- `landing::service_land_objects_of_batch::tests::a_batch_side_reference_is_written_without_a_git_start`
+  FAILED on the code as it stood with
+  "the objects of a batch Git built are written without a Git start,
+  and this landing answered Unavailable",
+  because the only writer of that reference was a Git child.
+- The controls that hold the other side are
+  `landing::service_land_objects_of_batch::tests::a_landing_that_leaves_the_reference_to_git_lands_the_same_batch`,
+  `landing::side_reference_written_here::tests::the_landing_writes_the_batchs_reference_where_git_writes_it`,
+  and the eight controls of that module beside it:
+  a standing lock,
+  a symbolic reference,
+  a name the wrapper does not own,
+  an object name that is not whole,
+  a path that cannot be made,
+  the mark `core.lockfilePid` asks for,
+  a second write of one batch,
+  and the settings that leave the write to Git.
+- `landing::service_land::side_reference_write_tests::a_held_commit_git_built_is_kept_when_its_side_ref_write_outlasts_the_wait_for_it`
+  is the release gate's shape,
+  a Git write that outlasts its wait,
+  and it now sets `core.fsync=reference` in its fixture so that it still exercises Git's write.
+
+### What the write costs made here, and what the child costs
+
+A temporary probe in the wrapped binary (removed again before the commit that shipped it)
+printed the span of `write_side_reference` itself:
+twelve writes over two fixtures took 143,
+177,
+177,
+184,
+188,
+192,
+206,
+206,
+209,
+214,
+220 and 559 us,
+so 0.14 to 0.56 ms and a median of 0.20 ms.
+The same write by a Git child costs 1 to 6 ms in a commit's own step ledger (`git update-ref` at 1,
+1,
+2,
+2,
+3 and 6 ms
+across these runs) and 13 to 36 ms traced from its `execve` to its exit,
+before any stall:
+the journal's 5,314 ms and 12,659 ms records are that same span,
+stalled.
+
+### Before and after, one binary on each arm
+
+Method:
+the paired harness of the sections above,
+one reflink copy of a disposable clone of this repository per arm,
+each arm with its own `HOME`,
+`XDG_RUNTIME_DIR` and commit service,
+one explicit-path signed commit per round,
+the arms alternating and the order flipped each round,
+the figures read from each commit's own record and the service's `answered` line,
+and the runs repeated with the order flipped between them.
+
+- The calls a commit makes,
+  which is the currency that does not move with the load:
+  two `git update-ref` steps per commit before,
+  one after,
+  in each of the 36 commits of the two runs,
+  Seven Git steps per commit before,
+  six after.
+- The pair that shows the class the change removes:
+  run 1,
+  round 1,
+  before 5,656 ms of which the reference's `git update-ref` is 5,374,
+  after 9 ms.
+  Same fixture shape,
+  same host,
+  same round,
+  and the arm that changed is the only difference.
+- `objects_ms` over run 1's eight commits:
+  before 6,738 ms (median 49,
+  largest 5,656),
+  after 355 ms (median 15.5,
+  largest 144).
+- `objects_ms` over run 2's ten commits,
+  the order flipped:
+  before 52 ms (median 2,
+  largest 16),
+  after 1,765 ms (median 51,
+  largest 1,257).
+  The largest of them spent its 1,257 ms in process,
+  with the branch move's `git update-ref` still to come at offset 1,259,
+  so it is the object check and not this write.
+- The same binary on both arms,
+  which is the spread this stretch has on this host:
+  one arm landing the write (`core.sharedrepository` unset) and the other leaving it to Git
+  (`core.sharedrepository=false`),
+  ten rounds each:
+  `objects_ms` 0,
+  26,
+  9,
+  43,
+  539,
+  33,
+  227,
+  18,
+  10 and 25 against 16,
+  40,
+  43,
+  152,
+  2,005,
+  596,
+  24,
+  19 and 17
+  (median 25.5 against 40,
+  and the run lost one sample of the Git arm),
+  where an earlier run of the same pair read 3,
+  1,
+  405,
+  14,
+  35,
+  79,
+  91,
+  23,
+  2 and 0
+  against 2,
+  2,
+  2,
+  2,
+  2,
+  12,
+  3,
+  2 and 2.
+  So `objects_ms` moves by more than the write costs either way,
+  and no sum over a few commits resolves a change of a millisecond in it;
+  the resolved figures are the calls a commit makes,
+  the write's own 0.2 ms,
+  and the child's 1 to 6 ms or the seconds it stalls for.
+- Whole commits:
+  run 1 before 25,281 ms over the eight (median 1,677),
+  after 21,835 ms (median 2,130);
+  run 2 before 6,038 ms over the ten (median 158),
+  after 11,383 ms (median 271),
+  with `index_update_ms` of 7,536 against 137 in the same rounds.
+  The whole-command figures are their unchanged stretch's spread,
+  as every section above found.
+- The same binary on both arms before the change (`control1`):
+  `objects_ms` 1,202 against 500 ms over eight commits (median 67.5 against 51,
+  largest 599 against 116).
+- Both arms' repositories end with an empty `refs/worktree/cli-git-service`:
+  the branch transaction deletes the reference in either case,
+  and neither arm leaves a `~pid.lock` behind.
+
+### What this leaves
+
+- The in-process part of `objects_ms` stays:
+  `read_commit`,
+  `adds_only_present_objects` and the batch's marker file,
+  which took 0 to 236 ms across these runs and are the stretch's largest share when the page cache is cold.
+  That check is what makes a damaged commit fail before the branch moves,
+  and it is not this section's to remove.
+- A commit the wrapper builds from its request's changes still spends one `git fast-import` in that stretch,
+  which writes the reference itself;
+  this repository signs every commit,
+  so no commit here takes that shape.
+- The branch move's own `git update-ref` stays,
+  with the reference lock wait and its bounds,
+  because it is Git's compare-and-swap on the branch and the owner's "Never cut a branch write".
