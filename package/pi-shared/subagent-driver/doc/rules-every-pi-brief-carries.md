@@ -100,6 +100,28 @@ Each rule is the project's own requirement.
   (one `find` for a dependency's source ran twenty-eight minutes on 2026-11-12 before it was ended).
   A dependency's source is under `~/.cargo/registry/src/`,
   and `cargo metadata --format-version=1 --locked --offline` gives each one's `manifest_path`.
+- A workaround for a defect of the driver,
+  to be removed when the driver keeps a run that waits for its own work:
+  a run that ends its turn is ended about two minutes later,
+  whatever it started is still running
+  (on 2026-11-12 an integration run ended a turn with its build running in a `process` job,
+  expecting to be brought back,
+  and was closed as `idle` 129 seconds later).
+  Until then,
+  run a build,
+  a test or any other step whose result the next step needs as a foreground command with a bound of its own,
+  and end a turn only when nothing of yours that matters is still running.
+- A workaround for a defect of the Git wrapper,
+  to be removed when the fix is in the installed release:
+  a wrapper that looks for the holder of a file reads the descriptor record of every process of the account,
+  and one such read can cost hundreds of megabytes of kernel memory while an IDE's file watcher runs
+  (on 2026-11-12 a wrapper in a scope capped at 512 MB was killed by the kernel for it,
+  which raised a low-memory alarm on the desktop).
+  Until then,
+  every scope or container that runs a wrapper,
+  installed or built,
+  gets a memory cap of at least 4G,
+  and nobody reads `/proc/<pid>/fdinfo/<n>` of a process they did not start.
 - Bound every read of the journal:
   `journalctl` gets `--since` and `--lines`,
   and one unit instead of a pattern where the unit is known.

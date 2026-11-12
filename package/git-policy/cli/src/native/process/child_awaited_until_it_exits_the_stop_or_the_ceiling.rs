@@ -50,9 +50,9 @@ use crate::process_tree::{TreeMember, descendants_of_read};
 use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, unended_in};
 /// The grace a stopped child gets before a task of the runtime collects it.
 use crate::bounded_push::STOP_GRACE;
-/// What the command says while it still waits on a step the kernel has not released,
-/// and where that line goes.
-use crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords;
+/// The queue the command's lines go through,
+/// which a wait that lasts hands its line to.
+use std::sync::mpsc::SyncSender;
 /// The stop of a push,
 /// which a stop of the service asks for.
 use crate::bounded_push::stop_push;
@@ -92,6 +92,11 @@ pub struct CeilingStop {
     /// Such a program may still be running,
     /// which the record and the stop's words say.
     pub below_unended: u32,
+    /// The bound the step ran under once the ceiling stood aside for a step the kernel held,
+    /// and nothing when the ceiling never stood aside.
+    /// The record takes it from here when no notice thread ran,
+    /// so a stop of a step the kernel held is still told from one that was working.
+    pub stall_ceiling: Option<Duration>,
 }
 
 // What:
@@ -150,9 +155,48 @@ async fn a_control_holds_the_step_until_it_ended(owned: &OwnedChild) {
 }
 
 /// What:
+///  The two moments that end a step this wait owns.
+/// Why:
+///   A ceiling is not one number any more:
+///  a step waiting for a disk is slow and not stuck,
+///  so the bound it is ended at is later than the bound it is noticed at
+///  (`wait_ceilings::SCRATCH_COMMIT_STEP_STALL_CEILING`),
+///  and both are counted from the step's own start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Ceilings = { usually: number; whileTheKernelHoldsIt: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Ceilings {
+    /// The longest the step may last when nothing holds it.
+    pub usually: Duration,
+    /// The longest it may last while the kernel holds it in a call a signal cannot end,
+    /// and never sooner than `usually`.
+    pub while_the_kernel_holds_it: Duration,
+}
+
+impl Ceilings {
+    /// What:
+    ///  The two bounds of a step whose ceiling is `ceiling`.
+    /// Why:
+    ///   The callers name one ceiling,
+    ///  and the longer bound is the one this package measured,
+    ///  or the ceiling itself when a person set one that is later.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const ceilings = Ceilings.of(ceiling);
+    /// ```
+    pub fn of(ceiling: Duration) -> Self {
+        return Self { usually: ceiling, while_the_kernel_holds_it: crate::wait_ceilings::stall_ceiling_of(ceiling) };
+    }
+}
+
+/// What:
 ///  Wait for `owned` until it ends,
 ///  a stop of the service ends it,
-///  or `ceiling` comes,
+///  or the ceiling of the step comes;
 ///  and answer how it ended,
 ///  with the stop when the ceiling came first.
 /// Why:
@@ -173,9 +217,9 @@ async fn a_control_holds_the_step_until_it_ended(owned: &OwnedChild) {
 pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     mut owned: OwnedChild,
     mut stop: Option<StopArm>,
-    ceiling: Duration,
+    ceilings: Ceilings,
     what: &str,
-    while_held: Option<HeldStepWords<'_>>,
+    while_held: Option<&SyncSender<String>>,
 ) -> std::io::Result<(ChildOutcome, Option<CeilingStop>)> {
     let began: Instant = Instant::now();
     // The child's own end wins over the ceiling when both are ready:
@@ -188,18 +232,47 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
                 return Err(crate::child_watch::ended_by_the_stop(what));
             }
             finished = owned.wait() => Some(finished?),
-            () = sleep(ceiling) => None,
+            () = sleep(ceilings.usually) => None,
         },
         None => tokio::select! {
             biased;
             finished = owned.wait() => Some(finished?),
-            () = sleep(ceiling) => None,
+            () = sleep(ceilings.usually) => None,
         },
     };
     if let Some(status) = ended {
         return Ok((outcome_of(status), None));
     }
-    let waited: Duration = began.elapsed();
+    let mut waited: Duration = began.elapsed();
+    // The bound the step ran under when the ceiling stood aside, which the stop keeps for the record.
+    let mut stood_aside: Option<Duration> = None;
+    // What: The step reached its ceiling while the kernel held it in a disk wait.
+    // Why:  Such a step is waiting for the disk and not stuck in its own work,
+    //       and a signal cannot shorten that call;
+    //       ending it there is what failed a commit on 2026-11-11 whose step had landed a moment later.
+    //       So the ceiling stands aside, the commit says so once, and the step is waited for to the bound the package
+    //       measured, which an ordinary slow disk never reaches.
+    if ceilings.while_the_kernel_holds_it > waited
+        && let Some(held) = crate::scratch_step_look_below::the_kernel_holds_the_step(owned.id())
+    {
+        stood_aside = Some(ceilings.while_the_kernel_holds_it);
+        let stalled: AStalledStep<'_> = AStalledStep {
+            began,
+            waited,
+            until: ceilings.while_the_kernel_holds_it,
+            held,
+            lines: while_held,
+        };
+        match until_it_ends_or_the_hold_bound(&mut owned, &mut stop, stalled).await? {
+            HowTheStallEnded::ItEnded(status) => return Ok((outcome_of(status), None)),
+            // The bound came and the kernel still held it: the step is ended here as any step at its ceiling is.
+            HowTheStallEnded::TheBound => waited = began.elapsed(),
+            HowTheStallEnded::TheStopOfTheService => {
+                stop_push(owned, STOP_GRACE, LockLedger::none()).await;
+                return Err(crate::child_watch::ended_by_the_stop(what));
+            }
+        }
+    }
     // What the step started is read now, while the step is alive:
     // a number cannot be reused while its process holds it, and everything below the step is found by that number only
     // then.
@@ -240,7 +313,111 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     {
         return Ok((outcome_of(status), None));
     }
-    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended })));
+    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended, stall_ceiling: stood_aside })));
+}
+
+/// What:
+///  One wait for a step the kernel holds in a disk wait is given.
+/// Why:
+///   The bound is counted from the step's own start,
+///  the line names the process the kernel is holding,
+///  and the wait that lasts is the one that says it,
+///  because a notice thread the system refused says nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AStalledStep = { began: number; waited: number; until: number; held: HeldProgram; lines?: Queue };
+/// ```
+struct AStalledStep<'a> {
+    /// When the step started.
+    began: Instant,
+    /// How long it had lasted when its ceiling came.
+    waited: Duration,
+    /// The longest it may last while the kernel holds it.
+    until: Duration,
+    /// The process the kernel is holding.
+    held: crate::scratch_step_held_by_the_kernel::HeldProgram,
+    /// Where the command's lines go,
+    /// and nothing when it has no writer to hand one to.
+    lines: Option<&'a SyncSender<String>>,
+}
+
+/// What:
+///  How a wait for a step the kernel holds ended.
+/// Why:
+///   The three answers end the command differently:
+///  a step that ended by itself lands,
+///  a bound that came stops the step,
+///  and a stop of the service is reported as itself and never as a ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HowTheStallEnded = { itEnded: number } | { theBound: true } | { theStopOfTheService: true };
+/// ```
+enum HowTheStallEnded {
+    /// The step ended by itself while the kernel held it.
+    ItEnded(std::process::ExitStatus),
+    /// The bound came and the kernel still held it.
+    TheBound,
+    /// The service's stop was told while the step waited.
+    TheStopOfTheService,
+}
+
+/// What:
+///  Wait for a step the kernel holds until it ends,
+///  the bound comes,
+///  or the service's stop ends it,
+///  saying once why the wait lasts.
+/// Why:
+///  A step inside an uninterruptible call is slow and not stuck,
+///  so ending it at the ceiling it reached fails a commit that would have landed.
+///  The wait stays and says so once:
+///  a person who read the same sentence three times in one failed commit learned nothing the first two times.
+///  A line is dropped rather than waited for when the writer cannot take it,
+///  because a reader that stopped reading must never hold this wait,
+///  and the line is handed over again at the next look while nothing was taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ended = await untilItEndsOrTheHoldBound(owned, stop, stalled); if (ended.itEnded) return [ended.itEnded, undefined];
+/// ```
+async fn until_it_ends_or_the_hold_bound(owned: &mut OwnedChild, stop: &mut Option<StopArm>, stalled: AStalledStep<'_>) -> std::io::Result<HowTheStallEnded> {
+    let AStalledStep { began, waited, until, held, lines } = stalled;
+    let mut said: bool = false;
+    let mut pause: Duration = Duration::ZERO;
+    loop {
+        if began.elapsed() >= until {
+            return Ok(HowTheStallEnded::TheBound);
+        }
+        // What: The service's stop is waited for beside the step.
+        // Why:  A shutdown must not wait the bound this wait keeps;
+        //       a step it stops is reported as the stop and never as a ceiling.
+        let told = async {
+            return match stop.as_mut() {
+                Some(arm) => arm.stop_told().await,
+                None => std::future::pending().await,
+            };
+        };
+        tokio::select! {
+            biased;
+            () = told => return Ok(HowTheStallEnded::TheStopOfTheService),
+            status = owned.wait() => return Ok(HowTheStallEnded::ItEnded(status?)),
+            () = sleep(pause) => {}
+        }
+        if !said {
+            let line: String = crate::scratch_step_held_by_the_kernel::a_stall_is_waited_for(crate::scratch_step_held_by_the_kernel::AStall {
+                step: i32::try_from(owned.id()).unwrap_or(0),
+                waited,
+                until,
+                held: held.clone(),
+            });
+            said = match lines {
+                Some(queue) => queue.try_send(line).is_ok(),
+                None => true,
+            };
+        }
+        pause = crate::wait_after_the_stop_saying_the_kernel_holds_it::AFTER_THE_STOP;
+    }
 }
 
 /// What:

@@ -27,8 +27,7 @@
 
 use super::supervisor::{Judge, Limits, Reason};
 use super::supervisor_proc::{Look, look_at, stat_of, tick};
-use super::support::{Fixture, ServiceLaunch, hermetic, restart_ended_services, service_runtime, wrapper_first_path};
-use std::io::{Read, Seek};
+use super::support::{Fixture, ServiceLaunch, hermetic, read_from_start, restart_ended_services, service_runtime, wrapper_first_path};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Output, Stdio};
@@ -205,16 +204,6 @@ impl Watched {
         let ended: Option<Reason> = *expired.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return (output, ended);
     }
-}
-
-/// Everything a file holds,
-/// read from its start.
-fn read_from_start(file: &mut std::fs::File) -> Vec<u8> {
-    let mut bytes: Vec<u8> = Vec::new();
-    if file.seek(std::io::SeekFrom::Start(0)).is_ok() {
-        let _read = file.read_to_end(&mut bytes);
-    }
-    return bytes;
 }
 
 /// Starts `command` as the leader of a new process group,

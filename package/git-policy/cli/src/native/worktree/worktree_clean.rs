@@ -56,8 +56,24 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// The entries of a Git directory that mean an operation is in progress and the index or tree is not a plain state.
-const IN_PROGRESS: &[&str] =
-    &["index.lock", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "rebase-merge", "rebase-apply", "sequencer"];
+/// Why a bisect has two of them:
+///  `git bisect start` writes `BISECT_START`,
+/// then `BISECT_NAMES`,
+///  and opens `BISECT_LOG` only after both
+///  (measured with Git 2.56 under `strace`),
+///  so a process killed between those writes leaves a bisect whose mark is a file written before the kill,
+///  and a list that knew only the log proved a worktree clean with that bisect still unfinished there.
+const IN_PROGRESS: &[&str] = &[
+    "index.lock",
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "BISECT_START",
+    "BISECT_LOG",
+    "rebase-merge",
+    "rebase-apply",
+    "sequencer",
+];
 
 /// What:
 ///  What a clean worktree's `HEAD` names.

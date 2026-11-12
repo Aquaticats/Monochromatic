@@ -89,7 +89,7 @@ fn the_mode_is_set_before_any_byte_is_written() {
             return (SYSTEM.write)(file, bytes);
         };
         let steps: Steps<'_> = Steps { write: &write, chmod: &chmod, ..SYSTEM };
-        publish_with(&steps, built.as_path(), b"index bytes", shared).expect("published");
+        publish_with(&steps, built.as_path(), b"index bytes", shared, None).expect("published");
         let order = seen.into_inner();
         // At the change of mode the file is empty and has the mode Git's file has; at the first write it has the final mode.
         assert_eq!(order[0], ("chmod", 0o644, 0), "shared {shared:o}");
@@ -105,7 +105,7 @@ fn short_writes_publish_the_whole_file() {
     let (root, _live, built) = directory("publish-short");
     let bytes: Vec<u8> = (0..1000u32).map(|number| { return (number % 253) as u8; }).collect();
     let write = |file: &mut std::fs::File, part: &[u8]| -> std::io::Result<usize> { return (SYSTEM.write)(file, &part[..part.len().min(3)]); };
-    publish_with(&Steps { write: &write, ..SYSTEM }, built.as_path(), bytes.as_slice(), 0).expect("published");
+    publish_with(&Steps { write: &write, ..SYSTEM }, built.as_path(), bytes.as_slice(), 0, None).expect("published");
     assert_eq!(std::fs::read(&built).expect("target"), bytes);
     remove(root.as_path());
 }
@@ -145,7 +145,7 @@ fn every_failed_step_leaves_the_target_and_no_temporary_file() {
         let (root, _live, built) = directory("publish-failure-steps");
         *calls.borrow_mut() = 0;
         let before: Vec<String> = names(root.as_path());
-        assert!(publish_with(&steps, built.as_path(), b"a long enough payload to need several writes", shared).is_err(), "{label}");
+        assert!(publish_with(&steps, built.as_path(), b"a long enough payload to need several writes", shared, None).is_err(), "{label}");
         assert_eq!(std::fs::read(&built).expect("target"), b"copy".to_vec(), "{label}: the target changed");
         assert_eq!(names(root.as_path()), before, "{label}: a file was left");
         remove(root.as_path());
@@ -158,9 +158,9 @@ fn a_target_that_cannot_be_replaced_leaves_nothing() {
     let (root, _live, _built) = directory("publish-target");
     let target: PathBuf = root.join("index.cli-git-9");
     std::fs::create_dir_all(target.join("occupied")).expect("a directory where the file should go");
-    assert!(publish(target.as_path(), b"bytes", 0).is_err());
+    assert!(publish(target.as_path(), b"bytes", 0, None).is_err());
     assert!(target.join("occupied").is_dir());
-    assert!(publish(root.join("missing").join("index.cli-git-9").as_path(), b"bytes", 0).is_err());
+    assert!(publish(root.join("missing").join("index.cli-git-9").as_path(), b"bytes", 0, None).is_err());
     assert_eq!(names(root.as_path()), vec!["index".to_string(), "index.cli-git-7".to_string(), "index.cli-git-9".to_string()]);
     remove(root.as_path());
 }
@@ -221,7 +221,7 @@ fn concurrent_publications_of_different_payloads_are_always_whole() {
             return std::thread::spawn(move || {
                 for round in 0..20usize {
                     gate.wait();
-                    publish(target.as_path(), payload(writer, 8192 + round * 64 + usize::from(writer)).as_slice(), 0).expect("published");
+                    publish(target.as_path(), payload(writer, 8192 + round * 64 + usize::from(writer)).as_slice(), 0, None).expect("published");
                 }
                 done.fetch_add(1, Ordering::SeqCst);
             });
@@ -272,7 +272,7 @@ fn a_read_inside_each_step_of_a_publication_sees_one_whole_payload() {
         read_on_another_thread("after rename");
         return Ok(());
     };
-    publish_with(&Steps { write: &write, sync: &sync, rename: &rename, ..SYSTEM }, built.as_path(), new.as_slice(), 0).expect("published");
+    publish_with(&Steps { write: &write, sync: &sync, rename: &rename, ..SYSTEM }, built.as_path(), new.as_slice(), 0, None).expect("published");
     let seen = during.into_inner();
     assert!(seen.iter().filter(|(label, _)| { return *label == "write"; }).count() > 1, "the reader overlapped several writes: {}", seen.len());
     for (label, bytes) in &seen {
@@ -296,7 +296,7 @@ fn the_published_mode_under_a_real_umask_is_gits() {
     }
     let (root, _live, built) = directory("publish-mode");
     for (shared, expected) in [(0, 0o600), (0o660, 0o660), (0o664, 0o664), (-0o640, 0o640)] {
-        publish(built.as_path(), b"x", shared).expect("published");
+        publish(built.as_path(), b"x", shared, None).expect("published");
         assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
     }
     remove(root.as_path());
@@ -316,7 +316,7 @@ fn an_interrupted_write_is_tried_again() {
         }
         return (SYSTEM.write)(file, &part[..part.len().min(4)]);
     };
-    publish_with(&Steps { write: &write, ..SYSTEM }, built.as_path(), b"a payload that needs several writes", 0).expect("published");
+    publish_with(&Steps { write: &write, ..SYSTEM }, built.as_path(), b"a payload that needs several writes", 0, None).expect("published");
     assert_eq!(std::fs::read(&built).expect("target"), b"a payload that needs several writes".to_vec());
     assert!(*tries.borrow() > 4);
     remove(root.as_path());

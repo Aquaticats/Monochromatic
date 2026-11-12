@@ -46,6 +46,52 @@ fn a_creation_is_what_a_member_must_be() {
     remove(root.as_path());
 }
 
+/// A link at a member's name is refused,
+/// because a creation makes the directory it made and a claim relies on that directory,
+/// never on whichever directory a link there names.
+/// Why:
+///   Reading the member follows a link,
+/// so a link here would be judged as the tree it names,
+/// and the commit's own writes would land in that tree:
+///  they are gone when the tree's owner claims it,
+/// and a commit whose writes fail is a commit real Git would have completed.
+#[test]
+fn a_member_that_is_a_link_to_another_member_is_refused() {
+    let root: PathBuf = fixture("shadow-pool-member-link");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let member: PathBuf = creation(root.as_path(), &template, "created");
+    assert_eq!(refusal(&template, member.as_path()).expect("checked"), None, "a creation is a member");
+    let link: PathBuf = root.join("member-link");
+    std::os::unix::fs::symlink(member.as_path(), link.as_path()).expect("a link at a member's name");
+    assert_eq!(
+        refusal(&template, link.as_path()).expect("checked"),
+        Some(String::from("it is not the directory a creation makes")),
+        "a link to a member is not the directory a creation made"
+    );
+    remove(root.as_path());
+}
+
+/// A link at a name the creation makes itself is refused,
+/// because a creation writes a file or makes a directory there and never a link,
+/// and a write through a link reaches the file it names,
+/// which here is the repository's own `HEAD`.
+#[test]
+fn a_link_at_a_name_the_creation_makes_is_refused() {
+    let root: PathBuf = fixture("shadow-pool-member-own-link");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    std::fs::remove_file(shadow.join("HEAD").as_path()).expect("the HEAD a creation wrote");
+    std::os::unix::fs::symlink(repo.join(".git").join("HEAD").as_path(), shadow.join("HEAD").as_path()).expect("a link where the creation writes HEAD");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("it holds HEAD as a link, which this invocation's creation does not make")),
+        "a link at HEAD is not the file a creation writes"
+    );
+    remove(root.as_path());
+}
+
 /// A per-worktree configuration that differs from the one a creation would copy is refused,
 /// byte for byte:
 /// two files whose bytes differ in a way that decodes to the same text are still two configurations,
@@ -337,6 +383,54 @@ fn a_real_entry_at_a_shared_name_is_a_refusal() {
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
         Some(String::from("the shared entry rr-cache is not a link in the member"))
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A shared entry the repository has lost since the fill refuses the member,
+///  and the refusal names it.
+/// Why:
+///   The link a fill made points at a directory that is gone,
+///  while a creation of this moment makes that directory and links it,
+///  so the two trees are not the same view:
+/// what writes into the directory a link names fails on one that resolves to nothing
+///  (`git-lfs`'s clean filter writes its object into `<git-dir>/lfs`).
+///  A member that is not the tree a creation makes is removed,
+///  and the commit makes its own creation.
+#[test]
+fn a_shared_entry_the_repository_lost_is_a_refusal() {
+    let root: PathBuf = fixture("shadow-pool-member-shared-entry-gone");
+    let repo: PathBuf = repository_of(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    std::fs::create_dir(common.join("lfs")).expect("git-lfs has run in this repository");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    assert_eq!(
+        std::fs::read_link(shadow.join("lfs")).expect("the link a creation makes"),
+        common.join("lfs"),
+        "the creation links the repository's own lfs"
+    );
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        None,
+        "a member whose every link resolves is the tree a creation makes"
+    );
+    std::fs::remove_dir_all(common.join("lfs")).expect("another command removes lfs");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("the shared entry lfs points at an entry the repository no longer holds")),
+        "a link to nothing is not the tree a creation of this moment makes"
+    );
+    let fresh: PathBuf = creation(root.as_path(), &template, "created-after");
+    assert_eq!(
+        std::fs::read_link(fresh.join("lfs")).expect("the link a creation of this moment makes"),
+        common.join("lfs"),
+        "a creation makes the store the member's link could not reach"
+    );
+    assert!(
+        std::fs::symlink_metadata(common.join("lfs").as_path()).is_ok_and(|metadata| { return metadata.is_dir(); }),
+        "and the store it links is there"
     );
     remove(root.as_path());
 }

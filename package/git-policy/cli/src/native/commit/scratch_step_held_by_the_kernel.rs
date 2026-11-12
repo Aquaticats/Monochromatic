@@ -1,36 +1,38 @@
 //! What:
-//!  The line a commit prints when the scratch step it stopped was not released:
-//!  the `git commit` of the scratch repository,
-//!  its process,
-//!  the process the kernel is holding and the state that shows it,
-//!  what became of the person's work,
-//!  and that the terminal stays here.
+//!  The two lines a commit prints about a step the kernel holds in a call a signal cannot end:
+//!  the one it says while the step is still waited for,
+//!  and the one it says when the stop it sent did not end it.
 //! Why:
 //!  A `SIGKILL` decides what a process does when it is next given a processor,
 //!  and a process inside an uninterruptible call makes no such transition until that call returns
 //!  (`signal(7)`,
 //!  `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`).
-//!  So the ceiling's stop ends nothing while the kernel holds the step,
-//!  and the commit waits for the kernel rather than for its own ceiling.
-//!  The owner's rule is that nothing waits for ever,
-//!  and his answer on this one case (2026-11-10,
-//!  "Keep waiting and say so") is that the wait stays and the command says why it is still here:
-//!  the words of a stop come only after the kernel lets go,
-//!  and a step it never releases never reaches them.
-//!  The line also says what is not at risk,
+//!  A step waiting for a disk is slow,
+//!  not stuck in its own work,
+//!  so its ceiling stands aside and the commit waits for it:
+//!  the first line says why the ceiling the person was promised did not come,
+//!  how long the step has lasted,
+//!  and the bound it now runs under.
+//!  When even that wait runs out,
+//!  the step is stopped and the kernel may still hold it,
+//!  and the commit waits for the kernel rather than for its own ceiling (the owner,
+//!  2026-11-10,
+//!  "Keep waiting and say so"),
+//!  which the second line says once.
+//!  Neither line says anything of the person's is at risk,
 //!  because a person cannot ask a command that has not returned.
-//!  The process it names is the one the look found in uninterruptible sleep,
+//!  The process each line names is the one the look found in uninterruptible sleep,
 //!  which may be a program the step started and not the step:
 //!  a line that named the step for a state only its helper was in would state a false fact
 //!  (finding 4 of the 2026-11-10 review of the held-step notice).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! heldByTheKernelLine({ step, waited, held: { number, name } })
+//! aStallIsWaitedFor({ step, waited, until, held }); heldByTheKernelLine({ step, waited, held })
 //! ```
 
 /// Time spans,
-/// for the one figure the line names.
+/// for the figures each line names.
 use std::time::Duration;
 
 /// What:
@@ -92,6 +94,11 @@ pub struct HeldProgram {
 ///  because nothing in this command can end that call.
 ///  A program below the step that the kernel holds is named as that program,
 ///  and the step is still named as the commit that was stopped.
+///  The line is said once and not again:
+///  a person who met it three times in one failed commit read three copies of one sentence
+///  (2026-11-11,
+///  the release 0.6.1-alpha.11 that failed a commit in a disk wait),
+///  and the command has already said how long the step waited.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +123,69 @@ pub fn held_by_the_kernel_line(held: HeldByTheKernel) -> String {
     );
 }
 
-/// The line and its controls stay out of the release executable.
+/// What:
+///  What the line about a waiting stall is built from.
+/// Why:
+///   One stall of one step has these facts and no others,
+///  and each of them is something the person checks with `ps` or waits for.
+///  The bound is named because it is the one promise this wait makes:
+///  the step is ended after it,
+///  and the ceiling the person was told about is not what ends it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AStall = { step: number; waited: number; until: number; held: HeldProgram };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AStall {
+    /// The process number of the `git commit` the commit runs in its scratch repository.
+    pub step: i32,
+    /// How long that step had lasted when its ceiling came and found the kernel holding it.
+    pub waited: Duration,
+    /// The longest that step may last while the kernel holds it,
+    /// counted from its start.
+    pub until: Duration,
+    /// The process the kernel is holding,
+    /// which is the step itself or a program it started.
+    pub held: HeldProgram,
+}
+
+/// What:
+///  The line a commit prints once when its ceiling comes for a step the kernel holds in a disk wait.
+/// Why:
+///  The step is not stuck:
+///  it is waiting for the disk,
+///  which a signal cannot shorten,
+///  and ending it there failed two commits on 2026-11-11.
+///  So the ceiling stands aside and the commit says why it did,
+///  how long the step has lasted,
+///  and the bound the step now runs under,
+///  which is the one moment a person can decide to abandon the command instead of waiting for it.
+///  What the person's own index,
+///  files and branch hold is said because the wait is long and they cannot ask.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: ... reached its ceiling ... waiting for the disk ... waits ...`
+/// ```
+pub fn a_stall_is_waited_for(stall: AStall) -> String {
+    let AStall { step, waited, until, held: the_held } = stall;
+    let seconds: u64 = waited.as_secs();
+    let bound: u64 = until.as_secs();
+    let what_the_kernel_holds: String = if the_held.number == step {
+        String::from("it is in uninterruptible sleep (state `D`), which a signal cannot end")
+    } else {
+        format!("the program it started, `{}` (process {}), is in uninterruptible sleep (state `D`), which a signal cannot end", the_held.name, the_held.number)
+    };
+    return format!(
+        "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository (process {step}) reached its ceiling after {seconds} seconds and was not stopped: \
+         {what_the_kernel_holds}, so the step is waiting for the disk rather than stuck in its own work. A step in that wait is slow, not stuck, so this commit \
+         waits for it instead of failing the commit: it is stopped only after {bound} seconds in all, and it lands if it ends before that. Nothing of yours is at risk \
+         while it waits: it runs in a scratch repository on a copy of your index.\n"
+    );
+}
+
+/// The lines and their controls stay out of the release executable.
 #[cfg(test)]
 #[path = "scratch_step_held_by_the_kernel_tests.rs"]
 mod tests;
