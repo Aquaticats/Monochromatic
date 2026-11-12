@@ -406,9 +406,6 @@ export function entryLineOf({
    */
   const kept = (keptAt === undefined) ? '' : ` (all it printed: ${keptAt})`;
   /**
-   How much of the reason is left once the name and the kept file have their room.
-   */
-  /**
    How much of the line the run's name and the kept file already take.
    */
   const saidSoFar = head.length + kept.length;
