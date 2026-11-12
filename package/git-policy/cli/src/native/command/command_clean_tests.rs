@@ -389,6 +389,102 @@ fn only_the_paths_the_patterns_add_are_reported() {
     );
 }
 
+/// What:
+///  The force count is the count Git acts on:
+///  `-f`/`--force` adds one and a negated `--force` sets the count back to zero,
+///  which is Git's own `OPTION_COUNTUP` reading (`parse-options.c`).
+/// Why:
+///  The second force is what removes a nested repository,
+///  so a count that only added every `-f` deleted a repository for a clean Git would have kept
+///  (`-f --no-force -f`) or refused (`-ff --no-force`),
+///  and the dry run rebuilt from that count deleted what the typed clean never would.
+#[test]
+fn the_force_count_is_the_one_git_acts_on() {
+    // Spellings and the count Git acts on, each checked against Git 2.56.0's own dry run in
+    //  `real_git_counts_the_force_count_the_same_way`.
+    for (values, counted) in [
+        (vec!["-f"], 1),
+        (vec!["-f", "-f"], 2),
+        (vec!["-ffdX"], 2),
+        (vec!["-f", "--no-force", "-f"], 1),
+        (vec!["-f", "--no-force", "-f", "-f"], 2),
+        (vec!["--no-force", "-f", "-f"], 2),
+        (vec!["-f", "--force", "--no-force", "-f"], 1),
+        (vec!["-ff", "--no-force"], 0),
+        (vec!["--no-force", "-f"], 1),
+        (vec!["-f", "-f", "-f", "--no-force", "-f"], 1),
+        (vec!["-f", "--forc", "--no-forc", "-f"], 1),
+        (vec!["-f", "--forc", "--no-forc", "-f", "-f"], 2),
+        // A `--force` after the paths is a path to Git, and one written as an `-e` value is a pattern.
+        (vec!["-f", "--", "--force"], 1),
+        (vec!["-f", "-e", "--force"], 1),
+    ] {
+        assert_eq!(region(values.as_slice()).forces, counted, "{values:?}");
+    }
+    // The dry run is rebuilt with that count, so it prints what the typed clean deletes.
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-f", "--no-force", "-f", "-d", "-X"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "-X", "--"]))
+    );
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-f", "--no-force", "-f", "-f", "-d", "-X"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-f", "-d", "-X", "--"]))
+    );
+    // A clean typed with no force left after the reset still gets the one force a reading needs,
+    //  because Git's dry run reads the worktree whether or not the clean would delete.
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-ff", "--no-force", "-d", "-X"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "-X", "--"]))
+    );
+}
+
+/// What:
+///  Real Git:
+///  a dry run of each spelling prints `Would remove` of the directory holding a nested repository
+///  exactly when the region has two or more forces as Git counts them,
+///  and `Would skip repository` when it has fewer.
+/// Why:
+///  The whole gate is Git's own `force > 1` rule;
+///  a control that only read tokens would pass on a count Git does not act on.
+#[test]
+fn real_git_counts_the_force_count_the_same_way() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("clean-force-count");
+    std::fs::write(root.join(".gitignore"), b"cache/\n").expect("ignore the container");
+    git(root.as_path(), &["add", "--", ".gitignore"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=ignore", "--", ".gitignore"]);
+    std::fs::create_dir_all(root.join("cache/nested")).expect("a nested repository");
+    git(root.join("cache/nested").as_path(), &["init", "--quiet", "--initial-branch=inner"]);
+    std::fs::write(root.join("cache/nested/untracked.txt"), b"untracked user data\n").expect("its work");
+    for values in [
+        vec!["-f"],
+        vec!["-f", "-f"],
+        vec!["-f", "--no-force", "-f"],
+        vec!["-f", "--no-force", "-f", "-f"],
+        vec!["--no-force", "-f", "-f"],
+        vec!["-f", "--force", "--no-force", "-f"],
+        vec!["-ff", "--no-force"],
+        vec!["-f", "-f", "-f", "--no-force", "-f"],
+    ] {
+        let mut arguments: Vec<&str> = vec!["clean", "-n", "-d", "-X"];
+        arguments.extend(values.iter().copied());
+        let dry_run: Output = git_output(root.as_path(), os_arguments(arguments.as_slice()).as_slice());
+        let printed: String = String::from_utf8_lossy(dry_run.stdout.as_slice()).into_owned();
+        let removes: bool = printed.lines().any(|line| {
+            return line == "Would remove cache/";
+        });
+        let skipping: bool = printed.lines().any(|line| {
+            return line == "Would skip repository cache/nested";
+        });
+        assert!(removes != skipping, "{values:?} named neither: {printed}");
+        assert_eq!(
+            removes,
+            region(values.as_slice()).forces >= 2,
+            "{values:?}: Git printed {printed}"
+        );
+    }
+    remove(directory.as_path());
+}
+
 /// Real Git:
 ///  the dry run prints the file an `-e` pattern makes this clean delete,
 /// while the status calls the same file untracked and not ignored,

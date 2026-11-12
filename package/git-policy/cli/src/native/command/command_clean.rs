@@ -16,7 +16,7 @@
 ///  which one function owns because both a deletion and a kept repository are read from one.
 use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 use crate::command_options::{
-    Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
+    Arity, DEFAULT_MODE, Occurrence, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
 };
 /// The captured answer of a query Git ran.
 use crate::git_metadata::MetadataOutput;
@@ -148,8 +148,9 @@ pub struct CleanRegion {
     pub both_ignored_modes: bool,
     /// The clean descends into untracked directories (`-d`).
     pub descends: bool,
-    /// How many `-f`/`--force` were written;
+    /// How many forces Git acts on;
     ///  the second and third also remove a nested repository.
+    ///  It is a running count, so a negated `--force` sets it back to zero.
     pub forces: usize,
     /// The patterns `-e`/`--exclude` added to the ignore rules this clean applies,
     ///  exactly as their bytes were written.
@@ -157,6 +158,34 @@ pub struct CleanRegion {
     /// Wrapper-only flags in option position;
     ///  `escape` is `--no-enforce-worktree`.
     pub wrapper: WrapperFlags,
+}
+
+/// What:
+///  How many forces Git acts on in one region:
+///  each `-f`/`--force` adds one,
+///  and a negated `--force` sets the count back to zero.
+/// Why:
+///   Git counts this option with `OPTION_COUNTUP` (`parse-options.c`),
+///  whose negated spelling resets the count rather than lowering it by one,
+///  and the second force is what removes a nested repository (`builtin/clean.c`:
+///  `if (force > 1) rm_flags = 0`).
+///  A count that only added every `-f` read `clean -f --no-force -f -d -X` as two forces,
+///  which moved a repository aside for a clean Git keeps it through,
+///  and `clean -ff -d -X --no-force` as two, which moved one for a clean Git refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function forcesGitCounts(occurrences: Occurrence[]): number;
+/// ```
+pub fn forces_git_counts(occurrences: &[Occurrence]) -> usize {
+    let mut forces: usize = 0;
+    for occurrence in occurrences {
+        if occurrence.id != FORCE {
+            continue;
+        }
+        forces = if occurrence.negated { 0 } else { forces + 1 };
+    }
+    return forces;
 }
 
 /// What:
@@ -188,12 +217,8 @@ pub fn parse_clean_region(
     // measurement covers both.
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
     let ignored_only: bool = is_enabled(&parsed, IGNORED_ONLY);
-    let mut forces: usize = 0;
     let mut exclusions: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for occurrence in &parsed.occurrences {
-        if occurrence.id == FORCE && !occurrence.negated {
-            forces += 1;
-        }
         // `--exclude` is `PARSE_OPT_NONEG`, so a value is the pattern whichever spelling carried it.
         if occurrence.id == EXCLUDE
             && let Some(value) = occurrence.value
@@ -208,7 +233,7 @@ pub fn parse_clean_region(
         ignored_only: ignored_only && !include_ignored,
         both_ignored_modes: include_ignored && ignored_only,
         descends: is_enabled(&parsed, DIRECTORIES),
-        forces,
+        forces: forces_git_counts(parsed.occurrences.as_slice()),
         exclusions,
         wrapper: split_wrapper_flags(parsed.wrapper.as_slice()),
     });
@@ -228,8 +253,8 @@ pub fn parse_clean_region(
 ///  The region is rebuilt from the parsed facts rather than edited,
 ///  because `-i`
 ///  would make the dry run read the terminal and `-q` would silence it;
-///  `-f` is written as often as
-///  the caller wrote it (at least once),
+///  `-f` is written as often as Git
+///  counts it (at least once),
 ///  because the second and third also remove a nested repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -281,12 +306,8 @@ fn dry_run_arguments(
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
     let ignored_only: bool = is_enabled(&parsed, IGNORED_ONLY);
     let descends: bool = is_enabled(&parsed, DIRECTORIES);
-    let mut forces: usize = 0;
     let mut exclusions: Vec<&[u8]> = Vec::<&[u8]>::new();
     for occurrence in &parsed.occurrences {
-        if occurrence.id == FORCE && !occurrence.negated {
-            forces += 1;
-        }
         if with_exclusions
             && occurrence.id == EXCLUDE
             && let Some(value) = occurrence.value
@@ -298,7 +319,7 @@ fn dry_run_arguments(
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
-    for _ in 0..forces.max(1) {
+    for _ in 0..forces_git_counts(parsed.occurrences.as_slice()).max(1) {
         arguments.push(OsString::from("-f"));
     }
     if descends {

@@ -15929,7 +15929,7 @@ so a file the status reports as untracked is one this clean deletes and the stat
 The question is two `git clean --dry-run` runs over the same facts,
 rebuilt from them and never edited from the typed region
 (`-n`,
-`-f` as often as written and at least once,
+`-f` as often as Git counts it, and at least once,
 `-d` when written,
 the `-X` or `-x` mode,
 each `-e` pattern,
@@ -15954,7 +15954,12 @@ A `-x` clean needs no such reading:
 it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
 which the status measurement over-reports rather than under-reports.
-A clean in a linked worktree that deletes ignored files with two or more `-f` keeps every nested Git repository first.
+A clean in a linked worktree that deletes ignored files with two or more forces as Git counts them keeps every nested Git repository first.
+The count is Git's own (`OPTION_COUNTUP`):
+each `-f`/`--force` adds one,
+and a negated `--force` sets it back to zero,
+so `-f --no-force -f` is one force and `-ff --no-force` is none,
+which Git refuses when `clean.requireForce` is on.
 Git removes such a repository whole (`builtin/clean.c`,
 `if (force > 1) rm_flags = 0`),
 with its own history and its uncommitted files,
