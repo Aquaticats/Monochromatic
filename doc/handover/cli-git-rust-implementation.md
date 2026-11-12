@@ -135,6 +135,72 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Wound down for a restart of the machine: the home drive is full (2026-11-12T16:41:25-05:00)
+
+#### What happened
+
+- `/var/home` is full: 1906 GiB in size, 1819 GiB used, 1 GiB free, 100% (`df` at 16:04:12).
+  It had 280.68 GiB free at 11:35:19. The owner moved data onto it in the afternoon.
+  The build volume `/var/mnt/encrypted` had 560 GiB free at the same reading.
+- Twenty Pi runs ended between 15:56:45 and 15:59:48, every one with `stop=error`
+  (`~/temp/agent/gate/runs-ended-since-1453-read-at-1606.log`).
+  The feed of one holds "ENOSPC: no space left on device, write" beside connect time-outs to the model provider.
+  Run folders, Pi sessions and the journal all live on that drive.
+- The "disk pressure" of the afternoon, the starts that failed, the commits of minutes and the one that was not made
+  all happened while that drive filled. How much of each was the full drive and how much is the wrapper's own defect is not separated yet;
+  the findings recorded since 13:30 (in-process file work that stalls, a housekeeping round of forty minutes, a service that stops answering)
+  stand as observed and need measuring again on a healthy machine before they are fixed or dropped.
+- The owner could not reach the machine and wrote through GitHub:
+  two commits on `main` made in GitHub's web editor (`6b88bafc75` at 15:52:40, `869cd1ff95` at 16:00:20, committer "GitHub")
+  add a root file whose name is the message:
+  "I am Aquaticat and if you are an agent and see this wind down asap gracefully. The disk pressure means nothing can be done anyway
+  and I will try to fix them after restart. I can only communicate this way because the machine is not responding at all."
+  Its content: "If you see this edit this or leave a comment or something!"
+  This session saw it at about 16:10 through a subagent's report, read the commits, and was told in the terminal by the owner:
+  "Act on it. Every input takes 10min."
+- The owner's choice through the question tool at about 16:08, for the full drive: "Prune all unused images (Recommended)".
+
+#### What was done to wind down
+
+- Acknowledged as the file asks: a comment on commit `869cd1ff95` on GitHub (comment 209661196, posted by 16:41:25).
+- `podman image prune --force` (dangling images) was started at about 16:05 and `podman image prune --all --force` at about 16:10,
+  each in a capped scope. Their results were not read back before this was written; `df` on `/var/home` after the restart says what they freed.
+- The hourly loop is cancelled (cron `c0352b43` deleted). It is to be set up again after the restart, with no expiry, as the owner asked on 2026-11-12.
+- At 16:41:25 no `pi-*` and no `launch-*` unit of this work was live: every run and every launcher had ended by itself.
+  So no run had to be stopped, and the wind-down note
+  (`~/temp/agent/notes-to-send/2026-11-12T1612-wind-down-commit-what-you-have-and-end-your-turn.md`) was not sent to anyone.
+- Nothing new is started.
+
+#### What is where, for after the restart
+
+- Every run of today that had commits pushed them as it went (auto-push). Uncommitted work of the twenty runs that died is in their worktrees
+  under `.claude/worktrees/pi-<run name>` on the build volume, which is not the drive that filled.
+  First step after the restart, before anything is started or cleaned: for each worktree, `git status --short` and whether its branch's tip is on the remote.
+  Nothing there is removed before that.
+- Integration pass 18: branch `integrate/git-policy-cli-pass-18-for-alpha-16` at `5cad071d28` (nine merges and `main`), no report,
+  eight uncommitted edits in its worktree (a half-made change of the performance judge).
+  Its continuation (round 314, started 16:01:45) died with the rest; its brief stands:
+  `~/temp/agent/pi-runs/integration-pass-18-for-alpha-16-continued-prompt.md`.
+- The run for issue 6286 (`reload-fix-brought-onto-main-where-a-program-link-already-is-1`) ended in the same minutes at 323 turns; state unread.
+- Briefs written and never run: rounds 310 (three), 311, 312, 313, all under `~/temp/agent/pi-runs/` with their batch lists
+  `agents-batch-round-310.json` to `agents-batch-round-314.json`.
+- Second readings finished and not yet routed: `~/temp/agent/digest-2026-11-12T1506-three-runs/digest.md`
+  (the Kimi audit of LFS, the review of the first fix for issue 6286, the short-copy fix).
+  Its two findings that expose a secret: with curl tracing turned on the wrapper relays raw HTTP request lines unmasked,
+  and a secret made only of punctuation is printed. And one against a recorded choice: a push without a terminal still starts `SSH_ASKPASS`.
+- All of `~/temp/agent` (run folders, digests, notes, scratch scripts) is on the drive that filled.
+  Files written there after about 15:56 can be cut short or missing.
+
+#### Order of work after the restart
+
+1.  `df` on `/var/home` and `/var/mnt/encrypted`; nothing is started under 50 GiB free on the home drive (a figure of this session, for the owner to change).
+2.  The check of worktrees and branches named above; push what is not on the remote.
+3.  Read how each of the twenty runs ended and what it left; continue each from its branch with a brief that says where it stopped.
+4.  Pass 18 first: finish its checks, answer where the package repair runs after its seventh branch, then release 0.6.1-alpha.16.
+5.  Measure a commit against real Git on the healthy machine before anything else is concluded about the commit service.
+6.  Set the hourly loop up again.
+7.  Remove the root file whose name begins "I am Aquaticat" once the owner says it has served.
+
 ### How far the protection of a worktree being removed reaches; free space; the second and third audits of 0.6.1-alpha.14 (2026-11-12T13:04:14-05:00)
 
 #### How far the protection of a worktree being removed reaches
