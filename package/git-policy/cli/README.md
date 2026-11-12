@@ -980,14 +980,17 @@ Read-only commands,
      and returns;
      that service deletes the
    subvolume in its own time,
-   normally within a second,
+   in the next round the service runs for that repository,
      so a busy volume's btrfs transaction or cleaner does not hold your
-   command.
+   command,
+     and a volume no add is copying to is not the next round's wait either.
      The path you named is gone the moment the command returns;
      the files are gone when the service has run.
      A
-   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
-   service did not delete it yet:
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory,
+   or in the repository's
+   `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
+   means the service did not delete it yet:
      while a record for it is still queued,
      the next command of that repository wakes the service that reads the
    record,
@@ -1151,6 +1154,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and a volume it did not make refuses the removal while every file of the worktree is still there;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
+
+A worktree that fails one of those is kept and the report says why.
+A nested worktree of this repository inside it is named with the branch it is on,
+or with the fact that it is on a detached `HEAD`,
+and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
+ uncommitted.
+A subvolume or a mount point that is no worktree of this repository is named with what it is,
+with the move or the unmount that keep every file of it first,
+and with a `btrfs subvolume delete` last and for what it destroys,
+ because a subvolume there may be another repository's worktree.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -2051,9 +2064,13 @@ and
  name it:
 its content is not part of the tree.
  Move it out,
-delete it with `btrfs subvolume delete`,
-or unmount it,
-then run the deletion again.
+which keeps every file of it,
+or unmount a mount point,
+which keeps its contents,
+then run the deletion again;
+`btrfs subvolume delete` comes after those and is named for what it does,
+because it destroys everything inside that subvolume,
+which the deletion that refused cannot see.
 A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
 with the same reason and the same ways forward;
 the entries the deletion had already removed from that directory stay removed,

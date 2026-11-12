@@ -34,6 +34,10 @@
 //! and any name this release does not explain keep the whole journal,
 //! which is then named to the person,
 //! because work they may still want is never discarded.
+//! A batch's copy of the conclusion state (`<batch>.cleanup`) is not one of them:
+//! it is a copy of what the landing compares,
+//! made for a worktree whose units are stopped and whose files are gone,
+//! so it goes with the journal.
 //! A service that may still write keeps the journal and the files that name the instance,
 //! so a later sweep finishes then.
 //! Nothing here starts a unit,
@@ -54,7 +58,7 @@ use crate::private_storage::create_private_directory_all;
 use crate::push_retry::PLAN_DIRECTORY;
 use crate::service_claim_watch::WATCH_DIRECTORY;
 use crate::service_instance::{service_unit_instance, socket_path};
-use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
+use crate::service_journal::{CLAIM_EXTENSION, CONCLUSION_COPY_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_journal_record_age::{a_client_may_still_read, stamp_of};
 use crate::service_provision_host_and_manager::runtime_unit_dir;
@@ -273,6 +277,26 @@ fn reason_of_a_kept_file(name: &str) -> &'static str {
     return "a file this release does not know";
 }
 
+/// What:
+///  Whether a folder inside a journal is one batch's copy of the conclusion state that batch removed.
+/// Why:
+///   The copy is named `<batch>.cleanup` (`conclusion_state_copy.rs`),
+/// and it is a copy the service made:
+/// the
+///  worktree's own state files are what the cleanup removes,
+/// and this journal belongs to a worktree that is gone.
+///  A folder whose name only ends that way is not one:
+/// the batch number before it is digits and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copy = /^[0-9]+\.cleanup$/.test(name);
+/// ```
+fn is_a_conclusion_copy(name: &str) -> bool {
+    let Some((stem, extension)) = name.rsplit_once('.') else { return false };
+    return extension == CONCLUSION_COPY_EXTENSION && !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit() });
+}
+
 /// Why a folder inside a journal keeps it.
 fn reason_of_a_kept_folder(name: &str) -> &'static str {
     if name == LANDING_RECORD_DIRECTORY {
@@ -405,6 +429,12 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
             Err(error) => return Err(format!("{} could not be read ({error})", path.display())),
         };
         if kind.is_dir() {
+            // The copy of a batch's conclusion state is the service's own, made before the branch moved, and it is a
+            // copy of what the landing compares and of the worktree's scratch state, never the state itself: the
+            // worktree this journal belongs to is gone, so nothing reads it again.
+            if is_a_conclusion_copy(name.as_str()) {
+                continue;
+            }
             if !holds_nothing(path.as_path())? {
                 return Ok(Some(Kept::Work(name.clone(), reason_of_a_kept_folder(name.as_str()))));
             }

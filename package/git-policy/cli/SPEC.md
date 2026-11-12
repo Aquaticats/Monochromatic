@@ -2915,14 +2915,23 @@ rename,
 so a fill that comes afterwards makes a pool of its own rather than writing into the tree being deleted,
 and then member by
 member.
-A pool that cannot be taken stops the removal while nothing has happened:
-the command refuses with exit status 1
-and one report that names the worktree,
-the folder,
-the reason,
-and the command that deletes a member
-(`btrfs subvolume delete <entry>`),
-and says that nothing of the worktree changed.
+A member is a subvolume,
+and the destroy of one takes the filesystem's write lock against every snapshot in flight,
+so it is the
+commit service's work and never the person's:
+every member leaves the pool with one more rename into
+`<common>/monochromatic-git-policy-cli/cli-git-deleting-<subvolume id>`,
+with the record of its delete written before the move
+(`leave_a_subvolume_for_the_service` in `src/native/worktree/worktree_remove_hand_over.rs`),
+exactly as the worktree's own subvolume does.
+A member that is no subvolume is a name this program wrote,
+and it goes as a plain tree.
+A pool or a member that cannot be taken stops the removal while nothing has happened:
+the command refuses with
+exit status 1 and one report that names the worktree,
+the folder and the reason,
+and says that nothing of the
+worktree changed.
 
 The wrapper serves the removal only when real Git would remove the same directory,
 with the same force:
@@ -2989,11 +2998,17 @@ with the same force:
   so such a worktree can never go
   this way:
   the refusal comes before anything is renamed,
-  it names the volume it found and the branch the linked worktree
-  there has checked out,
-  and it gives the one command that removes that worktree while keeping its branch
+  and it names the volume it found:
+  for a worktree this repository registers,
+  the branch that worktree has checked out or that it is on a detached `HEAD`,
+  and the one command that removes it while keeping what its `HEAD` names
   (`git worktree remove <inner>`),
   which refuses while anything there is uncommitted.
+  A volume that is no registration of this repository is named with what it is,
+  with the move or the unmount that keep every file of it first,
+  and with a delete last and for what it destroys,
+  because a subvolume there may be another repository's worktree,
+  whose commits only its own removal keeps.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -3013,6 +3028,21 @@ with the same force:
   the
   destroy cannot take such a worktree whatever the person asks,
   and Git's removal would take the files inside it.
+  A subvolume below the root whose name is `cli-git-deleting-<16 lowercase hexadecimal digits>`
+  and which is a subvolume
+  is this program's own:
+  a removal that renamed a nested worktree's subvolume inside the folder it held left it there,
+  and the outer
+  removal takes it out of the tree first,
+  with a record of its own
+  (`src/native/worktree/worktree_removal_takes_its_pending_deletions.rs`),
+  because a name is no proof of what stands at it:
+  an entry of that shape that is no subvolume is somebody else's and is refused with every other
+  volume below the root.
+  The proof is made again after a destroy the kernel refused,
+  because a worktree can be added below this one
+  in the moments between the walk and the call,
+  and Git's removal of the tree it would then be handed would unlink that worktree's files.
 - Every volume below the registration can be left alone,
   except in the folder this program owns there
   (`src/native/worktree/worktree_remove_reports.rs`,
@@ -3223,7 +3253,15 @@ the record is dropped by a removal that finished and by a destroy that failed,
 so a command killed in the window
 between the destroy and the removal of the registration leaves one decidable state.
 The record is marked once the kernel call returned,
-and only that mark proves the files are gone.
+or,
+for a removal that hands its subvolume to the service,
+once that subvolume has been renamed out of the worktree.
+The place it will take is written into the record before the rename,
+so a command killed between the rename and the mark is
+decidable,
+and for a removal that destroys in place the mark is written before the call,
+so a command killed inside it is decidable too:
+a worktree path that is still there when the record is read is dropped with nothing changed.
 The mark is a line of
 its own at the very start of the record,
 so the pathname's bytes,
@@ -3288,11 +3326,18 @@ snapshot the rescue route settles,
 so an unshown push failure in it is shown rather than destroyed with it.
 A record whose worktree
 directory is still there is dropped with nothing changed,
-because the destroy did not happen,
+because no step that takes the files away has run yet,
 and an unmarked record whose
-pathname is empty is reported once and dropped with the registration untouched,
+pathname is empty and which names no place a renamed subvolume stands
+is reported once and dropped with the registration untouched,
 naming `git worktree repair <new path>`
 for a worktree that was moved and `git worktree prune` for one that is gone.
+An unmarked record that names such a place,
+for a worktree whose path is gone,
+is a removal killed between its rename and its mark:
+the delete of that place was recorded before the rename,
+so the registration is finished exactly as a marked record's is,
+and nothing is left for the person.
 What still fails is reported with its path and with `git worktree prune` as the way forward.
 
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory,
@@ -3404,9 +3449,12 @@ it,
 and refuses before it deletes anything when a directory below the tree is a nested subvolume (its device differs
 from the top directory's) or a mount point;
 the report names that path and says to move it out,
-to delete it with
-`btrfs subvolume delete`,
-or to unmount it.
+which keeps every file of it,
+or to unmount a mount point,
+which keeps its contents;
+`btrfs subvolume delete` is named after those and for what it does,
+because it destroys everything inside that subvolume,
+which the command that refused cannot see.
 A boundary that appears after that first pass is refused again at the directory where it is met,
 named with the same ways forward,
 and a directory whose listing was removed and that the kernel then refuses as not empty is
@@ -11373,6 +11421,13 @@ a landing or withdrawal record,
 the repositories a service was still to look at and the pushes it was still to try again,
 and a file or folder this release does not know keep the whole journal and are logged,
 never discarded.
+A batch's copy of the conclusion state it removed (`<batch>.cleanup`,
+`src/native/landing/conclusion_state_copy.rs`)
+is one of them no longer:
+it is a copy of the worktree's own state,
+made before the branch moved and removed with the batch,
+and the worktree whose journal this is has no files left for the comparison to read,
+so it goes with the journal and keeps nothing.
 A finished batch's record is kept for `A_FINISHED_RECORD_IS_READ` in `service/wait_ceilings.rs`
 (`ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `LOOKING_FOR_A_LANDED_COMMIT`:
 the whole wait a client may spend on an answer,
@@ -13973,6 +14028,10 @@ from this invocation's own capture.
   because Git makes a registration before it makes the checkout,
   and a folder the wrapper did not name stays,
   because only a folder named for a worktree can be proven to belong to one.
+  A name that is no directory is no pool either:
+  the pool's folder and every pool in it are read as entries before anything below them is,
+  so a link at either name is somebody else's and its target is never listed,
+  never read and never removed.
   A removal that fails is named in the diagnostic log and left for the next command,
   and nothing it removes is followed through a member's links into this repository.
   A removal that succeeds prints nothing:
