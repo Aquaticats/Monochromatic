@@ -487,8 +487,7 @@ pub(crate) fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
 ///  `a.txt ':(exclude)a.txt'` is no path to native Git,
 /// and one start per element would stage the file the caller excluded.
 ///  The grammar is Git's own (`pathspec.c`,
-/// `parse_short_magic` and `parse_long_magic`),
-/// read the way `conflict_side_decision::magic_name` reads it:
+/// `parse_short_magic` and `parse_long_magic`):
 ///  the long form holds words between the parentheses,
 /// which Git matches by their whole spelling and only in lower case,
 /// and the short form is a run of `!`,
