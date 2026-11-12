@@ -1809,6 +1809,52 @@ fn a_commit_the_person_stops_states_the_signal_and_who_sent_it() {
 }
 
 /// What:
+///  A commit whose terminal hangs up while it waits says the signal and who sent it,
+///  and is not made.
+/// Why:
+///  `SIGHUP` is what a closing terminal and `loginctl terminate-session` send,
+///  and its default action ends the process where it arrives,
+///  so a commit that was waiting left no record at all:
+///  the branch did not move,
+///  the person's staged work was still staged,
+///  and nothing on disk said why the commit did not land.
+///  The wait answers it as it answers an interrupt,
+///  and the record is written before the command ends by the signal.
+#[test]
+fn a_commit_the_terminal_hangs_up_on_states_the_signal_and_who_sent_it() {
+    let fixture: Fixture = fixture("timing-hangup");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-hangup-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let saw: PathBuf = fixture.root.join("saw-commit");
+    let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::Hold);
+    std::fs::write(repo.join("a.txt"), b"edit by the hang-up control\n").expect("a.txt");
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let mut running = super::fault_run::spawn_watched(&fixture, &mut command);
+    running.wait_for(saw.as_path());
+    let sender: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
+    // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
+    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGHUP) }, 0, "the control hangs up on the commit");
+    let finished = running.finish();
+    let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
+    println!("HUNG-UP COMMIT: status {:?}: {stderr}", finished.status);
+    assert!(stderr.contains("interrupted with signal"), "the person is told in one line: {stderr}");
+    assert_eq!(finished.status.signal(), Some(libc::SIGHUP), "the command ends by the signal the terminal sent: {stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "the commit was not made: {stderr}");
+    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("edit by the hang-up control"), "the worktree file is as it was");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the hung-up commit wrote no record: {stderr}") });
+    println!("TIMING RECORD (hung up): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["stop"]["kind"], "client-signal", "{record}");
+    assert_eq!(record["stop"]["signal"], libc::SIGHUP, "{record}");
+    assert_eq!(record["stop"]["sender"], sender, "the record names the process that hung up: {record}");
+    remove_settled(&fixture);
+}
+
+/// What:
 ///  A commit whose client is killed while it waits is not made,
 ///  everything that was staged is still staged,
 ///  and nothing lands later by itself.

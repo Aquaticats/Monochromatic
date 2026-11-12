@@ -126,6 +126,35 @@ fn a_stop_that_names_its_sender_is_kept() {
 }
 
 /// What:
+///  A closed terminal's hang-up and a quit are answers the wait gives too,
+///  and the signal it names is the one that came.
+/// Why:
+///  A caller that hangs up on a slow commit sends `SIGHUP`,
+///  and a person's quit is `SIGQUIT`,
+///  so either one ending the process where it arrives loses the record of a commit that was not made:
+///  the default action of both ends the process,
+///  and nothing on disk then says why the commit did not land.
+///  `loginctl terminate-session` and every closing terminal send the first of them.
+#[cfg(unix)]
+#[test]
+fn the_wait_answers_a_hangup_and_a_quit_too() {
+    // No core file for the quit this control sends a process that may not answer it yet.
+    // SAFETY: `setrlimit` takes a number, a `rlimit` of this local and the value of the constant; it touches no other
+    //  memory and this is the one process the call changes.
+    let bounded: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    let _limited = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &bounded) };
+    for signal in [libc::SIGHUP, libc::SIGQUIT] {
+        let watch: StopWatch = watch_for_a_stop();
+        // SAFETY: `raise` sends one signal to this thread, which is the one whose watch notes it.
+        let sent: libc::c_int = unsafe { libc::raise(signal) };
+        assert_eq!(sent, 0, "signal {signal} was sent");
+        assert_eq!(stop_requested(), Some(signal), "the wait is told which signal came");
+        drop(watch);
+        assert_eq!(stop_requested(), None, "the watch ends with the flag it set");
+    }
+}
+
+/// What:
 ///  The second signal ends the process at once,
 ///  and the death is the one the shell expects from a Ctrl-C,
 ///  so a command that is stuck withdrawing can always be ended.
