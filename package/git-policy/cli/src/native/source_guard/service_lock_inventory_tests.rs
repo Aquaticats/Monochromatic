@@ -94,6 +94,11 @@ const REASON_MARKER: &str = "Lock kept:";
 /// and in `SPEC.md`.
 const INVENTORY: &[&str] = &[
     "service/journald_native.rs",
+    // The directories this service is collecting, and the trees the requests it holds named:
+    //  both are a set that a landing, a connection and a collection read and change together,
+    //  so neither can be one atomic.
+    "service/service_repository_scratch_sweep.rs",
+    "service/service_scratch_trees_of_queued_requests.rs",
     "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",

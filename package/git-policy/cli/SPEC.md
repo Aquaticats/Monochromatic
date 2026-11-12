@@ -12850,7 +12850,8 @@ Code:
 `src/native/landing/service_prepare_ready_shapes.rs`,
 `src/native/landing/service_scratch_abandonment.rs`,
 `src/native/landing/service_scratch_renewal.rs`,
-`src/native/service/service_scratch_release_removal.rs`.
+`src/native/service/service_scratch_release_removal.rs`,
+`src/native/service/service_scratch_trees_of_queued_requests.rs`.
 
 Why there:
 a command killed at any instruction,
@@ -12863,6 +12864,14 @@ which a preparation of a commit now is.
 Who removes it,
 and how long anyone waits:
 
+- The service collects the repository scratch directory when it begins a landing,
+  on a thread of its own beside the landing loop and never on a commit's path
+  (`src/native/service/service_repository_scratch_sweep.rs`).
+  One collection runs at a time for each directory:
+  a second landing of the same directory starts nothing and leaves the collection to the run already under way,
+  and a landing of another directory starts its own,
+  because the development service serves several common Git directories at once
+  and nothing retries a collection one directory's run skipped.
 - A request names its tree in the request's own `scratch` field,
   which the decoder refuses unless it is one of the wrapper's trees of that worktree,
   so the service never works the tree out from another path the request carries
@@ -12903,6 +12912,25 @@ and how long anyone waits:
   which reads the private index and the conclusion copies in that tree.
   Such a tree is the service's to remove when it lands,
   and otherwise goes by the age rule that follows.
+- A tree a request this service still holds goes when the service is done with that request,
+  never by its age alone:
+  the service records the tree every request it queues names,
+  and the one decision that removes a commit tree,
+  `may_go`,
+  asks that record.
+  A request whose client was killed while it waited renews nothing,
+  so without the record a queue longer than `SCRATCH_TREE_ABANDONED_AFTER` made the collection a landing starts remove
+  the private index and the conclusion copies that same landing was about to read,
+  and the cleanup after its branch moved found neither the tree nor the journal's copy of it.
+  The record is released when that request's group is over,
+  whether the request landed,
+  was handed back to its client,
+  or was withdrawn,
+  so what is left of its tree is collected by the age rule below.
+  The record lives in one service,
+  so it covers the requests that service holds;
+  the loss the subsection "A command stopped for longer than the tree's age" describes
+  needs another service or a command of another worktree to sweep the same repository scratch directory.
 - A tree no request ever named,
   because the command was killed before it submitted or before it made the tree at all,
   goes when nothing has written it for `SCRATCH_TREE_ABANDONED_AFTER` (two hours,
@@ -12910,13 +12938,14 @@ and how long anyone waits:
   Its command renews the tree's modification time every `SCRATCH_REFRESH_EVERY` (an hour) while it lives,
   so the age a sweep sees is the liveness of the command that made the tree,
   not how long its work takes.
-  Age is the only evidence a collection has,
+  Age is the only evidence a collection has of a tree no request of this service names,
   and it is enough here because no landing can still be reading a tree nothing has written for two hours.
 - One decision answers which entry may go,
   for the sweep of a scratch place and for every other collection
   (`may_go`,
   `service_scratch_abandonment.rs`):
   a commit tree at `SCRATCH_TREE_ABANDONED_AFTER`,
+  unless a request this service holds still names it,
   and every other entry of a scratch place at the age its caller gives,
   which is `SCRATCH_STALE_AFTER` (a day) for the sweep.
 - At most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) entries go per sweep,
@@ -13010,8 +13039,10 @@ the client is killed,
 so nothing renews the tree and nothing can withdraw the request;
 a commit in another linked worktree then prepares the shared repository scratch directory,
 and the sweep takes the queued request's tree on its age alone,
-because the one decision that removes a commit tree (`may_go`,
-`service_scratch_abandonment.rs`) has no other evidence to go by.
+because that process's record of the trees its own requests hold
+(`service_scratch_trees_of_queued_requests.rs`)
+names no request of the stopped service,
+and the tree carries nothing that would show whose it is.
 When the service resumes it does not land the request:
 a request whose client is gone before its commit lands makes no commit,
 so the landing of that group finds the connection closed and drops the request
@@ -13023,7 +13054,8 @@ nothing on the killed command's terminal says anything because that command is g
 and the worktree that prepared the commit still reports its merge or cherry-pick in progress,
 because nothing landed to remove that state.
 An operating service lands a queued request long before its tree reaches that age,
-so the sequence needs the stop,
+and the collection that service itself starts spares the tree it has still to read,
+so the sequence needs a service stopped for longer than that age,
 which is why the age rule stays.
 
 #### Scratch repository layout
