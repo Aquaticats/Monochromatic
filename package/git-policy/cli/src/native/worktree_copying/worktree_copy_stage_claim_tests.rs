@@ -2265,34 +2265,33 @@ fn a_record_written_before_the_container_exists_names_the_snapshot_it_will_make(
     remove(root.as_path());
 }
 
-/// The transaction an earlier release recorded beside the source of a snapshot its command was about to make,
-/// and the instant it recorded after it:
+/// The instant an earlier release's record names after the source,
+/// and the transaction it named in place of the creation instant:
 /// this release reads neither as a fact,
-/// so both only have to spell a record of that release's shape.
+/// so both only have to spell a record of a shape a release writes.
 const A_RECORDED_TRANSACTION: u64 = 42;
 const A_RECORDED_INSTANT: &str = "1794498329.605144934";
 
-/// A record an earlier release wrote at the window names the source and the transaction its creation had to follow,
-/// and no creation instant,
-/// so this release reads nothing from it and keeps the folder it names.
+/// A record that names the source of a creation and no instant it cannot be older than is no record at all,
+/// so the folder it names is kept.
 /// Why the control reads this way:
-///  a transaction number cannot order a creation,
-///  and a record that names no instant says nothing about what stood at the name before this command acted.
+///  the source and the instant stand or fall together:
+///  a source alone says nothing about what stood at the name before this command acted,
+///  and reading it as if it did would take a person's folder for the wrapper's.
 #[test]
-fn a_record_of_the_earlier_window_shape_proves_nothing() {
-    let (root, common, destination) = scene("claim-made-earlier-window");
+fn a_record_that_names_the_source_and_no_creation_instant_proves_nothing() {
+    let (root, common, destination) = scene("claim-made-half-an-origin");
     let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     abandoned_stage(claim.container());
     let container: PathBuf = claim.container().to_path_buf();
-    let earlier: String = format!(
-        "stage={}\nsnapshotParent={}\nafter={}\nwritten={}\n",
+    let half: String = format!(
+        "stage={}\nsnapshotParent={}\nwritten={}\n",
         crate::path_bytes_in_records::hex_of_path(container.as_path()),
         crate::path_bytes_in_records::hex_of_bytes(&[7u8; 16]),
-        A_RECORDED_TRANSACTION,
         A_RECORDED_INSTANT
     );
-    std::fs::write(made_record_beside_claim(claim.path.as_path()).as_path(), earlier.as_bytes()).expect("the record of the earlier release");
-    assert_eq!(read_made(claim.path.as_path()), None, "the earlier shape names no creation instant, so it proves nothing: {earlier}");
+    std::fs::write(made_record_beside_claim(claim.path.as_path()).as_path(), half.as_bytes()).expect("a record of this release that lost a line");
+    assert_eq!(read_made(claim.path.as_path()), None, "half an origin proves nothing: {half}");
     std::mem::forget(claim);
     make_removable(container.as_path());
     remove(root.as_path());
@@ -2311,6 +2310,9 @@ fn a_record_with_a_repeated_or_unknown_line_proves_nothing() {
     for text in [
         format!("{stage_line}{stage_line}written=1.0\n"),
         format!("{stage_line}written=1.0\nunknown=1\n"),
+        // The line the release before this one wrote in place of the creation instant: a record of that shape is not
+        // one this release writes, so its folder is kept and named.
+        format!("{stage_line}snapshotParent=07070707070707070707070707070707\nafter={A_RECORDED_TRANSACTION}\nwritten={A_RECORDED_INSTANT}\n"),
         format!("{stage_line}object=not-an-object\nwritten=1.0\n"),
         format!("{stage_line}"),
     ] {
