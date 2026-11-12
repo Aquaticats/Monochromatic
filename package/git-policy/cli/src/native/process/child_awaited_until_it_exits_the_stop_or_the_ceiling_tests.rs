@@ -367,3 +367,42 @@ fn a_step_the_kernel_holds_that_ends_after_the_bound_is_reported_by_its_own_stat
     assert_eq!(outcome, ChildOutcome::Exited(0), "a step that finished between the bound and the signal landed, and its own status decides");
     assert_eq!(a_stop, None, "a step that ended by itself is no ceiling stop");
 }
+
+/// What:
+///  A step the kernel holds whose look at its ceiling could not be made is waited for,
+///  and lands when it ends.
+/// Why:
+///   Finding 1 of the 2026-11-12 review of the stand-aside:
+///  a look that failed answered `None`, which was the same answer as a step the kernel does not hold,
+///  so this wait killed a held step at the usual ceiling and a commit that would have landed failed.
+///  A look that could not be made decides nothing:
+///  the ceiling stays armed, the look is made again, and the step is waited for.
+///  The look that cannot be made is the first one, which is the ceiling's own;
+///  the real state of a process cannot be stated on this host
+///  (`commit/scratch_step_look_below_control_window.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const pid = sh('sleep 0.6'); theKernelHolds(pid); plantLooksThatCannotBeMade(1); const [outcome, stop] = await wait(adopt(pid), undefined, { usually: 100, whileTheKernelHoldsIt: 30_000 }); expect(outcome).toEqual({ exited: 0 }); expect(stop).toBeUndefined()
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_the_kernel_holds_whose_look_failed_is_waited_for() {
+    let _look_window = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("sleep 0.6; exit 0").stdin(Stdio::null());
+    let step: Child = crate::test_support::spawn_owned(&mut command).expect("a step that ends by itself");
+    let number: i32 = i32::try_from(step.id()).expect("a process number");
+    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "git");
+    crate::scratch_step_look_below::the_controls_window::plant_looks_that_cannot_be_made(1);
+    let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(100), while_the_kernel_holds_it: Duration::from_secs(30) };
+    let began: Instant = Instant::now();
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) =
+        crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold::alone()))
+            .expect("the runtime")
+            .expect("the wait answers");
+    let lasted: Duration = began.elapsed();
+    assert_eq!(outcome, ChildOutcome::Exited(0), "a look that failed decided nothing, so the step the kernel held was waited for: {lasted:?}");
+    assert_eq!(a_stop, None, "a step that ended by itself is no ceiling stop");
+    assert!(lasted >= Duration::from_millis(600), "the step was ended at its ceiling and never waited for: {lasted:?}");
+}

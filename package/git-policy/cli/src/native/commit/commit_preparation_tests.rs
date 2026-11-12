@@ -875,7 +875,7 @@ fn the_number_in(file: &Path, bound: std::time::Duration) -> i32 {
 fn a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit() {
     let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
     let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
-    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND * 10);
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_LONGER_STALL_BOUND);
     let root: PathBuf = fixture("commit-preparation-a-disk-wait");
     let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
         a_signer_that_reports_itself(root.as_path(), "2");
@@ -1020,8 +1020,11 @@ const A_FEW_LOOKS_THAT_CANNOT_BE_MADE: usize = 6;
 /// so the wait that owns the step decides after it.
 const A_CEILING_THE_NOTICE_DECIDES_FIRST: std::time::Duration = std::time::Duration::from_secs(6);
 
-/// The longer ceiling a control gives a step whose ceiling the notice decided first,
+/// The longer ceiling a control gives a step that ends by itself,
 /// far enough above the step that a loaded host cannot reach it and fail the control by time alone.
+///  The shipped bound is five minutes;
+///  a control whose bound is close to the step's own length fails on ordinary load,
+///  because a commit under a busy host takes longer than the step alone.
 const A_LONGER_STALL_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// What:
