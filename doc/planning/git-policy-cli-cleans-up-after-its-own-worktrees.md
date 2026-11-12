@@ -343,7 +343,9 @@ Every item below was read from the source,
    installed by `cargo-shadow lean service-install`
    (`package/cargo-shadow/cli/README.md`,
    section "Keeping the build folders lean").
-   What a removed worktree's build folder waits for is unchanged: one `lean run`, machine-wide.
+   What a removed worktree's build folder waits for is unchanged:
+   one `lean run`,
+   machine-wide.
    There is **no per-workspace interface**:
    the CLI offers `lean run` (machine-wide,
   measured at 398 s on 2026-11-08),
