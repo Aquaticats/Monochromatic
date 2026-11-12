@@ -402,12 +402,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       taken as installed. A start on its own is no proof of what the manager read: a manager that could not say what it
     //       holds may have started the unit from a text an upgrade left behind, so the record stays unwritten and the next
     //       commit asks again.
-    if holds_these_texts {
-        if let Err(error) = record_loaded_texts(host.runtime_dir.as_path(), host.instance.as_str(), texts.as_slice()) {
-            crate::service_warn!(
-                "the unit texts this program wrote cannot be recorded as the ones the service manager reads ({error}), so the next commit unloads this worktree's units again and starts them, and no commit is lost"
-            );
-        }
+    if holds_these_texts
+        && let Err(error) = record_loaded_texts(host.runtime_dir.as_path(), host.instance.as_str(), texts.as_slice())
+    {
+        crate::service_warn!(
+            "the unit texts this program wrote cannot be recorded as the ones the service manager reads ({error}), so the next commit unloads this worktree's units again and starts them, and no commit is lost"
+        );
     }
     stop_earlier_instance_socket(host, manager);
     drop(notice);
