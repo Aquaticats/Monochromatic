@@ -100,7 +100,7 @@ fn request() -> CommitRequest {
         repository: PathBuf::from("/nowhere"),
         common_dir: PathBuf::from("/nowhere/.git"),
         git_dir: PathBuf::from("/nowhere/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: git_policy_cli::ref_name::RefName::from_text("refs/heads/main"),
         base: "a".repeat(40),
         changes: vec![Change { path: PathBuf::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some("b".repeat(40)) }],
         message: String::from("m\n"),
@@ -477,6 +477,17 @@ fn fake_reload(_bus: &Path) -> bool {
     return true;
 }
 
+/// How many times the fake manager was asked to restart the unit.
+static RESTART_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+
+/// The fake manager takes a request to restart the unit and counts it.
+/// Its answer never says `active` here,
+/// so no control of this file reaches a restart by being wedged.
+fn fake_restart(_bus: &Path, _unit: &str) -> bool {
+    RESTART_REQUESTS.fetch_add(1, Ordering::SeqCst);
+    return true;
+}
+
 /// A watch on the fake manager that asks quickly.
 fn watched(name: &str) -> ClientConfig {
     let watch: ManagerWatch = ManagerWatch {
@@ -487,6 +498,7 @@ fn watched(name: &str) -> ClientConfig {
         state: fake_manager,
         start: fake_start,
         reset: fake_reset,
+        restart: fake_restart,
         reload: fake_reload,
     };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
@@ -864,7 +876,92 @@ fn proven_notice() -> ServiceMessage {
 /// What the service says when its landing is inside a write,
 /// which says nothing of any holder.
 fn inside_write_notice() -> ServiceMessage {
-    return ServiceMessage::InsideWrite { text: String::from("monochromatic-git-policy-cli: this commit is inside a write of the commit service, `git update-ref --stdin`, begun 0 seconds ago.\n") };
+    return ServiceMessage::InsideWrite { text: String::from("monochromatic-git-policy-cli: this commit is inside a write of the commit service, `git update-ref --stdin`.\n") };
+}
+
+/// What:
+///  A fake service that says `at_once`,
+/// beats for `beating` while the command waits,
+/// says `after` and then lands the commit,
+/// and what the client printed and kept.
+/// Why:
+///   A control about what a wait is worth saying needs the wait to last past the moment it becomes worth saying,
+/// and the beats of a fake service are what keeps a client waiting:
+/// no clock of the wrapper's own ends a wait that is still hearing from the service.
+fn said_while_beating(name: &str, config: ClientConfig, at_once: Vec<ServiceMessage>, beating: Duration, after: Vec<ServiceMessage>) -> (String, SubmitTrace) {
+    let service: UnixListener = listen(name);
+    let waiting = traced_client(config);
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    for notice in &at_once {
+        (&stream).write_all(&line(notice)).expect("a notice");
+    }
+    let began: Instant = Instant::now();
+    while began.elapsed() < beating {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    for notice in &after {
+        (&stream).write_all(&line(notice)).expect("a notice after the wait");
+    }
+    let commit: String = "c".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, said, trace) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
+    return (said, trace);
+}
+
+/// What:
+///  A commit whose own request the service says is inside its branch write says nothing of that write while the
+///  person's wait has not mattered.
+/// Why:
+///   The service says it when the write begins,
+/// because a client whose ceiling falls inside the write would miss it (sol-1),
+///  and a write that takes what writes take is over in milliseconds:
+/// a line about it on a commit that lands at once is noise,
+///  and on 2026-11-11 it made controls that watch a healthy commit's standard error fail on a loaded disk.
+#[test]
+fn a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered() {
+    let name: String = address("inside-write-not-yet");
+    let config: ClientConfig = ClientConfig { waiting_notice_after: PATIENCE, ..config(name.as_str()) };
+    let (said, trace) = said_while_beating(name.as_str(), config, vec![inside_write_notice()], FAKE_BEAT * 6, Vec::new());
+    assert_eq!(trace.waiting_notices, 1, "the client was told, and said nothing of it");
+    assert_eq!(said, "", "a commit that lands at once says nothing: {said:?}");
+}
+
+/// A commit whose wait on that write has mattered says it once,
+/// in the words the service sent.
+#[test]
+fn a_commit_inside_a_write_says_it_once_its_wait_has_mattered() {
+    let name: String = address("inside-write-told");
+    let (said, trace) = said_while_beating(name.as_str(), config(name.as_str()), vec![inside_write_notice()], QUICK_NOTICE * 2, Vec::new());
+    assert_eq!(trace.waiting_notices, 1, "{said}");
+    assert_eq!(said.matches("this commit is inside a write of the commit service").count(), 1, "{said}");
+}
+
+/// A write that has stayed stuck a new minute is said at once,
+/// in the words that came with the minute:
+///  they differ from the ones already said,
+/// and the wait has already passed the threshold that held the first line,
+/// so they are said in the loop pass that reads them.
+#[test]
+fn the_new_words_of_a_write_that_stayed_stuck_are_said_at_once() {
+    let name: String = address("inside-write-stuck");
+    let stuck: ServiceMessage = ServiceMessage::InsideWrite {
+        text: String::from(
+            "monochromatic-git-policy-cli: the commit service has been inside a write for 1 minutes and has not heard back: \
+             `git update-ref --stdin`. The service never ends a write in the middle.\n",
+        ),
+    };
+    let (said, _trace) = said_while_beating(name.as_str(), config(name.as_str()), vec![inside_write_notice()], QUICK_NOTICE * 3, vec![stuck]);
+    let later: usize = said.find("has been inside a write for 1 minutes").expect("the newer words are said");
+    // The first words are said once the wait passes the threshold; a host that stalls past them leaves them out, and the
+    // newer words are what this control is about.
+    if let Some(first) = said.find("this commit is inside a write") {
+        assert!(first < later, "the newer words come after the older ones: {said}");
+    }
+    assert_eq!(said.matches("has been inside a write for 1 minutes").count(), 1, "{said}");
 }
 
 /// A wait for a holder proven alive is recorded as one,

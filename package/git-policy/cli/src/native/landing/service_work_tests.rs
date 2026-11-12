@@ -4,7 +4,8 @@
 use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
 use crate::work_item_state_directories_and_claim_names::take_listings;
-use crate::push_retry::PushRetries;
+use crate::push_retry::{Due, PushRetries};
+use crate::service_work_common_directory::is_bare_common_directory;
 use crate::service_work_run_round::run_round;
 use super::*;
 use crate::push_failure_notice::{PushOutcome, push_failure_text, push_failures};
@@ -890,6 +891,10 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// Git command that takes input),
 /// the loopback gateway is asked with the key from the wake,
 /// and the entry is appended.
+/// The lane is what claims a review in the service,
+/// beside the round that serves the pushes
+/// (`service_work_slow_lane.rs`),
+/// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
@@ -922,7 +927,12 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     // The service's own context: no repository is named, because one service serves many.
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
+    let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(common.clone(), ReviewKey::new(SECRET).expect("the key this control serves with"))]));
+    let _left: Option<Duration> = crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+        common.as_path(),
+        &lane_handlers,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
@@ -1244,7 +1254,7 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
         },
         repository: repository.clone(),
         git_dir: common.clone(),
-        reference: BRANCH.to_string(),
+        reference: crate::ref_name::RefName::from_text(BRANCH),
         parent: String::new(),
     };
     let mut notices: Vec<u8> = Vec::new();
@@ -1360,6 +1370,7 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     let mut asked: Vec<&str> = Vec::new();
     if !recorder.pushes.borrow().is_empty() {
@@ -1390,6 +1401,100 @@ fn the_awaited_drain_runs_every_kind_of_item() {
     remove(repo.root.as_path());
 }
 
+/// The messages the code under test wrote on this thread while `body` ran,
+/// in the order it wrote them.
+fn journal_of(body: impl FnOnce()) -> Vec<String> {
+    return crate::service_timing::capture::entries_of(body).into_iter().map(|entry| { return entry.message; }).collect();
+}
+
+/// What:
+///  A round that has spent its share of housekeeping leaves the rest of it pending for a later round,
+/// names them in one journal line,
+/// and asks to be woken again,
+/// while the first housekeeping item it found is started all the same.
+/// Why:
+///   A trash of one removed worktree is hundreds of thousands of removals,
+/// and a service that logged 15 of them spent 1 h 37 min in one round without making the person's
+///  push (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// A bound makes a round say "not this round" instead of starting another trash,
+/// and the records it did not
+///  start go back to `pending` so nothing is lost.
+/// The first item starts because a look that could spend its whole slice on the claim and the refusal that come before the
+///  housekeeping would otherwise leave every item for a later look that would spend its slice the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, kinds, ZERO); expect(wait).toBe(LOOK_AGAIN); expect(names(DONE)).toHaveLength(1)
+/// ```
+#[test]
+fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
+    let repo: Repo = repo("work-housekeeping-left");
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH), item(&repo, WorkKind::Prewarm, OTHER_OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    // A round whose housekeeping share is already over starts none of it beyond the first item, which is the state a long round
+    //  reaches.
+    let mut looked_again: Option<Duration> = None;
+    let said: Vec<String> = journal_of(|| {
+        looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
+            repo.common.as_path(),
+            &recorder,
+            CLAIM_LEASE,
+            Renewal::Timed,
+            &mut replanning,
+            &SERVICE_KINDS,
+            Duration::ZERO,
+        ))
+        .expect("the process runtime runs the drain");
+    });
+    assert_eq!(looked_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "a round that left housekeeping for later asks to be woken again");
+    assert_eq!(names(&repo, DONE).len(), 1, "the first housekeeping item of the round is started, whatever its slice had spent");
+    assert!(names(&repo, FAILED).is_empty(), "the housekeeping the round did not start is not settled");
+    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start is pending again");
+    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
+    let waiting: String = names(&repo, PENDING)[0].clone();
+    let named: Vec<&String> = said.iter().filter(|line| { return line.contains("housekeeping items") && line.contains(waiting.as_str()); }).collect();
+    assert_eq!(named.len(), 1, "one line names the housekeeping that waits for a later round: {said:?}");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The positive control of the bound:
+/// a round with its housekeeping share unspent runs the housekeeping it finds and leaves nothing behind.
+/// Why:
+///   The bound above must be what leaves work for later,
+/// not the drain answering nothing at all:
+/// with the shipped bound the same
+///  records run and settle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, HOUSEKEEPING_OF_ONE_ROUND); expect(names(DONE)).toHaveLength(1);
+/// ```
+#[test]
+fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
+    let repo: Repo = repo("work-housekeeping-run");
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        CLAIM_LEASE,
+        Renewal::Timed,
+        &mut replanning,
+        &SERVICE_KINDS,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ))
+    .expect("the process runtime runs the drain");
+    assert_eq!(looked_again, None, "a round that left nothing behind asks for no extra look");
+    assert_eq!(names(&repo, DONE).len(), items.len(), "the housekeeping the round had room for ran");
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
+    remove(repo.root.as_path());
+}
+
 /// A removal records the path it renamed out of the person's way and returns,
 /// so the drain is what deletes the subvolume;
 /// the step runs it through the handler of its kind and settles it as done.
@@ -1408,6 +1513,7 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     assert_eq!(recorder.deletions.borrow().as_slice(), [deletion.as_str()], "the step asks its handler for the path the record names");
     assert_eq!(names(&repo, DONE), vec![entry.id()], "the deletion is settled as done");
@@ -1422,16 +1528,19 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
 }
 
 /// What:
-///  The snapshot ahead a round claims runs the handler of its kind and is settled by its answer.
+///  The snapshot ahead a drain claims runs the handler of its kind and is settled by its answer.
 /// Why:
 ///   It is the one kind of work a person's own add waits for,
-/// so a round that forgets the step leaves the add waiting for a copy nothing makes
+/// so a drain that claims the kind and forgets the step leaves the add waiting for a copy nothing makes
 ///  and the claim taken,
 /// which no other control would see.
+/// The slow lane claims it beside the pushes,
+/// and a drain outside the service claims every kind
+/// (`SLOW_KINDS` and `SERVICE_KINDS` in `service_work_handlers_replanning_and_acceptance.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying); expect(asked).toEqual([worktree]); expect(names(DONE)).toEqual([id])
+/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying, SERVICE_KINDS); expect(asked).toEqual([worktree]); expect(names(DONE)).toEqual([id])
 /// ```
 #[test]
 fn the_awaited_drain_makes_a_snapshot_ahead() {
@@ -1446,6 +1555,7 @@ fn the_awaited_drain_makes_a_snapshot_ahead() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     assert_eq!(recorder.aheads.borrow().as_slice(), [repo.worktree.display().to_string()], "the step asks its handler for the worktree the record names");
     assert_eq!(names(&repo, DONE), vec![wanted.id()], "the snapshot ahead is settled as done");
@@ -1456,5 +1566,214 @@ fn the_awaited_drain_makes_a_snapshot_ahead() {
         "a drain that makes a snapshot ahead plans no retry: {:?}",
         drained.changes
     );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The worker that decided a push needs no new try takes its plan file out of the journal at once,
+/// so no round has to replay that forget onto the disk.
+/// Why:
+///  Finding 3 of the review of `bc3d54f9cd`:
+/// the push of a due plan landed and the worker asked the loop to forget the branch,
+/// the job that applied the round's changes was given no thread,
+/// and the caller then applied the changes without writing:
+/// the list forgot the branch,
+/// the file stayed,
+/// and the next service tried a push that had already landed,
+/// with its failure records and a reconcile of a remote that may have moved since.
+/// The file goes on the thread that decided it,
+/// as the plan a worker promises is already written on that thread (`keep_the_plan`),
+/// so the forget reaches the journal before the notice that says the push landed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await save(dir, plan); replanning.forget(gitDir, branch); expect(await load(dir)).toEqual([]);
+/// ```
+#[test]
+fn the_worker_that_forgets_a_branch_removes_its_plan_file() {
+    let repo: Repo = repo("work-retry-forget-takes-the-file");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let landed: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: landed.clone(), attempt: 3 })
+        .expect("the due plan the round took");
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    replanning.forget(repo.common.as_path(), BRANCH);
+    assert_eq!(replanning.changes.len(), 1, "the loop still drops the branch from the list it owns");
+    assert!(
+        crate::push_retry_store::load(plans.as_path()).is_empty(),
+        "the plan of the push that landed is out of the journal, so no later service tries it again"
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The forget that rests on the proof of a gone repository takes the branch's plan file.
+/// Why:
+///  The file goes on the thread that decided it,
+/// and the proof was a reading of the filesystem a moment before,
+/// so this is the last place the directory can be asked before the file is gone:
+/// a repository that is still missing keeps its promise as no try,
+/// and its file goes with the decision.
+/// A file left behind is a push a later start tries again for a repository that cannot answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await save(dir, plan); replanning.forgetWhenUnreachable(goneDir, due); expect(await load(dir)).toEqual([]);
+/// ```
+#[test]
+fn a_gone_repository_takes_the_file_of_its_plan() {
+    let gone_repository: Repo = repo("work-retry-forget-when-unreachable");
+    let plans: PathBuf = gone_repository.root.join(crate::push_retry::PLAN_DIRECTORY);
+    // A Git directory the fixture never made, which is what the proof of a deleted repository leaves.
+    let gone: PathBuf = gone_repository.root.join("gone").join(".git");
+    let due: WorkItem = item(&gone_repository, WorkKind::Push, OID, BRANCH);
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
+        .expect("the plan the proof was asked about");
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 });
+    assert!(
+        crate::push_retry_store::load(plans.as_path()).is_empty(),
+        "a repository the filesystem still proves gone ends its plan's file, so no later service tries it again"
+    );
+    assert!(
+        matches!(&replanning.changes[0], crate::push_retry::RetryChange::Forget { only_while_unreachable: true, .. }),
+        "the change names the proof it rests on, so the loop asks the filesystem once more: {:?}",
+        replanning.changes
+    );
+    remove(gone_repository.root.as_path());
+}
+
+/// What:
+///  The forget that rests on the proof of a gone repository keeps the file of a branch whose directory is back.
+/// Why:
+///  The proof is a reading of the filesystem,
+/// and this is the last place the file can be asked about before it goes:
+/// a repository renamed back by then is reachable,
+///  and its plan is the only scheduled backup of its commits.
+/// The change still carries the proof it rests on,
+/// so the loop asks the filesystem once more before it drops the branch from the list it owns,
+/// and it carries the plan that reading ended,
+/// so the list keeps the branch when the directory is there again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await save(dir, plan); replanning.forgetWhenUnreachable(thereDir, due); expect(load(dir)).toHaveLength(1);
+/// ```
+#[test]
+fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
+    let back_repository: Repo = repo("work-retry-forget-when-reachable");
+    let plans: PathBuf = back_repository.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let back: WorkItem = item(&back_repository, WorkKind::Push, OID, BRANCH);
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 })
+        .expect("the plan the proof was asked about");
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    // The repository is there, so the stale proof ends nothing.
+    replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 });
+    assert_eq!(
+        crate::push_retry_store::load(plans.as_path()).len(),
+        1,
+        "the file of a repository that is back stays, so the next start tries the push the service still holds"
+    );
+    assert!(
+        matches!(&replanning.changes[0], crate::push_retry::RetryChange::Forget { only_while_unreachable: true, .. }),
+        "the change names the proof it rests on, so the loop asks the filesystem once more: {:?}",
+        replanning.changes
+    );
+    remove(back_repository.root.as_path());
+}
+
+/// What:
+///  A retryable answer leaves the record where it is:
+/// the round settles nothing for it,
+/// so it keeps its lease,
+///  and the lease running out is what queues it again with one more try.
+/// Why:
+///  A copy of the source that cannot be deleted,
+/// and a snapshot ahead the service could not make,
+/// both answer
+///  `Retry` for a condition that can pass:
+/// a busy volume,
+/// a full disk,
+/// an I/O error.
+/// Failing the record drops that work for good,
+/// and a
+///  record in `failed` is never queued again under its id,
+/// so a copy that proved stale then stays on the disk for ever,
+///  pinning the source's blocks.
+///  The recovery is asked twice,
+/// because the rule has two sides and only the pair states it:
+/// a claim whose lease has not run out is nobody's to take back,
+/// and the same claim one lease later is.
+/// Both readings are explicit,
+/// never "now" with a lease of nothing:
+/// a claim's age is measured in whole milliseconds,
+/// so a reading taken a moment after the claim and a lease of nothing are one instant,
+/// and that pair says nothing about either side of the rule.
+#[test]
+fn a_retryable_answer_keeps_the_record_for_a_later_round() {
+    for kind in [WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
+        let repo: Repo = repo(format!("work-retryable-{}", kind.name()).as_str());
+        let wanted: WorkItem = item(&repo, kind, OID, BRANCH);
+        enqueue_all(&repo, std::slice::from_ref(&wanted));
+        let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the volume is busy")));
+        // The renewal is driven by this control and driven not at all, so no thread of the round is renaming the claim
+        //  the pass below takes: the take of a name a renewal moved is the one race the recovery leaves to the next pass.
+        let driver: DrivenRenewal = DrivenRenewal::default();
+        let wait: Option<Duration> = drain_with_renewal(repo.common.as_path(), &retrying, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Driven(&driver));
+        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
+        assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
+        assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());
+        // A reading taken now is a lease short of the claim, so the claim is still the round's and nothing takes it back.
+        crate::work_item_recovery::requeue_expired(
+            work_directory(repo.common.as_path()).as_path(),
+            &ClaimTime::read(),
+            crate::service_work::CLAIM_LEASE,
+            crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
+        );
+        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: a claim whose lease has not run out is left alone", kind.name());
+        // The lease has run out, which is what the wait above asked for: the record is queued again with one more try.
+        // The reading is two leases after the claim, not one, because a claim at exactly its lease still holds its record
+        //  (`work_item_tests.rs`, "a lease at its limit still holds"), and a claim's age is measured in whole milliseconds:
+        //  one lease after the claim is the same instant when nothing measurable has passed, which is how a reading and a
+        //  lease of nothing made this control pass or fail with the host's speed (release gate on `fc9f7f5f4b`, 2026-11-11).
+        crate::work_item_recovery::requeue_expired(
+            work_directory(repo.common.as_path()).as_path(),
+            &ClaimTime::read().advanced(crate::service_work::CLAIM_LEASE.saturating_mul(2)),
+            crate::service_work::CLAIM_LEASE,
+            crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
+        );
+        assert_eq!(names(&repo, PENDING), vec![wanted.id()], "{}: the record waits for the next round", kind.name());
+        drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+        assert_eq!(names(&repo, DONE), vec![wanted.id()], "{}: the round after it finishes the work", kind.name());
+        remove(repo.root.as_path());
+    }
+}
+
+/// What:
+///  The line a planned push retry writes names the repository the push is of.
+/// Why:
+///  One journal covers every worktree of the machine,
+///  and a branch name is the same in all of them:
+///  `fix/main`,
+///  `main`,
+///  so a retry line that names only the branch and the commit cannot say which worktree's push it plans,
+///  and the person who reads it after a jam cannot find the commit it speaks of
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that scheduled push-retry lines still omit the repository).
+#[test]
+fn the_line_a_planned_retry_writes_names_its_repository() {
+    let repo: Repo = repo("work-retry-names-its-repository");
+    let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        let _said: PlannedRetry = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down");
+    });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
+    assert!(
+        line.contains(&format!("repository={:?}", repo.worktree)),
+        "the line names the worktree whose push it plans, quoted so a path with a space stays one field: {line}"
+    );
+    assert!(entries.iter().any(|entry| { return entry.fields.iter().any(|(name, value)| { return name == "CLI_GIT_REPOSITORY" && *value == repo.worktree.display().to_string(); }); }), "the journal field names it too: {entries:?}");
     remove(repo.root.as_path());
 }

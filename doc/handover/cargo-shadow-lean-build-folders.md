@@ -372,6 +372,34 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   That reachability fact is still measured and named in the proof line,
   so whether a record held by another user's process may go stays the owner's call,
   now with the count and the kind of each process beside it.
+- What the scan compared,
+  fixed 2026-11-11 (branch `fix/cargo-shadow-lean-sweep-never-removes-a-binary-a-running-test-uses`):
+  two spellings of the same proof were never checked,
+  and a probe in a throwaway build folder showed a sweep removing the unit that held the program a live process was
+  running:
+  a root spelled through a symbolic link matched none of the names `/proc` reports,
+  because `/proc` names a held file with every link resolved.
+  The scan now compares each root as spelled and resolved,
+  reads the program and the mappings of a process in another mount namespace,
+  and blocks the whole entry for a use matched by device and inode,
+  which is one of the entry's own build locks.
+  Both cases have controls that fail before the change:
+  `lean_sweep_tests::a_unit_a_process_runs_a_program_from_is_kept_even_through_a_link`,
+  `lean_idle_trees_tests::a_tree_a_process_runs_a_program_from_is_kept_even_through_a_link`,
+  and `lean_proc_scan_tests::a_process_in_another_mount_namespace_holding_a_build_lock_blocks_every_entry_of_the_root`.
+- No lean pass can explain the run that lost its test binaries on 2026-11-11:
+  the day's pass started 04:30:00,
+  finished the trees at 06:21:28 and the units at 07:31:34,
+  and the build folder that run used (`.../toolchain/nightly-2026-11-11/dd/eaf1ac7b9d4d7b`)
+  was first written at 09:16:55,
+  so no pass had judged it.
+  A second cargo run of the same workspace relinks `deps/` and `build/.../out/` in place,
+  and mechanism A keys a folder by the toolchain's name,
+  so a nightly update behind that name relinks every unit of it.
+  Reproduced 2026-11-11 in a throwaway workspace:
+  `nextest run` over thirty generated tests with one shadowed `cargo build --tests` of the same workspace during it,
+  26 passed and four failed with `[double-spawn] failed to exec ... No such file or directory`.
+  The README's "What still takes a binary a run is using" records it for the people who meet it.
 - The timer:
   `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` to
   `~/.config/systemd/user` and enables the timer.

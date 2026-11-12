@@ -13,6 +13,10 @@
 //! and the manager's answer about the address it made says whether it is the one this command looks
 //!  for,
 //! because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+//! Two addresses are the same when the file system walks them to one place,
+//! never by their text alone:
+//! a person may spell `XDG_RUNTIME_DIR` through a link or a `..` part,
+//! and the manager answers with its own spelling of the folder it made the socket in.
 //! Every refusal names the input that has to change and every way to change it,
 //! and every check has a control that proves it lets a working arrangement through.
 //! A session bus with no user service manager behind it is the third such state,
@@ -54,6 +58,62 @@ pub(crate) fn refuse_a_path_no_socket_address_can_carry(host: &ProvisionHost) ->
 }
 
 /// What:
+///  Whether two addresses name one socket:
+/// the same text,
+/// or two spellings of one folder the file system walks to one place.
+/// Why:
+///   `XDG_RUNTIME_DIR` is the person's to spell.
+/// A link to the runtime directory,
+/// `/run/user/1000/../1000`,
+/// and a runtime directory already reached through a link (`/home` to `/var/home`,
+/// `/var/run` to `/run`)
+/// all reach the one folder the manager made the socket in,
+/// and the manager answers with its own spelling (`%t`) whatever spelling the command was given.
+/// Two texts are not two sockets,
+/// and refusing here failed every commit whose runtime directory was spelled the other way,
+/// before the record of what the manager was told,
+/// so the next commit was refused the same way.
+/// An address whose folder cannot be resolved stands in no folder that exists,
+/// so its text is all there is to compare there,
+/// and a different text stays a service out of reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesOneSocket('/run/user/1000/monochromatic-git-policy-cli/3f9a.sock', '/var/run/user/1000/monochromatic-git-policy-cli/3f9a.sock') // true
+/// ```
+fn names_one_socket(one: &Path, other: &Path) -> bool {
+    if one == other {
+        return true;
+    }
+    return match (the_place_an_address_reaches(one), the_place_an_address_reaches(other)) {
+        (Some(here), Some(there)) => here == there,
+        _one_stands_in_no_folder => false,
+    };
+}
+
+/// What:
+///  The place a socket address names:
+/// its folder walked to the one the kernel walks to,
+/// and the file name kept as written.
+/// Why:
+///   The kernel walks every part of the folder a spelling adds (a link,
+/// `..`,
+/// a link to a folder),
+/// while the last part is made in that folder rather than followed,
+/// so the folder is what is resolved and the name is compared as the text it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePlaceAnAddressReaches('/var/run/user/1000/monochromatic-git-policy-cli/3f9a.sock') // '/run/user/1000/monochromatic-git-policy-cli/3f9a.sock'
+/// ```
+fn the_place_an_address_reaches(address: &Path) -> Option<PathBuf> {
+    let folder: &Path = address.parent()?;
+    let name: &std::ffi::OsStr = address.file_name()?;
+    let resolved: PathBuf = std::fs::canonicalize(folder).ok()?;
+    return Some(resolved.join(name));
+}
+
+/// What:
 ///  Refuses a service the manager made listen somewhere this command does not look.
 /// Why:
 ///   The socket unit names its address with `%t`,
@@ -64,6 +124,8 @@ pub(crate) fn refuse_a_path_no_socket_address_can_carry(host: &ProvisionHost) ->
 /// against the login session's manager)
 /// the manager starts a service this command can never reach,
 /// and the wait runs out although everything is working.
+/// Two spellings of one folder are one address here,
+/// because both reach the one socket.
 /// The manager's `Listen` is the fact that decides it;
 /// an answer that cannot be read,
 /// or a manager that holds no such unit yet,
@@ -85,7 +147,7 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
     // One of the addresses the manager made is the one this command waits at, which is the arrangement every healthy commit
     //  has; the walk is written out because the closure the linter refuses would capture `looked_for` for nothing.
     for address in &addresses {
-        if Path::new(address.as_str()) == looked_for.as_path() {
+        if names_one_socket(Path::new(address.as_str()), looked_for.as_path()) {
             return Ok(());
         }
     }

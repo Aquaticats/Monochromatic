@@ -173,6 +173,7 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
         &CopySelection::Ignored,
         None,
         Some(&binding),
+        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
         &mut Vec::new(),
     )
     .expect_err("the registration the copy was made for is gone");

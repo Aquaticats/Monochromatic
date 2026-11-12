@@ -42,6 +42,38 @@ fn anything_that_is_not_a_plain_file_is_refused_at_once() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A plain file is written whole,
+/// and a link,
+/// a named pipe or a directory at the name is refused.
+/// Why:
+///   A write that follows a link replaces the file it points at,
+/// and one that opens a named pipe waits for a reader;
+///  both are entries another process may leave at a name the wrapper writes.
+#[test]
+fn a_plain_file_is_written_and_anything_else_is_refused() {
+    let parent: PathBuf = fixture("plain-file-write");
+    let record: PathBuf = parent.join("record");
+    write_plain_file(record.as_path(), b"a manifest\n").expect("an ordinary name is written");
+    assert_eq!(read_plain_file(record.as_path(), SMALL_FILE_LIMIT).expect("read"), b"a manifest\n");
+    write_plain_file(record.as_path(), b"shorter").expect("a name that is already a plain file is written over");
+    assert_eq!(read_plain_file(record.as_path(), SMALL_FILE_LIMIT).expect("read"), b"shorter");
+    let link: PathBuf = parent.join("link");
+    std::os::unix::fs::symlink(record.as_path(), link.as_path()).expect("link");
+    assert!(write_plain_file(link.as_path(), b"through").is_err(), "a link is not written through");
+    assert_eq!(read_plain_file(record.as_path(), SMALL_FILE_LIMIT).expect("read"), b"shorter", "the file it points at keeps its bytes");
+    let pipe: PathBuf = parent.join("pipe");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
+    let written = crate::test_support::finished_within(move || return write_plain_file(pipe.as_path(), b"into a pipe").map_err(|error| return error.to_string()));
+    let Some(finished) = written else { panic!("writing a named pipe did not finish within five seconds") };
+    let refused: String = finished.expect_err("refused");
+    assert!(refused.contains("not a plain file"), "{refused}");
+    let directory: PathBuf = parent.join("directory");
+    std::fs::create_dir(directory.as_path()).expect("directory");
+    assert!(write_plain_file(directory.as_path(), b"into a directory").is_err(), "a directory is refused");
+    remove(parent.as_path());
+}
+
 /// Text that is not UTF-8 is refused as not text,
 /// and the same bytes are still read as bytes.
 #[test]

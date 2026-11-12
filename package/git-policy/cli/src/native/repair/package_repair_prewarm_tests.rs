@@ -203,6 +203,46 @@ fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
 }
 
 /// What:
+///  The common directory of a repository whose directory name ends in a space is the directory Git named.
+/// Why:
+///   Every ASCII whitespace byte was taken from the answer,
+///  so the space that belongs to the name went with the terminator,
+/// and the record was written below a directory that is not the repository's,
+///  where the repository's own service never reads it.
+#[test]
+fn the_common_directory_of_a_repository_whose_name_ends_in_a_space_is_gits() {
+    let root: PathBuf = fixture("prewarm-common-trailing-space");
+    let repo: PathBuf = root.join("repository");
+    let administered: PathBuf = root.join("admin ");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--separate-git-dir",
+            administered.to_str().expect("a UTF-8 fixture path"),
+            repo.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let linked: PathBuf = root.join("linked");
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+    );
+    let context = git_context();
+    let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
+        return common_directory_awaiting(&context, linked.as_path()).await;
+    })
+    .expect("the runtime")
+    .expect("Git names the common directory");
+    assert_eq!(named, std::fs::canonicalize(administered.as_path()).expect("the directory Git made"));
+    remove(root.as_path());
+}
+
+/// What:
 ///  The names of the records a state directory holds,
 /// in the order they sort,
 /// so a control reads what the queue took without knowing an id.
@@ -221,6 +261,24 @@ fn records_in(work: &Path, state: &str) -> Vec<String> {
         .unwrap_or_default();
     names.sort();
     return names;
+}
+
+/// What:
+///  Wait,
+/// bounded,
+///  for the clock to show another millisecond.
+/// Why:
+///   A record's object name carries the moment the add asked for the work,
+/// so a control that stands for two hand-overs of one path needs two moments;
+/// a clock that did not move answers the second one as `Known`,
+/// and the control would then prove nothing
+/// (the suite run of 2026-11-11 failed this way).
+fn after_the_clock_moves(moment: &str) {
+    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while crate::iso_time::now_iso() == moment {
+        assert!(std::time::Instant::now() < deadline, "the clock did not move past {moment}");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 }
 
 /// What:
@@ -246,6 +304,11 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
         let first: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(first.len(), 1, "the first worktree's record is queued: {first:?}");
+        let queued: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&first[0])).expect("the first record");
+        let first_item: WorkItem = WorkItem::decode(queued.as_str()).expect("the first record is a work item");
+        // The object name carries the moment the add asked, so the second hand-over needs a moment of its own: within
+        //  one millisecond it would be answered as the first record's known id, and this control proved nothing.
+        after_the_clock_moves(first_item.created.as_str());
         // The service runs the record and settles it into the state its verdict names.
         let settled_at: PathBuf = state_directory(work.as_path(), settled).join(&first[0]);
         std::fs::rename(state_directory(work.as_path(), PENDING).join(&first[0]), settled_at.as_path()).expect("the record is settled");
@@ -256,6 +319,48 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let second: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(second.len(), 1, "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}");
         assert_ne!(second[0], first[0], "the second record is not the first one ({settled})");
+        let queued_again: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&second[0])).expect("the second record");
+        let second_item: WorkItem = WorkItem::decode(queued_again.as_str()).expect("the second record is a work item");
+        assert_ne!(second_item.created, first_item.created, "the two hand-overs are two moments ({settled})");
         remove(root.as_path());
     }
+}
+
+/// What:
+///  Every hand-over of one worktree path gets a record whose object name is its own,
+///  however many of them the clock cannot tell apart.
+/// Why:
+///   The object name is the record's id and the queue's idempotency key,
+/// and the queue answers an id it already knows as known in every state.
+/// The moment a hand-over writes is a millisecond,
+/// so two hand-overs of one path asked for inside one millisecond would otherwise share a name
+/// and the second would be dropped:
+/// its filling would never run,
+/// and a filling that failed could not be asked for again.
+/// The control writes `HAND_OVERS` records as fast as it can:
+/// a record takes far less than a millisecond to write,
+/// so one millisecond holding two of them is certain here,
+/// and a name that is the moment alone repeats with them.
+#[test]
+fn every_hand_over_of_one_path_gets_an_object_name_of_its_own() {
+    /// How many hand-overs one control writes;
+    /// each takes far less than a millisecond,
+    /// so this many cannot all fall in different milliseconds.
+    const HAND_OVERS: usize = 1000;
+    let root: PathBuf = fixture("prewarm-one-millisecond");
+    let common: PathBuf = root.join("common");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    std::fs::create_dir_all(destination.as_path()).expect("the worktree");
+    let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+    let mut names: Vec<String> = Vec::with_capacity(HAND_OVERS);
+    for _ in 0..HAND_OVERS {
+        let item: WorkItem = item_of(common.as_path(), destination.as_path(), entries.as_slice()).expect("the record");
+        names.push(item.oid);
+    }
+    let mut distinct: Vec<String> = names.clone();
+    distinct.sort();
+    distinct.dedup();
+    assert_eq!(distinct.len(), names.len(), "each of the {} hand-overs of one path has an object name of its own", names.len());
+    remove(root.as_path());
 }

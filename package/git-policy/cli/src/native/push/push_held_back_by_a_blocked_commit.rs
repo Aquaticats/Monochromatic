@@ -25,6 +25,12 @@
 //! so it holds nothing back,
 //! as before,
 //! and the next push of the branch carries it.
+//!  A commit whose gate is still running is the other side of that rule:
+//! the queue holds its push until the gate answers,
+//! because the answer may be a refusal,
+//! and a push of the branch for any other commit sends every commit up to the tip.
+//! The push therefore also stops before a commit whose recorded check has not decided and whose command still runs,
+//! and the line says that it waits for those checks.
 //!  The questions are asked twice over:
 //! once by the service's git,
 //! which pushes,
@@ -46,8 +52,9 @@
 use crate::auto_push_single_flight::{PushGit, run_query_awaiting};
 /// The unchanged ancestry question a reconcile asks the same Git.
 use crate::auto_push_reconcile_basics_and_limits::{argv, is_ancestor_awaiting};
-/// The words a verdict with none of its own is named with.
-use crate::blocked_commit_lines::named_reason;
+/// The words a verdict with none of its own is named with,
+/// and the sentence a commit whose checks still run is named with.
+use crate::blocked_commit_lines::{UNDECIDED_REASON, named_reason};
 /// What a finished query of the queue's Git answered.
 use crate::bounded_query::QueryOutput;
 /// The verdicts the post-commit gates kept.
@@ -114,13 +121,15 @@ pub trait BranchHistory {
 /// `Before` names the commits it may not publish and the commit it publishes instead,
 /// so
 ///  the plan and the result are one decision;
+/// `Undecided` names the commits whose own checks are still running,
+/// which may not be published yet either;
 /// `Unanswered` is the safe stop for a question Git could not answer,
 /// because sending
 ///  nothing loses nothing while sending a commit the gate refused cannot be undone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WhereThePushStops = { kind: 'nothing' } | { kind: 'before'; commits; pushable? } | { kind: 'unanswered'; commits };
+/// type WhereThePushStops = { kind: 'nothing' } | { kind: 'before'; commits; pushable? } | { kind: 'undecided'; commits; pushable? } | { kind: 'unanswered'; commits };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WhereThePushStops {
@@ -128,9 +137,31 @@ pub enum WhereThePushStops {
     Nothing,
     /// Nothing past these commits is published.
     Before(Stopped),
+    /// Nothing past these commits is published until their own post-commit checks decide.
+    Undecided(Stopped),
     /// These commits may be on the branch's way out and Git could not say,
     /// so nothing is sent.
     Unanswered(Stopped),
+}
+
+/// What:
+///  Why one commit may not be published yet.
+/// Why:
+///   A refusal is durable and already decided;
+/// a commit whose checks run is neither,
+/// and the line the person reads
+///  must not claim a refusal that has not happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Because = 'refused' | 'undecided';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Because {
+    /// A post-commit check refused the commit.
+    Refused,
+    /// The commit's post-commit check has not decided yet.
+    Undecided,
 }
 
 /// What:
@@ -185,12 +216,15 @@ pub struct Held {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Judged = { verdict: BlockedVerdict; onTheBranch?: boolean; published?: boolean; firstParent?: string };
+/// type Judged = { verdict: BlockedVerdict; because: Because; onTheBranch?: boolean; published?: boolean; firstParent?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Judged {
-    /// The verdict being judged.
+    /// The verdict being judged,
+    /// or the record of a commit whose checks have not decided.
     pub verdict: BlockedVerdict,
+    /// Whether the commit was refused or is still waiting for its checks.
+    pub because: Because,
     /// Whether the branch holds the commit;
     /// nothing when Git could not tell.
     pub on_the_branch: Option<bool>,
@@ -204,24 +238,35 @@ pub struct Judged {
 
 /// What:
 ///  The verdicts of one branch,
-/// each with every answer still missing.
+/// each with every answer still missing,
+/// and the commits whose checks still run.
 /// Why:
 ///   A verdict an earlier release wrote holds no branch,
 /// and its commit may be on any branch,
 /// so it is judged for
 ///  every branch rather than dropped;
 /// a verdict that names another branch is another branch's.
+/// The undecided commits come from the records of the branch being pushed,
+/// so they are judged for it alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const judgedFor = (verdicts, branchRef) => verdicts.filter((v) => !v.branchRef || v.branchRef === branchRef).map((verdict) => ({ verdict }));
+/// const judgedFor = (verdicts, undecided, branchRef) => [...verdicts.filter((v) => !v.branchRef || v.branchRef === branchRef), ...undecided].map((verdict) => ({ verdict }));
 /// ```
-pub fn judged_for(verdicts: &[BlockedVerdict], branch_ref: &str) -> Vec<Judged> {
+pub fn judged_for(verdicts: &[BlockedVerdict], undecided: &[String], branch_ref: &str) -> Vec<Judged> {
     let mut judged: Vec<Judged> = Vec::new();
     for verdict in verdicts {
         if verdict.branch_ref.is_empty() || verdict.branch_ref == branch_ref {
-            judged.push(Judged { verdict: verdict.clone(), on_the_branch: None, published: None, first_parent: None });
+            judged.push(Judged { verdict: verdict.clone(), because: Because::Refused, on_the_branch: None, published: None, first_parent: None });
         }
+    }
+    for commit in undecided {
+        let waiting: BlockedVerdict = BlockedVerdict {
+            branch_ref: branch_ref.to_owned(),
+            commit: commit.clone(),
+            reason: String::from(UNDECIDED_REASON),
+        };
+        judged.push(Judged { verdict: waiting, because: Because::Undecided, on_the_branch: None, published: None, first_parent: None });
     }
     return judged;
 }
@@ -267,12 +312,14 @@ pub fn wants_the_parent_answer(one: &Judged) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Selection = { commits: Held[]; unsure: Held[]; parents: string[]; noParent: boolean };
+/// type Selection = { commits: Held[]; undecided: Held[]; unsure: Held[]; parents: string[]; noParent: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Selection {
     /// The verdicts that hold the branch back.
     pub commits: Vec<Held>,
+    /// The commits whose own checks have not decided.
+    pub undecided: Vec<Held>,
     /// The verdicts Git could not judge.
     pub unsure: Vec<Held>,
     /// The first parents of the commits that hold the branch back.
@@ -294,9 +341,13 @@ pub struct Selection {
 /// const select = (judged) => judged.reduce(…);
 /// ```
 pub fn select(judged: &[Judged]) -> Selection {
-    let mut selection: Selection = Selection { commits: Vec::new(), unsure: Vec::new(), parents: Vec::new(), no_parent: false };
+    let mut selection: Selection = Selection { commits: Vec::new(), undecided: Vec::new(), unsure: Vec::new(), parents: Vec::new(), no_parent: false };
     for one in judged {
-        let held_one: Held = Held { commit: one.verdict.commit.clone(), reason: named_reason(one.verdict.reason.as_str()) };
+        // A refusal's words are named the way every line names them; a running check's own sentence is already in its record.
+        let held_one: Held = match one.because {
+            Because::Refused => Held { commit: one.verdict.commit.clone(), reason: named_reason(one.verdict.reason.as_str()) },
+            Because::Undecided => Held { commit: one.verdict.commit.clone(), reason: one.verdict.reason.clone() },
+        };
         match one.on_the_branch {
             Some(false) => continue,
             Some(true) => {}
@@ -318,7 +369,10 @@ pub fn select(judged: &[Judged]) -> Selection {
             Some(parent) => selection.parents.push(parent.clone()),
             None => selection.no_parent = true,
         }
-        selection.commits.push(held_one);
+        match one.because {
+            Because::Refused => selection.commits.push(held_one),
+            Because::Undecided => selection.undecided.push(held_one),
+        }
     }
     return selection;
 }
@@ -326,17 +380,18 @@ pub fn select(judged: &[Judged]) -> Selection {
 /// What:
 ///  The decision the selection and the base it needs make.
 /// Why:
-///   The base is the newest commit below every blocked one,
+///   The base is the newest commit below every commit that may not be published,
+/// refused or still waiting for its checks,
 /// and one parent is its own base,
 /// so only several parents
 ///  cost a question and only its answer can be used.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const finish = (selection, merged) => selection.commits.length ? { kind: 'before', commits: selection.commits, pushable: base(selection, merged) } : selection.unsure.length ? { kind: 'unanswered', commits: selection.unsure } : { kind: 'nothing' };
+/// const finish = (selection, merged) => selection.commits.length ? { kind: 'before', commits: selection.commits, pushable: base(selection, merged) } : selection.undecided.length ? { kind: 'undecided', commits: selection.undecided, pushable: base(selection, merged) } : selection.unsure.length ? { kind: 'unanswered', commits: selection.unsure } : { kind: 'nothing' };
 /// ```
 pub fn finish(selection: Selection, merged: Option<String>) -> WhereThePushStops {
-    if selection.commits.is_empty() {
+    if selection.commits.is_empty() && selection.undecided.is_empty() {
         return match selection.unsure.is_empty() {
             true => WhereThePushStops::Nothing,
             false => WhereThePushStops::Unanswered(Stopped { commits: selection.unsure, pushable: None }),
@@ -347,11 +402,14 @@ pub fn finish(selection: Selection, merged: Option<String>) -> WhereThePushStops
         [only] => Some(only.clone()),
         _several => merged,
     };
-    // A blocked commit with no parent has nothing before it to publish, so the push sends nothing.
+    // A held-back commit with no parent has nothing before it to publish, so the push sends nothing.
     let pushable: Option<String> = match selection.no_parent {
         true => None,
         false => base,
     };
+    if selection.commits.is_empty() {
+        return WhereThePushStops::Undecided(Stopped { commits: selection.undecided, pushable });
+    }
     return WhereThePushStops::Before(Stopped { commits: selection.commits, pushable });
 }
 
@@ -366,10 +424,16 @@ pub fn finish(selection: Selection, merged: Option<String>) -> WhereThePushStops
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function whereThePushStops(history, branchRef, upstream, verdicts): WhereThePushStops;
+/// function whereThePushStops(history, branchRef, upstream, verdicts, undecided): WhereThePushStops;
 /// ```
-pub fn where_the_push_stops(history: &dyn BranchHistory, branch_ref: &str, upstream: Option<&str>, verdicts: &[BlockedVerdict]) -> WhereThePushStops {
-    let mut judged: Vec<Judged> = judged_for(verdicts, branch_ref);
+pub fn where_the_push_stops(
+    history: &dyn BranchHistory,
+    branch_ref: &str,
+    upstream: Option<&str>,
+    verdicts: &[BlockedVerdict],
+    undecided: &[String],
+) -> WhereThePushStops {
+    let mut judged: Vec<Judged> = judged_for(verdicts, undecided, branch_ref);
     for one in &mut judged {
         one.on_the_branch = history.holds(branch_ref, one.verdict.commit.as_str());
         if wants_the_published_answer(one) {
@@ -434,15 +498,16 @@ async fn awaiting_holds(git: &PushGit, of: &str, commit: &str) -> Option<bool> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function whereThePushStopsAwaiting(git, branchRef, upstream, verdicts): Promise<WhereThePushStops>;
+/// async function whereThePushStopsAwaiting(git, branchRef, upstream, verdicts, undecided): Promise<WhereThePushStops>;
 /// ```
 pub async fn where_the_push_stops_awaiting(
     git: &PushGit,
     branch_ref: &str,
     upstream: Option<&str>,
     verdicts: &[BlockedVerdict],
+    undecided: &[String],
 ) -> WhereThePushStops {
-    let mut judged: Vec<Judged> = judged_for(verdicts, branch_ref);
+    let mut judged: Vec<Judged> = judged_for(verdicts, undecided, branch_ref);
     for one in &mut judged {
         one.on_the_branch = awaiting_holds(git, branch_ref, one.verdict.commit.as_str()).await;
         if wants_the_published_answer(one) {

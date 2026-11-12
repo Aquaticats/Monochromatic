@@ -1399,6 +1399,7 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
             ceiling: Arc::new(AtomicU64::new(0)),
             ceiling_hit: Arc::new(AtomicBool::new(false)),
             stopped: Arc::new(AtomicBool::new(false)),
+            left_running_after: Arc::new(AtomicU64::new(0)),
         };
         let terms: WatchTerms = WatchTerms {
             limit: Duration::from_secs(3600),

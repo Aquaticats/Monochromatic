@@ -634,6 +634,180 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
     end(child);
     let Some(StopCause::Stalled(report)) = cause else { panic!("the silent connection was not ended within {:?}", began.elapsed()) };
     assert!(report.limit == window && began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+    // The words of the stop name the window that fired, and never offer the stall setting as its remedy: the setting does
+    //  not change the connected window, so advice to set it sends its reader to a limit that cannot be moved.
+    let words: String = crate::lfs_upload_explanations::stopped_upload_words(&StopCause::Stalled(report));
+    assert!(!words.contains("to allow longer"), "a connected stop does not offer a setting that cannot change its window: {words}");
+    assert!(
+        words.contains(&format!("{} does not change this window", crate::bounded_push::PUSH_DEADLINE_VARIABLE)),
+        "the setting is named as one that does not move this window: {words}"
+    );
+    assert!(words.contains("fixed at"), "the window it was ended by is named: {words}");
+    assert!(words.contains("git lfs push --all"), "a remedy that works is named: {words}");
+}
+
+/// What:
+///  A tree whose only change between two looks is the processor time of the process that holds the connection
+/// is waiting,
+/// and its wait ends at the connected window.
+/// Why:
+///   The helper that speaks HTTP for a push polls its socket while it waits,
+/// and the kernel charges it one tick every few seconds:
+/// measured on 2026-11-11 against a server that takes the connection and never answers,
+/// `git-remote-http` used one tick every three seconds and moved no byte.
+/// A clock that counts those ticks as work
+/// never reaches a connected window,
+/// which is what the audit's F8 measured:
+/// 290 to 330 seconds of a service push that had a 150 second window.
+///  The holder here does what that helper does:
+/// it holds its connection and burns a few processor milliseconds between two polls of it,
+/// so every look finds either a tick or a task able to run,
+/// and the tree is still waiting.
+#[test]
+fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    // No fork and no write: the holder only burns the processor between two timed reads of the socket it holds.
+    let mut holder: Command = Command::new("bash");
+    holder
+        .args([
+            "-c",
+            format!("exec 3<>/dev/tcp/127.0.0.1/{port}; while :; do n=0; while [ $n -lt 4000 ]; do n=$((n+1)); done; read -t 0.1 -u 3 line; done")
+                .as_str(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let stall: Duration = Duration::from_millis(1500);
+    let window: Duration = Duration::from_secs(4);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let began: Instant = Instant::now();
+    let cause: Option<StopCause> = loop {
+        if let Some(cause) = clock.check() {
+            break Some(cause);
+        }
+        if began.elapsed() > window * 3 {
+            break None;
+        }
+        std::thread::sleep(LOOK);
+    };
+    end(child);
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("a tree whose only sign of life is its holder's processor time was not ended within {:?}", began.elapsed())
+    };
+    assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
+    assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
+/// What:
+///  A tree whose only movement between two looks is what the process that holds the connection writes about its own
+///  wait is waiting,
+///  and its wait ends at the connected window.
+/// Why:
+///   `git-lfs` prints its upload meter to its standard error while it waits,
+/// and that file belongs to the wrapper,
+/// so every line it prints is a byte the tree wrote:
+/// measured on 2026-11-11 against a server that took the connection and never answered,
+/// `git-lfs` wrote fourteen bytes about every ten seconds,
+/// the meter counted them as work,
+/// and the connected window never fired in more than 260 seconds.
+///  That is the audit's F8 LFS face.
+/// The holder here does what `git-lfs` does while it waits:
+/// it holds its connection and appends one short line to a file it was given.
+#[test]
+fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
+    let root: std::path::PathBuf = fixture("progress-connected-meter");
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    let meter_file: std::path::PathBuf = root.join("meter");
+    // The handler runs inside the holder's own process, so the write is the holder's: one line every fifth of a second.
+    let mut holder: Command = Command::new("bash");
+    holder
+        .args([
+            "-c",
+            format!(
+                // No child process: the throttle is a timed read of its own silent socket, which is what `git-lfs` does
+                //  between two of its upload meter's lines.
+                "exec 3<>/dev/tcp/127.0.0.1/{port}; trap '' TERM; while :; do printf 'uploading 0%%\n' >> '{meter}'; read -t 0.2 -u 3 line; done",
+                meter = meter_file.display()
+            )
+            .as_str(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let stall: Duration = Duration::from_millis(1500);
+    let window: Duration = Duration::from_secs(4);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let began: Instant = Instant::now();
+    let cause: Option<StopCause> = loop {
+        if let Some(cause) = clock.check() {
+            break Some(cause);
+        }
+        if began.elapsed() > window * 3 {
+            break None;
+        }
+        std::thread::sleep(LOOK);
+    };
+    end(child);
+    let metered: u64 = std::fs::metadata(meter_file.as_path()).map(|about| return about.len()).unwrap_or(0);
+    assert!(metered > 0, "the holder wrote its meter, so the tree moved bytes");
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("a tree whose only movement is the holder's own meter was not ended within {:?}", began.elapsed())
+    };
+    assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
+    assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
+/// What:
+///  A process seen to hold a connection is remembered after a look that finds no socket at all.
+/// Why:
+///   The kernel's socket list cannot always be read:
+/// a look whose `NETLINK_SOCK_DIAG` dump times out answers nothing about who holds what.
+/// A holder whose own bytes counted again on such a look would clear the wait,
+/// and under load those looks fail now and then.
+/// One plain-push control ended at its window on an idle host and left its work item claimed while
+/// the suite ran beside it,
+/// which is the shape of that.
+/// So a holder is remembered for the life of the clock,
+/// by its number and start time,
+/// and the empty look below is a look that saw no socket rather than one that saw no holder.
+#[test]
+fn a_holder_is_remembered_after_a_look_that_finds_no_socket() {
+    let root: std::path::PathBuf = fixture("progress-holder-remembered");
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    // The holder keeps its connection open and writes nothing: it is the remote's silent peer.
+    let mut holder: Command = Command::new("bash");
+    holder
+        .args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; exec sleep 30").as_str()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let members: Vec<TreeMember> = member_of(pid).into_iter().collect();
+    let mut meter: Meter = Meter::new();
+    // The first look records the holder, and its own socket carries nothing yet.
+    assert!(!meter.observe_sockets(members.as_slice()), "a socket seen for the first time carries no progress");
+    assert!(meter.connected(), "the holder's connection is open");
+    let holder_member: TreeMember = members.first().expect("the holder is a member of its own tree").clone();
+    assert!(meter.holders.contains(&(holder_member.pid, holder_member.started)), "the holder is remembered");
+    // A look that cannot read the socket list finds no socket, and must not forget who held one.
+    assert!(!meter.observe_sockets(&[]), "a look with no socket carries no progress");
+    assert!(!meter.connected(), "nothing says the connection is open on that look");
+    assert!(
+        meter.holders.contains(&(holder_member.pid, holder_member.started)),
+        "a holder stays remembered across a look that could not read the socket list: {:?}",
+        meter.holders
+    );
+    end(child);
+    remove(root.as_path());
 }
 
 /// A `/proc/<pid>/stat` line is read after its last parenthesis:
@@ -657,23 +831,31 @@ fn a_stat_line_gives_its_state_and_its_processor_ticks() {
 /// bytes,
 /// processor ticks,
 ///  a task able to run or waiting for the disk.
+/// The bytes are told apart from the other two,
+/// because only they are work for a process that holds a
+/// connection.
 #[test]
 fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     let key: (i32, u64) = (100, 1);
     let mut meter: Meter = Meter::new();
-    assert!(!meter.observe(key, 0, 0, false), "a process that has done nothing is idle at its first look");
-    assert!(!meter.observe(key, 0, 0, false));
-    assert!(meter.observe(key, 10, 0, false), "bytes");
+    let idle: Signs = Signs::default();
+    assert_eq!(meter.observe(key, 0, 0, false), idle, "a process that has done nothing is idle at its first look");
+    assert_eq!(meter.observe(key, 0, 0, false), idle);
+    assert_eq!(meter.observe(key, 10, 0, false), Signs { moved: true, busy: false }, "bytes");
     assert_eq!(meter.moved(), 10);
-    assert!(!meter.observe(key, 10, 0, false), "the same bytes are not new work");
-    assert!(meter.observe(key, 10, 1, false), "one processor tick");
-    assert!(!meter.observe(key, 10, 1, false));
-    assert!(meter.observe(key, 10, 1, true), "a task able to run or waiting for the disk, at every look it is found");
-    assert!(meter.observe(key, 10, 1, true));
-    assert!(!meter.observe(key, 10, 1, false), "and idle when it is not");
+    assert_eq!(meter.observe(key, 10, 0, false), idle, "the same bytes are not new work");
+    assert_eq!(meter.observe(key, 10, 1, false), Signs { moved: false, busy: true }, "one processor tick");
+    assert_eq!(meter.observe(key, 10, 1, false), idle);
+    assert_eq!(
+        meter.observe(key, 10, 1, true),
+        Signs { moved: false, busy: true },
+        "a task able to run or waiting for the disk, at every look it is found"
+    );
+    assert_eq!(meter.observe(key, 10, 1, true), Signs { moved: false, busy: true });
+    assert_eq!(meter.observe(key, 10, 1, false), idle, "and idle when it is not");
     assert_eq!(meter.moved(), 10, "processor time and states are not bytes");
-    assert!(meter.observe((200, 1), 0, 3, false), "a new process that has already used time");
-    assert!(!meter.observe(key, 5, 1, false), "a counter that fell (a number reused) is not work");
+    assert_eq!(meter.observe((200, 1), 0, 3, false), Signs { moved: false, busy: true }, "a new process that has already used time");
+    assert_eq!(meter.observe(key, 5, 1, false), idle, "a counter that fell (a number reused) is not work");
 }
 
 /// A child that ends before the first sample interval has passed is never looked for among the machine's processes:

@@ -1,7 +1,7 @@
 //! What:
 //! The commit service units of worktrees that no longer exist:
 //! the note that says which worktree a unit belongs to,
-//! the test of whether that worktree is gone,
+//! the test of whether that worktree or its repository is gone,
 //! and the stop of the units of a gone one through the user manager.
 //! Why:
 //! A unit instance is named by a hash of its worktree's own Git directory (`service_instance.rs`),
@@ -28,7 +28,17 @@
 //! because a stopped instance is never served again and its records name a worktree that is gone;
 //! a journal that holds a batch no branch shows,
 //! a record that was written and not published,
-//! or a file this release does not know is kept and named instead of discarded.
+//! or a file this release does not know is kept and named instead of discarded,
+//! and so is a journal whose landed batches a client may still read,
+//! or whose service the manager does not yet report gone:
+//! those keep the note and the socket file too,
+//! so a later sweep finishes.
+//! A service that stops its own socket never removes its own journal,
+//! because it is still one of that journal's writers:
+//! its after-commit task and that task's jobs write the note of a repository to look at and the plan of a push to try again,
+//! and a write that lands between the listing and the removal would be taken with the whole tree.
+//! It keeps the note and the socket file instead,
+//! so the sweep that asks the manager whether its service is gone removes the journal once that is over.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,6 +52,7 @@ use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
 use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
 use crate::service_route::non_empty_path_variable;
+use crate::service_is_gone_after_a_stop::service_is_gone;
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT, session_bus_path};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
@@ -68,7 +79,8 @@ pub use crate::service_journal_folder_of_an_instance::{JOURNAL_FOLDER, journal_o
 /// read and written by the code here and by provisioning
 /// (`service_files_of_a_stopped_instance.rs`).
 pub use crate::service_files_of_a_stopped_instance::{
-    KeptJournal, NOTE_ENDING, NOTES_FOLDER, forget_stopped_instance, note_path, note_worktree, record_worktree, remove_journal_of_a_stopped_instance,
+    JournalAfterStop, KeptJournal, NOTE_ENDING, NOTES_FOLDER, forget_stopped_instance, journal_of_the_instance, note_path, note_worktree,
+    record_worktree, remove_journal_of_a_stopped_instance, work_a_person_may_want,
 };
 
 /// What a unit instance's worktree is,
@@ -111,15 +123,24 @@ pub struct SweepOutcome {
 }
 
 /// What:
-/// Whether the worktree whose own Git directory is `git_dir` is certainly gone:
-/// the directory is missing while the place that holds it is there.
+/// Whether the worktree whose own Git directory is `git_dir` is certainly gone.
 /// Why:
-///   A repository on a drive that is not mounted has a missing Git directory too,
-/// and its worktrees are not gone.
-/// A linked worktree's directory is `<common>/worktrees/<id>`,
+///   A Git directory that is missing while the place that holds it is there is the worktree Git removed:
+/// a linked worktree's directory is `<common>/worktrees/<id>`,
 /// and Git removes `worktrees` itself with the last one,
 /// so the common directory is the place that must be there;
 /// a main checkout's Git directory is held by the checkout.
+/// A directory that is on a drive which is not mounted has a missing Git directory too,
+/// and its worktree is not gone,
+/// so a place that is missing as well is read by the same proof the pushes waiting for a new try are read by
+/// (`unreachable_git_dir_proven_gone.rs`):
+/// the nearest directory above the Git directory that exists,
+/// which proves the repository deleted when it is the root of a mounted filesystem or holds other entries,
+/// and proves nothing when it holds nothing at all.
+/// Both questions are asked here,
+/// so the service,
+/// the survey,
+/// the sweep and `doctor` never disagree about a gone worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,10 +153,18 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
     }
     let Some(parent) = git_dir.parent() else { return false };
     let anchor: Option<&Path> = if parent.file_name() == Some(std::ffi::OsStr::new("worktrees")) { parent.parent() } else { Some(parent) };
-    return match anchor {
-        Some(place) => place.is_dir(),
-        None => false,
-    };
+    if let Some(place) = anchor
+        && place.is_dir()
+    {
+        return true;
+    }
+    // The place that held the Git directory is missing too: the whole repository may have been deleted, or it may be on a
+    //  drive that is not mounted. The proof the retry plans use is what tells the two apart, and it reads no worktree of its
+    //  own: a worktree that is still there is one whose Git directory moved, which the caller of the proof names where it knows it.
+    return matches!(
+        crate::unreachable_git_dir_proven_gone::prove(git_dir, None, crate::unreachable_git_dir_proven_gone::the_mounts()),
+        crate::unreachable_git_dir_proven_gone::Proof::Gone(_)
+    );
 }
 
 /// What:
@@ -394,31 +423,38 @@ pub fn stop_units(manager: &mut dyn Manager, instance: &str) -> Result<(), CallE
     return socket.and(service);
 }
 
-/// One stop of an instance's socket through the manager,
-/// and the files that said the instance had units.
-fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<(), CallError> {
+/// One stop of an instance's socket through the manager.
+fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), CallError> {
     manager.within(EXCHANGE_WAIT);
-    stop_one_alone(manager, socket_unit_instance(instance).as_str())?;
-    forget_stopped_instance(folders.runtime_dir, instance);
-    return Ok(());
+    return stop_one_alone(manager, socket_unit_instance(instance).as_str());
 }
 
 /// What:
 /// Stops the socket unit of one instance through the manager,
-/// and removes the files that said it had units,
+/// ends the pushes it kept for a repository that is gone,
+/// and keeps the journal,
+/// the note and the socket file for the sweep that follows this process's end,
 /// when the worktree of that instance is gone,
 /// and nothing when it is not.
 /// Why:
 ///   This is what a service of a gone worktree does about itself:
 /// it serves nothing,
-/// and the socket,
-/// the note and the socket file go,
-/// so `doctor` counts nothing left over and the next sweep asks nothing.
+/// and no connection starts it again;
+/// the retry plan of every branch of the gone repository ends
+/// (`service_plans_of_a_gone_repository.rs`),
+/// so a service started later has no try left to spend;
+/// nothing of the journal is removed here,
+/// because this process is still one of that journal's writers,
+/// so `doctor` counts the instance until the sweep removes it,
+/// which is the price of never taking a record this process may still publish.
 /// Only the socket is stopped,
 /// and with the mode that leaves what requires it alone:
 /// the service's own end is what stops its service unit,
 /// and a stop of that unit from inside the service would signal this process mid-sentence.
 /// The socket goes first so no connection starts the service again.
+/// The journal is the one file this process may still write,
+/// so its removal waits for a sweep that proves the service gone,
+/// and the files that name the instance stay until then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -426,16 +462,54 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn 
 /// ```
 pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
     let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
-    stop_own_socket(folders, instance, manager)?;
-    if let Some(kept) = remove_journal_of_a_stopped_instance(folders.state_dir, instance) {
-        crate::service_warn!(
+    stop_own_socket(instance, manager)?;
+    // What: The pushes this service kept for the repository that is gone end here.
+    // Why:  Nothing is left to deliver, and a plan that stayed would be read by a service of this instance started later, which
+    //       would spend a try on a directory nothing can reach: the owner's "nothing should ever wait forever or indefinitely".
+    //       A plan of a repository that is still there, and every other record, stays and keeps the journal.
+    if let Some(state) = folders.state_dir {
+        let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
+        let ended: Vec<String> = crate::service_plans_of_a_gone_repository::end_plans_of_gone_repositories(journal.as_path());
+        if !ended.is_empty() {
+            crate::service_log!(
+                "the pushes this commit service kept for {} end without another try, because its repository is gone: {}; nothing is left there for a try to reach",
+                gone.display(),
+                ended.join(", ")
+            );
+        }
+    }
+    // Nothing of the journal is removed here, because this process is one of its writers and still runs:
+    //  the task that runs the after-commit work writes the note that names a repository to look at and the plan of a push
+    //  to try again, on a thread of its own and from jobs of the blocking pool, and both may write between the listing that
+    //  says the journal holds nothing unresolved and the removal of the whole tree.
+    // Removing it there took a record published in that window: the durable record of a pending push, of a repository still
+    //  to look at, or of a batch a client whose answer was lost still reads.
+    // So the journal, the note and the socket file stay for the sweep that runs after this process has ended and the manager
+    //  reports its service gone (`stop_units_of_gone_worktrees`), and what the journal holds is still named here.
+    match work_a_person_may_want(folders.state_dir, instance) {
+        Some(kept) => crate::service_warn!(
             "the journal of this commit service is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
             kept.journal.display(),
             kept.entry,
             kept.reason
-        );
+        ),
+        // Landed records a client may still read, and the landing record of nothing in flight, ask nothing of a person:
+        //  the sweep removes them together with the files that name this instance once this process is gone.
+        None => crate::service_log!(
+            "the journal of this commit service is kept at {} for the sweep that follows this process's end, because this service is still one of its writers",
+            journal_folder_in_words(folders.state_dir, instance)
+        ),
     }
     return Ok(Some(gone));
+}
+
+/// The journal folder of an instance in words,
+/// for a line that names where the journal a service leaves is kept.
+fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
+    let Some(journal) = journal_of_the_instance(state_dir, instance) else {
+        return String::from("a folder this process was given no state directory for");
+    };
+    return journal.display().to_string();
 }
 
 /// What:
@@ -518,13 +592,15 @@ fn reason_of(error: &CallError) -> String {
 /// What:
 /// Stops the units of every instance whose worktree is gone,
 /// and removes the note and the socket file of each one that was stopped,
-/// and its journal when it holds nothing a person may still want.
+/// and its journal when it holds nothing a person may still want and the manager reports its service gone.
 /// Why:
 ///   An instance that maps to nothing,
 /// or whose worktree is still there,
 /// is never asked about.
 /// A refused stop keeps its note,
-/// so the next sweep tries the instance again.
+/// so the next sweep tries the instance again,
+/// and so does a journal kept for a client that may still read it,
+/// or for a service that outlasted `SERVICE_GONE_AFTER_A_STOP`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -537,9 +613,18 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
     for instance in &surveyed.gone {
         match stop_units(manager, instance.as_str()) {
             Ok(()) => {
-                forget_stopped_instance(folders.runtime_dir, instance.as_str());
-                if let Some(kept) = remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str()) {
-                    outcome.journals_kept.push((instance.clone(), kept));
+                // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
+                //  and only then may the journal it writes be removed.
+                let quiet: bool = service_is_gone(manager, instance.as_str());
+                match remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str(), quiet) {
+                    Some(JournalAfterStop::HoldsWork(kept)) => {
+                        forget_stopped_instance(folders.runtime_dir, instance.as_str());
+                        outcome.journals_kept.push((instance.clone(), kept));
+                    }
+                    // The journal is kept for the clients that may still read it, or for a service that is still going:
+                    //  the note and the socket file stay, so the next sweep finds the instance and finishes.
+                    Some(JournalAfterStop::StillRead(_)) => {}
+                    Some(JournalAfterStop::Removed) | None => forget_stopped_instance(folders.runtime_dir, instance.as_str()),
                 }
                 outcome.stopped.push(instance.clone());
             }

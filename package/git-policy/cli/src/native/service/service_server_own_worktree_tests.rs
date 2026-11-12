@@ -120,6 +120,56 @@ fn a_service_whose_worktree_is_deleted_while_it_serves_ends_and_asks_for_its_soc
     remove(world.root.as_path());
 }
 
+/// What:
+///  A service that keeps a push plan for a repository that is gone ends at its next check,
+///  even though the plan counts the service as busy.
+/// Why:
+///   This is the measured state of 2026-11-11:
+/// units of deleted throwaway repositories logged "push will be tried again ... next_try=149" every 600 s,
+/// and a pending plan counts the service busy forever,
+/// so the busy answer to a timeout ended every wake before the worktree was asked about.
+/// The plan itself ends with the stop the service asks for,
+/// which the control for the units of a gone worktree covers.
+#[test]
+fn a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted() {
+    let world: World = world("gone-with-a-plan");
+    // A repository that is then deleted, under a directory that holds an entry of its own.
+    let holder: PathBuf = world.root.join("work");
+    let repository: PathBuf = holder.join("repository-a");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a repository");
+    std::fs::write(holder.join("kept.txt"), "another entry").expect("an entry beside it");
+    let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
+        git_dir: git_dir.clone(),
+        item: crate::work_item::WorkItem {
+            kind: crate::work_item::WorkKind::Push,
+            repository: repository.clone(),
+            git_dir: git_dir.clone(),
+            branch_ref: String::from("refs/heads/main"),
+            oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+            parent: String::from("fedcba9876543210fedcba9876543210fedcba98"),
+            created: String::from("2026-11-11T08:55:00.000-05:00"),
+            tries: 148,
+        },
+        attempt: 149,
+    };
+    crate::push_retry_store::save(world.journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &plan).expect("the plan is kept");
+    std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
+    let mut settings: ServeSettings = world.settings();
+    settings.own_git_dir = Some(git_dir);
+    let listener: UnixListener = UnixListener::bind(&world.socket).expect("bind");
+    let context: LandContext = LandContext {
+        git: crate::test_support::git_context(),
+        journal: world.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
+    let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || { serve(listener, &context, &settings); });
+    assert!(ended_within(thread), "a planned push for a repository that is gone kept the service alive after its check");
+    assert_eq!(world.stopped().as_deref(), Some(INSTANCE), "the service asks for its own socket to be stopped");
+    remove(world.root.as_path());
+}
+
 /// A worktree that is still there keeps the service serving:
 /// every check finds it and nothing is stopped.
 #[test]

@@ -25,7 +25,7 @@ use crate::commit_staged_additions::{explain_ignored_refusal, pathspecs_of_file}
 use crate::private_index_request::{CaptureIndexes, caller_pathspec_request};
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, checked_from, run_git, run_git_checked};
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Why a start of the private staging ended:
@@ -81,19 +81,21 @@ impl From<GitFailure> for SelectionStagingFailure {
 pub(crate) fn add_selected_paths(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), SelectionStagingFailure> {
     match selection_items(selection) {
-        Selected::Items(items) => return stage_items(context, cwd, indexes, items.as_slice()),
+        Selected::Items(items) => return stage_items(context, cwd, worktree_root, indexes, items.as_slice()),
         // An empty selection stages nothing, and the scratch commit then refuses as native Git refuses the command.
         Selected::Empty => return Ok(()),
         // A pathspec file too large to name on one command line keeps its own form, and only the tracked paths it matches
-        // are staged, so no file nothing staged reaches the commit.
+        // are staged, so no file nothing staged reaches the commit. Its start ends for the same two reasons the elements'
+        // does, and Git's refusal of one of its pathspecs is the caller's input too (issue 6283).
         Selected::File => {
             let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update")];
             arguments.extend(selection_arguments(selection));
-            return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure);
+            return stage_the_callers_pathspec_file(context, cwd, indexes, arguments.as_slice());
         }
         // A pathspec file this reader cannot take is Git's to read, and every path it names is staged as before.
         Selected::Unreadable => {
@@ -102,6 +104,47 @@ pub(crate) fn add_selected_paths(
             return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure);
         }
     }
+}
+
+/// What:
+///  The directory the relative pathspecs of this command are read from.
+/// Why:
+///   Git reads a relative pathspec below the top of the worktree the command works on,
+/// from the directory it runs in when that directory is inside that worktree,
+///  and from the worktree's own top when it is outside it.
+///  Which worktree that is has owners the wrapper does not repeat:
+/// a command line names one with `--git-dir` and `--work-tree`,
+///  a shell names one as `GIT_DIR` and `GIT_WORK_TREE`,
+///  a configuration names one as `core.worktree`,
+///  and a linked worktree is found from its own `.git` file,
+/// so the top Git answered for the invocation is the one asked here
+/// (`capture_invocation.rs`,
+/// `repository_root`,
+/// which `rev-parse --show-toplevel` gives).
+///  A reader that derived it from the command line's own `--work-tree` instead found none of the other shapes,
+///  took the invocation directory for the base,
+/// found no file at an exact name,
+///  took the element for a pattern,
+/// and left the commit to a `git add --update` that refuses a path nothing tracked;
+///  a directory selection misread as an exact path staged every untracked file below it.
+///  An invocation directory that cannot be resolved answers with itself,
+/// which is where Git reads the pathspec when the worktree it names is the same directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathspecBase = (cwd, worktreeRoot) => realpath(cwd)?.startsWith(realpath(worktreeRoot)) ? cwd : worktreeRoot;
+/// ```
+pub(crate) fn pathspec_base(cwd: &Path, worktree_root: &Path) -> PathBuf {
+    let Some(root) = std::fs::canonicalize(worktree_root).ok() else { return cwd.to_path_buf() };
+    let here: PathBuf = match std::fs::canonicalize(cwd) {
+        Ok(resolved) => resolved,
+        // A directory that cannot be resolved keeps the name it was given, and a pathspec is then read from it.
+        Err(_unresolved) => cwd.to_path_buf(),
+    };
+    if here.starts_with(root.as_path()) {
+        return cwd.to_path_buf();
+    }
+    return root;
 }
 
 /// What:
@@ -118,29 +161,57 @@ pub(crate) fn add_selected_paths(
 ///  An exact path the worktree holds is the one shape step 3 of `SPEC.md` "Explicit-path commit" takes from the worktree:
 ///  a path an ignore rule matches is still refused by Git with the hint the remedy explains,
 /// and a file nothing staged is committed where native Git refuses the pathspec (the wrapper's deliberate difference).
+///  The elements that subtract paths (`:(exclude)`,
+/// `:!`,
+/// `:^`) apply to every element of the selection,
+/// the exact file names included,
+/// because that is how native Git reads one list:
+///  `a.txt ':(exclude)a.txt'` takes no path,
+/// and one `git add` per element would stage `a.txt` anyway.
+///  A list of nothing but subtracting elements reads as every path,
+/// which is native Git's reading when the caller wrote no other element,
+/// and is not this start's to take when the caller named exact files instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await git(['add', '--', ...exactFiles]); await git(['add', '--update', '--', ...patterns]);
+/// await git(['add', '--', ...exactFiles, ...exclusions]); await git(['add', '--update', '--', ...patterns]);
 /// ```
-fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items: &[OsString]) -> Result<(), SelectionStagingFailure> {
+fn stage_items(
+    context: &GitContext,
+    cwd: &Path,
+    worktree_root: &Path,
+    indexes: &CaptureIndexes,
+    items: &[OsString],
+) -> Result<(), SelectionStagingFailure> {
     let literal: bool = pattern_characters_are_literal(context);
+    let base: PathBuf = pathspec_base(cwd, worktree_root);
     let mut named_files: Vec<&OsString> = Vec::new();
     let mut patterns: Vec<&OsString> = Vec::new();
     for item in items {
-        if names_one_file(cwd, item.as_os_str(), literal) {
+        if names_one_file(base.as_path(), item.as_os_str(), literal) {
             named_files.push(item);
         } else {
             patterns.push(item);
         }
     }
+    let exclusions: Vec<&OsString> = patterns.iter().copied().filter(subtracts_paths).collect();
+    // True while the patterns still name something: a directory, a pattern or additive magic. Only these keep the
+    //  subtracting elements from reading as every path.
+    let names_a_pattern: bool = patterns.iter().any(names_a_path);
     if !named_files.is_empty() {
         let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--")];
-        arguments.extend(named_files.into_iter().cloned());
+        for name in &named_files {
+            arguments.push((*name).clone());
+        }
+        for exclusion in &exclusions {
+            arguments.push((*exclusion).clone());
+        }
         private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure)?;
     }
-    // A directory or a pattern stages the tracked paths it matches (`--update`), never a file nothing staged.
-    if !patterns.is_empty() {
+    // A directory or a pattern stages the tracked paths it matches (`--update`), never a file nothing staged. The start is
+    //  skipped when the only elements left would read as every path and the caller named the exact files instead: their
+    //  start above already took them, minus the same exclusions.
+    if !patterns.is_empty() && (names_a_pattern || named_files.is_empty()) {
         stage_patterns(context, cwd, indexes, patterns.as_slice())?;
     }
     return Ok(());
@@ -181,6 +252,45 @@ fn stage_patterns(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, pa
     if let Ok(output) = outcome.as_ref()
         && !output.succeeded()
         && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::Elements(patterns))
+    {
+        return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
+    }
+    checked_from(outcome, request.arguments.as_slice()).map_err(explain_a_git_failure)?;
+    return Ok(());
+}
+
+/// What:
+///  Stages the pathspec file the caller named,
+/// as the file Git reads,
+///  and reports Git's refusal of a pathspec in it that matches nothing as the caller's input error.
+/// Why:
+///   A file past the bound on one command line is passed to Git as a file,
+/// so the tokens are never spelled here and every one of them is the caller's:
+/// the reading accepts whatever pathspec Git names (issue 6283).
+///  Every other failure of the start keeps the wording and the class it had,
+/// and the ignored-refusal sentence still applies to a pathspec Git reads from that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = runGit(callerPathspecRequest(['add', '--update', '--pathspec-from-file=...'])); const refused = outcome.ok ? null : pathspecMatchingNothing(outcome.stderr, FromTheCallersFile); if (refused) throw new InputRefusal(refused); checkedFrom(outcome);
+/// ```
+fn stage_the_callers_pathspec_file(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    arguments: &[OsString],
+) -> Result<(), SelectionStagingFailure> {
+    let request: GitRequest = caller_pathspec_request(
+        context,
+        cwd,
+        arguments,
+        Some(indexes.commit_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    let outcome: std::io::Result<GitOutput> = run_git(context, &request);
+    if let Ok(output) = outcome.as_ref()
+        && !output.succeeded()
+        && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::FromTheCallersFile)
     {
         return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
     }
@@ -237,7 +347,47 @@ pub(crate) enum Selected {
 /// so the commit still takes the tracked paths and only a file nothing staged stays out;
 /// one argument may not exceed 128 KiB (`MAX_ARG_STRLEN`) and a whole Linux command line stays under 2 MiB (`ARG_MAX`),
 /// so this bound leaves room for the rest of the command.
-const ITEMS_BYTES_LIMIT: u64 = 64 * 1024;
+pub(crate) const ITEMS_BYTES_LIMIT: u64 = 64 * 1024;
+
+/// The most bytes of a pathspec file this reader takes when it asks Git about the same paths.
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file larger than this is not a selection a commit can carry,
+/// and its elements would hold twice its bytes in memory,
+/// so this reader leaves the file to Git,
+/// which reports what it finds when the private staging opens it.
+/// The 1 GiB is the bound the in-process index reads already take (`INDEX_LIMIT_BYTES` in
+/// `commit_named_ignored_files.rs`,
+/// `conflict_side_guard.rs` and
+/// `merge_second_pass_worktree.rs`).
+pub(crate) const PATHSPEC_FILE_LIMIT: u64 = 1 << 30;
+
+/// What:
+///  Every element the selection names,
+/// read from the pathspec file when it names one,
+/// and nothing when this reader cannot take that file.
+/// Why:
+///   A question about which paths a selection takes must be asked about the same elements the staging takes,
+/// and a pathspec file is one form of the same selection:
+///  the command line carries its elements as arguments,
+/// so a file's paths would otherwise go unasked.
+///  Every reason to decline answers with nothing,
+/// because the staging hands the file to Git itself and Git then reports what it finds,
+/// which is the answer that was right before this reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const elements = selection.pathspecFile ? pathspecsOfFile(readFile(selection.pathspecFile), selection.nul) : selection.pathspecs;
+/// ```
+pub(crate) fn selection_elements(selection: &IndexSelection) -> Option<Vec<OsString>> {
+    let Some(file) = selection.pathspec_file else { return Some(selection.pathspecs.to_vec()); };
+    let size: u64 = std::fs::metadata(file).map(size_of).ok()?;
+    if size > PATHSPEC_FILE_LIMIT {
+        return None;
+    }
+    let bytes: Vec<u8> = std::fs::read(file).ok()?;
+    return pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul);
+}
 
 /// What:
 ///  The elements one selection names,
@@ -329,6 +479,96 @@ pub(crate) fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
 }
 
 /// What:
+///  Whether one pathspec token subtracts the paths it names from the rest of the selection:
+///  the long-form word `exclude` and the short forms `:!` and `:^`.
+/// Why:
+///   A subtracting element applies to the whole selection,
+/// so the exact files a commit stages need it in the same `git add` start:
+///  `a.txt ':(exclude)a.txt'` is no path to native Git,
+/// and one start per element would stage the file the caller excluded.
+///  The grammar is Git's own (`pathspec.c`,
+/// `parse_short_magic` and `parse_long_magic`),
+/// read the way `conflict_side_decision::magic_name` reads it:
+///  the long form holds words between the parentheses,
+/// which Git matches by their whole spelling and only in lower case,
+/// and the short form is a run of `!`,
+/// `^` and
+/// `/`,
+/// of which only the first two subtract.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const excludesPaths = (token) => token.startsWith(':(exclude') || /^:[!^]/.test(token);
+/// ```
+pub(crate) fn excludes_paths(token: &OsStr) -> bool {
+    let bytes: &[u8] = token.as_encoded_bytes();
+    let Some(magic) = bytes.strip_prefix(b":") else { return false };
+    if let Some(long) = magic.strip_prefix(b"(") {
+        let Some(close) = long.iter().position(is_close_paren) else { return false };
+        return long.get(..close).unwrap_or(long).split(is_comma).any(is_exclude_word);
+    }
+    let mut at: usize = 0;
+    while let Some(byte) = magic.get(at) {
+        match *byte {
+            b'!' | b'^' => return true,
+            b'/' => at += 1,
+            _ => return false,
+        }
+    }
+    return false;
+}
+
+/// Whether one borrowed element subtracts the paths it names.
+/// Why:
+///   The element lists below are read by path rather than by a closure,
+/// so each question is one named function (`rust/avoidable-closure`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const subtractsPaths = (element) => excludesPaths(element);
+/// ```
+fn subtracts_paths(element: &&OsString) -> bool {
+    return excludes_paths(element.as_os_str());
+}
+
+/// Whether one borrowed element names paths the selection takes.
+/// Why:
+///   The complement of `subtracts_paths`,
+/// read the same way:
+/// a pattern list that holds no naming element reads as every path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesAPath = (element) => !subtractsPaths(element);
+/// ```
+fn names_a_path(element: &&OsString) -> bool {
+    return !subtracts_paths(element);
+}
+
+/// Whether one long-form magic word is the subtraction word.
+/// Why:
+///   Git matches the word by its whole spelling in lower case,
+/// so `EXCLUDE` and `exclude-` are other magic and stay naming elements.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isExcludeWord = (word) => word === 'exclude';
+/// ```
+fn is_exclude_word(word: &[u8]) -> bool {
+    return word == b"exclude";
+}
+
+/// Whether one byte closes the long form of pathspec magic.
+fn is_close_paren(byte: &u8) -> bool {
+    return *byte == b')';
+}
+
+/// Whether one byte separates the words of long-form pathspec magic.
+fn is_comma(byte: &u8) -> bool {
+    return *byte == b',';
+}
+
+/// What:
 ///  `private_git` with the caller's own pathspec-mode options reaching Git.
 /// Why:
 ///   The staging pathspecs are the caller's,
@@ -349,3 +589,8 @@ fn private_git_with_modes(context: &GitContext, cwd: &Path, indexes: &CaptureInd
     run_git_checked(context, &request)?;
     return Ok(());
 }
+
+/// Controls for this module stay out of the release executable.
+#[cfg(test)]
+#[path = "commit_selection_staging_tests.rs"]
+mod tests;

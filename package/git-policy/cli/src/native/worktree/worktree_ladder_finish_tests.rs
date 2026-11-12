@@ -110,6 +110,9 @@ fn flushed_with(infix: &str) -> Vec<String> {
 /// the record travels to the copy,
 /// which settles it without a flush and writes no completion marker,
 /// so the record of the add never disappears between the swap and the copy.
+/// The add's own records are published by one rename each and flushed by nobody,
+/// before the swap as well as after it,
+/// and the control that the recorder reads this process's flushes is a write of the test's own.
 #[test]
 fn btrfs_a_served_snapshot_hands_its_record_over_without_a_flush() {
     let Some(root) = btrfs_fixture("finish-lazy-marker") else { return };
@@ -118,8 +121,14 @@ fn btrfs_a_served_snapshot_hands_its_record_over_without_a_flush() {
     let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
     assert!(result.carried.is_some(), "the snapshot served the add");
     let flushed: Vec<String> = take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).collect();
-    assert!(flushed.iter().any(|name: &String| { return name.contains(".add."); }), "the binding record before the swap is still flushed (the control that the recorder sees this add): {flushed:?}");
+    assert_eq!(flushed.iter().filter(|name: &&String| { return name.contains(".add."); }).count(), 0, "neither the binding record nor the destination record is flushed, so a loaded host cannot hold the add here: {flushed:?}");
     assert_eq!(flushed.iter().filter(|name: &&String| { return name.contains(".done."); }).count(), 0, "{flushed:?}");
+    // The recorder's own control: a write this test flushes is seen, so the empty answers above are the add's and not the
+    // recorder's.
+    let control: PathBuf = root.join("recorder-control");
+    crate::private_storage::write_private_file(control.as_path(), b"x").expect("a flushed control");
+    let seen: Vec<PathBuf> = take_file_syncs();
+    assert!(seen.iter().any(|path: &PathBuf| { return path.ends_with("recorder-control"); }), "the recorder sees a flushed write: {seen:?}");
     assert!(result.claim.is_some(), "the record travels on to the lifecycle");
     assert!(crate::worktree_copy_stage_claim::stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stands until its owner settles it");
     result.claim.expect("the record").settle_unsynced().expect("settled without a flush");

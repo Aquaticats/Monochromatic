@@ -16,7 +16,7 @@ fn request() -> CommitRequest {
         repository: PathBuf::from("/work/repo"),
         common_dir: PathBuf::from("/work/repo/.git"),
         git_dir: PathBuf::from("/work/repo/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: String::from(BLOB),
         changes: vec![
             Change { path: PathBuf::from("src/a \"b\".txt"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },

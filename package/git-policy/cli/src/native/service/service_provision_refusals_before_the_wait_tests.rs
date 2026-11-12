@@ -13,7 +13,7 @@
 
 use super::*;
 use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, socket_path, socket_path_suffix_bytes};
-use crate::service_provision::provision_with;
+use crate::service_provision::{in_place, provision, provision_with};
 use crate::service_provision_host_and_manager::Manager;
 use crate::systemd_dbus::CallError;
 use std::path::{Path, PathBuf};
@@ -140,6 +140,116 @@ fn a_runtime_directory_with_room(tag: &str) -> PathBuf {
     return runtime_directory_of_length(longest_runtime_directory(INSTANCE) - 1, tag);
 }
 
+/// What:
+///  The bytes of the name of a runtime directory whose own spelling and its spelling through one `..` both fit
+///  inside one socket address.
+/// Why:
+///   The spelling through a relative part holds the name twice,
+///  once as the directory and once after `..`,
+/// and `..` with the two slashes around it takes four bytes between the copies.
+/// One byte of the room goes to the separator after the parent and one to the separator after `..`,
+/// and what is left is halved,
+/// so the two copies together never pass the longest runtime directory an address can carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nameLengthToSpell(30) // the name of a runtime directory under a parent of 30 bytes
+/// ```
+fn name_length_to_spell(parent: usize) -> usize {
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    let room: usize = longest - parent - 1 - 4;
+    return room / 2;
+}
+
+/// What:
+///  A runtime directory whose name leaves room for the other spellings of it,
+/// inside the longest runtime directory a socket address can carry.
+/// Why:
+///   The check about the room an address needs cannot be what refuses a control of spellings,
+/// so the name is measured by `name_length_to_spell`,
+/// which keeps both spellings inside one address.
+fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
+    let parent: PathBuf = short_parent();
+    let name_length: usize = name_length_to_spell(parent.as_os_str().len());
+    assert!(name_length > tag.len(), "the tag {tag:?} leaves room to pad a name of {name_length} bytes");
+    return runtime_directory_of_length(parent.as_os_str().len() + 1 + name_length, tag);
+}
+
+/// What:
+///  Every parent length from a scratch directory's to the longest leaves both spellings inside one socket address.
+/// Why:
+///   The room is halved,
+/// and an odd room halves down by one,
+/// so a construction that assumed three bytes between the copies of the name spent the room exactly for every second
+/// parent length and produced an address one byte past what the kernel carries:
+/// `two_spellings_of_one_runtime_directory_are_one_service` failed whenever the test process's number of digits made
+/// the parent even.
+/// Measured 2026-11-11T10:05-05:00 with pid 919300:
+/// the dotted address took 108 bytes,
+/// and a run whose pid made the parent odd passed.
+#[test]
+fn the_two_spellings_of_a_runtime_directory_fit_one_socket_address_at_every_parent_length() {
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    let suffix: usize = socket_path_suffix_bytes(INSTANCE);
+    // Up to the longest parent whose halved room still leaves a name of two bytes, which both parities cover.
+    for parent in 10..=(longest - 9) {
+        let name: usize = name_length_to_spell(parent);
+        assert!(name > 1, "a parent of {parent} bytes leaves a name of {name} bytes");
+        // The name, the separator after the parent, `..` between the copies, and the name again.
+        let dotted: usize = parent + 1 + name + 4 + name;
+        assert!(
+            dotted + suffix <= LONGEST_SOCKET_PATH,
+            "a parent of {parent} bytes spells the directory in {dotted} bytes, which with the {suffix} of a socket path takes more than the {} one address carries",
+            LONGEST_SOCKET_PATH
+        );
+    }
+}
+
+/// What:
+///  A symbolic link beside `runtime` that resolves to it.
+/// Why:
+///  A person's runtime directory may be reached through a link,
+/// which this machine has in `/home` reaching `/var/home`,
+/// and the file system resolves the link while the texts stay different.
+fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
+    let link: PathBuf = runtime.parent().expect("a runtime directory stands in a folder").join(name);
+    std::os::unix::fs::symlink(runtime, &link).expect("a link to the runtime directory");
+    crate::test_support::track_for_this_thread(link.as_path());
+    return link;
+}
+
+/// What:
+///  Another spelling of the directory `runtime` names,
+/// `rounds` times over:
+/// the directory,
+/// `..`,
+/// and its own name again.
+/// Why:
+///  The file system walks every `..` back and reaches the same directory,
+/// while each round adds bytes to the text,
+/// so a control can spell one directory at the length its case needs.
+fn a_spelling_through_relative_parts(runtime: &Path, rounds: usize) -> PathBuf {
+    let name: &std::ffi::OsStr = runtime.file_name().expect("a runtime directory has a name");
+    let mut spelled: PathBuf = runtime.to_path_buf();
+    for _round in 0..rounds {
+        spelled = spelled.join("..").join(name);
+    }
+    return spelled;
+}
+
+/// What:
+///  The socket the manager made,
+/// bound so the installation is whole.
+/// Why:
+///  `in_place` reads the socket's file,
+/// and a control of the address a commit connects to needs the file a real manager would have made.
+fn the_socket_the_manager_made(runtime: &Path) {
+    let socket: PathBuf = socket_path(runtime, INSTANCE);
+    std::fs::create_dir_all(socket.parent().expect("the folder of the sockets")).expect("the folder of the sockets");
+    let _listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("the socket the manager made");
+    crate::test_support::track_for_this_thread(socket.as_path());
+}
+
 /// A host whose runtime directory is `runtime`.
 fn host_with(runtime: PathBuf) -> ProvisionHost {
     return ProvisionHost {
@@ -244,6 +354,13 @@ fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
     for part in [made.display().to_string(), socket_path(runtime.as_path(), INSTANCE).display().to_string(), String::from("/run/user/1000"), String::from("XDG_RUNTIME_DIR")] {
         assert!(said.contains(part.as_str()), "the message names {part:?}: {said}");
     }
+    // The socket the manager already holds is another runtime directory's service for this worktree, and this command starts
+    //  nothing: a unit started here would listen for a worktree no command of this runtime directory ever looks at.
+    assert!(
+        !manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+        "nothing was started in a manager that serves another runtime directory: {:?}",
+        manager.calls
+    );
 }
 
 /// What:
@@ -257,6 +374,82 @@ fn a_service_the_manager_made_where_this_command_waits_is_used() {
     let runtime: PathBuf = a_runtime_directory_with_room("where");
     let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
     provision_with(&host_with(runtime.clone()), &mut manager).expect("the service answers where this command looks");
+}
+
+/// What:
+///  Two spellings of one runtime directory are one service,
+/// and the commit goes on.
+/// Why:
+///   The address in the socket unit is `%t`,
+/// the manager's own spelling of its runtime directory,
+/// while the address a command connects to is built from the spelling of `XDG_RUNTIME_DIR` it was given.
+/// A link to the same directory,
+/// a `/run/user/1000/../1000` part,
+/// and a runtime directory already reached through a link,
+/// which this account has in `/home` reaching `/var/home` and in `/var/run` reaching `/run`,
+/// all reach the one socket the manager made,
+/// so a comparison of the two texts alone refused a service that answers on the very socket this command connects to.
+/// Worse,
+/// the refusal came before the record of what the manager was told,
+/// so every later commit was refused the same way.
+#[test]
+fn two_spellings_of_one_runtime_directory_are_one_service() {
+    let runtime: PathBuf = a_runtime_directory_to_spell("a");
+    let made: String = socket_path(runtime.as_path(), INSTANCE).display().to_string();
+    the_socket_the_manager_made(runtime.as_path());
+    let linked: PathBuf = a_link_beside(runtime.as_path(), "lnk");
+    let dotted: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 1);
+    for (tag, spelled) in [("a link to it", linked), ("a relative part in it", dotted)] {
+        assert_eq!(
+            std::fs::canonicalize(&spelled).expect("the spelling resolves"),
+            std::fs::canonicalize(&runtime).expect("the runtime directory"),
+            "{tag}: the two spellings reach one directory",
+        );
+        assert_ne!(spelled, runtime, "{tag}: the spellings are different texts");
+        let mut manager: Addressing = Addressing { addresses: Some(vec![made.clone()]), ..Addressing::default() };
+        provision_with(&host_with(spelled.clone()), &mut manager).unwrap_or_else(|failure| {
+            panic!("{tag}: the service answers on the socket this command connects to, and provisioning returned {failure:?}")
+        });
+        assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "{tag}: the socket was started: {:?}", manager.calls);
+        assert!(in_place(&host_with(spelled.clone())), "{tag}: the next commit finds the installation this one made");
+    }
+}
+
+/// What:
+///  An installation that looks current behind an address no connect can carry stops at once,
+/// instead of waiting out the ceilings for a start that cannot come.
+/// Why:
+///   The check about the room an address needs ran after the fast path,
+/// and the fast path reads the units,
+/// the record and the socket through any spelling the file system still resolves.
+/// A longer spelling of an installed runtime directory therefore returned as provisioned,
+/// and the commit then spent the start ceiling and the reload's second one connecting to an address the kernel refuses,
+/// ending with "The commit service did not start" and nothing about the setting that caused it.
+#[test]
+fn an_installed_service_behind_an_address_too_long_to_connect_stops_at_once() {
+    let runtime: PathBuf = a_runtime_directory_to_spell("b");
+    let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
+    provision_with(&host_with(runtime.clone()), &mut manager).expect("the units are written and the manager was told");
+    the_socket_the_manager_made(runtime.as_path());
+    assert!(in_place(&host_with(runtime.clone())), "the installation looks current under its own spelling");
+    let padded: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 2);
+    assert_eq!(std::fs::canonicalize(&padded).expect("the longer spelling resolves"), std::fs::canonicalize(&runtime).expect("the runtime directory"), "the longer spelling reaches the installed directory");
+    let address: PathBuf = socket_path(padded.as_path(), INSTANCE);
+    assert!(address.as_os_str().len() > LONGEST_SOCKET_PATH, "the address of that spelling takes {} bytes, more than one can carry", address.as_os_str().len());
+    let began: std::time::Instant = std::time::Instant::now();
+    let refused: ClientFailure = provision(&host_with(padded.clone())).expect_err("no connect can carry that address, so the commit must not go on");
+    let took: std::time::Duration = began.elapsed();
+    assert!(took < AT_ONCE, "the refusal takes {took:?}, not a wait");
+    assert_eq!(
+        refused,
+        ClientFailure::SocketPathTooLong {
+            path: address.display().to_string(),
+            length: address.as_os_str().len(),
+            longest: LONGEST_SOCKET_PATH,
+            longest_runtime: longest_runtime_directory(INSTANCE),
+        }
+    );
+    provision(&host_with(runtime.clone())).expect("the same installation under its own spelling is used, so the refusal is about the spelling alone");
 }
 
 /// What:

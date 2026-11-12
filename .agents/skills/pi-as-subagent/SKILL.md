@@ -489,8 +489,13 @@ which `mise run toolchain:install` makes.
 - The repository's `ask-user-question` tool works only in the terminal UI and answers RPC with an unavailable-tool error,
   and `ui.custom()` returns `undefined` at once in RPC mode,
   so the subagent cannot put a question to the human.
-- The owner's real home has a `thinking-default` plugin that sets the level to `xhigh` on every start and model change,
-  whatever the command line says.
+- The owner's real home has a `thinking-default` plugin (`package/pi-plugin/thinking-default`) that sets the level on every start and model change,
+  whatever the command line says:
+  `xhigh` when the model offers it,
+  and `high` when it does not (it never picks `max`).
+  So a run's reported level differs by provider for the same model family:
+  Neuralwatt's DeepSeek reports `xhigh`,
+  and `qwen-token-plan-individual`'s DeepSeek, whose efforts are low, high and max, reports `high`.
   Leave the thinking level alone:
   pass no `--thinking` and send no `set_thinking_level`.
 - In a throwaway folder,
@@ -502,8 +507,13 @@ which `mise run toolchain:install` makes.
 
 ## DeepSeek V4.1 Flash quirks
 
-The owner rates it at about a low-level Sonnet 5.5 when run at `xhigh`,
-and finds it works poorly at any other thinking level.
+The owner rates it at about a low-level Sonnet 5.5 at its middle thinking level,
+and finds it works poorly at any other.
+The owner, 2026-11-11, correcting an earlier wording here that named `xhigh`:
+"I meant DeepSeek is poor on anything but the thinking level between none/low and max.
+Actually, I also just checked AA and found out its official (proper) configs only supports none high and max,
+which means neuralwatt's xhigh is mapped to high internally anyway."
+So `high` is the level to run it at, and a provider that reports `xhigh` for it is sending the same effort.
 The owner also said:
 "Expensive models are also not necessarily more trustworthy than cheap models."
 It implemented and checked a multi-file change from a problem statement and evidence,
@@ -519,7 +529,7 @@ though it also found the repository's existing diagnosis.
   Phrase a hard objective as attempts to make,
   and steer with one concrete next attempt when it stalls.
 - It recovers from its own tool-argument slips without help.
-- Long thinking at `xhigh` leaves the feed quiet.
+- Long thinking leaves the feed quiet.
   Check the process state and the time of the last event before calling a run stuck.
 - It left scripts and compiled binaries in `/tmp`,
   and notes and sources in its working directory.
