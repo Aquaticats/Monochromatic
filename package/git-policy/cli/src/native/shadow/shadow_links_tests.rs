@@ -466,3 +466,193 @@ fn an_error_while_listing_the_shared_info_is_reported() {
     assert_eq!(error.kind(), std::io::ErrorKind::Other, "the creation reports the error the listing gave it");
     remove(root.as_path());
 }
+
+/// What:
+///  One repository whose `<git-dir>/lfs` holds something that is not a directory of the wrapper's making:
+///  a regular file,
+/// a symbolic link that reaches nothing,
+///  or a symbolic link to a file.
+/// Why:
+///  The three are one control,
+///  because the creation must treat them the same:
+/// leave the name as the person has it and link it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, elsewhere } = storeHeldAs(root, 'file')
+/// ```
+#[cfg(unix)]
+fn store_held_as(root: &Path, slug: &str, state: &str) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository(root, slug);
+    let common: PathBuf = repo.join(".git");
+    let elsewhere: PathBuf = root.join(format!("{slug}-elsewhere"));
+    std::fs::create_dir(elsewhere.as_path()).expect("a place beside the repository");
+    let store: PathBuf = common.join(LFS_STORE_ENTRY_NAME);
+    match state {
+        "file" => {
+            std::fs::write(store.as_path(), b"a file where the store belongs\n").expect("a regular file at the store's name");
+        }
+        "dangling" => {
+            std::os::unix::fs::symlink(elsewhere.join("not-mounted"), store.as_path()).expect("a link that reaches nothing");
+        }
+        "link-to-file" => {
+            std::fs::write(elsewhere.join("store-file"), b"a file where the store belongs\n").expect("a file to link to");
+            std::os::unix::fs::symlink(elsewhere.join("store-file"), store.as_path()).expect("a link to a file");
+        }
+        other => panic!("{other} is not a store state this control names"),
+    }
+    return (repo, elsewhere);
+}
+
+/// What:
+///  A store the repository holds as something that is not a directory is linked as it is,
+///  and the creation replaces,
+/// moves and deletes nothing of it.
+/// Why:
+///  `git-lfs` keeps its objects at `<git-dir>/lfs`,
+/// and people point that name at one store several clones share,
+/// at a store on a volume that is not mounted,
+///  or leave a file there.
+///  Real Git's commit runs with every one of those layouts,
+/// so a wrapped commit that makes a directory at that name fails where real Git's succeeds:
+///  the commit need not touch LFS at all for the creation to fail,
+///  because the creation makes the store on every commit.
+#[cfg(unix)]
+#[test]
+fn a_store_that_is_not_a_directory_is_linked_as_it_is() {
+    let root: PathBuf = fixture("shadow-links-store-not-a-directory");
+    for state in ["file", "dangling", "link-to-file"] {
+        let (repo, elsewhere): (PathBuf, PathBuf) = store_held_as(root.as_path(), state, state);
+        let common: PathBuf = repo.join(".git");
+        let store: PathBuf = common.join(LFS_STORE_ENTRY_NAME);
+        let shadow: PathBuf = root.join(format!("shadow-{state}"));
+        std::fs::create_dir(shadow.as_path()).expect("shadow");
+        link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path())
+            .unwrap_or_else(|error| panic!("a store held as {state} failed the creation: {error}"));
+        assert_eq!(
+            std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the shadow's link to the store"),
+            store,
+            "the creation links the name the repository holds, held as {state}"
+        );
+        let held: std::fs::Metadata = std::fs::symlink_metadata(store.as_path()).expect("the store's name is still taken");
+        match state {
+            "file" => {
+                assert!(held.is_file(), "a regular file stands where the store would be");
+                assert_eq!(
+                    std::fs::read(store.as_path()).expect("the file"),
+                    b"a file where the store belongs\n",
+                    "and the creation wrote nothing into it"
+                );
+            }
+            "dangling" => {
+                assert!(held.file_type().is_symlink(), "the link that reaches nothing is still a link");
+                assert_eq!(
+                    std::fs::read_link(store.as_path()).expect("the link"),
+                    elsewhere.join("not-mounted"),
+                    "and it still names what the person pointed it at"
+                );
+                assert!(std::fs::metadata(store.as_path()).is_err(), "and it still reaches nothing");
+            }
+            "link-to-file" => {
+                assert!(held.file_type().is_symlink(), "the link to the file is still a link");
+                assert_eq!(
+                    std::fs::read_link(store.as_path()).expect("the link"),
+                    elsewhere.join("store-file"),
+                    "and it still names the file the person pointed it at"
+                );
+                assert!(std::fs::metadata(store.as_path()).expect("the file").is_file(), "and still reaches that file");
+            }
+            other => panic!("{other} is not a store state this control names"),
+        }
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A store another command removes and takes with a link that reaches nothing,
+/// between the listing of the entries and their linking,
+///  is no failure of the creation,
+/// and the creation still replaces nothing.
+/// Why:
+///  The store is listed whether the repository holds it or not,
+/// so the entry the creation links can name something other than the directory the listing read:
+/// a `git-lfs` that starts, a sweep of a scratch volume,
+///  or a person's own command can change the name in that window.
+///  A commit that fails there fails where real Git's commit, which never reads this name,
+///  lands.
+#[cfg(unix)]
+#[test]
+fn a_store_another_command_takes_while_the_creation_links_is_not_a_failure() {
+    let root: PathBuf = fixture("shadow-links-store-taken-while-linking");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    std::fs::create_dir(common.join(LFS_STORE_ENTRY_NAME)).expect("git-lfs has run in this repository");
+    let (shared, own_info): (Vec<SharedEntry>, bool) = shared_entries_of(common.as_path(), common.as_path()).expect("listed");
+    assert!(!own_info);
+    assert!(
+        shared.iter().any(|entry| { return entry.name == LFS_STORE_ENTRY_NAME; }),
+        "the listing holds the store"
+    );
+    // Another command removes the store and takes the name with a link that reaches nothing.
+    std::fs::remove_dir_all(common.join(LFS_STORE_ENTRY_NAME)).expect("another command removes the store");
+    std::os::unix::fs::symlink(root.join("not-mounted"), common.join(LFS_STORE_ENTRY_NAME)).expect("another command takes the name");
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_directory_entries(shared.as_slice(), shadow.as_path())
+        .expect("a store another command changed while the creation ran is no failure of the commit");
+    assert_eq!(
+        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the shadow's link to the store"),
+        common.join(LFS_STORE_ENTRY_NAME)
+    );
+    let held: std::fs::Metadata = std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).expect("the name is still taken");
+    assert!(held.file_type().is_symlink(), "the name another command took is left as it is");
+    assert_eq!(
+        std::fs::read_link(common.join(LFS_STORE_ENTRY_NAME)).expect("the link"),
+        root.join("not-mounted"),
+        "the creation did not replace what another command put there"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A Git directory this account cannot write leaves the creation without a store,
+///  and the commit is not what fails for it.
+/// Why:
+///  A commit with nothing to do with LFS lands with real Git even when `<git-dir>/lfs` cannot be made,
+/// and a filter that needs the store reports what it cannot write itself,
+///  which is where real Git's commit fails too.
+///  The gate's containers run this suite as root,
+/// where no mode refuses this account, so the control names that and returns.
+#[cfg(unix)]
+#[test]
+fn a_store_the_account_cannot_make_does_not_fail_the_creation() {
+    use std::os::unix::fs::PermissionsExt;
+    // SAFETY: `geteuid` takes no arguments, touches no memory and cannot fail.
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: a mode this account is refused by needs an account the kernel refuses, and this run is root");
+        return;
+    }
+    let root: PathBuf = fixture("shadow-links-store-unwritable-git-directory");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    assert!(
+        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).is_err(),
+        "this repository has no store yet"
+    );
+    std::fs::set_permissions(common.as_path(), std::fs::Permissions::from_mode(0o500)).expect("the Git directory made unwritable");
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    let linked: std::io::Result<()> = link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path());
+    std::fs::set_permissions(common.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the Git directory given back");
+    linked.unwrap_or_else(|error| panic!("a store that cannot be made failed the creation: {error}"));
+    assert!(
+        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).is_err(),
+        "nothing stands where the account cannot write"
+    );
+    assert_eq!(
+        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the shadow's link to the store"),
+        common.join(LFS_STORE_ENTRY_NAME),
+        "the shadow still links the name, so a filter that cannot write there fails as real Git's does"
+    );
+    remove(root.as_path());
+}
