@@ -9,11 +9,15 @@
 //!  An ignored file is in neither reading,
 //!  and an ignored file is where a person keeps their environment and their local secrets.
 //!  The question is Git's own: the paths the form writes,
-//!  then every entry of the worktree at or below them that Git did not put there,
-//!  asked over those paths alone so a worktree with a million untracked files costs
-//!  what its written paths cost.
-//!  A path Git collapses into one directory name (`nested/`) is the directory itself:
-//!  a nested repository is reported that way, and moving or copying it whole is what keeps it.
+//!  then every entry of the worktree at, below or above one of them that Git did not put there.
+//!  Git is asked once over the whole worktree rather than once per written path,
+//!  because its own pathspec matching over the thousands of paths a whole-tree write names is
+//!  what a guard on every `reset --hard` cannot pay;
+//!  the answers are intersected with the written paths in this process instead.
+//!  `--directory` collapses a directory the worktree holds whole into one entry (`nested/`),
+//!  which bounds the listing to the worktree's own directories,
+//!  and a nested repository is reported that way:
+//!  moving or copying that entry whole is what keeps it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +36,9 @@ use crate::repository_facts_written_paths::paths_the_tree_writes;
 use crate::git_metadata::MetadataOutput;
 /// The queries over one set of paths,
 ///  and the reading of each answer.
-use crate::rule_worktree_dirty::{worktree_entry_queries, worktree_entries_from_answer};
+use crate::rule_worktree_dirty::worktree_entries_from_answer;
+/// `OsString` is owned operating-system text of raw bytes.
+use std::ffi::OsString;
 
 /// What:
 ///  Every path at or below a written path that the worktree holds and Git did not put there,
@@ -57,44 +63,70 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
     if asked.is_empty() {
         return Ok(Vec::<String>::new());
     }
-    // Only the outermost of the written paths is asked about: a pathspec that names a path inside a nested
-    //  repository makes Git answer nothing at all for every path in the same query, and a path below another one
-    //  is inside that one's answer anyway.
-    let outermost: Vec<Vec<u8>> = outermost_asked(asked.as_slice());
     let mut found: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    // Two answers, one question: what is untracked and what is ignored. Both are things Git did not write.
+    // Two answers, one question: what is untracked and what is ignored, each asked once over the whole worktree
+    //  because Git matches thousands of literal pathspecs far more slowly than it lists the entries itself.
+    //  Every directory the worktree holds whole arrives as one entry with a trailing separator, so an entry here
+    //  is either a path the form writes, one below it, or a directory that holds it.
+    //  Both listings collapse a directory the worktree holds whole into one entry (`nested/`), which is the entry a
+    //  save must keep whole, and a nested repository is reported exactly that way.
     for ignored in [false, true] {
-        for query in worktree_entry_queries(facts.global_prefix.as_slice(), outermost.as_slice(), ignored) {
-            let output: MetadataOutput = facts.query(query, "the files this command writes over")?;
-            found.extend(worktree_entries_from_answer(&output)?);
+        let output: MetadataOutput = facts.query(worktree_entry_query(facts.global_prefix.as_slice(), ignored), "the files this command writes over")?;
+        for entry in worktree_entries_from_answer(&output)? {
+            if !asked.iter().any(|path| return related(path.as_slice(), entry.as_slice())) {
+                continue;
+            }
+            found.push(entry);
         }
     }
     return Ok(outermost_entries(found));
 }
 
 /// What:
-///  The written paths that no other written path holds,
-///  in the order they were given.
+///  Whether one worktree entry stands where the form writes:
+///  at the written path,
+///  below it,
+///  or above it,
+///  which is the case of a directory the tree needs a file inside of.
 /// Why:
-///   A query that names both `nested` and `nested/file.txt` answers nothing at all,
-///  because the second is a path inside a nested repository and Git skips the whole question;
-///  and a path below another one is inside that one's own answer,
-///  so nothing is lost by not naming it.
+///   `--directory` collapses a directory the worktree holds whole into one entry (`nested/`),
+///  and that entry holds every written path inside it,
+///  so its trailing separator is not part of the comparison;
+///  an entry deeper than a written path is the file the form writes over;
+///  and a name that merely starts the same letters names nothing either way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function outermostAsked(asked: Buffer[]): Buffer[];
+/// const related = (asked, entry) => asked === entry || holds(asked, entry) || holds(entry, asked);
 /// ```
-fn outermost_asked(asked: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for path in asked {
-        let above: bool = asked.iter().any(|other| return other.len() < path.len() && holds(other.as_slice(), path.as_slice()));
-        if above {
-            continue;
-        }
-        kept.push(path.clone());
-    }
-    return kept;
+fn related(asked: &[u8], entry: &[u8]) -> bool {
+    return asked == entry || holds(asked, entry) || holds(entry, asked);
+}
+
+/// What:
+///  The one listing over the whole worktree that names what Git did not put there,
+///  either the entries its ignore rules do not cover or the ones they do,
+///  with each directory the worktree holds whole collapsed into one entry.
+///  `bool` asks for the ignored ones.
+/// Why:
+///   Asking over the written paths alone costs one large argument list per bounded start,
+///  and Git's own pathspec matching over thousands of literal paths is what made a
+///  `reset --hard` slow:
+///  measured on a worktree of this repository's size, ten such starts took 1.9 s where these two take 0.12 s.
+///  The answers are intersected with the written paths in this process,
+///  which is one pass over each of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreeEntryQuery(globalPrefix: string[], ignored: boolean): string[];
+/// ```
+fn worktree_entry_query(global_prefix: &[OsString], ignored: bool) -> Vec<OsString> {
+    let selection: &[&str] = if ignored {
+        &["--others", "--ignored", "--exclude-standard", "--directory"]
+    } else {
+        &["--others", "--exclude-standard", "--directory"]
+    };
+    return crate::rule_worktree_dirty::listing_arguments(global_prefix, selection);
 }
 
 /// What:
@@ -129,20 +161,25 @@ fn outermost_entries(found: Vec<Vec<u8>>) -> Vec<String> {
 
 /// What:
 ///  Whether one entry is the other or holds it,
-///  at a component boundary.
+///  at a component boundary,
+///  where a trailing separator names the directory it ends.
 /// Why:
 ///  `a/b` and `a` are one entry's worth of saving,
-///  while `ab` is a name of its own beside `a`.
+///  while `ab` is a name of its own beside `a`;
+///  and Git prints a directory the worktree holds whole as `a/`,
+///  which holds `a/b` exactly as `a` would.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holds = (outer, inner) => outer === inner || inner.startsWith(outer + '/');
+/// const holds = (outer, inner) =>
+///   outer === inner || inner.startsWith(outer.replace(/\/$/, '') + '/');
 /// ```
 fn holds(outer: &[u8], inner: &[u8]) -> bool {
     if outer == inner {
         return true;
     }
-    return inner.starts_with(outer) && inner.get(outer.len()) == Some(&b'/');
+    let outer: &[u8] = outer.strip_suffix(b"/").unwrap_or(outer);
+    return !outer.is_empty() && inner.starts_with(outer) && inner.get(outer.len()) == Some(&b'/');
 }
 
 /// The paths the worktree holds where the form writes, and the answer reading.

@@ -12,7 +12,28 @@
 //! // outermostEntries([Buffer.from('a/b'), Buffer.from('a'), Buffer.from('ab')]) === ['a', 'ab']
 //! ```
 
-use super::outermost_entries;
+use super::{outermost_entries, related};
+
+/// Git prints a directory the worktree holds whole as one entry ending in a separator,
+/// and that entry stands where every path at or below it is written.
+#[test]
+fn a_collapsed_directory_entry_holds_the_paths_below_it() {
+    assert!(related(b"nested/file.txt", b"nested/"));
+    assert!(related(b"nested", b"nested/"));
+    assert!(related(b"nested/", b"nested/file.txt"));
+    assert!(related(b"nested/", b"nested/"));
+    assert!(!related(b"nested/file.txt", b"nested2/"));
+    assert!(!related(b"nest", b"nested/"));
+}
+
+/// A directory kept whole is saved beside nothing,
+/// so an entry inside it is dropped in favour of the directory itself,
+/// whose printed name keeps its separator so the move names the directory.
+#[test]
+fn a_collapsed_directory_is_kept_beside_an_unrelated_file() {
+    let found: Vec<Vec<u8>> = vec![b"nested/file.txt".to_vec(), b"nested/".to_vec(), b"other.txt".to_vec()];
+    assert_eq!(outermost_entries(found), vec![String::from("nested/"), String::from("other.txt")]);
+}
 
 /// A file beside a directory of the same name is another entry,
 /// a file inside a directory that is already saved is not,
