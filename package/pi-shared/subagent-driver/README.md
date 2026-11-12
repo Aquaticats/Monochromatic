@@ -59,9 +59,12 @@ and the commands read them from there:
 - `neuralwatt`:
   standard DeepSeek,
   18 runs.
-  The owner, 2026-11-11: Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt
-  said to keep 1 to 2 below the limit because "a slot frees up a moment after your client sees the response finish, so a
-  request sent straight away can land as the 23rd".
+  The owner,
+  2026-11-11:
+  Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model.
+  Neuralwatt said to keep 1 to 2 below the limit because
+  "a slot frees up a moment after your client sees the response finish,
+  so a request sent straight away can land as the 23rd".
 - `neuralwatt-flex`:
   DeepSeek flex,
   20 runs.
@@ -71,7 +74,8 @@ and the commands read them from there:
   20 runs when it is open,
   taken only once both Neuralwatt pools are full.
   It is closed now:
-  the owner, 2026-11-11:
+  the owner,
+  2026-11-11:
   "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
   20 runs of Kimi K3.1 Pro flex,
@@ -261,10 +265,13 @@ and the launchers' after-run steps were lost.
 This command starts `start-pi-runs-from-a-batch-list` as a systemd user unit of its own,
 named `launch-<the list's name>` and never `pi-*`,
 because the slot count reads every `pi-*` unit as a run.
-Its caps are the batch's own: four processors, 16G of memory and 4096 tasks,
+Its caps are the batch's own:
+four processors,
+16G of memory and 4096 tasks,
 since the launchers only link dependencies and wait while the agents work in units of theirs,
 and its `RuntimeMaxSec` is two days,
-which bounds the longest run, a flex pool's doubled wall clock and the wakes that may resume it.
+which bounds the longest run,
+a flex pool's doubled wall clock and the wakes that may resume it.
 Both streams go to the list's own name and `.out` beside it,
 and nowhere else,
 because a unit has no terminal.
@@ -278,15 +285,18 @@ the checkout whose worktrees the launcher makes (this folder by default);
 `--runs-folder`;
 `--review-folder`;
 `--paused-file`,
-a list of names paused earlier, one per line after its first word;
+a list of names paused earlier,
+one per line after its first word;
 `--process-folder`;
 `--apply`,
 which does the removals rather than listing them;
 and `--clean-folder` with `--clean-word`,
 a command run in that folder inside each worktree before it is removed.
 
-The owner: "You're the coordinator and you're supposed to remove finished worktrees automatically."
-A worktree added on btrfs is a snapshot, so finished worktrees left in place filled the disk.
+The owner:
+"You're the coordinator and you're supposed to remove finished worktrees automatically."
+A worktree added on btrfs is a snapshot,
+so finished worktrees left in place filled the disk.
 
 A run's worktree is removed only when all of these hold,
 and each line says which one did not:
@@ -294,13 +304,17 @@ and each line says which one did not:
 - its unit has ended;
 - the run finished its work,
   which is its summary saying `idle`,
-  or, for a review, its `review.md` existing;
+  or,
+  for a review,
+  its `review.md` existing;
 - it is not on the pause list,
   or its latest run finished its turn since;
 - no brief for its name was written after its latest run ended,
   which is a resume or a re-merge waiting for a slot;
 - nothing of the run works in it:
-  not in the worktree, not in any of its run folders, and not in its review folder;
+  not in the worktree,
+  not in any of its run folders,
+  and not in its review folder;
 - `git status` holds nothing uncommitted.
 
 A worktree some process still works in is the check that matters most:
@@ -308,7 +322,8 @@ before 2026-11-11 this step ran `cargo clean` in,
 and removed,
 the worktree of a run that had ended idle while a build or a reproduction that run started was still working there,
 so the wake had nothing to return to.
-Nothing is ever removed by force, and every branch is kept.
+Nothing is ever removed by force,
+and every branch is kept.
 
 ## Reading what is going on
 
@@ -339,10 +354,13 @@ and it never names its own process.
 ### `list-launchers-whose-unit-has-ended`
 
 `--launcher-entry`,
-repeatable, the basename a launcher is run as
+repeatable,
+the basename a launcher is run as
 (this package's launcher and the scratch one it replaced by default);
-`--minimum-age-seconds`, one hour by default;
-and `--stop`, which ends each launcher it names.
+`--minimum-age-seconds`,
+one hour by default;
+and `--stop`,
+which ends each launcher it names.
 
 ```text
 # --minimum-age-seconds=3600
@@ -359,7 +377,8 @@ so one younger than the minimum may simply not have got there yet.
 because ending the launcher alone can leave its waiter holding the unit's name.
 A launcher whose unit's state could not be read is never ended:
 a manager that could not be asked says nothing about the unit,
-and it is printed only when it is listed, not acted on.
+and it is printed only when it is listed,
+not acted on.
 
 ### `list-running-units-whose-worktree-is-gone`
 
@@ -383,7 +402,8 @@ the one place that names worktrees.
 ### `print-the-final-report-of-the-newest-run-of-each-agent`
 
 `--agent`,
-repeatable, one block per agent;
+repeatable,
+one block per agent;
 `--runs-folder`;
 `--lines`,
 how many lines of each final message (30 by default);
