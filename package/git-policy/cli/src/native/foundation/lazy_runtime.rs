@@ -211,6 +211,20 @@ fn error_text(error: std::io::Error) -> String {
 static THE_HANDOFF_OF_A_LATE_RUNTIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// What:
+///  A control's own code at the moment between the caller's last read of the channel and its closing of it,
+///  which is the moment the hand-over above closes.
+/// Why:
+///   The two statements cannot be ordered from outside,
+/// so the control that shows a runtime sent into them is kept releases the build from here;
+///  the slot is empty in every process that sets no control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let theCallersMoment: (() => void) | undefined; // run once between the caller's last read and its close
+/// ```
+#[cfg(test)] static THE_CALLER_STOPS_WAITING: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> = std::sync::Mutex::new(None);
+
+/// What:
 ///  Builds the runtime `plan` names.
 /// The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
 ///  for until `deadline`;
@@ -292,6 +306,7 @@ where
                 //  taken here rather than dropped with the channel.
                 let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 let _kept: bool = keep_a_late_build(receiver.try_recv());
+                #[cfg(test)] if let Some(moment) = THE_CALLER_STOPS_WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() { moment(); }
                 drop(receiver);
                 BuiltFlavor::CurrentThreadAfterDeadline
             }
@@ -364,10 +379,7 @@ static LATE_RUNTIME: std::sync::OnceLock<Runtime> = std::sync::OnceLock::new();
 /// const late = lateRuntime(); // undefined until the build that missed its deadline arrives
 /// ```
 fn the_late_runtime() -> Option<&'static Runtime> {
-    #[cfg(test)]
-    if tests::this_read_of_the_late_runtime_is_held_back() {
-        return None;
-    }
+    #[cfg(test)] if tests::this_read_of_the_late_runtime_is_held_back() { return None; }
     return LATE_RUNTIME.get();
 }
 
@@ -512,11 +524,7 @@ pub(crate) fn the_worker_answers() -> WorkerAnswers {
     let arrived_late: bool = the_late_runtime().is_some();
     let flavor: Option<BuiltFlavor> = built_flavor();
     let a_build_is_coming: bool = !arrived_late && flavor == Some(BuiltFlavor::CurrentThreadAfterDeadline);
-    #[cfg(test)]
-    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
-        // A control's stand-in for a system that refuses every thread: no task of this process runs, whatever a build would bring.
-        return WorkerAnswers { can_run: false, a_build_is_coming };
-    }
+    #[cfg(test)] if REFUSED.load(std::sync::atomic::Ordering::SeqCst) { return WorkerAnswers { can_run: false, a_build_is_coming }; }
     return WorkerAnswers { can_run: arrived_late || matches!(flavor, Some(BuiltFlavor::MultiThread { .. })), a_build_is_coming };
 }
 

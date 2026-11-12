@@ -301,48 +301,48 @@ fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_a
 }
 
 /// What:
-///  A build that finishes while the caller is giving up on it is kept,
-///  whichever of the two takes the one moment of the hand-over first.
+///  A build that finishes while the caller is between its last read of the channel and its closing of it is kept.
 /// Why:
-///   The review of 2026-11-12T09:34-05:00 found a runtime that a build sent between the caller's last read of the channel
-/// and its closing of it dropped with the channel:
+///   The review of 2026-11-12T09:34-05:00 found a runtime sent into that gap dropped with the channel:
 /// the process then believed for the rest of its life that a build was still coming,
 ///  spent the whole patience on every later task,
 /// and ended the service with status 4.
-/// The control holds the one moment itself and releases the build into it with the caller already past its deadline,
-/// then lets the two settle in whichever order they arrive;
-/// the caller takes the runtime,
-/// or the build keeps it,
-/// and either way the runtime is kept.
+/// The control releases the build from that moment itself,
+/// which is the only way to order it;
+/// the build's send either waits for the moment to close and is then kept by the build,
+/// or lands in the channel before the caller closes it and is taken there,
+///  so the runtime is kept either way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holdTheHandOff(); const built = buildWithDeadlineAnd(plan, 50ms, () => { await released; return buildThread(1) }, currentThread); release(); expect(lateArrived).toBe(true)
+/// atTheCallersMoment(() => releaseTheBuild()); const built = buildWithDeadlineAnd(plan, 50ms, buildThread, currentThread); expect(lateArrived).toBe(true)
 /// ```
 #[test]
 fn a_build_that_finishes_while_the_caller_gives_up_is_kept() {
-    // Held here first, so the caller comes to its deadline before the build can hand its runtime over.
-    let the_moment: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let (release_sender, release) = std::sync::mpsc::channel::<()>();
-    let caller = std::thread::spawn(move || {
-        return build_with_deadline(
-            RuntimePlan::MultiThread { workers: ONE_WORKER, blocking_threads: ONE_WORKER },
-            BEFORE_THE_DEADLINE,
-            move |workers: usize, blocking: usize| -> std::io::Result<Runtime> {
-                release.recv().expect("the control releases the build into the moment it holds");
-                return tokio::runtime::Builder::new_multi_thread().worker_threads(workers).max_blocking_threads(blocking).enable_all().build();
-            },
-        );
-    });
-    // The deadline passes while this control holds the moment, so the caller is at it before the build.
-    std::thread::sleep(THE_STAND_IN_IS_HELD);
-    release_sender.send(()).expect("the build is released as the caller gives up");
-    // The build finishes and comes to the same moment; this control then lets the two settle in whatever order they arrive.
-    std::thread::sleep(THE_STAND_IN_IS_HELD);
-    drop(the_moment);
-    let built: BuiltRuntime = caller.join().expect("the caller ends").expect("a runtime stands in");
-    assert_eq!(built.flavor, BuiltFlavor::CurrentThreadAfterDeadline, "the deadline passed before the build was released");
-    assert!(late_build_arrived(), "the runtime the build finished with is kept in either order of the one moment");
+    let (built_sender, built) = std::sync::mpsc::channel::<()>();
+    *THE_CALLER_STOPS_WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Box::new(move || {
+        release_sender.send(()).expect("the build is released into the caller's last moment of waiting");
+        built.recv().expect("the build finished");
+        // The time a send needs to land in the channel, which the moment has to outlast for the control to mean anything.
+        std::thread::sleep(THE_STAND_IN_IS_HELD);
+    }));
+    let built_runtime: BuiltRuntime = build_with_deadline(
+        RuntimePlan::MultiThread { workers: ONE_WORKER, blocking_threads: ONE_WORKER },
+        BEFORE_THE_DEADLINE,
+        move |workers: usize, blocking: usize| -> std::io::Result<Runtime> {
+            release.recv().expect("the control releases the build from the caller's moment");
+            let runtime: Runtime = real_multi_thread(workers, blocking)?;
+            built_sender.send(()).expect("the build says it finished");
+            return Ok(runtime);
+        },
+    )
+    .expect("a runtime stands in");
+    assert_eq!(built_runtime.flavor, BuiltFlavor::CurrentThreadAfterDeadline, "the deadline passed before the build was released");
+    assert!(
+        late_build_arrived(),
+        "the runtime the build finished with was dropped with the channel the caller closed after its last read"
+    );
 }
 
 /// What:
