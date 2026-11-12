@@ -6166,7 +6166,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   1.04 s).
 - `RUNTIME_BUILD_PATIENCE` 60 seconds:
   the longest a service waits for the build of its own multi-thread runtime once that build has outlasted
-  `BUILD_DEADLINE` (one second), before it ends and lets the service manager start it again.
+  `BUILD_DEADLINE` (one second),
+  before it ends and lets the service manager start it again.
   The greeting of a connection waits behind that build,
   so this wait is inside the time a client gives the service's start.
   It is `START_CEILING`,
