@@ -13,7 +13,8 @@
 //  so and that a wait says what it waits for and on whom.
 //! The line is written from a thread of its own because the ask itself blocks the commit's thread;
 //! the thread is ended as soon
-//!  as the manager answered, so a commit that waited no time prints nothing.
+//!  as the manager answered,
+//! so a commit that waited no time prints nothing.
 //! It is written to the wrapper's log at the warning priority,
 //! as every other provisioning step that did not go as
 //!  intended is,

@@ -6753,7 +6753,9 @@ Guard tests keep it so:
   so an upgrade,
   a downgrade or a second build of one release moves that link and changes no unit text:
   no reload is asked for,
-  and the commit pays one read and, when the program moved, one rename.
+  and the commit pays one read and,
+  when the program moved,
+  one rename.
   When the units,
   the link and the socket are right it opens no connection to the bus at all.
   Setting up writes two unit files into

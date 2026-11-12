@@ -11,7 +11,8 @@
 //! and the manager reads it again only when it is asked to reload every unit it
 //!  holds.
 //! A template whose `ExecStart` named the executable of the release that wrote it
-//! changed with every release, at its full path,
+//! changed with every release,
+//! at its full path,
 //! and with every build of the wrapper that started from another directory:
 //! each such change made the next commit write the template and ask for a reload,
 //! which on this host read every unit for 1 to 13 seconds,

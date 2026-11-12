@@ -96,7 +96,8 @@ fn two_releases_write_one_unit_text_naming_the_link() {
 ///   This is the whole cost a first commit after a release is installed pays:
 /// one read and one rename,
 /// never a reload of every
-///  unit, and never a round trip that queues behind another worktree's reload.
+///  unit,
+/// and never a round trip that queues behind another worktree's reload.
 #[test]
 fn a_release_change_moves_the_link_and_asks_the_manager_nothing() {
     let machine: Machine = machine("program-pointer-release-change");

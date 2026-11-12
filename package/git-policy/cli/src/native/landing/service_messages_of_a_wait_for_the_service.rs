@@ -137,7 +137,8 @@ pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 /// that it is ended once,
 /// and that the commit goes on.
 /// Why:
-///   The wait for a service of another release is the commit's, not a start's:
+///   The wait for a service of another release is the commit's,
+/// not a start's:
 /// a service that finishes a batch,
 /// or a push it planned to try again,
 /// can outlast the bound,

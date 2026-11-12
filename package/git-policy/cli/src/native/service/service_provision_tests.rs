@@ -406,7 +406,8 @@ fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place(
 /// Why:
 ///  The manager is asked only about a unit it may hold changed or a socket that is not there;
 /// a
-///  commit whose only change is the program link (a release change, or a second build of one release) reads one link and
+///  commit whose only change is the program link (a release change,
+/// or a second build of one release) reads one link and
 ///  returns,
 ///  which is what keeps a first commit after an install from queueing behind a manager that is reading every
 ///  unit.
@@ -763,9 +764,13 @@ fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_m
 ///   The units being written is what the manager needs,
 /// and a service of this release that is already running can answer the request
 ///  however slowly the manager reads its units;
-/// a commit that ended here told the person this account has no user services, which was false, and
-///  left the change uncommitted (two commits of 2026-11-11, twenty seconds of provisioning each).
-/// The record must not be written: only the manager's own answer may say it was told.
+/// a commit that ended here told the person this account has no user services,
+/// which was false,
+/// and
+///  left the change uncommitted (two commits of 2026-11-11,
+/// twenty seconds of provisioning each).
+/// The record must not be written:
+/// only the manager's own answer may say it was told.
 #[test]
 fn a_manager_that_does_not_answer_never_fails_the_commit() {
     let machine: Machine = machine("provision-timeout-lib");

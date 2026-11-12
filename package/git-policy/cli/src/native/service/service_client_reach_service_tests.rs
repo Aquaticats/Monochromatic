@@ -310,15 +310,18 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
 /// and leaves the record of
 ///  the unit texts the manager was told about as it was.
 /// Why:
-///  Another release answering is a service that was started before the program link moved, and the ret
+///  Another release answering is a service that was started before the program link moved,
+/// and the ret
 ///  that follows ends it;
-/// it is no longer proof that the manager's unit text and the files disagree, because a unit text names the link and
+/// it is no longer proof that the manager's unit text and the files disagree,
+/// because a unit text names the link and
 ///  not a release (`service_provision_program_pointer.rs`).
 /// Dropping the record here made every commit after a release change read every unit again,
 ///  which took 3,521 to 20,002 ms of provisioning on 2026-11-11T20:01-20:12-05:00 and failed two commits
 /// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// findings 2 of the round-2 review and 3 of the round-3
-///  review, superseded by the program link).
+///  review,
+/// superseded by the program link).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -378,9 +381,11 @@ fn a_service_of_another_release_that_will_not_stop_leaves_the_record_of_the_unit
 /// Why:
 ///  The bound is the commit's and a service that finishes a batch outlasts it;
 /// the commit that ended there left the
-///  person's change uncommitted (5 of 6 changes of release in the two-build reproduction of 2026-11-12, 10,032 to
+///  person's change uncommitted (5 of 6 changes of release in the two-build reproduction of 2026-11-12,
+/// 10,032 to
 ///  10,052 ms of a wait that then failed).
-/// Ending it is what lets the manager start the program this release installs, and one ending only:
+/// Ending it is what lets the manager start the program this release installs,
+/// and one ending only:
 ///  a unit the manager starts from a text an upgrade left behind comes back as the other release again.
 ///
 /// In TS you'd write (pseudocode):
