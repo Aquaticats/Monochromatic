@@ -152,16 +152,22 @@ The rejected `--replace` form is not the selected way to update this nested valu
 
 ## Upstream filing decision
 
-- Upstream fault: not established.
+- Upstream fault:
+  not established.
   The attempted argument selects the existing old-value replacement grammar.
-- Fix feasibility: extending the interface is possible in principle,
+- Fix feasibility:
+  extending the interface is possible in principle,
   but no upstream change is needed for the host configuration.
-- Supported use case: installed help explicitly offers deletion and append;
+- Supported use case:
+  installed help explicitly offers deletion and append;
   unrestricted nested-value replacement was not established.
-- Contribution policy: not assessed because no defect report is proposed.
-- Maintainer intent: not assessed;
+- Contribution policy:
+  not assessed because no defect report is proposed.
+- Maintainer intent:
+  not assessed;
   no willingness or refusal is inferred.
-- Prototype: none,
+- Prototype:
+  none,
   because the upstream-fault gate did not pass.
 
 `gh search issues '"No karg" rootflags' --repo coreos/rpm-ostree --json number,title,url`
