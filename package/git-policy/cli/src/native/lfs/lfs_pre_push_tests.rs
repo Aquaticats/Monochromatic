@@ -148,6 +148,19 @@ fn the_switch_the_environment_names_is_read_as_the_callers_own() {
     ] {
         assert!(!hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()), "{words:?}");
     }
+    // A switch the numbered pairs set still stands: the refused command line ends the push before anything is uploaded.
+    let numbered: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_KEY_0"), OsString::from("hook.cli-git-lfs-pre-push.enabled")),
+        (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("false")),
+    ];
+    assert!(
+        hook_switched_off(
+            prefix(&["--config-env=hook.cli-git-lfs-pre-push.enabled=MISSING"]).as_slice(),
+            numbered.as_slice()
+        ),
+        "the numbered pair still switches the upload off"
+    );
 }
 
 /// The lookup finds an executable file in any `PATH` directory and refuses a directory,

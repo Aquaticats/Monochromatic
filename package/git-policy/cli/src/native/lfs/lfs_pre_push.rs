@@ -162,7 +162,7 @@ fn reads_as_false(value: &str) -> bool {
 /// Gotcha:
 ///  A `--config-env` the environment cannot answer is a command line Git itself refuses,
 ///  so the push never runs;
-/// this answer keeps the upload on,
+/// this answer then reports only what the numbered pairs set,
 ///  and the upload refuses to start for the same reason.
 ///
 /// In TS you'd write (pseudocode):
@@ -185,7 +185,8 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
         }
     }
     let Some(pairs) = crate::lfs_command_line_configuration::command_line_pairs(global_prefix, environment) else {
-        return false;
+        // Git refuses this command line, so the push never runs; a switch the numbered pairs set still stands.
+        return off;
     };
     for (name, value) in pairs {
         // A name that is not valid text is no switch: Git compares the name's letters, and such a name holds none.
