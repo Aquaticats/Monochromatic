@@ -990,6 +990,34 @@ in its source,
 is not installed,
 and is
  named on one line beside the entries the person could not read.
+The settling gives the stage the source's modes before it compares,
+so a directory that grants its owner reading and
+ searching and no writing would refuse the removal and the copy its changed entries need:
+the staged directories
+ above one entry take the owner's writing for those two steps alone,
+and every mode the settling recorded
+ goes back before the next comparison reads it,
+so a restrictive mode is retained state of the source and never a reason
+ for the copy to fail (`worktree_copy_settling_stage_writing.rs`).
+An entry the source gains after the copy's listing was in no manifest the copy staged,
+so the stage cannot hold
+ it:
+the pass that ends the settling names each one,
+and one stderr line gives the count and the first
+ three paths with the sentence that they stay in the source worktree,
+so copy the ones the new worktree needs from
+ there.
+The copy covers one interval:
+it names what the source held at its last comparison,
+and an entry written after
+ that comparison lies outside the listing and outside the comparison,
+as an entry written after a snapshot's
+ own instant lies outside the snapshot.
+A stage that could not be filled is removed with the owner's writing given to every
+ directory it holds (`remove_stage`),
+so the reason a copy stopped is what the person reads instead of
+ `Permission denied`,
+and the stage and its claim never stand for good.
 The stage equals the source for every entry it holds,
 and a copy
  that cannot finish names the path of the entry it failed on rather than only the checkout it came from.
@@ -1019,6 +1047,23 @@ with `git worktree remove` leaving a worktree that holds changes alone.
 The package-manager repair does not run for such a worktree,
 as it does not after a failed copy.
 Nothing waits for the other add and no lock is taken.
+The snapshot rung asks the same question before it takes a snapshot (`finish_snapshot` in
+`src/native/worktree/worktree_ladder_finish.rs`):
+a source that is still being filled is no source for a snapshot either,
+because a
+ snapshot of it would carry only the part of its ignored files another copy has installed so far.
+The rung declines
+ before it pays for the snapshot,
+one line on standard error says why this add was not made as a snapshot and
+ that running the same line again once the other add has finished is a snapshot that takes seconds
+ (unless `--quiet`,
+ with the same sentence in the journal),
+and Git's own checkout completes the worktree.
+A record that cannot be read
+ refuses the snapshot too,
+because the rung cannot tell a whole source from one another copy is filling,
+and the copy
+ below names the record it could not read.
 A copy that is still staging its source has no journal yet,
 and a copy's own stage claim records no destination,
 so that window alone is not covered.
@@ -1324,6 +1369,10 @@ and anything another process added to it meanwhile stays there and is named in a
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
+A source that is itself the destination of an ignored-state copy that has not finished holds only part of that state,
+so no snapshot of it is taken at all:
+the rung asks that question before it pays for the snapshot and falls to Git's own checkout,
+as "Linked-worktree ignored-state synchronization" says.
 The swap this command made itself proves the worktree is its own,
 so the skip comes before any question about the reservation the destination answered for before the swap:
 no line says the worktree received no copy,
@@ -1816,7 +1865,16 @@ reached through a link),
 told in the check's own words;
 and a snapshot that started and could not be finished,
 told with the reason,
-after which Git's own checkout made the worktree.
+after which Git's own checkout made the worktree;
+and a source that is itself the destination of an ignored-state copy that has not finished,
+which is no source for a snapshot either,
+told with which of the three states that copy is in (running,
+interrupted or
+left unfilled),
+after which Git's own checkout made the worktree and the copy named the ignored state it did not take;
+and records of the source that cannot be read,
+told with the reason,
+after which no snapshot was taken and the copy named the record it could not read.
 A source or destination that is not on btrfs gets no line,
 because nothing the person does makes the add a snapshot there.
 A failed add gets no line either;
@@ -1833,7 +1891,9 @@ fields `CLI_GIT_WORKTREE` (the destination),
 `unproven`,
 `not-subvolume`,
 `other-filesystem`,
-`unsupported` or `snapshot-failed`)
+`unsupported`,
+`snapshot-failed`,
+`source-being-filled` or `source-records-unreadable`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it),
 also under `--quiet`.
 The entry is one datagram on the journal's native socket,

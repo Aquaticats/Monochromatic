@@ -691,7 +691,19 @@ Read-only commands,
   is not installed,
   and is named
    on one line.
-  A file that cannot be copied at all fails the copy with its own path in the message.
+  A copy never fails over a directory the source keeps readable only:
+  the staged directories above an entry take
+   your writing for the one removal and the one copy its retry needs,
+  and the source's modes are back
+   before the next comparison reads them.
+  A file the source gained while it was copied was in no listing the copy staged, so it cannot be
+   in the new worktree:
+  it stays in its source,
+  and one line says how many there were and which first ones.
+  A file that cannot be copied at all fails the copy with its own path in the message,
+  and a stage that could not be filled is removed even where it holds a directory you cannot write,
+  so
+   the reason the copy stopped is what you read.
   A record of that copy that a crash left empty or cut short is not a reason to stop a command:
   the command that meets it moves it aside into the journal root's `unreadable` folder,
   never over another record and never deleting one,
@@ -704,6 +716,11 @@ Read-only commands,
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,
   and names the commands that have the copy made once the first add has finished.
+  The snapshot rung asks the same question before it takes a snapshot of the worktree you run the add from:
+  an
+   add from a worktree that is still being filled takes the slow route,
+  one line says why it was not a snapshot,
+   and the copy's own line names the ignored state it did not take.
   The wrapper reads the destination of every form Git's option parser accepts (abbreviated long options resolved as Git
    resolves them,
   bundled short options,
@@ -738,6 +755,9 @@ Read-only commands,
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
+     A source that is itself receiving another add's copy holds only part of that state,
+     so no snapshot of it is
+      taken and this rung falls to Git's own checkout.
      A main checkout with uncommitted changes (staged,
      edited,
      deleted,
