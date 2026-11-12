@@ -167,10 +167,11 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         }
         // A link whose target has gone is not the link a creation of this moment makes, and the commit
         //  must not be handed a directory it cannot write into: a filter or a hook that writes there fails.
+        let link: PathBuf = member.join(name.as_os_str());
         match std::fs::metadata(link.as_path()) {
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Some(format!("the shared entry {name} points at an entry the repository no longer holds")));
+                return Ok(Some(format!("the shared entry {spelled} points at an entry the repository no longer holds")));
             }
             Err(error) => return Err(error),
         }
