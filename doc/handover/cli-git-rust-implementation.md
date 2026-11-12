@@ -126,6 +126,56 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The package launcher started none of round 235, and a removal that left its folder (2026-11-11T19:08:40-05:00)
+
+Round 235 did not start at 18:57.
+The package's `start-pi-runs-from-a-batch-list` ran from 18:57:28 to 19:00:54 and printed, for each of the ten entries,
+`<name>: status 1 Node.js v26.13.0`: no run folder, no worktree.
+The earlier note that two of its units were up was wrong: the two units counted were round 227's, whose names match the same pattern.
+Why each start exited 1 is not known yet, because the batch prints the last line of a failed start, and Node's last line is its version.
+Gaps found in the package while looking:
+
+- A batch entry's `base` is not read (`BatchEntry` has no such field), and `makeWorktree` always starts a new branch from `main`;
+  the scratch launcher took a base, and every fix-for-a-review brief needs one.
+  The wrapper refuses `git branch <name> <start>` in the main checkout (`branch-worktree-only/branch-creation-requires-worktree`),
+  so a branch cannot be made beforehand.
+- A start with a prompt file that does not exist still takes a slot, makes a worktree and starts a unit, which exits 1 after five seconds.
+- `mise run //package/pi-shared/subagent-driver:retry-pi-run-start-until-a-pool-has-room -- ... -- ...` loses its second `--`,
+  so the task cannot be used as its usage line says.
+
+What was done: the same list was started again at about 19:05 with the scratch starter, run unedited (it reads `base`),
+in unit `launch-agents-batch-round-235`;
+and round 236 starts an agent for the package
+(`fix/pi-shared-subagent-driver-batch-starts-from-a-base-and-says-why-a-start-failed`, from `main`):
+find why the ten starts failed, a failed start says its reason, a batch entry names its base, everything is checked before anything is made.
+Until that lands, a batch whose entries need a base goes through the scratch starter, unedited.
+
+A new jam, met while cleaning up the probe that showed the missing-prompt gap.
+`git worktree remove .claude/worktrees/pi-probe-does-not-start` (installed 0.6.1-alpha.10), started about half a minute after the
+worktree's dependencies were linked, ran from about 19:03:32 to 19:04:36 and printed only Git's
+`error: failed to delete '...': Directory not empty`.
+Afterwards the worktree was gone from `git worktree list` and its folder was still on disk
+(a subvolume of its own, no nested subvolume, 91 top-level entries, its `.git` file still there),
+with `node_modules` and `package` last written at 19:04:36: something was still writing dependency links into it while Git deleted it.
+No notice followed on later commands, and nothing was left to finish the removal; `btrfs subvolume delete` by hand cleared it.
+Which process was writing is not known.
+Round 236's second agent (`fix/git-policy-cli-worktree-removal-finishes-while-its-dependencies-are-being-linked`,
+on `integrate/git-policy-cli-pass-14-for-alpha-11`) finds the writer, reproduces it, and makes the removal end with the folder gone
+or with a record the next command finishes.
+
+Also at this time:
+pass 14 repaired its four compile breaks (`7c0583c34c`, 19:00:57) and is still running;
+the shadow pool claim proposal ended (`docs/git-policy-cli-shadow-pool-claim-rename-options`, `8cd9486260`,
+`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`): over 330 wrapped commits the claim's tail is one directory `rename`
+(22 claims over 100 ms, 3 over 2 s, the largest 5,623 ms with 5,606 ms in the rename), and it ranks
+the service handing out a drawn tree first, a mark renamed inside the member second, a smaller skeleton third, nothing fourth;
+its three questions go to the owner through the question tool.
+The three qwen reviews are being scored against Kimi's and the fix agents' verdicts by a Claude Code native subagent
+(result in `~/temp/agent/qwen-trials/review-trial-scoring.md`).
+The 600 s quiet window of an add's inline package repair against "60s is fine for adding worktrees"
+(`~/temp/agent/sonnet-audits/integration-tip-never-stuck/findings.md`, finding 5) is asked once
+the run `worktree-add-within-60-s-on-the-pass-12-tip` reports where an add's time goes.
+
 ### Prompts to Pi imply no human owner (2026-11-11T18:12:12-05:00)
 
 The owner, at about 18:07:
@@ -218,7 +268,8 @@ round 235 starts ten fix agents, one for each round 210 review that reported def
 (dirty snapshot, LFS upload configuration, sweep sparing busy worktrees, trash boundary, service of a gone worktree,
 pooled shadow symlink, gate and install scripts, delayed relink, shared remote file option, held commit surviving a prune).
 Their briefs come from one template (`review-findings-fix-brief-template-round-235.md`, filled per review, no owner in it),
-and the batch runs through the package's `start-pi-runs-from-a-batch-list` in unit `launch-agents-batch-round-235`.
+and the batch was started through the package's `start-pi-runs-from-a-batch-list` in unit `launch-agents-batch-round-235`
+(it started none: see "The package launcher started none of round 235, and a removal that left its folder").
 
 Read in that hour, from runs that had finished:
 the landed-sweep agent (the merge no longer waits: 552 ms where the installed release took 25 s, the removal handed to the commit service;
