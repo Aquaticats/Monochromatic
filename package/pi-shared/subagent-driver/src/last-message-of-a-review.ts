@@ -26,7 +26,10 @@ import {
   REVIEW_FILE_NAME,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
-import { sessionFileInSummary, } from './session-file-of-a-run.ts';
+import {
+  SessionFileUnreadableError,
+  sessionFileInSummary,
+} from './session-file-of-a-run.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -236,6 +239,65 @@ async function isThere(path: string,): Promise<boolean> {
 }
 
 /**
+ A run's session file, or the line to answer when its summary names none.
+ */
+type SessionOfARun =
+  | {
+    readonly kind: 'a-file';
+    readonly file: string;
+  }
+    | {
+      readonly kind: 'no-session';
+      readonly line: string;
+    };
+
+/**
+ Reads the session file one run's summary names.
+
+ @param shown - the run's summary, as it was written
+
+ @param runFolder - the run's folder, for the message
+
+ @param review - the review's name, for the message
+
+ @returns the session file, or the line to answer when the summary names none
+
+ @example
+ ```ts
+ const session = sessionFileOfARun({ shown: '{"sessionStats":{"sessionFile":"/s.jsonl"}}', runFolder: 'a-1', review: 'a', },);
+ ```
+ */
+function sessionFileOfARun({
+  shown,
+  runFolder,
+  review,
+}: {
+  readonly shown: string;
+  readonly runFolder: string;
+  readonly review: string;
+},): SessionOfARun {
+  try {
+    return {
+      kind: 'a-file',
+      file: sessionFileInSummary({
+        shown,
+        runFolder,
+      },),
+    };
+  }
+  catch (error) {
+    // A run that never started Pi wrote no session, so there is no last message to save; the line says which run it was.
+    if (error instanceof SessionFileUnreadableError) {
+      return {
+        kind: 'no-session',
+        line: `${review}: no review.md, and ${runFolder} names no readable session`,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
  Saves the last message of a review's newest run as its `review.md`, unless the review wrote one.
 
  @param runsFolder - folder the driver writes one run folder per run into
@@ -290,9 +352,10 @@ export async function saveTheLastMessage({
     };
   }
   /**
-   The session file that run's summary names.
+   The session file that run's summary names, or the line to answer when it names none: a run that never started Pi has no last
+   message, and the command that reads several reviews must not end on it.
    */
-  const sessionFile = sessionFileInSummary({
+  const session = sessionFileOfARun({
     shown: await readFile(
       join(
         runsFolder,
@@ -302,11 +365,19 @@ export async function saveTheLastMessage({
       'utf8',
     ),
     runFolder: newest.run,
+    review,
   },);
+  if (session.kind === 'no-session') {
+    return {
+      review,
+      saved: false,
+      line: session.line,
+    };
+  }
   /**
    The review's text, which is its last assistant message.
    */
-  const text = lastAssistantTextIn({ shown: await readFileOrNothing(sessionFile,), },);
+  const text = lastAssistantTextIn({ shown: await readFileOrNothing(session.file,), },);
   if (text === '') {
     return {
       review,

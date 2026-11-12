@@ -22,7 +22,6 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   DEFAULT_REVIEWS_FOLDER_IN_HOME,
   SAVED_REVIEW_NOTE,
-  SessionFileUnreadableError,
   lastAssistantTextIn,
   newestRunOf,
   runNameOfAReview,
@@ -228,7 +227,7 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a run whose summary names no session file, naming the file to read',
+          name: 'answers a line, rather than ending the command, for a run whose summary names no session file: a run that never started Pi has no last message',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -236,19 +235,12 @@ await describe({
              */
             const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'c-round-1', },)}-1`,);
             await mkdir(runFolder, { recursive: true, },);
-            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({ endReason: 'idle', },),);
-            try {
-              await saveTheLastMessage({
-                runsFolder: join(folder.path, 'runs',),
-                reviewFolder: folder.path,
-                review: 'c-round-1',
-              },);
-            }
-            catch (error) {
-              expect(error,).toBeInstanceOf(SessionFileUnreadableError,);
-              return;
-            }
-            throw new Error('a summary that names no session produced a review file',);
+            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({ endReason: 'pi-exited', },),);
+            expect((await saveTheLastMessage({
+              runsFolder: join(folder.path, 'runs',),
+              reviewFolder: folder.path,
+              review: 'c-round-1',
+            },)).line,).toContain('names no readable session',);
           },
         },),
       ],
