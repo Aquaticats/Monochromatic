@@ -24,7 +24,7 @@
 //! The folder goes into the same trash the last release gave the
 //!  commit service,
 //! so the stand-ins are deleted after the add returns,
-//! one trash at a time for the repository and at the lowest I/O
+//! one worktree's trashes at a time and at the lowest I/O
 //!  priority (`worktree_trash_hand_over.rs`).
 //! The listing is limited to the folders that hold worktrees,
 //! and a folder is taken only

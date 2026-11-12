@@ -1205,17 +1205,45 @@ Six mechanisms
   size caps per profile directory with oldest-first eviction.
   Entries touched within the grace period are never evicted.
 - F,
-  a systemd user timer.
-  `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` into
-  `~/.config/systemd/user` and enables the timer.
-  The timer fires once a day at 04:30 local time and at no other moment:
-  `Persistent=false` (a missed run is not made up at boot or login),
-  the service has no `[Install]` section,
-  and nothing in cargo-shadow starts itself.
-  The service runs `<repository>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5,
+  a systemd user service that runs the cleanups continuously.
+  The owner,
+  2026-11-11:
+  "Make the cleanups a systemd service that runs continuously."
+  `cargo-shadow lean service-install` writes `cargo-shadow-lean.service` into
+  `~/.config/systemd/user` and enables it,
+  and each pass of `lean run` ends on its own deadline while the next starts a minute after it,
+  for as long as the user's manager runs.
+  It replaces the once-a-day timer of the first install:
+  the install stops and disables `cargo-shadow-lean.timer`,
+  removes its unit file and writes no timer again,
+  because on 2026-11-11 the build volume held 6.5 MB free at 13:13,
+  hours before the daily pass,
+  and a manual pass hit its own deadline before it reached every profile directory.
+  `cargo-shadow lean timer-install` still works and says what it does now.
+  The service has `Restart=always`,
+  `RestartSec=60s` and `StartLimitIntervalSec=0`,
+  so a pass that finds nothing never stops the loop,
+  and `RuntimeMaxSec` kills a pass that outlasts the run's own deadline.
+  It is installed for `default.target`,
+  so the user's manager starts it at login,
+  and nothing in cargo-shadow starts itself:
+  the unit runs only after a person installed and enabled it.
+  It runs `<repository>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5,
   two threads of CPU,
-  4 GiB of memory and a start timeout above the run's own deadline,
+  4 GiB of memory and 512 tasks,
   and shows nothing on the desktop.
+  The minute between passes is sized from a measurement of a pass that finds nothing
+  (`PAUSE_BETWEEN_PASSES_SECONDS` in `src/lean_policy.rs`):
+  measured 2026-11-11,
+  such a pass over a world with nothing to clean cost 0.052 s at best and 0.054 s at the median of five runs,
+  and over 500 in-tree profile directories it kept,
+  0.177 s,
+  so a minute keeps the loop at work under a thousandth of the time there,
+  where systemd's default 100 ms restart delay would put it at work about a third of the time.
+  On this machine an idle pass costs at least 27 minutes
+  (398 s for the run records on 2026-11-08,
+  334 s for Podman and 880 s to list 68,755 profile directories on 2026-11-10),
+  so the pause is a twenty-seventh of the shortest one.
 
 Beyond the build folders,
 `lean run` also retires dated nightly toolchains that no checkout pins
@@ -1329,13 +1357,13 @@ A pass over both lists is therefore about seventeen hours today,
 so no bound a person would accept makes one run cover it.
 
 `RUN_DEADLINE_SECONDS` is 5 h (`src/lean_policy.rs`),
-the service's `TimeoutStartSec` is that plus thirty minutes,
-both written by the next `cargo-shadow lean timer-install`,
-while the unit installed today still holds the old bound's 12,600 s,
-and a run that starts at the timer's 04:30 ends at 09:30 at the latest,
-or 30 minutes past that at worst,
-when one large tree's deletion outlasts the run's own bound.
-The trees pass at 6.6 h then needs a second night,
+the service's `RuntimeMaxSec` is that plus thirty minutes,
+both written by the next `cargo-shadow lean service-install`,
+while the unit installed today still holds the old bound's 12,600 s.
+A pass that runs out of its own deadline ends there,
+or up to thirty minutes later when one large tree's deletion outlasts it,
+and the next pass starts a minute later.
+The trees pass at 6.6 h then needs a second pass,
 whose last 3.4 h the units pass takes,
 and the two continue that way while a whole pass costs more than the bound.
 What the bound costs a person is small:
@@ -1474,7 +1502,7 @@ or pin the toolchain by its date (`nightly-2026-11-11`) so a nightly update cann
 cargo-shadow lean run --dry-run
 cargo-shadow lean run --only units,records
 cargo-shadow lean records target/verification --dry-run
-cargo-shadow lean timer-install
+cargo-shadow lean service-install
 ```
 
 ## Containers and the tasks that run cargo outside the shadow

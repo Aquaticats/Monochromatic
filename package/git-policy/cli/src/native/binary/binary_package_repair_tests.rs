@@ -601,12 +601,28 @@ fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
 /// and which a clean through the copied link would delete.
 const SHARED_TARGET_PACKAGE: &str = "shared-target-demo";
 
+/// The manifest of the fixture's one crate,
+/// which is a workspace of its own.
+/// Why:
+///   The fixture root is the build folder's `tmp` directory,
+///  which a container gate keeps inside the wrapper crate's own folder,
+/// so a lone package manifest there has the wrapper crate above it;
+///  Cargo then treats that crate as the fixture's workspace and refuses to build the fixture,
+///  so the crate must be a workspace root wherever it is placed
+///  (`doc/troubleshooting/cargo-fixture-crate-joins-the-wrapper-workspace.md`).
+fn shared_target_manifest() -> String {
+    return format!("[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n");
+}
+
 /// What:
 ///  A repository whose ignored `target` is a link to a directory elsewhere,
 /// already built there.
 /// Why:
 ///   That is a person's ordinary setup for sharing one build directory between checkouts,
 ///  and the copy of the ignored state copies the link rather than what it names.
+///  The crate carries `shared_target_manifest`,
+/// which makes it a workspace root of its own,
+///  so the ambient folder it is created in never becomes its workspace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -618,7 +634,7 @@ fn shared_target_repository(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     std::fs::create_dir_all(shared.as_path()).expect("the shared build directory");
     std::fs::create_dir_all(repo.join("src")).expect("the crate's source directory");
     std::fs::write(repo.join(".gitignore"), b"/target\n").expect("gitignore");
-    std::fs::write(repo.join("Cargo.toml"), format!("[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the manifest");
+    std::fs::write(repo.join("Cargo.toml"), shared_target_manifest()).expect("the manifest");
     std::fs::write(repo.join("src/main.rs"), b"fn main() {}\n").expect("the crate");
     git(fixture, repo.as_path(), &["add", "--", ".gitignore", "Cargo.toml", "src/main.rs"]);
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=the shared target"]);

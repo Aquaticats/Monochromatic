@@ -2,10 +2,10 @@
 //! The command-line glue of `cargo-shadow lean`:
 //! it turns the parsed arguments into a run,
 //! a sweep of one package's run records,
-//! or a timer installation.
+//! or a service installation.
 //! Why:
 //! `lean_run.rs`,
-//! `lean_run_steps.rs` and `lean_timer_units.rs` take plain values,
+//! `lean_run_steps.rs` and `lean_service_units.rs` take plain values,
 //! so tests call them without a command line.
 //!
 //! In TS you'd write (pseudocode):
@@ -32,8 +32,8 @@ use crate::lean_run::{Mechanism, RunOptions, run_lean};
 use crate::lean_run_report::summary_line;
 /// Imports the names this file uses from `crate::lean_run_steps`.
 use crate::lean_run_steps::run_records;
-/// Imports the names this file uses from `crate::lean_timer_units`.
-use crate::lean_timer_units::install_timer;
+/// Imports the names this file uses from `crate::lean_service_units`.
+use crate::lean_service_units::{SERVICE_NAME, TIMER_NAME, install_service};
 
 /// What:
 /// `fn absent_notes(directories: &[PathBuf]) -> Vec<String>` names each directory that is not a directory on disk.
@@ -102,6 +102,42 @@ pub(crate) fn mechanism_of(name: MechanismName) -> Mechanism {
 }
 
 /// What:
+/// `fn install_service_action(start: &Path, invoked_as: &str, no_enable: bool, unit_directory: Option<&Path>) -> i32`
+/// installs the service from the main checkout of `start` and returns the exit code.
+/// Why:
+/// `service-install` and the old name `timer-install` do the same thing now,
+/// and every message names the command the user actually ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function installServiceAction(start: string, invokedAs: string, noEnable: boolean, unitDirectory?: string): number
+/// ```
+fn install_service_action(start: &Path, invoked_as: &str, no_enable: bool, unit_directory: Option<&Path>) -> i32 {
+    let Some(repository) = main_checkout(start) else {
+        eprintln!("cargo-shadow: lean {invoked_as}: {} is not inside a Git checkout; start it from the repository", start.display());
+        return 1;
+    };
+    let home: PathBuf = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let units: PathBuf = match unit_directory {
+        Some(chosen) => chosen.to_path_buf(),
+        None => home.join(".config").join("systemd").join("user"),
+    };
+    let binary: PathBuf = repository.join(".cache").join("toolchain-bin").join("cargo-shadow");
+    return match install_service(&repository, &binary, &units, !no_enable) {
+        Ok(lines) => {
+            for line in lines {
+                println!("{line}");
+            }
+            0
+        }
+        Err(reason) => {
+            eprintln!("cargo-shadow: lean {invoked_as}: {reason}");
+            1
+        }
+    };
+}
+
+/// What:
 /// `pub fn run_lean_action(action: &LeanAction) -> i32` runs one `lean` action and returns the exit code.
 /// Why:
 /// Errors go to standard error and reports to standard output.
@@ -147,29 +183,12 @@ pub fn run_lean_action(action: &LeanAction) -> i32 {
             }
             return 0;
         }
+        LeanAction::ServiceInstall { no_enable, unit_directory } => {
+            return install_service_action(&start, "service-install", *no_enable, unit_directory.as_deref());
+        }
         LeanAction::TimerInstall { no_enable, unit_directory } => {
-            let Some(repository) = main_checkout(&start) else {
-                eprintln!("cargo-shadow: lean timer-install: {} is not inside a Git checkout; start it from the repository", start.display());
-                return 1;
-            };
-            let home: PathBuf = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-            let units: PathBuf = match unit_directory {
-                Some(chosen) => chosen.clone(),
-                None => home.join(".config").join("systemd").join("user"),
-            };
-            let binary: PathBuf = repository.join(".cache").join("toolchain-bin").join("cargo-shadow");
-            return match install_timer(&repository, &binary, &units, !no_enable) {
-                Ok(lines) => {
-                    for line in lines {
-                        println!("{line}");
-                    }
-                    0
-                }
-                Err(reason) => {
-                    eprintln!("cargo-shadow: lean timer-install: {reason}");
-                    1
-                }
-            };
+            println!("cargo-shadow: `lean timer-install` is now `lean service-install`: it writes {SERVICE_NAME}, removes the once-a-day {TIMER_NAME}, and enables the service, which runs one pass after another");
+            return install_service_action(&start, "timer-install", *no_enable, unit_directory.as_deref());
         }
     }
 }

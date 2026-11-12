@@ -28,7 +28,7 @@
 //! ```
 
 use crate::shell_quote::shell_quote;
-use crate::worktree_landed_removal::LandedSweep;
+use crate::worktree_landed_removal::{HandedOverWorktree, LandedSweep};
 use std::path::Path;
 
 /// The prefix every line of this program carries.
@@ -41,29 +41,19 @@ fn removal_command(worktree: &Path) -> String {
 }
 
 /// What:
-///  The paths of the worktrees found inside,
-/// as the person reads them,
-///  a few named and the rest counted.
+///  Where the wrapper keeps what became of a handed-over removal,
+///  as the person reads it.
 /// Why:
-///  A person decides about their own worktrees,
-///  so the ones that keep this one are named,
-///  and a list longer than a few would bury the sentence it sits in.
+///  The record moves from `pending` to `done` or `failed` under the work directory named here,
+///  and a person whose worktree is still there needs a place to look that is not this program's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// namesOf(inside) // '`a` and 2 more'
+/// const recordPlace = (record) => `${workDir(record.gitDir)}/${record.id}`;
 /// ```
-pub(crate) fn names_of_the_worktrees_inside(inside: &[&crate::worktree_landed_registrations::Registration]) -> String {
-    const SHOWN: usize = 2;
-    let mut parts: Vec<String> = Vec::new();
-    for other in inside.iter().take(SHOWN) {
-        parts.push(format!("`{}`", other.worktree.display()));
-    }
-    let rest: usize = inside.len().saturating_sub(parts.len());
-    if rest > 0 {
-        parts.push(format!("and {rest} more"));
-    }
-    return parts.join(", ");
+fn record_place(one: &HandedOverWorktree) -> String {
+    let work: std::path::PathBuf = crate::service_work::work_directory(one.record.git_dir.as_path());
+    return work.join(one.record.id()).display().to_string();
 }
 
 /// What:
@@ -110,11 +100,6 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             sweep.landed_branch
         ));
     }
-    // A removal this sweep had to finish itself says why Git's own walk could not, so the writer the person never sees is
-    //  named rather than a worktree that simply went.
-    for line in &sweep.left_behind {
-        lines.push(line.clone());
-    }
     for unfinished in &sweep.unfinished {
         lines.push(format!(
             "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}, and could not remove its registration, so Git still lists the worktree as missing; this is what finishes it:",
@@ -123,6 +108,18 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             sweep.landed_branch
         ));
         lines.push(unfinished.report.clone());
+    }
+    // A removal that is Git's own reading of every file there is recorded for the commit service before this line is printed:
+    //  the merge waits for none of it, so the person reads where its outcome is and what stands until then.
+    for handed in &sweep.handed_over {
+        lines.push(format!(
+            "{PREFIX}handed the removal of the worktree {} to the commit service, though its branch {} is now on {}: removing it is Git's own reading of every tracked file there, and no merge waits for that. The branch stays. What became of it is the record {}: `done` there means the worktree is gone, and `failed`, with Git's own sentence in the service's journal, means Git kept it. If nothing there is yours and you want it gone now, `{}` removes it.",
+            handed.worktree.display(),
+            handed.branch,
+            sweep.landed_branch,
+            record_place(handed),
+            removal_command(handed.worktree.as_path())
+        ));
     }
     // A removal that refused already says what stands in the way and what clears it, so no line here adds the command that
     // would refuse the same way again.
