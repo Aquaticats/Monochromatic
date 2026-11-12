@@ -23,6 +23,7 @@ import {
 } from './parse-retry-start-options.ts';
 import { retryStartUntilAPoolHasRoom, } from './retry-start.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
+import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 // The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
@@ -104,6 +105,10 @@ const outcome = await retryStartUntilAPoolHasRoom({
   deadline: Date.now() + (options.deadlineSeconds * MILLISECONDS_PER_SECOND),
   periodMilliseconds: options.periodSeconds * MILLISECONDS_PER_SECOND,
   words: options.words,
+  // A wait that printed nothing looked like a start that never began: a coordinator watching this command's output saw an empty
+  // file while two reviews sat behind four running ones. Each ask that finds no slot now says so as it happens, and the line goes
+  // where the command's own answer goes, which is the batch's output when a batch runs it.
+  report: reportOnStandardOutput,
 },);
 
 process.stdout

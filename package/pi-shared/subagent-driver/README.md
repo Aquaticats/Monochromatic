@@ -398,6 +398,20 @@ when the gate answers something other than "no slot",
 or at its deadline,
 when it prints `no slot freed before the deadline:` and what it was asked for.
 
+Every ask that finds no slot prints a `WAITING:` line as it happens,
+which names the run,
+the pool it asks for,
+both ends of the wait,
+and the gate's own counts,
+so the number and the limit of every pool on that line are the gate's answer rather than a second count.
+It goes on standard output,
+which is the batch's output file when a batch started this command.
+Before this the command printed nothing until it gave up:
+on 2026-11-12 two reviews of finished branches waited behind four running reviews
+while the launcher's output file was empty,
+and the only sign was a `node` process without children in the launcher's unit.
+A wait that prints nothing is a defect.
+
 ### `start-pi-runs-from-a-batch-list`
 
 `--batch-file`,
@@ -427,6 +441,11 @@ A `prompt` that is not a path is read under the runs folder,
 and an entry with none reads `<name>-prompt.md` there.
 Entries start twenty seconds apart,
 and the command prints one line per entry once every run it started has ended.
+What each entry's start says while it waits,
+such as the `WAITING:` line above,
+reaches the batch's own standard output as it arrives,
+which is the file `start-a-batch-in-its-own-unit` sends it to,
+so a coordinator watching that file sees which run waits and why.
 That line names the run and the reason it failed by,
 which is the error's own message,
 never the line a stack happens to end with:

@@ -32,6 +32,7 @@ import {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
+import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 // The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
@@ -49,6 +50,7 @@ if (usageWasAsked({
  What this run of the command was asked for.
  */
 const options = parseBatchOptions(argv.slice(2,),);
+
 
 /**
  The retrying start this package ships beside this command.
@@ -81,6 +83,7 @@ const {
       entry: retryingStart,
       words,
       environment: env,
+      report: reportOnStandardOutput,
     },);
   },
   wait,

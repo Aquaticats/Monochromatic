@@ -19,13 +19,22 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  BATCH_DEFAULT_DEADLINE_SECONDS,
   BATCH_DEFAULT_MEMORY,
   BATCH_DEFAULT_WALL_SECONDS,
   BATCH_RETRY_PERIOD_SECONDS,
   BATCH_STAGGER_MILLISECONDS,
+  BYTES_IN_A_GIBIBYTE,
   BatchOptionsError,
   type CommandOutput,
+  FREE_SPACE_FLOOR_BYTES,
+  type FreeSpace,
+  type GoingRun,
   GATE_OUTPUT_TAIL_CHARACTERS,
+  QWEN_PLAN_QWEN4_MAX_PREVIEW,
+  type ProviderPool,
+  gateOutcomeOf,
+  talliesOf,
   LAUNCHER_ENTRY_NAMES,
   type PoolMembership,
   NO_SLOT_EXIT_STATUS,
@@ -47,6 +56,7 @@ import {
   retryStartUntilAPoolHasRoom,
   retryWordsOf,
   startBatch,
+  startThroughTheRetryingStart,
   tailKeeper,
   unitRunNamesIn,
   valueOfOption,
@@ -167,9 +177,150 @@ async function writeProcess({
   await writeFile(join(folder, pid, 'cmdline',), `${words.join('\0',)}\0`,);
 }
 
+/**
+ How long a fixture child waits for the word that says the caller passed its first line on, above the look it takes to see the file
+ and far below the bound any test may take.
+ */
+const FIXTURE_WAIT_MILLISECONDS = 5_000;
+
+/**
+ Milliseconds between looks at a file, so a fixture that waits for one looks often without spinning.
+ */
+const LOOK_MILLISECONDS = 20;
+
+/**
+ Writes a stand-in for the retrying start: it says it waits, and only says a slot was free once the caller passed that first line
+ on. A caller that keeps the line to itself leaves the fixture waiting, so the test fails rather than passing on a line nobody saw.
+
+ @param file - where to write it
+
+ @returns nothing
+
+ @example
+ ```ts
+ await writeAStartThatWaits(join(folder.path, 'retrying-start.ts'));
+ ```
+ */
+async function writeAStartThatWaits(file: string,): Promise<void> {
+  await writeFile(
+    file,
+    [
+      "import { existsSync, } from 'node:fs';",
+      "import { setTimeout as wait, } from 'node:timers/promises';",
+      // The words after the entry are the fixture's own: the first is the run's name, which the line below repeats, and the
+      // second is the file it waits for.
+      'const [, , , paused, ] = process.argv;',
+      String.raw`process.stdout.write('WAITING: a asks for the first pool with room\n',);`,
+      `for (let looked = 0; looked < ${String(FIXTURE_WAIT_MILLISECONDS,)}; looked += ${String(LOOK_MILLISECONDS,)}) {`,
+      '  if (existsSync(paused,)) {',
+      String.raw`    process.stdout.write('slot free: a\n',);`,
+      '    process.exit(0,);',
+      '  }',
+      `  await wait(${String(LOOK_MILLISECONDS,)},);`,
+      '}',
+      'process.exit(9,);',
+      '',
+    ].join('\n',),
+  );
+}
+
+/**
+ The volume every room in this file is on, which is no volume of this machine.
+ */
+const TEST_VOLUME = '/a-build-volume-of-the-test';
+
+/**
+ Room on the build volume well above its floor, so nothing here is refused for want of disk.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = roomToSpare();
+ ```
+ */
+function roomToSpare(): FreeSpace {
+  return {
+    volume: TEST_VOLUME,
+    freeBytes: FREE_SPACE_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ One run going now, holding a slot in a pool.
+
+ @param name - the run's name
+
+ @param pool - the pool it holds a slot in
+
+ @returns the run
+
+ @example
+ ```ts
+ const run = aRunIn(QWEN_PLAN_QWEN4_MAX_PREVIEW, 'review-a');
+ ```
+ */
+function aRunIn(pool: ProviderPool, name: string,): GoingRun {
+  return {
+    name,
+    membership: {
+      holds: 'a-pool',
+      pool,
+    },
+  };
+}
+
+/**
+ The word that separates the retrying start's own options from the pool gate's.
+ */
+const SEPARATOR = '--';
+
 await describe({
   name: '',
   children: [
+    describe({
+      name: startThroughTheRetryingStart.name,
+      children: [
+        it({
+          name: 'passes on the line a waiting start printed before that start says anything else, so a reader of a batch sees'
+            + ' the wait as it happens',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The stand-in for the retrying start.
+             */
+            const entry = join(folder.path, 'retrying-start.ts',);
+            /**
+             Where the test puts the word the fixture waits for, once the caller has passed its first line on.
+             */
+            const passedOn = join(folder.path, 'passed-on',);
+            await writeAStartThatWaits(entry,);
+            /**
+             Every line the start reported, in the order it reported them.
+             */
+            const reported: string[] = [];
+            /**
+             How the start ended, and the end of what it printed.
+             */
+            const started = await startThroughTheRetryingStart({
+              entry,
+              words: [
+                'a',
+                passedOn,
+              ],
+              environment: process.env,
+              report: function report(line,) {
+                reported.push(line,);
+                void writeFile(passedOn, '',);
+              },
+            },);
+            expect(reported[0],).toContain('WAITING: a asks for the first pool with room',);
+            expect(started.status,).toBe(0,);
+            expect(started.output,).toContain('slot free: a',);
+          },
+        },),
+      ],
+    },),
     describe({
       name: retryStartUntilAPoolHasRoom.name,
       children: [
@@ -190,6 +341,9 @@ await describe({
               deadline: Date.now() + 1_000,
               periodMilliseconds: 10,
               words: ['--name=a',],
+              report: function report() {
+                // A start that found a slot on its first ask has no wait to report.
+              },
             },);
             expect(retried.status,).toBe(0,);
             expect(retried.text,).toBe('slot free: neuralwatt 3/20',);
@@ -217,9 +371,67 @@ await describe({
               deadline: Date.now() + 1_000,
               periodMilliseconds: 10,
               words: ['--name=a',],
+              report: function report() {
+                // What a wait says is judged on its own, below.
+              },
             },);
             expect(asked,).toBe(3,);
             expect(retried.status,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'says on every ask that found no slot which run waits, for which pool, how many are counted in it and what'
+            + ' its limit is, since when it waits and when it gives up',
+          fn: async () => {
+            /**
+             When the wait is asked the time, which is a second on at every look.
+             */
+            let now = 0;
+            /**
+             How many times the gate was asked, which is how many waits there are to report.
+             */
+            let asked = 0;
+            /**
+             Every line the wait reported, in the order it reported them.
+             */
+            const reported: string[] = [];
+            /**
+             What asking for a slot ended with.
+             */
+            const retried = await retryStartUntilAPoolHasRoom({
+              attempt: async function noSlot() {
+                asked += 1;
+                return answered(NO_SLOT_EXIT_STATUS, 'NO SLOT: qwen-token-plan 18/18, not started: a-review',);
+              },
+              now: function clock() {
+                now += 1_000;
+                return now;
+              },
+              wait: async function noWait() {
+                // The wait passes without spending time; the clock above is what the deadline is read against.
+              },
+              deadline: 5_000,
+              periodMilliseconds: 10,
+              words: [
+                '--name=a-review',
+                '--provider=qwen-token-plan-individual',
+                '--model=qwen4-max-preview',
+              ],
+              report: function report(line,) {
+                reported.push(line,);
+              },
+            },);
+            // A wait that prints nothing left a coordinator watching an empty output file, so every ask that found no slot says
+            // what it found, which is one line per ask.
+            expect(asked,).toBeGreaterThan(1,);
+            expect(reported.length,).toBe(asked,);
+            expect(reported[0],).toContain('a-review',);
+            expect(reported[0],).toContain('qwen-token-plan',);
+            expect(reported[0],).toContain('18/18',);
+            expect(reported[0],).toContain('waiting since',);
+            expect(reported[0],).toContain('gives up at',);
+            expect(reported[1],).toContain('a-review',);
+            expect(retried.status,).toBe(NO_SLOT_EXIT_STATUS,);
           },
         },),
         it({
@@ -249,9 +461,102 @@ await describe({
                 '--name=a',
                 '--branch=feat/a',
               ],
+              report: function report() {
+                // What a wait says is judged on its own, below.
+              },
             },);
             expect(retried.status,).toBe(NO_SLOT_EXIT_STATUS,);
             expect(retried.text,).toBe('no slot freed before the deadline: --name=a --branch=feat/a\n',);
+          },
+        },),
+        it({
+          name: 'waits for the qwen 4 pool while it is full at the limit the pool table sets, and starts the review once a slot'
+            + ' frees',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The pool every review of this batch asks for, whose limit is read from the table rather than written here.
+             */
+            const pool = QWEN_PLAN_QWEN4_MAX_PREVIEW;
+            /**
+             The batch list: one review more than the pool holds, so the last one has to wait for a slot.
+             */
+            const listed = Array.from(
+              { length: pool.limit + 1, },
+              function review(_, at,) {
+                return {
+                  name: `review-${String(at,)}`,
+                  branch: `test/review-${String(at,)}`,
+                  provider: pool.provider,
+                  model: pool.model,
+                };
+              },
+            );
+            /**
+             The list as the batch command reads it.
+             */
+            const entries = batchEntriesIn({
+              shown: JSON.stringify(listed,),
+              listFile: join(folder.path, 'reviews.json',),
+            },);
+            /**
+             The last review of the list, which is the one that has to wait for a slot.
+             */
+            const lastReview = entries.at(-1,);
+            if (lastReview === undefined) {
+              throw new Error('the list this test wrote holds no entry',);
+            }
+            /**
+             The last review's start, as the batch hands it to the retrying start.
+             */
+            const words = retryWordsOf({
+              entry: lastReview,
+              runsFolder: folder.path,
+              deadlineSeconds: BATCH_DEFAULT_DEADLINE_SECONDS,
+            },);
+            // The retrying start reads its own two options and hands every other word to the gate, so these are the gate's.
+            const gateWords = parseRetryStartOptions(words,).words;
+            /**
+             The runs going now while the pool is full: one for each slot the pool has.
+             */
+            const full = Array.from(
+              { length: pool.limit, },
+              function holding(_, at,) {
+                return aRunIn(pool, `review-${String(at,)}`,);
+              },
+            );
+            /**
+             What the gate answers while the pool is full.
+             */
+            const whileFull = await gateOutcomeOf({
+              options: parsePoolGateOptions(gateWords,),
+              runs: full,
+              tallies: talliesOf({ runs: full, },),
+              sessionFileOf: async function noSession() {
+                return '';
+              },
+              freeSpace: roomToSpare(),
+            },);
+            expect(whileFull.action,).toBe('no-room',);
+            expect(whileFull.lines[0],).toContain(`${pool.name} ${String(pool.limit,)}/${String(pool.limit,)}`,);
+            /**
+             The runs going now once one of them ended.
+             */
+            const freed = full.slice(1,);
+            /**
+             What the gate answers then.
+             */
+            const withRoom = await gateOutcomeOf({
+              options: parsePoolGateOptions(gateWords,),
+              runs: freed,
+              tallies: talliesOf({ runs: freed, },),
+              sessionFileOf: async function noSession() {
+                return '';
+              },
+              freeSpace: roomToSpare(),
+            },);
+            expect(withRoom.action,).toBe('start',);
+            expect(withRoom.lines[0],).toContain(`${pool.name} ${String(pool.limit - 1,)}/${String(pool.limit,)}`,);
           },
         },),
         it({
@@ -275,6 +580,9 @@ await describe({
               deadline: Date.now() + 1_000,
               periodMilliseconds: 10,
               words: [],
+              report: function report() {
+                // The first ask answered something other than no slot, so there was no wait to report.
+              },
             },);
             expect(retried.status,).toBe(1,);
             expect(retried.text,).toHaveLength(GATE_OUTPUT_TAIL_CHARACTERS,);

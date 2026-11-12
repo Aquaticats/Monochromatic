@@ -37,6 +37,7 @@ import {
 } from './reviewer-of-a-change.ts';
 import { startReviews, } from './reviews-of-finished-branches.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
+import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import {
   retryingStartEntry,
@@ -190,6 +191,7 @@ const started = await startReviews({
         entry: retryingStart,
         words,
         environment: env,
+        report: reportOnStandardOutput,
       },);
       if (answered.status === 0) {
         return answered;

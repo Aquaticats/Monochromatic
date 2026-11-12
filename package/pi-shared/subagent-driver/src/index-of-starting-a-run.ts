@@ -180,6 +180,7 @@ export {
   GATE_OUTPUT_TAIL_CHARACTERS,
   type RetriedStart,
   retryStartUntilAPoolHasRoom,
+  waitingLineOf,
 } from './retry-start.ts';
 export {
   RETRY_START_USAGE,
