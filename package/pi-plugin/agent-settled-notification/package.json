@@ -24,10 +24,10 @@
     "src"
   ],
   "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
-    "nano-spawn": "catalog:"
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

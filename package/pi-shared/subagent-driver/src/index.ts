@@ -26,6 +26,7 @@ export {
   MODEL_ERROR_RETRY_CAP,
   MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
   NESTED_RUN_VARIABLE,
+  NO_PI_RETRY_GAVE_UP,
   NO_RUN_FAILURE,
   POLL_MILLISECONDS,
   SHUTDOWN_GRACE_MILLISECONDS,
@@ -43,6 +44,7 @@ export type {
   EventObservation,
   PiExit,
   PiRecord,
+  PiRetryGaveUp,
   RecordOfPiRun,
   RetryTaken,
   RunEnding,
@@ -51,8 +53,8 @@ export type {
   RunSummary,
 } from './driver-types.ts';
 export {
-  anotherAttemptMayFix,
   continuationPromptOf,
+  driverRetries,
   isRateLimit,
   kindOfModelError,
   type ModelErrorKind,
