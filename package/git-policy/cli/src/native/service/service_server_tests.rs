@@ -299,6 +299,46 @@ fn a_queued_tree_is_held_until_the_group_that_request_is_in_is_over() {
     remove_short(root.as_path());
 }
 
+/// What:
+///  The hold of the next attempt of a request the group handed back, after that group's own release.
+/// Why:
+///   `remove_the_trees` runs after `land_group` has already sent the group's answers
+///  and after `board.end_group` has written and removed the journal's entries for it,
+///  so a client told to prepare again can queue the same identity with the next attempt's tree
+///  before this release runs (`service_scratch_trees_of_queued_requests.rs`).
+///  A release that named the identity alone took the hold off that attempt's tree,
+///  and a client killed while the attempt waited left the private index and the conclusion copies
+///  the landing was about to read to a collection of their age.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// note(id, left); note(id, retried); removeTheTrees([[id, left]], new Set([id])); expect(isHeld(retried)).toBe(true);
+/// ```
+#[test]
+fn a_group_that_is_over_leaves_the_tree_of_the_next_attempt_held() {
+    let root: std::path::PathBuf = short_directory("next-attempt");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    let scratch: std::path::PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch");
+    let left: std::path::PathBuf = scratch.join("monochromatic-git-policy-cli-service-5c6d7e8f-0");
+    let retried: std::path::PathBuf = scratch.join("monochromatic-git-policy-cli-service-5c6d7e8f-1");
+    std::fs::create_dir_all(left.as_path()).expect("the tree of the attempt the group landed");
+    std::fs::create_dir_all(retried.as_path()).expect("the tree of the next attempt");
+    let request: String = String::from("a-request-prepared-again");
+    // The group's attempt was noted when it was queued, and the next attempt was noted when the client sent it inside the window.
+    crate::service_scratch_trees_of_queued_requests::note(request.as_str(), left.as_path());
+    crate::service_scratch_trees_of_queued_requests::note(request.as_str(), retried.as_path());
+    // The group answered this attempt by handing it back, so its tree is the client's and the service removes nothing.
+    let trees: Vec<(String, std::path::PathBuf)> = vec![(request.clone(), left.clone())];
+    let handed_back: std::collections::HashSet<String> = [request.clone()].into_iter().collect();
+    crate::service_server::remove_the_trees(trees.as_slice(), &handed_back);
+    assert!(
+        crate::service_scratch_trees_of_queued_requests::is_held(retried.as_path()),
+        "the attempt that is still queued keeps the tree its landing reads"
+    );
+    crate::service_scratch_trees_of_queued_requests::release(request.as_str());
+    remove_short(root.as_path());
+}
+
 /// A tree the service handed back to a request it did not land is left where it is,
 /// so the client can read the change it prepared from it.
 #[test]
