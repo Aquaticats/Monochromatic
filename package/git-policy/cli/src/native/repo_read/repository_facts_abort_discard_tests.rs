@@ -33,20 +33,28 @@ fn words(arguments: &[OsString]) -> Vec<String> {
     return arguments.iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
 }
 
+/// Every name the state query asks about, in the order it asks.
+fn asked_names() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = OPERATION_STATE_NAMES.to_vec();
+    names.push(SEQUENCER_DIRECTORY);
+    names.extend_from_slice(RESTORED_REVISION_NAMES.as_slice());
+    return names;
+}
+
 /// An answer of one path per name,
 ///  with every path inside `root`,
 ///  so a presence fact is read from a file the test can make exist.
-fn answered(root: &Path) -> Vec<u8> {
-    let mut names: Vec<&str> = OPERATION_STATE_NAMES.to_vec();
-    names.push(SEQUENCER_DIRECTORY);
-    for name in RESTORED_REVISION_NAMES {
-        names.push(name);
-    }
+fn answer_of(root: &Path, names: &[&str]) -> Vec<u8> {
     let mut text: Vec<u8> = Vec::<u8>::new();
     for name in names {
         text.extend_from_slice(format!("{}\n", root.join(name.replace('/', "-").as_str()).display().to_string().as_str()).as_bytes());
     }
     return text;
+}
+
+/// The whole answer every state question produces.
+fn answered(root: &Path) -> Vec<u8> {
+    return answer_of(root, asked_names().as_slice());
 }
 
 /// The state query asks for each state entry,
@@ -79,10 +87,10 @@ fn a_state_answer_of_the_wrong_length_is_an_error() {
     // Six names and a trailing separator is still six.
     let six: &[u8] = b"/a/MERGE_HEAD\n/b/CHERRY_PICK_HEAD\n/c/REVERT_HEAD\n/d/rebase-merge\n/e/rebase-apply/rebasing\n/f/rebase-apply/applying\n";
     assert!(state_answer(six).is_err());
-    // One state name short of the full answer is still short.
-    let full: Vec<u8> = answered(Path::new("/nowhere"));
-    let short: &[u8] = &full[0..full.len() - "/nowhere/sequencer\n".len()];
-    assert!(state_answer(short).is_err());
+    // One name short of the full answer is still short.
+    let names: Vec<&str> = asked_names();
+    let short: Vec<u8> = answer_of(Path::new("/nowhere"), &names[..names.len() - 1]);
+    assert!(state_answer(short.as_slice()).is_err());
 }
 
 /// A state answer of the right length becomes the state and the record paths,
