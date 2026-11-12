@@ -31,16 +31,15 @@
 //! const line = await reissuedArguments({ context, cwd, arguments, subcommand, file, prepared, interactive });
 //! ```
 
-use crate::commit_args::{normalise_commit_args, takes_next_token};
+use crate::commit_args::{ends_the_options, normalise_commit_args, takes_next_token};
+use crate::command_commit_table::COMMIT_TABLE;
+use crate::command_options_long_resolution::long_option_state;
 use crate::commit_transaction::TransactionStop;
 use crate::service_amend::split_author;
 use crate::service_amend_replayed::stored_commit_fields;
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use std::ffi::OsString;
 use std::path::Path;
-
-/// The token that ends the options of a commit region.
-const SEPARATOR: &str = "--";
 
 /// Short option letters a rebuilt line drops:
 /// the selection the private index already holds.
@@ -63,20 +62,37 @@ pub(crate) struct BorrowedAuthor {
 }
 
 /// What:
-///  Whether one option takes the message and the authorship of the commit it names.
+///  Whether one option takes the message and the authorship of the commit it names,
+///  in any spelling Git accepts.
 /// Why:
 ///   `-c`,
 /// `-C`,
 /// `--reuse-message` and `--reedit-message` take both,
-///  so a rebuild that keeps the message in a file must supply the authorship itself.
+///  so a rebuild that keeps the message in a file must supply the authorship itself,
+///  and Git reads every unambiguous prefix of either long option.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const borrows = (token) => ['-c', '-C', '--reuse-message', '--reedit-message'].includes(nameOf(token));
+/// borrowsItsAuthor('--reuse-mess') // true
 /// ```
 fn borrows_its_author(token: &str) -> bool {
     let name: &str = name_of(token);
-    return matches!(name, "-c" | "-C" | "--reuse-message" | "--reedit-message");
+    return matches!(name, "-c" | "-C") || names_option(token, "reuse-message") || names_option(token, "reedit-message");
+}
+
+/// What:
+///  Whether one token asks for the named option of `git commit` in a spelling Git accepts,
+///  whether its value is attached or not.
+/// Why:
+///   A rebuilt line drops or reads an option by what it names,
+///  and Git accepts every unambiguous prefix of a long option (`--fixu` for `--fixup`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesOption('--fixu=HEAD', 'fixup') // true
+/// ```
+fn names_option(token: &str, name: &str) -> bool {
+    return long_option_state(name_of(token).as_bytes(), name, COMMIT_TABLE) == Some(true);
 }
 
 /// One argument as text,
@@ -97,21 +113,40 @@ fn name_of(token: &str) -> &str {
 }
 
 /// What:
-///  Whether one option names the one fixup whose commit is not the private index.
+///  The value a `--fixup` or `--squash` option names,
+///  from its own token or from the next one,
+///  and nothing when the token is neither in a spelling Git accepts.
+/// Why:
+///   Git takes that value attached (`--fixup=<commit>`) or detached (`--fixup <commit>`),
+///  and both mean the same commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fixupValueOf('--fixu=HEAD', undefined) // Some('HEAD')
+/// ```
+fn fixup_value_of<'a>(token: &'a str, next: Option<&'a str>) -> Option<&'a str> {
+    if !names_option(token, "fixup") && !names_option(token, "squash") {
+        return None;
+    }
+    return match token.split_once('=') {
+        Some((_name, value)) => Some(value),
+        None => next,
+    };
+}
+
+/// What:
+///  Whether one option names the one fixup whose commit is not the private index,
+///  in any spelling Git accepts and with its value attached or detached.
 /// Why:
 ///   `--fixup=reword:<commit>` throws the index away and makes a commit of the branch's own tree,
 ///  so the tree this preparation captured is not the tree that command would commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const rewords = (token) => /^--(fixup|squash)=reword(:|$)/.test(token);
+/// rewordsAnotherCommit('--fixu', 'reword:HEAD') // true
 /// ```
-fn rewords_another_commit(token: &str) -> bool {
-    let named: Option<&str> = match token.strip_prefix("--fixup=") {
-        Some(value) => Some(value),
-        None => token.strip_prefix("--squash="),
-    };
-    let Some(value) = named else { return false; };
+fn rewords_another_commit(token: &str, next: Option<&str>) -> bool {
+    let Some(value) = fixup_value_of(token, next) else { return false; };
     return value == "reword" || value.starts_with("reword:");
 }
 
@@ -168,7 +203,7 @@ pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> boo
     let text: Vec<String> = arguments.iter().map(lossy_text).collect();
     let region: Vec<String> = normalise_commit_args(text.get(subcommand + 1..).unwrap_or(&[]));
     let mut state: State = State::Option;
-    for token in &region {
+    for (position, token) in region.iter().enumerate() {
         match state {
             State::Value | State::DroppedValue => {
                 state = State::Option;
@@ -177,11 +212,11 @@ pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> boo
             State::Verbatim => continue,
             State::Option => {}
         }
-        if token == SEPARATOR {
+        if ends_the_options(token.as_str()) {
             state = State::Verbatim;
             continue;
         }
-        if rewords_another_commit(token.as_str()) {
+        if rewords_another_commit(token.as_str(), region.get(position + 1).map(String::as_str)) {
             return true;
         }
         state = if takes_next_token(token.as_str()) { State::Value } else { State::Option };
@@ -242,7 +277,7 @@ enum Settled {
 fn without_settled_options(region: &[String], interactive: bool, borrowed: Option<&BorrowedAuthor>) -> Settled {
     let mut kept: Vec<String> = Vec::new();
     let mut state: State = State::Option;
-    for token in region {
+    for (position, token) in region.iter().enumerate() {
         match state {
             State::Value => {
                 kept.push(token.clone());
@@ -259,12 +294,12 @@ fn without_settled_options(region: &[String], interactive: bool, borrowed: Optio
             }
             State::Option => {}
         }
-        if token == SEPARATOR {
+        if ends_the_options(token.as_str()) {
             kept.push(token.clone());
             state = State::Verbatim;
             continue;
         }
-        if rewords_another_commit(token.as_str()) {
+        if rewords_another_commit(token.as_str(), region.get(position + 1).map(String::as_str)) {
             return Settled::Cannot;
         }
         let name: &str = name_of(token.as_str());
@@ -275,15 +310,15 @@ fn without_settled_options(region: &[String], interactive: bool, borrowed: Optio
             state = dropped_after(token.as_str());
             continue;
         }
-        if matches!(name, "--fixup" | "--squash") {
+        if names_option(token.as_str(), "fixup") || names_option(token.as_str(), "squash") {
             state = dropped_after(token.as_str());
             continue;
         }
-        if matches!(name, "--author" | "--date") && borrowed.is_some() {
+        if (names_option(token.as_str(), "author") || names_option(token.as_str(), "date")) && borrowed.is_some() {
             state = dropped_after(token.as_str());
             continue;
         }
-        if interactive && matches!(name, "-p" | "-i" | "--patch" | "--interactive") {
+        if interactive && (matches!(name, "-p" | "-i") || names_option(token.as_str(), "patch") || names_option(token.as_str(), "interactive")) {
             state = dropped_after(token.as_str());
             continue;
         }

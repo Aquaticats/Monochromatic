@@ -143,7 +143,7 @@ fn a_fixup_that_commits_the_index_goes_and_a_reword_does_not() {
         assert!(kept(words.as_slice(), false, None).is_empty(), "{words:?}");
     }
     for words in [vec!["--fixup=reword:HEAD"], vec!["--squash=reword:HEAD"]] {
-        assert!(rewords_another_commit(words[0]), "{words:?}");
+        assert!(rewords_another_commit(words[0], None), "{words:?}");
         let region: Vec<String> = words.iter().map(|word| { return (*word).to_string(); }).collect();
         assert!(matches!(without_settled_options(region.as_slice(), false, None), Settled::Cannot), "{words:?}");
     }
@@ -212,4 +212,66 @@ fn a_cluster_keeps_every_letter_a_rebuild_does_not_supply() {
     assert_eq!(without_selection_letters("-qpa"), Some(String::from("-qa")));
     assert_eq!(without_selection_letters("-pi"), None);
     assert_eq!(without_selection_letters("-Spq"), Some(String::from("-Spq")));
+}
+
+/// What:
+///  A rebuilt line reads its region as Git reads it:
+///  every unambiguous abbreviation of a settled option goes with its value,
+///  a `reword:` fixup is one in either spelling,
+///  and nothing after the boundary is an option at all.
+/// Why:
+///  The walk compared exact spellings and stopped only at `--`,
+///  so `git commit --reuse-mess README` kept an option the rebuild already supplies,
+///  which native Git refuses beside the message file the rebuild adds,
+///  and a `--fixup reword:<commit>` whose value stood in the next token was read as the plain fixup
+///  whose commit is the captured tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(kept(['--reuse-mess', 'HEAD'], false, borrowed)).toEqual([]);
+/// expect(rewordsACommit(['commit', '--fixu=reword:HEAD'], 0)).toBe(true);
+/// ```
+#[test]
+fn a_rebuilt_line_reads_its_region_as_git_reads_it() {
+    let borrowed: BorrowedAuthor = reused();
+    // Every abbreviation of an option the rebuild supplies goes, with the value it names.
+    for words in [
+        vec!["--reuse-mess", "HEAD"],
+        vec!["--reedit-mess", "HEAD"],
+        vec!["--reuse-mess=HEAD"],
+        vec!["--fixu=HEAD"],
+        vec!["--fixu", "HEAD"],
+        vec!["--squas", "HEAD"],
+        vec!["--auth=Me <me@example.com>", "--reuse-mess", "HEAD"],
+        vec!["--dat=2020-01-01T00:00:00Z", "--reuse-mess", "HEAD"],
+    ] {
+        let tokens: Vec<String> = kept(words.as_slice(), false, Some(&borrowed));
+        assert!(tokens.is_empty(), "{words:?} kept {tokens:?}");
+    }
+    // A settled selection leaves in every spelling, and a message keeps its own text.
+    assert_eq!(kept(&["--patc", "--message=x"], true, None), vec![String::from("--message=x")]);
+    assert_eq!(kept(&["--interactiv", "--message=x"], true, None), vec![String::from("--message=x")]);
+    // A reword fixup is one in either spelling, attached or detached, and its commit is never the captured tree.
+    assert!(rewords_another_commit("--fixu=reword:HEAD", None));
+    assert!(rewords_another_commit("--squas=reword:HEAD", None));
+    for words in [vec!["--fixu=reword:HEAD"], vec!["--fixu", "reword:HEAD"], vec!["--squas", "reword:HEAD"]] {
+        let region: Vec<String> = words.iter().map(|word| { return (*word).to_string(); }).collect();
+        assert!(matches!(without_settled_options(region.as_slice(), false, None), Settled::Cannot), "{words:?}");
+    }
+    // A plain fixup named in either spelling still commits the captured tree.
+    for words in [vec!["--fixu=HEAD"], vec!["--fixu", "HEAD"], vec!["--squas", "HEAD"]] {
+        assert!(kept(words.as_slice(), false, None).is_empty(), "{words:?}");
+    }
+    // Nothing after either boundary is an option of the line.
+    assert_eq!(
+        kept(&["--end-of-options", "--patc", "--reuse-mess"], true, None),
+        vec![String::from("--end-of-options"), String::from("--patc"), String::from("--reuse-mess")]
+    );
+    let asks = |words: &[&str]| -> bool {
+        let arguments: Vec<OsString> = words.iter().map(OsString::from).collect();
+        return rewords_a_commit(arguments.as_slice(), 0);
+    };
+    assert!(asks(&["commit", "--fixu=reword:HEAD"]));
+    assert!(asks(&["commit", "--fixu", "reword:HEAD"]));
+    assert!(!asks(&["commit", "--end-of-options", "--fixup=reword:HEAD"]));
 }

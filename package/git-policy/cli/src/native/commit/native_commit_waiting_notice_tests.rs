@@ -677,3 +677,35 @@ fn a_finished_command_prints_nothing_more() {
     let after: usize = written.lock().expect("written").len();
     assert!(after <= when_over + 1, "a line was printed after the command was over: {} lines, {when_over} of them before it ended", after);
 }
+
+/// What:
+///  Where the signature request is read as Git reads it:
+///  after `--`, after `--end-of-options` and as the value of another option it is the person's text,
+///  and every spelling Git accepts for `--gpg-sign`,
+///  in a cluster too,
+///  is one.
+/// Why:
+///  The reading compared exact spellings and skipped no value,
+///  so `git commit -m -S` was told to a person at a stop that the commit signs,
+///  and a key asked for with `--gpg-s` was not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(signsCommit(undefined, ['-m', '-S'])).toBe(false);
+/// ```
+#[test]
+fn a_signature_is_read_in_option_position_in_every_spelling_git_reads() {
+    // The value of `-m` is the person's text, never the option it spells.
+    assert!(!signs_commit(None, &words(&["-m", "-S"])));
+    assert!(!signs_commit(None, &words(&["--mess", "--gpg-sign"])));
+    // A path after either boundary is a path.
+    assert!(!signs_commit(None, &words(&["-m", "x", "--", "-S"])));
+    assert!(!signs_commit(None, &words(&["-m", "x", "--end-of-options", "-S"])));
+    // Every unambiguous prefix of `--gpg-sign` and its `no-` form, and a cluster carrying `S`.
+    assert!(signs_commit(None, &words(&["--gpg-s", "-m", "x"])));
+    assert!(signs_commit(None, &words(&["--gpg-s=KEY", "-m", "x"])));
+    assert!(!signs_commit(None, &words(&["-S", "--no-gpg-s", "-m", "x"])));
+    assert!(signs_commit(None, &words(&["-qS", "-m", "x"])));
+    // `-u` takes its value attached, so the `S` after it is that value and no signature.
+    assert!(!signs_commit(None, &words(&["-uS", "-m", "x"])));
+}

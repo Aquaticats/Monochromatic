@@ -11,6 +11,8 @@
 //!  and a path is removed only where it is a path:
 //!  the value of an option such as `-m` is the person's text and stays,
 //!  even when it spells a path or a flag.
+//!  The options end at `--` and at `--end-of-options`,
+//!  and a control leaves in every spelling Git accepts of it.
 //!  How the region is read as Git reads it lives in `commit_args_reading.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -34,7 +36,7 @@ use crate::transaction_journal::TransactionMode;
 /// import { longOptionNames } from './command_options_long_resolution.ts';
 /// import { separatorIndex, takesNextToken } from './commit_args_reading.ts';
 /// ```
-use super::commit_args_reading::{OPTIONAL_VALUE_LETTERS, PATHSPEC_SEPARATOR, SHORT_VALUE_OPTIONS, is_optional_value_letter};
+use super::commit_args_reading::{OPTIONAL_VALUE_LETTERS, SHORT_VALUE_OPTIONS, is_optional_value_letter};
 use crate::command_commit_table::COMMIT_TABLE;
 use crate::command_options_long_resolution::long_option_names;
 
@@ -43,7 +45,20 @@ use crate::command_options_long_resolution::long_option_names;
 ///  so callers keep reaching it through this module.
 /// Why:
 ///   Moving it to its own file must not move a name any caller knows.
-pub use super::commit_args_reading::{normalise_commit_args, separator_index, takes_next_token};
+pub use super::commit_args_reading::{boundary_index, ends_the_options, normalise_commit_args, takes_next_token, value_positions};
+
+/// The `git commit` option that stages every tracked change.
+/// The private index already holds that staging,
+/// so no spelling of it reaches the real commit.
+const ALL: &str = "all";
+/// The short letter of `git commit --all`.
+const ALL_LETTER: char = 'a';
+/// The `git commit` option that commits only the named paths.
+/// The private index already holds that selection,
+/// so no spelling of it reaches the real commit.
+const ONLY: &str = "only";
+/// The short letter of `git commit --only`.
+const ONLY_LETTERS: [char; 1] = ['o'];
 
 /// The `git commit` option that reads its pathspecs from a file.
 /// The private index already holds that selection,
@@ -124,10 +139,11 @@ pub fn split_commit_invocation(args: &[String], subcommand_index: usize) -> (Vec
 
 /// What:
 ///  Removes `-a`/`--all` from the commit region,
-/// keeping clustered short options.
+/// keeping clustered short options and every path after the options end.
 /// Why:
 ///   The private index already holds every tracked change,
-/// so native commit must not restage worktree bytes.
+/// so native commit must not restage worktree bytes,
+///  and a path named `-a` or `--all` is the person's path and keeps its spelling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -137,19 +153,19 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
     let normalised: Vec<String> = normalise_commit_args(commit_args);
     let mut kept: Vec<String> = Vec::new();
     let mut value_next: bool = false;
-    let mut after_separator: bool = false;
+    let mut after_the_options: bool = false;
     for token in normalised {
-        if after_separator || value_next {
+        if after_the_options || value_next {
             kept.push(token);
             value_next = false;
             continue;
         }
-        if token == PATHSPEC_SEPARATOR {
-            after_separator = true;
+        if ends_the_options(token.as_str()) {
+            after_the_options = true;
             kept.push(token);
             continue;
         }
-        if token == "--all" {
+        if spells_a_flag(token.as_str(), ALL) {
             continue;
         }
         if token.starts_with('-') && !token.starts_with("--") && token.len() > 1 {
@@ -161,7 +177,7 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
             };
             let mut cluster: String = String::from("-");
             for letter in flags {
-                if *letter != 'a' {
+                if *letter != ALL_LETTER {
                     cluster.push(*letter);
                 }
             }
@@ -198,6 +214,8 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// so an abbreviation such as `--pathspec-fr` cannot hand the real commit a second selection.
 ///  The pathspec removal takes the last path of each pathspec,
 ///  as `lastIndexOf` found it in the incumbent.
+///  Everything after `--` or `--end-of-options` is a path and nothing else,
+///  so a path that spells `--pathspec-file-nul`, `-o` or `--all` is committed as the path it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,12 +223,12 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// ```
 pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
     let person_values: Vec<usize> = value_positions(args);
-    let option_region_end: Option<usize> = separator_index(args);
+    let option_region_end: Option<usize> = boundary_index(args);
     let mut without_file: Vec<String> = Vec::new();
     let mut index: usize = 0;
     while index < args.len() {
         let token: &str = args[index].as_str();
-        // A value is the person's text, never the control it spells, and a token past the separator is a path.
+        // A value is the person's text, never the control it spells, and a token past the end of the options is a path.
         let option_position: bool = match option_region_end {
             Some(at) => index < at,
             None => true,
@@ -225,7 +243,8 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
             index += if takes_next_token(token) { 2 } else { 1 };
             continue;
         }
-        if long_option_names(token.as_bytes(), PATHSPEC_FILE_NUL, COMMIT_TABLE) {
+        // A value on this flag is a spelling Git refuses, and the refusal stays Git's.
+        if spells_a_flag(token, PATHSPEC_FILE_NUL) {
             index += 1;
             continue;
         }
@@ -256,21 +275,21 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
             without_pathspecs.push(token);
         }
     }
-    // Only the separator and the `-o` and `--only` the person typed in option position go; the same text as the value of an option
-    //  (`-m --`) is the person's and stays.
-    let separator: Option<usize> = separator_index(without_pathspecs.as_slice());
+    // Only the end of the options and the `-o` and `--only` the person typed in option position go; the same text as the value
+    //  of an option (`-m --`) is the person's and stays.
+    let boundary: Option<usize> = boundary_index(without_pathspecs.as_slice());
     let mut kept: Vec<String> = Vec::new();
     let mut value_next: bool = false;
     for (position, token) in without_pathspecs.into_iter().enumerate() {
-        let past_separator: bool = match separator {
+        let past_the_options: bool = match boundary {
             Some(at) => position > at,
             None => false,
         };
-        if past_separator {
+        if past_the_options {
             kept.push(token);
             continue;
         }
-        if separator == Some(position) {
+        if boundary == Some(position) {
             continue;
         }
         if value_next {
@@ -279,38 +298,37 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
             continue;
         }
         value_next = takes_next_token(token.as_str());
-        if token == "-o" || token == "--only" {
+        if spells_a_flag(token.as_str(), ONLY) {
             continue;
         }
-        kept.push(token);
+        // A cluster carries `-o` beside the letters that stay, and a letter that takes a value ends it.
+        match cluster_without_letters(token.as_str(), ONLY_LETTERS.as_slice()) {
+            Some(cluster) => {
+                if cluster != "-" {
+                    kept.push(cluster);
+                }
+            }
+            None => kept.push(token),
+        }
     }
     return kept;
 }
 
 /// What:
-///  The indexes whose token is the value of the option before it,
-///  up to the separator.
+///  Whether one token is a flag of `git commit` in a spelling Git accepts,
+///  written without a value.
 /// Why:
-///   The value of an option is the person's text,
-/// so no transform may read it as a path or as a flag.
+///   A flag takes no value,
+/// so a value attached to it (`--only=x`) is a spelling Git refuses,
+///  and that refusal stays Git's rather than being removed with the flag.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// valuePositions(['a.txt', '-m', 'a.txt']) // [2]
+/// spellsAFlag('--on', 'only') // true
+/// spellsAFlag('--only=x', 'only') // false
 /// ```
-fn value_positions(tokens: &[String]) -> Vec<usize> {
-    let limit: usize = separator_index(tokens).unwrap_or(tokens.len());
-    let mut positions: Vec<usize> = Vec::new();
-    let mut index: usize = 0;
-    while index < limit {
-        let token: &str = tokens[index].as_str();
-        index += 1;
-        if takes_next_token(token) && index < limit {
-            positions.push(index);
-            index += 1;
-        }
-    }
-    return positions;
+fn spells_a_flag(token: &str, name: &str) -> bool {
+    return long_option_names(token.as_bytes(), name, COMMIT_TABLE) && !token.contains('=');
 }
 
 /// What:
@@ -370,7 +388,7 @@ fn names_selection_control(token: &str) -> bool {
 }
 
 /// What:
-///  The short cluster without its selection letters,
+///  The short cluster without the selection letters,
 /// or nothing when the token is no cluster or carries none.
 /// Why:
 ///   `-im` and `-ip` carry `-i` or `-p` beside other flags,
@@ -380,28 +398,46 @@ fn names_selection_control(token: &str) -> bool {
 /// what follows it is the person's value and is kept whole,
 /// so a message or key that spells `i` or `p` never disappears.
 fn without_selection_letters(token: &str) -> Option<String> {
+    return cluster_without_letters(token, SELECTION_LETTERS.as_slice());
+}
+
+/// What:
+///  The short cluster of one token without the letters named,
+/// or nothing when the token is no cluster or carries none of them.
+/// Why:
+///   A control spelled as a short letter sits beside other flags in one token (`-om`),
+/// and only the letter goes.
+///  A letter that takes a value ends the search:
+/// what follows it is the person's value and is kept whole,
+/// so a message or key that spells one of the removed letters never disappears.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// clusterWithoutLetters('-om', ['o']) // Some('-m')
+/// ```
+fn cluster_without_letters(token: &str, removed: &[char]) -> Option<String> {
     if !token.starts_with('-') || token.starts_with("--") || token.len() < 2 {
         return None;
     }
     let letters: Vec<char> = token.chars().skip(1).collect();
     let mut cluster: String = String::from("-");
-    let mut removed: bool = false;
+    let mut removed_one: bool = false;
     let mut index: usize = 0;
     while index < letters.len() {
         let letter: char = letters[index];
         // A letter that takes a value ends the flags: what follows it is the person's value and stays whole,
-        // so a key or a message that spells `i` or `p` never disappears.
+        // so a key or a message that spells a removed letter never disappears.
         if letter_takes_a_value(letter) {
             break;
         }
-        if SELECTION_LETTERS.contains(&letter) {
-            removed = true;
+        if removed.contains(&letter) {
+            removed_one = true;
         } else {
             cluster.push(letter);
         }
         index += 1;
     }
-    if !removed {
+    if !removed_one {
         return None;
     }
     for letter in &letters[index..] {

@@ -119,6 +119,14 @@ use crate::child_number_told_at_start::ChildNumber;
 use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
 use crate::service_commit_args_editor_opening::opens_editor;
+/// The reading of the commit region,
+/// which says where the options end and which tokens are a value,
+/// and Git's own tables,
+/// which say what a spelling names.
+use crate::commit_args::{boundary_index, value_positions};
+use crate::command_commit_table::COMMIT_TABLE;
+use crate::command_options_long_resolution::long_option_state;
+use crate::commit_args_reading::{OPTIONAL_VALUE_LETTERS, SHORT_VALUE_OPTIONS};
 /// The notice's sink.
 use std::io::Write;
 /// The writer thread's own time,
@@ -319,24 +327,74 @@ pub struct NativeCommitNotice {
     said: Option<SyncSender<String>>,
 }
 
-/// Whether the commit is signed:
-/// the configuration says so or the command line asks for it.
+/// The short letter of `git commit` that asks for a signed commit,
+/// which may stand beside other flags or carry its key in the same token.
+const SIGNING_LETTER: char = 'S';
+
+/// What:
+///  Whether the commit is signed:
+///  the configuration says so or the command line asks for it.
+/// Why:
+///   A stop's words tell the person to check the signing program first,
+///  so the answer follows Git: a request after `--` or `--end-of-options`,
+///  or one that is the value of another option,
+///  is neither,
+///  and every spelling Git accepts of `--gpg-sign`,
+///  in a short cluster too,
+///  is one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// signsCommit(undefined, ['-m', '-S']) // false
+/// ```
 pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[String]) -> bool {
     if crate::service_prepare::config_signs(snapshot) {
         return true;
     }
+    let values: Vec<usize> = value_positions(commit_arguments);
+    let limit: usize = boundary_index(commit_arguments).unwrap_or(commit_arguments.len());
     let mut asked: bool = false;
-    for argument in commit_arguments {
-        if argument == "--" {
-            break;
+    for (position, argument) in commit_arguments[..limit].iter().enumerate() {
+        // The value of an option is the person's text, never the request it spells.
+        if values.contains(&position) {
+            continue;
         }
-        if argument == "--no-gpg-sign" {
-            asked = false;
-        } else if argument.starts_with("--gpg-sign") || (argument.starts_with("-S") && !argument.starts_with("--")) {
+        // `true` is the option asked for and `false` its `no-` form, which takes the request back.
+        if let Some(state) = long_option_state(argument.as_bytes(), "gpg-sign", COMMIT_TABLE) {
+            asked = state;
+            continue;
+        }
+        if names_a_signing_letter(argument) {
             asked = true;
         }
     }
     return asked;
+}
+
+/// What:
+///  Whether a short cluster carries the `S` that asks for a signature,
+///  before any letter that takes a value.
+/// Why:
+///   `-qS` and `-SKEY` ask for one,
+///  while the `S` after `-m` or `-u` is that option's value (`-mS` is the message `S`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesASigningLetter('-mS') // false
+/// ```
+fn names_a_signing_letter(argument: &str) -> bool {
+    if !argument.starts_with('-') || argument.starts_with("--") || argument.len() < 2 {
+        return false;
+    }
+    for letter in argument.chars().skip(1) {
+        if letter == SIGNING_LETTER {
+            return true;
+        }
+        if OPTIONAL_VALUE_LETTERS.contains(&letter) || SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str()) {
+            return false;
+        }
+    }
+    return false;
 }
 
 impl NativeCommitNotice {

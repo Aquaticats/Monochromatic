@@ -209,7 +209,38 @@ pub(crate) fn resolve_long_option(
 }
 
 /// What:
-///  Whether one long token names the table row whose long spelling is `name`,
+///  Which state one long token names the table row whose long spelling is `name` in,
+///  in any spelling Git accepts.
+///  `true` is the option asked for and `false` its `no-` form;
+///  nothing is a token that names another row,
+///  or a spelling Git refuses as ambiguous or unknown.
+/// Why:
+///   A transform that drops a control reads the option asked for,
+///  and one that reads a state (`--gpg-sign` and `--no-gpg-sign`) reads both,
+///  and both follow Git: every unambiguous prefix counts,
+///  with or without `--no-`,
+///  and a line Git refuses leaves no state to guess from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// longOptionState('--no-gpg-s', 'gpg-sign', COMMIT_TABLE) // false
+/// ```
+pub(crate) fn long_option_state(token: &[u8], name: &str, table: &[OptionSpec]) -> Option<bool> {
+    if !token.starts_with(b"--") || token.len() < 3 {
+        return None;
+    }
+    // `let Ok(x) = ... else` leaves an unknown or ambiguous token naming no row.
+    let Ok(Resolution::Known { row, .. }) = resolve_long_option(token, table, false) else {
+        return None;
+    };
+    if row.spec.long != Some(name) {
+        return None;
+    }
+    return Some(!row.unset);
+}
+
+/// What:
+///  Whether one long token asks for the table row whose long spelling is `name`,
 ///  in any spelling Git accepts.
 /// Why:
 ///   A transform that removes a control must remove the spelling the person typed,
@@ -218,23 +249,15 @@ pub(crate) fn resolve_long_option(
 ///  A `--no-` form names the row in its off state,
 /// where no control runs,
 ///  and a spelling Git refuses names nothing.
+///  `long_option_state` answers both questions;
+/// this one asks for the state that runs the control.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// longOptionNames('--pathspec-fr', 'pathspec-from-file', COMMIT_TABLE) // true
 /// ```
 pub(crate) fn long_option_names(token: &[u8], name: &str, table: &[OptionSpec]) -> bool {
-    if !token.starts_with(b"--") || token.len() < 3 {
-        return false;
-    }
-    // `let Ok(x) = ... else` leaves an unknown or ambiguous token naming no row.
-    let Ok(Resolution::Known { row, .. }) = resolve_long_option(token, table, false) else {
-        return false;
-    };
-    if row.unset {
-        return false;
-    }
-    return row.spec.long == Some(name);
+    return long_option_state(token, name, table) == Some(true);
 }
 
 /// What:

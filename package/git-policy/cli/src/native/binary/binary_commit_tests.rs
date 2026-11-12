@@ -1565,3 +1565,88 @@ fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
     assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(), "commit (merge): merged\n", "the merge's wording");
     remove_settled(&fixture);
 }
+
+/// What:
+///  A path after `--end-of-options` that spells an option's name is the person's path,
+///  so `git commit -m msg --end-of-options -m x` commits both files,
+///  as native Git does.
+/// Why:
+///  The region's reading marked the path `x` as the value of the path `-m` before it,
+///  so the pathspec removal left `x` in place and dropped `-m`:
+///  the real commit landed `x` alone and the edit of `-m` stayed uncommitted with exit 0.
+#[test]
+fn a_path_after_the_end_of_options_that_spells_a_value_option_is_committed() {
+    let fixture: Fixture = fixture("commit-end-of-options-value-shaped-path");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let base: [(&str, &str); 3] = [("a.txt", "one\n"), ("-m", "dash-m base\n"), ("x", "x base\n")];
+    for (name, content) in base {
+        std::fs::write(repo.join(name), content.as_bytes()).expect(name);
+    }
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt", "-m", "x"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+    let edits: [(&str, &str); 2] = [("-m", "dash-m base\nedited\n"), ("x", "x base\nedited\n")];
+    let arguments: [&str; 6] = ["commit", "-m", "msg", "--end-of-options", "-m", "x"];
+    for (name, content) in edits {
+        std::fs::write(repo.join(name), content.as_bytes()).expect(name);
+    }
+    git(&fixture, repo.as_path(), &arguments);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:-m"]),
+        "dash-m base\nedited\n",
+        "native Git commits the path named `-m`"
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:x"]), "x base\nedited\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    // Back to the state before that commit, then the same line through the wrapper.
+    git(&fixture, repo.as_path(), &["reset", "--hard", "HEAD~1"]);
+    for (name, content) in edits {
+        std::fs::write(repo.join(name), content.as_bytes()).expect(name);
+    }
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &arguments);
+    assert_eq!(landed.code, Some(0), "{}", stdout_and_stderr(&landed));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:-m"]),
+        "dash-m base\nedited\n",
+        "{}",
+        stdout_and_stderr(&landed)
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:x"]), "x base\nedited\n");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Git reads `--on` as `--only`,
+///  so `git commit --on a.txt -m msg` commits the named path as native Git does.
+/// Why:
+///  The removal compared `-o` and `--only` exactly,
+///  so the real commit received `--on` with no paths and answered
+///  "No paths with --include/--only does not make sense" with exit 128, and nothing landed.
+#[test]
+fn an_abbreviated_only_commits_the_named_path() {
+    let fixture: Fixture = fixture("commit-abbreviated-only");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let arguments: [&str; 5] = ["commit", "--on", "a.txt", "-m", "msg"];
+    git(&fixture, repo.as_path(), &arguments);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]),
+        "one\ntwo\n",
+        "native Git reads the abbreviation as --only and commits the path"
+    );
+    // Back to the state before that commit, then the same line through the wrapper.
+    git(&fixture, repo.as_path(), &["reset", "--hard", "HEAD~1"]);
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &arguments);
+    assert_eq!(landed.code, Some(0), "{}", stdout_and_stderr(&landed));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]),
+        "one\ntwo\n",
+        "{}",
+        stdout_and_stderr(&landed)
+    );
+    assert_eq!(porcelain(&fixture, repo.as_path()), "");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}

@@ -278,24 +278,25 @@ fn resolve_chooses_the_arguments_by_mode() {
     );
 }
 
-/// Only a `--` in option position ends the options:
+/// Only `--` and `--end-of-options` in option position end the options:
 /// as the value of `-m`,
-/// `--message` or a cluster ending in `m` it is a
+/// `--message` or a cluster ending in `m` they are a
 ///  message,
 /// and a value attached to its option or a letter that takes it attached leaves the next token in option position.
 #[test]
-fn the_separator_is_read_in_option_position_only() {
-    assert_eq!(separator_index(&args(&["-m", "--", "--", "a.txt"])), Some(2));
-    assert_eq!(separator_index(&args(&["--message", "--", "--", "a.txt"])), Some(2));
-    assert_eq!(separator_index(&args(&["--mess", "--", "--", "a.txt"])), Some(2));
-    assert_eq!(separator_index(&args(&["-qm", "--", "--"])), Some(2));
-    assert_eq!(separator_index(&args(&["-m", "--"])), None);
-    assert_eq!(separator_index(&args(&["-m--", "--", "a.txt"])), Some(1));
-    assert_eq!(separator_index(&args(&["--message=--", "--", "a.txt"])), Some(1));
-    assert_eq!(separator_index(&args(&["-S", "--", "a.txt"])), Some(1));
-    assert_eq!(separator_index(&args(&["-u", "--", "a.txt"])), Some(1));
-    assert_eq!(separator_index(&args(&["-a", "x", "--"])), Some(2));
-    assert_eq!(separator_index(&args(&[])), None);
+fn the_end_of_the_options_is_read_in_option_position_only() {
+    assert_eq!(boundary_index(&args(&["-m", "x", "--end-of-options", "-a"])), Some(2));
+    assert_eq!(boundary_index(&args(&["-m", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(boundary_index(&args(&["--message", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(boundary_index(&args(&["--mess", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(boundary_index(&args(&["-qm", "--", "--"])), Some(2));
+    assert_eq!(boundary_index(&args(&["-m", "--"])), None);
+    assert_eq!(boundary_index(&args(&["-m--", "--", "a.txt"])), Some(1));
+    assert_eq!(boundary_index(&args(&["--message=--", "--", "a.txt"])), Some(1));
+    assert_eq!(boundary_index(&args(&["-S", "--", "a.txt"])), Some(1));
+    assert_eq!(boundary_index(&args(&["-u", "--", "a.txt"])), Some(1));
+    assert_eq!(boundary_index(&args(&["-a", "x", "--"])), Some(2));
+    assert_eq!(boundary_index(&args(&[])), None);
 }
 
 /// The value of an option is never read as a cluster of options,
@@ -324,4 +325,102 @@ fn the_private_commit_arguments_drop_the_typed_separator_and_nothing_else() {
         args(&["--message=x"])
     );
     assert_eq!(private_explicit_commit_args(&args(&["--message=x"]), &[]), args(&["--message=x"]));
+}
+
+/// What:
+///  Git ends a commit region's options at `--end-of-options` exactly as at `--`,
+///  so every token after it is a path,
+///  and a path that spells an option's name is committed as the person's path.
+/// Why:
+///  Without it the region's reading marked a path as the value of a path before it,
+///  left it out of the pathspec removal and handed the real commit a shorter list:
+///  `git commit -m msg --end-of-options -m x` committed `x` alone and left the edit of `-m` uncommitted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(separatorIndex(['-m', 'x', '--end-of-options', '-m', 'x'])).toBe(2);
+/// ```
+#[test]
+fn an_end_of_options_ends_the_option_region_as_the_separator_does() {
+    assert_eq!(boundary_index(&args(&["-m", "x", "--end-of-options", "-m", "x"])), Some(2));
+    assert_eq!(boundary_index(&args(&["--end-of-options"])), Some(0));
+    // A `--end-of-options` that is the value of `-m` is a message and no boundary.
+    assert_eq!(boundary_index(&args(&["-m", "--end-of-options"])), None);
+    // The separator can come first, and then `--end-of-options` is one more path.
+    assert_eq!(boundary_index(&args(&["-m", "x", "--", "--end-of-options"])), Some(2));
+    // The region after either boundary is kept verbatim, so a cluster-shaped path is never split into flags.
+    assert_eq!(
+        normalise_commit_args(&args(&["-m", "x", "--end-of-options", "-amhello"])),
+        args(&["-m", "x", "--end-of-options", "-amhello"])
+    );
+    // Every path after the boundary goes, and the real commit is left with the message alone.
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-m", "msg", "--end-of-options", "-m", "x"]), &args(&["-m", "x"])),
+        args(&["-m", "msg"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-m", "msg", "--end-of-options", "-amhello", "x"]), &args(&["-amhello", "x"])),
+        args(&["-m", "msg"])
+    );
+    // `-a` and `--all` after the boundary are paths too, never the all flag.
+    assert_eq!(
+        without_all_flag(&args(&["-m", "x", "--end-of-options", "-a"])),
+        args(&["-m", "x", "--end-of-options", "-a"])
+    );
+    assert_eq!(
+        without_all_flag(&args(&["--end-of-options", "--all"])),
+        args(&["--end-of-options", "--all"])
+    );
+}
+
+/// What:
+///  A selection control leaves in every spelling Git accepts,
+///  in a short cluster and beside a value,
+///  and a spelling Git refuses is left for Git to refuse.
+/// Why:
+///  The removal compared the exact spelling,
+///  so `git commit --on a.txt -m msg` handed the real commit `--on` with no paths and it answered
+///  "No paths with --include/--only does not make sense" with exit 128,
+///  while every other reader of the same region already read Git's abbreviations.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(privateExplicitCommitArgs({ args: ['--on', 'a.txt', '-m', 'msg'], pathspecs: ['a.txt'] })).toEqual(['-m', 'msg']);
+/// ```
+#[test]
+fn an_abbreviated_only_leaves_where_git_reads_it() {
+    // `--o` is `--only`: no other long option of `git commit` starts with `o`.
+    for spelling in ["--on", "--o", "--onl", "--only"] {
+        assert_eq!(
+            private_explicit_commit_args(&args(&[spelling, "a.txt", "-m", "msg"]), &args(&["a.txt"])),
+            args(&["-m", "msg"]),
+            "{spelling}"
+        );
+    }
+    // A short cluster carries it beside the letters that stay, and `-m` keeps its value.
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-om", "msg", "a.txt"]), &args(&["a.txt"])),
+        args(&["-m", "msg"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-qo", "-m", "msg", "a.txt"]), &args(&["a.txt"])),
+        args(&["-q", "-m", "msg"])
+    );
+    // The `no-` form is another instruction: it selects the whole index and stays.
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--no-only", "-m", "msg", "a.txt"]), &args(&["a.txt"])),
+        args(&["--no-only", "-m", "msg"])
+    );
+    // A value on a flag is a spelling Git refuses, and the refusal stays Git's.
+    assert_eq!(private_explicit_commit_args(&args(&["--only=x", "-m", "msg"]), &[]), args(&["--only=x", "-m", "msg"]));
+    assert_eq!(private_explicit_commit_args(&args(&["--pathspec-file-nul=x"]), &[]), args(&["--pathspec-file-nul=x"]));
+    assert_eq!(without_all_flag(&args(&["--all=x"])), args(&["--all=x"]));
+    // A value that spells the control is the person's text.
+    assert_eq!(private_explicit_commit_args(&args(&["-m", "--on"]), &[]), args(&["-m", "--on"]));
+    assert_eq!(private_explicit_commit_args(&args(&["-m", "-o"]), &[]), args(&["-m", "-o"]));
+    // `--pat` is ambiguous, so Git refuses it and no token of it is removed as a control.
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--pat", "a.txt", "-m", "msg"]), &args(&["a.txt"])),
+        args(&["--pat", "-m", "msg"])
+    );
 }

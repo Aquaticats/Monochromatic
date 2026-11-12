@@ -343,7 +343,7 @@ fn abbreviates_a_known_option(known: &[&str], name: &str) -> bool {
 pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file: &std::path::Path) -> Option<Vec<OsString>> {
     let text: Vec<String> = arguments.iter().map(lossy_text).collect();
     let region: Vec<String> = crate::commit_args::normalise_commit_args(text.get(subcommand_index + 1..)?);
-    let split: usize = crate::commit_args::separator_index(region.as_slice()).unwrap_or(region.len());
+    let split: usize = crate::commit_args::boundary_index(region.as_slice()).unwrap_or(region.len());
     let (options, tail): (&[String], &[String]) = region.split_at(split);
     let mut kept: Vec<OsString> = arguments[..=subcommand_index].to_vec();
     let mut index: usize = 0;
