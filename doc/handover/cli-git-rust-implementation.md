@@ -135,6 +135,25 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The gate's verdict on the alpha.11 code (2026-11-11T21:30:00-05:00)
+
+The gate of `08ece74c5e` (unit and log `gpc-gate-wrapper-next-alpha-on-08ece74c5e-20261111T204545-0500`) ended:
+`8322 tests run: 8315 passed (3 slow), 7 failed, 22 skipped`, in 844 s, `gate-exit-status=1`. The seven:
+
+- `policy::policy_checks::tests::overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty`
+  (for `merge --abort` in a clean linked worktree it expected `dirty:Tracked` and got `abort-discard:AbortMerge`);
+- `service::service_units_of_removed_worktrees::tests::a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal_goes`;
+- `service::wait_ceilings::tests::the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add`;
+- `source_guard::blocking_code_off_the_runtime_tests::the_release_code_keeps_blocking_work_off_the_runtime`;
+- `testing::run_progress::tests::a_stuck_run_ends_its_process` and `..._though_its_report_cannot_be_written` (45 s each);
+- the binary-level `package_repair::a_shared_target_a_link_carries_out_of_the_worktree_is_left_built`.
+
+alpha.11 shipped before this verdict, under the owner's "Run it, don't wait (Recommended)".
+Round 255 (`fix/git-policy-cli-gate-failures-of-the-alpha-11-code`, from `main`) takes them: for each, which two of pass 14's changes met,
+and whether the test or the code is wrong by what the project decided.
+The last three may already be fixed by branches in pass 15 (the watchdog findings, the shared-target fixture):
+that agent checks them on those branches' tips and leaves them there, and pass 15 has a note to run those three by name after its merges.
+
 ### What the 23 finished runs led to (2026-11-11T21:20:00-05:00)
 
 The digest is `~/temp/agent/digest-2026-11-11T2050/digest.md` (551 lines, by a Claude Code native subagent; it ran nothing and quotes the reports).
