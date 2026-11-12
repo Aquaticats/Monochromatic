@@ -214,6 +214,84 @@ move its durable facts to their canonical doc and delete it from this page.
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
 
+#### The slow commits are one child, `git for-each-ref`, that real Git answers in 15 to 37 ms (2026-11-12T11:15:55-05:00)
+
+The digest of the two commit-path runs:
+`~/temp/agent/digest-2026-11-12T1054-commit-path/digest.md`,
+read against `main` at `5c4c0bcc7b`.
+
+What is measured:
+
+- In each slow commit's timing record,
+  the list `steps` names one child that takes almost all of the build step:
+  `git for-each-ref`,
+  26,357 ms (11:10:59),
+  14,898 ms (11:11:21),
+  3,786 ms (11:10:58),
+  13,906 ms (11:13:01,
+  in a commit of 99,371 ms whose submit step took 58,950 ms and whose gate held a `git rev-list` of 24,140 ms),
+  and 13,909 ms in the commit of 09:13:13 under alpha.13.
+  The brief of round 288 had said no named span was over 33 ms;
+  it had read the wrong list,
+  and it had guessed a merge commit:
+  the commit of 09:13:13 has one parent and one path.
+- Real Git,
+  same repository,
+  the wrapper's exact query
+  (`/usr/bin/git for-each-ref --format='%(refname)%00%(objectname)%00%(symref)'`),
+  run by this session at 11:15:55:
+  198,135 bytes for 1,991 references in 15 ms,
+  and again in 37 ms.
+  1,982 references are packed and 18 are loose.
+- Round 288's agent could not reproduce the 14 seconds in a quiet clone:
+  twenty-two paired runs,
+  the wrapper about half a second over real Git,
+  a difference smaller than the wrapper's own spread;
+  two wrapper runs stalled (12,159 ms with a `git read-tree` of 11.3 s,
+  and 8,523 ms).
+  Its report puts the time down to a busy machine without showing it,
+  and two of its medians are miscalculated.
+  The child of 09:13 was writing output all along:
+  its longest quiet gap was 853 ms.
+
+What is not known:
+why a query of tens of milliseconds takes seconds as a child of a commit.
+The candidates are the child's own reads on a disk under pressure,
+or the child blocked on a pipe the service reads slowly
+(198 KB is more than a pipe holds),
+or a slow start.
+The slow commits of 11:10 to 11:13 fall in the minutes when thirteen worktrees were being added.
+
+Round 303,
+started through the package's launcher:
+`commit-does-not-list-every-reference-on-the-path-it-waits-on`,
+on round 288's branch `9bc31c8912`
+(which merges cleanly and adds `childrenMs` to the record):
+why a commit lists every reference at all,
+which cause a trace shows,
+and the listing,
+the gate's `git rev-list` and the stalled `git read-tree` taken off the path a person waits on,
+with a test that a commit's cost does not grow with the number of references.
+
+The other run of that digest,
+`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (`af735d6330`):
+not mergeable as it stands.
+It conflicts with `main` in `service_provision.rs` and its tests,
+where pass 17's `01d6e891ed` lets a manager call that timed out go on
+and this branch makes the same case fail with new words;
+round 301 is resolving that same ground for the reload fix,
+so this branch waits for round 301 and is then brought onto its result.
+Its fifty-minute test run ended at its own bound with no summary:
+fourteen failures,
+all in lock-holder paths,
+each of 200 seconds or more
+(issue 6287 again).
+Sightings in it for the removal agents:
+a `git worktree remove` of 76,701 ms with no output,
+and two `git worktree add` of about sixty seconds.
+One message of the branch sends a person to `git monochromatic-git-policy-cli service status`,
+which prints a circular sentence when no service is up.
+
 #### The hourly pass at 11:10: commits under alpha.14 are slow in their build step, the fix for issue 6286 is finished and conflicts with `main`, the package's launcher is merged (2026-11-12T11:13:43-05:00)
 
 State at 11:10:45:
