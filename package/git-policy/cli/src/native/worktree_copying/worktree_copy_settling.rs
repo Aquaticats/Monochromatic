@@ -334,9 +334,9 @@ fn copy_again(
         // The stage carries the source's modes from the first pass on, so the directory that holds this entry may forbid the
         //  writing its retry needs; the widening covers the removal and the copy, and the modes go back on whatever either answered.
         let opened: OpenedForWriting = open_the_staged_directories(stage_root, path.as_slice())?;
-        let copied: Result<CopiedLeaf, WorktreeCopyError> = copy_the_staged_leaf_again(source_root, stage_root, stage_path.as_path(), &entry, clone);
+        let retried: Result<CopiedLeaf, WorktreeCopyError> = copy_the_staged_leaf_again(source_root, stage_root, stage_path.as_path(), &entry, clone);
         let put_back: Result<(), WorktreeCopyError> = opened.put_the_modes_back();
-        let copied: CopiedLeaf = copied?;
+        let copied: CopiedLeaf = retried?;
         put_back?;
         stamps[index] = match copied {
             CopiedLeaf::Staged(stamp) => stamp,
