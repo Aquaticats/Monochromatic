@@ -14,6 +14,13 @@
 //!  because a branch name's bytes are the person's,
 //!  and only the two commit fields of a line are read at all,
 //!  which are hexadecimal whatever they hold.
+//!  Every read of a reflog is `plain_file.rs`'s:
+//!  the name sits beside a checkout any process may write,
+//!  so it may hold a named pipe,
+//!  and an open that waited for a writer there would hold the person's `git merge`, which reads it,
+//!  with nothing said and no end
+//!  (a cross-vendor review of the landed sweep,
+//!  round 208).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +28,21 @@
 //! branchMovedOnto(commonDir, 'refs/heads/main', 'dfc6c4e...'); // false for a branch created there
 //! ```
 
+use crate::plain_file::read_plain_file;
 use std::path::{Path, PathBuf};
+
+/// How many bytes of one branch's reflog this reads.
+/// Why:
+///   A reflog grows with every move of its branch,
+///  and the sweep reads one for the candidate and for every landed branch it asks about,
+///  so a file that grows without bound would decide how much memory a merge reads.
+///  Measured on this repository on 2026-11-11:
+///  its `logs/HEAD` holds 8,267 lines in 1,844,737 bytes,
+///  which is 224 bytes a line,
+///  so this bound is about 75,000 moves of one branch.
+///  A reflog past it answers nothing,
+///  and the caller then treats the branch as it does one whose reflog Git no longer keeps.
+const REFLOG_LIMIT: u64 = 16 << 20;
 
 /// The commit a reflog line names as the value a reference had before it existed,
 /// which is what a branch created at a commit records.
@@ -32,6 +53,25 @@ use std::path::{Path, PathBuf};
 ///  A reset onto a commit and a commit of its own both record the commit the branch held before them,
 ///  so a line that names this value is the one line that says nothing about who made a commit.
 const NO_COMMIT: &str = "0000000000000000000000000000000000000000";
+
+/// The bytes of the reflog of `reference`,
+/// read without waiting for a writer,
+/// without following a link to it,
+/// and no further than `REFLOG_LIMIT`,
+/// or nothing when this repository keeps no reflog that can be read for it.
+/// Why:
+///  A reflog's name sits beside a checkout,
+///  and any process that may write that directory may plant a named pipe or a link at it
+///  (`plain_file.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readReflog(commonDir, 'refs/heads/feature') // Buffer | undefined
+/// ```
+fn read_reflog(common_dir: &Path, reference: &str) -> Option<Vec<u8>> {
+    let path: PathBuf = common_dir.join("logs").join(reference);
+    return read_plain_file(path.as_path(), REFLOG_LIMIT).ok();
+}
 
 /// The commit the branch named by `reference` was made at,
 /// read from the oldest entry of its own reflog,
@@ -48,8 +88,7 @@ const NO_COMMIT: &str = "0000000000000000000000000000000000000000";
 /// branchMadeAt(commonDir, 'refs/heads/feature') // 'dfc6c4e...' | undefined
 /// ```
 pub(crate) fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
-    let path: PathBuf = common_dir.join("logs").join(reference);
-    let text: Vec<u8> = std::fs::read(path.as_path()).ok()?;
+    let text: Vec<u8> = read_reflog(common_dir, reference)?;
     let oldest: &[u8] = text.split(is_line_end).next()?;
     let made: &[u8] = oldest.split(is_space).nth(1)?;
     return std::str::from_utf8(made).ok().map(str::to_owned);
@@ -105,8 +144,7 @@ fn moved_between(line: &[u8]) -> Option<(&[u8], &[u8])> {
 /// branchMovedOnto(commonDir, 'refs/heads/main', 'dfc6c4e...') // true when main's own reflog moved there
 /// ```
 pub(crate) fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str) -> bool {
-    let path: PathBuf = common_dir.join("logs").join(reference);
-    let Ok(text) = std::fs::read(path.as_path()) else { return false };
+    let Some(text) = read_reflog(common_dir, reference) else { return false };
     let wanted: &[u8] = commit.as_bytes();
     for line in text.split(is_line_end) {
         let Some((old, next)) = moved_between(line) else { continue };

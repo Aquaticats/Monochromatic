@@ -13,6 +13,13 @@
 //!  which did not exist when the merge landed,
 //!  so the command that runs the merge names the registrations it found before it started
 //!  and the sweep removes only those.
+//!  Every record of a registration is read by `worktree_registration_proof.rs`,
+//!  which opens without waiting for a writer:
+//!  a `gitdir` or a `HEAD` that a process names as a named pipe would otherwise hold the person's `git merge`
+//!  for ever,
+//!  and a registration whose record Git did not write is no registration this sweep can act on
+//!  (a cross-vendor review of the landed sweep,
+//!  round 208).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,6 +27,7 @@
 //! const before = registeredBefore(commonDir); // the names that existed before the merge
 //! ```
 
+use crate::worktree_registration_proof::read_record_here;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -76,7 +84,7 @@ pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, S
 /// The worktree root a registration's `gitdir` file names,
 /// when that root is still a directory.
 fn registered_worktree(admin: &Path) -> Option<PathBuf> {
-    let text: Vec<u8> = std::fs::read(admin.join("gitdir")).ok()?;
+    let text: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").ok()?;
     let recorded: PathBuf = PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
     let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
     let root: PathBuf = std::fs::canonicalize(pointer.parent()?).ok()?;
@@ -87,7 +95,8 @@ fn registered_worktree(admin: &Path) -> Option<PathBuf> {
 /// as a full ref name,
 /// or nothing for a detached `HEAD`.
 fn head_branch(admin: &Path) -> Option<String> {
-    let text: String = std::fs::read_to_string(admin.join("HEAD")).ok()?;
+    let recorded: Vec<u8> = read_record_here(admin.join("HEAD").as_path(), "the record that names its branch").ok()?;
+    let text: String = String::from_utf8(recorded).ok()?;
     let line: &str = text.trim_end();
     let branch: &str = line.strip_prefix("ref: ")?;
     if !branch.starts_with("refs/heads/") {
