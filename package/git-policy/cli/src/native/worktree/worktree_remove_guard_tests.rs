@@ -325,6 +325,68 @@ fn a_worktree_with_a_populated_submodule_is_left_to_git() {
     remove(root.as_path());
 }
 
+/// What:
+///  The snapshots the wrapper made ahead of an add are gone before the worktree's subvolume is destroyed.
+/// Why:
+///   The destroy is the irreversible step,
+/// and the registration is emptied after it,
+/// and that emptying refuses a nested subvolume,
+///  so a pool still standing when the destroy ran left a removal that could never finish:
+/// the files gone,
+///  the registration and the whole pool left to `git worktree prune` (a Sonnet finding,
+/// F1).
+///  The member planted here is the one shape a pool holds,
+/// a copy of the worktree an add takes its ignored state from.
+#[test]
+fn the_snapshots_ahead_are_gone_before_the_subvolume_is_destroyed() {
+    let root: PathBuf = fixture("remove-guard-snapshots-ahead");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let member: PathBuf = admin.join("monochromatic-git-policy-cli/ahead/.cli-git-worktree-ahead-0123456789abcdef-000001a1cae683dc-0123456789abcdef0123456789abcdef");
+    std::fs::create_dir_all(member.as_path()).expect("a snapshot the wrapper made ahead of an add");
+    std::fs::write(member.join("tracked.txt"), b"the worktree's own file\n").expect("its files");
+    // The pool's member when the destroy runs, which is what tells whether the pool went first or last.
+    let there_at_the_destroy: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    let watch: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::clone(&there_at_the_destroy);
+    let seen: PathBuf = member.clone();
+    let mut stand: Stand = Stand::new(vec![worktree.clone()]);
+    stand.during_destroy = RefCell::new(Some(Box::new(move || { watch.set(seen.exists()); })));
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert!(!there_at_the_destroy.get(), "the pool of the worktree went before the destroy, not after it");
+    assert!(!admin.exists(), "the registration went with it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A removal whose snapshots ahead cannot be cleared refuses before anything irreversible,
+///  and names the folder and the ways forward.
+/// Why:
+///   The pool is the wrapper's own and the removal is the only thing that takes it,
+/// and the destroy cannot be
+///  undone,
+/// so a pool that cannot go first has to stop the removal while the worktree is still there
+///  (a Sonnet finding,
+/// F1).
+#[test]
+fn a_removal_whose_snapshots_ahead_cannot_be_cleared_refuses_before_the_subvolume_goes() {
+    let root: PathBuf = fixture("remove-guard-snapshots-ahead-blocked");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let pool: PathBuf = admin.join("monochromatic-git-policy-cli/ahead");
+    std::fs::create_dir_all(pool.parent().expect("the wrapper's own folder")).expect("the folder of the pool");
+    std::fs::write(pool.as_path(), b"a file where the folder of the pool belongs\n").expect("a blocker at the pool's name");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    let RemoveOutcome::Refused(report) = outcome else { panic!("a pool that cannot go stops the removal, but it was {outcome:?}") };
+    assert!(report.contains(pool.to_str().expect("UTF-8")), "the report names the folder that stands in the way: {report}");
+    assert!(report.contains("nothing was removed"), "and says nothing changed: {report}");
+    assert!(worktree.join("tracked.txt").is_file(), "the worktree is where it was");
+    assert!(admin.is_dir(), "and so is its registration");
+    remove(root.as_path());
+}
+
 /// A registration that cannot be removed after the destroy is reported as an incomplete removal that names the leftover
 ///  and the way to finish,
 /// never as a success.

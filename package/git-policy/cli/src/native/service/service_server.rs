@@ -34,7 +34,8 @@ use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
-use crate::lazy_runtime::spawn_on_runtime;
+use crate::lazy_runtime::{LATE_BUILD_PATIENCE, spawn_on_runtime_within};
+use crate::service_runtime_build_report::no_worker_words;
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
@@ -217,10 +218,13 @@ impl ServeSettings {
 }
 
 /// Starts the after-commit work as a task of the process's runtime,
+/// waiting `LATE_BUILD_PATIENCE` for a build that missed its deadline,
 /// or ends the service with a plain line and status 4:
 /// a service that goes on
 ///  without its after-commit work never pushes the person's commits,
 /// while an ended service is started again by the manager.
+/// A build that merely outlasted `BUILD_DEADLINE` is waited for,
+/// because it is kept for the work it was built for.
 /// The plan and the watch are read before this call,
 ///  by a thread of their own (`service_journal_restored_at_start.rs`),
 /// so the task starts with what the service that stopped last left and no storage wait of
@@ -230,10 +234,8 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
         let mut wakes: UnboundedReceiver<Wake> = receiver;
         work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
     };
-    if spawn_on_runtime(work).is_none() {
-        crate::service_error!(
-            "cannot start the after-commit work: the runtime that runs it has no worker thread (the system may refuse threads; check `ulimit -u` and the control group's `pids.max`)"
-        );
+    if spawn_on_runtime_within(LATE_BUILD_PATIENCE, work).is_none() {
+        crate::service_error!("{}", no_worker_words("the after-commit work"));
         std::process::exit(4);
     }
 }
@@ -251,8 +253,10 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 /// the removal that takes a worktree while its service runs is what leaves a socket listening for a directory that is gone.
 /// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
 /// so an unmounted device and an instance nothing names keep the service serving.
-/// The idle bound alone ends the service,
-/// and that is answered before this one.
+/// The question is asked before the busy count and before the idle bound:
+/// after-commit work that counts itself busy,
+/// and a service that has served nothing for hours,
+/// both answer it the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -391,13 +395,13 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         let wait: Duration = if settings.own_git_dir.is_some() { until_idle.min(settings.own_worktree_check) } else { idle };
         let first: Job = match receive_for_at_most(&mut receiver, Some(wait)) {
             Received::Item(job) => job,
-            // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
-            Received::Timeout if busy.load(Ordering::SeqCst) > 0 => {
-                last_work = Instant::now();
-                continue;
-            }
-            // The interval of a service whose worktree is known, with the idle bound still ahead: the worktree may have been
-            //  removed by another Git, and then no start of this service ever comes again to notice it.
+            // Work: The worktree whose units are this service's may have been removed while the service runs, and that
+            //       question is answered before any other answer to a timeout.
+            // Why:  The after-commit work counts itself busy while a push waits for a new try, and the busy arm below keeps the
+            //       service alive for that work's sake; a service of a repository that was deleted, with a plan nothing can run,
+            //       therefore never reached this question and never ended (measured 2026-11-11: units retrying at try 149 for a
+            //       repository deleted hours before). Nothing can be delivered to a directory that is gone, so nothing waits for
+            //       the work to finish first.
             Received::Timeout if own_worktree_gone_now(settings, until_idle) => {
                 let instance: &str = settings.instance.as_deref().unwrap_or_default();
                 let _asked = (settings.own_units_stop)(instance, context.journal.as_path());
@@ -405,6 +409,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 crate::service_durable::drain();
                 log(exit_line(ExitReason::WorktreeGone, serving_since.elapsed()).as_str());
                 return;
+            }
+            // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
+            Received::Timeout if busy.load(Ordering::SeqCst) > 0 => {
+                last_work = Instant::now();
+                continue;
             }
             // The interval of a service whose worktree is known, and that worktree is still there: serve on.
             Received::Timeout if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check => continue,
@@ -465,10 +474,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
                     // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
-                    let queue_reference: String = if request.reference == "HEAD" {
+                    // The key is exact for a name that is not text too, so two branches never share a group.
+                    let queue_reference: String = if request.reference.is_head() {
                         format!("HEAD@{}", request.repository.display())
                     } else {
-                        request.reference.clone()
+                        request.reference.hex()
                     };
                     let key: GroupKey = (request.common_dir.clone(), queue_reference, request.lands_alone());
                     place_in_groups(&mut groups, key, (request, stream, arrival));
@@ -552,8 +562,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 /// Why:
 ///   The tree holds the private index and the conclusion copies a landing reads,
 ///   so only the landing that named it may decide that it is done with it.
-///  A tree whose client is gone waits for that landing instead of for its connection to close,
-///  which is what makes a killed client's queued commit land on the tree it made.
+///  A tree whose client is gone is left where it is rather than removed with its answer:
+///  a client that reconnects sends the same request again and reads it there,
+///  and a request with no client left to make its commit gives its tree to the sweep by age.
 ///  A request the service did not land (a commit sent back to be prepared again,
 /// a branch that moved) has no landing
 ///  that read its tree:

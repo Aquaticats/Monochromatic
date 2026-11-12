@@ -18,12 +18,10 @@
 //! // const saved = keepTheNestedRepositoriesACleanWouldDelete(facts, location, region, limits);
 //! ```
 
-/// The builders of the clean's own two dry runs,
+/// The builder of the clean's own dry run,
 ///  and the parsed facts that decide whether the question applies.
-use crate::command_clean::{
-    UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, clean_dry_run_arguments_keeping_nested_repositories, parse_clean_region,
-};
-/// Which nested Git repositories those two answers say the clean would delete.
+use crate::command_clean::{UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, parse_clean_region};
+/// Which nested Git repositories that answer says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// The bound on the folder of saved copies applied after a save,
 ///  and the place saved copies live.
@@ -90,8 +88,15 @@ enum NestedRepositories {
         notice: String,
     },
     /// A repository could not be kept,
-    /// and the sentence says why and what to do.
-    Refused(String),
+    ///  the sentence says why and what to do,
+    ///  and `copies` names every repository a stopped save left below the saved copies.
+    Refused {
+        /// What the person reads instead of the clean running.
+        message: String,
+        /// The repositories the stopped save moved and could not put back,
+        ///  each with the place it is.
+        copies: Vec<SavedCopy>,
+    },
 }
 
 /// What:
@@ -105,11 +110,18 @@ enum NestedRepositories {
 ///  the owner's answer for uncommitted work is to save it and let the command run
 ///  (`conflict_side_guard.rs`),
 ///  and refusing would only move the same loss to `rm -rf`.
-///  Git itself says which paths the clean removes and which repositories it keeps at one force,
-///  so the two answers name exactly the repositories to keep,
-///  with nothing walked twice.
+///  Git itself says which paths the clean removes,
+///  and the repository the clean deletes is the one below one of those paths,
+///  found by looking inside the names Git printed and nowhere else.
 ///  A clean whose dry run Git refuses deletes nothing,
 ///  and Git then refuses the command itself in its own words.
+///  A clean whose dry run never answered was read by nobody,
+///  so it stops instead of running on a guess.
+///  An interactive clean is not moved here at all:
+///  its menu is answered after Git starts,
+///  so the fixed transform keeps the repositories out of that menu by one force
+///  (`rule_clean_interactive_nested_repositories.rs`),
+///  and a repository moved before a menu is one the person never chose to delete.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,6 +142,11 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     if !parsed.deletes_ignored || !parsed.descends || parsed.forces < 2 {
         return NestedRepositories::Nothing;
     }
+    // A menu is answered after Git starts, so nothing here can ask the person first; the transform that runs the clean
+    //  with one force keeps the repositories where they are instead of moving them before a decision.
+    if parsed.interactive {
+        return NestedRepositories::Nothing;
+    }
     let Some(root) = worktree_root(&location.identity) else {
         return NestedRepositories::Nothing;
     };
@@ -145,19 +162,11 @@ fn keep_the_nested_repositories_a_clean_would_delete(
         // Git refuses this clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
         Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => return NestedRepositories::Nothing,
         // A reading that never answered could hide a repository, so the clean stops here.
-        Err(message) => return NestedRepositories::Refused(message),
+        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
-    let Some(with_one_force) = clean_dry_run_arguments_keeping_nested_repositories(prefix.as_slice(), region) else {
-        return NestedRepositories::Nothing;
-    };
-    let kept: Vec<Vec<u8>> = match facts.clean_dry_run_lines_with_one_force(with_one_force) {
-        Ok(answer) => answer,
-        // A reading that failed could hide a repository, so the clean stops here rather than deleting one.
-        Err(message) => return NestedRepositories::Refused(message),
-    };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), kept.as_slice(), root) {
+    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root) {
         Ok(found) => found,
-        Err(message) => return NestedRepositories::Refused(message),
+        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
     if repositories.is_empty() {
         return NestedRepositories::Nothing;
@@ -171,13 +180,17 @@ fn keep_the_nested_repositories_a_clean_would_delete(
                 copies,
             };
         }
-        Err(failure) => {
+        Err(stopped) => {
             let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-            return NestedRepositories::Refused(nested_repository_not_saved_message(NotSaved {
-                repositories: repositories.as_slice(),
-                failure: &failure,
-                saved_root: saved_root.as_path(),
-            }));
+            return NestedRepositories::Refused {
+                message: nested_repository_not_saved_message(NotSaved {
+                    repositories: repositories.as_slice(),
+                    failure: &stopped.failure,
+                    saved_root: saved_root.as_path(),
+                    still_moved: stopped.still_moved.as_slice(),
+                }),
+                copies: stopped.still_moved,
+            };
         }
     }
 }
@@ -253,8 +266,29 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
                 );
                 return clean();
             }
-            NestedRepositories::Refused(message) => {
-                record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None);
+            NestedRepositories::Refused { message, copies } => {
+                let mut places: Vec<String> = Vec::<String>::new();
+                for copy in &copies {
+                    let saved_to: String = match copy.saved_to.as_ref() {
+                        Some(place) => place.display().to_string(),
+                        None => String::from("none"),
+                    };
+                    places.push(format!("{} => {}", copy.path, saved_to));
+                }
+                // A rejection that left a repository under the saved copies names where it is;
+                //  one that left none is a worktree nobody can tell apart from the one before the command.
+                if places.is_empty() {
+                    record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None);
+                } else {
+                    record_audit_with_copies(
+                        &form.location.identity,
+                        form.command,
+                        AuditOutcome::Rejected,
+                        form.seen,
+                        None,
+                        places.as_slice(),
+                    );
+                }
                 return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
             }
         }

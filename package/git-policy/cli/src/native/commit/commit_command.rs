@@ -150,6 +150,13 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
             write_stderr(format!("{message}\n").as_str());
             return CommitEnding { code: 1 };
         }
+        // The person stopped this command with a signal, and the commit it waited for is not made: the words say so, and the
+        //  command ends as that signal ends a program, which is what a shell reports for an interrupted native Git (`128 + the
+        //  signal`). The returned status is reached only when the signal cannot end this process.
+        TransactionStop::EndedBySignal { signal, message } => {
+            write_stderr(format!("{message}\n").as_str());
+            return CommitEnding { code: crate::forwarding::end_as_git_ended(signal) };
+        }
         TransactionStop::Failed { code, message } => {
             let event: PolicyEvent = PolicyEvent::EngineFailure {
                 code,

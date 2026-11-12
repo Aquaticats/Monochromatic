@@ -488,6 +488,19 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the route decision reads the file system for:
+///  the walk up from the start directory and the files it reads,
+///  which `landing/service_route.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a walk waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a walk that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a landing's own state step is granted (`LANDING_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.
@@ -506,6 +519,38 @@ pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 /// two seconds is twice the slowest of 52 cold service starts,
 /// under the owner's 5,000 ms bound on what a command may add (2026-11-09).
 pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
+
+/// The longest one package-manager tool of a worktree repair (`pnpm install`,
+/// `cargo metadata`,
+/// `cargo clean`,
+/// `mpm-shadow install`)
+///  takes to start,
+/// before the run says it gave no answer and stops the child it finally starts.
+///  Why:
+///  `Command::spawn` returns only after the child's own `exec`,
+///  which can wait in the kernel with no end:
+/// a program on a mount whose server stopped answering,
+/// a disk that stalls.
+///  The quiet window,
+/// the ceiling and the notice above are all read from a clock the command has not reached
+///  while that wait stands,
+/// so the start is what has to be bounded;
+/// the owner's rule is "nothing should ever wait
+///  forever or indefinitely".
+///  Measured:
+/// no log here holds the length of a start,
+/// because every start it recorded returned as soon as
+///  the program was found;
+/// the value is `START_CEILING`,
+/// the wait a client grants the commit service's own start
+///  (the slowest of 52 cold starts took 1,041 ms),
+/// because both are one program's start on this host and a start that
+///  outlasts either is one the answer by hand serves better.
+/// A start that reaches it costs the repair and never the worktree:
+/// the finding names the tool
+///  and the command to run,
+/// and the worktree keeps the files Git wrote.
+pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
@@ -798,7 +843,61 @@ pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
 /// waitingNoticeAfter() // Duration
 /// ```
 pub fn waiting_notice_after() -> Duration {
-    return notice_after_of(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref());
+    return notice_after_from(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref(), WAITING_NOTICE_AFTER);
+}
+
+/// How long a `git worktree add` runs before it says which step it is in,
+/// then again at `ADD_STANDING_NOTICE_REPEAT` while it stays in one step.
+/// A notice threshold,
+/// not a bound:
+/// nothing ends at it.
+///  Owner,
+/// 2026-11-03:
+/// "60s is fine for adding worktrees",
+/// with the brief's "an add that is still waiting after a few seconds says what it
+///  waits for".
+///  Measured on this host,
+/// 2026-11-11,
+/// load average 58 to 61:
+/// five concurrent adds of a 24-package checkout took 29,487,
+/// 29,493,
+/// 31,652,
+/// 31,659 and 35,574 ms,
+/// and a single one took 4,288 ms;
+/// the steps of one add ran from a few milliseconds to 12,177 ms,
+/// and one `fsync` of its own bookkeeping took 11,239 ms.
+/// Five seconds is longer than a step of an add that is making progress on an idle host,
+/// and short enough that a person waiting on a loaded one is told before the wait looks like a hang.
+pub const ADD_STANDING_NOTICE_AFTER: Duration = Duration::from_secs(5);
+
+/// How long an add that stays in one step waits between two of the lines that name it.
+/// A notice threshold,
+/// not a bound.
+///  Measured on this host,
+/// 2026-11-11:
+/// the longest step of the five concurrent adds above was 13,903 ms,
+///  so fifteen seconds prints one line for a step and no second line for a step too short to be one.
+pub const ADD_STANDING_NOTICE_REPEAT: Duration = Duration::from_secs(15);
+
+/// The environment variable that sets how long an add waits before it says which step it is in,
+/// in whole
+///  seconds.
+/// Why:
+///   A control that checks what a healthy add prints must not depend on how slowly the host runs one,
+/// so it sets
+///  this past its own bound.
+pub const ADD_STANDING_NOTICE_VARIABLE: &str = "CLI_GIT_ADD_NOTICE_SECONDS";
+
+/// How long an add waits before it says which step it is in:
+/// the setting when it holds a positive number of seconds,
+/// `ADD_STANDING_NOTICE_AFTER` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addStandingNoticeAfter() // Duration
+/// ```
+pub fn add_standing_notice_after() -> Duration {
+    return notice_after_from(std::env::var(ADD_STANDING_NOTICE_VARIABLE).ok().as_deref(), ADD_STANDING_NOTICE_AFTER);
 }
 
 /// What:
@@ -813,13 +912,29 @@ pub fn waiting_notice_after() -> Duration {
 /// noticeAfterOf('30') // 30 s
 /// ```
 pub fn notice_after_of(setting: Option<&str>) -> Duration {
+    return notice_after_from(setting, WAITING_NOTICE_AFTER);
+}
+
+/// What:
+///  The wait a setting stands for,
+/// or `shipped` when the setting means nothing.
+/// Why:
+///   More than one notice has a variable of its own,
+/// and each shipped wait has its own measurement,
+/// so the reader of a setting and its fallback are one rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noticeAfterFrom('30', shipped) // 30 s
+/// ```
+pub fn notice_after_from(setting: Option<&str>, shipped: Duration) -> Duration {
     let seconds: Option<u64> = match setting {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,
     };
     return match seconds {
         Some(found) if found > 0 => Duration::from_secs(found),
-        _ => WAITING_NOTICE_AFTER,
+        _ => shipped,
     };
 }
 /// The longest the optional configuration warning of a commit may take to reach the stream it is written to.

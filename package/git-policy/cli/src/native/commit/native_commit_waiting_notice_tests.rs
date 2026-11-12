@@ -9,8 +9,8 @@
 use super::*;
 
 /// The words of a command line as the notice reads them.
-fn words(text: &[&str]) -> Vec<String> {
-    return text.iter().map(|word| { return (*word).to_string(); }).collect();
+fn words(text: &[&str]) -> Vec<OsString> {
+    return text.iter().map(OsString::from).collect();
 }
 
 /// A shared buffer the notice thread writes into.

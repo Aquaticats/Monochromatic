@@ -67,17 +67,24 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await settleTheAsidesOfAMerge({ context, root, gitDir, changes, capture, stderr });
+/// const putBack = await settleTheAsidesOfAMerge({ context, root, gitDir, changes, capture, stderr });
 /// ```
+///  The paths a copy went back to are answered,
+/// because the file that arrives there is the one the merge judged:
+///  its
+///  identity is unchanged by the rename and its change time is not,
+/// and a caller that judges those paths against a reading
+///  the command that moved the checkout made has to read them again.
 pub async fn put_back_stranded_takes_awaiting<W: Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,
     changes: &[Change],
     capture: Option<&Capture>,
+    transaction_id: &str,
     out: &mut W,
-) {
-    settle_the_asides_of_a_merge_awaiting(context, root, git_dir, changes, capture, out).await;
+) -> Vec<PathBuf> {
+    return settle_the_asides_of_a_merge_awaiting(context, root, git_dir, changes, capture, transaction_id, out).await;
 }
 
 /// What:
@@ -126,11 +133,18 @@ pub struct TakeFailure {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : hash-object --no-filters -- <location>
+/// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : regular file ? hash-object --no-filters -- <location> : undefined
 /// ```
 pub(crate) async fn raw_bytes_of_awaiting(git: &GitContext, root: &Path, location: &Path) -> Option<String> {
-    if std::fs::symlink_metadata(location).ok()?.file_type().is_symlink() {
+    let kind: std::fs::FileType = std::fs::symlink_metadata(location).ok()?.file_type();
+    if kind.is_symlink() {
         return the_objects_a_link_hashes_to_awaiting(git, root, location).await.ok();
+    }
+    // A pipe, a socket, a device or a directory has no bytes a comparison can read, and `hash-object` on a pipe waits for a writer
+    //  that may never come: a copy beside a path whose entry is one of those is a copy the reading cannot prove, so the answer is
+    //  "the bytes are not known" rather than a wait with no end (`SPEC.md`, "nothing should ever wait forever or indefinitely").
+    if !kind.is_file() {
+        return None;
     }
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--"]);
     request.arguments.push(location.as_os_str().to_os_string());
@@ -505,6 +519,86 @@ pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path,
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
     return are_the_file_form_of_awaiting(git, root, path, aside, expected).await == Some(true);
+}
+
+/// What one last look at a copy and the file at its path came to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CopyRemoval = 'proven' | 'held-open' | 'changed';
+/// ```
+pub(crate) enum CopyRemoval {
+    /// Nothing can write into the copy and the file at its path still holds the bytes that were compared.
+    Proven,
+    /// A program this command can read still holds the copy open,
+    /// or nothing could prove that none does.
+    HeldOpen,
+    /// The copy or the file at its path is no longer the entry the comparison read.
+    Changed,
+}
+
+/// What:
+///  Whether removing a copy the file at its path already holds loses nothing,
+/// because nothing can write into the copy any more,
+///  and the file at the path still holds what was compared with it.
+/// Why:
+///   A copy whose bytes the person's file holds again is a second file of the same bytes,
+/// and the copy beside the path is the one to go;
+///  but the copy may be a file a program still has open,
+/// because a take moved it and a descriptor outlives the rename,
+///  and a write through that descriptor lands in the file that would be unlinked and then has no name at all
+/// (`SPEC.md`,
+/// the removal the aside's own end acts on).
+///  So the same proof is asked before any copy is unlinked:
+/// the identity the copy had when the bytes were compared is still its identity,
+///  that identity
+/// is the one the scan looked for,
+/// no process this command can read holds it open,
+/// and its bytes still hash to the
+///  object the comparison read.
+///  The file at the path is asked again beside all that,
+/// because it is the only other name those bytes have:
+///  a save or a chmod that arrived after the comparison would leave the copy the last name of the older bytes or the older
+///  permissions,
+/// so the identity the comparison read must still be the file's,
+///  and its bytes must still be the copy's own
+/// (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its second finding).
+/// An entry that is not a regular file or a symbolic link is never removed here:
+/// a pipe has no
+///  bytes a reading can compare.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function mayRemoveTheCopy(git, root, aside, theFile, heldByTheFile): Promise<CopyRemoval>; // regular entry && no readable process holds it && the aside's identity and bytes are unchanged && the file at the path is still the entry the comparison read
+/// ```
+pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, aside: &Path, the_file: &Path, held_by_the_file: FileIdentity) -> CopyRemoval {
+    let Some(taken): Option<FileIdentity> = file_identity(aside) else { return CopyRemoval::Changed };
+    let Some(held): Option<String> = raw_bytes_of_awaiting(git, root, aside).await else { return CopyRemoval::Changed };
+    let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
+    if !scanned.holders.is_empty() {
+        return CopyRemoval::HeldOpen;
+    }
+    for reason in &scanned.partial {
+        if !reason.starts_with(UNREADABLE_PROCESS_REASON) {
+            return CopyRemoval::HeldOpen;
+        }
+    }
+    // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
+    crate::service_fault::reach("copy-scanned");
+    if file_identity(aside) != Some(taken) {
+        return CopyRemoval::Changed;
+    }
+    if file_identity(the_file) != Some(held_by_the_file) {
+        return CopyRemoval::Changed;
+    }
+    if raw_bytes_of_awaiting(git, root, aside).await.as_deref() != Some(held.as_str()) {
+        return CopyRemoval::Changed;
+    }
+    if raw_bytes_of_awaiting(git, root, the_file).await.as_deref() != Some(held.as_str()) {
+        return CopyRemoval::Changed;
+    }
+    return CopyRemoval::Proven;
 }
 
 /// What:

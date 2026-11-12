@@ -83,23 +83,48 @@ pub struct WorkItem {
 
 /// Methods over an item.
 impl WorkItem {
-    /// The id and file name:
-    /// the kind and the landed object,
-    /// so the same landing always yields the same id.
+    /// What:
+    ///  The id and file name:
+    /// the kind,
+    /// the landed object,
+    /// and the one field of the record that tells two of them apart,
+    /// so the same work always yields the same id.
+    /// Why:
+    ///   A push names its branch,
+    /// because the same commit on two branches is two pushes to two remotes,
+    /// and a subvolume delete names the directory that held it,
+    /// because a
+    ///  subvolume id is unique on one filesystem only.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const id = (item) =>
+    ///   item.kind === 'push'
+    ///     ? `${item.kind}-${item.oid}-${branchDigest(item.ref)}`
+    ///     : item.kind === 'subvolume-delete'
+    ///       ? `${item.kind}-${item.oid}-${parentDigest(item.parent)}`
+    ///       : `${item.kind}-${item.oid}`
+    /// ```
     pub fn id(&self) -> String {
         if self.kind == WorkKind::Push {
             return format!("{}-{}-{}", self.kind.name(), self.oid, crate::work_item_ids_and_names::branch_digest(self.branch_ref.as_str()));
+        }
+        if self.kind == WorkKind::SubvolumeDelete {
+            return format!("{}-{}-{}", self.kind.name(), self.oid, crate::work_item_ids_and_names::parent_digest(self.parent.as_str()));
         }
         return format!("{}-{}", self.kind.name(), self.oid);
     }
 
     /// What:
-    ///  The id a release that keyed a push by its kind and commit alone wrote for this item.
+    ///  The id a release that keyed a record by its kind and object alone wrote for this item.
     /// Why:
     ///   Such a record is on disk in a repository this release took over,
     /// and it is still this item's:
     /// the record's
-    ///  name must not decide that a push left over from the release before this one is other work.
+    ///  name must not decide that a push,
+    /// or a subvolume delete,
+    /// left over from the release before this one is other
+    ///  work.
     /// The
     ///  current id is what this release writes,
     /// so the two are asked for together wherever a name is matched against a record.

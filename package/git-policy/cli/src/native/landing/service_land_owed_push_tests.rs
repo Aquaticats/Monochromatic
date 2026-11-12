@@ -138,3 +138,54 @@ fn every_command_says_which_commit_is_held() {
     assert!(state_directory(work_dir.as_path(), crate::work_item::HELD).join(held_name.as_str()).exists(), "the push is still held");
     remove(world.root.as_path());
 }
+
+/// What:
+///  The hold a batch writes before its branch moves names the command that will decide each commit's checks.
+/// Why:
+///   That command is the only one that may promote the record,
+/// so a record naming none makes every command say the commit is held while a later push of the branch carries it
+///  (`held_push_line` in `service_handoff.rs`).
+/// The batch's own record is what a restart reads,
+/// so the command is taken from the request the batch landed.
+#[test]
+fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-push-holder");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let work_dir: PathBuf = crate::service_work::work_directory(git_dir.as_path());
+    let holder: String = String::from("11520000/4242/linux:1700000000");
+    let base: String = String::from("a".repeat(40));
+    let commit: String = String::from("b".repeat(40));
+    let intent: crate::service_journal::Intent = crate::service_journal::Intent {
+        seq: 1,
+        repository: repo.clone(),
+        common_dir: git_dir.clone(),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
+        old: base.clone(),
+        new: commit.clone(),
+        ids: vec![String::from("landed")],
+        commits: vec![commit.clone()],
+        holders: vec![holder.clone()],
+        paths: Vec::new(),
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    crate::service_server_land_group::hold_the_pushes_of(&intent);
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.clone(),
+        parent: base,
+        created: String::new(),
+        tries: 0,
+    };
+    let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(item.id());
+    let text: String = std::fs::read_to_string(held.as_path()).expect("the batch held the commit's push");
+    let holding: crate::held_push_holder_and_verdict::Holding = crate::held_push_holder_and_verdict::holding_in(text.as_str());
+    assert_eq!(holding.holder, holder, "the record names the command that will decide the commit's checks");
+    remove(root.as_path());
+}

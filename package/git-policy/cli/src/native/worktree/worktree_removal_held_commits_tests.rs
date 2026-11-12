@@ -68,7 +68,7 @@ fn a_linked_worktree_with_a_held_commit(label: &str) -> (PathBuf, PathBuf, PathB
         repository: linked.clone(),
         common_dir: git_dir.clone(),
         git_dir: worktree_git_dir.clone(),
-        reference: format!("refs/heads/{BRANCH}"),
+        reference: crate::ref_name::RefName::from_text(format!("refs/heads/{BRANCH}").as_str()),
         old: git_text(linked.as_path(), &["rev-parse", "HEAD"]).trim().to_string(),
         new: held_commit.clone(),
         commits: vec![held_commit.clone()],

@@ -11,7 +11,9 @@
 //! The owner decided (2026-11-07) that the tools' first run,
 //! under their own locks,
 //! cleans what exists today,
-//! and that a systemd user timer runs them daily.
+//! and that a systemd user unit runs them;
+//! since 2026-11-11 that unit is a continuous service,
+//! one pass after another with a pause between them.
 //! One deadline covers the whole run,
 //! so the order is what decides which mechanism a deadline cuts:
 //! measured in the first run (2026-11-07T23:52:28-05:00 to 2026-11-08T01:24:39-05:00),

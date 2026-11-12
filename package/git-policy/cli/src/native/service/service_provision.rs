@@ -251,8 +251,16 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
     //       never started, which no service reads and the next provisioning writes again.
     note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
-    // Whatever the retirement of the earlier service took, the reload and the start have the time of a whole exchange.
+    // Whatever the retirement of the earlier service took, the question about the address a held unit listens at and the
+    //  start have the time of a whole exchange.
     manager.within(EXCHANGE_WAIT);
+    // What: A socket unit the manager already holds that listens where this command does not look ends the provision before
+    //       anything is started.
+    // Why:  That unit is another runtime directory's service for this worktree: starting here would create and start a unit this
+    //       command can never use, and a client whose runtime directory the manager does not use would leave one more socket
+    //       listening for a worktree nothing reaches (`service_provision_refusals_before_the_wait.rs`). A manager that holds no
+    //       such unit yet proves nothing, so a first provision goes on and the same question is asked once more after the start.
+    refuse_a_service_that_listens_elsewhere(host, manager)?;
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     if let Err(error) = asked {
         // A file the manager never heard about must not look installed to the next commit, which would then skip the
