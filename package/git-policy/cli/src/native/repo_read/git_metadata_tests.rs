@@ -224,10 +224,14 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
     let took: std::time::Duration = started.elapsed();
     assert_eq!(ended.kind(), std::io::ErrorKind::TimedOut, "{ended}");
     let text: String = ended.to_string();
-    assert!(text.contains("ls-files"), "{text}");
     assert!(text.contains("was ended"), "{text}");
-    // The read is announced and reported under the Git program and its subcommand.
-    assert!(text.contains("showed no sign of work"), "{text}");
+    // The read is announced and reported under the Git program and its subcommand, and its ceiling is the whole
+    //  bound on it: nothing waits out a grace of its own after the ceiling has passed.
+    assert!(
+        text.starts_with(format!("{} ls-files ", hang.display()).as_str()),
+        "the read is named by the program and its subcommand: {text}"
+    );
+    assert!(text.contains("the longest the wrapper lets one step run"), "{text}");
     // The read is ended at the ceiling, not left until the script's own minute is over.
     assert!(took < std::time::Duration::from_secs(30), "{took:?}");
     // How the person is told about it: the sentence each caller reports.
@@ -241,7 +245,7 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
     );
     // The words of a watched step belong to a commit's steps, and a check's read says what stayed as it was instead.
     assert!(
-        sentence.contains("The read changed nothing, so the index and the worktree are as they were; run the command again"),
+        sentence.contains("Such a query changes nothing of the repository."),
         "{sentence}"
     );
     assert!(
@@ -357,7 +361,7 @@ fn a_read_named_after_a_global_option_is_announced_by_its_subcommand() {
     .expect_err("a read that never returns");
     let text: String = ended.to_string();
     assert!(
-        text.contains(" status showed no sign of work"),
+        text.starts_with(format!("{} status ", hang.display()).as_str()),
         "the subcommand after a global option's value names the read: {text}"
     );
     assert!(!text.contains("a read-only Git query"), "{text}");
@@ -374,5 +378,92 @@ fn a_read_named_after_a_global_option_is_announced_by_its_subcommand() {
     let unnamed_text: String = unnamed.to_string();
     assert!(unnamed_text.contains("(a read-only Git query)"), "{unnamed_text}");
     assert!(!unnamed_text.contains("/some/where"), "{unnamed_text}");
+    remove(root.as_path());
+}
+
+/// What:
+///  Whether the process `number` names has ended:
+///  nothing has that number,
+///  or what has it is a zombie its parent has not collected.
+/// Why:
+///   `SIGKILL` ends a process and the kernel's record of it can outlive the signal by a moment,
+///  so a control that says a program was ended must not read that moment as one that still runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = readState(pid); state === undefined || state === 'Z'
+/// ```
+#[cfg(target_os = "linux")]
+fn has_ended(number: u32) -> bool {
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let state: Option<char> = std::fs::read_to_string(format!("/proc/{number}/stat"))
+            .ok()
+            .and_then(|text| { return text.get(text.rfind(')')? + 2..)?.chars().next(); });
+        if state.is_none_or(|letter| { return letter == 'Z'; }) {
+            return true;
+        }
+        if began.elapsed() > std::time::Duration::from_secs(2) {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+/// What:
+///  A read whose Git hands its streams to a program that ignores the request to end returns at its ceiling,
+///  and nothing it started is left running.
+/// Why:
+///   The ceiling a caller sets is the whole bound on the read:
+///  a read held on a person's command must not wait out
+///       the grace of the ending that began when the ceiling passed,
+///  or the bound the caller chose is not the bound the person waits.
+///  A read-only Git is ended at its ceiling by the wait for its output
+///       (the shape `TheQueryIsBounded` names),
+///  so no stop of a watch and no drop of one is between it and its answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the shim, for `status`:  sh -c 'trap "" TERM; exec sleep 60' &  then  sleep 60
+/// expect(elapsed).toBeLessThan(ceiling + 1s); expect(hasEnded(descendant)).toBe(true);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_read_whose_git_ignores_the_request_to_end_returns_at_its_ceiling() {
+    let root: PathBuf = fixture("metadata-stubborn");
+    let descendant: PathBuf = root.join("descendant.pid");
+    let shim: PathBuf = root.join("stubborn-git");
+    // A program the read starts that ignores the request to end holds the read's streams open: as long as it runs, no ending
+    //  of the read that waits for the tree to go of its own accord can finish.
+    let script: String = format!(
+        "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = status ]; then\n    sh -c 'trap \"\" TERM; printf \"%s\" \"$$\" > {descendant}; exec sleep 60' &\n    sleep 60\n  fi\ndone\nexec {} \"$@\"\n",
+        REAL_GIT,
+        descendant = descendant.display()
+    );
+    executable(shim.as_path(), script.as_bytes());
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(300);
+    let began: std::time::Instant = std::time::Instant::now();
+    let ended: std::io::Error = run_metadata_git_within(
+        shim.as_path(),
+        &[OsString::from("status")],
+        crate::repo_read_hook::switch_off().as_slice(),
+        ceiling,
+    )
+    .expect_err("a read that never returns");
+    let took: std::time::Duration = began.elapsed();
+    assert_eq!(ended.kind(), std::io::ErrorKind::TimedOut, "{ended}");
+    assert!(
+        took < ceiling + std::time::Duration::from_secs(1),
+        "the read returned after {took:?}, past the {ceiling:?} bound its caller set and into the grace of an ending the \
+         ceiling had already ended"
+    );
+    // The read ended what it started: a program that ignores the request to end is killed at the ceiling, never left running
+    //  to write into the worktree a removal then takes.
+    let number: u32 = std::fs::read_to_string(descendant.as_path())
+        .expect("the shim wrote the number of the program it started")
+        .trim()
+        .parse()
+        .expect("a process number");
+    assert!(has_ended(number), "the program the read started still runs after the read returned");
     remove(root.as_path());
 }

@@ -22,6 +22,13 @@ use crate::forwarding::git_command;
 /// not the person's command.
 use crate::hooks_off::StartOwner;
 use crate::repo_read_hook::try_metadata;
+/// A start that rides out a short shortage of processes.
+use crate::start_retry::RetryStart;
+/// The read of a step's output through pipes,
+/// which carries a step's ceiling when nothing else ends it.
+use crate::step_output_read_whole_through_pipes::{
+    CarriedCeiling, CeilingWhy, StepPipes, attach_pipes, carried_by, release_write_ends,
+};
 /// The longest a read of a check runs.
 use crate::wait_ceilings::PLUMBING_STEP_CEILING;
 /// What:
@@ -240,7 +247,7 @@ pub fn run_metadata_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
-    return run_metadata_git_within(real_git, arguments, overlay, READ_CEILING);
+    return run_a_metadata_read(real_git, arguments, overlay, &[], READ_CEILING, ReadEnding::Watched);
 }
 
 /// What:
@@ -259,17 +266,22 @@ pub fn run_metadata_git_without(
     overlay: &[(OsString, OsString)],
     remove: &[&str],
 ) -> std::io::Result<MetadataOutput> {
-    return run_metadata_git_without_within(real_git, arguments, overlay, remove, READ_CEILING);
+    return run_a_metadata_read(real_git, arguments, overlay, remove, READ_CEILING, ReadEnding::Watched);
 }
 
 /// What:
 ///  `run_metadata_git` with the ceiling the caller chose,
-///  which the controls shorten.
+///  which the controls shorten,
+///  and which is the whole bound on the read.
 /// Why:
 ///   A control cannot wait two minutes for a real ceiling,
 ///  and the seam is the ceiling itself,
 ///  never a race
 ///       between a write and a read.
+///  A caller that sets a ceiling is holding a command of its own to it,
+///  so the read answers or ends at that
+///       ceiling and nothing after it waits out an ending;
+///  `ReadEnding::Carried` is what keeps that promise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -302,6 +314,63 @@ pub fn run_metadata_git_without_within(
     remove: &[&str],
     ceiling: Duration,
 ) -> std::io::Result<MetadataOutput> {
+    return run_a_metadata_read(real_git, arguments, overlay, remove, ceiling, ReadEnding::Carried);
+}
+
+/// What:
+///  Who ends a metadata read that outlasts its ceiling,
+///  and so what a caller's ceiling is a bound on.
+/// Why:
+///   A read that may run for `READ_CEILING` (two minutes) is announced by a watch,
+///  ended by it for showing no sign of work,
+///  and ended by it at its ceiling:
+///  the watch then needs the bound of its own ending
+///  (`child_watch_running_task.rs` and `THE_WATCH_HAS_ITS_ENDING`)
+///  to put the tree away,
+///       and a wait that gave up before that would take the ending from a watch still at it.
+///  A caller that sets its own ceiling is holding a command of its own to it,
+///  so the read it starts is ended at
+///       that ceiling by the wait for the read's answer and nothing waits after it:
+///  this is the shape the wrapper already gives a read-only query
+///       with a ceiling of its own (`push/manual_push_range.rs`,
+///  `CeilingWhy::TheQueryIsBounded`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ReadEnding = 'watched' | 'carried';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReadEnding {
+    /// A watch announces the wait and ends the read,
+    ///  and a read it ended is reported in the watch's words.
+    Watched,
+    /// The wait for the read's answer carries the ceiling and ends the read's whole tree at it,
+    ///  so the ceiling is the whole bound.
+    Carried,
+}
+
+/// What:
+///  Run real Git with captured output and no standard input,
+///  ended `ending` says how,
+///       under `ceiling`.
+/// Why:
+///   Every read shares the start,
+///  the subject it is announced under and the step the timing record keeps,
+///  and only the ending
+///       differs between a watched read and one whose caller's ceiling is the whole bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runAMetadataRead(realGit, args, overlay, remove, ceiling, ending): Promise<MetadataOutput>;
+/// ```
+fn run_a_metadata_read(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    remove: &[&str],
+    ceiling: Duration,
+    ending: ReadEnding,
+) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process, and the readers keep that answer
     //  whatever this start removes: they read the pathspec magic of the names the wrapper wrote and no pathspec mode at
     //  all, so a mode that reaches the start is the one case where their answer would differ from Git's.
@@ -311,14 +380,14 @@ pub fn run_metadata_git_without_within(
         return Ok(answered);
     }
     let subject: String = read_subject(real_git, arguments);
-    // What: The watch captures both output streams through pipes and ends the child when the wait reaches the
-    //       ceiling; `.stdin(Stdio::null())` connects the child's input to nothing.
+    // What: The read's output streams are pipes, so the read is ended at its ceiling whatever it shows;
+    //       `.stdin(Stdio::null())` connects the child's input to nothing.
     // Why:  `Command::output()` waits for the child with nothing watching it, so a Git that never returns holds the
     //       check for good and the person's only way out is a kill.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const output = await spawnWatched(command, { waitingFor: subject, ceiling });
+    // const output = await watchedOrCarried(command, { waitingFor: subject, ceiling, ending });
     // ```
     let mut command: std::process::Command = git_command(real_git, arguments, overlay, StartOwner::Wrapper);
     for name in remove {
@@ -340,8 +409,6 @@ pub fn run_metadata_git_without_within(
     //  (`started_as_git.rs`).
     crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Query);
     command.stdin(Stdio::null());
-    let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
-    let quiet: Duration = terms.limit;
     // What: The clock of the child this read starts, kept as the step the commit's timing record lists.
     // Why:  A read the in-process readers decline is a Git process, and a commit that waits seconds on one showed that
     //       wait in its phase and in no step, so the record could not name it.
@@ -351,15 +418,14 @@ pub fn run_metadata_git_without_within(
     // const began = Date.now(); const output = await watched(...); noteStep(label, began, Date.now() - began);
     // ```
     let began: std::time::Instant = std::time::Instant::now();
-    let watched: std::io::Result<std::process::Output> = output_watched_within(
-        &mut command,
-        subject.as_str(),
-        subject.as_str(),
-        terms,
-        true,
-        StepBound::EndAt(ceiling),
-    );
-    // What: A read the watch ended is reported as a read of a check, not as a step of a commit: nothing this command
+    let read: std::io::Result<std::process::Output> = match ending {
+        ReadEnding::Watched => {
+            let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
+            output_watched_within(&mut command, subject.as_str(), subject.as_str(), terms, true, StepBound::EndAt(ceiling))
+        }
+        ReadEnding::Carried => output_of_a_read_within(&mut command, subject.as_str(), ceiling),
+    };
+    // What: A read the wrapper ended is reported as a read of a check, not as a step of a commit: nothing this command
     //       did can be finished or undone by the next Git command, and the words of a watched step say that it can.
     // Why:  The person must be told what stayed as it was and what to run again.
     //
@@ -372,9 +438,12 @@ pub fn run_metadata_git_without_within(
         began,
         began.elapsed(),
     );
-    let output: std::process::Output = match watched {
+    let output: std::process::Output = match read {
         Ok(captured) => captured,
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+        // A read the wait ended at the caller's ceiling already says so in its own sentence, which names the read and the
+        //  ceiling it passed; only a read a watch ended is worded here.
+        Err(error) if ending == ReadEnding::Watched && error.kind() == std::io::ErrorKind::TimedOut => {
+            let quiet: Duration = ChildClass::Plumbing.limit();
             return Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 format!(
@@ -393,6 +462,43 @@ pub fn run_metadata_git_without_within(
         stdout: output.stdout,
         stderr: output.stderr,
     });
+}
+
+/// What:
+///  Run a read whose ceiling is the whole bound on it:
+///  the wait for its answer ends its whole tree at `ceiling` and returns there,
+///  so nothing after that
+///       ceiling waits out an ending.
+/// Why:
+///   The grace an ending gives a tree to go of its own accord is time the caller of a best-effort read never agreed to;
+///  a fact read
+///       before a removal must not hold that removal past the bound its caller set
+///  (`worktree_audit.rs`,
+///  `CHANGED_PATHS_CEILING`).
+///  A read-only Git is the one child the wrapper may end
+///       with a kill and no request,
+///  because it writes nothing the person has to be told about,
+///  and that is the shape
+///       `push/manual_push_range.rs` gives a query of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipes = await attachPipes(command);
+/// const child = await spawnRetrying(command);
+/// releaseWriteEnds(command);
+/// return readUntilTheChildEnds(child, subject, carriedBy(ceiling, TheQueryIsBounded));
+/// ```
+fn output_of_a_read_within(
+    command: &mut std::process::Command,
+    subject: &str,
+    ceiling: Duration,
+) -> std::io::Result<std::process::Output> {
+    // The pipes are made before the child starts, so a refusal starts nothing to end.
+    let pipes: StepPipes = attach_pipes(command)?;
+    let started: std::process::Child = command.spawn_retrying()?;
+    release_write_ends(command);
+    let carried: CarriedCeiling = carried_by(ceiling, CeilingWhy::TheQueryIsBounded);
+    return pipes.read_until_the_child_ends(started, subject, Some(carried));
 }
 
 /// What:

@@ -78,9 +78,17 @@ const POINTER_BYTES: u64 = 4096;
 ///  where the removal printed the wait notice for this read.
 ///  Two
 ///       seconds is 4.6 times the warm figure,
-///  and below the 5 seconds after which a wait is announced
-///       (`PLUMBING_NOTICE_GRACE`),
-///  so a best-effort fact is never announced as a wait.
+///  and that is the whole bound the removal pays for this fact:
+///       the read is started with this ceiling and the wait for its answer ends its tree there
+///  (`git_metadata.rs`,
+///       `run_metadata_git_within`),
+///  so no watch of the read,
+///  no stop of one and no grace of an ending stands between the ceiling
+///       and the removal.
+///  What a read that cannot be ended at once costs is the five seconds every ended child of the
+///       wrapper is given to go before it is handed to a reaper
+///  (`STOP_GRACE`),
+///  and nothing waits for it after that.
 ///  A read the bound ends
 ///       answers nothing and the line leaves the count out,
 ///  which is what a fact Git could not answer does here.
@@ -217,6 +225,7 @@ pub fn worktree_head(target: &Path) -> Option<String> {
 ///  so the invocation's
 ///       global options cannot point it at another repository.
 ///  It is read under `CHANGED_PATHS_CEILING`,
+///  which is the whole bound on it and on the removal that waits for it,
 ///  so a status that takes seconds answers nothing
 ///       instead of holding the removal the line describes.
 ///
