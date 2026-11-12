@@ -135,7 +135,66 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The first Sonnet audit of alpha.12: the hand-over loses data five ways through the built wrapper (2026-11-12T00:08:00-05:00)
+
+The Sonnet audit of the life of a worktree ended after 84 minutes.
+Its harness refused its write of the report, so the coordinator saved its final message word for word as
+`${HOME}/temp/agent/sonnet-audits/alpha-12-worktree-add-remove-and-landed-sweep/report.md`;
+its scripts and their outputs are in `reproductions/` and the run folder beside it.
+It patched nothing: real btrfs fixtures, the wrapper built from `418ef369a6`, kills and stops by signal.
+Eight findings, each sent by note at 00:07 to the agent already in that code:
+
+- F1, the hand-over of a landed worktree's removal.
+  After the hand-over the service runs a bare `git worktree remove` and repeats none of the merge's proofs.
+  Reproduced in five variants (`s2_handed_over_removal_gap.ts`):
+  an ignored file written after the merge deleted;
+  the same in a snapshot-made worktree;
+  a worktree removed and added again at the same path removed;
+  a nested worktree deleted with its uncommitted file;
+  a worktree holding `BISECT_LOG` removed.
+  The window is about 53 ms with a live service, and until the next command when the wake fails.
+  To the round 259 agent, with F3, F7 and F8.
+  Three reviewers have now reached this gap by three routes (a library harness, Kimi through the wrapper, this one).
+- F3, a service killed during a handed-over removal leaves a half-deleted worktree for good:
+  the next service marks the record failed because Git sees the deleted files as changes,
+  and the `git worktree remove` the notice promises then fails too.
+- F7, a merge waits about two seconds on a silent service for every candidate it hands over (28.6 s for four).
+- F8, the sweep's notice names a record path that never exists, and a failed removal's reason is only in the journal.
+- F2, a stage of a killed add is never reaped when the source checkout holds a nested worktree subvolume,
+  which the main checkout always does:
+  the wrapper's own placeholder for it has no birth time, or is made after the stage's record.
+  This is the cause of the stage that stood here since 22:30.
+  To the round 261 agent on the other steps of an add.
+- F4, a `git worktree remove` killed between the rename to `cli-git-deleting-<number>` and the destroy mark
+  leaves a registration nothing finishes and an add at that path that fails with status 128.
+  To the round 257 agent on removal.
+- F5 and F6, the add's standing notice has no sentence for seven of its steps,
+  and an add whose destination's parent folder is missing runs as plain Git in silence.
+  To the round 251 agent on what an add says.
+
+It also measured, as context:
+its own add under the installed release took 71.9 s,
+and adds with the built binary took 40 to 108 s under a load average of 110 to 145.
+
+What this means for the installed release:
+F1 is data loss in ordinary use for anyone who writes into a worktree in the moments after its branch lands,
+or adds a worktree again at a landed path.
+There is no way back to alpha.11.
+Until the round 259 fix is released the coordinator keeps to the rule of 23:04
+(no agent restarted at a landed path without checking for a pending removal),
+and pass 16's twenty-three landed worktrees are all of finished agents.
+For the owner's return:
+whether a release that hands removals over should have waited for this audit,
+and whether the hand-over should be taken out again (merges would wait on removals as before) until the fix is in.
+The coordinator's judgement under delegation is to keep it and bring the fix forward, because the merges that waited twenty minutes were a jam every agent met,
+and the loss needs a write in a window of milliseconds to minutes into a worktree whose work has landed.
+
 ### The seventh cull pass, and the package-repair audit (2026-11-11T23:56:11-05:00)
+
+A measurement after this section was written:
+the eight pending-deletion subvolumes deleted by hand at 23:58 returned no visible space
+(169.4 GiB free just before, 167.6 GiB four minutes later),
+so removed worktrees hold little of their own and the builds are what fills the disk.
 
 Forty-one agents were running at 23:52, every one with turns taken;
 the longest silent feed was thirteen minutes, inside a bounded test.
