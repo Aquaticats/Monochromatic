@@ -767,6 +767,159 @@ That is the behavior change commit `1e53f52e02` announced.
    `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` holds a standalone script
    that shows the same effect with nothing but `@optique/core`.
 
+## Answered here before asking upstream
+
+The owner's instruction on 2026-11-12 was to resolve what analysis,
+measurement and source reading can resolve before any question goes to the maintainer.
+This section holds those answers.
+Scaling experiments,
+the attribution of the 1.4 line's extra time,
+and an audit of `passThrough()` were still running when it was written.
+
+### The differences, with each process as one observation
+
+The medians under "Measurement of this repository's old parser" pool 49 timed parses per arm.
+Those parses are not independent:
+seven fresh processes each contributed seven.
+Taking each process's median as one observation,
+and comparing two arms round by round,
+gives seven paired ratios per comparison.
+With seven pairs,
+all seven falling on one side has a two-sided sign-test probability of 0.0156 if the arms did not differ,
+and that is the smallest value seven pairs can give.
+
+`1.4.0-dev.2665` and `1.4.0-dev.2667` are the same code,
+which makes them a control for what "no difference" looks like:
+their paired ratios ran from 0.852 to 1.172 on the thousand-real-path input,
+five rounds one way and two the other.
+A ratio inside that band,
+without all seven rounds agreeing,
+is not evidence of a difference.
+
+On the thousand-real-path input,
+later arm over earlier arm,
+median ratio with its lowest and highest:
+
+- 1.1.1 to 1.3.1:
+   1.004 (0.831 to 1.037),
+   four rounds slower and three faster.
+   No difference.
+- 1.3.1 to 1.3.2:
+   0.065 (0.061 to 0.070),
+   all seven faster.
+- 1.3.2 to 1.3.6:
+   1.044 (0.974 to 1.202),
+   four slower and three faster.
+   No difference.
+- 1.3.2 to `1.4.0-dev.2664`:
+   1.241 (1.144 to 1.430),
+   all seven slower.
+- `1.4.0-dev.2664` to `1.4.0-dev.2665`:
+   0.399 (0.371 to 0.473),
+   all seven faster.
+- `1.4.0-dev.2667` to `1.4.0-dev.2971`:
+   1.017 (0.885 to 1.087),
+   four slower and three faster.
+   No difference.
+- 1.3.6 to `1.4.0-dev.2971`:
+   0.510 (0.459 to 0.608),
+   all seven faster.
+
+So the 1.4 line's extra time over 1.3.2 is real in direction,
+since every round agrees,
+and uncertain in size:
+24% at the median,
+between 14% and 43% in single rounds.
+The same holds on the other two inputs:
+1.209 (1.148 to 1.366) for a thousand short paths
+and 1.331 (1.270 to 1.454) for upstream's own reproduction,
+all seven rounds slower in each.
+
+### When 1.4.0 is likely
+
+An estimate,
+not a forecast from a measured rate:
+the work it rests on has not started.
+
+What the record shows:
+
+- Upstream tags a minor release when its milestone has no open issue left.
+   1.3.0 was tagged minutes after its milestone's last closure.
+   1.2.0 was tagged with one issue open,
+   which closed 84 minutes later.
+- The milestone keeps growing until then.
+   Thirty-two of the 1.3 milestone's 67 items were created in the fourteen days before its tag,
+   and four items were added to the 1.4 milestone between 2026-11-10 and 2026-11-12.
+- Milestone "Optique 1.4" has 58 items and two open.
+   Issue 1103,
+   a feature,
+   was opened on 2026-11-02 and has had no activity since.
+   Issue 1024 moves the project's development tooling off Deno in six steps;
+   no commit or pull request for it exists,
+   and 26 lines of `mise.toml` still mention `deno`.
+- The maintainer opened that same migration issue on five projects within an hour on 2026-10-09.
+   Two are finished:
+   `dahlia/logtape` and `dahlia/upyo` both closed theirs on 2026-10-19,
+   ten days later.
+   On `fedify-dev/fedify` the seven migration pull requests merged between 2026-10-27 and 2026-11-11,
+   sixteen days from the first being opened to the last being merged.
+   Optique's has not started.
+   The fifth,
+   on `fedify-dev/botkit`,
+   is open and was not examined.
+- Commits on Optique's `main` fell to five and then one per week in the two weeks around the start of the Fedify
+   migration,
+   and returned to nineteen and sixteen in the two weeks since.
+
+Reading:
+the same person does these migrations one project at a time,
+finished the largest on 2026-11-11,
+and takes from under ten to sixteen days for one.
+If Optique's starts within the next week and nothing else is added that blocks the milestone,
+1.4.0 would fall between about 2026-11-20 and 2026-12-20,
+most likely in the first half of December.
+It could come any day if issue 1024 is moved to a later milestone,
+and later than that range if the migration waits behind other work.
+The gaps between earlier minor releases (63,
+35 and 56 days) say nothing more:
+58 days have already passed.
+
+### Facts read from source and record
+
+- `object()` already tried each field parser for each token when the feature was written.
+   The loop is at `packages/core/src/constructs.ts` line 1331 in commit `2a77295`,
+   after the priority sort at line 1308.
+   So the path from a positional token to every option parser's no-match branch existed in the code
+   the suggestion call was added to.
+- The documented ways to turn suggestions off did not turn the search off.
+   Commit `4e77bb41`,
+   the same day as the feature,
+   added to `docs/concepts/messages.md` an example headed
+   "Disable suggestions by ignoring the suggestions parameter"
+   and another headed "Disable suggestions entirely" (`suggestions: () => []`).
+   Both change what is shown.
+   In both,
+   the names are collected and searched before the callback runs,
+   as the source excerpts in the troubleshooting document show.
+- Upstream's documentation does not describe the cost that remains on the 1.3 line.
+   A search of `docs/` and the core README on `1.3-maintenance` and on `main`
+   for text tying suggestions or `noMatch` to cost,
+   overhead,
+   performance or many positional arguments returned nothing.
+- No issue on upstream's tracker proposes dispatching a token to the parsers that could accept it,
+   or a benchmark of parsing.
+   A search for `dispatch`,
+   `throughput`,
+   `complexity`,
+   `parse benchmark` and `quadratic` returned only unrelated uses of those words.
+- Upstream has published no security advisory
+   (`gh api repos/dahlia/optique/security-advisories` returns an empty list),
+   so issues 990 and 991 were announced through the changelog alone.
+- Whether other projects met the same cost could not be established.
+   A GitHub-wide issue search for `optique Levenshtein` returns nothing,
+   but the same words scoped to upstream's repository find issues 38 and 989,
+   so the wide search returns less than exists and its silence means nothing.
+
 ## What the record cannot answer
 
 These need the maintainer's own account:
