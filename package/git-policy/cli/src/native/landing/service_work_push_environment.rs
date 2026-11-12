@@ -59,7 +59,7 @@ pub fn push_environment_of(extra: &[(OsString, OsString)], programs: Option<&Pus
     let mut inherited: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     inherited.extend(extra.iter().cloned());
     let mut overlay: Vec<(OsString, OsString)> = service_child_overlay(inherited.as_slice());
-    let Some(programs) = programs else {
+    let Some(carried) = programs else {
         // The refusal must not let the person believe their own shell was searched.
         overlay.push((OsString::from(FROM_THE_SERVICE), OsString::from("1")));
         return (inherited, overlay);
@@ -68,8 +68,8 @@ pub fn push_environment_of(extra: &[(OsString, OsString)], programs: Option<&Pus
     // Why:  A name the request left out is a name that shell had unset, and the manager's value for it names a program or a
     //  transport nobody asked for; replacing only the names that travelled would let the manager's `GIT_SSH_COMMAND` speak
     //  for a push whose command had none.
-    inherited.retain(|(name, _value)| { return !CARRIED.iter().any(|carried| { return name.as_os_str() == OsStr::new(carried); }); });
-    overlay.extend(programs.as_pairs());
+    inherited.retain(|(name, _value)| { return !CARRIED.iter().any(|known| { return name.as_os_str() == OsStr::new(known); }); });
+    overlay.extend(carried.as_pairs());
     overlay.push((OsString::from(FROM_THE_REQUEST), OsString::from("1")));
     return (inherited, overlay);
 }

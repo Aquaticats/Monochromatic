@@ -161,11 +161,10 @@ pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &m
     if carried.programs.is_none() {
         carried.programs = Some(crate::service_push_programs_held_in_memory::of_this_process());
     }
-    let request: &CommitRequest = &carried;
     // The signals a waiting commit answers are watched only while it waits: a Ctrl-C before the commit exists, or after it
     //  landed, keeps the ending it has, and the actions that were in place come back with the watch.
     let stop_watch: crate::service_client_interrupted::StopWatch = crate::service_client_interrupted::watch_for_a_stop();
-    let answered = submit_loop(config, request, notices, trace);
+    let answered = submit_loop(config, &carried, notices, trace);
     drop(stop_watch);
     trace.total += began.elapsed();
     return answered;

@@ -51,7 +51,7 @@ pub async fn words(git: &PushGit, item: &WorkItem) -> String {
     // The command is the last line and on its own, so a person copies one line and a control can run exactly what is printed.
     let repository: String = item.repository.display().to_string();
     let run: String = match command {
-        Some(command) => format!("\nRun this in {repository}: {command}"),
+        Some(printed) => format!("\nRun this in {repository}: {printed}"),
         // A branch with no upstream and no `origin` has nowhere to be pushed, so no command names a way out and the words say
         //  only what happened; the push this replaces would have been skipped for the same reason.
         None => String::from("\nThis branch names no remote to push to, so give it one and push it yourself."),

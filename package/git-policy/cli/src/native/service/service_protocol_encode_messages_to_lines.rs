@@ -268,17 +268,17 @@ pub fn commit_line(request: &CommitRequest) -> String {
 /// const programsJson = (programs) => programs === null ? null : ({ transport: programs.transport, variables: programs.variables });
 /// ```
 fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>) -> Value {
-    let Some(programs) = programs else {
+    let Some(carried) = programs else {
         return Value::Null;
     };
     let variables: Value = Value::Array(
-        programs
+        carried
             .variables
             .iter()
             .map(|(name, value)| { return Value::Array(vec![Value::from(name.as_str()), Value::from(value.as_str())]); })
             .collect(),
     );
-    return Value::Object(Map::from_iter([(String::from("transport"), Value::from(programs.transport)), (String::from("variables"), variables)]));
+    return Value::Object(Map::from_iter([(String::from("transport"), Value::from(carried.transport)), (String::from("variables"), variables)]));
 }
 
 /// What:
