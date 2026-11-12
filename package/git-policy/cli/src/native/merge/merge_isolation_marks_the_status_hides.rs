@@ -21,11 +21,17 @@
 //! "Merges and commits never fail",
 //! "Carry edits forward",
 //! applies to it unchanged.
-//!  A marked path whose worktree file is gone is no edit of theirs:
-//! a `skip-worktree` entry with no file is a sparse
-//!  checkout's own state,
-//! and Git reads a missing worktree file as one its update writes,
-//! so both stay Git's.
+//!  A marked path whose worktree file is gone is told apart by which mark it is:
+//! a `skip-worktree` entry with no file is a sparse checkout's own state,
+//! which Git's update writes back,
+//! while an `assume-unchanged` one has no such reading and the absence is a deletion of the person's the merge would undo.
+//!  A name that holds no bytes at all,
+//! a directory,
+//! a named pipe,
+//! a socket or a device,
+//! is not read here:
+//!  the gates that stop a merge for such an entry own it, and reading
+//! a pipe could wait for a writer nothing promises.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,7 +40,7 @@
 
 use crate::command::rule_worktree_dirty::{IGNORED_PATHS_QUERY_BYTES, TOP_LITERAL_PATHSPEC};
 use crate::lazy_runtime::run_on_runtime;
-use crate::merge_isolation_carry::{bytes_at, object_name_awaiting};
+use crate::merge_isolation_carry::{WorktreeEntry, object_name_awaiting, worktree_entry_at};
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_changes::worktree_path;
 /// One path's exact bytes,
@@ -46,8 +52,9 @@ use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
-/// The tag `git ls-files -v` prints for a `skip-worktree` entry.
-const SKIP_WORKTREE_TAG: &str = "S";
+/// The tag `git ls-files -v` prints for a `skip-worktree` entry,
+/// upper case when that bit stands alone and lower case when the assume-unchanged bit is set with it.
+const SKIP_WORKTREE_TAG: u8 = b'S';
 
 /// Whether one byte is the NUL that ends each entry of a `-z` listing.
 fn is_nul(byte: &u8) -> bool {
@@ -59,16 +66,57 @@ fn is_a_tab(byte: &u8) -> bool {
     return *byte == b'\t';
 }
 
-/// One index entry one of the two marks hides from status.
+/// One index entry one of the two marks hides from status,
+/// and which mark it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Marked = { mode: string; object: string; path: Uint8Array };
+/// type Marked = { mark: HiddenMark; mode: string; object: string; path: Uint8Array };
 /// ```
 struct Marked {
+    mark: HiddenMark,
     mode: String,
     object: String,
     path: Vec<u8>,
+}
+
+/// One of the two index bits that hide a path from status.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HiddenMark = 'assume-unchanged' | 'skip-worktree';
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum HiddenMark {
+    /// The `assume-unchanged` bit:
+    /// Git does not compare the worktree copy with the entry.
+    AssumeUnchanged,
+    /// The `skip-worktree` bit,
+    /// which a sparse checkout sets for a path it leaves out of the worktree.
+    SkipWorktree,
+}
+
+impl HiddenMark {
+    /// What:
+    ///  Whether this mark on its own explains a worktree copy that is not there.
+    /// Why:
+    ///   A `skip-worktree` entry with no file is a sparse checkout's own state,
+    /// and Git's update of the checkout
+    ///  writes such a file back,
+    /// so there is nothing of the person's to keep.
+    ///  An `assume-unchanged` entry has no such reading:
+    /// nothing but the person removes that file,
+    /// and the
+    ///  merge's update would put it back,
+    /// undoing a deletion they made with no word about it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const absenceIsTheMarksOwn = (mark) => mark === 'skip-worktree';
+    /// ```
+    fn absence_is_the_marks_own(&self) -> bool {
+        return *self == HiddenMark::SkipWorktree;
+    }
 }
 
 /// What:
@@ -135,6 +183,17 @@ async fn paths_the_status_hides_awaiting(context: &GitContext, root: &Path, touc
 /// and the listing is
 ///  only a candidate set:
 /// a path outside the merge's own or one with no worktree file is no work to carry.
+///  An entry that holds no bytes at all,
+/// a directory,
+/// a named pipe,
+/// a socket or a device,
+///  is left to the gates that
+/// stop the merge for such an entry before the first byte is written:
+/// reading one could wait for a
+///  writer that never comes,
+/// and no layer of the carry can hold it.
+///  A marked path whose worktree file is gone is no edit of the person's only where the mark is
+///  the reason it is gone (`HiddenMark::absence_is_the_marks_own`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,10 +207,22 @@ async fn hidden_work_awaiting(context: &GitContext, root: &Path, touched: &[Vec<
             continue;
         }
         let location: PathBuf = worktree_path(root, entry.path.as_slice());
-        // Nothing at the path is no edit of the person's: a marked entry with no file is a sparse checkout's own state, and a
-        //  missing worktree file is one Git's update writes back.
-        let Some((bytes, mode)) = bytes_at(location.as_path())? else {
-            continue;
+        let found: WorktreeEntry = match worktree_entry_at(location.as_path()) {
+            Ok(found) => found,
+            // A name that cannot be read is not an answer about the person's work, so the merge stays native Git's.
+            Err(reason) => return Err(reason),
+        };
+        let (bytes, mode): (Vec<u8>, &'static str) = match found {
+            WorktreeEntry::Holds { bytes, mode } => (bytes, mode),
+            WorktreeEntry::NoBytes(_) => continue,
+            // Nothing at the path is an edit only when the mark is not the reason it is gone: a sparse checkout leaves
+            //  the file out, while an `assume-unchanged` entry with nothing at its path is a deletion of the person's.
+            WorktreeEntry::Absent => {
+                if !entry.mark.absence_is_the_marks_own() {
+                    hidden.push(entry.path);
+                }
+                continue;
+            }
         };
         if mode == entry.mode.as_str()
             && object_name_awaiting(context, root, entry.path.as_slice(), bytes.as_slice()).await? == entry.object
@@ -200,7 +271,8 @@ fn pathspec_queries(paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
 }
 
 /// What:
-///  The `git ls-files -v --stage -z` entries that carry a mark which hides them from status.
+///  The `git ls-files -v --stage -z` entries that carry a mark which hides them from status,
+/// and which mark that is.
 /// Why:
 ///   The mark is the first field `-v` prints,
 /// and only an entry at stage `0` is a file's own entry,
@@ -208,11 +280,13 @@ fn pathspec_queries(paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
 ///  unmerged entry is left to the merge's own answer.
 ///  A lower-case tag is the assume-unchanged bit and an upper-case `S` is
 /// skip-worktree,
-///  as Git prints them.
+///  as Git prints them;
+/// a `skip-worktree` entry that also carries the assume-unchanged bit prints as a lower-case `s`,
+///  and stays skip-worktree here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function markedEntries(output) { return fields(output).flatMap(parse).filter(isHiddenMark); }
+/// function markedEntries(output) { return fields(output).flatMap(parse).filter(hasAHiddenMark); }
 /// ```
 fn marked_entries(output: &[u8]) -> Vec<Marked> {
     let mut found: Vec<Marked> = Vec::new();
@@ -225,31 +299,44 @@ fn marked_entries(output: &[u8]) -> Vec<Marked> {
         let [tag, mode, object, stage] = parts.as_slice() else {
             continue;
         };
-        if *stage != "0" || !is_a_hidden_mark(tag) {
+        if *stage != "0" {
             continue;
         }
-        found.push(Marked { mode: String::from(*mode), object: String::from(*object), path: field[tab + 1..].to_vec() });
+        let Some(mark) = hidden_mark_of(tag) else {
+            continue;
+        };
+        found.push(Marked { mark, mode: String::from(*mode), object: String::from(*object), path: field[tab + 1..].to_vec() });
     }
     return found;
 }
 
 /// What:
-///  Whether one `git ls-files -v` tag marks the entry as hidden from status.
+///  Which hidden mark one `git ls-files -v` tag stands for,
+/// when it stands for one.
 /// Why:
 ///   `-v` lower-cases the tag of an assume-unchanged entry and prints `S` for a `skip-worktree` one,
-/// so the
-///  two marks are the only tags this read may treat as hidden.
+/// which
+///  is `s` when both bits are set,
+/// so those are the only tags this read may treat as hidden and the two
+///  marks are told apart by the letter alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isAHiddenMark = (tag) => tag === 'S' || (tag.length === 1 && tag === tag.toLowerCase());
+/// const hiddenMarkOf = (tag) => tag === 'S' || tag === 's' ? 'skip-worktree' : /^[a-z]$/.test(tag) ? 'assume-unchanged' : null;
 /// ```
-fn is_a_hidden_mark(tag: &str) -> bool {
+fn hidden_mark_of(tag: &str) -> Option<HiddenMark> {
     let mut letters = tag.bytes();
-    return match (letters.next(), letters.next()) {
-        (Some(letter), None) => letter == SKIP_WORKTREE_TAG.as_bytes()[0] || letter.is_ascii_lowercase(),
-        _ => false,
+    let letter: u8 = match (letters.next(), letters.next()) {
+        (Some(letter), None) => letter,
+        _ => return None,
     };
+    if letter.eq_ignore_ascii_case(&SKIP_WORKTREE_TAG) {
+        return Some(HiddenMark::SkipWorktree);
+    }
+    if letter.is_ascii_lowercase() {
+        return Some(HiddenMark::AssumeUnchanged);
+    }
+    return None;
 }
 
 /// Reading the marks and comparing what the worktree holds with what the index records.
