@@ -453,6 +453,35 @@ and the one maintained benchmark excludes parsing.
 The fair summary is that performance is a concern upstream responds to,
 not a goal it designs or tests for.
 
+## The owned parser is not a like-for-like comparison
+
+The owner,
+on 2026-11-12:
+"The ts repo parser for git wrapper had many bugs.
+This isn't an apples to apples comparison."
+
+Any figure that sets Optique beside the parser that replaced it carries that limit,
+including the 4.24 s and 0.89 s in commit `4879a44e6a`:
+
+- The replacement was a different parser with different behavior,
+   not a faster implementation of the same one.
+   Commit `1e53f52e02` says its token handling
+   "was taken from probing @optique/core 1.1.1 rather than from reading it",
+   and that two inputs Optique accepted now raise an error.
+   [Issue 988][] makes the same point from upstream's side:
+   "the replacement also changes parsing behavior."
+- It needed a fix within minutes.
+   Commit `6ef7bee28b` ("keep undeclared joined git options working") is dated 2026-07-15T20:06:08-04:00,
+   under thirteen minutes after the replacement landed.
+- It no longer exists.
+   Commit `642b6d72cb` deleted the TypeScript Git policy wrapper on 2026-10-13T17:15:06-04:00.
+
+So the owned parser's speed shows how little work the task needs,
+not that Optique could have been that fast while doing everything Optique does,
+and not that the replacement was correct.
+This document counts neither the owned parser's defects nor Optique's;
+it reads the repository's record of the three facts listed here and no further.
+
 ## Measurement of this repository's old parser
 
 Running.
@@ -464,6 +493,8 @@ against `@optique/core` 1.1.1,
 and the pre-release builds on either side of [pull request 997][],
 in a container with no mounts,
 with real and short path lists.
+The owned parser from commit `4879a44e6a` runs beside them as a floor,
+under the limit the section "The owned parser is not a like-for-like comparison" states.
 Results and the commands to repeat them will replace this section.
 
 Until then,
