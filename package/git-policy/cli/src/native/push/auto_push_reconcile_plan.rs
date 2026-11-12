@@ -124,7 +124,7 @@ pub(crate) struct Wording {
 /// ```
 pub(crate) fn wording_of(plan: &Reconcile<'_>) -> Wording {
     let label: &str = plan.label;
-    let line_prefix: String = format!("monochromatic-git-policy-cli: {label}: ");
+    let line_prefix: String = crate::auto_push_reconcile_basics_and_limits::run_line_prefix(label);
     let failed_prefix: String = format!("{line_prefix}not published: ");
     let short: String = plan
         .destination

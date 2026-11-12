@@ -3,7 +3,7 @@
 //! where it lives,
 //!  one `rename` to claim a member,
 //! the fill the resident service runs ahead,
-//! and the sweep of a fill that was killed.
+//! and the sweeps of a fill that was killed and of a worktree Git no longer lists.
 //! Why:
 //!  The creation makes about 40 directory-entry creations per commit on a volume where those calls wait seconds,
 //!  and `shadow links` alone held 11,383 ms of 22,657 ms of `buildMs` in one measured window
@@ -84,6 +84,14 @@ pub const FILLING_STALE_AFTER: Duration = Duration::from_secs(900);
 /// The prefix of a finished member's name.
 const MEMBER_PREFIX: &str = "member-";
 
+/// The pool folder of the main checkout,
+/// whose own Git directory is the common directory the pool lives in.
+const MAIN_KEY: &str = "main";
+
+/// The prefix of a linked worktree's pool folder,
+/// followed by the name of its own Git directory.
+const WORKTREE_KEY_PREFIX: &str = "worktree-";
+
 /// The prefix of a member that is still being made.
 const FILLING_PREFIX: &str = "filling-";
 
@@ -138,11 +146,64 @@ pub fn pool_root(template: &ShadowTemplate) -> PathBuf {
 /// poolRootFor(commonDir, gitDir)
 /// ```
 pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
-    let key: String = match git_dir == common_dir {
-        true => String::from("main"),
-        false => format!("worktree-{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
+    return common_dir.join(SHADOW_POOL_FOLDER).join(pool_key(common_dir, git_dir));
+}
+
+/// What:
+///  The folder name one worktree's pool has.
+/// Why:
+///  The sweep of a gone worktree's pool and the name a fill and a claim use must be one rule,
+///  or a sweep would look at a folder nothing fills and leave the one a commit takes from.
+///  The name is lossy text of the Git directory's own name,
+///  so both sides compare the same text whatever the path's bytes are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// poolKey(commonDir, gitDir) // 'main' or 'worktree-<name>'
+/// ```
+fn pool_key(common_dir: &Path, git_dir: &Path) -> String {
+    return match git_dir == common_dir {
+        true => String::from(MAIN_KEY),
+        false => format!("{WORKTREE_KEY_PREFIX}{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
     };
-    return common_dir.join(SHADOW_POOL_FOLDER).join(key);
+}
+
+/// What:
+///  Whether one name of the pool's path is a directory this wrapper made,
+///  or is not there yet.
+/// Why:
+///   A name that is there and is a link or a file is not the wrapper's:
+/// the wrapper makes its folders with `create_private_directory_all` and keeps its members inside them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theWrappersOwnDirectory(path) // false for a link and for a file, true for a directory and for nothing
+/// ```
+fn the_wrappers_own_directory(path: &Path) -> bool {
+    return match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.is_dir(),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    };
+}
+
+/// What:
+///  Whether the two names the wrapper makes above its members are directories it made,
+///  or are not there yet.
+/// Why:
+///   The pool's path is the pool's folder and the worktree's folder inside it,
+///  and a link at either one sends a creation, a claim and the sweep of a killed fill into
+///  whatever tree somebody else chose,
+///  where the sweep removes whole trees.
+///  A path that is not there is the empty pool every caller already handles,
+/// which `create_private_directory_all` makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePoolPathIsTheWrappersOwn(root) // false when either name is a link or a file
+/// ```
+pub(crate) fn the_pool_path_is_the_wrappers_own(root: &Path) -> bool {
+    let folder_is_ours: bool = root.parent().is_none_or(the_wrappers_own_directory);
+    return folder_is_ours && the_wrappers_own_directory(root);
 }
 
 /// What:
@@ -167,6 +228,11 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
         return false;
     }
     let root: PathBuf = pool_root(template);
+    // A path that is not the wrapper's own is no pool: a link there would put the claim's `rename`, and the removal of a
+    // refused claim, inside whatever tree it names.
+    if !the_pool_path_is_the_wrappers_own(root.as_path()) {
+        return false;
+    }
     let Ok(entries) = std::fs::read_dir(root.as_path()) else { return false };
     let mut examined: usize = 0;
     for entry in entries.flatten() {
@@ -187,9 +253,40 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
             Ok(Some(reason)) => note_refusal(name.as_str(), reason.as_str()),
             Err(error) => note_refusal(name.as_str(), error.to_string().as_str()),
         }
-        let _removed: std::io::Result<()> = remove_tree(destination);
+        remove_claim(destination);
     }
     return false;
+}
+
+/// What:
+///  Removes a claimed entry that was refused,
+///  whatever kind of entry the claim renamed here.
+/// Why:
+///   The pool's names are the wrapper's, but the claim trusts nothing about them:
+/// a link or a file at a member's name is refused,
+///  and `remove_dir_all` refuses those two,
+/// so a claim left at this path would make the creation that follows fail on every later commit of the worktree.
+///  A removed claim is the wrapper cleaning up after itself,
+/// and a claim that cannot be removed is named in the debug log rather than written to the terminal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeClaim(destination) // the tree, or the one name a link or a file is
+/// ```
+fn remove_claim(path: &Path) {
+    let removed: std::io::Result<()> = match std::fs::symlink_metadata(path) {
+        // A real directory goes with its entries; every other kind is the one name the claim moved, which is never followed.
+        Ok(metadata) if metadata.is_dir() => remove_tree(path),
+        Ok(_) => std::fs::remove_file(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = removed {
+        crate::diagnostic_log::debug(
+            "shadowPool",
+            format!("the refused claim {} cannot be removed: {error}", path.display()).as_str(),
+        );
+    }
 }
 
 /// What:
@@ -254,6 +351,15 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
         Err(error) => return Err(GitFailure(format!("whether the worktree keeps its own info directory cannot be read: {error}"))),
     }
     let root: PathBuf = pool_root(template);
+    // A link or a file anywhere on the pool's path is nobody's pool: a member made there would land in the tree the link
+    // names, and the sweep below would remove that tree's own entries that look like a half-made member.
+    if !the_pool_path_is_the_wrappers_own(root.as_path()) {
+        crate::diagnostic_log::debug(
+            "shadowPool",
+            format!("made no member at {}: it is not a folder this wrapper's pool can be", root.display()).as_str(),
+        );
+        return Ok(None);
+    }
     if members(root.as_path()).len() >= POOL_LIMIT {
         return Ok(None);
     }
@@ -279,6 +385,62 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     }
     crate::diagnostic_log::debug("shadowPool", format!("filled the shadow pool with {}", member.display()).as_str());
     return Ok(Some(member));
+}
+
+/// What:
+///  Removes the pool folder of every worktree Git no longer lists,
+///  and answers which folders it removed.
+/// Why:
+///  A worktree's pool is named after that worktree's own Git directory,
+///  and the members of a folder whose Git directory is gone are private repositories with their links into this one:
+///  no commit can ever claim them.
+///  A `git worktree prune`,
+///  a registration deleted by hand and a worktree destroyed without Git all leave that folder,
+///  and the sweep is what collects it,
+///  so a pool left unused does not keep a copy of the repository's shape for ever.
+///  The question is asked of the repository's own `worktrees` folder and never of Git,
+///  so a command pays one `read_dir` that usually finds no pool folder at all.
+///  A worktree Git is adding keeps its folder:
+///  Git makes the registration before the checkout,
+///  so a registration is the worktree's presence and not a leftover.
+///  A folder the wrapper did not name stays:
+///  only a folder named for a worktree can be proven to belong to one,
+///  and the pool holds state of the person's own otherwise.
+///  Nothing here can fail a command:
+///  a folder that cannot be removed is named in the diagnostic log and left for the next command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = sweepGoneWorktrees(commonDir); // the pool folders of worktrees Git no longer lists
+/// ```
+pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
+    let root: PathBuf = common_dir.join(SHADOW_POOL_FOLDER);
+    let Ok(entries) = std::fs::read_dir(root.as_path()) else { return Vec::new() };
+    // The keys of the worktrees Git lists, made with the same rule the folders were named by.
+    let mut listed: Vec<String> = Vec::new();
+    if let Ok(worktrees) = std::fs::read_dir(common_dir.join("worktrees")) {
+        for entry in worktrees.flatten() {
+            listed.push(pool_key(common_dir, &common_dir.join("worktrees").join(entry.file_name())));
+        }
+    }
+    let mut removed: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with(WORKTREE_KEY_PREFIX) || listed.contains(&name) {
+            continue;
+        }
+        let folder: PathBuf = entry.path();
+        match remove_tree(folder.as_path()) {
+            Ok(()) => {
+                crate::diagnostic_log::debug("shadowPool", format!("removed the pool of the worktree Git no longer lists: {name}").as_str());
+                removed.push(folder);
+            }
+            Err(error) => {
+                crate::diagnostic_log::warn("shadowPool", format!("the pool of the worktree Git no longer lists, {}, was not removed: {error}", folder.display()).as_str());
+            }
+        }
+    }
+    return removed;
 }
 
 /// What:
@@ -317,6 +479,10 @@ pub fn members(root: &Path) -> Vec<PathBuf> {
 /// sweepAbandoned(root, now)
 /// ```
 fn sweep_abandoned(root: &Path, now: SystemTime) {
+    // Only the wrapper's own folder is swept.
+    if !the_pool_path_is_the_wrappers_own(root) {
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(root) else { return };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();

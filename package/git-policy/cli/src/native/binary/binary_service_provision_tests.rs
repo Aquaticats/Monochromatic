@@ -338,8 +338,8 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
     assert_eq!(finished_batches(&fixture), 2);
     drop(second);
-    // The stand-in's connection ends with the wrapper's; it saw one hello, one start (a new unit file needs no reload), the question about where the service listens, and the two questions about the earlier release's units of the worktree (its service and its socket).
-    assert_eq!(bus.join().expect("bus"), vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]);
+    // The stand-in's connection ends with the wrapper's; it saw one hello, the question about where a held socket unit listens before anything is started, one start (a new unit file needs no reload), the same question again after it, and the two questions about the earlier release's units of the worktree (its service and its socket).
+    assert_eq!(bus.join().expect("bus"), vec!["Hello", "GetUnit", "Get", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
@@ -389,8 +389,22 @@ fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     assert_eq!(
         bus.join().expect("bus"),
         vec![
-            vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"],
-            vec!["Hello", "Reload", "ResetFailedUnit", "ResetFailedUnit", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"],
+            vec!["Hello", "GetUnit", "Get", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"],
+            vec![
+                "Hello",
+                "GetUnit",
+                "Get",
+                "Reload",
+                "ResetFailedUnit",
+                "ResetFailedUnit",
+                "StartUnit",
+                "GetUnit",
+                "Get",
+                "GetUnit",
+                "Get",
+                "GetUnit",
+                "Get",
+            ],
         ]
     );
     keep.lock().expect("lock").clear();
@@ -423,7 +437,10 @@ fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
     assert_eq!(finished_batches(&fixture), 4);
     assert_eq!(stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]), before, "no unit was rewritten");
     // Had a later commit connected, the stand-in would have been asked again, or the connection refused.
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]]);
+    assert_eq!(
+        bus.join().expect("bus"),
+        vec![vec!["Hello", "GetUnit", "Get", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]]
+    );
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
@@ -757,7 +774,30 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
     assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "its units are gone");
     assert!(!runtime.join(LEGACY_SOCKET_RELATIVE).exists(), "its socket file is gone");
     assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the worktree has its own socket");
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "GetUnit", "Get", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]]);
+    assert_eq!(
+        bus.join().expect("bus"),
+        vec![vec![
+            "Hello",
+            "StopUnit",
+            "GetUnit",
+            "Get",
+            "StopUnit",
+            "GetUnit",
+            "Get",
+            "GetUnit",
+            "Get",
+            "GetUnit",
+            "Get",
+            "Reload",
+            "StartUnit",
+            "GetUnit",
+            "Get",
+            "GetUnit",
+            "Get",
+            "GetUnit",
+            "Get",
+        ]]
+    );
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }

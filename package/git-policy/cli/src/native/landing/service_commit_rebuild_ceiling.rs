@@ -118,7 +118,7 @@ pub(crate) fn after_a_prepare_again(
     if native || amend {
         return AfterAPrepareAgain::Stopped(crate::service_branch_shows::branch_moved(ready));
     }
-    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+    let branch: String = ready.reference.short().spoken();
     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
         let failure: crate::service_messages::ClientFailure = crate::service_messages::ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 };
         return AfterAPrepareAgain::Stopped(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));

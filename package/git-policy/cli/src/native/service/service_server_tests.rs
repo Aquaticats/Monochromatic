@@ -192,11 +192,12 @@ fn a_restart_says_each_batch_it_settled() {
         seq: 41,
         repository: worktree.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: head,
         new: built,
         ids: vec![String::from("r")],
         commits: vec![String::from("c")],
+        holders: vec![String::new()],
         paths: Vec::new(),
         derived: false,
         cleanup: None,
@@ -213,10 +214,14 @@ fn a_restart_says_each_batch_it_settled() {
     let entries = crate::service_timing::capture::entries_of(|| { let _reports = settle_open_batches(&context, None); });
     assert_eq!(entries.len(), 2, "{entries:?}");
     assert_eq!(entries[0].priority, Priority::Info);
-    assert!(entries[0].message.starts_with("batch 41 is not on its branch, so its commit "), "{}", entries[0].message);
+    // The line says which repository the batch is in before anything about it,
+    //  so a reader looking at a whole machine's journal cannot take it for a batch of another repository.
+    let named: String = format!("batch 41 in the repository at {}", worktree.display());
+    assert!(entries[0].message.starts_with(format!("{named} is not on its branch, so its commit ").as_str()), "{}", entries[0].message);
     assert!(entries[0].message.contains(" is kept at refs/cli-git/kept/41"), "{}", entries[0].message);
     assert_eq!(entries[1].priority, Priority::Warning);
-    assert!(entries[1].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[1].message);
+    let settled_words: String = format!("settled the batch an earlier service left open in the repository at {} batch=41 decision=", worktree.display());
+    assert!(entries[1].message.starts_with(settled_words.as_str()), "the line about the settled batch names the repository: {}", entries[1].message);
     assert!(entries[1].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[1].fields);
     crate::test_support::remove(root.as_path());
 }
@@ -252,6 +257,45 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
         assert!(began.elapsed() < std::time::Duration::from_secs(30), "the removal the landing started did not finish");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    remove_short(root.as_path());
+}
+
+/// What:
+///  The service holds the tree of every request it queues against a collection,
+///  and lets it go when the group that request is in is over,
+///  whether the landing landed it or handed it back.
+/// Why:
+///   A tree the service forgets to release is one no collection ever removes again,
+///  and a tree it lets go while the request is queued is one the landing it waits for reads as it goes
+///  (`service_scratch_trees_of_queued_requests.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// note(id, tree); expect(isHeld(tree)).toBe(true); removeTheTrees(trees, new Set()); expect(isHeld(tree)).toBe(false);
+/// ```
+#[test]
+fn a_queued_tree_is_held_until_the_group_that_request_is_in_is_over() {
+    let root: std::path::PathBuf = short_directory("held-until-over");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    let tree: std::path::PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-2");
+    std::fs::create_dir_all(tree.as_path()).expect("the tree a request names");
+    let trees: Vec<(String, std::path::PathBuf)> = vec![(String::from("a-request"), tree.clone())];
+    crate::service_scratch_trees_of_queued_requests::note("a-request", tree.as_path());
+    assert!(
+        crate::service_scratch_trees_of_queued_requests::is_held(tree.as_path()),
+        "the landing of the queued request has still to read the tree"
+    );
+    crate::service_server::remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
+    assert!(
+        !crate::service_scratch_trees_of_queued_requests::is_held(tree.as_path()),
+        "the tree goes back to the age rule with the request that named it"
+    );
+    // A tree handed back to its client is the client's to remove, so the service holds it no longer either.
+    let sent_back: Vec<(String, std::path::PathBuf)> = vec![(String::from("sent-back"), tree.clone())];
+    let handed_back: std::collections::HashSet<String> = [String::from("sent-back")].into_iter().collect();
+    crate::service_scratch_trees_of_queued_requests::note("sent-back", tree.as_path());
+    crate::service_server::remove_the_trees(sent_back.as_slice(), &handed_back);
+    assert!(!crate::service_scratch_trees_of_queued_requests::is_held(tree.as_path()), "a tree the service handed back is its client's");
     remove_short(root.as_path());
 }
 

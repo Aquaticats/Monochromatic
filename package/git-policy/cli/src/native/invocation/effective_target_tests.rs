@@ -12,7 +12,7 @@
 
 /// Import the classification under test and shared fixtures.
 use super::{
-    EffectiveTarget, ToolCacheDirectory, cargo_build_script_output_dir, classify_effective_target,
+    EffectiveTarget, ToolCacheDirectory, cargo_build_dir, cargo_build_script_output_dir, classify_effective_target,
     default_allowed_worktree_dirs, matching_allowed_worktree_dir,
     matching_allowed_worktree_dir_for_repository, mise_data_dir, uv_cache_dir,
 };
@@ -204,6 +204,85 @@ fn cargo_build_script_directory_is_named_by_out_dir() {
         vec![ToolCacheDirectory {
             path: PathBuf::from("/build/out"),
             named_by: "OUT_DIR",
+        }]
+    );
+}
+
+/// Cargo's build directory is exempt beside the build script's own directory:
+///  the owner's answer names `CARGO_BUILD_DIR` first,
+///  Cargo's own spelling of `build.build-dir` comes second,
+///  and the target directory that setting defaults to comes last;
+///  an empty value is unset,
+///  and a relative value names nothing because Cargo resolves one against its own directory.
+#[test]
+fn cargo_build_directory_follows_the_variable_order() {
+    // A repository outside a Cargo build names no build directory, and the build-script directory is not it.
+    assert_eq!(cargo_build_dir(&[]), None);
+    assert_eq!(cargo_build_dir(environment(&[("OUT_DIR", "/build/out")]).as_slice()), None);
+    // An empty value is unset, so the next name is asked.
+    assert_eq!(
+        cargo_build_dir(environment(&[("CARGO_BUILD_DIR", ""), ("CARGO_TARGET_DIR", "/target")]).as_slice()),
+        named("/target", "CARGO_TARGET_DIR")
+    );
+    // The owner's name wins over Cargo's spelling and over the target directory.
+    assert_eq!(
+        cargo_build_dir(
+            environment(&[
+                ("CARGO_TARGET_DIR", "/target"),
+                ("CARGO_BUILD_BUILD_DIR", "/cargo-build"),
+                ("CARGO_BUILD_DIR", "/owner-build"),
+            ])
+            .as_slice()
+        ),
+        named("/owner-build", "CARGO_BUILD_DIR")
+    );
+    // Cargo's own spelling of `build.build-dir` wins over the target directory it defaults to.
+    assert_eq!(
+        cargo_build_dir(
+            environment(&[("CARGO_TARGET_DIR", "/target"), ("CARGO_BUILD_BUILD_DIR", "/cargo-build")]).as_slice()
+        ),
+        named("/cargo-build", "CARGO_BUILD_BUILD_DIR")
+    );
+    // A relative value names nothing, whatever the names after it hold:
+    //  Cargo resolves one against a directory a Git process started by a build script does not work in.
+    assert_eq!(cargo_build_dir(environment(&[("CARGO_TARGET_DIR", "target")]).as_slice()), None);
+    assert_eq!(
+        cargo_build_dir(environment(&[("CARGO_BUILD_DIR", "build"), ("CARGO_TARGET_DIR", "/target")]).as_slice()),
+        None
+    );
+    // The four tool directories stand together, each from its own variable,
+    //  and the build script's own output directory is asked before the whole build directory around it.
+    let home: Option<&Path> = Some(Path::new("/home/fixture"));
+    assert_eq!(
+        default_allowed_worktree_dirs(
+            environment(&[("OUT_DIR", "/build/out"), ("CARGO_TARGET_DIR", "/cargo-build")]).as_slice(),
+            home
+        ),
+        vec![
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.cache/uv"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.local/share/mise"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/build/out"),
+                named_by: "OUT_DIR",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/cargo-build"),
+                named_by: "CARGO_TARGET_DIR",
+            },
+        ]
+    );
+    // The build directory needs no home directory, unlike uv's cache and mise's data directory.
+    assert_eq!(
+        default_allowed_worktree_dirs(environment(&[("CARGO_BUILD_DIR", "/owner-build")]).as_slice(), None),
+        vec![ToolCacheDirectory {
+            path: PathBuf::from("/owner-build"),
+            named_by: "CARGO_BUILD_DIR",
         }]
     );
 }

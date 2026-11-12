@@ -44,8 +44,8 @@ use std::path::{Path, PathBuf};
 /// reload,
 /// reset a failed unit,
 /// start,
-///  stop,
 /// restart a unit the manager already holds,
+///  stop,
 /// and read a unit's state.
 /// Nothing that enables,
 /// links,
@@ -53,10 +53,13 @@ use std::path::{Path, PathBuf};
 /// masks or changes the default target is on it.
 /// A restart neither writes a `[Install]` line nor links a unit into a `*.wants` folder:
 /// it is the manager's own stop and start of a unit this wrapper asked for,
-/// and it is how a command answers a unit whose program stopped inside its own process
-/// (`SPEC.md`,
-/// the wait for the commit service).
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "StopUnit", "RestartUnit", "ResetFailedUnit", "GetUnit", "Get"];
+/// so a command that needs the answer of a service whose program stopped inside its own process gets one
+/// (`systemd_dbus.rs`,
+/// `restart_unit`;
+/// `SPEC.md`,
+/// the wait for the commit service),
+/// and it starts nothing at startup or at login.
+const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "RestartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,

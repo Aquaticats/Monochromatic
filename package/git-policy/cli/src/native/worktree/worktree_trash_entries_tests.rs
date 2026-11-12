@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::fs_beneath::{identity_at, open_root};
-use crate::parallel_test_support::{PATIENCE, Rendezvous, hold_the_only_place, room_for};
+use crate::parallel_test_support::{PATIENCE, Rendezvous, finished_within_at, hold_the_only_place, room_for};
 use crate::test_support::{fixture, remove};
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::path::PathBuf;
@@ -15,6 +15,28 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// How many entries the trash of these controls holds.
 const ENTRIES: usize = 4;
+
+/// The two places an ordinary service's blocking pool has:
+/// the owner's "never below two",
+/// so the pool is a pool and not one thread,
+/// and a trash that took every place of it is what the waiting path must survive.
+const TWO_PLACES: usize = 2;
+
+/// The one place a trash's removals leave free:
+/// the place the round keeps for the steps that answer a client
+/// (`places_a_round_may_take`),
+/// and the place the process keeps out of slow work
+/// (`SLOW_WORK_RESERVE`),
+/// which are the same place of the same budget,
+/// so a control that wants `n` removals in flight gives one on top of `n`.
+const ONE_PLACE_FOR_A_CLIENT: usize = 1;
+
+/// The room `n` removals in flight need on top of `n`:
+/// whichever of the two reserves above is the larger,
+/// because both are taken out of the one budget the removals share.
+fn a_place_over(n: usize) -> usize {
+    return n.saturating_add(ONE_PLACE_FOR_A_CLIENT.max(crate::blocking_jobs_within_the_budget::SLOW_WORK_RESERVE));
+}
 
 /// A host large enough that neither the CPUs nor the memory bound a removal of `ENTRIES` entries.
 const LARGE_HOST: HostResources = HostResources { parallelism: ENTRIES * 8, memory_available: None };
@@ -50,7 +72,9 @@ fn remove_with(held: &Arc<File>, root: &Path, manifest: &Arc<TrashManifest>, hos
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
-    let _room: usize = room_for("the_entries_are_removed_side_by_side", ENTRIES);
+    // The removals never take every place of the pool, so the control gives them the one they leave free on top: the
+    //  place the round keeps for a client, which is the place the process keeps out of slow work as well.
+    let _room: usize = room_for("the_entries_are_removed_side_by_side", a_place_over(ENTRIES));
     let (root, held, manifest) = trash_with_entries("trash-entries-overlap");
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ENTRIES));
     let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -105,8 +129,10 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
     let allowed: usize = worker_budget(&BudgetRequest { items: ENTRIES, per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < ENTRIES, "the control needs a bound between one and the entries: {allowed}");
-    // The removals reach that bound only when the process itself allows as many at once.
-    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed);
+    // The removals reach that bound only when the process itself allows as many at once, and they never take every place of
+    //  the pool, so the control gives them the one they leave free on top: the place the round keeps for a client, which
+    //  is the place the process keeps out of slow work as well.
+    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", a_place_over(allowed));
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     // The patience bounds only how long a run that never reaches the bound waits before it fails.
@@ -188,4 +214,89 @@ fn the_entry_estimate_covers_the_measured_peak() {
 #[test]
 fn the_entry_estimate_is_the_measurement_rounded_up_to_a_power_of_two() {
     assert_eq!(ENTRY_MEMORY, MEASURED_MILLION_NAME_PEAK.next_power_of_two());
+}
+
+/// A gate that the removals of a control wait at until the control opens it,
+/// so "while the trash is being removed" is a state and not a duration.
+struct Gate {
+    /// Whether the control has let the removals go.
+    open: std::sync::Mutex<bool>,
+    /// Woken when it opens.
+    changed: std::sync::Condvar,
+}
+
+impl Gate {
+    /// A closed gate.
+    fn closed() -> Gate {
+        return Gate { open: std::sync::Mutex::new(false), changed: std::sync::Condvar::new() };
+    }
+
+    /// Wait until the control opens the gate.
+    fn wait(&self) {
+        let mut open = self.open.lock().expect("the gate");
+        while !*open {
+            open = self.changed.wait(open).expect("the gate");
+        }
+    }
+
+    /// Let every removal through.
+    fn open(&self) {
+        *self.open.lock().expect("the gate") = true;
+        self.changed.notify_all();
+    }
+}
+
+/// What:
+///  One place of the process's blocking pool stays free while a trash's entries are being removed,
+/// so the steps that answer a client run beside the round.
+/// Why:
+///   The entries are removed side by side,
+/// one job of the blocking pool each,
+/// and the steps that answer a client run on that same pool:
+/// the check of whose commit a request is,
+/// a withdrawal's decision,
+/// and the note of a beat.
+/// A round that took every place left them no thread,
+/// and the measurement of 2026-11-10 shows what a client did then:
+/// 27 to 32 s of silence and the same commit
+///  sent six times (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The control therefore holds the removals at a gate and asks for a place with a plain blocking job,
+/// which is the shape of those
+///  steps (`run_blocking_job`,
+/// not a place of the round's own bound).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gate = new Gate(); startTheRemovals(gate); expect(await finished(within(SERIAL_PATIENCE), () => runBlockingJob(() => 0))).toBeDefined(); gate.open();
+/// ```
+#[test]
+fn a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client() {
+    let _room: usize = room_for("a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client", TWO_PLACES);
+    let (root, held, manifest) = trash_with_entries("trash-entries-a-place-for-a-client");
+    let gate: Arc<Gate> = Arc::new(Gate::closed());
+    let entered: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let (gate_for_the_removal, entered_by_the_removal) = (Arc::clone(&gate), Arc::clone(&entered));
+    let one_removal: Arc<RemoveOne> = Arc::new(move |_label: &Path, _parent: &File, _name: &std::ffi::OsStr, _expected| {
+        entered_by_the_removal.fetch_add(1, Ordering::SeqCst);
+        gate_for_the_removal.wait();
+        return Ok(crate::worktree_trash_remove::Removal::Removed);
+    });
+    let removal = request(root.as_path(), &held, &manifest, &LARGE_HOST, &one_removal);
+    let removing = std::thread::spawn(move || { return remove_entries(&removal); });
+    // A removal has started, so the round holds the places it is allowed to take.
+    assert!(
+        crate::test_support::wait_until(&|| { return entered.load(Ordering::SeqCst) > 0; }),
+        "no removal of the trash started"
+    );
+    // The client's own step asks for a place with a plain blocking job, which takes no place of the round's bound.
+    let asked = finished_within_at(PATIENCE, || { return crate::lazy_runtime::run_on_runtime(crate::blocking_job::run_blocking_job(|| { return 0; })); });
+    gate.open();
+    let left: Vec<String> = removing.join().expect("the removal ends when the gate opens");
+    assert!(
+        asked.is_some(),
+        "no place of the blocking pool was free for a step that answers a client while the trash was being removed, so that step waits for the whole round"
+    );
+    assert!(matches!(asked.expect("the step ran"), Ok(Ok(_ran))), "the step that answers a client ran");
+    assert!(left.is_empty(), "{left:?}");
+    remove(root.as_path());
 }

@@ -8,7 +8,6 @@
 //! and the swap leaves the stage name holding what Git made.
 
 use super::*;
-use crate::worktree_snapshot_ahead::AheadService;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
@@ -25,7 +24,7 @@ use crate::worktree_add_plan::AddPlan;
 /// and report what the index step settled.
 fn take(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<CopyState, String> {
     let held: File = open_root(admin).expect("administrative directory");
-    return take_snapshot(source, plan, stage, &held, pointer, &crate::fixture_content_decision::content_environment(), &AheadService::nothing()).map(|made: Snapshotted| { return made.state; }).map_err(|failure: SnapshotFailure| { return failure.reason; });
+    return take_snapshot(source, plan, stage, &held, pointer, &crate::fixture_content_decision::content_environment()).map(|made: Snapshotted| { return made.state; }).map_err(|failure: SnapshotFailure| { return failure.reason; });
 }
 
 /// The identity of a directory by its canonical path.
@@ -426,11 +425,11 @@ fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() 
     std::fs::write(admin.join("index.lock"), b"held by another Git").expect("a lock");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
     let held: File = open_root(admin.as_path()).expect("administrative directory");
-    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &AheadService::nothing()).expect_err("refused");
+    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect_err("refused");
     assert_eq!(failure.stage, Some(id_of_directory(stage.as_path())), "the failed run names the stage it made");
     std::fs::remove_file(admin.join("index.lock")).expect("lock gone");
     let stage_two: PathBuf = root.join(".cli-git-worktree-copy-test-two");
-    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &AheadService::nothing()).expect("snapshot").stage;
+    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect("snapshot").stage;
     assert_eq!(made, id_of_directory(stage_two.as_path()));
     remove(root.as_path());
 }
@@ -499,7 +498,7 @@ fn btrfs_the_snapshots_own_git_copy_goes_into_the_trash() {
     let stage: PathBuf = root.join(".cli-git-worktree-copy-topic");
     let made: Snapshotted = {
         let held: File = open_root(admin.as_path()).expect("administrative directory");
-        take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &AheadService::nothing()).expect("snapshot")
+        take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect("snapshot")
     };
     assert_eq!(std::fs::read(stage.join(".git")).expect("the pointer"), pointer, "the stage carries Git's pointer, not a repository");
     let trash: TrashManifest = made.trash.expect("a trash to hand over");

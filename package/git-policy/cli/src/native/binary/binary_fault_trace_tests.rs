@@ -961,7 +961,8 @@ fn visit_ignored(where_: &Path, relative: &Path, state: &mut std::collections::B
 /// claim,
 /// record or stage of a copy into it stays.
 /// A kill before Git made the destination leaves a record the recovery keeps until the window in which that Git may
-/// still be creating it has passed, and the same command works again.
+/// still be creating it has passed,
+/// and the same command works again.
 fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {

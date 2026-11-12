@@ -47,7 +47,7 @@ fn held_state(label: &str) -> (PathBuf, PathBuf, PathBuf, Held) {
         repository: repo.clone(),
         common_dir: git_dir.clone(),
         git_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: base,
         new: held_commit.clone(),
         commits: vec![held_commit],

@@ -482,7 +482,9 @@ fn left_words(why: &Left) -> String {
         Left::Binary => String::from("binary"),
         Left::TooLarge => String::from("too large"),
         Left::Driver(value) => format!("merge attribute {value}"),
-        Left::Overlap(count) => format!("{count} regions hold two changes of the same words, or a word merge of one would write a doubled word or a line no side holds"),
+        Left::Overlap(count) => format!(
+            "{count} regions hold two changes of the same words, or a word merge of one would write a doubled word or a line no side holds, or a region's split-shaped line is not the only one that could be Git's"
+        ),
         Left::UnknownAttributes => String::from("a .gitattributes of the merge is itself conflicted"),
     };
 }

@@ -247,6 +247,11 @@ pub struct Sample {
     /// which is a slow volume,
     /// not a hung process.
     pub disk_wait: bool,
+    /// Whether some task sleeps in the kernel's read of a Unix socket,
+    /// which is this tree waiting for an answer from a program outside it.
+    /// The wrapper waits this way for the commit service's answer,
+    /// and that answer's latency is the service's own disk work.
+    pub answer_wait: bool,
     /// Whether some task is stopped (state `T`) or traced (state `t`):
     /// something outside the tree holds it,
     /// a signal a test
@@ -298,11 +303,28 @@ pub fn look_at(root: i32, started: u64) -> Look {
             continue;
         }
         note_states(&mut sample, task_states(member.pid).as_slice());
+        sample.answer_wait |= waits_for_an_answer(member.pid);
         sample.activity = sample.activity.saturating_add(std::fs::read_to_string(format!("/proc/{}/io", member.pid)).map_or(0, |text| { return parse_io(text.as_str()); }));
         sample.processes.push((member.pid, member.started));
     }
     sample.processes.sort_unstable();
     return Look::Seen(sample);
+}
+
+/// The kernel functions a process sleeps in while it reads a Unix socket an answer is expected on.
+///  Linux's `af_unix.c` waits in the first for a stream socket with no data yet.
+const ANSWER_WAIT_CHANNELS: [&str; 2] = ["unix_stream_read_generic", "unix_stream_data_wait"];
+
+/// The kernel function a process sleeps in,
+/// or `?` when the kernel does not say.
+pub fn wait_channel(pid: i32) -> String {
+    return std::fs::read_to_string(format!("/proc/{pid}/wchan")).map_or_else(|_| { return String::from("?"); }, |text| { return text.trim().to_string(); });
+}
+
+/// Whether a process sleeps in the read of a Unix socket.
+pub fn waits_for_an_answer(pid: i32) -> bool {
+    let channel: String = wait_channel(pid);
+    return ANSWER_WAIT_CHANNELS.contains(&channel.as_str());
 }
 
 /// The tasks of a tree in words,
@@ -319,7 +341,7 @@ pub fn describe(root: i32) -> String {
         let states: Vec<char> = task_states(pid);
         let state: String = states.first().map_or_else(|| { return String::from("gone"); }, ToString::to_string);
         let tasks: String = if states.len() > 1 { format!(" (tasks {})", states.iter().collect::<String>()) } else { String::new() };
-        let waiting: String = std::fs::read_to_string(format!("/proc/{pid}/wchan")).map_or_else(|_| { return String::from("?"); }, |text| { return text.trim().to_string(); });
+        let waiting: String = wait_channel(pid);
         let command_line: String = std::fs::read(format!("/proc/{pid}/cmdline"))
             .map(|bytes| { return String::from_utf8_lossy(bytes.as_slice()).replace('\0', " "); })
             .unwrap_or_default();

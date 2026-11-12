@@ -50,6 +50,13 @@ pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 /// 30 seconds").
 pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 
+/// The variable a control sets to shorten the window a run whose connection is open may stay silent for.
+///  It is named as a control's because the window is fixed for every shipped run (`SPEC.md`,
+/// "Every wait has a
+///  bound"),
+/// and a control cannot wait the shipped 150 seconds.
+pub const CONNECTED_WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS";
+
 /// What:
 ///  Read a positive whole number of seconds from one environment value.
 /// Why:
@@ -157,6 +164,23 @@ pub fn merge_ceiling(environment: &[(OsString, OsString)]) -> Duration {
 /// ```
 pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
     return seconds_variable(environment, PUSH_DEADLINE_VARIABLE).unwrap_or(DEFAULT_PUSH_DEADLINE);
+}
+
+/// What:
+///  The window a run whose connection to a remote is open may show no sign of work for.
+/// Why:
+///   The window is fixed for every shipped run,
+/// and a control that must see it fire cannot wait 150 seconds,
+/// so a control shortens it here for every run it starts.
+/// A value that is not a positive whole number is no setting at all,
+/// as every value of this kind is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// secondsOf(env.CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS) ?? 150_000
+/// ```
+pub fn connected_window(environment: &[(OsString, OsString)]) -> Duration {
+    return seconds_variable(environment, CONNECTED_WINDOW_VARIABLE).unwrap_or(crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW);
 }
 
 /// What:

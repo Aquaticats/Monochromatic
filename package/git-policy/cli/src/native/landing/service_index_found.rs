@@ -44,9 +44,25 @@ pub struct WaitNotes {
     /// `pre` when it was made ahead while the service was idle,
     /// `cold` when the acquisition made it.
     pub stage_kind: &'static str,
+    /// Time the acquisition spent readying itself before its first placement,
+    /// outside the making of the marked file:
+    /// the watch on the lock's directory,
+    /// and the text the marker names its process with.
+    /// Why this is its own figure:
+    ///  a wait for the index lock that takes far longer than its own accounting explains is a wait whose time went
+    ///  somewhere else,
+    /// and these calls are two of the three places
+    /// (gate of 2026-11-11T10:29-05:00,
+    /// `lock_wait_ms=95277` against `lock_stage_ms=0` and `lock_place_ms=3003`,
+    /// which left 92 s of a landing's wait unattributed).
+    pub setup: Duration,
     /// Time from the first placement to the lock being taken or given up:
     /// the wait for a holder.
     pub placing: Duration,
+    /// Time the acquisition spent once its wait was decided:
+    /// removing the marked file it had staged,
+    /// which is the third place a wait's time can go without the other figures naming it.
+    pub after: Duration,
     /// Whether the wait looked again at the poll pace while another reclaimer held a claim on the stale lock,
     /// because the end of a claim leaves no event on the lock's name to be woken by.
     pub polled: bool,

@@ -141,7 +141,10 @@ pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
 ///  The pathspec file the private index reads,
 /// for a source named on the command line.
 /// Why:
-///   A regular file is read where it is named;
+///   A regular file is read where it is named,
+/// and the name is the caller's bytes:
+/// a file name that is not UTF-8 is opened as the person typed it,
+///  and a spelling with replacement characters would name another file (`path_bytes.rs`).
 /// standard input was read once,
 /// before the first preparation,
 /// and is written
@@ -152,50 +155,30 @@ pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
 /// ```ts
 /// pathspecFileFor(scratch, cwd, source, stdinBytes)
 /// ```
-pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&str>, standard_input: Option<&[u8]>) -> std::io::Result<Option<PathBuf>> {
-    let Some(name) = source else { return Ok(None) };
-    if name != "-" {
-        let path: PathBuf = PathBuf::from(name);
-        return Ok(Some(if path.is_absolute() { path } else { cwd.join(path) }));
+pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&Path>, standard_input: Option<&[u8]>) -> std::io::Result<Option<PathBuf>> {
+    let Some(named) = source else { return Ok(None) };
+    if named.as_os_str() != "-" {
+        return Ok(Some(if named.is_absolute() { named.to_path_buf() } else { cwd.join(named) }));
     }
     let snapshot: PathBuf = scratch.join(crate::commit_index::PATHSPEC_INPUT_NAME);
     write_private_file(snapshot.as_path(), standard_input.unwrap_or_default())?;
     return Ok(Some(snapshot));
 }
 
-/// What:
-///  The positional pathspecs of a command line,
-/// as the text a request names them by.
-/// Why:
-///   A path that is not text is still a path,
-///  and the request of an embedded commit carries its readable spelling,
-///  so a name the service cannot carry sends the commit to Git
-///  (`embedded_that_fits`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const texts = pathspecTexts(pathspecs);
-/// ```
-pub(crate) fn pathspec_texts(pathspecs: &[OsString]) -> Vec<String> {
-    let mut texts: Vec<String> = Vec::new();
-    for token in pathspecs {
-        texts.push(token.to_string_lossy().into_owned());
-    }
-    return texts;
-}
-
 /// The file a `--pathspec-from-file` option names,
-/// as the text the preparation reads.
+/// as the path the preparation reads.
 /// Why:
 ///   The option's value is a position in the command line,
-///  and its bytes are the file name a person typed.
+///  and its bytes are the file name a person typed,
+/// so the value is turned into a path without ever being spelled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const name = namesAFile(arguments, value);
+/// const name = pathOf(valueBytes(arguments, value))
 /// ```
-fn names_a_file(arguments: &[OsString], value: crate::command_options::OptionValue) -> String {
-    return String::from_utf8_lossy(crate::command_options_query::value_bytes(arguments, value)).into_owned();
+fn names_a_file(arguments: &[OsString], value: crate::command_options::OptionValue) -> PathBuf {
+    let bytes: &[u8] = crate::command_options_query::value_bytes(arguments, value);
+    return PathBuf::from(crate::path_bytes::os_from_path_bytes(bytes));
 }
 
 /// What:
@@ -222,7 +205,7 @@ pub(crate) fn the_pathspec_file(
     cwd: &Path,
     standard_input: Option<&[u8]>,
 ) -> Result<Option<PathBuf>, TransactionStop> {
-    let mut source: Option<String> = None;
+    let mut source: Option<PathBuf> = None;
     if let Some(value) = region.pathspec_from_file {
         source = Some(names_a_file(arguments, value));
     }
@@ -266,3 +249,8 @@ pub(crate) fn normalized(
     });
     return Ok(Prepared::Ended(TransactionResult { events: summary, exit_code: 1, landed_oid: None, uses_lfs: false }));
 }
+
+/// Controls for the pathspec file the private index reads stay out of the release executable.
+#[cfg(test)]
+#[path = "service_prepare_changes_config_and_pathspec_steps_tests.rs"]
+mod tests;

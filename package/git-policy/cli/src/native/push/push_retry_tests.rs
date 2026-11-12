@@ -129,8 +129,38 @@ fn a_forget_applied_after_a_later_plan_leaves_that_plan_on_disk() {
     let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
     assert!(retries.next_wait(here, Instant::now()).is_some(), "the plan the later round wrote is what this service is trying");
     // The older round's forget reaches the journal now, after the later plan was published.
-    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: branch.to_owned(), only_while_unreachable: false }]);
+    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: branch.to_owned(), only_while_unreachable: false, taken: None }]);
     assert!(retries.next_wait(here, Instant::now()).is_none(), "the list of this process forgot the branch, which is the older round's statement");
     assert_eq!(load(root.as_path()), vec![later], "a plan a later round wrote is not taken away by an earlier round's forget");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A read of the journal that came to nothing is owed again after a longer pause,
+///  and the list keeps the journal's directory while it is owed.
+/// Why:
+///  A read that gave no answer is made again rather than given up on (`PushRetries::needs_restore`),
+/// and each attempt leaves its read behind in a job that holds a place of the blocking bound
+///  until the journal answers,
+/// so a journal that stopped answering may not be read at the shortest pause for ever:
+/// the pause doubles with each attempt that came to nothing.
+#[test]
+fn a_journal_read_that_came_to_nothing_is_owed_again_after_a_longer_pause() {
+    // The first pause the control sets, so every later pause is that one doubled and nothing else.
+    let first: Duration = Duration::from_secs(2);
+    let root: PathBuf = crate::test_support::fixture("retry-restore-pause");
+    let mut retries: PushRetries = PushRetries::unread(first, root.as_path());
+    assert_eq!(retries.plans(), Some(root.as_path()), "the journal's directory is kept while the read is owed");
+    assert!(retries.needs_restore(), "a list that has not read its journal is owed the read");
+    assert_eq!(retries.restore_pause(), first, "the first attempt is made after the first pause");
+    retries.restore_came_to_nothing();
+    assert!(retries.needs_restore(), "a read that gave no answer is still owed");
+    assert_eq!(retries.restore_pause(), first * 2, "the second attempt is made after the pause doubled");
+    retries.restore_came_to_nothing();
+    assert_eq!(retries.restore_pause(), first * 4, "the third attempt is made after the pause doubled again");
+    // The read that answers ends what the list owes, and the record of what came to nothing goes with it.
+    let _found: Vec<PathBuf> = retries.restore();
+    assert!(!retries.needs_restore(), "a read that answered is not owed again");
+    assert_eq!(retries.restore_pause(), first, "a list that has read its journal starts the pauses again");
     crate::test_support::remove(root.as_path());
 }

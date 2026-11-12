@@ -31,7 +31,7 @@
 //! const programOf = (words: Uint8Array[]): string => printable(cutAtFirstSpace(words[0] ?? ''))
 //! ```
 
-use crate::lfs_output_mask::mask_userinfo;
+use crate::lfs_output_mask::mask_url_secrets;
 
 /// A running program that may be an earlier commit service:
 /// its `--journal` folder could not be resolved,
@@ -80,7 +80,7 @@ pub struct UnsureProgram {
 /// function printable(bytes: Uint8Array): string;
 /// ```
 pub fn printable(bytes: &[u8]) -> String {
-    let masked: Vec<u8> = mask_userinfo(bytes);
+    let masked: Vec<u8> = mask_url_secrets(bytes);
     let mut shown: String = String::with_capacity(masked.len());
     for character in String::from_utf8_lossy(masked.as_slice()).chars() {
         if character.is_control() {

@@ -111,6 +111,12 @@ pub mod conclusion_copy;
 /// `-a` removal and private arguments.
 pub mod commit_args;
 
+/// One token of a commit command line,
+/// read as the bytes it is:
+/// an option's name,
+/// a cluster's letters and the value it carries inline.
+pub mod commit_args_token_bytes;
+
 /// The private commit index:
 /// copies,
 /// selection modes,

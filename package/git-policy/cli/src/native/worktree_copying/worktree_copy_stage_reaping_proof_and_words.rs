@@ -9,6 +9,9 @@
 //! and nothing in the folder was born after the instant that record holds,
 //! except the entries the
 //!  wrapper itself writes there later.
+//! A record that names no object proves the folder by what the filesystem wrote into it:
+//! the source the snapshot was taken from,
+//! and a creation transaction later than the one the record holds.
 //! Everything else keeps the folder,
 //! and the reason is the words the person reads,
 //! so this
@@ -131,13 +134,30 @@ pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance
             quote(made.container.to_string_lossy().as_ref())
         )));
     }
+    // An entry born after the instant is examined first, so a person's own file there is named by its path.
+    if let Some(reason) = unaccounted_entry(container, made.written) {
+        return Ok(Provenance::Unproved(reason));
+    }
+    // The record a command writes before it creates the container names the container, the instant and no identity,
+    // because an object's identity cannot be read before it exists. Such a record names the source the snapshot is
+    // taken from and the transaction it must follow, and the filesystem writes both into the snapshot itself, so the
+    // folder is judged by what it was made from and when, never by its shape: a plain directory answers with the
+    // subvolume that holds it, and a snapshot another party took before that transaction answers with an earlier one.
+    if made.object.is_none() {
+        let Some(origin) = made.snapshot.as_ref() else {
+            return Ok(Provenance::Unproved(String::from(
+                "the record of the object its creation made names no object and no source the snapshot was taken from, so nothing proves which folder this is",
+            )));
+        };
+        return match crate::worktree_copy_stage_snapshot_origin::proved_created_after_the_record(container, origin) {
+            Ok(()) => Ok(Provenance::Proved),
+            Err(reason) => Ok(Provenance::Unproved(reason)),
+        };
+    }
     if !is_the_recorded_object(container, &made) {
         return Ok(Provenance::Unproved(String::from("the object there now is not the one the record of its creation made")));
     }
-    return match unaccounted_entry(container, made.written) {
-        None => Ok(Provenance::Proved),
-        Some(reason) => Ok(Provenance::Unproved(reason)),
-    };
+    return Ok(Provenance::Proved);
 }
 
 /// What:

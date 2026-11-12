@@ -206,15 +206,23 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
 /// Why:
 ///   This is the only synchronous write of a batch,
 /// whatever its size.
+/// The record also carries the reading of the clocks it was written by,
+/// so a cleanup that asks how old the batch's finished record is reads the monotonic clock of this boot
+/// and not a wall clock that may have stepped
+/// (`service_journal_record_age.rs`).
+/// The reading is taken here,
+/// before the record is published and after the client sent its request,
+/// so the age it gives is never shorter than the wait that client is inside.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeIntent(dir, intent)
+/// await writeIntent(dir, intent) // the intent's lines and its clock reading, synced, renamed, and the directory synced
 /// ```
 pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, intent.seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
-    file.write_all(intent_text(intent).as_bytes())?;
+    let text: String = format!("{}{}", intent_text(intent), crate::service_journal_record_age::stamp_line(&crate::claim_time::ClaimTime::read()));
+    file.write_all(text.as_bytes())?;
     crate::service_durable::flush_file(&file, "intent-file")?;
     fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
     return crate::service_durable::flush_directory(dir, "intent-dir");

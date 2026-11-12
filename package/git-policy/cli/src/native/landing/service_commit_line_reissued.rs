@@ -33,10 +33,11 @@
 
 use crate::commit_args::{normalise_commit_args, takes_next_token};
 use crate::commit_transaction::TransactionStop;
+use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 use crate::service_amend::split_author;
 use crate::service_amend_replayed::stored_commit_fields;
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
 /// The token that ends the options of a commit region.
@@ -44,11 +45,11 @@ const SEPARATOR: &str = "--";
 
 /// Short option letters a rebuilt line drops:
 /// the selection the private index already holds.
-const SELECTION_LETTERS: [char; 2] = ['p', 'i'];
+const SELECTION_LETTERS: &[u8] = b"pi";
 
 /// Short option letters whose value is attached,
 /// so that what follows is never read as a flag.
-const ATTACHED_VALUE_LETTERS: [char; 2] = ['S', 'u'];
+const ATTACHED_VALUE_LETTERS: &[u8] = b"Su";
 
 /// The authorship a commit reused from another commit,
 /// which a rebuild supplies itself.
@@ -74,15 +75,8 @@ pub(crate) struct BorrowedAuthor {
 /// ```ts
 /// const borrows = (token) => ['-c', '-C', '--reuse-message', '--reedit-message'].includes(nameOf(token));
 /// ```
-fn borrows_its_author(token: &str) -> bool {
-    let name: &str = name_of(token);
-    return matches!(name, "-c" | "-C" | "--reuse-message" | "--reedit-message");
-}
-
-/// One argument as text,
-/// with bytes that are not valid text replaced.
-fn lossy_text(token: &OsString) -> String {
-    return token.to_string_lossy().into_owned();
+fn borrows_its_author(token: &OsStr) -> bool {
+    return matches!(name_of(token), Some("-c" | "-C" | "--reuse-message" | "--reedit-message"));
 }
 
 /// The name half of an option split at the `=` that attached its value.
@@ -90,10 +84,22 @@ fn name_before_the_value<'a>(halves: (&'a str, &'a str)) -> &'a str {
     return halves.0;
 }
 
-/// The name of an option,
-/// without the value an `=` attached to it.
-fn name_of(token: &str) -> &str {
-    return token.split_once('=').map_or(token, name_before_the_value);
+/// What:
+///  The name of an option,
+/// without the value an `=` attached to it,
+/// and nothing for a token that is not text.
+/// Why:
+///   An option's spelling is text,
+/// so a token holding a byte that is not UTF-8 is no option of this list,
+///  and it is kept as it is rather than respelled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = token.toString()?.split('=')[0]
+/// ```
+fn name_of(token: &OsStr) -> Option<&str> {
+    let text: &str = token.to_str()?;
+    return Some(text.split_once('=').map_or(text, name_before_the_value));
 }
 
 /// What:
@@ -106,10 +112,11 @@ fn name_of(token: &str) -> &str {
 /// ```ts
 /// const rewords = (token) => /^--(fixup|squash)=reword(:|$)/.test(token);
 /// ```
-fn rewords_another_commit(token: &str) -> bool {
-    let named: Option<&str> = match token.strip_prefix("--fixup=") {
+fn rewords_another_commit(token: &OsStr) -> bool {
+    let Some(text) = token.to_str() else { return false };
+    let named: Option<&str> = match text.strip_prefix("--fixup=") {
         Some(value) => Some(value),
-        None => token.strip_prefix("--squash="),
+        None => text.strip_prefix("--squash="),
     };
     let Some(value) = named else { return false; };
     return value == "reword" || value.starts_with("reword:");
@@ -128,16 +135,17 @@ fn rewords_another_commit(token: &str) -> bool {
 /// ```ts
 /// const withoutSelection = (token) => [...token].filter((letter) => letter !== 'p' && letter !== 'i').join('');
 /// ```
-fn without_selection_letters(token: &str) -> Option<String> {
-    let letters: Vec<char> = token.chars().skip(1).collect();
-    let mut kept: String = String::from("-");
+fn without_selection_letters(token: &OsStr) -> Option<OsString> {
+    let bytes: &[u8] = argument_bytes(token);
+    let letters: &[u8] = &bytes[1..];
+    let mut kept: Vec<u8> = vec![b'-'];
     let mut at: usize = 0;
     while at < letters.len() {
-        let letter: char = letters[at];
+        let letter: u8 = letters[at];
         at += 1;
         if ATTACHED_VALUE_LETTERS.contains(&letter) {
             kept.push(letter);
-            kept.extend(letters[at..].iter());
+            kept.extend_from_slice(&letters[at..]);
             break;
         }
         if SELECTION_LETTERS.contains(&letter) {
@@ -145,7 +153,7 @@ fn without_selection_letters(token: &str) -> Option<String> {
         }
         kept.push(letter);
     }
-    return if kept == "-" { None } else { Some(kept) };
+    return if kept == b"-" { None } else { Some(os_from_path_bytes(kept.as_slice())) };
 }
 
 /// What:
@@ -165,8 +173,7 @@ fn without_selection_letters(token: &str) -> Option<String> {
 /// rewordsACommit(args, subcommand) // boolean
 /// ```
 pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> bool {
-    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
-    let region: Vec<String> = normalise_commit_args(text.get(subcommand + 1..).unwrap_or(&[]));
+    let region: Vec<OsString> = normalise_commit_args(arguments.get(subcommand + 1..).unwrap_or(&[]));
     let mut state: State = State::Option;
     for token in &region {
         match state {
@@ -177,14 +184,14 @@ pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> boo
             State::Verbatim => continue,
             State::Option => {}
         }
-        if token == SEPARATOR {
+        if token.as_os_str() == OsStr::new(SEPARATOR) {
             state = State::Verbatim;
             continue;
         }
-        if rewords_another_commit(token.as_str()) {
+        if rewords_another_commit(token.as_os_str()) {
             return true;
         }
-        state = if takes_next_token(token.as_str()) { State::Value } else { State::Option };
+        state = if takes_next_token(token.as_os_str()) { State::Value } else { State::Option };
     }
     return false;
 }
@@ -221,8 +228,8 @@ enum State {
 /// ```
 enum Settled {
     /// Everything the line keeps,
-    /// with the authorship the walk was given where it needs one.
-    Line(Vec<String>),
+    /// each token with its own bytes.
+    Line(Vec<OsString>),
     /// The line borrows an authorship the walk was not given.
     NeedsTheAuthorship,
     /// The line cannot be made again from what the preparation captured.
@@ -239,8 +246,8 @@ enum Settled {
 /// ```ts
 /// withoutSettledOptions({ region, interactive, borrowed });
 /// ```
-fn without_settled_options(region: &[String], interactive: bool, borrowed: Option<&BorrowedAuthor>) -> Settled {
-    let mut kept: Vec<String> = Vec::new();
+fn without_settled_options(region: &[OsString], interactive: bool, borrowed: Option<&BorrowedAuthor>) -> Settled {
+    let mut kept: Vec<OsString> = Vec::new();
     let mut state: State = State::Option;
     for token in region {
         match state {
@@ -259,54 +266,55 @@ fn without_settled_options(region: &[String], interactive: bool, borrowed: Optio
             }
             State::Option => {}
         }
-        if token == SEPARATOR {
+        if token.as_os_str() == OsStr::new(SEPARATOR) {
             kept.push(token.clone());
             state = State::Verbatim;
             continue;
         }
-        if rewords_another_commit(token.as_str()) {
+        if rewords_another_commit(token.as_os_str()) {
             return Settled::Cannot;
         }
-        let name: &str = name_of(token.as_str());
-        if borrows_its_author(token.as_str()) {
+        let name: Option<&str> = name_of(token.as_os_str());
+        if borrows_its_author(token.as_os_str()) {
             if borrowed.is_none() {
                 return Settled::NeedsTheAuthorship;
             }
-            state = dropped_after(token.as_str());
+            state = dropped_after(token.as_os_str());
             continue;
         }
-        if matches!(name, "--fixup" | "--squash") {
-            state = dropped_after(token.as_str());
+        if matches!(name, Some("--fixup" | "--squash")) {
+            state = dropped_after(token.as_os_str());
             continue;
         }
-        if matches!(name, "--author" | "--date") && borrowed.is_some() {
-            state = dropped_after(token.as_str());
+        if matches!(name, Some("--author" | "--date")) && borrowed.is_some() {
+            state = dropped_after(token.as_os_str());
             continue;
         }
-        if interactive && matches!(name, "-p" | "-i" | "--patch" | "--interactive") {
-            state = dropped_after(token.as_str());
+        if interactive && matches!(name, Some("-p" | "-i" | "--patch" | "--interactive")) {
+            state = dropped_after(token.as_os_str());
             continue;
         }
-        if interactive && token.starts_with('-') && !token.starts_with("--") && token.len() > 1 {
-            if let Some(cluster) = without_selection_letters(token.as_str()) {
+        let bytes: &[u8] = argument_bytes(token.as_os_str());
+        if interactive && bytes.starts_with(b"-") && !bytes.starts_with(b"--") && bytes.len() > 1 {
+            if let Some(cluster) = without_selection_letters(token.as_os_str()) {
                 kept.push(cluster);
             }
-            state = kept_after(token.as_str());
+            state = kept_after(token.as_os_str());
             continue;
         }
         kept.push(token.clone());
-        state = kept_after(token.as_str());
+        state = kept_after(token.as_os_str());
     }
     return Settled::Line(kept);
 }
 
 /// What the walk reads after an option it keeps.
-fn kept_after(token: &str) -> State {
+fn kept_after(token: &OsStr) -> State {
     return if takes_next_token(token) { State::Value } else { State::Option };
 }
 
 /// What the walk reads after an option it drops.
-fn dropped_after(token: &str) -> State {
+fn dropped_after(token: &OsStr) -> State {
     return if takes_next_token(token) { State::DroppedValue } else { State::Option };
 }
 
@@ -360,9 +368,8 @@ pub(crate) fn reissued_arguments(
     prepared: Option<&str>,
     interactive: bool,
 ) -> Result<Option<Vec<OsString>>, TransactionStop> {
-    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
-    let region: Vec<String> = normalise_commit_args(text.get(subcommand + 1..).unwrap_or(&[]));
-    let (mut rebuilt, borrowed): (Vec<String>, Option<BorrowedAuthor>) = match without_settled_options(region.as_slice(), interactive, None) {
+    let region: Vec<OsString> = normalise_commit_args(arguments.get(subcommand + 1..).unwrap_or(&[]));
+    let (mut rebuilt, borrowed): (Vec<OsString>, Option<BorrowedAuthor>) = match without_settled_options(region.as_slice(), interactive, None) {
         Settled::Line(kept) => (kept, None),
         Settled::Cannot => return Ok(None),
         Settled::NeedsTheAuthorship => {
@@ -377,11 +384,11 @@ pub(crate) fn reissued_arguments(
     };
     // The authorship the line borrowed goes where the option that borrowed it was, and Git reads it from there.
     if let Some(found) = borrowed.as_ref() {
-        rebuilt.insert(0, format!("--author={}", found.author));
-        rebuilt.insert(1, format!("--date={}", found.date));
+        rebuilt.insert(0, OsString::from(format!("--author={}", found.author)));
+        rebuilt.insert(1, OsString::from(format!("--date={}", found.date)));
     }
     let mut whole: Vec<OsString> = arguments.get(..=subcommand).unwrap_or(&[]).to_vec();
-    whole.extend(rebuilt.into_iter().map(OsString::from));
+    whole.extend(rebuilt);
     return Ok(crate::service_commit_args::with_fixed_message(whole.as_slice(), subcommand, file));
 }
 

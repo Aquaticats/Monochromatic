@@ -49,8 +49,9 @@ pub struct Intent {
     pub repository: PathBuf,
     /// Common git directory.
     pub common_dir: PathBuf,
-    /// The branch.
-    pub reference: String,
+    /// The branch,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The branch before the batch.
     pub old: String,
     /// The branch after the batch.
@@ -60,6 +61,15 @@ pub struct Intent {
     /// The commit each request became,
     /// in the same order as the identities.
     pub commits: Vec<String>,
+    /// The command each request says will decide its commit's post-commit checks,
+    /// in the same order as the commits,
+    /// and empty for a request that named none.
+    /// Why:
+    ///   The held push of a landed commit says which command will promote it,
+    ///   and a batch a restart finishes holds the pushes again:
+    ///  the command that would have promoted them is the one the request named,
+    /// which no process table of the restart can tell.
+    pub holders: Vec<String>,
     /// Paths whose index entries the batch updates.
     pub paths: Vec<Vec<u8>>,
     /// Whether the index entries to update are the paths that differ between `old` and `new`,
@@ -129,6 +139,74 @@ fn cleanup_lines(cleanup: Option<&Cleanup>) -> Vec<String> {
     return lines;
 }
 
+/// What:
+///  The reference name of an intent,
+///  as the one line a reader takes it from.
+/// Why:
+///   A recovery moves this branch,
+/// so the plain `ref=` field is written only when text spells every byte of the name,
+/// which is the field a release before this one reads,
+///  and `refHex=` always holds the whole name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const referenceField = (name) => name.isText ? `ref=${name}\nrefHex=${name.hex}` : `refHex=${name.hex}`
+/// ```
+fn reference_field(reference: &crate::ref_name::RefName) -> String {
+    return match reference.is_text() {
+        true => format!("ref={reference}\nref{HEX_SUFFIX}={}", reference.hex()),
+        false => format!("ref{HEX_SUFFIX}={}", reference.hex()),
+    };
+}
+
+/// What:
+///  The reference name an intent holds,
+///  from its bytes field when it has one,
+///  and from its text otherwise.
+/// Why:
+///   An intent written before the bytes field existed holds text,
+/// and an intent whose bytes do not decode is damage,
+///  which its reader rejects:
+/// a name read wrongly moves another branch at recovery.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readReference = (text) => text.refHex !== undefined ? refNameOfHex(text.refHex) : refNameOf(text.ref)
+/// ```
+fn read_reference(text: &str) -> Option<crate::ref_name::RefName> {
+    if let Some(hexadecimal) = intent_value(text, "refHex") {
+        return crate::ref_name::RefName::from_hex(hexadecimal);
+    }
+    return Some(crate::ref_name::RefName::from_text(intent_value(text, "ref")?));
+}
+
+/// What a request that named no deciding command is spelled as in an intent.
+/// Why:
+///   The field is positional,
+/// one item per landed commit,
+/// and the list reader drops empty items,
+/// so silence needs a word of its own
+///  or the entries after it move to another commit.
+pub const NO_HOLDER: &str = "-";
+
+/// What:
+///  The item one holder takes in an intent,
+///  or [`NO_HOLDER`] when the request named none.
+/// Why:
+///   See [`NO_HOLDER`]:
+/// an empty item would vanish and shift every later commit's command onto another commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holderText = (holder) => holder === '' ? '-' : holder;
+/// ```
+fn holder_text(holder: &str) -> String {
+    return match holder.is_empty() {
+        true => String::from(NO_HOLDER),
+        false => holder.to_owned(),
+    };
+}
+
 /// The text of an intent:
 /// `key=value` lines,
 /// tabs between list items.
@@ -137,11 +215,12 @@ pub fn intent_text(intent: &Intent) -> String {
     lines.extend(path_lines("repository", intent.repository.as_path()));
     lines.extend(path_lines("common", intent.common_dir.as_path()));
     lines.extend([
-        format!("ref={}", intent.reference),
+        reference_field(&intent.reference),
         format!("old={}", intent.old),
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
+        format!("holders={}", intent.holders.iter().map(String::as_str).map(holder_text).collect::<Vec<String>>().join("\t")),
         format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
         format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
         format!("derived={}", u8::from(intent.derived)),
@@ -237,6 +316,41 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
         }
     }
     return Some(items);
+}
+
+/// What:
+///  The holders an intent's line holds,
+///  with [`NO_HOLDER`] read back as a request that named none.
+/// Why:
+///   The item is the command the request named,
+/// so the word that stands for silence is never a command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdersOf = (text) => intentList(text, 'holders')?.map((item) => item === '-' ? '' : item);
+/// ```
+fn holders_of(text: &str) -> Option<Vec<String>> {
+    let items: Vec<String> = intent_list(text, "holders")?;
+    return Some(items.iter().map(String::as_str).map(holder_of_item).collect());
+}
+
+/// What:
+///  The command one item of an intent's holder line names,
+///  and nothing when the item is the word for silence.
+/// Why:
+///   [`NO_HOLDER`] stands for a request that named no deciding command,
+/// and the item is read back as that silence rather
+///  than as a command called `-`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holderOfItem = (item) => item === '-' ? '' : item;
+/// ```
+fn holder_of_item(item: &str) -> String {
+    return match item {
+        NO_HOLDER => String::new(),
+        command => command.to_owned(),
+    };
 }
 
 /// What:
@@ -343,11 +457,13 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         seq: intent_value(text, "seq")?.parse().ok()?,
         repository,
         common_dir: intent_path(text, "common").ok().flatten()?,
-        reference: intent_value(text, "ref")?.to_string(),
+        reference: read_reference(text)?,
         old: intent_value(text, "old")?.to_string(),
         new: intent_value(text, "new")?.to_string(),
         ids: intent_list(text, "ids")?,
         commits: intent_list(text, "commits")?,
+        // Intents written before this field existed name no command.
+        holders: holders_of(text).unwrap_or_default(),
         paths: intent_path_list(text, "paths").ok()??,
         // Intents written before these fields existed name neither.
         derived: intent_value(text, "derived") == Some("1"),

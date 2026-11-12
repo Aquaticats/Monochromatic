@@ -132,11 +132,12 @@ fn held_batch(world: &World) -> Held {
         seq: SEQ,
         repository: repo.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: base,
         new: held_commit.clone(),
         ids: vec![String::from("request-1")],
         commits: vec![held_commit],
+        holders: vec![String::new()],
         paths: vec![THE_HELD_FILE.as_bytes().to_vec()],
         derived: false,
         cleanup: None,
@@ -154,7 +155,7 @@ fn held_batch(world: &World) -> Held {
         common_dir: git_dir.as_path(),
         git_dir: git_dir.as_path(),
         index: intent.index.as_path(),
-        reference: intent.reference.as_str(),
+        reference: &intent.reference,
         seq: SEQ,
         intent: &intent,
         locks: vec![git_dir.join("refs/heads/main.lock")],
@@ -241,7 +242,14 @@ fn a_hold_the_restart_finishes_is_reported_as_finished() {
     let reports: Vec<RecoveryReport> = recover(&world.context);
     assert_eq!(
         reports,
-        vec![RecoveryReport { seq: SEQ, decision: Recovery::Finish, handled: Handled::Finished }],
+        vec![
+            RecoveryReport {
+                seq: SEQ,
+                repository: world.repo.clone(),
+                decision: Recovery::Finish,
+                handled: Handled::Finished,
+            },
+        ],
         "the batch this restart landed and finished is reported"
     );
     assert_eq!(head_of(world.repo.as_path()), held.new, "the report is about a batch whose branch really moved");

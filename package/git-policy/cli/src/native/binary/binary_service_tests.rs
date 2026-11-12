@@ -175,7 +175,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         repository: repo.to_path_buf(),
         common_dir: repo.join(".git"),
         git_dir: repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: git_policy_cli::ref_name::RefName::from_text("refs/heads/main"),
         base: query(fixture, repo, &["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
@@ -347,8 +347,6 @@ fn a_service_whose_worktree_is_gone_serves_nothing() {
     command
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
         .env("XDG_RUNTIME_DIR", runtime.as_path())
-        // The bus is looked for in the fixture's runtime directory, so no real user manager is asked anything.
-        .env_remove("DBUS_SESSION_BUS_ADDRESS")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
@@ -356,6 +354,87 @@ fn a_service_whose_worktree_is_gone_serves_nothing() {
     let status: std::process::ExitStatus = ended_at_fault(&mut service, "a service of a gone worktree");
     assert!(status.success(), "serving nothing is not a failure, or `Restart=on-failure` starts the unit again: {status}");
     assert!(!reachable(name.as_str()), "the service listened for a worktree that is gone");
+    remove_settled(&fixture);
+}
+
+/// The variable that tells the child of the control below from the test that started it.
+const NO_MANAGER_INHERITED_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_INHERITS_NO_MANAGER";
+
+/// The variable that names the stand-in bus the child of the control below listens on.
+const NO_MANAGER_STAND_IN_BUS_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_STAND_IN_BUS";
+
+/// What:
+///  A service a control starts is never handed the session bus of the process that runs the tests.
+/// Why:
+///   A control that started a service with a developer's own `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` could make the
+///  owner's real user manager start,
+/// or stop,
+/// a unit for a throwaway worktree,
+/// and hundreds of units of deleted throwaway repositories were measured there on 2026-11-10
+/// (`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md`).
+/// The environment belongs to the process,
+/// so the control runs its body in a child of this test binary,
+/// which is the only place it can set these two variables for the support to inherit.
+/// The stand-in bus is a listening socket of this control's own:
+/// a service that connected to it asked a manager,
+/// and nothing answers it.
+/// The support removes the runtime directory too;
+/// a control that needs one gives its own,
+/// so this control passes the fixture's and reads the bus.
+#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start one test of it alone; the wrapper is never started this way")]
+#[test]
+fn a_service_a_control_starts_is_never_handed_the_manager_of_its_parent() {
+    if std::env::var_os(NO_MANAGER_INHERITED_VARIABLE).is_none() {
+        // A path short enough for a socket, and this test's own.
+        let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"));
+        let stand_in: PathBuf = home.join("temp/agent").join(format!("no-manager-bus-{}", std::process::id()));
+        let _stale = std::fs::remove_file(stand_in.as_path());
+        let output: std::process::Output = Command::new(std::env::current_exe().expect("the test binary"))
+            .args(["--exact", "service::a_service_a_control_starts_is_never_handed_the_manager_of_its_parent", "--nocapture", "--test-threads=1"])
+            .env(NO_MANAGER_INHERITED_VARIABLE, "1")
+            .env(NO_MANAGER_STAND_IN_BUS_VARIABLE, stand_in.as_path())
+            .env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", stand_in.display()))
+            .env("XDG_RUNTIME_DIR", stand_in.with_extension("runtime"))
+            .stdin(Stdio::null())
+            .output()
+            .expect("the child control runs");
+        let _removed = std::fs::remove_file(stand_in.as_path());
+        assert!(output.status.success(), "the child control failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        return;
+    }
+    // The child: the stand-in bus the child's own environment names, before the service is started.
+    let stand_in: PathBuf = PathBuf::from(std::env::var(NO_MANAGER_STAND_IN_BUS_VARIABLE).expect("the stand-in bus path the parent names"));
+    let bus: UnixListener = UnixListener::bind(stand_in.as_path()).expect("the stand-in bus listens");
+    bus.set_nonblocking(true).expect("a non-blocking stand-in bus");
+    let fixture: Fixture = fixture("service-no-inherited-manager");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("canonical Git directory");
+    let instance: String = instance_of(git_dir.as_path());
+    let runtime: PathBuf = fixture.root.join("runtime");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("socket directory");
+    record_worktree(runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("the note provisioning writes");
+    std::fs::write(socket_path(runtime.as_path(), instance.as_str()), b"listening").expect("the socket file the manager leaves");
+    std::fs::remove_dir_all(git_dir.as_path()).expect("the Git directory is gone");
+    let service_name: String = address(&fixture, "no-inherited-manager");
+    let journal: PathBuf = runtime.join("state/monochromatic-git-policy-cli/service").join(instance.as_str());
+    let mut command: Command = super::support::service_command();
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", service_name.as_str(), "--instance", instance.as_str()])
+        .env("XDG_RUNTIME_DIR", runtime.as_path())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let output: std::process::Output = command.output().expect("the service starts and ends");
+    assert!(
+        output.status.success(),
+        "serving nothing is not a failure: {} {}",
+        output.status,
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    assert!(
+        bus.accept().is_err(),
+        "the service was handed the session bus of the process that started it, so a control can reach a real user manager"
+    );
     remove_settled(&fixture);
 }
 

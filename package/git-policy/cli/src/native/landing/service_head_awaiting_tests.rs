@@ -153,7 +153,7 @@ fn a_head_file_that_gives_no_answer_does_not_hold_a_worker() {
 /// ```ts
 /// const [sync, awaited] = bothAnswers(git, repo, own, common, reference);
 /// ```
-fn both_answers(git: &GitContext, repository: &Path, own: &Path, common: &Path, reference: &str) -> (Result<bool, FailureCode>, Result<bool, FailureCode>) {
+fn both_answers(git: &GitContext, repository: &Path, own: &Path, common: &Path, reference: &crate::ref_name::RefName) -> (Result<bool, FailureCode>, Result<bool, FailureCode>) {
     let synchronous: Result<bool, FailureCode> = still_checked_out(git, repository, own, common, reference);
     let awaited: Result<bool, FailureCode> =
         crate::lazy_runtime::run_on_runtime(still_checked_out_awaiting(git, repository, own, common, reference)).expect("the runtime");
@@ -181,13 +181,13 @@ fn the_awaited_head_questions_answer_what_the_synchronous_ones_answer() {
     let common: PathBuf = repo.join(".git");
     let context: GitContext = git_context();
     for reference in ["refs/heads/main", "refs/heads/other", "HEAD"] {
-        let (synchronous, awaited) = both_answers(&context, repo.as_path(), common.as_path(), common.as_path(), reference);
+        let (synchronous, awaited) = both_answers(&context, repo.as_path(), common.as_path(), common.as_path(), &crate::ref_name::RefName::from_text(reference));
         assert_eq!(synchronous, awaited, "the two faces answer one thing about {reference} in a worktree on a branch");
     }
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     git(repo.as_path(), &["checkout", "--quiet", "--detach", head.as_str()]);
     for reference in ["refs/heads/main", "HEAD"] {
-        let (synchronous, awaited) = both_answers(&context, repo.as_path(), common.as_path(), common.as_path(), reference);
+        let (synchronous, awaited) = both_answers(&context, repo.as_path(), common.as_path(), common.as_path(), &crate::ref_name::RefName::from_text(reference));
         assert_eq!(synchronous, awaited, "the two faces answer one thing about {reference} in a worktree with a detached head");
     }
     // A linked worktree reads its own Git directory, and the two faces read the same one.
@@ -196,7 +196,7 @@ fn the_awaited_head_questions_answer_what_the_synchronous_ones_answer() {
     git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("a path"), "linked-branch"]);
     let own: PathBuf = common.join("worktrees").join("linked");
     for reference in ["refs/heads/linked-branch", "refs/heads/main", "HEAD"] {
-        let (synchronous, awaited) = both_answers(&context, linked.as_path(), own.as_path(), common.as_path(), reference);
+        let (synchronous, awaited) = both_answers(&context, linked.as_path(), own.as_path(), common.as_path(), &crate::ref_name::RefName::from_text(reference));
         assert_eq!(synchronous, awaited, "the two faces answer one thing about {reference} in a linked worktree");
     }
     remove(root.as_path());
@@ -236,7 +236,7 @@ fn a_head_question_whose_git_must_be_asked_is_answered_inside_a_task() {
     let awaiting_common: PathBuf = common.clone();
     let awaiting_head: String = head.clone();
     let answered: Result<bool, FailureCode> = runtime.block_on(async move {
-        return follows_move_awaiting(&awaiting_context, awaiting_repository.as_path(), awaiting_own.as_path(), awaiting_common.as_path(), "HEAD", awaiting_head.as_str())
+        return follows_move_awaiting(&awaiting_context, awaiting_repository.as_path(), awaiting_own.as_path(), awaiting_common.as_path(), &crate::ref_name::RefName::from_text("HEAD"), awaiting_head.as_str())
             .await;
     });
     assert_eq!(answered, Ok(true), "the awaited face asks Git for a head no file can answer and the commit it names is the one that moved the branch");
@@ -247,7 +247,7 @@ fn a_head_question_whose_git_must_be_asked_is_answered_inside_a_task() {
     let waiting_head: String = head.clone();
     let refused: Result<bool, FailureCode> = runtime.block_on(async move {
         let asking = tokio::spawn(async move {
-            return follows_move(&waiting, waiting_repository.as_path(), waiting_own.as_path(), waiting_common.as_path(), "HEAD", waiting_head.as_str());
+            return follows_move(&waiting, waiting_repository.as_path(), waiting_own.as_path(), waiting_common.as_path(), &crate::ref_name::RefName::from_text("HEAD"), waiting_head.as_str());
         });
         return asking.await.expect("the task that asks ends");
     });

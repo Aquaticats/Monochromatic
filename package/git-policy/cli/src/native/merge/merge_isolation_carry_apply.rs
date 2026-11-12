@@ -32,12 +32,14 @@
 use crate::lazy_runtime::run_on_runtime;
 /// The decisions a path's layers come to,
 /// and the planning of one path's writes.
-use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktree_awaiting};
+use crate::merge_isolation_carry_plans::{plan_index_awaiting, plan_worktree_awaiting};
 /// What one carried path adds to the report.
 use crate::merge_isolation_carry_notice::Report;
-/// The kept path's line,
-/// and what stands at it.
-use crate::merge_isolation_carry_kept_path::{Staged, index_after, kept_path, staged_of};
+/// Putting one written path into the report the lines are made from.
+use crate::merge_isolation_carry_notice::add_to_the_report;
+/// What the index holds once a step's records are written,
+/// and the entries a command that writes the index would replace.
+use crate::merge_isolation_carry_kept_path::{Staged, index_after, staged_of};
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
@@ -248,7 +250,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
-    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), out).await;
+    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), transaction_id, out).await;
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
@@ -276,7 +278,7 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
             Some(oid) => FileWrite::Bytes(file_form_awaiting(context, root, entry.path.as_slice(), oid).await.map_err(CarryFailure::Failed)?, change.old_mode.clone()),
             None => FileWrite::Remove,
         };
-        steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity) });
+        steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity), keep_the_planned_bytes: false });
     }
     let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Clear, out).await?;
     // A path the write step found newer than its judgement stops the clear: the merge must not run over a checkout this step
@@ -373,6 +375,12 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         //  person's newer decision, not this carry's own write.
         let worktree_is_ours: bool =
             explained(&state, &[captured_object, merged_object, target.as_deref()]) && the_file_git_landed(landed, &standing);
+        // The reading is the only thing that proves the file standing at the path is the one Git's own update wrote, so a path
+        //  it does not name is left as it is and the bytes this carry planned for it are kept beside it and named
+        //  (`merge_isolation_carry_landed.rs`).
+        let keep_the_planned_bytes: bool = worktree_is_ours
+            && crate::merge_isolation_carry_landed::the_write_is_unproven(landed, entry.path.as_slice(), &state, merged_object)
+            && matches!(&worktree, FileWrite::Bytes(_, _));
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
@@ -388,22 +396,13 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         //  would replace: the line about a path the merge deletes names `git rm` only with an entry, and `git add` only where
         //  the index holds no version of the person's.
         let staged: Staged = staged_of(index_after(&index, index_is_ours, current.as_ref()), target.as_deref(), merged_object);
-        if worktree_is_ours {
-            match note {
-                Note::Merged => report.merged.push(entry.path.clone()),
-                Note::Conflict => report.conflicts.push(entry.path.clone()),
-                Note::Kept(why) => report.kept.push(kept_path(entry, change, why, staged)),
-                Note::None => {}
-            }
-        } else {
-            // This layer is someone else's, and the other one is still carried.
-            report.changed.push(entry.path.clone());
-        }
+        add_to_the_report(&mut report, entry, change, note, staged, worktree_is_ours && !keep_the_planned_bytes);
         let written: Step = Step {
             path: entry.path.clone(),
             index: if index_is_ours { index } else { IndexWrite::Leave },
             worktree: if worktree_is_ours { worktree } else { FileWrite::Leave },
             judged: judged_of(&state, identity),
+            keep_the_planned_bytes,
         };
         steps.push(written);
     }
@@ -467,7 +466,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
-    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), out).await;
+    put_back_stranded_takes_awaiting(context, root, git_dir, changes, Some(capture), transaction_id, out).await;
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());
@@ -507,6 +506,7 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
             index: if index_is_ours { index } else { IndexWrite::Leave },
             worktree: if worktree_is_ours { worktree } else { FileWrite::Leave },
             judged: judged_of(&state, identity),
+            keep_the_planned_bytes: false,
         };
         steps.push(put_back);
     }

@@ -16,12 +16,11 @@
 //! ```
 
 use crate::worktree_copy_error::raw_failure_of;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{by_repository_path_order, filesystem_path, join_repository_path};
 use crate::worktree_copy_vanished_entry::{lstat_or_absent, names_or_absent};
-use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -102,33 +101,55 @@ struct WalkItem {
 }
 
 /// What:
-///  The copy kind of one no-follow filesystem entry,
-///  or the failure for a socket,
-/// FIFO or device node.
+///  The ignored entries a walk left out,
+/// by why.
 /// Why:
-///   Only three kinds can be copied;
-/// anything else must fail before it is opened.
+///   A copy cannot hold what another checkout cannot read and cannot hold a socket,
+/// a named pipe or a device node;
+/// the walk names each of them so one line can say what the new worktree lacks,
+/// and no two kinds share a sentence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryKind({ stats, path }): WorktreeCopyEntryKind;
+/// type LeftOut = { unreadable: Uint8Array[]; uncopiable: Uint8Array[] };
 /// ```
-fn entry_kind(file_type: std::fs::FileType, path: &Path) -> Result<EntryKind, WorktreeCopyError> {
-    // `if` chains keep each supported kind next to its name; the last branch refuses the rest.
+#[derive(Debug, Default)]
+pub struct LeftOut {
+    /// The entries the running user cannot read.
+    pub unreadable: Vec<Vec<u8>>,
+    /// The entries of a kind no copy of a checkout can hold:
+    /// sockets,
+    /// FIFOs and device nodes.
+    pub uncopiable: Vec<Vec<u8>>,
+}
+
+/// What:
+///  The copy kind of one no-follow filesystem entry,
+///  or nothing for a socket,
+/// FIFO or device node.
+/// Why:
+///   Only three kinds can be copied;
+/// anything else is left out of the walk before it is opened,
+/// because a
+///  socket,
+/// a named pipe and a device node belong to one running system and mean nothing in another worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function entryKind({ stats }): WorktreeCopyEntryKind | undefined;
+/// ```
+fn entry_kind(file_type: std::fs::FileType) -> Option<EntryKind> {
+    // `if` chains keep each supported kind next to its name; the last branch answers that nothing can hold it.
     if file_type.is_dir() {
-        return Ok(EntryKind::Directory);
+        return Some(EntryKind::Directory);
     }
     if file_type.is_file() {
-        return Ok(EntryKind::File);
+        return Some(EntryKind::File);
     }
     if file_type.is_symlink() {
-        return Ok(EntryKind::Symlink);
+        return Some(EntryKind::Symlink);
     }
-    let message: String = format!(
-        "monochromatic-git-policy-cli: ignored path {} has unsupported filesystem type.",
-        quote(path.to_string_lossy().as_ref())
-    );
-    return Err(failure_with_cause(message.as_str(), None));
+    return None;
 }
 
 /// What:
@@ -224,29 +245,29 @@ pub fn collect_entry_manifest(
     selected_roots: &[Vec<u8>],
     excluded_roots: &[PathBuf],
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut skipped: Vec<Vec<u8>> = Vec::new();
-    return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut skipped, &CopyCeiling::unbounded());
+    let mut left_out: LeftOut = LeftOut::default();
+    return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut left_out, &CopyCeiling::unbounded());
 }
 
 /// What:
 ///  The manifest of a set of selected roots under a leave-out rule,
-/// with the unreadable entries it left out.
+/// with the entries it left out and why.
 /// Why:
 ///   A copy from a main checkout leaves out caches and other checkouts,
 /// and never fails over an entry the user cannot
-///  read;
+///  read or one no worktree can hold;
 /// the caller reports those so the person sees what the new worktree lacks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function collectPrunedManifest({ root, selectedRoots, excludedRoots, prune, skipped }): Promise<readonly WorktreeCopyEntry[]>;
+/// async function collectPrunedManifest({ root, selectedRoots, excludedRoots, prune, leftOut }): Promise<readonly WorktreeCopyEntry[]>;
 /// ```
 pub fn collect_pruned_manifest(
     root: &Path,
     selected_roots: &[Vec<u8>],
     excluded_roots: &[PathBuf],
     prune: Prune,
-    unreadable: &mut Vec<Vec<u8>>,
+    left_out: &mut LeftOut,
     ceiling: &CopyCeiling,
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     // The stack is filled in reverse so the lexically first root is popped first.
@@ -272,9 +293,12 @@ pub fn collect_pruned_manifest(
         let Some(metadata) = lstat_or_absent(item.filesystem_path.as_path())? else {
             continue;
         };
-        let kind: EntryKind = entry_kind(metadata.file_type(), item.filesystem_path.as_path())?;
+        let Some(kind) = entry_kind(metadata.file_type()) else {
+            left_out.uncopiable.push(item.relative_path.clone());
+            continue;
+        };
         if !readable_by_user(item.filesystem_path.as_path(), kind) {
-            unreadable.push(item.relative_path.clone());
+            left_out.unreadable.push(item.relative_path.clone());
             continue;
         }
         if kind != EntryKind::Directory {

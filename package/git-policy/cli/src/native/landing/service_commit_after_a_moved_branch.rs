@@ -123,7 +123,7 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
         reissued_line,
         unlanded,
     } = input;
-    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+    let branch: String = ready.reference.short().spoken();
     if amended.is_some() {
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
             return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));

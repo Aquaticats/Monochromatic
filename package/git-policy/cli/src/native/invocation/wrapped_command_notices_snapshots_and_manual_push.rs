@@ -39,7 +39,7 @@ use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
-use crate::worktree_trash_dispose::name_unaccounted_trash;
+use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
 use crate::policy_audited::record_audited;
@@ -177,11 +177,13 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
     // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
     // is one no service will empty, and nothing else mentions it.
+    // A record that scan writes is work only a woken service looks at, so the scan tells the service exactly as a
+    //  hand-over does, once for the command.
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr);
+        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr, &crate::held_push_release_wakes_the_service::AskTheService { context: &context });
     }
     // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
     //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
@@ -408,6 +410,35 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
         }
     }
     return None;
+}
+
+/// What:
+///  Removes the shadow pool of every worktree Git no longer lists,
+///  before the command runs.
+/// Why:
+///  A worktree removed by a route this program cannot see
+/// (`git worktree prune`,
+/// a registration deleted by hand)
+///  leaves the pool its commits filled,
+///  and that pool is named after the worktree's own Git directory:
+///  no commit can claim a member once the directory is gone
+/// (`shadow_pool.rs`,
+/// `sweep_gone_worktrees`).
+///  The command is the named event that collects it,
+/// so the next command in the repository removes what the prune left,
+///  and no timer and no age is needed for a folder that is provably dead.
+///  It reads the common directory and the pool folder and starts no Git,
+///  so a command that has no pool pays one `read_dir` that finds nothing.
+///  A folder that cannot be removed is left for the next command:
+///  nothing here can fail the command the person asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweepShadowPoolsOfGoneWorktrees(checks); // unknown folders and live worktrees stay
+/// ```
+pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) {
+    let Some(common_dir) = checks.facts.known_common_dir() else { return };
+    let _removed: Vec<PathBuf> = crate::shadow_pool::sweep_gone_worktrees(common_dir.as_path());
 }
 
 /// What:

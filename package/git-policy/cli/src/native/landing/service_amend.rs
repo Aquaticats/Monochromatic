@@ -16,16 +16,22 @@
 //! A commit with a header the amend would have to carry (another encoding,
 //! a merge
 //!  tag) returns nothing and native Git handles the line.
+//! The reading has two faces:
+//! the synchronous one a caller on a thread asks (`read_amend_source`),
+//! and the awaited one a task of the runtime
+//!  asks (`read_amend_source_awaiting`),
+//! which awaits every Git question on the runtime.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const source = await readAmendSource(context, cwd); // undefined when native git must amend
+//! const source = await readAmendSourceAwaiting(context, cwd); // undefined when native git must amend
 //! ```
 
 use crate::commit_transaction::{TransactionStop, failed};
 use crate::service_commit_args::ServiceCommitArgs;
 use crate::service_message::{author_overrides, identity};
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
 /// What an amend reads from the commit it replaces.
@@ -108,13 +114,41 @@ pub fn parse_stored_commit(raw: &str) -> Option<StoredCommit> {
     return Some(StoredCommit { parents, author: author?, message: message.to_string() });
 }
 
-/// The text of a Git query that must succeed for the line to be covered.
-fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, TransactionStop> {
-    let output = match run_git(context, &GitRequest::new(cwd, arguments)) {
+/// What:
+///  The text of a Git query that must succeed for the line to be covered,
+///  as both faces read Git's answer.
+/// Why:
+///   A problem that is not the line's own is the stop the amend ends with,
+/// and a query Git could not start and one Git
+///  answered with a failure both cover nothing,
+/// so the two faces cannot differ in which commit they carry over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function queryAnswered(answered) { if (answered.error) throw failed(`reading the commit to amend failed: ${answered.error}`); return answered.code === 0 ? answered.out : undefined; }
+/// ```
+fn query_answered(answered: std::io::Result<GitOutput>) -> Result<Option<String>, TransactionStop> {
+    let output: GitOutput = match answered {
         Ok(finished) => finished,
         Err(error) => return Err(failed(format!("reading the commit to amend failed: {error:?}"))),
     };
     return Ok(if output.code == Some(0) { String::from_utf8(output.stdout).ok() } else { None });
+}
+
+/// The question one query asks Git,
+/// which both faces ask.
+fn query_request(cwd: &Path, arguments: &[&str]) -> GitRequest {
+    return GitRequest::new(cwd, arguments);
+}
+
+/// The text of a Git query that must succeed for the line to be covered.
+fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, TransactionStop> {
+    return query_answered(run_git(context, &query_request(cwd, arguments)));
+}
+
+/// `query` with its Git child awaited on the runtime.
+async fn query_awaiting(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, TransactionStop> {
+    return query_answered(run_git_awaiting(context, &query_request(cwd, arguments)).await);
 }
 
 /// What:
@@ -139,6 +173,39 @@ pub fn read_amend_source(context: &GitContext, cwd: &Path) -> Result<Option<Amen
     let parent_tree: Option<String> = match stored.parents.first() {
         Some(parent) => {
             let Some(tree) = query(context, cwd, &["rev-parse", "--verify", "--quiet", format!("{parent}^{{tree}}").as_str()])? else {
+                return Ok(None);
+            };
+            Some(tree.trim().to_string())
+        }
+        None => None,
+    };
+    return Ok(Some(AmendSource { base, parents: stored.parents, parent_tree, author: stored.author, message: stored.message }));
+}
+
+/// What:
+///  `read_amend_source` with its three Git questions awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child
+/// (`transaction_git_awaiting.rs`),
+/// and the amend's source is read on the
+///  commit path once that path is a task.
+/// The order of the questions,
+/// the base they are all asked about and what each answer
+///  covers are the synchronous face's,
+/// so the two cannot carry over different commits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const source = await readAmendSourceAwaiting(context, cwd)
+/// ```
+pub async fn read_amend_source_awaiting(context: &GitContext, cwd: &Path) -> Result<Option<AmendSource>, TransactionStop> {
+    let Some(named) = query_awaiting(context, cwd, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).await? else { return Ok(None) };
+    let base: String = named.trim().to_string();
+    let Some(raw) = query_awaiting(context, cwd, &["cat-file", "commit", base.as_str()]).await? else { return Ok(None) };
+    let Some(stored) = parse_stored_commit(raw.as_str()) else { return Ok(None) };
+    let parent_tree: Option<String> = match stored.parents.first() {
+        Some(parent) => {
+            let Some(tree) = query_awaiting(context, cwd, &["rev-parse", "--verify", "--quiet", format!("{parent}^{{tree}}").as_str()]).await? else {
                 return Ok(None);
             };
             Some(tree.trim().to_string())
@@ -207,3 +274,8 @@ pub fn amended_author(context: &GitContext, cwd: &Path, source: &AmendSource, pa
 #[cfg(test)]
 #[path = "service_amend_tests.rs"]
 mod tests;
+
+/// Controls for the awaited reading of the amend's source stay out of the release executable.
+#[cfg(test)]
+#[path = "service_amend_awaiting_tests.rs"]
+mod awaiting_tests;

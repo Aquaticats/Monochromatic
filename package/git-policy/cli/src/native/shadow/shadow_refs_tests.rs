@@ -76,7 +76,7 @@ fn packed_refs_skip_the_target_and_symbolic_refs() {
         },
     ];
     assert_eq!(
-        format_packed_refs(&refs, "refs/heads/main"),
+        format_packed_refs(&refs, &crate::ref_name::RefName::from_text("refs/heads/main")),
         b"# pack-refs with: sorted \n2222222222222222222222222222222222222222 refs/tags/v1\n".to_vec()
     );
 }
@@ -111,8 +111,8 @@ fn files_shadow_snapshots_refs_and_points_head_at_the_branch() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
@@ -143,8 +143,8 @@ fn a_files_snapshot_writes_every_ref_without_a_git_start() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
@@ -171,7 +171,7 @@ fn a_files_detached_head_is_written_where_git_reads_it() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/main",
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
         &SymbolicHead::Detached,
         &Base::Commit(head.clone()),
     )
@@ -199,8 +199,8 @@ fn a_files_target_that_is_a_symbolic_ref_is_written_at_the_end_of_its_chain() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/alias",
-        &SymbolicHead::Branch(String::from("refs/heads/alias")),
+        &crate::ref_name::RefName::from_text("refs/heads/alias"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/alias")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
@@ -227,8 +227,8 @@ fn the_files_snapshot_is_not_synced() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head),
     )
     .expect("refs");
@@ -249,7 +249,7 @@ fn detached_shadow_head_is_the_base() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "HEAD",
+        &crate::ref_name::RefName::from_text("HEAD"),
         &SymbolicHead::Detached,
         &Base::Commit(head.clone()),
     )
@@ -275,7 +275,7 @@ fn detached_without_a_base_fails() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "HEAD",
+        &crate::ref_name::RefName::from_text("HEAD"),
         &SymbolicHead::Detached,
         &Base::Unborn,
     )
@@ -297,8 +297,8 @@ fn unborn_branch_has_no_target_ref() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Unborn,
     )
     .expect("refs");
@@ -327,8 +327,8 @@ fn reftable_shadow_snapshots_refs_in_one_transaction() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Reftable,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
@@ -396,8 +396,8 @@ fn the_files_snapshot_keeps_a_name_that_is_not_text() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Files,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");
@@ -416,8 +416,8 @@ fn the_reftable_snapshot_keeps_a_name_that_is_not_text() {
         repo.as_path(),
         shadow.as_path(),
         RefFormat::Reftable,
-        "refs/heads/main",
-        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &crate::ref_name::RefName::from_text("refs/heads/main"),
+        &SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
         &Base::Commit(head.clone()),
     )
     .expect("refs");

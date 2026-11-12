@@ -283,17 +283,25 @@ pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Resu
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rm(path, { force: true }); // no syncDirectory: the next command settles a record this brought back
+/// await rm(recordPath); await rm(landedOf(recordPath)); await rm(writingOf(recordPath)); // no syncDirectory: the next command settles a record this brought back
 /// ```
 pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
+    // The record goes first. A kill between the removals then leaves a reading whose record is gone, which no command reads, and
+    //  never a record whose reading is gone: a merge record that outlived its reading is settled by bytes alone, and a save made
+    //  after a crash holds the merge's own bytes, so it is replaced with the older layer the merge captured
+    //  (`merge_isolation_carry_landed.rs`).
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        // A removal that failed leaves the reading beside the record it belongs to, so the next command settles the same merge.
+        Err(error) => return Err(error),
+    }
     // What Git's update left travels beside the record, so it goes with it: a reading that outlived its merge would name a
-    //  checkout state the next command never made (`merge_isolation_carry_landed.rs`).
+    //  checkout state the next command never made (`merge_isolation_carry_landed.rs`). The private name of a write that was
+    //  killed before its rename goes with them.
     let _landed: Result<(), _> = std::fs::remove_file(path.with_extension("landed"));
-    return match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    };
+    let _writing: Result<(), _> = std::fs::remove_file(path.with_extension("landed.writing"));
+    return Ok(());
 }
 
 /// What:

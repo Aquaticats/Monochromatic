@@ -9,7 +9,7 @@
 
 use super::support::{Edit, Plan, Scene, copy_of, entry_of, finish, landing_reset, named, scene, stat_of_file};
 use super::*;
-use crate::commit_index_stat_staleness::{WorktreeStaging, index_stat_data_needs_refresh};
+use crate::commit_index_stat_staleness::{StaleStatData, WorktreeStaging, stale_stat_data};
 use crate::index_stat::StatData;
 use crate::test_support::{age, git_context, git_output};
 use std::path::{Path, PathBuf};
@@ -61,11 +61,12 @@ fn real_index(repo: &Path) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stale = indexStatDataNeedsRefresh({ context, cwd: repo, index: realIndex(repo), staging: { named: paths } });
+/// const stale = staleStatData({ context, cwd: repo, index: realIndex(repo), staging: { named: paths } }) !== 'current';
 /// ```
 fn needs_refresh_for(repo: &Path, typed: &[&str]) -> bool {
     let owned: Vec<std::ffi::OsString> = typed.iter().map(|path| { return std::ffi::OsString::from(*path); }).collect();
-    return index_stat_data_needs_refresh(&git_context(), repo, real_index(repo).as_path(), WorktreeStaging::Named(owned.as_slice()));
+    let answer: StaleStatData = stale_stat_data(&git_context(), repo, real_index(repo).as_path(), WorktreeStaging::Named(owned.as_slice()));
+    return !matches!(answer, StaleStatData::Current);
 }
 
 /// A scene whose second commit changes `a` from `a one` to `a two`,

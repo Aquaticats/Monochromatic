@@ -133,7 +133,9 @@ pub(crate) fn record_scratch_ref(journal: &Path, seq: u64, repository: &Path, gi
         //  the same worktree: nothing is written a second time.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => crate::service_warn!(
-            "batch {seq}: the record of its scratch reference could not be written to {} ({error}), so a kill before its intent would leave that reference with nothing to find it by",
+            "batch {seq} {}: the record of its scratch reference could not be written to {} ({error}), so a kill before its intent would leave \
+that reference with nothing to find it by",
+            crate::service_timing::in_the_repository_at(repository),
             path.display()
         ),
     }

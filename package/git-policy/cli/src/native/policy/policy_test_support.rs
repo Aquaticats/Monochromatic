@@ -25,6 +25,8 @@ use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
+use crate::rule_linked_worktree::GuardedCommand;
+use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::rule_worktree_dirty::DirtyScope;
 /// The image's real Git,
 ///  which prepares candidates for scripted facts.
@@ -45,6 +47,9 @@ pub(crate) struct ScriptedFacts {
     pub(crate) index: Result<IndexVsHead, String>,
     /// The answer to `sequencer_state`.
     pub(crate) sequencer: Result<SequencerState, String>,
+    /// The answer to `abort_discard`,
+    ///  whatever the command.
+    pub(crate) abort_discard: Result<AbortDiscard, String>,
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
@@ -59,9 +64,6 @@ pub(crate) struct ScriptedFacts {
     /// The paths the same clean names without those patterns;
     ///  the whole answer is the same when the query carries none.
     pub(crate) clean_deletes_without_exclusions: Result<Vec<Vec<u8>>, String>,
-    /// The lines of the same clean's dry run written with one force,
-    ///  which name the nested repositories that force keeps.
-    pub(crate) clean_keeps_with_one_force: Result<Vec<Vec<u8>>, String>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -150,11 +152,6 @@ impl RepositoryFacts for ScriptedFacts {
         return self.clean_deletes_without_exclusions.clone();
     }
 
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        self.asked.push(format!("clean-would-keep:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        return self.clean_keeps_with_one_force.clone();
-    }
-
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         self.asked.push(format!(
             "ignored-and-tracked:{}",
@@ -171,6 +168,11 @@ impl RepositoryFacts for ScriptedFacts {
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         self.asked.push(String::from("sequencer"));
         return self.sequencer.clone();
+    }
+
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        self.asked.push(format!("abort-discard:{command:?}"));
+        return self.abort_discard.clone();
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
@@ -276,6 +278,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         location: Ok(main_worktree("/r", "")),
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
+        abort_discard: Ok(AbortDiscard::NothingWaiting),
         dirty: Ok(false),
         selection: Ok(StagedSelection {
             selected: 0,
@@ -290,7 +293,6 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         ignored_and_tracked: Ok(Vec::<String>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
-        clean_keeps_with_one_force: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

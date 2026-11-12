@@ -119,7 +119,7 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
     let named: [OsString; 1] = [OsString::from("b.txt")];
     let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
-    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: true }]);
     let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
     assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the build kept the stat data it reported: {listing}");
@@ -228,7 +228,7 @@ fn a_first_build_keeps_a_tracked_file_whose_mark_equals_the_base() {
     std::fs::write(repo.join("a.txt"), "a changed\n").expect("change a");
     let named: [OsString; 1] = [OsString::from("a.txt")];
     let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
-    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
     let written: String = write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path()).expect("tree");
     assert_eq!(
         git_text(repo.as_path(), &["ls-tree", "-r", written.as_str(), "--", "b.txt", "empty"]),
@@ -265,7 +265,7 @@ fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
     let root: PathBuf = fixture("index-builds-index-mode");
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
-    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index(base.as_str()))
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index(base.as_str()))
         .expect("initialize");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: true }]);
     let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
@@ -289,7 +289,7 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
         object_directory: repo.join(".git").join("objects"),
     };
     assert!(!repo.join(".git").join("index").exists(), "a repository nothing was staged in holds no index");
-    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index("HEAD"))
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index("HEAD"))
         .expect("initialize");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: false }]);
     remove(root.as_path());
@@ -307,7 +307,7 @@ fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
     let named: [OsString; 1] = [OsString::from("b.txt")];
     let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
-    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: true }]);
     let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
     assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the copy holds the real index's stat data: {listing}");

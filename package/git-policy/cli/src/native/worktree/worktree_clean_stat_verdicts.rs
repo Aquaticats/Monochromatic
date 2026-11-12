@@ -16,7 +16,7 @@
 //! ```
 
 use crate::subvolume_index::{StatFields, StoredStat};
-use crate::subvolume_index_files::{fields_of, matches_stored};
+use crate::subvolume_index_files::{fields_of, matches_stored, matches_stored_exactly};
 use std::os::unix::fs::MetadataExt;
 
 /// The flags bit of an index entry that tells Git to trust the file without looking (`CE_VALID`).
@@ -166,10 +166,18 @@ pub enum StatVerdict {
     /// Size,
     /// times,
     /// inode,
-    /// type and mode all equal the entry.
+    /// type and mode all equal the entry,
+    /// each nanosecond count the entry recorded equal to the
+    ///  file's own,
+    /// so no field was matched as a wildcard and the entry names the bytes the file holds.
     Agrees,
     /// The stat data proves nothing either way;
     /// the content decides.
+    /// A count the entry recorded as zero,
+    ///  which a file whose own count is not zero cannot equal,
+    /// is one way here:
+    /// a Git built without
+    ///  nanosecond support wrote it for a time it could not express.
     Unproven(String),
     /// The file certainly differs:
     /// missing type,
@@ -178,7 +186,9 @@ pub enum StatVerdict {
 }
 
 /// What:
-///  What the stat data of the entry says about a file whose metadata is `metadata`.
+///  What the stat data of the entry says about a file whose metadata is `metadata`,
+/// for a caller deciding whether the
+///  content has to be read.
 /// Why:
 ///   The comparison takes the metadata of an inode already in hand,
 /// so a caller that holds a descriptor judges the file it
@@ -187,6 +197,13 @@ pub enum StatVerdict {
 /// Type and executable bit come before the time checks:
 /// they differ
 ///  whatever the content is.
+/// An entry whose recorded nanosecond count the file does not equal is unproven,
+/// not agreed,
+///  even when every other field agrees:
+/// zero is what a Git built without nanosecond support wrote for a time it could
+///  not express,
+/// and zero matches any present count,
+/// so only the content tells what the file holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,9 +211,13 @@ pub enum StatVerdict {
 /// ```
 pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> StatVerdict {
     return match stat_finding(entry, metadata, index_seconds) {
-        None => StatVerdict::Agrees,
         Some(CleanRefusal { kind: CleanRefusalKind::Racy | CleanRefusalKind::StatStale, reason }) => StatVerdict::Unproven(reason),
         Some(refusal) => StatVerdict::Differs(refusal.reason),
+        None if matches_stored_exactly(&fields_of(metadata), &entry.stored) => StatVerdict::Agrees,
+        None => StatVerdict::Unproven(format!(
+            "{} is recorded without the nanoseconds the file has, so only its content can prove which bytes it holds",
+            String::from_utf8_lossy(entry.path.as_slice())
+        )),
     };
 }
 
@@ -206,8 +227,14 @@ pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_s
 /// or nothing
 ///  when they agree.
 /// Why:
-///   One comparison serves the verdict that callers of the stat-only checks use and the kind that the snapshot rung decides
-///  by.
+///   One comparison serves the stat-only checks,
+/// whose kind the snapshot rung decides by,
+/// and it reads the recorded
+///  fields the way Git does:
+/// a count it recorded as zero matches any present count.
+/// A caller deciding whether
+///  the content must be read uses `metadata_verdict`,
+/// which does not take such an entry as proof.
 /// Type and executable bit come before the time checks:
 /// they differ whatever the content is.
 ///

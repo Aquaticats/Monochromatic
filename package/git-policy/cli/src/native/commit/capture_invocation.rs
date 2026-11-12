@@ -27,6 +27,8 @@ use crate::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
 use crate::ref_files::{RefFilesLayout, read_symbolic_head};
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
 /// The in-process repository layout,
 /// tried before the `rev-parse` report,
 ///  and the report shape it answers with.
@@ -50,6 +52,8 @@ use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 /// The answers of one report,
 ///  and the pathname each of them names.
 use crate::git_report_answers::{absolute_reported, answers_of, object_format_of};
+/// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
+use std::ffi::{OsStr, OsString};
 /// `PathBuf` is an owned filesystem path.
 use std::path::{Path, PathBuf};
 
@@ -70,8 +74,9 @@ pub struct InvocationLayout {
     pub symbolic_head: SymbolicHead,
     /// Ref the landing advances by compare-and-swap:
     ///  the branch,
-    ///  or `HEAD` when detached.
-    pub target_ref: String,
+    ///  or `HEAD` when detached,
+    ///  by the bytes Git printed for its name.
+    pub target_ref: RefName,
     /// Commit kind deciding moved-target behavior.
     pub conclusion: Conclusion,
     /// Canonical worktree root.
@@ -153,7 +158,7 @@ fn decoded_trimmed(output: &GitOutput) -> Result<String, GitFailure> {
 /// ```ts
 /// runTransactionGit({ gitPath, cwd, args, repository: selection({ cwd, globalPrefix }) })
 /// ```
-fn transaction_request(context: &GitContext, cwd: &Path, arguments: &[&str]) -> GitRequest {
+fn transaction_request<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(cwd, arguments);
     request.without_prefix = true;
     request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
@@ -171,13 +176,17 @@ fn transaction_request(context: &GitContext, cwd: &Path, arguments: &[&str]) -> 
 /// ```ts
 /// await runTransactionGit({ gitPath, cwd, args, allowFailure: true })
 /// ```
-fn probe(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitOutput, GitFailure> {
+fn probe<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> Result<GitOutput, GitFailure> {
     return match run_git(context, &transaction_request(context, cwd, arguments)) {
         Ok(output) => Ok(output),
-        Err(error) => Err(GitFailure(format!(
-            "git {} could not start: {error}",
-            arguments.join(" ")
-        ))),
+        Err(error) => {
+            // The words are a message here, so a name that is not text is shown as the shell reads it back.
+            let mut shown: Vec<String> = Vec::with_capacity(arguments.len());
+            for argument in arguments {
+                shown.push(crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(argument.as_ref())));
+            }
+            Err(GitFailure(format!("git {} could not start: {error}", shown.join(" "))))
+        }
     };
 }
 
@@ -190,7 +199,7 @@ fn probe(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitOutp
 /// ```ts
 /// await runTransactionGit({ gitPath, cwd, args })
 /// ```
-fn required(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<GitOutput, GitFailure> {
+fn required<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> Result<GitOutput, GitFailure> {
     return run_git_checked(context, &transaction_request(context, cwd, arguments));
 }
 
@@ -417,7 +426,9 @@ pub fn resolve_symbolic_head(
             String::from_utf8_lossy(output.stderr.as_slice()).trim()
         )));
     }
-    return Ok(SymbolicHead::Branch(decoded_trimmed(&output)?));
+    // The name is the bytes Git printed: a branch name is a byte string, and a reading that replaced a byte
+    //  would name another ref (`ref_name.rs`).
+    return Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_git_output(output.stdout.as_slice())));
 }
 
 /// What:
@@ -431,9 +442,11 @@ pub fn resolve_symbolic_head(
 /// ```ts
 /// await resolveRefCommit({ gitPath, cwd, ref });
 /// ```
-pub fn resolve_ref_commit(context: &GitContext, cwd: &Path, reference: &str) -> Result<Base, GitFailure> {
-    let peeled: String = format!("{reference}^{{commit}}");
-    let output: GitOutput = probe(context, cwd, &["rev-parse", "--verify", "--quiet", peeled.as_str()])?;
+pub fn resolve_ref_commit(context: &GitContext, cwd: &Path, reference: &RefName) -> Result<Base, GitFailure> {
+    // The question is the one spelling the in-process readers answer, `<ref>^{commit}`, and both halves are bytes.
+    let mut peeled: OsString = reference.as_os_str().to_os_string();
+    peeled.push("^{commit}");
+    let output: GitOutput = probe(context, cwd, &[OsString::from("rev-parse"), OsString::from("--verify"), OsString::from("--quiet"), peeled])?;
     if output.code != Some(0) {
         return Ok(Base::Unborn);
     }
@@ -546,9 +559,9 @@ pub fn capture_invocation_layout(
         object_format: object_format.as_str(),
     };
     let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd, &ref_files)?;
-    let target_ref: String = match &symbolic_head {
+    let target_ref: RefName = match &symbolic_head {
         SymbolicHead::Branch(reference) => reference.clone(),
-        SymbolicHead::Detached => String::from("HEAD"),
+        SymbolicHead::Detached => RefName::from_text("HEAD"),
     };
     let empty_tree_oid: String = resolve_empty_tree(context, cwd, object_format.as_str())?;
     let repository_root: PathBuf = match std::fs::canonicalize(report.top_level.as_path()) {
@@ -589,7 +602,7 @@ pub fn capture_invocation_base(
     cwd: &Path,
     layout: InvocationLayout,
 ) -> Result<InvocationCapture, GitFailure> {
-    let base: Base = resolve_ref_commit(context, cwd, layout.target_ref.as_str())?;
+    let base: Base = resolve_ref_commit(context, cwd, &layout.target_ref)?;
     return Ok(InvocationCapture { base, layout });
 }
 

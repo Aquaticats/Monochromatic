@@ -100,6 +100,26 @@ export function goesToCratesIo(version: string): boolean {
 }
 
 /**
+ Say whether a version is an alpha, the label the owner's standing rule of 2026-11-11 exempts from the work a release
+ otherwise does.
+
+ The predicate is `releaseLabel` itself, so the pipeline never decides what an alpha is a second time: a version the
+ label rule does not name is not an alpha, whatever it looks like.
+
+ @param version - version text
+
+ @returns true for `-alpha.N` only; false for `-beta.N`, `-rc.N`, a plain number and every form the rule does not name
+
+ @example
+ ```ts
+ isAlphaVersion('0.2.7-alpha.1');
+ ```
+ */
+export function isAlphaVersion(version: string): boolean {
+  return releaseLabel(version) === 'alpha';
+}
+
+/**
  Where a version goes with respect to crates.io: there, or only to GitHub releases with the reason why not.
  */
 export type CratesIoRoute =

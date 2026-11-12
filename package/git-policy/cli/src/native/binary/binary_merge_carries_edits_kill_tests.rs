@@ -136,7 +136,7 @@ fn unsaved_text() -> String {
 
 /// A merge paused at one phase,
 /// with the directory its markers are written to.
-struct Paused {
+pub(super) struct Paused {
     /// The merge waiting for its release.
     child: Child,
     /// Where the marker and the release file go.
@@ -145,7 +145,7 @@ struct Paused {
 
 /// Start a merge that stops at one phase,
 /// with the marker written and the merge waiting.
-fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
+pub(super) fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
     let markers: PathBuf = fixture.root.join(format!("markers-{phase}-{}", std::process::id()));
     std::fs::create_dir(&markers).expect("marker directory");
     let signal: String = format!("{phase}:pause:{}", markers.display());
@@ -174,14 +174,14 @@ impl Paused {
     }
 
     /// Let the merge go on and read everything it said.
-    fn released(self, phase: &str) -> Output {
+    pub(super) fn released(self, phase: &str) -> Output {
         std::fs::write(self.markers.join(format!("{phase}.release")), b"").expect("the release file");
         return self.child.wait_with_output().expect("the merge ends");
     }
 }
 
 /// A repository whose `a.txt` holds the person's unsaved line after `main`'s own text.
-fn edited(fixture: &Fixture, name: &str) -> PathBuf {
+pub(super) fn edited(fixture: &Fixture, name: &str) -> PathBuf {
     let repo: PathBuf = diverged(fixture, name);
     std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", on_main_a())).expect("the person's edit");
     return repo;

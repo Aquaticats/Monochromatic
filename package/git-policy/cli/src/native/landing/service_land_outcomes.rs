@@ -7,8 +7,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type Outcome = { kind: 'landed', commit: string } | { kind: 'held', commit: string, words: string } | { kind: 'retry-prepare', base: string } | { kind: 'branch-moved' };
-//! const ignoreAnnouncements = { announce: (_note: Announce) => {} };
+//! type Outcome = { kind: 'landed', commit: string } | { kind: 'held', commit: string, words: string } | { kind: 'retry-prepare', base: string } | { kind: 'branch-moved' } | { kind: 'client-gone' };
+//! const ignoreAnnouncements = { announce: (_note: Announce) => {}, clientIsGone: (_place: number) => false };
 //! ```
 
 use crate::service_index_lock::{Announce, Announcer};
@@ -38,6 +38,11 @@ pub enum Outcome {
     /// whose parents are the base's parents,
     /// found the branch somewhere else than at its base.
     BranchMoved,
+    /// The client of the request went away before its commit landed,
+    /// so the commit was not made:
+    /// nothing reads an answer,
+    /// and a commit exists for the person who asked for it.
+    ClientGone,
 }
 
 /// What:
@@ -47,7 +52,7 @@ pub enum Outcome {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ignoreAnnouncements = { announce: (_note: Announce) => {} };
+/// const ignoreAnnouncements = { announce: (_note: Announce) => {}, clientIsGone: (_place: number) => false };
 /// ```
 pub(crate) struct IgnoreAnnouncements;
 

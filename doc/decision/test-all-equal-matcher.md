@@ -28,7 +28,7 @@ The chain is correct (`toBe` is `===`,
 and fiddly to extend.
 A sweep of all 466 `*.test.ts` files found the pattern in three files,
 concentrated in the two `fs-path` root-finder tests plus one incidental case in
-`package/logger/core/src/sinks/file.unit.test.ts`.
+`package/logger/core/src/sink/file.unit.test.ts`.
 
 Neither JavaScript nor the harness had an "all equal" primitive.
 `===`/`Object.is` and `node:assert` are binary only.

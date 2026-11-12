@@ -74,8 +74,9 @@ re-exports it,
 
 Twenty-seven refusals is the entire precision cost of the over-approximation.
 Half sits in two files:
- `package/pi-plugin/auto-mode/src/signals.ts` with eight and
-`package/rolldown-plugin/import-attributes/src/ast-extract.ts` with five.
+ `package/rolldown-plugin/import-attributes/src/ast-extract.ts` with five,
+ and the eight in `package/pi-plugin/auto-mode/src/signals.ts`,
+ deleted with the auto-mode extension pipeline on 2026-10-17 (`a3955898f1`).
 
 The predicate admits four out of five callables it is asked about,
  so this did not disable the

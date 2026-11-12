@@ -9,6 +9,7 @@ import { labelCases } from './crates-io-version-label-cases.ts';
 import {
   cratesIoRoute,
   goesToCratesIo,
+  isAlphaVersion,
   releaseLabel,
 } from './crates-io-version-label.ts';
 
@@ -74,6 +75,33 @@ await describe({
           },
         });
       }),
+    }),
+    describe({
+      name: isAlphaVersion.name,
+      children: [
+        ...labelCases.map(function alphaCase({
+          version,
+          label,
+        }) {
+          return it({
+            name: `${label === 'alpha' ? 'calls' : 'does not call'} ${JSON.stringify(version)} an alpha`,
+            fn: async () => {
+              expect(isAlphaVersion(version)).toBe(label === 'alpha');
+            },
+          });
+        }),
+        it({
+          name: 'reads the label rule instead of parsing the text itself, so a form the rule does not name is no alpha',
+          fn: async () => {
+            // Each of these spells alpha in a way the label rule refuses, so none of them may buy an alpha's shortcuts:
+            // an alpha skips work that a stable release does, and the rule is the only thing that decides who gets it.
+            for (const version of ['1.0.0-alpha', '1.0.0-alpha.1.2', '1.0.0-Alpha.1', '1.0.0-alpha-1', '1.0.0-rc.1-alpha.2']) {
+              expect(releaseLabel(version)).not.toBe('alpha');
+              expect(isAlphaVersion(version)).toBe(false);
+            }
+          },
+        }),
+      ],
     }),
   ],
 });

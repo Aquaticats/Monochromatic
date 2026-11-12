@@ -88,8 +88,15 @@ impl RepairSwitch {
     /// so the switches are read from the
     ///  arguments themselves:
     /// only the words after `worktree add`,
-    /// up to a lone `--`,
+    /// up to `--` or `--end-of-options`,
     /// and never the value of an option.
+    ///  Both terminators end the options in Git's own `parse-options`,
+    /// and so they do here:
+    /// a destination
+    ///  literally named `--no-checkout` stands after `--end-of-options`,
+    /// where Git checks the worktree out,
+    /// and reading it as
+    ///  the switch would skip the repair of a worktree that has files.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -108,7 +115,9 @@ impl RepairSwitch {
         let mut words = arguments[add_at + 2..].iter();
         while let Some(word) = words.next() {
             let bytes: &[u8] = word.as_encoded_bytes();
-            if bytes == b"--" {
+            // `--` and `--end-of-options` both end Git's options (parse-options.c:1113-1125), as
+            // `src/native/worktree/worktree_add_plan.rs` reads them for the operands of the same command.
+            if bytes == b"--" || bytes == b"--end-of-options" {
                 break;
             }
             let mut takes_value: bool = false;

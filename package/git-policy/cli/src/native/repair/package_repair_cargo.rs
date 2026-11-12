@@ -167,15 +167,20 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
 }
 
 /// What:
-///  The arguments of the clean that removes exactly the members' own artifacts.
+///  The arguments of the clean that removes exactly the members' own artifacts,
+/// for the add's own clean.
 /// Why:
 ///   `--offline` keeps the clean from reaching the network;
 /// one `--package` per member keeps registry and git dependencies.
-///  `--locked` is not used:
+///  `--locked` is not used here:
 /// a committed `Cargo.lock` that no longer matches its manifest (several do here) would make the clean
 ///  fail,
 /// and the person's own clean would not;
-/// the file is put back as checked out instead (`restore_lock`).
+/// the file is put back as checked out instead (`restore_lock`),
+/// which `SPEC.md` records as the reason this stands where the worktree was just made and nobody
+/// has it yet.
+/// The filling of a build directory after the add has returned passes `--locked` instead
+/// (`package_repair_prewarm_job.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,13 +237,15 @@ fn clean_arguments_of(members: &[String], locked: bool) -> Vec<OsString> {
 ///  The command a person runs in a workspace to do what the repair could not.
 /// Why:
 ///   A printed line must work as pasted,
-/// so the directory change is part of it.
+/// so the directory change is part of it,
+/// and the filling of a build directory reports the same command the add's repair does
+/// (`package_repair_prewarm_job.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function manualCommand(root: string, members: string[]): string;
 /// ```
-fn manual_command(root: &Path, members: &[String]) -> String {
+pub fn manual_command(root: &Path, members: &[String]) -> String {
     let mut words: Vec<String> = Vec::new();
     for word in clean_arguments(members) {
         words.push(shell_quote(word.as_encoded_bytes()));

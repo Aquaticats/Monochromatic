@@ -111,6 +111,14 @@ pub enum TransactionStop {
         /// What went wrong.
         message: String,
     },
+    /// The person stopped the command with a signal while it waited for the commit service:
+    /// the message reaches standard error and the command ends the way that signal ends a program.
+    EndedBySignal {
+        /// The signal the person sent.
+        signal: i32,
+        /// What the command says before it ends.
+        message: String,
+    },
 }
 
 impl From<GitFailure> for TransactionStop {

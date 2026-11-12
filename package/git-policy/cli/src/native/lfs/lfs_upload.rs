@@ -13,7 +13,7 @@
 //!  configuration (`doc/planning/cli-git-no-self-invocation.md`).
 //! What to upload is decided in `lfs_upload_plan`.
 //!  The child sees what the caller gave Git:
-//! the global `-c` options travel as `GIT_CONFIG_COUNT` pairs,
+//! the global `-c` and `--config-env` options travel as the entries Git appends to `GIT_CONFIG_PARAMETERS`,
 //! `--git-dir`,
 //!  `--work-tree` and `--namespace` as their variables,
 //! `-C` as the working directory,
@@ -34,14 +34,14 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// the wait a stalled child is ended by,
 /// and the line that says how a longer one is allowed.
 use crate::bounded_push::{
-    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, push_patience, wait_until_done_noting, run_bounded_push,
+    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_patience, wait_until_done_noting, run_bounded_push,
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
 use crate::child_environment::{environment_value, environment_with_overlay, prompting_disabled};
 /// The caller's own command-line configuration,
 /// as the variables the child reads.
-pub use crate::lfs_upload_child_configuration::prefix_variables;
+pub use crate::lfs_command_line_configuration::child_configuration_variables;
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
@@ -56,7 +56,7 @@ use crate::lfs_upload_explanations::{
     stopped_upload_words,
 };
 /// Hides the credentials in a URL of relayed text.
-use crate::lfs_output_mask::mask_userinfo;
+use crate::lfs_output_mask::mask_url_secrets;
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
@@ -212,7 +212,7 @@ fn run_with_captured_stderr(
     if let Err(error) = read {
         return Err(CaptureError::Scratch(error.to_string()));
     }
-    return Ok((ended, mask_userinfo(bytes.as_slice())));
+    return Ok((ended, mask_url_secrets(bytes.as_slice())));
 }
 
 /// What:
@@ -254,7 +254,17 @@ async fn await_upload(
     // The upload leaves no reference lock, so the ledger the stop sweeps is empty.
     let locks: LockLedger = LockLedger::none();
     let patience = push_patience(environment);
-    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None).await {
+    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(
+        &mut child,
+        &[captured],
+        patience,
+        label.as_str(),
+        &mut waits,
+        None,
+        connected_window(environment),
+    )
+    .await
+    {
         // A wait that could not be made at all is this process's own defect, and its words say which.
         Err(wait) => return Err(RunError::Wait(wait.to_string())),
         Ok(finished) => finished,
@@ -311,13 +321,12 @@ pub fn run_upload_interactive(
     // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
     //  failed login says what the wrapper did about prompting.
     let prompting_is_disabled: bool = prompting_disabled(overlay);
-    // What: The child's numbered configuration, settled by the overlay before the caller's own pairs are numbered after it.
-    // Why:  The overlay appends the wrapper's own pair (`core.lockfilePid`) in the next slot; a caller's pair numbered before it
-    //  took that slot and was overwritten, so `-c remote.origin.pushurl=...` never reached `git-lfs` and the object of the
-    //  published pointer went to the fetch remote. Numbered after the overlay, both are read, and a caller's setting of the
-    //  same key still wins as later numbered entries do in Git.
+    // What: The caller's configuration, as Git hands it to a child: appended to the parameters the environment already holds.
+    // Why:  Git reads those parameters after the numbered pairs, so a pair written there is the newest setting of its key;
+    //  a caller's pair numbered before an inherited parameter lost to it, and `-c lfs.url=...` reached the upload as the
+    //  server the caller had replaced, so the object of the published pointer went to the wrong store.
     let settled: Vec<(OsString, OsString)> = environment_with_overlay(environment, overlay);
-    let Some(carried) = prefix_variables(global_prefix, settled.as_slice()) else {
+    let Some(carried) = child_configuration_variables(global_prefix, settled.as_slice()) else {
         // A `--config-env` Git refuses ends the push itself, so no object may travel to the server its absence points at.
         return None;
     };

@@ -27,10 +27,10 @@ fn a_git_that_cannot_read_the_repository_is_no_answer_about_the_head() {
     let root: PathBuf = fixture("service-head-no-answer");
     let context = blind_context(root.as_path());
     for reference in ["HEAD", "refs/heads/main"] {
-        let asked = still_checked_out(&context, root.as_path(), root.join("no-git-dir").as_path(), root.join("no-common").as_path(), reference);
+        let asked = still_checked_out(&context, root.as_path(), root.join("no-git-dir").as_path(), root.join("no-common").as_path(), &crate::ref_name::RefName::from_text(reference));
         assert_eq!(asked, Err(FailureCode::Unavailable), "{reference}");
     }
-    let moved = follows_move(&context, root.as_path(), root.join("no-git-dir").as_path(), root.join("no-common").as_path(), "HEAD", "0".repeat(40).as_str());
+    let moved = follows_move(&context, root.as_path(), root.join("no-git-dir").as_path(), root.join("no-common").as_path(), &crate::ref_name::RefName::from_text("HEAD"), "0".repeat(40).as_str());
     assert_eq!(moved, Err(FailureCode::Unavailable));
     remove(root.as_path());
 }
@@ -47,7 +47,7 @@ fn a_head_attached_after_the_last_look_stays_attached() {
     git(world.repo.as_path(), &["checkout", "--quiet", "--detach"]);
     git(world.repo.as_path(), &["branch", "attached", base.as_str()]);
     let mut built: CommitRequest = built_request(&world, "loose", "loose.txt", &[base.as_str()]);
-    built.reference = String::from("HEAD");
+    built.reference = crate::ref_name::RefName::from_text("HEAD");
     let commit: String = built.commit.clone().unwrap_or_default();
     let repo: PathBuf = world.repo.clone();
     hooks::set("before-ref", std::rc::Rc::new(move || { git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/attached"]); }));

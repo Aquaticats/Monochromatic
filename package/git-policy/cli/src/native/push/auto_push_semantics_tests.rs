@@ -123,9 +123,68 @@ fn git_plan(repo: &Path) -> GitPlan {
 
 /// Run the service's push of `feature` and return the result with the terminal text it printed.
 fn service_push(rig: &Rig) -> (AutoPushResult, String) {
+    return service_push_of(rig, rig.landed.as_str());
+}
+
+/// `service_push` for the commit `landed`,
+/// which a case that commits again names itself.
+fn service_push_of(rig: &Rig, landed: &str) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&rig.repo), BRANCH_REF, &rig.landed, &[], &[], &mut err).expect("the push runs");
+    let result = push_once(&push_git(&rig.repo), BRANCH_REF, landed, &[], &[], &mut err).expect("the push runs");
     return (result, String::from_utf8_lossy(&err).into_owned());
+}
+
+/// The commit `HEAD` names in `repo`.
+fn head_of(repo: &Path) -> String {
+    return String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+}
+
+/// Publish `feature` to the remote,
+/// so that a matching push carries it,
+/// and commit again on it.
+/// Gives the commit that is now unpublished.
+fn publish_feature_and_commit_again(rig: &Rig) -> String {
+    git(&rig.repo, &["push", "--quiet", "origin", &format!("{BRANCH}:{BRANCH}")]);
+    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=later work"]);
+    return head_of(rig.repo.as_path());
+}
+
+/// Move `main` on the remote only,
+/// so that the local `main` a matching push also carries cannot fast-forward it.
+fn move_main_on_the_remote_only(rig: &Rig) {
+    move_main_on_the_remote_at(rig, "origin");
+}
+
+/// `move_main_on_the_remote_only` for the remote `at`,
+/// named as a `git push` argument.
+fn move_main_on_the_remote_at(rig: &Rig, at: &str) {
+    git(&rig.repo, &["switch", "--quiet", "--create", "moved", "main"]);
+    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=moved"]);
+    git(&rig.repo, &["push", "--quiet", at, "moved:main"]);
+    git(&rig.repo, &["switch", "--quiet", BRANCH]);
+}
+
+/// A clone of the remote that publishes one commit of its own on `branch`,
+/// so the repository's copy of that branch can no longer fast-forward it.
+fn move_the_remote_branch_on(rig: &Rig, branch: &str) {
+    move_the_remote_branch_on_at(rig, rig.remote.as_path(), branch);
+}
+
+/// `move_the_remote_branch_on` for the remote at `at`.
+fn move_the_remote_branch_on_at(rig: &Rig, at: &Path, branch: &str) {
+    let elsewhere: PathBuf = rig.root.join(format!("elsewhere-{branch}"));
+    git(&rig.root, &["clone", "--quiet", at.to_str().expect("utf-8"), elsewhere.to_str().expect("utf-8")]);
+    git(&elsewhere, &["config", "user.name", "Elsewhere"]);
+    git(&elsewhere, &["config", "user.email", "elsewhere@example.invalid"]);
+    // A remote that has no such branch yet gets one of its own from the branch the clone checked out.
+    let tracked: String = format!("origin/{branch}");
+    let present: bool = git_output(&elsewhere, &["rev-parse", "--verify", "--quiet", tracked.as_str()]).status.success();
+    match present {
+        true => git(&elsewhere, &["switch", "--quiet", "--create", branch, "--track", tracked.as_str()]),
+        false => git(&elsewhere, &["switch", "--quiet", "--create", branch]),
+    };
+    git(&elsewhere, &["commit", "--quiet", "--allow-empty", "--message=elsewhere"]);
+    git(&elsewhere, &["push", "--quiet", "origin", branch]);
 }
 
 /// The remote refs a push changed,
@@ -486,6 +545,108 @@ fn a_matching_push_leaves_a_branch_the_remote_deleted_as_git_does() {
     let (result, err) = service_push(&rig);
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
     assert_eq!(remote_refs(&rig.remote), before);
+    remove(&rig.root);
+}
+
+/// What:
+///  One matching push carries every branch the remote has,
+/// so Git's exit status is the worst of them:
+/// a sibling the remote refused leaves the recorded branch published and the status non-zero.
+/// Why:
+///  The repository is asked whether the recorded branch arrived,
+/// and its answer decides the branch's fate,
+///  so a published branch is not reported as a push that may not have arrived,
+/// nor retried every ten seconds until it does.
+///  Git's lines about the sibling stay in the report.
+#[test]
+fn a_matching_push_whose_sibling_the_remote_refused_still_publishes_the_branch() {
+    let rig = rig("aps-matching-sibling-refused");
+    let landed: String = publish_feature_and_commit_again(&rig);
+    move_main_on_the_remote_only(&rig);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    let before: BTreeMap<String, String> = remote_refs(&rig.remote);
+    let (result, err) = service_push_of(&rig, landed.as_str());
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(result.exit_code, 0, "{err}");
+    assert_eq!(remote_refs(&rig.remote).get(BRANCH_REF), Some(&landed), "the recorded branch is published");
+    assert!(result.shown.contains("rejected"), "Git's line about the sibling is kept: {}", result.shown);
+    assert_eq!(remote_refs(&rig.remote).get("refs/heads/main"), before.get("refs/heads/main"), "the sibling is not moved by this push");
+    remove(&rig.root);
+}
+
+/// What:
+///  A remote's push URL is where the push went,
+/// so a branch the fetch URL holds proves nothing about it.
+/// Why:
+///  `remote.<name>.pushurl` can name another repository,
+/// and a delivery is claimed only where the push went:
+///  the fetch side holding the commit while the push side refused it is a failure,
+/// with Git's words and the retry that publishes the branch.
+#[test]
+fn a_matching_push_whose_push_url_lacks_the_branch_is_a_failure() {
+    let rig = rig("aps-matching-push-url-lacks");
+    let landed: String = publish_feature_and_commit_again(&rig);
+    // The fetch side holds the commit, which a question asked of it would take for a delivery.
+    git(&rig.repo, &["push", "--quiet", "origin", &format!("{BRANCH}:{BRANCH}")]);
+    // The push side has `feature` at a commit of its own, so the local branch cannot fast-forward it.
+    let published: PathBuf = rig.root.join("published.git");
+    git(&rig.root, &["init", "--bare", "--quiet", "--initial-branch=main", "published.git"]);
+    git(&rig.repo, &["push", "--quiet", published.to_str().expect("utf-8"), "main:main"]);
+    move_the_remote_branch_on_at(&rig, published.as_path(), BRANCH);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    git(&rig.repo, &["config", "remote.origin.pushurl", published.to_str().expect("utf-8")]);
+    let (result, err) = service_push_of(&rig, landed.as_str());
+    assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
+    assert_ne!(result.exit_code, 0, "{err}");
+    assert!(err.contains(PUSH_FAILED_NOTE), "{err}");
+    assert_ne!(remote_refs(&published).get(BRANCH_REF), Some(&landed), "the push side never received the branch");
+    remove(&rig.root);
+}
+
+/// What:
+///  A branch whose push remote is a URL pushes to that URL,
+/// so the delivery is asked of that URL.
+/// Why:
+///  Git accepts a URL where a remote name belongs and pushes to it,
+/// and `git remote get-url` answers nothing for a URL,
+/// so a question put only to a named remote's push URLs would leave the branch's arrival unproven
+/// and its push retried although the URL holds the commit.
+#[test]
+fn a_matching_push_to_a_push_remote_that_is_a_url_still_publishes_the_branch() {
+    let rig = rig("aps-matching-url-remote");
+    let landed: String = publish_feature_and_commit_again(&rig);
+    let published: PathBuf = rig.root.join("published.git");
+    git(&rig.root, &["init", "--bare", "--quiet", "--initial-branch=main", "published.git"]);
+    let at: &str = published.to_str().expect("utf-8");
+    // The URL holds `feature` where the local branch can fast-forward it, so a matching push carries it.
+    git(&rig.repo, &["push", "--quiet", at, &format!("{BRANCH}~1:refs/heads/{BRANCH}"), "main:main"]);
+    // And `main` where the local one cannot, so the same push is refused for that sibling alone.
+    move_main_on_the_remote_at(&rig, at);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    git(&rig.repo, &["config", &format!("branch.{BRANCH}.pushremote"), at]);
+    let (result, err) = service_push_of(&rig, landed.as_str());
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(result.exit_code, 0, "{err}");
+    assert_eq!(remote_refs(&published).get(BRANCH_REF), Some(&landed), "the URL the push went to holds the branch");
+    assert!(result.shown.contains("rejected"), "Git's line about the sibling is kept: {}", result.shown);
+    remove(&rig.root);
+}
+
+/// A matching push the remote refused for the recorded branch itself is the branch's failure,
+/// with Git's words and the note that says the remote may or may not have taken it.
+///  This is the answer a push whose branch did not arrive keeps,
+/// so the retry that publishes it is planned.
+#[test]
+fn a_matching_push_the_remote_refused_for_the_recorded_branch_is_a_failure() {
+    let rig = rig("aps-matching-recorded-refused");
+    let landed: String = publish_feature_and_commit_again(&rig);
+    move_the_remote_branch_on(&rig, BRANCH);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    let (result, err) = service_push_of(&rig, landed.as_str());
+    assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
+    assert_ne!(result.exit_code, 0, "{err}");
+    assert!(err.contains(PUSH_FAILED_NOTE), "{err}");
+    assert_ne!(remote_refs(&rig.remote).get(BRANCH_REF), Some(&landed), "the branch did not arrive");
     remove(&rig.root);
 }
 

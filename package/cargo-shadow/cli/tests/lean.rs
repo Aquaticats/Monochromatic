@@ -161,18 +161,69 @@ fn outside_a_checkout_the_run_says_so_and_fails() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("is not inside a Git checkout"));
 }
 
-#[test]
-fn timer_install_without_enabling_writes_the_units_naming_the_schedule_and_runs_no_systemctl() {
-    let world = make_world();
+/// Writes the installed binary of the fixture and returns where the units go.
+fn installed_binary(world: &World) -> PathBuf {
     let toolchain_bin: PathBuf = world.repository.join(".cache").join("toolchain-bin");
     std::fs::create_dir_all(&toolchain_bin).expect("toolchain bin");
     std::fs::write(toolchain_bin.join("cargo-shadow"), b"").expect("binary");
-    let units: PathBuf = world.fakes.join("units");
-    let output: Output = run(&world, &world.repository, &["lean", "timer-install", "--no-enable", "--unit-directory", units.to_str().expect("text")]);
+    return world.fakes.join("units");
+}
+
+#[test]
+fn service_install_without_enabling_writes_the_continuous_service_and_runs_no_systemctl() {
+    let world = make_world();
+    let units: PathBuf = installed_binary(&world);
+    let output: Output = run(&world, &world.repository, &["lean", "service-install", "--no-enable", "--unit-directory", units.to_str().expect("text")]);
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
-    let timer: String = std::fs::read_to_string(units.join("cargo-shadow-lean.timer")).expect("timer unit");
-    assert!(timer.contains("OnCalendar=*-*-* 04:30:00") && timer.contains("Persistent=false"));
     let service: String = std::fs::read_to_string(units.join("cargo-shadow-lean.service")).expect("service unit");
     assert!(service.contains(&format!("ExecStart={}/.cache/toolchain-bin/cargo-shadow lean run", world.repository.display())));
+    assert!(service.contains("Restart=always") && service.contains("WantedBy=default.target"));
+    assert!(!units.join("cargo-shadow-lean.timer").exists(), "the install writes no timer");
     assert_eq!(started(&world), "");
+}
+
+#[test]
+fn service_install_stops_and_disables_the_once_a_day_timer_before_it_starts_the_service() {
+    let world = make_world();
+    let units: PathBuf = installed_binary(&world);
+    std::fs::create_dir_all(&units).expect("units");
+    let timer: PathBuf = units.join("cargo-shadow-lean.timer");
+    std::fs::write(&timer, "the unit the daily timer was installed from").expect("old timer");
+    let output: Output = run(&world, &world.repository, &["lean", "service-install", "--unit-directory", units.to_str().expect("text")]);
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(!timer.exists(), "the file the daily timer was installed from must go");
+    let log: String = started(&world);
+    let at = |needle: &str| -> usize { return log.lines().position(|line| { return line.contains(needle); }).unwrap_or_else(|| panic!("no `systemctl` call contains `{needle}`: {log}")); };
+    let stopped: usize = at("disable --now cargo-shadow-lean.timer");
+    let reloaded: usize = at("daemon-reload");
+    let enabled: usize = at("enable --now cargo-shadow-lean.service");
+    assert!(stopped < reloaded && reloaded < enabled, "the old timer goes before the service starts: {log}");
+}
+
+#[test]
+fn a_user_manager_that_cannot_stop_the_old_timer_stops_the_install_before_it_writes_anything() {
+    let world = make_world();
+    let units: PathBuf = installed_binary(&world);
+    let manager: PathBuf = world.fakes.join("systemctl");
+    std::fs::write(&manager, "#!/bin/sh\necho 'Failed to connect to bus: No medium found' >&2\nexit 1\n").expect("fake systemctl");
+    std::fs::set_permissions(&manager, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let output: Output = run(&world, &world.repository, &["lean", "service-install", "--unit-directory", units.to_str().expect("text")]);
+    assert_eq!(output.status.code(), Some(1), "{}", String::from_utf8_lossy(&output.stdout));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("could not stop cargo-shadow-lean.timer"), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(!units.join("cargo-shadow-lean.service").exists(), "nothing is written while the daily pass could still run");
+}
+
+#[test]
+fn the_old_timer_install_name_says_what_it_does_now_and_installs_the_continuous_service() {
+    let world = make_world();
+    let units: PathBuf = installed_binary(&world);
+    std::fs::create_dir_all(&units).expect("units");
+    std::fs::write(units.join("cargo-shadow-lean.timer"), "the unit the daily timer was installed from").expect("old timer");
+    let output: Output = run(&world, &world.repository, &["lean", "timer-install", "--no-enable", "--unit-directory", units.to_str().expect("text")]);
+    let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code(), Some(0), "{stdout} {}", String::from_utf8_lossy(&output.stderr));
+    assert!(stdout.contains("service-install") && stdout.contains("continuous"), "the old name must say what it does now: {stdout}");
+    let service: String = std::fs::read_to_string(units.join("cargo-shadow-lean.service")).expect("service unit");
+    assert!(service.contains("Restart=always"), "{service}");
+    assert!(!units.join("cargo-shadow-lean.timer").exists());
 }

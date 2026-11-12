@@ -52,7 +52,7 @@ fn selection<'selection>(pathspecs: &'selection [OsString], file: Option<&'selec
 fn refused(repo: &Path, base: &str, pathspecs: &[&str], file: Option<&Path>) -> Vec<String> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), file, base);
-    return named_ignored_files(&git_context(), repo, repo.join(".git").join("index").as_path(), &choice)
+    return named_ignored_files(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
@@ -104,13 +104,13 @@ fn a_commit_of_tracked_paths_starts_no_check_ignore() {
     let (recording, log): (GitContext, PathBuf) = recording_context_with_readers_on(root.as_path());
     let tracked: Vec<OsString> = ["a.txt", "lib/_a.js"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(tracked.as_slice(), None, base.as_str());
-    let refused: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+    let refused: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered");
     assert_eq!(refused, Vec::<Vec<u8>>::new(), "no tracked path is refused");
     assert_eq!(check_ignore_starts(log.as_path()), Vec::<String>::new(), "a commit of tracked paths starts no check-ignore");
     let untracked: Vec<OsString> = ["lib/_c.js"].iter().map(OsString::from).collect();
     let other: IndexSelection<'_> = selection(untracked.as_slice(), None, base.as_str());
-    let refused_untracked: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.join(".git").join("index").as_path(), &other)
+    let refused_untracked: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &other)
         .expect("the question is answered");
     assert_eq!(refused_untracked, vec![b"lib/_c.js".to_vec()], "a path no entry holds is still refused");
     assert_eq!(check_ignore_starts(log.as_path()).len(), 1, "the recorder sees the question the saved case did not ask");
@@ -206,7 +206,7 @@ fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
     };
     let specs: Vec<OsString> = ["selected.js", "tracked.txt"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
-    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.join(".git").join("index").as_path(), &choice)
+    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.as_path(), second.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
@@ -271,7 +271,7 @@ fn a_named_file_of_the_selected_worktree_is_refused_where_the_invocation_directo
     };
     let specs: Vec<OsString> = ["selected.js", "plain.txt", "build"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
-    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.join(".git").join("index").as_path(), &choice)
+    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.as_path(), second.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
@@ -322,7 +322,7 @@ fn a_named_file_of_a_selected_worktree_is_read_from_the_directory_the_command_ru
     };
     let specs: Vec<OsString> = ["named.js"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
-    let ignored: Vec<String> = named_ignored_files(&context, inside.as_path(), repo.join(".git").join("index").as_path(), &choice)
+    let ignored: Vec<String> = named_ignored_files(&context, inside.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
@@ -386,7 +386,7 @@ fn a_literal_glob_character_names_the_file_of_that_name() {
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
     for context in [&literal, &literal_variable] {
         assert_eq!(
-            named_ignored_files(context, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+            named_ignored_files(context, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
                 .expect("the question is answered"),
             vec![b"st*r.js".to_vec()]
         );

@@ -168,6 +168,35 @@ pub fn real_environment() -> crate::lean_guard::GuardEnvironment {
 }
 
 /// What:
+/// `pub fn copy_a_program(directory: &Path) -> PathBuf` copies the `sleep` program the search path names into the directory,
+/// with its execute bits,
+/// and answers where it now is.
+/// Why:
+/// A control of "a process is running a program from this entry" needs the program itself inside the entry,
+/// and `sleep` is the one program these fixtures already start.
+/// The file is copied and not linked,
+/// so removing the entry cannot leave the program reachable somewhere else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const copyAProgram = (directory: string): string => { const from = (process.env.PATH ?? '').split(':').map((one) => join(one, 'sleep')).find((one) => existsSync(one)); const to = join(directory, 'fixture-program'); copyFileSync(from, to); return to; };
+/// ```
+pub fn copy_a_program(directory: &Path) -> PathBuf {
+    let searched: std::ffi::OsString = std::env::var_os("PATH").unwrap_or_default();
+    let mut found: Option<PathBuf> = None;
+    for entry in std::env::split_paths(&searched) {
+        let candidate: PathBuf = entry.join("sleep");
+        if candidate.is_file() {
+            found = Some(candidate);
+            break;
+        }
+    }
+    let program: PathBuf = directory.join("fixture-program");
+    fs::copy(found.expect("the search path names a sleep program"), &program).expect("copy the program into the fixture");
+    return program;
+}
+
+/// What:
 /// `pub fn age_everything(path: &Path, seconds: i64)` sets the modification time of a tree and everything in it.
 /// Why:
 /// Idleness is read from file times,

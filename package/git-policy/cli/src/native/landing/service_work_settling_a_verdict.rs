@@ -79,7 +79,11 @@ pub(super) async fn settle_after_the_push(
                 && let Err(reason) =
                     record_push_failure_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), outcome, said.as_str()).await
             {
-                crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", latest.item.oid);
+                crate::service_error!(
+                    "the failed push of {} {} could not be recorded for the person: {reason}",
+                    latest.item.oid,
+                    crate::service_timing::in_the_repository_at(latest.item.repository.as_path())
+                );
             }
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
@@ -99,7 +103,11 @@ pub(super) async fn settle_after_the_push(
                 )
                 .await
             {
-                crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", latest.item.oid);
+                crate::service_error!(
+                    "the failed push of {} {} could not be recorded for the person: {reason}",
+                    latest.item.oid,
+                    crate::service_timing::in_the_repository_at(latest.item.repository.as_path())
+                );
             }
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
@@ -112,7 +120,11 @@ pub(super) async fn settle_after_the_push(
                     match record_push_skip_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), text.as_str()).await {
                         Ok(()) => true,
                         Err(reason) => {
-                            crate::service_error!("the skipped push of {} could not be recorded for the person: {reason}", latest.item.oid);
+                            crate::service_error!(
+                                "the skipped push of {} {} could not be recorded for the person: {reason}",
+                                latest.item.oid,
+                                crate::service_timing::in_the_repository_at(latest.item.repository.as_path())
+                            );
                             false
                         }
                     }

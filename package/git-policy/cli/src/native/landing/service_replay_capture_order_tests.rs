@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 /// A capture of a commit that was never landed,
 /// or of one whose stamp the case names.
-fn landed(commit: &str, captured: u64) -> LandedCapture {
+pub(super) fn landed(commit: &str, captured: u64) -> LandedCapture {
     return LandedCapture { commit: commit.to_string(), captured };
 }
 
@@ -27,7 +27,7 @@ fn entry() -> Option<TreeEntry> {
 }
 
 /// A shared path the decision is asked about.
-fn shared(path: &[u8]) -> SharedPath {
+pub(super) fn shared(path: &[u8]) -> SharedPath {
     return SharedPath { path: path.to_vec(), base: entry(), landed: entry(), prepared: entry() };
 }
 
@@ -37,21 +37,21 @@ fn shared(path: &[u8]) -> SharedPath {
 ///   The capture order is a question about the commits that changed a path,
 ///  so the fixture puts one commit per path after the base,
 ///  and the case says which of them the service landed and when.
-struct History {
+pub(super) struct History {
     /// The fixture directory removed at the end.
-    root: PathBuf,
+    pub(super) root: PathBuf,
     /// The worktree.
-    repo: PathBuf,
+    pub(super) repo: PathBuf,
     /// The commit every range starts after.
-    base: String,
+    pub(super) base: String,
     /// The commits after the base,
     /// in the order they were made.
-    commits: Vec<String>,
+    pub(super) commits: Vec<String>,
 }
 
 /// Build a repository whose base holds `paths`,
 /// then one commit per path that appends a line to it.
-fn history(name: &str, paths: usize) -> History {
+pub(super) fn history(name: &str, paths: usize) -> History {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     for number in 0..paths {
@@ -80,7 +80,7 @@ fn context_of() -> GitContext {
 /// a tree nothing reads,
 /// this capture's stamp,
 /// and the landed commits the case names.
-fn captured_of(history: &History, captured: u64, landed: Vec<LandedCapture>) -> Captured {
+pub(super) fn captured_of(history: &History, captured: u64, landed: Vec<LandedCapture>) -> Captured {
     return captured_of_kind(history.base.as_str(), captured, landed);
 }
 
@@ -91,7 +91,7 @@ fn captured_of_kind(base: &str, captured: u64, landed: Vec<LandedCapture>) -> Ca
 }
 
 /// The path of the `number`th file of a history.
-fn path_of(number: usize) -> Vec<u8> {
+pub(super) fn path_of(number: usize) -> Vec<u8> {
     return format!("path-{number:04}.txt").into_bytes();
 }
 

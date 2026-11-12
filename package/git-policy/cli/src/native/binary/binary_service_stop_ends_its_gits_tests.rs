@@ -24,7 +24,7 @@ use super::client_service::{Held, edited_repository, served, service_with_git};
 use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, executable, fixture, while_test_lives};
 use git_policy_cli::bounded_push::STOP_GRACE;
-use git_policy_cli::stop_of_the_service_noticed_by_its_children::SETTLE_CEILING;
+use git_policy_cli::stop_of_the_service_noticed_by_its_children::{LAST_RESORT, SETTLE_CEILING};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -33,6 +33,19 @@ use std::time::{Duration, Instant};
 /// How long a control waits for a state it started,
 /// far beyond what a healthy run needs.
 const PATIENCE: Duration = Duration::from_secs(60);
+
+/// How long a control waits for the end of a service whose shutdown has to use its whole settle bound.
+/// Why:
+///  A control's own patience is never the product's bound.
+/// The service settles a stop within `SETTLE_CEILING`,
+/// and a shutdown that cannot run at all is ended by the kernel's last-resort alarm `LAST_RESORT` after the stop,
+/// which is the same length,
+/// so a control that allowed exactly `SETTLE_CEILING` raced that alarm,
+/// and failed a few milliseconds before it under the release gate's load
+/// (2026-11-11,
+/// `a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+/// The grace a kill gets is what the kernel needs to end a process it was just told to end.
+const THE_WHOLE_OF_A_STOP: Duration = LAST_RESORT.saturating_add(STOP_GRACE);
 
 /// What the stand-in Git does with the stop once the landing is inside it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -274,9 +287,9 @@ fn a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let name: String = format!("stop-during-a-hung-write-{}", std::process::id());
     let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheBranchWrite);
-    let limit: Duration = SETTLE_CEILING + STOP_GRACE;
+    let limit: Duration = THE_WHOLE_OF_A_STOP;
     let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, limit);
-    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "the service's own shutdown ended it, not the last-resort alarm: {status:?}");
     assert!(took >= SETTLE_CEILING.saturating_sub(Duration::from_secs(1)), "the service waited for the write up to the bound: ended after {took:?}");
     assert!(is_alive(landing.git_pid), "nothing of the service signalled the branch write; the manager's final kill ends it");
     assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "the branch did not move");
@@ -337,9 +350,9 @@ fn the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let name: String = format!("stop-hung-write-kept-ref-{}", std::process::id());
     let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheBranchWrite);
-    let limit: Duration = SETTLE_CEILING + STOP_GRACE;
+    let limit: Duration = THE_WHOLE_OF_A_STOP;
     let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, limit);
-    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "the service's own shutdown ended it, not the last-resort alarm: {status:?}");
     assert!(took >= SETTLE_CEILING.saturating_sub(Duration::from_secs(1)), "the service waited for the write up to the bound: ended after {took:?}");
     end_the_process(landing.git_pid);
     end_client(&mut landing.client);

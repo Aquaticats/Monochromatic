@@ -133,10 +133,10 @@ export function unitNameOfGiven({
 
  @example
  ```ts
- const runName = runNameOf({ unitName: 'pi-foo.service', },);
+ const runName = runNameOfUnit({ unitName: 'pi-foo.service', },);
  ```
  */
-function runNameOf({
+export function runNameOfUnit({
   unitName,
 }: {
   readonly unitName: string;
@@ -215,7 +215,7 @@ function runningUnitOfBlock({
     return NOT_RUNNING;
   }
   return {
-    name: runNameOf({ unitName, },),
+    name: runNameOfUnit({ unitName, },),
     unitName,
     elapsedMilliseconds: (nowMicroseconds - Number(started,)) / MICROSECONDS_PER_MILLISECOND,
     mainPid: Number(fields.get('MainPID',) ?? 0,),

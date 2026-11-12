@@ -44,10 +44,11 @@ use std::path::Path;
 pub(crate) fn named_ignored_ending(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     real_index: &Path,
     selection: &IndexSelection<'_>,
 ) -> Result<Option<TransactionResult>, GitFailure> {
-    let ignored: Vec<Vec<u8>> = named_ignored_files(context, cwd, real_index, selection)?;
+    let ignored: Vec<Vec<u8>> = named_ignored_files(context, cwd, worktree_root, real_index, selection)?;
     if ignored.is_empty() {
         return Ok(None);
     }

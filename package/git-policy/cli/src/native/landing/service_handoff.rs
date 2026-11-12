@@ -42,8 +42,9 @@ pub struct ServiceHandoff {
     /// The worktree's own Git directory,
     /// which holds the work records and names the service instance.
     pub git_dir: PathBuf,
-    /// The branch the commit went to.
-    pub reference: String,
+    /// The branch the commit went to,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The branch value the commit was made on.
     pub parent: String,
 }
@@ -100,6 +101,13 @@ pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write
 /// await handOverWithKey(handoff, landed, key)
 /// ```
 pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    // A work item spells its branch in text, and a spelling with replacement characters would push another branch. A commit on a
+    //  branch whose name is not text therefore leaves no item, and the person is told once: the commit is on the branch, and a
+    //  push they make themselves sends it.
+    let Some(reference) = handoff.reference.text() else {
+        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), landed));
+        return Ok(());
+    };
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
     let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
@@ -111,7 +119,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
             kind,
             repository: handoff.repository.clone(),
             git_dir: handoff.git_dir.clone(),
-            branch_ref: handoff.reference.clone(),
+            branch_ref: reference.to_string(),
             oid: landed.to_string(),
             parent: handoff.parent.clone(),
             created: now_iso(),
@@ -142,7 +150,9 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 ///
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
-    let item: WorkItem = push_item(handoff, landed);
+    // Nothing was held for a branch whose name is not text (`hand_over_with_key`), so there is nothing to promote.
+    let Some(reference) = handoff.reference.text() else { return Ok(()) };
+    let item: WorkItem = push_item(handoff, landed, reference);
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A record an earlier release held is named by the kind and the commit alone, and it is this push's.
     for name in [item.id(), item.id_before_the_branch()] {
@@ -184,8 +194,10 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 /// The words a command says when the verdict could not be kept,
 /// or nothing when it was.
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) -> Option<String> {
+    // A branch whose name is not text held no record (`hand_over_with_key`), so there is none to take back and no verdict to keep.
+    let reference: &str = handoff.reference.text()?;
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(handoff, landed);
+    let item: WorkItem = push_item(handoff, landed, reference);
     // The refusal is written into the record before it is settled: a command killed in this gap leaves a record whose own words say
     //  the gate refused this commit, and a later command settles it into the same verdict instead of leaving it held
     //  (`held_push_holder_and_verdict.rs`).
@@ -216,13 +228,34 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) -> 
     ));
 }
 
+/// What:
+///  The one line a commit on a branch whose name is not text leaves instead of its work records.
+/// Why:
+///   A work item names its branch in text,
+/// so none is written for such a branch;
+///  saying so keeps the person from believing a push was queued,
+/// and names the commit and the branch that hold it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const note = `the commit ${landed} landed on ${shellQuote(ref)} ...`
+/// ```
+pub fn unqueued_branch_note(reference: &std::ffi::OsStr, landed: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the commit {landed} landed on {}, whose name is not text. Its automatic push was not queued, \
+         because a push record names a branch in text and a spelling with replacement characters would push another branch; the commit \
+         is on the branch, and a push you make yourself sends it.",
+        crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(reference))
+    );
+}
+
 /// The push record of one landed commit of a worktree.
-fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
+fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
         repository: handoff.repository.clone(),
         git_dir: handoff.git_dir.clone(),
-        branch_ref: handoff.reference.clone(),
+        branch_ref: reference.to_string(),
         oid: landed.to_string(),
         parent: handoff.parent.clone(),
         created: now_iso(),
@@ -250,12 +283,15 @@ fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
 /// ```ts
 /// await writePushRecord({ repository, gitDir, reference, tip, parent })
 /// ```
-pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &crate::ref_name::RefName, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+    // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
+    //  whose name is not text has none; `hand_over_push` tells the person that instead.
+    let Some(name) = reference.text() else { return Ok(()) };
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: repository.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
-        branch_ref: reference.to_string(),
+        branch_ref: name.to_string(),
         oid: tip.to_string(),
         parent: parent.to_string(),
         created: now_iso(),
@@ -277,7 +313,11 @@ pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path
 /// await handOverPush(handoff, tip)
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
+    if !handoff.reference.is_text() {
+        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
+        return Ok(());
+    }
+    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
     return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
 }
 
@@ -331,6 +371,12 @@ mod tests;
 /// the sentence says exactly that and names what sends the
 ///  commit,
 /// so a hold is never silent and never waits for something nobody will do.
+///  The sentence never claims a commit stays local when nothing stops a push:
+/// a record with no verdict holds no branch back (`push_held_back_by_a_blocked_commit.rs`),
+/// so the next automatic push of the branch carries the commit,
+/// and a record that names no command or whose command ended can only say that and what a person's own push does.
+/// A ref that lags the remote cannot make this line false,
+/// because the line claims no publication state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -343,24 +389,36 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
     if holding.verdict == Verdict::Blocked {
         return a_refusal_that_could_not_be_kept(reference, commit, holding.reason.as_str());
     }
-    let held: String = match (holding.holder.is_empty(), gone) {
-        // A record that names no command is one of an earlier release, or one whose hold was written without an answer.
-        (true, _) => format!("the commit {commit} is held: no command has said whether its checks passed, so nothing here publishes it"),
-        // The command that would have decided is proven gone, so nothing will ever write a verdict for this commit.
-        (false, true) => format!(
-            "the commit {commit} is held: the command that landed it (process {}) ended before its checks ran, so nothing here publishes it",
-            pid_text(holding.holder.as_str())
-        ),
-        // The command still runs: the wait is its own, and it ends with that command's answer.
-        (false, false) => format!(
+    // The command still runs: the wait is its own, the automatic push stops before the commit, and it ends with that command's answer.
+    if !holding.holder.is_empty() && !gone {
+        let waited: String = format!(
             "the commit {commit} is held: the command that landed it (process {}) has not finished its checks, and the push goes out when it does",
+            pid_text(holding.holder.as_str())
+        );
+        return match reference.is_empty() {
+            true => format!("{waited}, and a push you make yourself sends it"),
+            false => format!("{waited}, and a push you make of {reference} sends it"),
+        };
+    }
+    // A record that names no command, and one whose command ended, holds nothing back: no push stops before the commit, so the next
+    //  push of the branch carries it, and the line says that instead of claiming the commit stays local.
+    let carried: String = match reference.is_empty() {
+        true => String::from(
+            "the next automatic push of this repository carries the commit if it is not published yet, and a push you make yourself sends it the same way",
+        ),
+        false => format!(
+            "the next automatic push of {reference} carries the commit if it is not published yet, and a push you make of {reference} sends it the same way"
+        ),
+    };
+    return match holding.holder.is_empty() {
+        // A record that names no command is one of an earlier release, or one whose hold was written without an answer.
+        true => format!("the commit {commit} is held: no command has said whether its checks passed, so this record pushes nothing; {carried}"),
+        // The command that would have decided is proven gone, so nothing will ever write a verdict for this commit.
+        false => format!(
+            "the commit {commit} is held: the command that landed it (process {}) ended before its checks ran, so this record pushes nothing; {carried}",
             pid_text(holding.holder.as_str())
         ),
     };
-    if reference.is_empty() {
-        return format!("{held}, and a push you make yourself sends it");
-    }
-    return format!("{held}, and a push you make of {reference} sends it");
 }
 
 /// What:

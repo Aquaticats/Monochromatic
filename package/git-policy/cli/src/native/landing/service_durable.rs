@@ -24,6 +24,11 @@
 //! one background task makes them in batches (each batch one job of the runtime's blocking pool),
 //!  each sync of a batch overlapped.
 //! A landing that publishes nothing syncs what it wrote before it returns.
+//! A queue no background task takes is nobody's wait either:
+//! the records reach the disk with the operating system's own write-back,
+//!  which a machine crash loses as it loses any write the page cache held,
+//! and a forced write on the commit's thread would be the whole
+//!  device's wait on the person's path.
 //! Git's own object,
 //! reference
 //!  and index writes follow `core.fsync` as they do for native Git:
@@ -208,7 +213,7 @@ fn sender() -> &'static UnboundedSender<Job> {
 /// What:
 ///  Makes the channel to the background task and starts the task on the runtime;
 /// when the runtime has no worker to run it,
-/// the syncs are made where they are asked for.
+/// nothing waits for the syncs and they reach the disk with the operating system's write-back.
 /// Why:
 ///  `sender` runs it once,
 /// the first time a sync is handed to the background.
@@ -219,10 +224,10 @@ fn sender() -> &'static UnboundedSender<Job> {
 /// ```
 fn start_background() -> UnboundedSender<Job> {
     let (sender, jobs) = unbounded_channel::<Job>();
-    // The receiver goes into the task; when no task starts it is dropped, and every send then fails, which makes `settle` force the
-    //  queue where it is asked for.
+    // The receiver goes into the task; when no task starts it is dropped, and every send then fails, which leaves each flush to the
+    //  operating system rather than making it on the thread that asked for it.
     if spawn_on_runtime(background(jobs)).is_none() {
-        crate::service_warn!("the runtime has no worker for the task that makes the landing's syncs; they are made where they are asked for");
+        crate::service_warn!("the runtime has no worker for the task that makes the landing's syncs; each flush is left to the operating system's write-back");
     }
     return sender;
 }
@@ -335,18 +340,32 @@ impl Deferral {
     ///  landing that published nothing (a withdrawal,
     /// an error,
     /// a commit sent back) syncs its records before it returns.
-    pub fn settle(mut self, published: bool) {
+    pub fn settle(self, published: bool) {
+        return self.settle_with(published, &hand_to_the_background);
+    }
+
+    /// What:
+    ///  `settle` with the handing of the queue to the background task given,
+    /// so a control proves what a published landing does when no task takes it.
+    /// Why:
+    ///   The sender is one for the process,
+    /// so only the hand can be made to refuse in a control.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// deferral.settleWith(published, hand)
+    /// ```
+    fn settle_with(mut self, published: bool, hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>) {
         self.settled = true;
         let batch: Vec<Pending> = end();
         if batch.is_empty() {
             return;
         }
         if published {
-            if let Err(rejected) = sender().send(Job::Batch(batch)) {
-                // The task is gone, so the queue is made here rather than lost.
-                if let Job::Batch(returned) = rejected.0 {
-                    force(returned);
-                }
+            if hand(batch).is_some() {
+                // No task takes the queue, and the decision for a landing that published is "Force at leaving, else background":
+                //  the records reach the disk with the operating system's own write-back rather than on the commit's thread.
+                crate::service_warn!("the runtime has no task for the syncs of a landing that published, so none waits for them here and the records reach the disk with the operating system's own write-back");
             }
         } else {
             force(batch);
@@ -382,18 +401,56 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
 /// # Errors
 ///
 /// The error of duplicating the handle;
-/// a queue that the background task no longer takes is synced here.
+/// a queue that the background task no longer takes is left to the operating system's write-back.
 pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
+    return defer_file_with(&hand_to_the_background, file, what);
+}
+
+/// What:
+///  `defer_file` with the handing of the batch to the background task given,
+/// so a control proves what happens when no task takes it.
+/// Why:
+///   Which task holds the queue is one process-wide sender,
+/// so a control cannot make it refuse by way of the runtime;
+/// the hand is the one step that decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// deferFileWith(hand, file, what)
+/// ```
+fn defer_file_with(hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>, file: &File, what: &'static str) -> std::io::Result<()> {
     let handle: File = file.try_clone()?;
     note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
     crate::service_fault::note(format!("sync-queued:{what}").as_str());
-    if let Err(rejected) = sender().send(Job::Batch(vec![Pending { handle, what }])) {
-        // The task is gone, so the flush is made here rather than lost.
-        if let Job::Batch(returned) = rejected.0 {
-            force(returned);
-        }
+    if hand(vec![Pending { handle, what }]).is_some() {
+        // No task takes the flush, so it is the operating system's: the marker names the holder and nothing else, which a power
+        //  cut loses as it loses any write the page cache held, and the step before a landing removes such a marker at once.
+        crate::service_warn!("the runtime has no task for the flush of the {what}, so nothing waits for it here and the write reaches the disk with the operating system's own write-back");
     }
     return Ok(());
+}
+
+/// What:
+///  Hands one batch to the background task,
+/// or answers it back when the task no longer takes it.
+/// Why:
+///   The receiver is dropped when no task started,
+/// so a rejected send is the only sign that nothing will make the syncs.
+/// A barrier is never sent through here,
+/// so a rejected batch is the only thing the answer holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hand = (batch) => { try { sender().send({ batch }); return undefined; } catch { return batch; } };
+/// ```
+fn hand_to_the_background(batch: Vec<Pending>) -> Option<Vec<Pending>> {
+    return match sender().send(Job::Batch(batch)) {
+        Ok(()) => None,
+        Err(rejected) => match rejected.0 {
+            Job::Batch(returned) => Some(returned),
+            Job::Barrier(_answered) => None,
+        },
+    };
 }
 
 /// Flushes a file that is a landing's record:

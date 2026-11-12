@@ -1,6 +1,7 @@
 //! What:
 //!  The ignored-state copy an interrupted `git worktree add` still owes,
-//! made by the first command run in the worktree it fills, under the bound one command holds for work it
+//! made by the first command run in the worktree it fills,
+//! under the bound one command holds for work it
 //! did not start.
 //! Why:
 //!  An add records the destination,
@@ -9,11 +10,14 @@
 //! the stage is still being filled,
 //! the stage is whole and no journal names it,
 //! or the installation never ran.
-//! Left alone, the worktree stays unfilled and the person must remove it and add it again,
+//! Left alone,
+//! the worktree stays unfilled and the person must remove it and add it again,
 //! losing their own work in it;
 //! so the first command run in that worktree stages from the recorded source and installs under the journal,
 //! when the destination is still the registration the add made and its checkout is whole.
-//! A command in another worktree never makes it: the copy costs what the source's ignored tree costs, and that
+//! A command in another worktree never makes it:
+//! the copy costs what the source's ignored tree costs,
+//! and that
 //! command gains nothing from it.
 //! Nothing is overwritten:
 //! the installation accepts an exact entry and refuses a differing one,
@@ -43,6 +47,7 @@ use crate::worktree_copy_stage_binding::stage_binding;
 use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, StageClaim, claim_names};
 use crate::worktree_copy_stage_claim_reaping::{SCRATCH_SUFFIX, StageVerdicts, read_claim};
 use crate::worktree_copy_synchronize::synchronize_created_worktree_noting;
+use crate::worktree_copy_owed_copy_source::{source_could_be_a_worktree, source_is_no_worktree_reason};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use crate::worktree_copy_unfilled_record::remember_unfilled_with;
 use crate::json_record::quote;
@@ -431,7 +436,8 @@ fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
 ///   A stage killed while it was being filled holds part of the source's ignored state,
 /// and the copy cannot fill that name again without removing it first;
 /// only a container that records the registration this copy was made for proves the stage is the
-///  copy's own, so a directory another process put at that name is never removed.
+///  copy's own,
+/// so a directory another process put at that name is never removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -602,19 +608,22 @@ fn finish_one_owed_copy(
     };
     let roots: Vec<PathBuf> = match read_registered_roots(context, &observation) {
         Ok(found) => found,
-        // A listing that cannot be read proves nothing about the source, so the records stay and the next command asks again.
         Err(_unreadable) => {
             crate::diagnostic_log::debug("worktreeCopyOwed", "the registered roots could not be read");
+            // The listing runs in the source's own directory, so a source that is no directory any more
+            // answers the question it could not be asked: nothing that is a worktree stands there, and the
+            // copy can never be made from it. Every other failure proves nothing about the source, so the
+            // records stay and the next command asks again.
+            if !source_could_be_a_worktree(add.owed.source.as_path()) {
+                crate::diagnostic_log::debug("worktreeCopyOwed", format!("the source {} is no directory any more", add.owed.source.display()).as_str());
+                return settle_unfilled(add, source_is_no_worktree_reason(add.owed.source.as_path()).as_str());
+            }
             return Ok(None);
         }
     };
     if !source_is_registered(roots.as_slice(), add.owed.source.as_path()) {
         crate::diagnostic_log::debug("worktreeCopyOwed", format!("the source {} is not registered", add.owed.source.display()).as_str());
-        let reason: String = format!(
-            "the worktree it copies from, {}, is no longer a worktree of this repository",
-            quote(add.owed.source.to_string_lossy().as_ref())
-        );
-        return settle_unfilled(add, reason.as_str());
+        return settle_unfilled(add, source_is_no_worktree_reason(add.owed.source.as_path()).as_str());
     }
     // A source that is itself being filled holds part of its ignored state; the record stays and a later command asks again.
     if source_is_still_being_filled(common_dir, add.owed.source.as_path())?.is_some() {
@@ -666,6 +675,8 @@ fn finish_one_owed_copy(
 /// the person settles it by removing the worktree or replacing it.
 /// The record's own line is written by this same pass,
 /// so the failure is said once there;
+/// it is written before the claim is settled,
+/// so a command killed in between still leaves both the record and the claim that names it;
 /// only a destination whose identity cannot be read,
 /// and which therefore gets no record,
 /// is named by this function's own line.
@@ -676,21 +687,29 @@ fn finish_one_owed_copy(
 /// ```
 fn settle_unfilled(add: &OwedAdd, reason: &str) -> Result<Option<String>, WorktreeCopyError> {
     let identity: Option<crate::fs_beneath::ObjectId> = path_identity(add.destination.as_path());
+    // The record comes before the claim is settled, so a command killed between the two leaves the record
+    // and the claim that names it: every later command still names this worktree and the reason it is
+    // unfilled. The other order left a kill between the two with nothing at all on disk, and no later
+    // command could tell that worktree from a whole one.
+    if let Some(found) = identity {
+        remember_unfilled_with(
+            add.claim.as_path(),
+            add.destination.as_path(),
+            found,
+            add.owed.source.as_path(),
+            None,
+            reason,
+        )?;
+    }
     if let Some(settle) = StageClaim::adopted(add.claim.as_path(), add.container.as_path(), Some(add.record.as_path())) {
         settle.settle()?;
     }
-    let Some(found) = identity else {
-        return Ok(Some(not_finished_notice(add.destination.as_path(), reason)));
+    // A destination whose identity cannot be read gets no record, so this pass's own line is the only one
+    // that names it.
+    return match identity {
+        Some(_identified) => Ok(None),
+        None => Ok(Some(not_finished_notice(add.destination.as_path(), reason))),
     };
-    remember_unfilled_with(
-        add.claim.as_path(),
-        add.destination.as_path(),
-        found,
-        add.owed.source.as_path(),
-        None,
-        reason,
-    )?;
-    return Ok(None);
 }
 
 /// What:
@@ -776,6 +795,12 @@ pub fn finish_owed_worktree_copies(
         let Some(add) = owed_add_of(claim.as_path(), container.as_path()) else {
             continue;
         };
+        // An add whose own snapshot was swapped into place owes no copy: the snapshot carried the source's whole
+        // ignored state. The sweep settles the stage and records that kill left, whoever runs, so this pass says
+        // nothing about a copy that no command could make.
+        if crate::worktree_copy_swapped_add_settlement::is_a_completed_exchange(claim.as_path(), add.container.as_path())? {
+            continue;
+        }
         // The copy fills one worktree, and the command that runs in it is the one that waits: a command in another
         // worktree does not pay for the source's ignored state, and is told which worktree does.
         if !crate::worktree_copy_recovery::finishes_destination(destinations, add.destination.as_path()) {

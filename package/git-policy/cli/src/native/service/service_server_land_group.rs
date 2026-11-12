@@ -42,11 +42,13 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
         Some(mine) => recover_instance(context, mine),
         None => recover(context),
     };
-    // An open batch means an earlier service stopped between its intent and its end; each one settled is said.
+    // An open batch means an earlier service stopped between its intent and its end; each one settled is said, with the
+    //  repository whose batch it is, because one journal can be read across a whole machine.
     for report in &reports {
+        let repository: String = crate::service_timing::in_the_repository_at(report.repository.as_path());
         log_entry(
             Priority::Warning,
-            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, decision_word(report.decision)).as_str(),
+            format!("settled the batch an earlier service left open {repository} batch={} decision={}", report.seq, decision_word(report.decision)).as_str(),
             &[("CLI_GIT_BATCH", report.seq.to_string())],
         );
     }
@@ -55,7 +57,7 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
 
 /// The word a settled batch is logged with,
 /// so the record says which decision was made and not only that one was.
-fn decision_word(decision: Recovery) -> &'static str {
+pub(crate) fn decision_word(decision: Recovery) -> &'static str {
     return match decision {
         Recovery::Finish => "finish",
         Recovery::Drop => "drop",
@@ -87,6 +89,17 @@ impl Announcer for AnnounceToStreams<'_> {
                 Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
             }
         }
+    }
+
+    /// Whether the client of the request at `place` of the batch is gone:
+    /// its channel is closed when the task that writes its
+    /// connection ends,
+    /// which it does when the connection breaks.
+    fn client_is_gone(&self, place: usize) -> bool {
+        return match self.fresh.get(place) {
+            Some((_, stream, _)) => stream.client_is_gone(),
+            None => false,
+        };
     }
 }
 
@@ -180,6 +193,30 @@ pub(crate) fn land_group(
             repeats.push(queued);
         }
     }
+    if fresh.is_empty() {
+        return;
+    }
+    // What:
+    //  A request whose client is gone before its commit lands is not made.
+    // Why:
+    //  A commit exists for the person who asked for it,
+    //  and nothing reads the answer of a client that went away,
+    //  while native Git makes no commit for a command that was ended.
+    // This is the first of the two places the landing asks:
+    //  the body asks again while it waits for another program's index lock,
+    //  which is where a person's interrupt lands.
+    //  The tree stays for a client that reconnects and sends the same request again,
+    //  and the sweep takes it by age otherwise (`service_prepare_ready_shapes.rs`).
+    let mut present: Vec<Queued> = Vec::with_capacity(fresh.len());
+    for queued in fresh {
+        if queued.1.client_is_gone() {
+            crate::service_log!("dropped the request {} whose client is gone before its commit landed", queued.0.id);
+            handed_back.insert(queued.0.id.clone());
+        } else {
+            present.push(queued);
+        }
+    }
+    fresh = present;
     if fresh.is_empty() {
         return;
     }
@@ -298,6 +335,13 @@ pub(crate) fn land_group(
                         //  commit on the branch as it is now.
                         handed_back.insert(request.id.clone());
                         "branch-moved"
+                    }
+                    // The client went away before its commit landed, so the commit is not made and no answer is written for a
+                    //  reader that is not there: its tree stays where a client that reconnects reads it, and the sweep takes it
+                    //  by age otherwise.
+                    Outcome::ClientGone => {
+                        handed_back.insert(request.id.clone());
+                        "client-gone"
                     }
                 };
                 log_answer(&times, request, arrival, position + 1, word);

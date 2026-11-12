@@ -1,22 +1,25 @@
 //! What:
-//!  The guard of uncommitted work inside a clone a build script made for itself,
+//!  The guard of uncommitted work inside a clone a build step made for itself,
 //! through the built executable:
-//!  the checkout runs where Cargo's `OUT_DIR` holds that clone,
-//! and the same checkout in the same clone is still refused where `OUT_DIR` names another directory.
+//!  the checkout runs where Cargo's `OUT_DIR` or the Cargo build directory holds that clone,
+//! and the same checkout in the same clone is still refused where neither names a directory around it.
 //! Why:
-//!  A crate that vendors another project clones it into its build-script output directory
+//!  A crate that vendors another project clones it into its own output directory
 //! (`libghostty-vt-sys` cloned Ghostty there and checked a commit out),
 //! and that clone belongs to the build step,
 //! not to the person
 //!  (`doc/troubleshooting/git-wrapper-rejects-checkout-in-no-checkout-clone.md`).
-//! `linked-worktree-only` exempts a repository under an allowlisted tool cache,
-//!  so the exemption is the build script's own directory and nothing wider;
+//! `linked-worktree-only` exempts a repository under an allowlisted tool directory,
+//!  so the exemption is the build script's own directory,
+//! or the whole Cargo build directory around it,
+//! and nothing wider;
 //! a form that only moves `HEAD` asks no measurement and therefore prints no exemption notice,
 //! which `policy_checks_tests` records.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // command.env('OUT_DIR', outDir); spawnSync(wrapper, ['checkout', commit], { cwd: clone }).status === 0
+//! // command.env('CARGO_TARGET_DIR', buildDir); spawnSync(wrapper, ['checkout', commit], { cwd: clone }).status === 0
 //! ```
 
 use super::support::{
@@ -26,9 +29,24 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// Cargo's build-script output directory for one fixture crate,
+/// The Cargo build directory of one fixture workspace,
 /// the shape this host's build cache uses.
-const OUT_DIR_TAIL: &str = "cargo-build/aa/0123456789abcd/debug/build/libghostty-vt-sys-1/out";
+const CARGO_BUILD_DIRECTORY_TAIL: &str = "cargo-build/aa/0123456789abcd";
+
+/// A build-script output directory inside that build directory.
+const BUILD_SCRIPT_DIRECTORY_TAIL: &str = "debug/build/libghostty-vt-sys-1/out";
+
+/// The build directory of the fixture workspace,
+///  the directory the whole of Cargo's intermediate output sits under.
+fn cargo_build_directory(fixture: &Fixture) -> PathBuf {
+    return fixture.root.join(CARGO_BUILD_DIRECTORY_TAIL);
+}
+
+/// The build-script output directory of the fixture workspace,
+///  the directory Cargo names in `OUT_DIR`.
+fn build_script_output_dir(fixture: &Fixture) -> PathBuf {
+    return cargo_build_directory(fixture).join(BUILD_SCRIPT_DIRECTORY_TAIL);
+}
 
 /// A repository with one commit,
 /// and the commit it names.
@@ -44,31 +62,45 @@ fn source_repository(fixture: &Fixture) -> String {
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
 
-/// A clone of `source_repository` inside `out_dir`,
+/// A clone of `source_repository` inside `directory`,
 /// holding an edit no person made,
 /// the state a second build step (or an interrupted first one) leaves.
-fn edited_clone(fixture: &Fixture, out_dir: &Path) -> PathBuf {
-    std::fs::create_dir_all(out_dir).expect("build-script output directory");
+fn edited_clone(fixture: &Fixture, directory: &Path) -> PathBuf {
+    std::fs::create_dir_all(directory).expect("the build step's directory");
     let source: PathBuf = fixture.root.join("source");
     let source_text: &str = source.to_str().expect("fixture paths are UTF-8");
-    git(fixture, out_dir, &["clone", "--quiet", source_text, "ghostty-src"]);
-    let clone: PathBuf = out_dir.join("ghostty-src");
+    git(fixture, directory, &["clone", "--quiet", source_text, "ghostty-src"]);
+    let clone: PathBuf = directory.join("ghostty-src");
     std::fs::write(clone.join("tracked.txt"), b"edited by the build step\n").expect("edit");
     return clone;
 }
 
-/// Run the wrapper in `directory` with Cargo's `OUT_DIR` naming `out_dir`.
-fn checkout_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path, commit: &str) -> Observed {
+/// Run the wrapper in `directory` with `variable` naming `value`,
+///  or with that variable absent from the child's environment when `value` is `None`.
+fn checkout_with_variable(
+    fixture: &Fixture,
+    directory: &Path,
+    variable: &str,
+    value: Option<&OsStr>,
+    commit: &str,
+) -> Observed {
     let mut command: Command = bounded(
         fixture,
         fixture.root.join("bin/git").as_path(),
         wrapper_first_path(fixture).as_os_str(),
     );
-    command
-        .env("OUT_DIR", out_dir.as_os_str())
-        .current_dir(directory)
-        .args(["checkout", commit]);
+    // What: `if let Some(named) = value` sets the variable only when one is named.
+    // Why:  The absent case is the control that an unset variable exempts nothing.
+    if let Some(named) = value {
+        command.env(variable, named);
+    }
+    command.current_dir(directory).args(["checkout", commit]);
     return observe(&mut command, b"");
+}
+
+/// Run the wrapper in `directory` with Cargo's `OUT_DIR` naming `out_dir`.
+fn checkout_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path, commit: &str) -> Observed {
+    return checkout_with_variable(fixture, directory, "OUT_DIR", Some(out_dir.as_os_str()), commit);
 }
 
 /// Run the wrapper's `git reset --hard HEAD` in `directory` with Cargo's `OUT_DIR` naming `out_dir`,
@@ -113,7 +145,7 @@ fn rejected_by_policy(observed: &Observed) -> bool {
 fn a_checkout_in_a_build_scripts_own_clone_runs() {
     let fixture: Fixture = fixture("build-script-clone-exempt");
     let commit: String = source_repository(&fixture);
-    let out_dir: PathBuf = fixture.root.join(OUT_DIR_TAIL);
+    let out_dir: PathBuf = build_script_output_dir(&fixture);
     let clone: PathBuf = edited_clone(&fixture, out_dir.as_path());
     let observed: Observed = checkout_with_out_dir(&fixture, clone.as_path(), out_dir.as_path(), commit.as_str());
     assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
@@ -134,7 +166,7 @@ fn a_checkout_in_a_build_scripts_own_clone_runs() {
 fn a_checkout_in_a_clone_beside_the_build_scripts_directory_is_refused() {
     let fixture: Fixture = fixture("build-script-clone-guarded");
     let commit: String = source_repository(&fixture);
-    let out_dir: PathBuf = fixture.root.join(OUT_DIR_TAIL);
+    let out_dir: PathBuf = build_script_output_dir(&fixture);
     let clone: PathBuf = edited_clone(&fixture, out_dir.as_path());
     let elsewhere: PathBuf = fixture.root.join("a-sibling-of-the-output-directory");
     let observed: Observed = checkout_with_out_dir(&fixture, clone.as_path(), elsewhere.as_path(), commit.as_str());
@@ -157,7 +189,7 @@ fn a_checkout_in_a_clone_beside_the_build_scripts_directory_is_refused() {
 fn a_discard_in_a_linked_worktree_outside_the_build_scripts_directory_is_refused() {
     let fixture: Fixture = fixture("build-script-clone-linked-outside");
     source_repository(&fixture);
-    let out_dir: PathBuf = fixture.root.join(OUT_DIR_TAIL);
+    let out_dir: PathBuf = build_script_output_dir(&fixture);
     let clone: PathBuf = edited_clone(&fixture, out_dir.as_path());
     let outside: PathBuf = fixture.root.join("the-persons-worktree");
     std::fs::create_dir(&outside).expect("where the person asked for the worktree");
@@ -178,7 +210,7 @@ fn a_discard_in_a_linked_worktree_outside_the_build_scripts_directory_is_refused
 fn a_discard_in_a_linked_worktree_inside_the_build_scripts_directory_stays_exempt() {
     let fixture: Fixture = fixture("build-script-clone-linked-inside");
     source_repository(&fixture);
-    let out_dir: PathBuf = fixture.root.join(OUT_DIR_TAIL);
+    let out_dir: PathBuf = build_script_output_dir(&fixture);
     let clone: PathBuf = edited_clone(&fixture, out_dir.as_path());
     let inside: PathBuf = out_dir.join("worktrees/second-build-step");
     std::fs::create_dir_all(&inside).expect("the build script's own worktree directory");
@@ -190,6 +222,104 @@ fn a_discard_in_a_linked_worktree_inside_the_build_scripts_directory_stays_exemp
     assert_eq!(
         std::fs::read(worktree.join("tracked.txt")).expect("the exemption let the command run"),
         b"one\n"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  A clone under the invocation's Cargo build directory is exempt even when the step running Git
+///  has no `OUT_DIR` of its own.
+/// Why:
+///   The owner's answer of 2026-11-11 exempts the build directory (`#3024`),
+///  where a crate that vendors another project keeps the clone it runs Git in,
+///  so a checkout there runs and Git carries the edit over.
+#[test]
+fn a_checkout_in_a_clone_under_the_cargo_build_directory_runs() {
+    let fixture: Fixture = fixture("cargo-build-directory-exempt");
+    let commit: String = source_repository(&fixture);
+    let build_dir: PathBuf = cargo_build_directory(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let observed: Observed = checkout_with_variable(
+        &fixture,
+        clone.as_path(),
+        "CARGO_TARGET_DIR",
+        Some(build_dir.as_os_str()),
+        commit.as_str(),
+    );
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    // Git moved `HEAD` to the commit and carried the edit, which proves the command reached Git.
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the checkout kept the file"),
+        b"edited by the build step\n"
+    );
+    let moved: Output = git(&fixture, clone.as_path(), &["rev-parse", "HEAD"]);
+    assert_eq!(String::from_utf8_lossy(&moved.stdout).trim(), commit);
+    remove(&fixture);
+}
+
+/// The same variable naming a directory beside the clone keeps the guard:
+///  only the directory the variable names is exempt.
+#[test]
+fn a_checkout_in_a_clone_beside_the_cargo_build_directory_is_refused() {
+    let fixture: Fixture = fixture("cargo-build-directory-guarded");
+    let commit: String = source_repository(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let beside: PathBuf = fixture.root.join("another-build");
+    let observed: Observed = checkout_with_variable(
+        &fixture,
+        clone.as_path(),
+        "CARGO_TARGET_DIR",
+        Some(beside.as_os_str()),
+        commit.as_str(),
+    );
+    assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(1), "{}", stderr_of(&observed));
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the refused command changed nothing"),
+        b"edited by the build step\n"
+    );
+    remove(&fixture);
+}
+
+/// An unset variable exempts nothing:
+/// the same clone keeps the guard it had.
+#[test]
+fn a_checkout_in_a_clone_under_the_cargo_build_directory_is_refused_with_the_variable_unset() {
+    let fixture: Fixture = fixture("cargo-build-directory-unset");
+    let commit: String = source_repository(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let observed: Observed = checkout_with_variable(&fixture, clone.as_path(), "CARGO_TARGET_DIR", None, commit.as_str());
+    assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(1), "{}", stderr_of(&observed));
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the refused command changed nothing"),
+        b"edited by the build step\n"
+    );
+    remove(&fixture);
+}
+
+/// A relative value names nothing:
+///  `CARGO_TARGET_DIR=.` would name the clone itself if the wrapper resolved it against its own
+///  working directory,
+/// and Cargo resolves the variable against a directory the Git child does not work in.
+#[test]
+fn a_checkout_in_a_clone_under_a_relative_cargo_build_directory_is_refused() {
+    let fixture: Fixture = fixture("cargo-build-directory-relative");
+    let commit: String = source_repository(&fixture);
+    let clone: PathBuf = edited_clone(&fixture, build_script_output_dir(&fixture).as_path());
+    let observed: Observed = checkout_with_variable(
+        &fixture,
+        clone.as_path(),
+        "CARGO_TARGET_DIR",
+        Some(OsStr::new(".")),
+        commit.as_str(),
+    );
+    assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(1), "{}", stderr_of(&observed));
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the refused command changed nothing"),
+        b"edited by the build step\n"
     );
     remove(&fixture);
 }

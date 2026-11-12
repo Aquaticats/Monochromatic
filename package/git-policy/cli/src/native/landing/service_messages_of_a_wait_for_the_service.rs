@@ -3,7 +3,8 @@
 //!  where it stands,
 //!  what the wait is waiting for and on whom,
 //!  that the service is asked to restart,
-//!  and that the commit is built again because its branch moved.
+//!  and that the commit is built again because its branch moved,
+//!  and the sentence about what the service last said it waited for.
 //! Why:
 //!  Every one of them is a wait the person would otherwise not see,
 //! and the owner's rules are that nothing waits without saying so and
@@ -22,6 +23,60 @@
 //! ```
 
 use std::time::Duration;
+
+/// What:
+///  The sentence about what the service last said it waited for,
+///  and nothing when it said nothing.
+/// Why:
+///  The notices the service sends end in a full stop,
+///  and a second one after a quoted notice reads as a mistake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitingFor(blocker) // ' It was waiting for: <text>' | ''
+/// ```
+pub(crate) fn waiting_for(blocker: Option<&str>) -> String {
+    return match blocker {
+        Some(text) => format!(" It was waiting for: {}", ending_in_a_full_stop(text.trim())),
+        None => String::new(),
+    };
+}
+
+/// What:
+///  `text` with one full stop at its end,
+///  its own or the one this adds.
+/// Why:
+///  A notice the service sent already ends in a full stop,
+///  and a second one after a quoted notice reads as a mistake,
+///  while a quote with none would run into the sentence that follows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.endsWith('.') ? text : text + '.'
+/// ```
+fn ending_in_a_full_stop(text: &str) -> String {
+    return if text.ends_with('.') { text.to_string() } else { format!("{text}.") };
+}
+
+/// What:
+///  The sentence about what the service last said while it kept the request,
+///  and nothing when it said nothing.
+/// Why:
+///  The same reading as `waiting_for`,
+/// for the words the service said on the connection it was asked on,
+/// and quoted as the service sent them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it_had_said(blocker)
+/// ```
+pub(crate) fn it_had_said(blocker: Option<&str>) -> String {
+    // The notice is quoted as the service sent it: this sentence ends with no full stop of its own, so the quoted one stands.
+    return match blocker {
+        Some(text) => format!(" The service had said: {}", text.trim()),
+        None => String::new(),
+    };
+}
 
 /// Printed once when the service takes longer than the grace to answer.
 pub const STARTING_NOTICE: &str = "Waiting for the commit service of this worktree...";
@@ -70,9 +125,35 @@ pub fn restarting_notice(unit: &str, waited: Duration) -> String {
     );
 }
 
-/// Printed each time the service goes silent while a commit waits,
-/// before the same request is sent to it again.
-pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
+/// What:
+///  The notice for a commit whose service has said nothing for one silence bound,
+/// written before the same request is sent to it again.
+/// Why:
+///   A service that is busy and one that has stopped look the same from the client,
+/// and the person decides whether to wait or to run something else:
+///  the words name how long the quiet lasted,
+/// what the command does about it,
+/// that a commit cannot be made twice,
+/// and that nothing is asked of the reader.
+///  The older words claimed the service had stopped answering,
+/// which the record of 2026-11-11 shows it had not:
+/// the service that printed the line answered on the next ask,
+/// and had landed the commit
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// silentNotice(waited) // 'The commit service has said nothing for 5 seconds, ...'
+/// ```
+pub fn silent_notice(waited: Duration) -> String {
+    // A part second of waiting is a second waited, and a long wait counts in whole seconds.
+    let seconds: u64 = waited.as_secs().max(1);
+    let unit: &str = if seconds == 1 { "second" } else { "seconds" };
+    return format!(
+        "The commit service has said nothing for {seconds} {unit}, so the same commit is being sent to it again; \
+         a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do."
+    );
+}
 
 /// Printed once when the service is being replaced by a newer one.
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";

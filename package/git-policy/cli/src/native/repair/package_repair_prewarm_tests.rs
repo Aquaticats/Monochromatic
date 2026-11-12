@@ -325,3 +325,42 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         remove(root.as_path());
     }
 }
+
+/// What:
+///  Every hand-over of one worktree path gets a record whose object name is its own,
+///  however many of them the clock cannot tell apart.
+/// Why:
+///   The object name is the record's id and the queue's idempotency key,
+/// and the queue answers an id it already knows as known in every state.
+/// The moment a hand-over writes is a millisecond,
+/// so two hand-overs of one path asked for inside one millisecond would otherwise share a name
+/// and the second would be dropped:
+/// its filling would never run,
+/// and a filling that failed could not be asked for again.
+/// The control writes `HAND_OVERS` records as fast as it can:
+/// a record takes far less than a millisecond to write,
+/// so one millisecond holding two of them is certain here,
+/// and a name that is the moment alone repeats with them.
+#[test]
+fn every_hand_over_of_one_path_gets_an_object_name_of_its_own() {
+    /// How many hand-overs one control writes;
+    /// each takes far less than a millisecond,
+    /// so this many cannot all fall in different milliseconds.
+    const HAND_OVERS: usize = 1000;
+    let root: PathBuf = fixture("prewarm-one-millisecond");
+    let common: PathBuf = root.join("common");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    std::fs::create_dir_all(destination.as_path()).expect("the worktree");
+    let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+    let mut names: Vec<String> = Vec::with_capacity(HAND_OVERS);
+    for _ in 0..HAND_OVERS {
+        let item: WorkItem = item_of(common.as_path(), destination.as_path(), entries.as_slice()).expect("the record");
+        names.push(item.oid);
+    }
+    let mut distinct: Vec<String> = names.clone();
+    distinct.sort();
+    distinct.dedup();
+    assert_eq!(distinct.len(), names.len(), "each of the {} hand-overs of one path has an object name of its own", names.len());
+    remove(root.as_path());
+}

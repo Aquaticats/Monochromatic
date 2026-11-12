@@ -23,6 +23,14 @@
 //! the bytes it moved,
 //! the work of the children it waited for and its set of processes all standing
 //!  still for a window.
+//! A tree waiting in the kernel's read of a Unix socket is not that:
+//! it waits for an answer from a
+//!  program outside it,
+//! the wrapper for the commit service's,
+//! and that answer's latency is the service's own disk work,
+//!  so no look of this tree can see it as progress or as a hang of its own
+//!  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`,
+//! "A merge that waited for the commit service's answer").
 //! A loop looks like processor time that keeps growing past a budget no real command comes near.
 //! Both end
 //!  the command with a message that names it,
@@ -210,7 +218,7 @@ impl Judge {
         let moved: bool = self.previous.as_ref().is_none_or(|(cpu, activity, faults, processes)| {
             return *cpu != sample.cpu_ticks || *activity != sample.activity || *faults != sample.child_faults || *processes != sample.processes;
         });
-        if moved || sample.runnable || sample.disk_wait || sample.held || held_by_test {
+        if moved || sample.runnable || sample.disk_wait || sample.answer_wait || sample.held || held_by_test {
             self.last_change = elapsed;
         }
         self.previous = Some((sample.cpu_ticks, sample.activity, sample.child_faults, sample.processes.clone()));

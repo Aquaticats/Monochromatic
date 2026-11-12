@@ -539,9 +539,9 @@ which the Git wrapper's linked-worktree guard refuses,
 so it is red in any worktree),
 `ide/app` (the same family,
 in a container build;
-the failure prints no line that starts with `error`,
-so its issue
-would say so and give the reproduce command) and `vm-builder/cli` (`lint:types`,
+its 2026-11-07 output started no line with `error`,
+though the check runner then read only the first 20,000 characters of a check's output,
+so that reading could not have seen an error further in) and `vm-builder/cli` (`lint:types`,
 TS2307).
 Several TypeScript packages fail in a fresh worktree only because their `dist` is not built;
 the first attempt saw 13.
@@ -597,6 +597,11 @@ in order:
 - First error:
   its code,
   then the error line and the lines that continue it up to the next blank line.
+  It is the first error the check printed anywhere in its output,
+  found as that output streams past,
+  so a check whose start holds megabytes of compiler warnings still reports the error at its end
+  (`doc/troubleshooting/cargo-loop-warnings-before-the-first-error.md`);
+  a check whose whole output starts no line as an error reports that it printed none.
 - Reproduce:
   `mise run //<package>:<task>` from the repository root,
   on the update commit.

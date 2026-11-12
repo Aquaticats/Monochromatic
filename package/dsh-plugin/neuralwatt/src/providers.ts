@@ -184,6 +184,59 @@ function storedRouteOf(value: unknown): unknown {
 //region Public API
 
 /**
+ Message fragments marking one settings write as deferred past the host's open
+ reload transaction rather than failed, each quoted from the tool that throws
+ it:
+
+ - `HMR transactions cannot be nested`: `@deepseek-ai/dsh-hmr` `runExclusive`
+   refuses the `@deepseek-ai/dsh-config-editor` `ConfigEditor.edit` write while
+   the calling chain already runs inside a reload transaction
+   (`dsh-hmr` `lib/index.js:749`). The refusing chain keeps that transaction's
+   async context for the rest of its life (2026-11-11: both mount writes of one
+   refresh refused together at 2026-11-11T15:54:00Z on the live web host), so an
+   in-chain retry can never land and the write must be re-rooted outside.
+
+ The plugin-manager composes this plugin inside exactly that transaction on
+ every `set_plugin`, `install_bundle`, and `set_bundle`
+ (`dsh-plugin-manager` `configure` → `runExclusive`), so this is the shape a
+ live re-trigger takes.
+ */
+export const NEURALWATT_SETTINGS_WRITE_DEFERRAL_MARKERS: readonly string[] = [
+  'HMR transactions cannot be nested',
+];
+
+/**
+ Whether one failed settings write is a deferral past the host's open reload
+ transaction, keyed on the message text of the throwing tool because
+ `@deepseek-ai/dsh-hmr` throws a plain `Error` with no class to discriminate on.
+
+ @param error - caught failure from `settings.update`
+
+ @returns whether the write is owed a retry from outside that transaction
+
+ @example
+ ```ts
+ isNeuralWattSettingsWriteDeferral({
+   error: new Error('HMR transactions cannot be nested'),
+ });
+ ```
+ */
+export function isNeuralWattSettingsWriteDeferral({
+  error,
+}: {
+  readonly error: unknown;
+}): boolean {
+  /**
+   Rendered failure text the markers are matched against.
+   */
+  const text = caughtValueText(error);
+  return NEURALWATT_SETTINGS_WRITE_DEFERRAL_MARKERS
+    .some(function byMarker(marker) {
+      return text.includes(marker);
+    });
+}
+
+/**
  Write the mapping of one listing into the served settings entry, skipping the
  write when the stored route already holds the same content so an unchanged
  user document is never rewritten.
@@ -253,6 +306,13 @@ export async function writeNeuralWattRoute({
 
  @param fetchListing - listing fetch, defaulted to the real transport
 
+ @param onWriteDeferral - deferral sink for a settings write the host refused
+ while its reload transaction was still open: handed a retry that re-runs this
+ whole refresh, which the caller must invoke from a context outside that
+ transaction (the refusing chain keeps the transaction's context for good, so
+ an in-chain retry can never land). Omitting it treats such a refusal like any
+ other write failure and keeps the served snapshot.
+
  @example
  ```ts
  await refreshNeuralWattRoute({ settings });
@@ -261,9 +321,11 @@ export async function writeNeuralWattRoute({
 export async function refreshNeuralWattRoute({
   settings,
   fetchListing = fetchNeuralWattListing,
+  onWriteDeferral,
 }: {
   readonly settings: NeuralWattSettingsTarget;
   readonly fetchListing?: typeof fetchNeuralWattListing;
+  readonly onWriteDeferral?: (retry: () => Promise<void>) => void;
 }): Promise<void> {
   /**
    Logger tagged with the function name.
@@ -272,12 +334,35 @@ export async function refreshNeuralWattRoute({
     tag: refreshNeuralWattRoute.name,
     l: neuralWattLogger,
   });
+  /**
+   Whole-mount retry handed to the deferral sink: one refresh re-runs the
+   snapshot write and the live write in their original order, so a deferred run
+   can never leave the older snapshot content landing after the newer live
+   listing. Each absent optional is re-passed as absent rather than as
+   `undefined`, so the re-run sees the same composition shape.
+   */
+  function retryRefresh(): Promise<void> {
+    return refreshNeuralWattRoute({
+      settings,
+      fetchListing,
+      ...(onWriteDeferral === undefined
+        ? {}
+        : { onWriteDeferral, }),
+    },);
+  }
   try {
     await writeNeuralWattRoute({
       settings,
       listing: neuralWattListingSnapshot,
     });
   } catch (error) {
+    if ((onWriteDeferral !== undefined)
+      && isNeuralWattSettingsWriteDeferral({ error, },)) {
+      logger
+        .debug(`neuralwatt snapshot route write deferred past the host's open reload transaction (${caughtValueText(error)}); the caller re-runs the mount refresh outside it`);
+      onWriteDeferral(retryRefresh);
+      return;
+    }
     logger
       .warn(`neuralwatt snapshot route write could not complete (${caughtValueText(error)}); the live listing write still runs. The step reads the stored profile back and then merges, so either one failing lands here: a profile that does not activate the ${NEURALWATT_SETTINGS_NAMESPACE} entry, a home patch or command-line overlay that overrides its config, or a host shutdown during mount.`);
   }
@@ -309,6 +394,13 @@ export async function refreshNeuralWattRoute({
         listing
       });
     } catch (error) {
+      if ((onWriteDeferral !== undefined)
+        && isNeuralWattSettingsWriteDeferral({ error, },)) {
+        logger
+          .debug(`neuralwatt live route write deferred past the host's open reload transaction (${caughtValueText(error)}); the caller re-runs the mount refresh outside it`);
+        onWriteDeferral(retryRefresh);
+        return;
+      }
       logger
         .warn(`neuralwatt live route write could not complete (${caughtValueText(error)}); keeping the served snapshot. The step reads the stored profile back and then merges, so either one failing lands here: a profile that does not activate the ${NEURALWATT_SETTINGS_NAMESPACE} entry, a home patch or command-line overlay that overrides its config, or a host shutdown before the mount fetch resolved.`);
     }

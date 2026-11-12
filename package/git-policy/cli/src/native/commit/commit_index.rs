@@ -146,6 +146,9 @@ fn is_tab_byte(byte: &u8) -> bool {
 ///  A selection Git refuses for a pathspec that matches nothing ends here with that refusal,
 /// which the caller reports as the caller's own input error (issue 6283);
 /// every other failure is Git's and stays an engine failure.
+///  `worktree_root` is the top Git answered for the invocation,
+///  which is the worktree the selection's relative pathspecs are read from,
+///  whichever way the caller named it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,6 +157,7 @@ fn is_tab_byte(byte: &u8) -> bool {
 pub fn initialize_commit_index(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     real_index: &Path,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
@@ -195,7 +199,7 @@ pub fn initialize_commit_index(
         TransactionMode::ExplicitPath => WorktreeStaging::Named(selection.pathspecs),
         TransactionMode::Index => WorktreeStaging::None,
     };
-    stage_into_the_private_index(context, cwd, source.as_path(), real_index_present, indexes, selection)?;
+    stage_into_the_private_index(context, cwd, worktree_root, source.as_path(), real_index_present, indexes, selection)?;
     // What:
     //  The refresh of the private commit index's stat data,
     //  which is the index the scratch commit reads.
@@ -228,6 +232,10 @@ pub fn initialize_commit_index(
 /// (`initialize_commit_index`).
 /// `real_index_present` is asked by the caller before it makes an empty index for a repository that has none,
 /// because the file exists by the time this runs.
+///  `worktree_root` is the top Git answered for the invocation,
+///  which is the worktree the staging's relative pathspecs are read from
+/// (`commit_selection_staging.rs`,
+/// `pathspec_base`).
 ///  The real index is read one time here,
 ///  and both of the copies below and the seed decision are made from those bytes,
 ///  so a staging that lands in the real index between this read and the copies reaches neither of them.
@@ -243,6 +251,7 @@ pub fn initialize_commit_index(
 fn stage_into_the_private_index(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     source: &Path,
     real_index_present: bool,
     indexes: &CaptureIndexes,
@@ -320,7 +329,7 @@ fn stage_into_the_private_index(
         // additions they name have to be carried, or a force-added ignored file the selection names stays out of the
         // commit where native Git records it (`commit_index_copying.rs`).
         if seed == PrivateIndexSeed::Copy && index_equals_base(context, cwd, indexes, selection.base_revision) {
-            return crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection);
+            return crate::commit_selection_staging::add_selected_paths(context, cwd, worktree_root, indexes, selection);
         }
         let mut read_tree: Vec<String> = vec![String::from("read-tree")];
         if seed != PrivateIndexSeed::Base {
@@ -336,7 +345,7 @@ fn stage_into_the_private_index(
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
-    return crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection);
+    return crate::commit_selection_staging::add_selected_paths(context, cwd, worktree_root, indexes, selection);
 }
 
 /// What:

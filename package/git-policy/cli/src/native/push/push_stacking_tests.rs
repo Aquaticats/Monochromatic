@@ -202,6 +202,36 @@ fn a_detached_head_stays_where_it_is_and_the_report_says_so() {
     remove(&race.root);
 }
 
+/// What:
+///  An integration that stops on a failed command tells the person what stopped it.
+/// Why:
+///  The push above has already printed Git's own rejection,
+/// so a stop that says nothing leaves the rejection as the whole story
+/// and the caller cannot tell why the merge did not happen or what to repair.
+/// A signer that fails is the real case:
+/// the merge is committed with `-S` when the repository signs commits,
+/// and its words are the cause the person acts on.
+#[test]
+fn an_integration_that_stops_on_a_failed_command_names_it_for_the_person() {
+    const SIGNER_WORDS: &str = "SIGNER-FAILURE-THAT-MUST-REACH-THE-PERSON";
+    let race = race("ps-integration-stops");
+    commit_file(&race.rival, "rival.txt", "rival\n");
+    git(&race.rival, &["push", "--quiet", "origin", "HEAD"]);
+    commit_file(&race.local, "local.txt", "local\n");
+    let before = oid(&race.remote, &race.default);
+    let signer: PathBuf = race.root.join("failing-signer");
+    crate::test_support::executable(signer.as_path(), format!("#!/bin/sh\necho '{SIGNER_WORDS}' >&2\nexit 1\n").as_bytes());
+    git(&race.local, &["config", "commit.gpgsign", "true"]);
+    git(&race.local, &["config", "gpg.program", signer.to_str().expect("utf-8")]);
+    let (code, err) = stack(&race, &region(&race));
+    assert_eq!(code, None, "the rejection's own status stands: {err}");
+    assert!(err.contains("monochromatic-git-policy-cli: push: "), "the stop is not worded as the loop words its lines: {err}");
+    assert!(err.contains("did not finish"), "the stop says nothing about what became of the push: {err}");
+    assert!(err.contains(SIGNER_WORDS), "the signer's own words are missing: {err}");
+    assert_eq!(oid(&race.remote, &race.default), before, "nothing was published");
+    remove(&race.root);
+}
+
 /// A conflict publishes nothing,
 /// names the paths,
 /// and exits non-zero.
@@ -216,6 +246,47 @@ fn a_conflict_publishes_nothing_and_names_the_paths() {
     assert_eq!(code, Some(1), "{err}");
     assert!(err.contains("conflicts in: base.txt"), "{err}");
     assert_eq!(oid(&race.remote, &race.default), before);
+    remove(&race.root);
+}
+
+/// A push that failed only because another push of the same commit landed first ends with success,
+/// because the remote holds what it sends:
+/// the commit's auto-push publishes the branch while the person's own push is on its way.
+#[test]
+fn a_push_the_remote_already_holds_ends_with_success() {
+    let race = race("ps-remote-already-holds");
+    // The value the person's remote-tracking ref holds before their push: their push's own update of the
+    //  tracking ref is the one that failed, so the file still says this.
+    let before = oid(&race.local, "HEAD");
+    commit_file(&race.local, "local.txt", "local\n");
+    let landed = oid(&race.local, "HEAD");
+    // What the commit's auto-push does before the person's push reaches the remote.
+    git(&race.local, &["push", "--quiet", "origin", "HEAD"]);
+    git(&race.local, &["update-ref", "refs/remotes/origin/main", before.as_str()]);
+    let (code, err) = stack(&race, &region(&race));
+    assert_eq!(code, Some(0), "{err}");
+    assert!(err.contains("already holds everything this push sends"), "{err}");
+    assert_eq!(oid(&race.remote, &race.default), landed, "the remote holds the pushed commit");
+    remove(&race.root);
+}
+
+/// A push whose branch the remote moved past keeps Git's failure,
+/// because the remote does not hold the object it sends.
+#[test]
+fn a_push_the_remote_moved_past_keeps_its_failure() {
+    let race = race("ps-remote-moved-past");
+    commit_file(&race.local, "local.txt", "local\n");
+    let pushed = oid(&race.local, "HEAD");
+    git(&race.local, &["push", "--quiet", "origin", "HEAD"]);
+    // Another session commits above the pushed commit, so the remote holds it but stands above it.
+    git(&race.rival, &["pull", "--quiet", "--ff-only"]);
+    commit_file(&race.rival, "rival.txt", "rival\n");
+    git(&race.rival, &["push", "--quiet", "origin", "HEAD"]);
+    let (code, err) = stack(&race, &region(&race));
+    assert_eq!(code, None, "{err}");
+    assert_eq!(err, "");
+    assert!(reachable(&race, &pushed, &oid(&race.remote, &race.default)), "the remote holds the pushed commit");
+    assert_ne!(oid(&race.remote, &race.default), pushed, "but not as the value this push sends");
     remove(&race.root);
 }
 

@@ -47,6 +47,7 @@ import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
+  PI_AUTOMATIC_RETRIES,
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
   TRANSIENT_ERROR_TEXT,
@@ -221,6 +222,12 @@ type RunRequest = {
   readonly extraOptions?: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
   readonly withoutPi?: boolean;
+
+  /**
+   Whether the `git` this run would find answers as this repository's policy wrapper, which it does in every test but the one that
+   asks what happens when it does not.
+   */
+  readonly gitIsTheWrapper?: boolean;
 
   /**
    Text of the prompt file, which no test leaves empty.
@@ -432,6 +439,34 @@ async function installStandIn(folder: string,): Promise<void> {
   await chmod(launcher, 0o700,);
 }
 
+/**
+ Installs the `git` a run's session finds on its `PATH`: this repository's policy wrapper, or a program that answers as the system
+ git does when nothing installs the wrapper.
+
+ @param folder - the folder `PATH` searches, which holds the program
+
+ @param isTheWrapper - whether the program prints the policy namespace help, which is the wrapper's own answer
+ */
+async function installStandInGit({
+  folder,
+  isTheWrapper,
+}: {
+  readonly folder: string;
+  readonly isTheWrapper: boolean;
+},): Promise<void> {
+  /**
+   The program's file.
+   */
+  const program = join(folder, 'git',);
+  await writeFile(
+    program,
+    isTheWrapper
+      ? `#!/bin/sh\nprintf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]'\nexit 0\n`
+      : `#!/bin/sh\nprintf '%s\\n' "git: 'monochromatic-git-policy-cli' is not a git command. See 'git --help'." >&2\nexit 1\n`,
+  );
+  await chmod(program, 0o700,);
+}
+
 async function exitOf(running: ReturnType<typeof execFileAsync>,): Promise<readonly [number, string,]> {
   try {
     const result = await running;
@@ -502,6 +537,7 @@ async function runDriver(
     extraOptions = [],
     environment = {},
     withoutPi = false,
+    gitIsTheWrapper = true,
     promptText = 'hello',
     withoutPrompt = false,
     wallSeconds = RUN_WALL_SECONDS,
@@ -526,6 +562,12 @@ async function runDriver(
   if (!withoutPi) {
     await installStandIn(folder.path,);
   }
+  // The driver asks the git the session would run whether it is the policy wrapper before it starts Pi, so every run needs one to
+  // answer that question: the folder `PATH` starts with, and the folder that holds nothing when a test takes Pi away.
+  await installStandInGit({
+    folder: withoutPi ? withoutExecutables : folder.path,
+    isTheWrapper: gitIsTheWrapper,
+  },);
   await prepare?.({
     runFolder,
     promptFile,
@@ -719,6 +761,19 @@ await describe({
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('pi-exited',);
         expect(String(run.summary.piExit?.processError,),).toContain('ENOENT',);
+      },
+    },),
+    it({
+      name: 'a session whose git is not the policy wrapper is refused before Pi starts, and the refusal names what it found',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'normal', gitIsTheWrapper: false, },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.standardError,).toContain('GitWrapperPreflightError',);
+        expect(run.standardError,).toContain('is not a git command',);
+        expect(run.standardError,).toContain('.cache/monochromatic-git-policy-cli-bin',);
+        expect(run.logWasWritten,).toBe(false,);
+        expect(run.runFolderWasMade,).toBe(false,);
+        expect(run.summary.endReason,).toBe(ABSENT_SUMMARY.endReason,);
       },
     },),
     it({
@@ -946,17 +1001,47 @@ await describe({
       },
     },),
     it({
-      name: 'a rate limit is retried like a transient failure and counted apart',
+      name: 'a 429 Pi\'s own retry recovers ends the run as one that came back, with no attempt by the driver',
       fn: async () => {
-        const run = await runDriver({
-          scenario: 'rate-limit-then-success',
-          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
-        },);
+        const run = await runDriver({ scenario: 'rate-limit-recovered-by-pi', },);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
-        expect(run.summary.retries,).toBe(1,);
+        expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+        // Pi answered the 429 itself, which the coordinator measures apart, and the driver re-prompted nothing.
+        expect(run.summary.retries,).toBe(0,);
         expect(run.summary.rateLimitErrors,).toBe(1,);
-        expect(run.feed.find((entry,) => entry.kind === 'retry')?.errorKind,).toBe('throttled',);
+        expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect(run.feed.some((entry,) => entry.kind === 'auto_retry_end'),).toBe(true,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',),).toHaveLength(1,);
+        expect('piRetryGaveUp' in run.summary,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'a 429 Pi\'s own retry gives up on ends the run once, naming the error and the spent retry',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'rate-limit-retries-exhausted',
+          turnCap: TURN_CAP_ABOVE_RETRIES,
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(RATE_LIMIT_ERROR_TEXT,);
+        // One attempt: the turn Pi made at the task. The driver re-prompted nothing, whatever its own bound allows.
+        expect(run.summary.retries,).toBe(0,);
+        expect(run.summary.modelErrorAttempts,).toBe(1,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',),).toHaveLength(1,);
+        expect(run.feed.some((entry,) => (entry.kind === 'retry') || (entry.kind === 'retry_prompt')),).toBe(false,);
+        // Every failed attempt of Pi's own is counted apart, since each named a rate limit.
+        expect(run.summary.rateLimitErrors,).toBe(PI_AUTOMATIC_RETRIES + 1,);
+        // What Pi reported when it stopped retrying is kept, so a coordinator sees the 429 was Pi's retry's to answer.
+        expect(run.summary.piRetryGaveUp,).toEqual({
+          attempts: PI_AUTOMATIC_RETRIES,
+          problem: RATE_LIMIT_ERROR_TEXT,
+        },);
+        expect(run.feed.some((entry,) => entry.kind === 'auto_retry_end'),).toBe(true,);
+        expect(run.standardError,).toContain(
+          `Pi's own automatic retry gave up on it after ${String(PI_AUTOMATIC_RETRIES,)} attempts`,
+        );
       },
     },),
     it({

@@ -68,6 +68,10 @@ pub mod plain_file;
 /// with its bytes in hexadecimal beside the plain text.
 pub mod path_bytes_in_records;
 
+/// A reference name as the bytes Git printed,
+/// with the spelling each reader of it takes.
+pub mod ref_name;
+
 /// How many workers independent items may use together,
 /// from the CPUs allowed,
 /// the memory free and a measured ceiling.
@@ -124,6 +128,11 @@ pub mod side_by_side_threads;
 /// each a function and the state it owns,
 /// under the process's bound on blocking jobs.
 pub mod side_by_side_on_the_runtime;
+
+/// Futures the caller lends,
+/// run beside each other on the task that awaits them,
+/// for the items a drain knows only when it runs and whose work is awaited rather than run as a job.
+pub mod side_by_side_on_the_current_task;
 
 /// The names this program answers to and keeps on disk,
 ///  each as the current spelling and the one an earlier release used.

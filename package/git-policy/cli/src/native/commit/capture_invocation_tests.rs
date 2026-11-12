@@ -39,9 +39,9 @@ fn branch_layout_names_the_branch_and_the_store() {
         capture_invocation_layout(&git_context(), repo.as_path(), false).expect("layout");
     assert_eq!(
         layout.symbolic_head,
-        SymbolicHead::Branch(String::from("refs/heads/main"))
+        SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))
     );
-    assert_eq!(layout.target_ref, "refs/heads/main");
+    assert_eq!(layout.target_ref, RefName::from_text("refs/heads/main"));
     assert_eq!(layout.conclusion, Conclusion::None);
     assert_eq!(layout.ref_format, RefFormat::Files);
     assert_eq!(layout.object_format, "sha1");
@@ -92,7 +92,7 @@ fn a_plain_head_starts_no_symbolic_ref() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
     let branch: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    assert_eq!(branch.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/main")));
+    assert_eq!(branch.symbolic_head, SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")));
     git(repo.as_path(), &["checkout", "--quiet", "--detach"]);
     let detached: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
     assert_eq!(detached.symbolic_head, SymbolicHead::Detached);
@@ -116,7 +116,7 @@ fn a_declined_head_falls_back_to_git() {
     git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/alias"]);
     let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
     let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    assert_eq!(layout.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/main")));
+    assert_eq!(layout.symbolic_head, SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")));
     assert_eq!(recorded_starts(log.as_path()).iter().filter(|start| { return start.starts_with("symbolic-ref"); }).count(), 1);
 
     let reftable_repo: PathBuf = root.join("reftable");
@@ -125,7 +125,7 @@ fn a_declined_head_falls_back_to_git() {
     let reftable: InvocationLayout =
         capture_invocation_layout(&git_context(), reftable_repo.as_path(), false).expect("layout");
     assert_eq!(reftable.ref_format, RefFormat::Reftable);
-    assert_eq!(reftable.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/trunk")));
+    assert_eq!(reftable.symbolic_head, SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/trunk")));
     remove(root.as_path());
 }
 
@@ -150,7 +150,7 @@ fn a_head_rewritten_after_the_capture_is_seen_by_the_next_call() {
     std::fs::write(layout.git_dir.join("HEAD"), "ref: refs/heads/other\n").expect("fixture");
     assert_eq!(
         resolve_symbolic_head(&context, repo.as_path(), &ref_files),
-        Ok(SymbolicHead::Branch(String::from("refs/heads/other")))
+        Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/other")))
     );
     remove(root.as_path());
 }
@@ -164,7 +164,7 @@ fn detached_head_targets_head_itself() {
     let layout: InvocationLayout =
         capture_invocation_layout(&git_context(), repo.as_path(), false).expect("layout");
     assert_eq!(layout.symbolic_head, SymbolicHead::Detached);
-    assert_eq!(layout.target_ref, "HEAD");
+    assert_eq!(layout.target_ref, RefName::from_text("HEAD"));
     remove(root.as_path());
 }
 

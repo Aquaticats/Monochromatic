@@ -107,6 +107,31 @@ pub fn budgeted_blocking_jobs() -> usize {
 }
 
 /// What:
+///  How many of the process's places a round's own long work may take:
+/// every place but one,
+/// and at least one.
+/// Why:
+///   A round of the after-commit work removes trash entries side by side,
+/// and each removal is a job of the blocking pool,
+/// so a round that takes every place holds the steps that answer a client behind it:
+/// the check of which instance a commit belongs to,
+/// a withdrawal's decision,
+/// and the note of a beat
+/// all run there,
+/// and the measurement of 2026-11-10 shows what that cost (`clients_keep_a_place_of_the_pool`,
+/// `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The one place kept back is small (a read of one directory's name or of a few journal files)
+/// and never idle while a client waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const places = Math.max(1, budgetedBlockingJobs() - 1);
+/// ```
+pub fn places_a_round_may_take() -> usize {
+    return budget().allowed.saturating_sub(1).max(1);
+}
+
+/// What:
 ///  Holds every blocking job of this process to at most `cap` at once.
 /// Why:
 ///  A process that runs many of its kind at once bounds its own parallel work the way it bounds its runtime
@@ -175,6 +200,28 @@ where
     // The place is this job's, so it is no longer one of the jobs waiting for one.
     #[cfg(test)]
     drop(_asking);
+    return run_a_job_holding_the_place(place, job).await;
+}
+
+/// What:
+///  `run_blocking_job_within_the_budget`'s work,
+/// once its place of the bound is taken.
+/// Why:
+///   A caller that may not wait without an end takes the place under a ceiling of its own
+/// (`run_a_job_once_awaited_no_longer_than`),
+/// and the rest of the job is the same for both:
+///  the claim,
+/// the pool's thread and the place that goes back when the work ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const value = await runTheJobHoldingThePlace(place, job);
+/// ```
+async fn run_a_job_holding_the_place<T, J>(place: tokio::sync::OwnedSemaphorePermit, job: J) -> Result<T, BlockingJobError>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
     // The place and the claim travel together: a job the pool queued can run after this frame stops waiting, and then
     //  it must still hold a place, while a job this frame gives up on must do nothing at all.
     let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
@@ -207,6 +254,117 @@ where
             Err(answered)
         }
     };
+}
+
+/// The places slow work may take of the process's bound,
+/// made by the first slow job that needs one.
+static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
+
+/// How many of the process's places stay free of slow work:
+/// 1.
+/// Why:
+///  A job queues in the process's bound in the order it asked,
+/// so a queue of slow jobs stands between the work a person waits for and the place it needs:
+/// measured `2026-11-11T23:05:00-05:00` on this host,
+/// with the service's own four places,
+/// a push written behind four worktrees' trashes of 500 entries each started 4.3 s after it was asked for and took
+/// another 4.3 s,
+/// while the same push with no slow work beside it lands in about 0.1 s
+/// (`landing/service_work_items_side_by_side_tests.rs`,
+/// the measurement for the record).
+/// The pushes of a repository are never claimed by the slow lane,
+/// so what held them was the pool and not the work:
+/// one place kept free of slow work is what makes the lane's own promise true
+/// (`landing/service_work_slow_lane.rs`).
+/// One is the owner's rule about waits,
+/// "nothing should ever wait forever or indefinitely",
+/// read as the smallest number that finishes the round's own steps while slow work runs;
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SLOW_WORK_RESERVE = 1;
+/// ```
+pub(crate) const SLOW_WORK_RESERVE: usize = 1;
+
+/// What:
+///  The places slow work may take at once:
+/// the process's places less `SLOW_WORK_RESERVE`,
+/// and at least one.
+/// Why:
+///   Slow work is the work nobody waits for,
+/// so it takes what the work a person waits for does not need.
+/// A process held to one place offers slow work that one place,
+/// because a lane of no places would never finish.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slowPlaces = () => slowPlacesOf(budget()); // a semaphore of allowed - 1
+/// ```
+fn slow_places() -> &'static Arc<Semaphore> {
+    return SLOW_PLACES.get_or_init(the_places_slow_work_may_take);
+}
+
+/// The places slow work may take,
+/// made by the first slow job that asks for one.
+fn the_places_slow_work_may_take() -> Arc<Semaphore> {
+    return Arc::new(Semaphore::new(budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1)));
+}
+
+/// What:
+///  Runs `job` on the blocking pool while one of the places for slow work is held,
+/// so the places the work a person waits for needs stay free of it.
+/// Why:
+///   A step nobody waits for may take minutes,
+/// and every place it holds is a place a push or a landing waits for:
+/// this is where the lane's work asks,
+/// and the reserve is what keeps its queue out of the round's way.
+/// The place for slow work is this frame's and is given back when this call returns;
+/// a job the pool queued and this frame stopped waiting for therefore runs with no place for slow work,
+/// which is one slow job more than the lane offers and never more blocking work than the process allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slow = await slowPlaces.acquire(); try { return await runBlockingJobWithinTheBudget(job); } finally { slow.release(); }
+/// ```
+pub async fn run_a_slow_job_within_the_budget<T, J>(job: J) -> Result<T, BlockingJobError>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
+    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
+        Ok(taken) => taken,
+        // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
+        Err(_closed) => return Err(BlockingJobError::Cancelled),
+    };
+    let answer: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(job).await;
+    drop(slow);
+    return answer;
+}
+
+/// What:
+///  Run `work(state)` as a job of the blocking pool with a place for slow work held,
+/// or run it in turn here where the system refused a thread.
+/// Why:
+///   The slow kinds' steps are the same two cases `run_a_job_or_in_turn` covers,
+/// and the reserve is what the places of both take.
+/// The work in turn is this frame's,
+/// so the place for slow work stays held for as long as it runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return await runASlowJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); return work(state); }
+/// ```
+pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
+        Ok(taken) => taken,
+        Err(_closed) => return Err(BlockingJobError::Cancelled),
+    };
+    // The place for slow work is held on this frame, so the work done in turn below it is covered too.
+    let answer: Result<T, BlockingJobError> = run_a_job_or_in_turn(state, work).await;
+    drop(slow);
+    return answer;
 }
 
 /// What:
@@ -344,8 +502,42 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
             a_controls_answer::AStatesAnswer::NoAnswer => TheAnswerOfAJobAwaited::NoAnswer,
         };
     }
-    let job = run_blocking_job_within_the_budget(move || { return work(state); });
-    return match tokio::time::timeout(ceiling, job).await {
+    return run_a_job_once_awaited_no_longer_than(ceiling, move || { return work(state); }).await;
+}
+
+/// What:
+///  Run `job` as a job of the blocking pool,
+/// with a place of the process's bound held while it runs,
+/// awaiting the place no longer than `ceiling` and then the job no longer than another `ceiling`.
+/// Why:
+///   A place is held by the job that took it until that job ends,
+/// so a job whose read outlasted its own ceiling leaves the place held with no end in sight
+/// (`blocking_jobs_within_the_budget.rs`).
+/// A caller that waited for a place without one would then wait for a place nothing gives back,
+/// which is the unbounded wait the owner forbids:
+///  a service that never leaves its round runs no later push,
+/// no upkeep round and never exits idle
+/// (finding 4 of the review of `5686c7bb29`).
+/// The two waits are told apart because they mean different things:
+/// no place within the ceiling proves the job never started and changed nothing,
+/// while a job that outlasted its own ceiling may have done its work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runAJobOnceAwaitedNoLongerThan(ceiling, job);
+/// ```
+pub async fn run_a_job_once_awaited_no_longer_than<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T> {
+    // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
+    #[cfg(test)]
+    let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
+    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(&budget().places).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
+    };
+    #[cfg(test)]
+    drop(_asking);
+    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {
         Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
         // Only a refusal that promised the job will not run leaves the state as it was.
         Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,

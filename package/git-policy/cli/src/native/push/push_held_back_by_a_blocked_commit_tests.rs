@@ -18,7 +18,7 @@ use crate::blocked_commit_lines::{UNRECORDED_REASON, held_back_line, named_reaso
 use crate::blocked_commit_questions::{ContextHistory, held_back_lines};
 use crate::auto_push_single_flight::PushGit;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, git, git_context, git_text, remove};
+use crate::test_support::{fixture, git, git_context, git_output, git_text, remove};
 use crate::work_item::{WorkKind, hold, state_directory};
 use crate::work_item_holding::{BlockedVerdict, block};
 /// The trait the service's push handler is reached through.
@@ -142,6 +142,17 @@ fn push(world: &World, landed: &str, blocked: &[BlockedVerdict]) -> (AutoPushRes
     let mut err: Vec<u8> = Vec::new();
     let result: AutoPushResult = push_once(&queue_git(world.repo.as_path()), BRANCH, landed, blocked, &[], &mut err).expect("the push runs");
     return (result, String::from_utf8_lossy(err.as_slice()).into_owned());
+}
+
+/// Push the branch the way the service does,
+/// awaited by a caller that is itself a task of the runtime,
+/// answering the result.
+fn await_push(world: &World, landed: &str, blocked: &[BlockedVerdict], undecided: &[String]) -> AutoPushResult {
+    let mut err: Vec<u8> = Vec::new();
+    let result: Result<AutoPushResult, crate::auto_push_single_flight::SingleFlightError> =
+        crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(&queue_git(world.repo.as_path()), BRANCH, landed, blocked, undecided, &mut err))
+            .expect("the runtime runs the push");
+    return result.expect("the push runs");
 }
 
 /// What:
@@ -500,5 +511,236 @@ fn an_older_passed_record_does_not_publish_a_newer_undecided_commit() {
     assert!(!remote_has(&world, newer.as_str()), "the commit whose checks still run was not published");
     assert!(state_directory(work.as_path(), crate::work_item::HELD).join(newer_item.id()).exists(), "the newer record is still held");
     assert_ne!(remote_branch(&world), base, "the base was published before the release, so this case tells a stop from a push");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A commit that lands after the service's push read the worktree's verdicts is not published by that push.
+/// Why:
+///   The push reads the held and blocked records and then pushes the branch,
+///  and the branch can move in between:
+///  a commit that lands there has its own gate still running,
+///  so publishing it would publish a commit that gate may keep local,
+///  and no later verdict could take it back.
+/// The push therefore sends the commit the branch named before that reading,
+///  never the branch's reference,
+/// and the newer commit goes out with its own push once its gate answers.
+///  The stand-in below lands the commit and puts its live record back at the push's first question about the upstream,
+/// which is after
+///  the service read the worktree.
+#[test]
+#[cfg(unix)]
+fn a_commit_that_lands_after_the_verdicts_were_read_is_not_published() {
+    let world: World = world("commit-after-the-reading");
+    let first: String = commit(&world, "first\n");
+    let racing: String = commit(&world, "racing\n");
+    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let racing_item: crate::work_item::WorkItem = push_item_of(&world, racing.as_str());
+    hold(work.as_path(), &racing_item, crate::held_push_holder_and_verdict::this_command().as_str()).expect("the racing commit's gate still runs");
+    // The record of the commit whose gate runs is put aside, so the service reads a worktree that holds none, and the branch is
+    //  put back to what it was at that reading.
+    let held: PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(racing_item.id());
+    let staged: PathBuf = world.root.join("staged-held-record");
+    std::fs::rename(held.as_path(), staged.as_path()).expect("the live record waits beside the worktree");
+    git(&world.repo, &["update-ref", "refs/heads/main", first.as_str()]);
+    let marker: PathBuf = world.root.join("stand-in-ran");
+    let script: String = format!(
+        "#!/bin/sh\ncase \"$*\" in\n  *'@{{upstream}}'*)\n    if [ ! -e '{marker}' ]; then\n      '{real}' -C '{repo}' update-ref refs/heads/main '{racing}'\n      mv '{staged}' '{held}'\n      : > '{marker}'\n    fi\n    ;;\nesac\nexec '{real}' \"$@\"\n",
+        marker = marker.display(),
+        real = crate::test_support::REAL_GIT,
+        repo = world.repo.display(),
+        racing = racing,
+        staged = staged.display(),
+        held = held.display(),
+    );
+    let stand_in: PathBuf = world.root.join("git-stand-in");
+    crate::test_support::executable(stand_in.as_path(), script.as_bytes());
+    let mut context: crate::transaction_git::GitContext = git_context();
+    context.real_git = stand_in;
+    // Every question the push asks starts the stand-in, so the one that lands the commit is the push's own question about the
+    //  upstream, which it asks after the service read the worktree (`repo_read_hook.rs` answers a query in process otherwise).
+    let handlers: crate::service_work::GitHandlers =
+        crate::service_work::GitHandlers::new(context).with_push_environment(&[(crate::repo_read_hook::SWITCH_VARIABLE, "off")]);
+    let first_item: crate::work_item::WorkItem = push_item_of(&world, first.as_str());
+    let verdict: crate::service_work::Verdict = handlers.push(std::slice::from_ref(&first_item));
+
+    assert!(marker.exists(), "the stand-in moved the branch and put the live record back after the reading");
+    assert!(held.exists(), "the racing commit's own gate still runs");
+    println!("post-reading commit: verdict={verdict:?}; remote={}", remote_branch(&world));
+    assert!(matches!(verdict, crate::service_work::Verdict::Done), "the push ran and delivered the commit it was for: {verdict:?}");
+    assert_eq!(remote_branch(&world), first, "the push sent the commit the branch named before the reading");
+    assert!(remote_has(&world, first.as_str()), "the commit the push was for reached the remote");
+    assert!(!remote_has(&world, racing.as_str()), "BUG: the push published the commit whose own gate had not answered");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A refused commit whose durable verdict could not be written is not published by a later push of its branch.
+/// Why:
+///   The gate writes its refusal into the held record first and the verdict every push reads second,
+///  so a storage failure on the second leaves the record alone with the refusal.
+/// Forgetting that record would leave neither,
+///  `is_blocked` would read false,
+///  and the branch's next push would publish the very commit the gate refused.
+/// The record therefore stays,
+///  and it is read as the verdict it states.
+#[test]
+fn a_refusal_whose_verdict_could_not_be_written_is_not_published_by_a_later_push() {
+    let world: World = world("refusal-whose-verdict-could-not-be-written");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: String = commit(&world, "refused\n");
+    let later: String = commit(&world, "later\n");
+    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let refused_item: crate::work_item::WorkItem = push_item_of(&world, refused.as_str());
+    hold(work.as_path(), &refused_item, crate::held_push_holder_and_verdict::this_command().as_str()).expect("the push is held while the gate decides");
+    assert!(
+        crate::work_item::record_refusal(work.as_path(), refused_item.id().as_str(), "final-newline: the file does not end with a newline"),
+        "the gate's words are written into the record it holds"
+    );
+    // The one place a durable verdict lives cannot be used: its name is a regular file.
+    std::fs::write(state_directory(work.as_path(), crate::work_item_holding::BLOCKED).as_path(), "not a directory")
+        .expect("a file in the verdict directory's place");
+    assert!(!block(work.as_path(), &refused_item, "final-newline: the file does not end with a newline"), "the verdict cannot be kept");
+    assert!(
+        state_directory(work.as_path(), crate::work_item::HELD).join(refused_item.id()).exists(),
+        "the refusal survives only in the record the gate held"
+    );
+
+    // A later commit lands on the same branch, and the service pushes the branch for it.
+    let later_item: crate::work_item::WorkItem = push_item_of(&world, later.as_str());
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
+    let verdict: crate::service_work::Verdict = handlers.push(std::slice::from_ref(&later_item));
+
+    println!("unkept refusal: verdict={verdict:?}; refused={refused}; later={later}; remote={}", remote_branch(&world));
+    assert!(!remote_has(&world, refused.as_str()), "BUG: the branch's push published the commit whose refusal could not be written beside it");
+    assert_eq!(remote_branch(&world), base, "the branch's push stops before the refused commit, and publishes nothing past it");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The first push of a branch that has no upstream stops at the base below a blocked commit,
+///  even though that push is also the one that would give the branch its upstream.
+/// Why:
+///  A branch with an `origin` and no configured upstream is pushed to `origin` under its own name and takes it as its upstream,
+///  and Git sets an upstream only from a refspec that names a branch.
+/// Naming the branch there is what published the commit the gate refused:
+///  the push sent every commit up to the branch's tip,
+///  and its result could still say the branch was held back.
+/// The push that stops sends the commit below the refused one and leaves the upstream for a push that can name the branch.
+#[test]
+fn a_first_push_with_no_upstream_stops_at_the_base_below_a_blocked_commit() {
+    let world: World = world("first-push-with-no-upstream");
+    let first: String = commit(&world, "first\n");
+    let blocked: String = commit(&world, "blocked\n");
+    let landed: String = commit(&world, "landed\n");
+    // The branch keeps its `origin` and loses only the upstream a previous push set.
+    git(&world.repo, &["config", "--unset", "branch.main.remote"]);
+    git(&world.repo, &["config", "--unset", "branch.main.merge"]);
+    let verdicts: Vec<BlockedVerdict> = record_the_verdict(&world, blocked.as_str(), "final-newline: the file does not end with a newline");
+
+    let (result, shown) = push(&world, landed.as_str(), verdicts.as_slice());
+    let remote: String = remote_branch(&world);
+    println!("first push: result={result:?}; shown={shown}; first={first}; blocked={blocked}; landed={landed}; remote={remote}");
+    assert!(!remote_has(&world, blocked.as_str()), "BUG: the first push published the commit the gate refused");
+    assert!(!remote_has(&world, landed.as_str()), "BUG: the first push published the commit past the refused one");
+    // The push did run: the commit below the refused one reached the remote, so this case tells a stop from a push that never ran.
+    assert_eq!(remote, first, "BUG: the first push did not stop at the commit below the refused one");
+    assert_eq!(result.outcome, AutoPushOutcome::HeldBack, "{shown}");
+    assert!(shown.contains(blocked.as_str()), "the line names the commit that holds the branch back: {shown}");
+
+    // The branch's reading ended at `first` while its tip was `landed`: the same push must send the commit its reading named
+    //  and not the branch, which would publish the commit that landed after the reading with no verdict in it at all.
+    let (moved, moved_shown) = push(&world, first.as_str(), &[]);
+    println!("first push of a branch that moved: result={moved:?}; shown={moved_shown}; remote={}", remote_branch(&world));
+    assert!(!remote_has(&world, landed.as_str()), "BUG: the first push published the commit that landed after its reading");
+    assert_eq!(remote_branch(&world), first, "BUG: the first push of a branch that moved sent the branch instead of the commit it read");
+    let upstream: std::process::Output = git_output(world.repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"]);
+    assert!(!upstream.status.success(), "BUG: a push that sent a commit set the branch's upstream");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The awaited first push of a branch that has no upstream stops there too.
+/// Why:
+///  The service pushes through the awaited face,
+///  and a face that named the branch while the other sent the commit below the refused one
+///  would publish the refused commit for every commit the service pushes.
+#[test]
+fn the_awaited_first_push_with_no_upstream_stops_at_the_base_below_a_blocked_commit() {
+    let world: World = world("awaited-first-push-with-no-upstream");
+    let first: String = commit(&world, "first\n");
+    let blocked: String = commit(&world, "blocked\n");
+    let landed: String = commit(&world, "landed\n");
+    git(&world.repo, &["config", "--unset", "branch.main.remote"]);
+    git(&world.repo, &["config", "--unset", "branch.main.merge"]);
+    let verdicts: Vec<BlockedVerdict> = record_the_verdict(&world, blocked.as_str(), "final-newline: the file does not end with a newline");
+
+    let result: AutoPushResult = await_push(&world, landed.as_str(), verdicts.as_slice(), &[]);
+    let remote: String = remote_branch(&world);
+    println!("awaited first push: result={result:?}; first={first}; blocked={blocked}; landed={landed}; remote={remote}");
+    assert!(!remote_has(&world, blocked.as_str()), "BUG: the awaited first push published the commit the gate refused");
+    assert_eq!(remote, first, "BUG: the awaited first push did not stop at the commit below the refused one");
+    assert_eq!(result.outcome, AutoPushOutcome::HeldBack, "{}", result.shown);
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A push under `push.default=matching` sends nothing while the branch holds a commit its reading did not see,
+///  and the retry that follows publishes the branch once the branch names the commit again.
+/// Why:
+///  `push.default=matching` leaves the refspec to Git,
+///  so Git resolves the branch at push time:
+///  a commit that landed after the reading goes out with no verdict at all,
+///  and its own gate may still keep it local.
+/// Nothing is sent then,
+///  and the branch's retry plan runs the same matching push once the branch has settled,
+///  which is the backup the commit needs.
+#[test]
+fn a_matching_push_does_not_publish_a_commit_that_landed_after_the_reading() {
+    let world: World = world("matching-push-keeps-the-pinned-commit");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let pinned: String = commit(&world, "pinned\n");
+    let racing: String = commit(&world, "racing\n");
+    git(&world.repo, &["config", "push.default", "matching"]);
+
+    // The verdicts were read while the branch named `pinned`; `racing` landed after that reading.
+    let (result, shown) = push(&world, pinned.as_str(), &[]);
+    let remote: String = remote_branch(&world);
+    println!("matching push: result={result:?}; shown={shown}; pinned={pinned}; racing={racing}; remote={remote}");
+    assert!(!remote_has(&world, racing.as_str()), "BUG: the matching push published the commit that landed after the reading");
+    assert_eq!(remote, base, "BUG: the matching push published past the commit its reading ended at");
+    assert_eq!(result.outcome, AutoPushOutcome::HeldBack, "{shown}");
+    assert!(shown.contains("moved after this push read it"), "the line says why nothing was sent: {shown}");
+
+    // The retry the service plans asks again with the branch's own tip, which Git's matching push may then send.
+    let (retried, retried_shown) = push(&world, racing.as_str(), &[]);
+    assert_eq!(retried.outcome, AutoPushOutcome::Pushed, "{retried_shown}");
+    assert_eq!(remote_branch(&world), racing, "the retry published the branch once it named the commit the push read");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The awaited matching push sends nothing for a commit that landed after its reading either,
+///  and its retry publishes the branch.
+/// Why:
+///  The service's push is the awaited face,
+///  and the guard that keeps a matching push from publishing a commit with no verdict is a query of its own there.
+#[test]
+fn the_awaited_matching_push_does_not_publish_a_commit_that_landed_after_the_reading() {
+    let world: World = world("awaited-matching-push-keeps-the-pinned-commit");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let pinned: String = commit(&world, "pinned\n");
+    let racing: String = commit(&world, "racing\n");
+    git(&world.repo, &["config", "push.default", "matching"]);
+
+    let result: AutoPushResult = await_push(&world, pinned.as_str(), &[], &[]);
+    println!("awaited matching push: result={result:?}; pinned={pinned}; racing={racing}");
+    assert!(!remote_has(&world, racing.as_str()), "BUG: the awaited matching push published the commit that landed after the reading");
+    assert_eq!(remote_branch(&world), base, "BUG: the awaited matching push published past the commit its reading ended at");
+    assert_eq!(result.outcome, AutoPushOutcome::HeldBack, "{}", result.shown);
+
+    let retried: AutoPushResult = await_push(&world, racing.as_str(), &[], &[]);
+    assert_eq!(retried.outcome, AutoPushOutcome::Pushed, "{}", retried.shown);
+    assert_eq!(remote_branch(&world), racing, "the retry published the branch once it named the commit the push read");
     remove(world.root.as_path());
 }

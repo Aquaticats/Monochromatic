@@ -14,7 +14,8 @@
 //! ```
 
 use super::landed_sweep_lines;
-use crate::worktree_landed_removal::{KeptWorktree, LandedSweep, RemovedWorktree, UnprovenWorktree};
+use crate::work_item::{WorkItem, WorkKind};
+use crate::worktree_landed_removal::{HandedOverWorktree, KeptWorktree, LandedSweep, RemovedWorktree, UnprovenWorktree};
 use std::path::PathBuf;
 
 /// A sweep that removed one worktree.
@@ -58,6 +59,55 @@ fn a_removed_worktree_says_an_ignored_directory_went_unread() {
     assert!(line.contains("anything you kept inside one"), "{line}");
 }
 
+/// What:
+///  A worktree whose removal the merge handed to the commit service is named with where its outcome is read.
+/// Why:
+///  The removal is Git's own reading of every tracked file there and finishes after the merge,
+///  so a person whose worktree is still there at the prompt must read where the answer will stand
+///  and that the worktree may stay because Git kept it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(landedSweepLines(aSweepThatHandedOneOver())[0]).toContain('handed the removal of the worktree');
+/// ```
+#[test]
+fn a_handed_over_removal_is_named_with_the_record_its_outcome_stands_in() {
+    let sweep: LandedSweep = LandedSweep {
+        landed_branch: String::from("main"),
+        handed_over: vec![HandedOverWorktree {
+            worktree: PathBuf::from("/a worktree/with a space"),
+            branch: String::from("refs/heads/feature"),
+            record: WorkItem {
+                kind: WorkKind::SubvolumeDelete,
+                repository: PathBuf::from("/a worktree"),
+                git_dir: PathBuf::from("/the repository/.git"),
+                branch_ref: String::from(crate::worktree_remove_hand_over::WORKTREE_REMOVAL_REFERENCE),
+                oid: String::from("0".repeat(40)),
+                parent: String::from("/a worktree/with a space"),
+                created: String::from("2026-01-01T00:00:00+00:00"),
+                tries: 0,
+            },
+        }],
+        ..LandedSweep::default()
+    };
+    let lines: Vec<String> = landed_sweep_lines(&sweep);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let line: &str = lines[0].as_str();
+    assert!(line.contains("/a worktree/with a space"), "{line}");
+    assert!(line.contains("refs/heads/feature"), "{line}");
+    assert!(line.contains("is now on main"), "{line}");
+    assert!(line.contains("the commit service"), "{line}");
+    assert!(line.contains("The branch stays"), "{line}");
+    let record: String = crate::service_work::work_directory(std::path::Path::new("/the repository/.git"))
+        .join(format!("subvolume-delete-{}", "0".repeat(40)))
+        .display()
+        .to_string();
+    assert!(line.contains(record.as_str()), "the record the outcome stands in is named: {line}");
+    assert!(line.contains("`done` there means the worktree is gone"), "{line}");
+    assert!(line.contains("means Git kept it"), "{line}");
+    assert!(line.contains("git worktree remove '/a worktree/with a space'"), "{line}");
+}
+
 #[test]
 fn a_kept_worktree_is_named_with_its_reason_and_the_command_that_removes_it() {
     let sweep: LandedSweep = LandedSweep {
@@ -75,6 +125,38 @@ fn a_kept_worktree_is_named_with_its_reason_and_the_command_that_removes_it() {
     assert!(line.contains("left the worktree /a worktree/busy in place"), "{line}");
     assert!(line.contains("process 4242 is working in it"), "{line}");
     assert!(line.contains("git worktree remove '/a worktree/busy'"), "the command is quoted for a shell: {line}");
+}
+
+/// What:
+///  A worktree whose removal refused is named with the report that clears the way,
+///  and never with the command that would refuse the same way again.
+/// Why:
+///   A refusal names its own way forward
+///  (a nested worktree is removed before the one that holds it,
+/// a pool of snapshots is taken first),
+///  and the line the sweep prints for a kept worktree appended
+/// `git worktree remove <path>`,
+/// which for those states is the command that just refused,
+/// so a person reading it
+///  would run it and read the same refusal.
+#[test]
+fn a_worktree_whose_removal_refused_names_the_report_and_not_the_command_that_refused() {
+    let sweep: LandedSweep = LandedSweep {
+        landed_branch: String::from("main"),
+        refused: vec![KeptWorktree {
+            worktree: PathBuf::from("/a worktree/holder"),
+            branch: String::from("refs/heads/feature"),
+            why: String::from("the worktree /a worktree/holder holds the linked worktree /a worktree/holder/inner, and nothing was removed: remove it first, with `git worktree remove /a worktree/holder/inner`"),
+        }],
+        ..LandedSweep::default()
+    };
+    let lines: Vec<String> = landed_sweep_lines(&sweep);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let line: &str = lines[0].as_str();
+    assert!(line.contains("left the worktree /a worktree/holder in place"), "{line}");
+    assert!(line.contains("nothing there was removed"), "{line}");
+    assert!(line.contains("the linked worktree /a worktree/holder/inner"), "the report that clears the way is there: {line}");
+    assert!(!line.contains("git worktree remove '/a worktree/holder'"), "and not the command that refused: {line}");
 }
 
 #[test]

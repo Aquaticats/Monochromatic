@@ -97,9 +97,9 @@ export type CheckOutcome = {
    */
   readonly seconds: number;
   /**
-   First characters of its output, where the first error is.
+   The first error the check printed, absent when no line of its output starts one.
    */
-  readonly outputHead: string;
+  readonly firstError?: FirstError;
 };
 
 /**

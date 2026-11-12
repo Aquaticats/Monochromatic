@@ -21,6 +21,12 @@
 //! a client whose answer was lost looks for the commit its request became in the record of its batch
 //! (`service_commit_looking_for_what_landed.rs`),
 //! so a record written within `A_FINISHED_RECORD_IS_READ` keeps the journal for the clients that can still read it.
+//! That age is judged on the reading of the clocks the record itself carries,
+//! so a wall clock that steps,
+//! or a host that resumed from sleep,
+//! never makes a record of this boot look older than the wait its client is inside
+//! (`service_journal_record_age.rs`);
+//! a record an earlier release wrote carries no reading and is judged by its modification time.
 //! A commit that has not landed,
 //! a batch whose objects a scratch reference may hold,
 //! a record that was written and not published,
@@ -40,16 +46,19 @@
 //! removeJournalOfAStoppedInstance(stateDir, instance, serviceIsGone); // 'removed', or what kept it
 //! ```
 
+use crate::claim_time::ClaimTime;
 use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::private_storage::create_private_directory_all;
+use crate::push_retry::PLAN_DIRECTORY;
+use crate::service_claim_watch::WATCH_DIRECTORY;
 use crate::service_instance::{service_unit_instance, socket_path};
 use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
+use crate::service_journal_record_age::{a_client_may_still_read, stamp_of};
 use crate::service_provision_host_and_manager::runtime_unit_dir;
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
-use crate::wait_ceilings::A_FINISHED_RECORD_IS_READ;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -188,23 +197,42 @@ enum Kept {
 /// the client of its request may still look for the commit it became.
 const A_LOST_ANSWER_MAY_READ_IT: &str = "a batch that landed too recently for every client of it to be gone";
 
-/// Whether a time is within `A_FINISHED_RECORD_IS_READ` of now,
-/// where a time that cannot be read counts as recent,
-/// because no age is proven and an unproven age never discards.
-fn is_within_the_time_a_client_looks(time: std::io::Result<SystemTime>) -> bool {
-    let Ok(modified) = time else { return true };
-    return match modified.elapsed() {
-        Ok(age) => age < A_FINISHED_RECORD_IS_READ,
-        // A time after now is a clock that moved, so no age is proven either.
-        Err(_in_the_future) => true,
-    };
-}
-
 /// The time a path was last written,
 /// and why it could not be read.
 fn modified_time_of(path: &Path) -> std::io::Result<SystemTime> {
     let metadata = std::fs::metadata(path)?;
     return metadata.modified();
+}
+
+/// The reading of the clocks a finished record was written by,
+/// from the record's own text,
+/// and nothing when it carries none or cannot be read.
+fn finished_record_reading(path: &Path) -> Option<ClaimTime> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    return stamp_of(text.as_str());
+}
+
+/// What:
+///  Whether a client of the finished record at `path` may still read it.
+/// Why:
+///   A record whose modification time already says a client may still look costs no read,
+/// and one the wall clock calls old is asked about through the reading it carries,
+/// because a wall clock that stepped forward makes a record of this boot look old
+/// while the client of it is still inside a wait measured on the monotonic clock.
+/// The reading is only ever one more reason to keep a record:
+/// no client can look for a commit past `A_FINISHED_RECORD_IS_READ` of the clock it waits on,
+/// but a record the wall clock still keeps is kept whether its reading is old or not,
+/// so a clock that moved costs a journal that outlives its clients and never a record taken too soon.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aClientMayStillRead(finishedRecordReading(path), modifiedTimeOf(path), now)
+/// ```
+fn a_client_may_still_read_the_finished_record(path: &Path, now: &ClaimTime) -> bool {
+    if a_client_may_still_read(None, modified_time_of(path), now) {
+        return true;
+    }
+    return a_client_may_still_read(finished_record_reading(path).as_ref(), modified_time_of(path), now);
 }
 
 /// Whether a file name is the record of a batch that landed,
@@ -250,6 +278,14 @@ fn reason_of_a_kept_folder(name: &str) -> &'static str {
     if name == LANDING_RECORD_DIRECTORY {
         return "a record of a landing or of a withdrawal";
     }
+    // The after-commit work of the instance: a service of this worktree reads both when it starts again,
+    // so a worktree that comes back at the same path finds its pending push and the repositories it was still to look at.
+    if name == WATCH_DIRECTORY {
+        return "the repositories this service was still to look at, which a service of this worktree reads when it starts again";
+    }
+    if name == PLAN_DIRECTORY {
+        return "the pushes this service was still to try again, which a service of this worktree reads when it starts again";
+    }
     return "a folder this release does not know";
 }
 
@@ -266,6 +302,46 @@ fn entries_of(folder: &Path) -> Result<std::fs::ReadDir, String> {
 fn holds_nothing(folder: &Path) -> Result<bool, String> {
     let mut listing = entries_of(folder)?;
     return Ok(listing.next().is_none());
+}
+
+/// What:
+///  The journal folder of an instance,
+///  and nothing when the caller has no state directory to look in.
+/// Why:
+///   The folder is named in the lines that keep it,
+/// so the words and the removal name the same path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// journalOfTheInstance(stateDir, instance) // stateDir && join(stateDir, SERVICE_UNIT, 'service', instance)
+/// ```
+pub fn journal_of_the_instance(state_dir: Option<&Path>, instance: &str) -> Option<PathBuf> {
+    let state: &Path = state_dir?;
+    return Some(journal_of(state.join(SERVICE_UNIT.current).as_path(), instance));
+}
+
+/// What:
+///  The first entry of a stopped instance's journal that is work a person may still want,
+///  with the words that say what it is,
+///  and nothing when every entry is a landed batch's record or a folder the service left empty.
+/// Why:
+///   A service that stops its own socket never removes its own journal,
+/// because it is still one of its writers (`service_units_of_removed_worktrees.rs`),
+/// and work in that journal is still the person's business:
+/// it is named in the service's own log so they can look,
+/// and the sweep names it again when it finally removes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// workAPersonMayWant(stateDir, instance) // { journal, entry, reason } or undefined
+/// ```
+pub fn work_a_person_may_want(state_dir: Option<&Path>, instance: &str) -> Option<KeptJournal> {
+    let journal: PathBuf = journal_of_the_instance(state_dir, instance)?;
+    return match kept_entry_of(journal.as_path(), &ClaimTime::read()) {
+        Ok(Some(Kept::Work(entry, reason))) => Some(KeptJournal { journal, entry, reason: String::from(reason) }),
+        Err(reason) => Some(KeptJournal { journal, entry: String::from("something this command could not read"), reason }),
+        _ => None,
+    };
 }
 
 /// What:
@@ -288,12 +364,15 @@ fn holds_nothing(folder: &Path) -> Result<bool, String> {
 /// The answer comes from one listing,
 /// so a journal that grows while it is read is kept,
 /// not half-removed.
+/// The age of a finished record is read from the clocks of the record itself,
+/// so the answer is the same ones the clock a client waits on gives
+/// (`service_journal_record_age.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// keptEntryOf(journal) // { name, reason, forAReader } or undefined
+/// keptEntryOf(journal, now) // { name, reason, forAReader } or undefined
 /// ```
-fn kept_entry_of(journal: &Path) -> Result<Option<Kept>, String> {
+fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String> {
     let listing = match entries_of(journal) {
         Ok(listing) => listing,
         Err(reason) => {
@@ -310,7 +389,7 @@ fn kept_entry_of(journal: &Path) -> Result<Option<Kept>, String> {
         Some(name) => name.to_string_lossy().into_owned(),
         None => journal.display().to_string(),
     };
-    let mut readable: Option<Kept> = match is_within_the_time_a_client_looks(modified_time_of(journal)) {
+    let mut readable: Option<Kept> = match a_client_may_still_read(None, modified_time_of(journal), now) {
         true => Some(Kept::Read(folder_name, A_LOST_ANSWER_MAY_READ_IT)),
         false => None,
     };
@@ -332,7 +411,7 @@ fn kept_entry_of(journal: &Path) -> Result<Option<Kept>, String> {
             continue;
         }
         if is_finished_memory(name.as_str()) {
-            if is_within_the_time_a_client_looks(modified_time_of(path.as_path())) {
+            if a_client_may_still_read_the_finished_record(path.as_path(), now) {
                 readable = Some(Kept::Read(name, A_LOST_ANSWER_MAY_READ_IT));
             }
             continue;
@@ -364,7 +443,7 @@ fn kept_entry_of(journal: &Path) -> Result<Option<Kept>, String> {
 /// ```
 pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: &str, service_is_gone: bool) -> Option<JournalAfterStop> {
     let state: &Path = state_dir?;
-    let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
+    let journal: PathBuf = journal_of_the_instance(Some(state), instance)?;
     // A service that may still run writes into the journal, so nothing about it is decided here.
     if !service_is_gone {
         return Some(JournalAfterStop::StillRead(KeptJournal {
@@ -373,7 +452,7 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
             reason: String::from("the service that writes it may still be running"),
         }));
     }
-    return Some(match kept_entry_of(journal.as_path()) {
+    return Some(match kept_entry_of(journal.as_path(), &ClaimTime::read()) {
         Ok(None) => {
             if let Err(error) = std::fs::remove_dir_all(journal.as_path())
                 && error.kind() != std::io::ErrorKind::NotFound

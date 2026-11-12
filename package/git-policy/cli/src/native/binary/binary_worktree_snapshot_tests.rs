@@ -119,7 +119,11 @@ fn a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout() {
     //  nothing.
     let wrapped: String = stderr_of(&created).replace("topic", "NAME");
     let git_words: String = stderr_of(&control).replace("control", "NAME");
-    assert!(wrapped.starts_with(git_words.as_str()), "Git's own words come first: {wrapped}");
+    // A control Git that did not make its worktree has no ordinary words to compare with, and its own failure would
+    //  otherwise be read as this wrapper's: the comparison below would print a wrapped string that carries Git's own
+    //  words first and a control string that carries a failure.
+    assert_eq!(control.code, Some(0), "the control Git makes the second worktree: {git_words:?}");
+    assert!(wrapped.starts_with(git_words.as_str()), "Git's own words come first: wrapped={wrapped:?} git_words={git_words:?}");
     assert_eq!(&wrapped[git_words.len()..], git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE, "a routine hand-over says nothing of its own: {wrapped}");
     assert_eq!(String::from_utf8_lossy(&created.stdout), String::from_utf8_lossy(&control.stdout), "Git's checkout line");
     let topic: PathBuf = fixture.root.join("topic");

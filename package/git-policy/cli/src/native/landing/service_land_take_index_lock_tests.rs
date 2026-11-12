@@ -40,7 +40,7 @@ fn request_of(index: &Path, scratch: &Path, git_dir: &Path) -> CommitRequest {
         repository: git_dir.parent().expect("repository").to_path_buf(),
         common_dir: git_dir.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
-        reference: String::from("refs/heads/control"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/control"),
         base: String::from("0".repeat(40)),
         changes: Vec::new(),
         message: String::from("control"),

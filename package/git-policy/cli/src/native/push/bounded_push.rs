@@ -77,6 +77,12 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
 use std::time::Duration;
 pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
+/// The window a run whose connection is open may stay silent for,
+/// which `lfs_upload` reads for the upload it waits on itself.
+pub use crate::push_deadline_and_patience_settings::connected_window;
+/// The server a wait and a stop name,
+/// and the word a command gave as its destination.
+pub use crate::push_server_naming::{ServerNaming, first_word};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -269,8 +275,9 @@ pub async fn wait_until_done_noting(
     label: &str,
     waits: &mut Vec<WaitReport>,
     stop: Option<&StopArm>,
+    window: Duration,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience);
+    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window);
     let mut unused: Option<Duration> = None;
     return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
@@ -335,19 +342,10 @@ async fn wait_with_clock(
 pub fn command_label(command: &Command) -> String {
     let program: String = command.get_program().to_string_lossy().rsplit('/').next().unwrap_or_default().to_owned();
     let mut arguments = command.get_args();
-    while let Some(argument) = arguments.next() {
-        let word: String = argument.to_string_lossy().into_owned();
-        // `-c name=value` and `-C directory` take the next word as their value.
-        if word == "-c" || word == "-C" {
-            let _value = arguments.next();
-            continue;
-        }
-        if word.starts_with('-') {
-            continue;
-        }
-        return format!("{program} {word}");
-    }
-    return program;
+    return match first_word(&mut arguments) {
+        Some(word) => format!("{program} {word}"),
+        None => program,
+    };
 }
 
 /// What:
@@ -482,14 +480,19 @@ pub async fn run_bounded_push_awaiting(
         .stdin(Stdio::null())
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
+    let label: String = command_label(&command);
+    // How a stop names the server, read from the command before it is given to the child; asked for only if a stop needs it,
+    //  so a push that lands pays nothing for it.
+    let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment);
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
-    let label: String = command_label(&command);
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
-    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref()).await?;
+    let ended: Result<ExitStatus, StopCause> =
+        wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref(), connected_window(environment))
+            .await?;
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
@@ -531,7 +534,11 @@ pub async fn run_bounded_push_awaiting(
                     },
                     extend_clause()
                 ),
-                StopCause::Stalled(report) => stalled_reason(&report),
+                StopCause::Stalled(report) => {
+                    // The server is asked for here, once, because a run that was not stopped never needed it.
+                    naming.ask().await;
+                    stalled_reason(label.as_str(), &report, naming.server())
+                }
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
                      {PUSH_QUEUED_LINE}"

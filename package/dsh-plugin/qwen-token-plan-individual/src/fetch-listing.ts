@@ -49,6 +49,22 @@ export type QwenTokenPlanIndividualCredentialsTarget = {
 /* oxlint-enable typescript/method-signature-style */
 
 /**
+ One credentials-service lookup answer: the `credentials` property carries the
+ mounted service, and its absence says the composition mounts none yet. The
+ optional property is this repo's absence model, so a late registration (the
+ loader can start the service after this plugin's `apply`) reads the same as a
+ composition that never mounts one, without a nullish union on the seam.
+
+ @example
+ ```ts
+ const found: QwenTokenPlanIndividualCredentialsLookupResult = { credentials };
+ ```
+ */
+export type QwenTokenPlanIndividualCredentialsLookupResult = {
+  readonly credentials?: QwenTokenPlanIndividualCredentialsTarget;
+};
+
+/**
  Failure naming that the route's credential reference resolved no value: no
  credentials service is mounted, the reference is unconfigured, or the store
  could not answer. The mount refresh reads this as "serve the checked-in

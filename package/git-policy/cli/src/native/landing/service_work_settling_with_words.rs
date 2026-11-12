@@ -93,3 +93,8 @@ fn say_it_failed(kind: &str, item: &Claimed, reason: &str) {
         _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
     }
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_settling_with_words_tests.rs"]
+mod tests;

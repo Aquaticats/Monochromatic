@@ -144,13 +144,21 @@ async fn retry_awaiting(watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
             crate::service_warn!("the notes this service keeps for a restart could not be tried again, because the system gave no thread for it");
             (unchanged, Vec::new())
         }
-        // Whether the notes were read or written is not known, and a watch without them would schedule nothing: the
-        //  schedule keeps this pause, so they are tried again after it.
+        // Whether the notes were read or written is not known, and a watch without them would schedule nothing:
+        //  the schedule keeps this pause, so they are tried again after it,
+        //  and the job that gave no answer still holds a place of the blocking bound, so that pause grows.
         TheAnswerOfAJobAwaited::NoAnswer => {
-            crate::service_warn!("the notes this service keeps for a restart gave no answer, so they are tried again after this pause");
-            (unchanged, Vec::new())
+            crate::service_warn!("the notes this service keeps for a restart gave no answer, so they are tried again after a longer pause");
+            (notes_owed_again(unchanged), Vec::new())
         }
     };
+}
+
+/// The watch a retry that outlasted its ceiling came to nothing for,
+/// owed again after a longer pause.
+fn notes_owed_again(mut watch: ClaimWatch) -> ClaimWatch {
+    watch.retry_came_to_nothing();
+    return watch;
 }
 
 /// `retry_awaiting`'s work,
@@ -170,11 +178,15 @@ fn retry_in_a_job(mut watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
 ///  and the plan has one owner at a time,
 /// so the job takes it and hands it back
 ///  (`PushRetries::restore`).
-/// A job the system gave no thread for,
-/// or one whose answer cannot be read,
-/// leaves the plan as it was and says so:
+/// Either way the job gives no answer,
+/// the plan it was handed comes back as it was and that is said:
 /// the files stand in the journal,
-///  so the loop's next wake reads them again.
+/// so the loop's next wake reads them again.
+///   The two answers are told apart:
+/// a refusal proves that nothing ran and holds no place of the blocking bound,
+/// so asking again at the shortest pause costs nothing,
+/// while a read that outlasted its ceiling is still holding its place until the journal answers,
+/// so that one is owed again after a longer pause and the attempts thin out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,10 +203,20 @@ async fn restore_the_plan(retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
         // The job may have read the journal before its answer was lost, and the plan it read is not known here: the files are
         //  still there, so the next read names the same pushes and loses none of them.
         TheAnswerOfAJobAwaited::NoAnswer => {
-            crate::service_warn!("the plan of the pushes waiting for a new try gave no answer to its second read, so it is read again after a pause");
-            (unchanged, Vec::new())
+            crate::service_warn!("the plan of the pushes waiting for a new try gave no answer to its second read, so it is read again after a longer pause");
+            (plan_owed_again(unchanged), Vec::new())
         }
     };
+}
+
+/// The plan a read that outlasted its ceiling came to nothing for,
+/// owed again after a longer pause.
+/// Why:
+///   That read is still holding a place of the blocking bound,
+/// so asking for another one at the shortest pause would fill the pool with reads of a journal that never answers.
+fn plan_owed_again(mut retries: PushRetries) -> PushRetries {
+    retries.restore_came_to_nothing();
+    return retries;
 }
 
 /// `restore_the_plan`'s work,

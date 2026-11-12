@@ -117,8 +117,8 @@ fn the_base_object_follows_the_capture() {
         return InvocationCapture {
             base,
             layout: InvocationLayout {
-                symbolic_head: SymbolicHead::Branch(String::from("refs/heads/main")),
-                target_ref: String::from("refs/heads/main"),
+                symbolic_head: SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main")),
+                target_ref: crate::ref_name::RefName::from_text("refs/heads/main"),
                 conclusion: Conclusion::None,
                 repository_root: PathBuf::from("/r"),
                 git_dir: PathBuf::from("/r/.git"),

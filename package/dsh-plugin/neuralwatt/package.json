@@ -58,6 +58,7 @@
     "@deepseek-ai/cordis": "catalog:",
     "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
     "@deepseek-ai/dsh-settings": "catalog:",
+    "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",

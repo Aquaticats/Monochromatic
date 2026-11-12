@@ -1075,12 +1075,12 @@ mod lean_progress_tests;
 mod lean_run_tests;
 
 /// Mechanism F:
-/// the daily systemd user timer and its installer.
-pub mod lean_timer_units;
+/// the continuous systemd user service and its installer.
+pub mod lean_service_units;
 
-/// The tests of the timer units.
+/// The tests of the service units.
 #[cfg(test)]
-mod lean_timer_units_tests;
+mod lean_service_units_tests;
 
 /// The command-line glue of `cargo-shadow lean`.
 pub mod lean_command;

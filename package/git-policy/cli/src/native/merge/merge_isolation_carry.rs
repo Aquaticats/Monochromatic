@@ -193,12 +193,21 @@ fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
 /// Why:
 ///   These are the bytes written back,
 /// so they are read exactly and never through a filter.
+///  A name that holds a named pipe,
+/// a socket,
+/// a device or a directory holds no bytes a merge can carry,
+/// and opening a
+///  named pipe for reading waits for a writer that may never come,
+/// so everything but a plain file is refused
+///  from its type and the bytes are read from a handle that can only be a plain file
+/// (`crate::plain_file`,
+///  owner's rule "nothing should ever wait forever or indefinitely").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function bytesAt(location: string): { bytes: Uint8Array; mode: string } | null;
 /// ```
-fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> {
+pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> {
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -215,10 +224,19 @@ fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> 
         };
         return Ok(Some((target.as_os_str().as_encoded_bytes().to_vec(), mode)));
     }
-    let bytes: Vec<u8> = match std::fs::read(location) {
+    // The type is settled before the open and again on the handle the open returns, so a name swapped for a pipe or a device
+    //  between the two is refused instead of waited on.
+    if !metadata.file_type().is_file() {
+        return Err(format!("{} is not a plain file (a named pipe, a socket or a device), which is not one edit a merge can carry", location.display()));
+    }
+    let mut plain: std::fs::File = match crate::plain_file::open_plain_file(location) {
         Ok(found) => found,
         Err(error) => return Err(could_not_be_read(location, error)),
     };
+    let mut bytes: Vec<u8> = Vec::new();
+    if let Err(error) = std::io::Read::read_to_end(&mut plain, &mut bytes) {
+        return Err(could_not_be_read(location, error));
+    }
     return Ok(Some((bytes, mode)));
 }
 
@@ -234,11 +252,52 @@ fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> 
 /// ```ts
 /// async function objectFor(context, root, path: Uint8Array, bytes: Uint8Array, filtered: boolean): Promise<string>;
 /// ```
-async fn object_for_awaiting(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8], filtered: bool) -> Result<String, String> {
-    let mut arguments: Vec<OsString> = vec![
-        OsString::from("hash-object"),
-        OsString::from("-w"),
-    ];
+pub(crate) async fn object_for_awaiting(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8], filtered: bool) -> Result<String, String> {
+    return object_with_awaiting(context, root, path, bytes, filtered, true).await;
+}
+
+/// What:
+///  The name of the object the given bytes make at `path`,
+///  with that path's clean filters,
+///  and without writing
+///  it.
+/// Why:
+///   Comparing what the worktree holds with what the index records asks for the name alone,
+/// and a comparison that
+///  writes an object would change the repository to answer a question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function objectName(context, root, path, bytes): Promise<string>;
+/// ```
+pub(crate) async fn object_name_awaiting(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8]) -> Result<String, String> {
+    return object_with_awaiting(context, root, path, bytes, true, false).await;
+}
+
+/// What:
+///  The object of the bytes,
+/// written only when `write` says so.
+/// Why:
+///   One body decides how the filters are named and what an unavailable object store says,
+/// so the capture and the
+///  comparison cannot differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function objectWith(context, root, path, bytes, filtered, write): Promise<string>;
+/// ```
+async fn object_with_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    bytes: &[u8],
+    filtered: bool,
+    write: bool,
+) -> Result<String, String> {
+    let mut arguments: Vec<OsString> = vec![OsString::from("hash-object")];
+    if write {
+        arguments.push(OsString::from("-w"));
+    }
     if filtered {
         let mut named: OsString = OsString::from("--path=");
         named.push(worktree_path(Path::new(""), path).into_os_string());
@@ -249,7 +308,7 @@ async fn object_for_awaiting(context: &GitContext, root: &Path, path: &[u8], byt
     arguments.push(OsString::from("--stdin"));
     let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(bytes.to_vec())).await?;
     if !output.succeeded() {
-        return Err(format!("the bytes of {} could not be written: {}", String::from_utf8_lossy(path), output.error_text()));
+        return Err(format!("the bytes of {} could not be read as an object: {}", String::from_utf8_lossy(path), output.error_text()));
     }
     return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
 }
@@ -457,6 +516,43 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
 }
 
 /// What:
+///  Whether an intent record that is still there names this capture.
+/// Why:
+///  A merge that saves its result for a later finish writes a second record beside the first,
+/// and both keep one capture
+/// (`save_for_a_later_finish`).
+/// A record's removal drops the ref of the capture it names,
+/// so while another record
+///  still names it,
+/// the ref is that record's only claim on the person's bytes:
+/// `git gc` collects a commit nothing
+///  points at,
+/// and the record is what finishes the merge later
+/// (a qwen4-max-preview audit of the saved merge,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aRecordStillNamesTheCapture(gitDir: string, capture: Capture): boolean; // listMergeIntents().some((one) => one.carried?.reference === capture.reference)
+/// ```
+pub(crate) fn a_record_still_names_the_capture(git_dir: &Path, capture: &Capture) -> bool {
+    let Some(reference) = capture.reference.as_deref() else { return false };
+    let Ok(records) = crate::merge_isolation_journal::list_merge_intents(git_dir) else {
+        // A listing that failed proves nothing, so the ref is kept: a name that outlives its bytes costs a person one `rm`.
+        return true;
+    };
+    for record in records {
+        let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
+        let Some(intent) = crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice()) else { continue };
+        let Some(carried) = intent.carried.as_ref() else { continue };
+        if carried.reference.as_deref() == Some(reference) && carried.commit == capture.commit {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Drop the ref that kept a capture,
 /// once nothing needs its objects.
 /// Why:
@@ -472,8 +568,8 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
 /// ```ts
 /// async function dropCaptureRef({ context, root, capture }): Promise<void>;
 /// ```
-pub fn drop_capture_ref(context: &GitContext, root: &Path, capture: &Capture) {
-    match run_on_runtime(drop_capture_ref_awaiting(context, root, capture)) {
+pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture) {
+    match run_on_runtime(drop_capture_ref_awaiting(context, git_dir, root, capture)) {
         Ok(()) => {}
         // A deletion that could not be started leaves the ref where it is, which is what the awaited face reports too.
         Err(refusal) => debug(TAG, format!("the capture's ref was left where it is: {refusal}").as_str()),
@@ -491,8 +587,14 @@ pub fn drop_capture_ref(context: &GitContext, root: &Path, capture: &Capture) {
 /// ```ts
 /// async function dropCaptureRef({ context, root, capture }): Promise<void>;
 /// ```
-pub async fn drop_capture_ref_awaiting(context: &GitContext, root: &Path, capture: &Capture) {
+pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture) {
     let Some(reference) = capture.reference.as_deref() else { return };
+    // The record this command is finishing may not be the only one that names this capture: a merge that saved its result
+    //  writes a second record beside the first, and both keep one capture. While another record still names the ref, its bytes
+    //  are the person's only copy of that work, so the name stays.
+    if a_record_still_names_the_capture(git_dir, capture) {
+        return debug(TAG, format!("the capture's ref {reference} is still named by a merge record, so it was left where it is").as_str());
+    }
     let arguments: Vec<OsString> = vec![
         OsString::from("update-ref"),
         OsString::from("--no-deref"),

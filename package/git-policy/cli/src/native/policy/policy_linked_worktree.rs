@@ -50,6 +50,10 @@ use crate::discarded_prune::Limits;
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
+/// The abort carve-out:
+/// the operation's own state is what an abort lets go,
+/// the person's own work is saved first.
+use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -88,7 +92,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The directory the command runs in,
+///  The directory a command of the caller's own runs in,
 ///  as Git resolved it:
 ///  this process's own directory moved by the `-C` chain the caller
 ///  wrote before the subcommand.
@@ -102,6 +106,8 @@ use std::path::{Path, PathBuf};
 ///  that prefix is empty whenever the caller sits outside the `--work-tree`,
 ///  which is exactly when the two disagree.
 ///  Only the `-C` chain moves the directory Git reads a relative path from.
+///  The command inside the shell of a `!` alias runs somewhere else,
+///  which the guard carries as `GuardedForwarded::shell_directory`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,7 +157,9 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 ///  The refusal of a command that would change the remote settings every worktree of the
 ///  repository shares,
 ///  when the command runs in a linked worktree.
-///  `&SharedRemoteChange` borrows the change the guard decided about.
+///  `&SharedRemoteChange` borrows the change the guard decided about,
+///  and `Option<&Path>` the directory Git runs the shell of a `!` alias in,
+///  when the command that writes is the one that shell runs.
 /// Why:
 ///   One `.git/config` is shared by the main checkout and every linked worktree,
 ///  so a write from a
@@ -164,15 +172,21 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 ///       exempt tool cache keep today's behaviour,
 ///  and every other command is left to the policies below.
 ///  A
-///       `--file` write is this rule's only when its path resolves to that same file.
+///       `--file` write is this rule's only when its path resolves to that same file,
+///  read from
+///       the directory the writing command runs in:
+///  the shell's directory for a command a `!` alias runs,
+///  and the
+///       caller's `-C` chain for every other one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refuseSharedRemoteSettings(facts, change, allowedDirs): PolicyOutcome;
+/// function refuseSharedRemoteSettings(facts, change, shellDirectory, allowedDirs): PolicyOutcome;
 /// ```
 fn refuse_shared_remote_settings(
     facts: &mut dyn RepositoryFacts,
     change: &SharedRemoteChange,
+    shell_directory: Option<&Path>,
     allowed_worktree_dirs: &[ToolCacheDirectory],
 ) -> PolicyOutcome {
     let location: RepositoryLocation = match facts.location() {
@@ -197,9 +211,14 @@ fn refuse_shared_remote_settings(
     };
     // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
     if let Some(named) = &change.named_file {
-        let directory: PathBuf = match command_directory(facts.transaction_context().global_prefix.as_slice()) {
-            Ok(found) => found,
-            Err(message) => return fact_unavailable(message),
+        // Where the writing command runs: a `!` alias's shell starts at the top of the working tree Git changed to,
+        //  while every other command starts where the caller's `-C` chain ends.
+        let directory: PathBuf = match shell_directory {
+            Some(found) => found.to_path_buf(),
+            None => match command_directory(facts.transaction_context().global_prefix.as_slice()) {
+                Ok(found) => found,
+                Err(message) => return fact_unavailable(message),
+            },
         };
         if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
             return clean();
@@ -283,7 +302,12 @@ pub(crate) fn check_linked_worktree(
     // The settings every worktree shares are decided first: no guarded form below is about them,
     // and the guard read them from the command Git will run, a shell alias included.
     if let LinkedWorktreeDecision::SharedRemote(change) = &forwarded.decision {
-        return refuse_shared_remote_settings(facts, change, allowed_worktree_dirs);
+        return refuse_shared_remote_settings(
+            facts,
+            change,
+            forwarded.shell_directory.as_deref(),
+            allowed_worktree_dirs,
+        );
     }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
@@ -358,6 +382,42 @@ pub(crate) fn check_linked_worktree(
         }
         record_audit_with_facts(&location.identity, command, AuditOutcome::Exempt, seen, None, why.as_slice());
         return clean();
+    }
+    // A merge, a rebase, a cherry-pick, a revert or an `am` that waits for its conflicts is undone by its own abort,
+    //  and the state it left makes `git status` unclean by itself: the operation's own work is what the abort is for, and
+    //  the person's own work is copied beside the audit log before the command runs. Where nothing waits, Git refuses the
+    //  abort itself and discards nothing, so the command is left to Git. The exemption above runs first, because an
+    //  exempt repository is one no guard reads.
+    match judge_abort_discard(facts, command, &location.identity, now_milliseconds(), discarded_limits) {
+        AbortVerdict::NotApplicable => {}
+        AbortVerdict::LeftToGit => {
+            // The command discards nothing this policy knows of, so it runs, and the line says the guard left it alone.
+            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            return clean();
+        }
+        AbortVerdict::Allowed { notice, copies } => {
+            if copies.is_empty() {
+                record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            } else {
+                let mut places: Vec<String> = Vec::new();
+                for copy in &copies {
+                    let saved_to: String = match copy.saved_to.as_ref() {
+                        Some(place) => place.display().to_string(),
+                        None => String::from("none"),
+                    };
+                    places.push(format!("{} => {}", copy.path, saved_to));
+                }
+                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedAbort, seen, None, places.as_slice());
+            }
+            if !notice.is_empty() {
+                notices.push(notice);
+            }
+            return clean();
+        }
+        AbortVerdict::CopyFailed(message) => {
+            record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+        }
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
     // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.

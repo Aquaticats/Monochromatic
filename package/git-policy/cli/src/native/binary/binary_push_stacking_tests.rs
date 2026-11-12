@@ -213,3 +213,90 @@ fn a_conflict_publishes_nothing_and_names_the_paths() {
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
     remove(&fixture);
 }
+
+/// A hook that holds the first push that reaches the origin and lets every later one through:
+/// the push the person typed stands in the origin's `pre-receive` after advertising the value it sends,
+/// which is the window the commit's own auto-push lands in.
+/// `mkdir` decides which push is the first,
+/// because it is the one step two hooks cannot both win.
+fn install_holding_hook(origin: &Path, gate: &Path, started: &Path) {
+    let hook: PathBuf = origin.join("hooks").join("pre-receive");
+    std::fs::write(
+        &hook,
+        format!(
+            "#!/bin/sh\n\
+             if [ -e '{gate}' ] && mkdir '{first}' 2>/dev/null; then\n\
+             : > '{started}'\n\
+             while [ -e '{gate}' ]; do sleep 0.01; done\n\
+             fi\n\
+             exit 0\n",
+            gate = gate.display(),
+            started = started.display(),
+            first = started.with_extension("first").display(),
+        ),
+    )
+    .expect("hook source");
+    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("hook mode");
+}
+
+/// Wait,
+/// bounded,
+/// until `path` exists.
+fn wait_for(path: &Path) {
+    let began = std::time::Instant::now();
+    while !path.exists() {
+        assert!(
+            began.elapsed() < std::time::Duration::from_secs(60),
+            "the origin's hook never took the push: {}",
+            path.display()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+/// A push held in the origin's hook while another push of the very same commit lands ends with success,
+/// because the origin then holds what it sends:
+/// the commit's own auto-push is what landed it first in production.
+#[test]
+fn a_push_the_auto_push_landed_while_it_waited_ends_with_success() {
+    let fixture = fixture("stack-published-first");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let origin: PathBuf = fixture.root.join("origin.git");
+    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
+    git(&fixture, repo.as_path(), &["remote", "add", "origin", origin.to_str().expect("utf-8")]);
+    git(&fixture, repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    commit(&fixture, repo.as_path(), "next.txt", "next\n");
+    let pushed = oid(&fixture, repo.as_path(), "HEAD");
+    let gate: PathBuf = fixture.root.join("gate");
+    let started: PathBuf = fixture.root.join("hook-started.txt");
+    std::fs::write(&gate, b"").expect("gate");
+    install_holding_hook(origin.as_path(), gate.as_path(), started.as_path());
+    let held: std::process::Child = super::support::bounded_for(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        super::support::wrapper_first_path(&fixture).as_os_str(),
+        "120",
+    )
+    .current_dir(repo.as_path())
+    .args(["push"])
+    .stdin(std::process::Stdio::null())
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped())
+    .spawn()
+    .expect("the wrapped push starts");
+    wait_for(started.as_path());
+    // The auto-push of the same commit lands it, so the origin no longer stands where the held push found it.
+    git(&fixture, repo.as_path(), &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    std::fs::remove_file(&gate).expect("gate released");
+    let output: std::process::Output = held.wait_with_output().expect("the wrapped push ends");
+    let report: String = format!(
+        "{}{}",
+        String::from_utf8_lossy(output.stdout.as_slice()),
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    assert_eq!(oid(&fixture, origin.as_path(), "main"), pushed, "the origin holds the pushed commit");
+    assert!(report.contains("cannot lock ref"), "the origin refused the held push's stale expectation: {report}");
+    assert_eq!(output.status.code(), Some(0), "the origin holds what this push sends: {report}");
+    assert!(report.contains("already holds everything this push sends"), "{report}");
+    remove(&fixture);
+}

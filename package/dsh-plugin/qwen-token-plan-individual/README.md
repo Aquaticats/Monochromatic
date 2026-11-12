@@ -156,9 +156,28 @@ The listing fetch resolves the same reference
 through the plugin context's credentials service,
 exactly as the installed `@deepseek-ai/dsh-llm-pi-ai` resolves `apiKeyEnv`
 names,
-once per mount and never cached;
-when no credential resolves,
-the fetch is skipped and the checked-in snapshot keeps serving.
+once per mount and never cached.
+The lookup runs when the listing fetch is about to run,
+not at plugin `apply`,
+because the loader can register the credentials service after this plugin
+activates;
+a composition that mounts none, or one that registers after the mount-race
+budget, keeps the served snapshot instead of refusing to load.
+
+## Mount-race writes
+
+The settings write lands through the same `package.json` writer lock the
+plugin-manager holds across its boot reload
+(measured hold 11151 ms starting 9695 ms into a web-profile boot,
+against `@deepseek-ai/dsh-atomic-write` `DEFAULT_LOCK_WAIT_MS` = 2 s).
+A write refused by that contention, or by a `@deepseek-ai/dsh-config-editor`
+reload race, retries within a bounded budget of ten attempts spaced 2 s
+apart,
+which outlasts every measured hold;
+a permanent refusal
+(no `llm-pi-ai` entry in the profile,
+a schema rejection)
+throws immediately without spending the budget.
 
 ## Replacing the hand-declared block
 

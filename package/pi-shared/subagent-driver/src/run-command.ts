@@ -5,7 +5,11 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
+import {
+  execFile,
+  spawn,
+} from 'node:child_process';
+import { once, } from 'node:events';
 import { promisify, } from 'node:util';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
@@ -79,6 +83,21 @@ export type CommandOutput = {
 export type RunCommand = (request: {
   readonly command: string;
   readonly words: readonly string[];
+
+  /**
+   The folder the command runs in, which is this process's own when it names none.
+   */
+  readonly folder?: string;
+
+  /**
+   Variables to add to the environment the command inherits, for a program that would ask a question without them.
+   */
+  readonly environment?: Readonly<Record<string, string>>;
+
+  /**
+   How long the command may take, when the caller wants a bound other than the one this module ships.
+   */
+  readonly timeoutMilliseconds?: number;
 }) => Promise<CommandOutput>;
 
 /**
@@ -198,6 +217,10 @@ function failureOf(caught: unknown,): CommandOutput {
 
  @param timeoutMilliseconds - how long it may take before it is killed
 
+ @param folder - the folder it runs in, which is this process's own when it names none
+
+ @param environment - variables to add to the environment it inherits
+
  @returns what it printed and how it ended
 
  @example
@@ -209,10 +232,14 @@ export async function runCommandWithChildProcess({
   command,
   words,
   timeoutMilliseconds = COMMAND_TIMEOUT_MILLISECONDS,
+  folder,
+  environment,
 }: {
   readonly command: string;
   readonly words: readonly string[];
   readonly timeoutMilliseconds?: number;
+  readonly folder?: string;
+  readonly environment?: Readonly<Record<string, string>>;
 },): Promise<CommandOutput> {
   try {
     /**
@@ -226,6 +253,11 @@ export async function runCommandWithChildProcess({
         maxBuffer: COMMAND_OUTPUT_BYTES,
         timeout: timeoutMilliseconds,
         killSignal: 'SIGKILL',
+        ...(folder === undefined ? {} : { cwd: folder, }),
+        ...(environment === undefined ? {} : { env: {
+          ...process.env,
+          ...environment,
+        }, }),
       },
     );
     return {
@@ -238,5 +270,85 @@ export async function runCommandWithChildProcess({
     // A command that exits non-zero, or that ran past its own bound and was killed, rejects here, and its own output is what
     // the caller reads.
     return failureOf(caught,);
+  }
+}
+
+/**
+ What a command that showed its own output ended with.
+ */
+export type ShownCommandEnding = {
+  /**
+   The status it exited with, or nothing when a signal ended it.
+   */
+  readonly status?: number;
+
+  /**
+   Why it could not be started, when it could not be.
+   */
+  readonly startProblem?: string;
+};
+
+/**
+ Runs one command with the caller's own streams, so what it prints reaches the terminal as it prints it, and answers with how it
+ ended.
+
+ This is the shape a launcher needs: a run's progress must show while it runs, and its status is what the caller answers with.
+
+ @param command - the program, found on `PATH`
+
+ @param words - its arguments, each kept whole
+
+ @param folder - the folder it runs in, which is this process's own when it names none
+
+ @param environment - the environment it gets, which is this process's own when it names none
+
+ @returns how it ended, which never throws for a failure of the command itself
+
+ @example
+ ```ts
+ const ended = await runCommandShowingItsOutput({ command: 'systemd-run', words: ['--user', '--wait', '--unit=pi-a', 'true',], },);
+ ```
+ */
+export async function runCommandShowingItsOutput({
+  command,
+  words,
+  folder,
+  environment,
+}: {
+  readonly command: string;
+  readonly words: readonly string[];
+  readonly folder?: string;
+  readonly environment?: NodeJS.ProcessEnv;
+},): Promise<ShownCommandEnding> {
+  /**
+   The command's process.
+   */
+  const child = spawn(
+    command,
+    [...words,],
+    {
+      stdio: 'inherit',
+      ...(folder === undefined ? {} : { cwd: folder, }),
+      ...(environment === undefined ? {} : { env: environment, }),
+    },
+  );
+  try {
+    /**
+     What the process reported when it closed, which is its status or the signal that ended it.
+     */
+    const closed: readonly unknown[] = await once(
+      child,
+      'close',
+    );
+    /**
+     The status the process exited with, or nothing when a signal ended it.
+     */
+    const [status,] = closed;
+    return ((typeof status) === 'number') ? { status, } : {};
+  }
+  catch (error) {
+    // `once` rejects when the process could not be started at all, and that is the one failure a caller reports rather than reads
+    // as an exit.
+    return { startProblem: String(error,) };
   }
 }

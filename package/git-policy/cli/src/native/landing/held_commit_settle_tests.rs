@@ -68,7 +68,7 @@ fn subjects(repo: &Path, count: usize) -> String {
 ///  kept on the side reference the landing names,
 ///  with a journal and a held record exactly as a landing that met a lock leaves them.
 /// Why:
-///   The state a settlement reads is what a killed or refused landing writes,
+///   The state a settlement reads is what a killed landing or a held write leaves,
 ///  and this control makes it the same way:
 ///  the objects exist,
 ///  the branch is at the base,
@@ -80,7 +80,7 @@ fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
     git(repo, &["add", "--", EDITED]);
     git(repo, &["commit", "--quiet", "--message", HELD_SUBJECT]);
     let held_commit: String = head_of(repo);
-    // The branch goes back to the base, so the commit is only on the side reference, as a refused branch write leaves it.
+    // The branch goes back to the base, so the commit is only on the side reference, as a branch write a lock held off leaves it.
     git(repo, &["update-ref", "--no-deref", kept_reference(1).as_str(), held_commit.as_str()]);
     git(repo, &["reset", "--hard", "--quiet", base.as_str()]);
     // The person's worktree still holds the bytes the commit captured: the commit took them and the branch has not moved.
@@ -92,11 +92,12 @@ fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
         seq: 1,
         repository: repo.to_path_buf(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: base.clone(),
         new: held_commit.clone(),
         ids: vec![String::from("request-1")],
         commits: vec![held_commit.clone()],
+        holders: vec![String::new()],
         paths: vec![EDITED.as_bytes().to_vec()],
         derived: false,
         cleanup: None,
@@ -113,7 +114,7 @@ fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
         common_dir: git_dir.as_path(),
         git_dir: git_dir.as_path(),
         index: intent.index.as_path(),
-        reference: intent.reference.as_str(),
+        reference: &intent.reference,
         seq: 1,
         intent: &intent,
         locks: vec![git_dir.join("refs/heads/main.lock")],
@@ -225,6 +226,44 @@ fn a_held_commit_that_conflicts_keeps_its_record_and_names_the_paths() {
     remove(root.as_path());
 }
 
+/// What:
+///  A settlement that carries the batch onto a branch another session moved,
+///  and then cannot record the commit it made,
+///  names the commit a reference really keeps.
+/// Why:
+///  The carried commit exists only as an object:
+///  the side reference still names the batch's own commit,
+///  so `git gc --prune=now` may take the carried one away,
+///  and a line calling it kept would be the only thing that says otherwise
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that a replayed commit is called kept when no reference keeps it).
+///  The journal is made unwritable after the batch was recorded,
+///  which is the one step between the carried commit and the branch move
+///  (`held_commit_settle.rs`,
+///  `carry`).
+#[test]
+fn a_carry_that_cannot_be_recorded_names_the_commit_a_reference_keeps() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let (root, repo, context) = repository("held-settle-unrecorded-carry");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    // Another session moves the branch, so the settlement carries the change onto it.
+    std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
+    git(repo.as_path(), &["add", "--", OTHER]);
+    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    // The record of the carried commit cannot be written, and the carried commit is on no reference until it is.
+    let journal: &Path = held.journal.as_path();
+    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o500)).expect("a journal that cannot be written");
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o700)).expect("the journal writes again");
+    let Settled::Cannot { commit, because } = settled else {
+        panic!("a record that cannot be written is a state this command cannot move, and this was {settled:?}");
+    };
+    assert_eq!(commit, held.new, "the commit the line calls kept is the batch's own, which the side reference holds: {because}");
+    let side: String = git_text(repo.as_path(), &["rev-parse", kept_reference(1).as_str()]).trim().to_string();
+    assert_eq!(side, commit, "a reference keeps the commit the line names");
+    remove(root.as_path());
+}
+
 /// The commit the branch names,
 /// in a repository whose Git directory is not `<work_tree>/.git`.
 fn head_beside(git_dir: &Path, work_tree: &Path) -> String {
@@ -298,11 +337,12 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
         seq: 1,
         repository: work_tree.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: base.clone(),
         new: held_commit.clone(),
         ids: vec![String::from("request-1")],
         commits: vec![held_commit.clone()],
+        holders: vec![String::new()],
         paths: vec![EDITED.as_bytes().to_vec()],
         derived: false,
         cleanup: None,
@@ -317,7 +357,7 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
         common_dir: git_dir.as_path(),
         git_dir: git_dir.as_path(),
         index: intent.index.as_path(),
-        reference: intent.reference.as_str(),
+        reference: &intent.reference,
         seq: 1,
         intent: &intent,
         locks: vec![],
@@ -424,5 +464,41 @@ fn a_record_left_by_a_kill_after_its_replayed_landing_is_recognized_and_removed(
     assert_eq!(settled, Settled::AlreadyThere { commit: landed.clone() }, "the branch is shown to hold the commit the batch became");
     assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes, so no command says it waits any more");
     assert_eq!(head_of(repo.as_path()), landed, "the branch was not moved again");
+    remove(root.as_path());
+}
+
+/// What:
+///  The line a restart writes about a held batch names the repository of that batch,
+///  says the commit is kept,
+///  and worded as a commit a lock holds,
+/// never as one it refused.
+/// Why:
+///   The host run of the 0.6.1-alpha.10 release printed this line for a passing fixture,
+///  and with no repository in it,
+///  the coordinator read it as a commit on this repository's own `main` that failed.
+///  The owner's rule is "Commits should never fail",
+///  and a held commit does not:
+///  it is kept,
+/// waits for the lock and lands when the lock clears,
+///  which is what every word of the line has to say.
+#[test]
+fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kept() {
+    let (root, repo, context) = repository("held-settle-names-repository");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    std::fs::write(lock.as_path(), "").expect("the lock a killed Git leaves");
+    let intent_text: String = std::fs::read_to_string(batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).as_path()).expect("the batch's intent");
+    let intent: Intent = crate::service_journal::parse_intent(intent_text.as_str()).expect("the intent this control wrote");
+    let mut report: Option<crate::service_land_finish::RecoveryReport> = None;
+    let entries = crate::service_timing::capture::entries_of(|| {
+        report = super::settle_a_recorded_hold(&context, held.journal.as_path(), &intent);
+    });
+    assert!(report.is_some(), "the batch still waits for the lock, so the restart reports it as held");
+    assert_eq!(entries.len(), 1, "the settlement writes one line: {entries:?}");
+    let said: &str = entries[0].message.as_str();
+    assert!(said.contains(format!("in the repository at {}", repo.display()).as_str()), "the line names the repository: {said}");
+    assert!(said.contains("is still held"), "the commit waits for the lock: {said}");
+    assert!(said.contains("is kept"), "the line says the commit is kept: {said}");
+    assert!(!said.contains("refus"), "a commit that is kept is not one that was refused: {said}");
     remove(root.as_path());
 }

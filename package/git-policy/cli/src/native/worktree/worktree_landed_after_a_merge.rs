@@ -6,7 +6,8 @@
 //!  It also needs the directory to start Git in and the root of the worktree it must not remove,
 //!  which come from the repository shape the command ran with,
 //!  and the worktrees the repository registered before the merge ran,
-//!  which is what keeps a worktree another command added while the merge ran, or after it landed,
+//!  which is what keeps a worktree another command added while the merge ran,
+//! or after it landed,
 //!  out of the sweep.
 //!  A merge that ended with a nonzero status,
 //!  or one that moved nothing,
@@ -27,6 +28,7 @@ use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
 use crate::worktree_landed_removal::{LandedPlace, LandedSweep, sweep_landed_worktrees};
 use crate::worktree_landed_sweep_notice::landed_sweep_lines;
+use crate::worktree_remove_hand_over::wake_the_service;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -68,7 +70,6 @@ fn current_root(identity: &WorktreeIdentity) -> Option<PathBuf> {
 /// The repository's common Git directory,
 /// which owns every registration.
 fn common_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
-    // `match` on the repository shape: a bare repository has one too.
     match identity {
         WorktreeIdentity::MainWorktree { common_dir, .. }
         | WorktreeIdentity::LinkedWorktree { common_dir, .. }
@@ -135,7 +136,8 @@ pub fn window(context: GitContext, identity: &WorktreeIdentity) -> Option<(GitCo
 ///   Only the command that ran the merge knows this,
 ///  and every sweep after it reads both.
 ///  A registry that could not be read is kept as the reason,
-///  because a sweep without it must not remove anything: nothing would prove a worktree existed when the merge landed.
+///  because a sweep without it must not remove anything:
+///  nothing would prove a worktree existed when the merge landed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -213,6 +215,11 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
         current_root: root.as_deref(),
         proc_root: Path::new(PROCESS_TABLE),
         registered_before: registered,
+        // The removals this sweep hands over are recorded for the commit service of the common Git directory, where the
+        //  removal a person runs records its own: the merge's instance stays free for the push that follows the merge, and a
+        //  removal that takes minutes never queues a merge's own work behind it.
+        git_dir: common_dir.as_path(),
+        told: &wake_the_service,
     };
     let sweep: LandedSweep = sweep_landed_worktrees(&place, window.before.as_str(), now.as_str(), branch.as_str());
     let mut stderr: std::io::Stderr = std::io::stderr();

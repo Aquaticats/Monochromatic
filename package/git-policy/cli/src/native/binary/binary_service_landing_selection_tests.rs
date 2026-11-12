@@ -19,7 +19,7 @@
 use super::commit::{remove_settled, wrapped_commit};
 use super::service_commit::{Running, start};
 use super::service_landing_support::{Case, case, compare, copy_beside, finished, text_of};
-use super::support::{Fixture, direct, fixture, git, observe, repository};
+use super::support::{Fixture, fixture, git, observe, repository, run_direct};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -145,9 +145,9 @@ fn a_dry_run_and_the_status_formats_need_neither_the_transaction_nor_the_service
     for line in lines {
         let served_repo: PathBuf = copy_beside(&fixture, &base, "dry");
         let native_line: Vec<&str> = line.iter().copied().filter(|word| { return *word != "--no-enforce-only"; }).collect();
-        let mut native = direct(&fixture);
-        native.current_dir(&base).args(native_line.as_slice());
-        let expected = observe(&mut native, b"");
+        // The oracle is native Git run under the harness's bound, not a bare `/usr/bin/git`:
+        // a Git waiting on something this control cannot see must fail here naming the command, not hold the run.
+        let expected = run_direct(&fixture, &base, native_line.as_slice());
         let mut wrapped = wrapped_commit(&fixture, &served_repo, line);
         // No runtime directory and no service: a command that reached the service would stop with a plain failure.
         wrapped.env_remove("XDG_RUNTIME_DIR");

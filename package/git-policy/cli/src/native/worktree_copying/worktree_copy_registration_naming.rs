@@ -20,6 +20,7 @@
 //! const naming = registrationNaming(commonDir, destination); // { named } | none | unknown
 //! ```
 
+use crate::fs_beneath::ObjectId;
 use crate::plain_file::SMALL_FILE_LIMIT;
 use crate::plain_file::read_plain_file;
 use crate::worktree_add_binding::resolve_lexically;
@@ -123,6 +124,149 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 }
 
 /// What:
+///  Which worktree of this repository is one object,
+///  or why none is.
+/// Why:
+///   A record that captured a worktree's object still names it after `git worktree move` renamed the directory,
+/// and the registration whose `gitdir` names that object gives the path the worktree stands at now.
+///   The answer that proves nothing is kept apart from the answer that proves there is no such worktree:
+/// a `gitdir` is unreadable for a moment while a command rewrites it,
+/// and a caller that settles a record on it would forget a worktree that still holds less than its source ignores.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RegisteredObject = { root: string } | 'none' | 'unknown';
+/// ```
+pub(crate) enum RegisteredObject {
+    /// The root of the worktree this object is.
+    Root(PathBuf),
+    /// No registration holds it.
+    None,
+    /// The registrations cannot all be read,
+    /// so whether one holds it is unknown.
+    Unknown,
+}
+
+/// What:
+///  Which worktree of this repository is the object `identity` names.
+/// Why:
+///   Git renames a worktree's directory when it moves it and keeps the object,
+/// so the identity a record captured still names that worktree while its recorded path no longer does;
+/// the registration's `gitdir` gives the path the worktree stands at now,
+/// which is the path every line and command about it must name.
+///   A registration that cannot be read proves nothing:
+/// the answer says so rather than naming no worktree,
+/// and no record is settled on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registeredObject = (commonDir, identity) => readdir(join(commonDir, 'worktrees')).map(registrationRoot).find((root) => identityAt(root) === identity);
+/// ```
+pub(crate) fn registered_object(common_dir: &Path, identity: ObjectId) -> RegisteredObject {
+    let worktrees: PathBuf = common_dir.join("worktrees");
+    let listing = match std::fs::read_dir(worktrees.as_path()) {
+        Ok(listing) => listing,
+        // No `worktrees` directory is a repository with no linked worktree, so no registration holds any object.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return RegisteredObject::None,
+        // A repository whose registrations cannot be listed proves nothing, so no record is settled on it.
+        Err(_unreadable) => return RegisteredObject::Unknown,
+    };
+    let mut unproven: bool = false;
+    for listed in listing {
+        let admin: PathBuf = match listed {
+            Ok(entry) => entry.path(),
+            Err(_unreadable) => {
+                unproven = true;
+                continue;
+            }
+        };
+        match registration_root(admin.as_path()) {
+            Registered::Root(root) if crate::worktree_add_binding::path_identity(root.as_path()) == Some(identity) => return RegisteredObject::Root(root),
+            Registered::Root(_another_object) => {}
+            Registered::NoRoot => {}
+            Registered::Unproven => unproven = true,
+        }
+    }
+    return if unproven { RegisteredObject::Unknown } else { RegisteredObject::None };
+}
+
+/// What:
+///  The worktree root one registration's `gitdir` file names,
+///  or why it names none.
+/// Why:
+///  `gitdir` holds the path of the worktree's `.git` file,
+/// absolute or relative to the administrative directory,
+/// and the directory that holds it is the worktree;
+/// a file that is gone,
+/// empty or unreadable proves nothing about the worktree it describes,
+/// while one that names a worktree which is gone names none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registrationRoot = (admin) => { const line = read('gitdir'); if (!line) return 'unproven'; const resolved = resolveLexically(admin, line.trimEnd()); return canonicalize(dirname(resolved)) ?? 'no-root'; };
+/// ```
+fn registration_root(admin: &Path) -> Registered {
+    let Ok(recorded) = read_plain_file(admin.join("gitdir").as_path(), SMALL_FILE_LIMIT) else {
+        return Registered::Unproven;
+    };
+    let line: &[u8] = recorded_line(recorded.as_slice());
+    if line.is_empty() {
+        return Registered::Unproven;
+    }
+    let Ok(marker) = resolve_lexically(admin, line) else {
+        return Registered::NoRoot;
+    };
+    let Some(named) = marker.parent() else {
+        return Registered::NoRoot;
+    };
+    return match std::fs::canonicalize(named) {
+        Ok(canonical) => Registered::Root(canonical),
+        // A recorded worktree that is not there is one Git would prune, so it names no worktree of this repository;
+        // a path that cannot be resolved for another reason proves nothing.
+        Err(error) if absent_path(&error) => Registered::NoRoot,
+        Err(_unresolved) => Registered::Unproven,
+    };
+}
+
+/// What:
+///  The worktree root one registration names,
+///  or why it names none.
+/// Why:
+///  A registration whose recorded worktree is gone names nothing a caller could name,
+/// while one that cannot be read proves nothing and is answered apart from the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Registered = { root: string } | 'no-root' | 'unproven';
+/// ```
+enum Registered {
+    /// The directory the registration names.
+    Root(PathBuf),
+    /// The registration names no worktree:
+    /// it records no path,
+    /// or the worktree it records is gone.
+    NoRoot,
+    /// The registration cannot be read,
+    /// so it proves nothing.
+    Unproven,
+}
+
+/// What:
+///  The path bytes a registration's `gitdir` file holds,
+/// with Git's one line feed removed.
+/// Why:
+///   Git ends the file with one line feed and writes the path as it is (`write_file` in its `worktree.c`),
+/// and trimming every space around it would rename a worktree whose path begins or ends with one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordedLine = (recorded) => recorded.endsWith('\n') ? recorded.slice(0, -1) : recorded;
+/// ```
+fn recorded_line(recorded: &[u8]) -> &[u8] {
+    return recorded.strip_suffix(b"\n").unwrap_or(recorded);
+}
+
+/// What:
 ///  What one registration's `gitdir` says about `destination`.
 /// Why:
 ///  `gitdir` holds the path of the worktree's `.git` file,
@@ -137,10 +281,7 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 /// const line = read('gitdir').replace(/\n$/, ''); const marker = resolveLexically(admin, line); return namingOf(canonicalize(dirname(marker)), destination)
 /// ```
 fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
-    // Git ends the file with one line feed and writes the path as it is (`write_file` in its `worktree.c`),
-    // and `bind_registration` removes that one line feed alone:
-    // trimming every space around it would rename a worktree whose path begins or ends with one.
-    let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded);
+    let line: &[u8] = recorded_line(recorded);
     if line.is_empty() {
         return Naming::Unproven;
     }

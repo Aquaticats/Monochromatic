@@ -1,9 +1,10 @@
 //! What:
-//!  The three btrfs ioctls the wrapper needs,
+//!  The btrfs ioctls the wrapper needs,
 //! called in process:
 //! create an empty subvolume,
 //! snapshot a subvolume,
-//!  and destroy a subvolume.
+//!  destroy a subvolume,
+//! and read what one subvolume's own record says about its identity and the transaction that made it.
 //! Why:
 //!  `libc` has `FICLONE` and the filesystem magic numbers but no `BTRFS_IOC_*` constants,
 //! and the wrapper never starts
@@ -123,6 +124,11 @@ pub const HOST_IOC_LAYOUT: IocLayout = GENERIC_IOC_LAYOUT;
 /// both 4096 bytes.
 pub const VOLUME_ARGUMENT_BYTES: usize = 4096;
 
+/// The size of `struct btrfs_ioctl_get_subvol_info_args`:
+/// its fields come to 504 bytes,
+/// which the compiler checks where the structure is defined.
+pub const SUBVOLUME_INFO_BYTES: usize = 504;
+
 /// The longest name `BTRFS_IOC_SNAP_CREATE_V2` takes:
 /// `BTRFS_SUBVOL_NAME_MAX` (4039) plus its NUL,
 /// in the header.
@@ -156,6 +162,22 @@ pub const fn ioc_write_with(layout: IocLayout, number: u32, size: usize) -> u32 
 }
 
 /// What:
+///  The request number `_IOR(magic, number, size)` the C macro computes under a given architecture's encoding,
+/// for an
+///  argument the kernel fills in and user space only reads back.
+/// Why:
+///   See `ioc_write_with`;
+/// the direction field holds `_IOC_READ` alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ior = (layout: IocLayout, nr: number, size: number) => (layout.read << layout.directionShift) | (size << 16) | (0x94 << 8) | nr;
+/// ```
+pub const fn ioc_read_with(layout: IocLayout, number: u32, size: usize) -> u32 {
+    return (layout.read << layout.direction_shift) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number;
+}
+
+/// What:
 ///  The request number `_IOWR(magic, number, size)` the C macro computes under a given architecture's encoding,
 /// for an
 ///  argument that user space fills in and the kernel fills in again.
@@ -185,6 +207,19 @@ pub const fn ioc_write(number: u32, size: usize) -> libc::Ioctl {
     return ioc_write_with(HOST_IOC_LAYOUT, number, size) as libc::Ioctl;
 }
 
+/// What:
+///  The request number `_IOR(magic, number, size)` for the architecture this code is built for.
+/// Why:
+///   See `ioc_read_with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ior = (nr: number, size: number) => iorFor(hostLayout, nr, size);
+/// ```
+pub const fn ioc_read(number: u32, size: usize) -> libc::Ioctl {
+    return ioc_read_with(HOST_IOC_LAYOUT, number, size) as libc::Ioctl;
+}
+
 /// `BTRFS_IOC_SUBVOL_CREATE`:
 /// `_IOW(0x94, 14, struct btrfs_ioctl_vol_args)`.
 pub const BTRFS_IOC_SUBVOL_CREATE: libc::Ioctl = ioc_write(14, VOLUME_ARGUMENT_BYTES);
@@ -205,6 +240,12 @@ pub const BTRFS_IOC_SNAP_DESTROY_V2: libc::Ioctl = ioc_write(63, VOLUME_ARGUMENT
 /// `_IOWR(0x94, 18, struct btrfs_ioctl_ino_lookup_args)`,
 /// 4096 bytes.
 pub const BTRFS_IOC_INO_LOOKUP: libc::Ioctl = ioc_read_write_with(HOST_IOC_LAYOUT, 18, VOLUME_ARGUMENT_BYTES) as libc::Ioctl;
+
+/// `BTRFS_IOC_GET_SUBVOL_INFO`:
+/// `_IOR(0x94, 60, struct btrfs_ioctl_get_subvol_info_args)`.
+/// It reads one subvolume's own record,
+/// so it needs no privilege the caller does not already have on the directory it opens.
+pub const BTRFS_IOC_GET_SUBVOL_INFO: libc::Ioctl = ioc_read(60, SUBVOLUME_INFO_BYTES);
 
 /// `BTRFS_SUBVOL_SPEC_BY_ID`:
 /// the destroy names the subvolume by its id,
@@ -268,6 +309,84 @@ pub struct VolArgsV2 {
     /// NUL terminated.
     pub name: [u8; V2_NAME_CAPACITY],
 }
+
+/// `struct btrfs_ioctl_timespec`:
+/// a whole second and its nanoseconds,
+/// padded to 16 bytes as the C structure is.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct IoctlTimespec {
+    /// `__u64 sec`.
+    pub sec: u64,
+    /// `__u32 nsec`.
+    pub nsec: u32,
+}
+
+/// What:
+///  `struct btrfs_ioctl_get_subvol_info_args`:
+/// one subvolume's identity,
+/// its latest transaction,
+/// and the transactions and instants of its creation,
+/// change,
+/// send and receive.
+/// Why:
+///   The kernel fills this structure from the subvolume's own root record,
+/// so a reader tells a snapshot another party made from the one a command made by what the filesystem wrote,
+/// not by what stands at a name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SubvolumeInfoArgs = { treeid: bigint; name: Uint8Array /* 256 */; parentId: bigint; dirid: bigint; generation: bigint; flags: bigint; uuid: Uint8Array /* 16 */; parentUuid: Uint8Array /* 16 */; receivedUuid: Uint8Array /* 16 */; ctransid: bigint; otransid: bigint; stransid: bigint; rtransid: bigint; ctime: Timespec; otime: Timespec; stime: Timespec; rtime: Timespec; reserved: bigint[] /* 8 */ };
+/// ```
+#[repr(C)]
+pub struct SubvolumeInfoArgs {
+    /// `__u64 treeid`:
+    /// the subvolume's id.
+    pub treeid: u64,
+    /// `char name[BTRFS_VOL_NAME_MAX + 1]`.
+    pub name: [u8; 256],
+    /// `__u64 parent_id`.
+    pub parent_id: u64,
+    /// `__u64 dirid`.
+    pub dirid: u64,
+    /// `__u64 generation`:
+    /// the latest transaction that changed this subvolume.
+    pub generation: u64,
+    /// `__u64 flags`.
+    pub flags: u64,
+    /// `__u8 uuid[16]`.
+    pub uuid: [u8; 16],
+    /// `__u8 parent_uuid[16]`:
+    /// the subvolume this one is a snapshot of,
+    /// all zero when it is no snapshot.
+    pub parent_uuid: [u8; 16],
+    /// `__u8 received_uuid[16]`.
+    pub received_uuid: [u8; 16],
+    /// `__u64 ctransid`.
+    pub ctransid: u64,
+    /// `__u64 otransid`:
+    /// the transaction that created this subvolume.
+    pub otransid: u64,
+    /// `__u64 stransid`.
+    pub stransid: u64,
+    /// `__u64 rtransid`.
+    pub rtransid: u64,
+    /// `struct btrfs_ioctl_timespec ctime`.
+    pub ctime: IoctlTimespec,
+    /// `struct btrfs_ioctl_timespec otime`.
+    pub otime: IoctlTimespec,
+    /// `struct btrfs_ioctl_timespec stime`.
+    pub stime: IoctlTimespec,
+    /// `struct btrfs_ioctl_timespec rtime`.
+    pub rtime: IoctlTimespec,
+    /// `__u64 reserved[8]`,
+    /// which the kernel requires to be zero.
+    pub reserved: [u64; 8],
+}
+
+/// The request number states 504 bytes,
+/// so the structure must hold exactly that.
+const _: () = assert!(std::mem::size_of::<SubvolumeInfoArgs>() == SUBVOLUME_INFO_BYTES);
 
 /// What:
 ///  Check one name for a subvolume entry and copy it,
@@ -552,6 +671,63 @@ pub fn subvolume_destroy_at(path: &Path) -> Result<(), PrimitiveError> {
 pub fn snapshot_create_at(source: &Path, destination: &Path) -> Result<(), PrimitiveError> {
     let (parent, name) = split_parent(destination, "BTRFS_IOC_SNAP_CREATE_V2")?;
     return snapshot_create(source, parent.as_path(), name.as_os_str());
+}
+
+/// What:
+///  The facts the subvolume's own record gives about it:
+/// its identity,
+/// the subvolume it is a snapshot of,
+/// its latest transaction,
+/// and the transaction that created it.
+/// Why:
+///   A command that records which snapshot it is about to make needs these facts before the object exists and after it,
+/// and a later command checks them against what stands at the name,
+/// so one reader serves both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SubvolumeInfo = { uuid: Uint8Array /* 16 */; parentUuid: Uint8Array /* 16 */; generation: bigint; transidAtCreation: bigint };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SubvolumeInfo {
+    /// The subvolume's own UUID.
+    pub uuid: [u8; 16],
+    /// The UUID of the subvolume this one is a snapshot of,
+    /// all zero for any other subvolume.
+    pub parent_uuid: [u8; 16],
+    /// The latest transaction that changed this subvolume.
+    pub generation: u64,
+    /// The transaction that created this subvolume.
+    pub transid_at_creation: u64,
+}
+
+/// What:
+///  Read what the subvolume holding `path` says about itself (`BTRFS_IOC_GET_SUBVOL_INFO`).
+/// Why:
+///   The request is answered for the subvolume the opened directory belongs to,
+/// so any directory inside it answers,
+/// and the kernel needs no privilege the caller does not already have on that directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const info = await subvolumeInfo(path); // { uuid, parentUuid, generation, transidAtCreation }
+/// ```
+pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
+    let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
+    let directory: File = open_directory(path, operation)?;
+    // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
+    let mut arguments: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
+    // SAFETY: `directory` is open for the call; `arguments` is the 504-byte structure the request number states.
+    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut arguments) };
+    if result != 0 {
+        return Err(PrimitiveError::last_os_error(operation, path));
+    }
+    return Ok(SubvolumeInfo {
+        uuid: arguments.uuid,
+        parent_uuid: arguments.parent_uuid,
+        generation: arguments.generation,
+        transid_at_creation: arguments.otransid,
+    });
 }
 
 /// Btrfs ioctl controls stay out of the release executable.

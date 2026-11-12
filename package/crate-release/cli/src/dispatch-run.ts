@@ -5,6 +5,7 @@ import {
 } from './constants.ts';
 import type { DispatchOptions } from './dispatch-options.ts';
 import { formatCommandLine } from './command-line.ts';
+import { isAlphaVersion } from './crates-io-version-label.ts';
 import {
   checkOriginContainment,
   refusalLines,
@@ -53,7 +54,10 @@ function printLines({
 
  Then the crate's own release gate runs, when its registry entry names one: the command holds the checks that only this
  machine can make, so it is the last thing between the person and a run nothing can take back. A `--dry-run` skips it,
- because a dry run runs nothing that the gate's evidence would cover.
+ because a dry run runs nothing that the gate's evidence would cover. An alpha release skips it too, for a real run as
+ well as a dry run, because of the owner's standing rule of 2026-11-11, "make the release pipeline avoid running any
+ extra work for alphas", after "Alphas don't even have to resolve all flakes". The rule names alphas: a beta, which
+ likewise never reaches crates.io, still waits for the gate.
 
  Nothing else happens on this machine: the workflow does the bump, the check, the dry run, the commit, the push and the
  publish start. A refusal by `gh` is shown as `gh` wrote it, with the call that made it, so the person sees the cause.
@@ -105,8 +109,13 @@ export async function dispatchRelease({
   // The crate's own gate is the last refusal before the dispatch: it is the expensive one, so every check that costs
   // nothing has already run, and nothing can be taken back once `gh` has started the workflow.
   if (options.dispatchGate !== undefined) {
+    if (isAlphaVersion(options.to)) {
+      // An alpha release never runs the gate, so a dry run of one loses nothing by not running it either: the same line
+      // describes both runs, and neither claims that evidence is missing.
+      print(`no dispatch gate: an alpha release does not wait for ${formatCommandLine(options.dispatchGate)}, which every other release does`);
+    }
     // A dry run starts the workflow's own dry run, so the gate's evidence would cover nothing it does.
-    if (options.dryRun)
+    else if (options.dryRun)
       print(`RELEASE DRY RUN: not running ${formatCommandLine(options.dispatchGate)}, the gate this crate names for a real release, so this dry run proves nothing about it.`);
     else {
       print(`Waiting for ${formatCommandLine(options.dispatchGate)}`);

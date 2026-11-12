@@ -127,3 +127,41 @@ fn a_plan_given_no_thread_for_its_second_read_keeps_its_read_pending() {
     assert_eq!(kept.restore_pause(), Duration::from_secs(10), "a refusal that promises nothing ran does not grow the pause");
     crate::test_support::remove(root.as_path());
 }
+
+/// What:
+///  A retry of the notes whose job outlasted its ceiling is owed again after a longer pause,
+/// while one the pool gave no thread for keeps the pause it had.
+/// Why:
+///   The job that gave no answer is still holding a place of the blocking bound until the journal answers,
+/// so trying the notes again at the shortest pause for ever would fill the pool with reads and writes of a journal that never
+///  answers;
+/// a refusal promises that nothing ran,
+/// so it holds no place and asking again at the same pause costs nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stateTheAnswer('noAnswer'); const [kept] = await retryAwaiting(unread(directory)); expect(kept.pause(first)).toBe(first * 2);
+/// ```
+#[test]
+fn a_note_retry_that_outlasted_its_ceiling_is_owed_again_after_a_longer_pause() {
+    let root: PathBuf = crate::test_support::fixture("a-note-retry-outlasted");
+    std::fs::create_dir_all(root.as_path()).expect("the journal directory");
+    let first: Duration = Duration::from_secs(10);
+    let watch: ClaimWatch = ClaimWatch::unread(root.as_path(), None);
+    assert_eq!(watch.pause(first), first, "the first retry is made after the first pause");
+    let (kept, found): (ClaimWatch, Vec<PathBuf>) = {
+        let _stated = state_the_answer(AStatesAnswer::NoAnswer);
+        run_any(retry_awaiting(watch))
+    };
+    assert!(found.is_empty(), "nothing was read, so no repository is looked at by this step");
+    assert!(kept.needs_retry(), "the notes are still owed, so the loop keeps a wake for them");
+    assert_eq!(kept.pause(first), first * 2, "the retry that outlasted its ceiling doubles the pause before the next one");
+    // A refusal promises that nothing ran, so it holds no place and the pause it had stays.
+    let refused: ClaimWatch = ClaimWatch::unread(root.as_path(), None);
+    let (after_a_refusal, _none): (ClaimWatch, Vec<PathBuf>) = {
+        let _refused = state_the_answer(AStatesAnswer::NotRun);
+        run_any(retry_awaiting(refused))
+    };
+    assert_eq!(after_a_refusal.pause(first), first, "a refusal that promises nothing ran does not grow the pause");
+    crate::test_support::remove(root.as_path());
+}

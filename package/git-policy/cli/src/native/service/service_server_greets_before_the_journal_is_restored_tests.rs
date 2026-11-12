@@ -105,7 +105,7 @@ fn a_request(world: &World, id: &str) -> CommitRequest {
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
         git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(format!("{MESSAGE}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("{MESSAGE}\n"),

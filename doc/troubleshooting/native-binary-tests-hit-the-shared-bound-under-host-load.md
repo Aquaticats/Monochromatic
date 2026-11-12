@@ -1039,6 +1039,47 @@ Controls that assert a notice or its absence (`binary_wait_notice_tests.rs`,
 `binary_lfs_hang_tests.rs`) read raw
 bytes and are unchanged.
 
+### The service's note that a commit is inside a write is a second such line (2026-11-10)
+
+`event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit` failed in the whole binary suite on
+`main` at `b4ed7deb73` with
+
+```text
+thread 'event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit' (2076808) panicked at src/native/binary/binary_event_path_commit_tests.rs:136:5:
+assertion `left == right` failed
+  left: (Some(0), "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `git update-ref --stdin in .../repo` (it moves refs/heads/main to 3963eee51e143f603a9a31f314473488f583d480; the commit is also at refs/worktree/cli-git-service/1794345924936614 until the update ends), begun 0 seconds ago. ...")
+ right: (Some(0), "")
+```
+
+The control required standard error to be empty,
+and the client printed the service's note that its own request was inside a write.
+That note is intended:
+the owner asked that the client learn its commit may be on the branch when the write starts,
+not a minute later (`service_busy.rs`,
+`inside_notice`),
+and the landing's `git update-ref --stdin` held the write for 2,069 ms in that run,
+long enough for a beat to fall inside it (the same service line shows `lock_hold_ms=2089` and
+`git update-ref@489+2069`).
+So the line is the host being slow,
+which this control does not claim.
+
+`without_advisory_notices` (`binary_support_observation.rs`) is the reading that leaves out every line the wrapper prints
+about a wait:
+the wait notice,
+that note in its short words,
+and the longer words of a write that lasted whole minutes.
+`binary_event_path_commit_tests.rs` reads every command of the module through it,
+because those controls are about event bytes,
+an exit status and a repository,
+and `only_the_lines_about_a_wait_are_left_out_of_a_read_command` requires a finding line and another sentence of the
+wrapper's to stay.
+Verified:
+`event_path_commit::`
+13 of 13 pass (`Summary [54.673s] 13 tests run: 13 passed, 909 skipped`).
+Not measured:
+how often a beat falls inside a landing's write on this host;
+the control passed in the same run for every other commit it makes.
+
 ## Tests that looked slow in one gate and are not
 
 `candidate_prediction::tests::failures_report_git_and_leave_the_index_alone` and
@@ -1596,3 +1637,157 @@ fixed on `bound-supervisor-r2` with a control and a hand-applied mutant that tur
   no deterministic way to force a reuse exists
   without privileges,
   so the pin is tested by what it refuses.
+
+## A merge that waited for the commit service's answer, 2026-11-11
+
+Six controls of the binary suite's merge groups failed in one whole run,
+each with the same words:
+
+```text
+the harness supervisor ended the command `/usr/bin/timeout --signal=KILL 600 …/bin/git merge --no-edit topic` in …/repo:
+no progress for 5.0 s: no task was runnable, waiting for the disk or held from outside, and processor time, bytes moved,
+the work of waited-for children and the set of processes stood still (a deadlock or a wait on something that never happens)
+```
+
+The failing controls were
+`word_merge::a_part_line_names_each_input_as_a_blob_that_survives_the_resolution`,
+`word_merge::the_journal_receives_each_merged_part`,
+`word_merge_finish::a_merge_autostash_is_applied_by_the_ending_commit`,
+`word_merge_finish::cherry_pick_and_revert_edit_run_the_editor`,
+`word_merge_finish::merge_edit_runs_the_editor_and_merge_message_is_kept`
+and `word_merge_finish::each_operation_is_finished_like_a_clean_run`,
+in a run of 949 tests that passed 941
+(`package/git-policy/cli`,
+worktree `pi-wrapper-suite-failures-on-main-tip`;
+the summary and each failure's own output are kept at
+`~/temp/agent/wrapper-suite-5/binary-suite-failures-2026-11-11.log`,
+which the session's own process log of that run supplied).
+
+### What the killed trees were doing
+
+Every message named the same task:
+the wrapper,
+waiting in `unix_stream_read_generic`,
+the kernel's read of the Unix socket it sends its commit request on.
+The same run's service log names the other half of that wait:
+
+```text
+monochromatic-git-policy-cli-service: the background sync of 6 records of a landing took 48597 ms
+```
+
+So the wrapper was not deadlocked:
+it had asked the commit service for an answer,
+and the service's own records were being flushed through a volume that was stalling for tens of seconds
+under the other sessions' writes.
+No look at the *command's* tree can see that work:
+the service is not a descendant of the command,
+and it outlives it on purpose (`binary_supervisor_tests.rs`,
+`a_command_that_has_exited_is_finished_and_not_judged_idle`).
+
+The idle rule as it stood counted a task asleep in a socket read as a hang,
+which is right for a deadlock between two programs of one command
+and wrong for a wait whose answer depends on another program's disk work.
+The window is also shorter than the wrapper's own telling:
+`WAITING_NOTICE_AFTER` is 10 s (`src/native/service/wait_ceilings.rs`),
+so a healthy command is ended before it can say where it stands,
+and the notice is written once per place the service names,
+not repeatedly.
+
+### What changed
+
+The look at a tree reads each task's kernel wait channel (`/proc/<pid>/wchan`,
+the file the kill message already printed)
+and marks a process asleep in `unix_stream_read_generic` or `unix_stream_data_wait` as waiting for an answer
+(`binary_supervisor_proc.rs`,
+`waits_for_an_answer`).
+A tree with such a task restarts the idle window as one waiting for the disk does
+(`binary_supervisor.rs`,
+`Judge::observe`),
+so a command whose answer is being prepared is not called hung,
+and a deadlock on a pipe,
+a futex or a lock is still ended at the window
+(`a_deadlock_is_ended_and_reported_with_its_tasks`,
+`a_tree_that_stands_still_is_hung_when_the_window_has_passed`).
+
+The control is `a_wait_for_an_answer_over_a_socket_is_not_a_hang`
+(`binary_supervisor_tests.rs`):
+a child that reads a Unix socket pair this test holds the other end of,
+which must not be ended over several windows and must finish when the answer is written.
+
+### Limits
+
+- A deadlock *between the wrapper and its commit service* now looks like any answer wait,
+  so it ends at the processor budget or the ten-minute backstop instead of the idle window.
+  The wrapper's own answer ceiling is the product's limit for that wait (`ANSWER_CEILING`),
+  and a service that stops answering is what its own controls are for.
+- A task asleep in a pipe or a futex read is still judged idle,
+  which is what the fifo deadlock control shows.
+- The wait channel is read once per process per look,
+  one small file per poll of 100 ms.
+
+## A merge the wrapper finishes waits for its landing, which the bound does not exempt
+
+2026-11-11T19:53-05:00,
+host load average about 110,
+`native:test:binary:host -- abort_during_an_operation merge_rr_cleanup` (eleven tests in parallel):
+two of the four `merge_rr_cleanup` controls failed in 45.0 s and 63.8 s,
+each with the supervisor's own line
+`the harness supervisor ended the command ... /bin/git merge --no-edit topic ...: no progress for 5.0 s`
+(and 5.1 s for the second),
+and the tree it printed held two processes:
+`timeout` and the wrapper's link named `git`,
+waiting in `unix_stream_read_generic`.
+The service's record in the same log names what it was waiting for:
+
+```text
+monochromatic-git-policy-cli-service: answered request=... outcome=landed ... total_ms=10178
+monochromatic-git-policy-cli-service: the background sync of 1 records of a landing took 9181 ms
+```
+
+The comment line after the record names one `git update-ref` of 75 ms inside it,
+and the whole answer took 9.6 s,
+so the wrapper stood in a socket read for longer than the window while its own commit was being landed.
+Run alone immediately afterwards,
+the same four controls passed in 6.3 s
+(`Summary [   6.263s] 4 tests run: 4 passed, 958 skipped`).
+Two later runs of the same four controls,
+at load averages of 96 and 113,
+ended the same way with a different pair each time,
+and a third run with `--test-threads 1` failed on a third of them,
+so no single control carries the flake:
+each of the four finishes a merge through the service,
+and waits for its answer.
+That last run's own service lines name the wait:
+
+```text
+monochromatic-git-policy-cli-service: the background sync of 1 records of a landing took 3165 ms
+monochromatic-git-policy-cli-service: the background sync of 6 records of a landing took 1852 ms
+```
+
+The seven `abort_during_an_operation` controls,
+which land no commit,
+passed
+`Summary [  51.541s] 7 tests run: 7 passed, 955 skipped` in the same period,
+and each of the four `merge_rr_cleanup` controls passed at least once that day,
+the last time all four together in 45.9 s
+(`Summary [  45.916s] 4 tests run: 4 passed, 958 skipped`) at a load average of 95,
+so what ends them is how long the landing waits,
+not which control asks.
+
+The exemptions the supervisor has are for a command that *is* a commit
+(`COMMIT_BOUND_SECONDS`,
+`shared_bound_misuse` in `binary_support.rs`)
+and for a manual page.
+A wrapped `git merge` that ends the merge through its own commit is neither:
+whether it finishes the merge at all is decided after the command starts,
+and the commit it makes waits on the service,
+which is a program outside the watched tree,
+so no sign of life reaches the supervisor while the landing syncs.
+
+No mechanism was added here.
+The gate runs this suite in its own container on a fresh volume,
+where a landing that takes ten seconds is the host's own write latency.
+A fix would need either a hold around the landing
+(the rule above says a command that waits on an external service that is making progress needs one)
+or a per-command cgroup,
+which the gate container does not offer.

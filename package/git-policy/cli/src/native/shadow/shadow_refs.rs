@@ -30,6 +30,8 @@ use crate::private_storage::write_private_file_unsynced;
 /// the ref backend,
 /// the base and the symbolic `HEAD` at invocation.
 use crate::transaction_journal::{Base, RefFormat, SymbolicHead};
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
 /// Owned argument text,
 /// for a reference name that is bytes.
 use std::ffi::OsString;
@@ -151,10 +153,10 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
 /// ```ts
 /// formatPackedRefs({ refs, targetRef });
 /// ```
-pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &str) -> Vec<u8> {
+pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &RefName) -> Vec<u8> {
     let mut text: Vec<u8> = PACKED_REFS_HEADER.as_bytes().to_vec();
     for entry in refs {
-        if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.as_bytes()) {
+        if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.bytes()) {
             continue;
         }
         text.extend_from_slice(entry.oid.as_bytes());
@@ -325,10 +327,10 @@ fn write_files_shadow_head(
     match symbolic_head {
         SymbolicHead::Branch(reference) => {
             if let Base::Commit(oid) = base {
-                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.as_bytes())?;
+                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.bytes())?;
                 write_loose_ref(shadow, &os_from_path_bytes(target.as_slice()), direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
             }
-            write_loose_ref(shadow, &head, symbolic_ref_value(reference.as_bytes()).as_slice()).map_err(ref_failure)?;
+            write_loose_ref(shadow, &head, symbolic_ref_value(reference.bytes()).as_slice()).map_err(ref_failure)?;
             return Ok(());
         }
         SymbolicHead::Detached => {
@@ -366,12 +368,20 @@ fn write_shadow_head(
             if let Base::Commit(oid) = base {
                 run_git_checked(
                     context,
-                    &shadow_request(shadow, shadow, &["update-ref", reference.as_str(), oid.as_str()]),
+                    &shadow_request(
+                        shadow,
+                        shadow,
+                        &[OsString::from("update-ref"), reference.as_os_str().to_os_string(), OsString::from(oid)],
+                    ),
                 )?;
             }
             run_git_checked(
                 context,
-                &shadow_request(shadow, shadow, &["symbolic-ref", "HEAD", reference.as_str()]),
+                &shadow_request(
+                    shadow,
+                    shadow,
+                    &[OsString::from("symbolic-ref"), OsString::from("HEAD"), reference.as_os_str().to_os_string()],
+                ),
             )?;
             return Ok(());
         }
@@ -409,7 +419,7 @@ pub fn write_shadow_refs(
     cwd: &Path,
     shadow: &Path,
     ref_format: RefFormat,
-    target_ref: &str,
+    target_ref: &RefName,
     symbolic_head: &SymbolicHead,
     base: &Base,
 ) -> Result<(), GitFailure> {
@@ -428,7 +438,7 @@ pub fn write_shadow_refs(
         RefFormat::Reftable => {
             let mut lines: Vec<u8> = Vec::new();
             for entry in &refs {
-                if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.as_bytes()) {
+                if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.bytes()) {
                     continue;
                 }
                 lines.extend_from_slice(b"create ");

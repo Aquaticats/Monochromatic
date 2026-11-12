@@ -16,12 +16,33 @@
 
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
+use crate::merge_isolation_recovery_reads::resolve_commit_awaiting;
 use crate::merge_isolation_recovery_steps::remove_record;
 use crate::merge_isolation_recovery_steps::{MergeRefusal, RecoveryPlace};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::path::Path;
+
+/// The prefix of the names that keep a merge commit whose saved name no longer holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIDE_REF_PREFIX = 'refs/cli-git/kept/';
+/// ```
+const SIDE_REF_PREFIX: &str = "refs/cli-git/kept/";
+
+/// How many names are tried when a merge commit is kept on one of this command's own.
+/// Why:
+///   A name a landing or a merge already kept is never written over;
+/// the next number is tried instead,
+///  and a host that took all of them is a refusal rather than a loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIDE_REF_ATTEMPTS = 8;
+/// ```
+const SIDE_REF_ATTEMPTS: u128 = 8;
 
 /// What:
 ///  The refusal of a step that ran after the index was written,
@@ -301,4 +322,117 @@ pub fn an_installed_merge_behind_a_held_index(target: &str, root: &Path, lock: &
         record.display(),
         record.display()
     ));
+}
+
+/// What:
+///  Settle a merge saved behind an index lock whose paths hold the person's own edits newer than the capture it keeps,
+///  by
+///  removing the record and naming the ref that keeps the merge.
+/// Why:
+///   Nothing of the merge is in the index or the checkout,
+/// so it cannot be installed without writing over bytes only the
+///  person holds;
+/// the record must go or every command meets it again,
+/// and the merge's commit must stay where they can reach it,
+///  which the side ref does and the record did.
+/// The words name the ref and the command that makes the merge on what the files hold now,
+/// so the way forward is one they
+///  can type rather than a decision only the wrapper could make
+/// (`merge_isolation_recovery.rs`,
+/// the paths that are nobody's).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = await settleASavedMergeOverNewerEdits({ place, root, record, intent, foreign, stderr }); // drops the record, keeps the side ref
+/// ```
+pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+    foreign: &[String],
+    out: &mut W,
+) -> Result<crate::merge_isolation_recovery_steps::MergeRecoveryAction, MergeRefusal> {
+    let saved_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
+    // The line promises a ref keeps the merge commit, so the ref is read before the record goes. Another command may have
+    //  repointed the name, and a commit whose record and ref are both gone is collected by `git gc`; the commit is kept on a
+    //  name of this command's own then, and the line names that name.
+    let keeping: String = match resolve_commit_awaiting(place, root, saved_ref).await {
+        Ok(Some(found)) if found == intent.new_oid => String::from(saved_ref),
+        Ok(_) => match keep_the_merge_on_a_side_ref_awaiting(place, root, intent.new_oid.as_str()).await {
+            Some(name) => name,
+            // No name could be written, so the record stays and the next command tries again: the commit's only other name
+            //  is the one this command could not keep.
+            None => {
+                return Err(MergeRefusal {
+                    error: RecoveryError(format!(
+                        "The merge saved on {saved_ref} was settled over your own edits, and its commit {} is named on no ref, so the \
+                         record {} was kept: keeping it on a ref of its own failed. Nothing was changed. Run `git update-ref \
+                         refs/cli-git/kept/<name> {}` to keep the merge commit, then any git command again.",
+                        intent.new_oid,
+                        record.display(),
+                        intent.new_oid
+                    )),
+                    began: false,
+                });
+            }
+        },
+        // The ref could not be read, so nothing proves a ref keeps the commit and the record stays for the next command.
+        Err(error) => return Err(MergeRefusal { error, began: false }),
+    };
+    let moved: String = match keeping.as_str() == saved_ref {
+        true => String::new(),
+        false => format!(" The ref this merge was saved on ({saved_ref}) no longer names it, so the commit was kept on {keeping}."),
+    };
+    let _noted = out.write_all(
+        format!(
+            "monochromatic-git-policy-cli: the merge saved on {saved_ref} was not made: {} hold your own edits, which were saved after \
+             that merge saved the work it carries, so installing it would write over them. Nothing was changed and the record {} was \
+             removed; the merge commit {} is kept on {keeping}, which nothing removes.{moved} Run `git merge {}` to make the merge on the \
+             bytes your files hold now, or delete the ref once you have decided.\n",
+            foreign.join(", "),
+            record.display(),
+            intent.new_oid,
+            intent.new_oid
+        )
+        .as_bytes(),
+    );
+    if let Err(error) = remove_merge_intent(record) {
+        return Err(MergeRefusal { error: RecoveryError(format!("{} could not be removed: {error}", record.display())), began: true });
+    }
+    // The capture's bytes are the person's files' own, so the ref that kept them is not one more name to clean up by hand.
+    if let Some(capture) = intent.carried.as_ref() {
+        crate::merge_isolation_carry::drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture).await;
+    }
+    return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
+}
+
+/// What:
+///  Keep one merge commit on a name of its own under `refs/cli-git/kept/`,
+///  and say which name it took.
+/// Why:
+///  A merge commit whose record and ref are both gone is collected by `git gc`,
+/// and the line that settles a saved merge
+///  promises the person a ref keeps it.
+/// The write is an `update-ref` whose expected old value is all zeros,
+/// so a name another
+///  command kept is never written over,
+/// and the walk to the next name is bounded rather than a loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function keepTheMergeOnASideRef({ place, root, oid }): Promise<string | undefined>; // update-ref --no-deref refs/cli-git/kept/<ms+n> <oid> 0000...
+/// ```
+async fn keep_the_merge_on_a_side_ref_awaiting(place: &RecoveryPlace, root: &Path, merge_oid: &str) -> Option<String> {
+    let zeros: String = "0".repeat(merge_oid.len());
+    let first: u128 = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).ok()?.as_millis();
+    for step in 0..SIDE_REF_ATTEMPTS {
+        let name: String = format!("{SIDE_REF_PREFIX}{}", first + step);
+        let arguments: [&str; 5] = ["update-ref", "--no-deref", name.as_str(), merge_oid, zeros.as_str()];
+        let made = run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await;
+        if made.is_ok() {
+            return Some(name);
+        }
+    }
+    return None;
 }

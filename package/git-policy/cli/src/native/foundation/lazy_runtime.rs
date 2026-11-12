@@ -131,8 +131,36 @@ fn current_thread() -> std::io::Result<Runtime> {
     return tokio::runtime::Builder::new_current_thread().enable_all().build();
 }
 
+/// The variable that makes the build of the multi-thread runtime wait before it starts its workers,
+/// so a control can produce a build that outlasts `BUILD_DEADLINE`:
+/// a whole number of milliseconds.
+/// Why:
+///  A real build takes milliseconds even under load,
+/// so no control could reach the one state the gate of 2026-11-11T10:29-05:00 reached on a machine slow to give a process its threads;
+///  the pause stands in for that machine.
+/// It is compiled into the release executable and inert unless the variable names a pause,
+///  as `CLI_GIT_TEST_ONLY_SERVICE_FAULT` is.
+pub const SLOW_BUILD_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS";
+
+/// The pause `SLOW_BUILD_VARIABLE` names,
+/// or none.
+fn the_pause_a_control_asks_for() -> Duration {
+    let named: Option<u64> = std::env::var(SLOW_BUILD_VARIABLE).ok().and_then(milliseconds_of);
+    return named.map_or(Duration::ZERO, Duration::from_millis);
+}
+
+/// The whole number of milliseconds `text` names,
+/// or nothing when it names none.
+fn milliseconds_of(text: String) -> Option<u64> {
+    return text.trim().parse::<u64>().ok();
+}
+
 /// The multi-thread runtime with `workers` workers and at most `blocking` blocking-pool threads.
 fn multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
+    let pause: Duration = the_pause_a_control_asks_for();
+    if !pause.is_zero() {
+        std::thread::sleep(pause);
+    }
     return tokio::runtime::Builder::new_multi_thread()
         .worker_threads(workers)
         .max_blocking_threads(blocking)
@@ -320,13 +348,73 @@ pub fn cap_workers(cap: usize) {
     WORKER_CAP.store(cap, std::sync::atomic::Ordering::SeqCst);
 }
 
-/// Plans from this process's budget and limits and builds.
+/// Plans from this process's budget and limits and builds,
+/// and keeps how long the build took.
 fn build_for_this_process() -> Result<BuiltRuntime, String> {
     cap_malloc_arenas();
     let host: crate::parallel_budget::HostResources = crate::parallel_budget::HostResources::read();
     let limits: crate::runtime_limits::RuntimeLimits = crate::runtime_limits::RuntimeLimits::read();
     let plan: RuntimePlan = crate::runtime_plan::capped_at(crate::runtime_plan::plan_runtime(&host, &limits), WORKER_CAP.load(std::sync::atomic::Ordering::SeqCst));
-    return build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(error_text);
+    let began: std::time::Instant = std::time::Instant::now();
+    let built: Result<BuiltRuntime, String> = build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(error_text);
+    let _kept: bool = THE_BUILD_SPENT.set(began.elapsed()).is_ok();
+    return built;
+}
+
+/// How long the build of this process's runtime took,
+/// once it was asked for.
+static THE_BUILD_SPENT: std::sync::OnceLock<Duration> = std::sync::OnceLock::new();
+
+/// How the process's runtime was built,
+/// with how long its build took.
+#[derive(Clone, Copy, Debug)]
+pub struct RuntimeBuild {
+    /// How it came to be what it is.
+    pub flavor: BuiltFlavor,
+    /// How long the build took,
+    /// `BUILD_DEADLINE` included when it was replaced at the deadline.
+    pub spent: Duration,
+}
+
+/// What:
+///  How the process's runtime was built and how long that took,
+///  or nothing before the first need.
+/// Why:
+///   A service that finds no worker must be able to say which way its build went,
+/// and a person reading its log
+///  must be able to tell a build the system refused from one that was merely slower than its deadline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const build = runtimeBuild(); // { flavor, spent } | undefined
+/// ```
+pub fn runtime_build() -> Option<RuntimeBuild> {
+    let flavor: BuiltFlavor = built_flavor()?;
+    let spent: Duration = *THE_BUILD_SPENT.get()?;
+    return Some(RuntimeBuild { flavor, spent });
+}
+
+/// What:
+///  How the build named by `flavor` came out,
+/// in the words a service's log and its refusal use.
+/// Why:
+///   The two stand-ins differ in what the person can do about them:
+/// a build that missed its deadline was slow and may still arrive,
+/// one the system refused or that failed has nothing coming.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// flavorWords(flavor) // 'the multi-thread runtime with 4 workers'
+/// ```
+pub fn flavor_words(flavor: BuiltFlavor) -> String {
+    return match flavor {
+        BuiltFlavor::CurrentThread => String::from("the current-thread runtime, because not one worker fitted under this process's thread and address-space limits"),
+        BuiltFlavor::MultiThread { workers } => format!("the multi-thread runtime with {workers} workers"),
+        BuiltFlavor::CurrentThreadAfterDeadline => {
+            format!("a current-thread stand-in, because the multi-thread build outlasted its {BUILD_DEADLINE:?} deadline")
+        }
+        BuiltFlavor::CurrentThreadAfterFailure => String::from("a current-thread stand-in, because the multi-thread build failed or could not get its own helper thread"),
+    };
 }
 
 /// What:
@@ -455,6 +543,84 @@ where
         //  built for runs there.
         Ok(_) | Err(_) => spawn_on_the_late_runtime(future),
     };
+}
+
+/// How long a caller that cannot do its work without a worker waits for a build that outlasted `BUILD_DEADLINE`:
+/// five times that deadline,
+/// the margin every ceiling of `wait_ceilings.rs` uses.
+/// Why:
+///   The commit service's acceptor is such a caller:
+/// its build is held to one second,
+///  a build that misses that deadline is kept for the work it was built for (`LATE_RUNTIME`),
+/// and the service used to end
+///  at the deadline itself,
+/// which failed a commit for a build that arrived a moment later
+/// (the gate of 2026-11-11T10:29-05:00,
+/// `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository`:
+///  the service logged `ready` and then `cannot start the acceptor of connections`
+///  1.76 s later,
+/// so its one-second deadline had passed and the build had not arrived in the 0.7 s the rest of the start took).
+/// A service may wait this long and no longer:
+/// a build the system refused or that hung inside its own unwind never arrives,
+///  and the client's own start wait is `START_CEILING` (60 s),
+/// ten times this patience.
+pub const LATE_BUILD_PATIENCE: Duration = Duration::from_millis(BUILD_DEADLINE.as_millis() as u64 * 5);
+
+/// How often `await_a_worker_within` asks whether the late build arrived:
+/// short enough that a worker that arrives is used at once,
+/// long enough that the wait costs the scheduler nothing.
+const A_WORKER_WAIT_STEP: Duration = Duration::from_millis(10);
+
+/// What:
+///  Whether a worker can run a task now,
+/// waiting at most `within` for a build that missed its deadline to arrive.
+/// Why:
+///   A caller that must have a worker (`spawn_on_runtime_within`) asks once and gets an answer that is either a worker
+/// or a wait that has run out;
+/// the wait is bounded,
+/// so nothing here waits without an end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ready = awaitWorkerWithin(5_000);
+/// ```
+pub fn await_a_worker_within(within: Duration) -> bool {
+    let deadline: std::time::Instant = std::time::Instant::now() + within;
+    loop {
+        if tasks_can_run() {
+            return true;
+        }
+        let left: Duration = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            return false;
+        }
+        std::thread::sleep(left.min(A_WORKER_WAIT_STEP));
+    }
+}
+
+/// What:
+///  `spawn_on_runtime`,
+/// after waiting up to `within` for a late build,
+/// so a caller that cannot do its work without a worker does not give up at `BUILD_DEADLINE` itself.
+/// Why:
+///   A build that outlasted its deadline is kept for the work it was built for,
+/// and that work includes the tasks a service cannot serve without;
+/// ending the service at the deadline
+///  failed the commits of a person whose machine was slow to give the process its threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const task = spawnOnRuntimeWithin(5_000, work); // undefined when no worker arrived in time
+/// ```
+pub fn spawn_on_runtime_within<F>(within: Duration, future: F) -> Option<tokio::task::JoinHandle<F::Output>>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    if !tasks_can_run() && !await_a_worker_within(within) {
+        return None;
+    }
+    return spawn_on_runtime(future);
 }
 
 /// What:

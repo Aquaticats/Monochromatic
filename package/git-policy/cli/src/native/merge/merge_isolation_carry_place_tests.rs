@@ -10,7 +10,7 @@
 //!  the path either holds them or names where they are,
 //!  and the merge never reports a write that threw them away.
 
-use super::{JudgedFile, place_file_awaiting};
+use super::{JudgedFile, SetAsides, place_file_awaiting};
 use crate::merge_isolation_carry_writes::FileWrite;
 use crate::merge_isolation_changes::file_identity;
 use crate::merge_isolation_take_aside_names::ASIDE_PREFIX;
@@ -103,7 +103,9 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
     let mut holding: std::process::Child = crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
     drop(holder);
     let mut held: Vec<PathBuf> = Vec::new();
+    let mut unproven: Vec<PathBuf> = Vec::new();
     let placed = crate::lazy_runtime::run_on_runtime(async {
+        let mut set_asides: SetAsides<'_> = SetAsides { held_open: &mut held, unproven: &mut unproven, keep_the_planned_bytes: false };
         return place_file_awaiting(
             &git_context(),
             repo.as_path(),
@@ -111,7 +113,7 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
             &judged,
             &FileWrite::Bytes(MERGED.as_bytes().to_vec(), String::from(MODE)),
             A_MERGES_ID,
-            &mut held,
+            &mut set_asides,
         )
         .await;
     })
@@ -165,8 +167,10 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_deletes_it() {
     let mut holding: std::process::Child = crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
     drop(holder);
     let mut held: Vec<PathBuf> = Vec::new();
+    let mut unproven: Vec<PathBuf> = Vec::new();
     let placed = crate::lazy_runtime::run_on_runtime(async {
-        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Remove, A_MERGES_ID, &mut held).await;
+        let mut set_asides: SetAsides<'_> = SetAsides { held_open: &mut held, unproven: &mut unproven, keep_the_planned_bytes: false };
+        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Remove, A_MERGES_ID, &mut set_asides).await;
     })
     .expect("the runtime runs the removal")
     .expect("the removal goes through");

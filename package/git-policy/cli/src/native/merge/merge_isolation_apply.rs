@@ -32,15 +32,18 @@ use crate::merge_isolation_apply_findings::failure_text;
 /// the carry after it,
 /// and the ref that keeps their bytes.
 use crate::merge_isolation_carry::drop_capture_ref;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, clear};
+use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, changes_between, clear};
 /// What Git's own update left at each path,
 /// and the read of it.
 use crate::merge_isolation_carry_landed::{LandedFile, landed_of, write_landed_record};
-use crate::merge_isolation_carry_notice::report_lines;
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
-use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved};
+use crate::merge_isolation_apply_findings::{a_deferred_save_finding, a_merge_that_could_not_be_saved};
 use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
+/// The carry of a merge that landed,
+/// its lines,
+/// and what a branch that moved under it does about them.
+use crate::merge_isolation_apply_moved::{CarryEnding, carry_and_settle};
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// The command-line reading.
@@ -189,7 +192,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         Err(error) => {
             // A capture whose record could not be written names the merge nothing runs, so it goes.
             if let Some(capture) = plan.carried {
-                drop_capture_ref(&session.context, root, capture);
+                drop_capture_ref(&session.context, git_dir, root, capture);
             }
             return Err(Bail::from(format!("the merge record could not be written: {error}")));
         }
@@ -297,19 +300,10 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     //  markers. A carry that cannot write the index says where the bytes are and exits 0, and the next command finishes it.
     let mut report_stderr: String = String::new();
     let mut carry_finished: bool = true;
-    if let Some(capture) = plan.carried {
-        match carry(&session.context, root, git_dir, changes.as_slice(), capture, landed, transaction_id.as_str(), LockWait::WhileFinishing, &mut std::io::stderr()) {
-            Ok(report) => {
-                for line in report_lines(reference.as_str(), &report) {
-                    report_stderr.push_str(line.as_str());
-                    report_stderr.push('\n');
-                }
-            }
-            Err(failure) => {
-                carry_finished = false;
-                report_stderr.push_str(a_carry_that_stopped(reference.as_str(), &failure, capture).as_str());
-            }
-        }
+    if plan.carried.is_some() {
+        let ending: CarryEnding = carry_and_settle(session, plan, reference.as_str(), &intent, changes.as_slice(), landed, transaction_id.as_str());
+        report_stderr.push_str(ending.lines.as_str());
+        carry_finished = ending.finished;
         if carry_finished {
             reach_phase(Phase::MergeCarriedBack)?;
         }
@@ -320,7 +314,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         }
         // The record was the last thing that named the capture, so its bytes are in the checkout and the ref can go.
         if let Some(capture) = plan.carried {
-            drop_capture_ref(&session.context, root, capture);
+            drop_capture_ref(&session.context, git_dir, root, capture);
         }
     }
     // The fast-forward carries no `--quiet`, and what Git says of it ("Updating a..b", "Fast-forward", its diffstat) is about

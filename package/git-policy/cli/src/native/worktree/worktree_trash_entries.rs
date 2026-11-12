@@ -23,7 +23,7 @@
 //! const left = await removeEntries({ inside, trash, manifest, host, remove }); // one reason per entry that stays
 //! ```
 
-use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::blocking_jobs_within_the_budget::{places_a_round_may_take, run_a_slow_job_within_the_budget};
 use crate::lazy_runtime::{RuntimeError, run_on_runtime};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::parallel_runner::{Event, OrderedEvents};
@@ -203,7 +203,7 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
             let manifest: Arc<TrashManifest> = Arc::clone(&self.manifest);
             let remove: Arc<RemoveOne> = Arc::clone(&self.remove);
             let entry: usize = *index;
-            let removal = run_blocking_job_within_the_budget(move || {
+            let removal = run_a_slow_job_within_the_budget(move || {
                 return remove_one(inside.as_path(), trash.as_ref(), manifest.as_ref(), remove.as_ref(), entry);
             })
             .await;
@@ -328,7 +328,12 @@ pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
     for index in indices.iter() {
         lanes.push(vec![*index]);
     }
-    let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &request.host });
+    // The entries of one trash are swept for the service's after-commit round, which runs beside the connections that answer
+    //  clients: one place of the pool stays free for those, so a client's own storage read (which instance its commit belongs
+    //  to, the note of a beat) never waits for a trash, however many files the snapshot left out
+    //  (`places_a_round_may_take`).
+    let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &request.host })
+        .min(places_a_round_may_take());
     let mut left: Vec<String> = Vec::new();
     let removed = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: indices,

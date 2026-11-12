@@ -6,6 +6,7 @@
 
 import { join, } from 'node:path';
 import type { ConnectionToPi, } from './connection-to-pi.ts';
+import { START_UP_ANSWER_MILLISECONDS, } from './driver-constants.ts';
 import type {
   CommandAnswer,
   DriverOptions,
@@ -78,6 +79,7 @@ async function noteStartingState({
    */
   const state = answeredDataOf(await connection.send({
     command: { type: 'get_state', },
+    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
     deadline,
   },),);
   record.note({
@@ -91,6 +93,7 @@ async function noteStartingState({
    */
   const { commands, } = answeredDataOf(await connection.send({
     command: { type: 'get_commands', },
+    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
     deadline,
   },),);
   record.note({
@@ -131,13 +134,15 @@ async function sendFirstPrompt({
    */
   const prompt = await readOrdinaryFile(options.promptFile,);
   /**
-   Pi's answer, waited for within the run's own deadline.
+   Pi's answer, waited for within the run's own deadline and, until it comes, under the bound a starting Pi gets rather than
+   the one an answer owed mid-run gets.
    */
   const answer = await connection.send({
     command: {
       type: 'prompt',
       message: prompt,
     },
+    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
     deadline,
   },);
   /**

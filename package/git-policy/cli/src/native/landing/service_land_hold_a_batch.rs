@@ -30,7 +30,7 @@ use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, remove_start};
 use crate::service_land_context::LandContext;
 use crate::service_land_outcomes::Outcome;
 use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::service_server_land_group::{forget_the_pushes_of, forget_what_a_batch_owes};
+use crate::service_server_land_group::forget_what_a_batch_owes;
 use crate::service_timing::LandTiming;
 use crate::transaction_git::{GitContext, NO_REFLOG_SETTING};
 use std::ffi::OsString;
@@ -104,7 +104,7 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
         common_dir: refused.first.common_dir.as_path(),
         git_dir: refused.first.git_dir.as_path(),
         index: refused.first.index.as_path(),
-        reference: refused.first.reference.as_str(),
+        reference: &refused.first.reference,
         seq: refused.seq,
         intent: refused.intent,
         locks: refused.locks,
@@ -113,10 +113,20 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
     match hold(holding) {
         Ok(held_batch) => {
             refused.timing.hold += refused.held_at.elapsed();
-            // Nothing landed, so no push of this batch may run: the records are taken again when the branch actually moves
-            //  (`held_commit_settle.rs`), and one left here would say a commit no branch names waits for a push.
-            forget_the_pushes_of(refused.intent);
-            crate::service_log!("batch {} is held behind a reference lock: {}", refused.seq, refused.words);
+            // Nothing landed, so nothing of this batch is owed: no push of it may run, and no index update is owed, since its
+            //  branch has not moved. Both records are taken again when the branch actually moves (`held_commit_settle.rs`), and
+            //  one left here would say a commit no branch names waits for a push, or that a commit that landed did not finish
+            //  the index when no commit landed at all.
+            forget_what_a_batch_owes(refused.intent);
+            crate::service_log!(
+                "batch {} {} is held: the commit {} is kept, and {} has not moved yet because a reference lock stands in the way of its write. \
+The branch moves as soon as the lock is gone. {}",
+                refused.seq,
+                crate::service_timing::in_the_repository_at(refused.repository),
+                refused.new,
+                refused.first.reference,
+                refused.words
+            );
             let objects: PathBuf = refused.first.common_dir.join("objects");
             let short: String = short_name(refused.git, refused.repository, objects.as_path(), None, refused.new);
             let held_now: usize = list(refused.first.git_dir.as_path()).0.len();
@@ -128,9 +138,12 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
         //  was changed.
         Err(error) => {
             crate::service_error!(
-                "batch {} could not be held behind a reference lock: its record cannot be written ({error}); {}",
+                "batch {} {} could not be held: the record that keeps its commit cannot be written ({error}), so the branch did not move and \
+its commit is not kept; {} Run the commit again once the journal at {} can be written",
                 refused.seq,
-                refused.words
+                crate::service_timing::in_the_repository_at(refused.repository),
+                refused.words,
+                refused.context.journal.display()
             );
             refused.announce.announce(Announce::Holder(refused.words));
             drop_the_batch(&DropTheBatch {
@@ -150,19 +163,32 @@ pub(crate) fn hold_the_batch(refused: ARefusedBatch<'_>) -> Result<Vec<Outcome>,
 ///  Puts what the landing waits for and how long in the journal.
 /// Why:
 ///  A person reading the journal sees the lock a commit met,
+///  the repository it belongs to,
 ///  and the bound is the margin the lock is judged at,
 ///  so the line names the seconds a holder has.
+///  The commit is kept and nothing failed,
+///  so the line never says the write was refused:
+///  the line a lock raises says what waits,
+/// what happens next,
+/// and what,
+/// if anything,
+/// the person may do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// warn(`batch ${seq} was refused the write of ${ref} while the branch still names ${old}, so a reference lock stands in the way; the landing waits for it until ${REFERENCE_LOCK_WAIT}s after the first refusal`)
+/// warn(`batch ${seq} in the repository at ${repo}: the write of ${ref} has not happened yet ...`)
 /// ```
-pub(crate) fn say_it_waits(seq: u64, reference: &str, old: &str, within_bound: bool) {
+pub(crate) fn say_it_waits(seq: u64, repository: &Path, reference: &crate::ref_name::RefName, old: &str, within_bound: bool) {
     if !within_bound {
         return;
     }
     crate::service_warn!(
-        "batch {seq} was refused the write of {reference} while the branch still names {old}, so a reference lock stands in the way; the landing waits for it until {} seconds after the first refusal",
+        "batch {seq} {}: the write of {} has not happened yet, because the branch still names {old}, so a reference lock \
+stands in the way. The commit is kept, and this landing keeps trying for {} seconds from its first try: if the lock goes before that, \
+this command moves the branch before it answers, and otherwise the next command in that worktree moves it. Nothing is needed from you \
+unless no Git process is using that repository, and then removing the lock lets the commit land.",
+        crate::service_timing::in_the_repository_at(repository),
+        reference.spoken(),
         crate::wait_ceilings::REFERENCE_LOCK_WAIT.as_secs()
     );
 }
@@ -182,8 +208,9 @@ pub struct GivenUp<'a> {
     pub intent: &'a Intent,
     /// The side reference that held the batch's commits.
     pub scratch: &'a str,
-    /// The branch.
-    pub reference: &'a str,
+    /// The branch,
+    /// by the bytes Git printed for its name.
+    pub reference: &'a crate::ref_name::RefName,
     /// What Git said when it refused the write.
     pub stderr: &'a [u8],
     /// The clients of the batch.
@@ -205,7 +232,12 @@ pub struct GivenUp<'a> {
 /// ```
 pub(crate) fn give_up(given: &GivenUp<'_>) -> FailureCode {
     let said: String = String::from_utf8_lossy(given.stderr).trim().to_string();
-    crate::service_error!("batch {} could not move {}: {said}", given.seq, given.reference);
+    crate::service_error!(
+        "batch {} {} could not move {}: {said}",
+        given.seq,
+        crate::service_timing::in_the_repository_at(given.repository),
+        given.reference
+    );
     given.announce.announce(Announce::Holder(format!("The wait for the lock has ended, and Git said: {said}")));
     drop_the_batch(&DropTheBatch { git: given.git, context: given.context, repository: given.repository, seq: given.seq, intent: given.intent, scratch: given.scratch });
     return FailureCode::ReferenceLocked;
@@ -244,8 +276,47 @@ pub struct DropTheBatch<'a> {
 /// rm(intent); forgetWhatABatchOwes(intent); rm(start); updateRef(['-d', scratch])
 /// ```
 pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
+    forget_the_batch_that_will_not_land(drop);
+    let _deleted = crate::service_land_git_steps_and_import_stream::run(drop.git, drop.repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", drop.scratch], None);
+}
+
+/// What:
+///  The ending of a batch whose branch write Git never started:
+///  the branch did not move,
+///  so nothing of the batch lands and everything it took is given back.
+/// Why:
+///  A step that ended at its ceiling keeps the commit the side reference holds before this
+///  (`keep_what_an_ended_step_built`),
+///  so that reference is left where the keeping reads it and only the records go.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// endABatchTheWriteNeverStarted(drop, code) // the records go; a ceiling step keeps the commit first
+/// ```
+pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code: FailureCode) {
+    if code == FailureCode::StepTooSlow {
+        forget_the_batch_that_will_not_land(drop);
+        return;
+    }
+    drop_the_batch(drop);
+}
+
+/// What:
+///  The intent,
+/// what the batch owes and the witness it saw:
+/// everything a batch that will never land gives back,
+///  except the side reference that holds what it built.
+/// Why:
+///   A landing that gives up before its branch move removes those three as its last step;
+///  a step ended at its ceiling keeps the commit the reference holds first (`keep_what_an_ended_step_built`),
+///  so that caller takes this and leaves the reference where the keeping reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm(intent); forgetWhatABatchOwes(intent); rm(start)
+/// ```
+pub(crate) fn forget_the_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
     let _intent_removed = std::fs::remove_file(batch_path(drop.context.journal.as_path(), drop.seq, OPEN_EXTENSION));
     forget_what_a_batch_owes(drop.intent);
     remove_start(drop.context.journal.as_path(), drop.seq);
-    let _deleted = crate::service_land_git_steps_and_import_stream::run(drop.git, drop.repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", drop.scratch], None);
 }

@@ -78,6 +78,23 @@ impl Reply {
     }
 
     /// What:
+    ///  Whether the client this reply answers is gone,
+    ///  so nothing will read an answer written to it.
+    /// Why:
+    ///   A commit exists for the person who asked for it,
+    ///  and a client that is gone cannot be given its answer.
+    /// The channel closes when the task that writes the connection ends,
+    ///  which it does when the connection breaks.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reply.clientIsGone() // this.queue.isClosed()
+    /// ```
+    pub fn client_is_gone(&self) -> bool {
+        return self.sender.is_closed();
+    }
+
+    /// What:
     ///  The channel this reply's messages go to,
     /// for a task that must answer through the connection's one writer
     ///  without counting as a request of its own.
@@ -184,10 +201,14 @@ impl NoteSource for NothingToSay {
 /// so the notice rides on it and is asked for at most once a beat.
 ///  The beat is written first because it is the proof of life the client's wait rests on,
 /// and the note reads the journal,
-///  which can wait on storage:
+///  which can wait on storage,
+/// and that read is a job of the blocking pool a round of the after-commit work holds while it removes a
+///  trash:
 /// a note asked first would hold back the beat,
 /// the answer behind it,
-///  and every later beat.
+///  and every later beat,
+/// which is what left a waiting client 27 to 32 s without a word
+///  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
 ///  A note still unanswered one beat later is left for the next beat,
 /// so a read that storage holds costs a note and never a beat:
 ///  the writer's slowest interval becomes two beats,
@@ -218,6 +239,7 @@ pub async fn write_until_answered_noting<Stream: AsyncWrite + Unpin, Notes: Note
             // The reply was dropped and everything it queued has been read.
             Ok(None) => return,
             Err(_every_passed) => {
+                // The beat is the proof of life, so it is written before anything that may wait for the pool.
                 if !write_line(stream, &ServiceMessage::Heartbeat).await {
                     return;
                 }

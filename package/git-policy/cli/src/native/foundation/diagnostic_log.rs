@@ -20,7 +20,7 @@
 use crate::iso_time::now_iso;
 /// Replaces the userinfo of every URL in a message,
 /// as the relays of Git's and `git-lfs` words do.
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 /// The trait that gives output streams `.write_all(..)`.
 use std::io::Write;
 
@@ -104,7 +104,7 @@ fn is_false(value: std::ffi::OsString) -> bool {
 /// `[${level}] [${new Date().toISOString()}] [monochromatic-git-policy-cli] [${tag}] ${neutralize(maskUserinfo(message))}\n`
 /// ```
 pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> String {
-    let masked: String = mask_userinfo_text(message);
+    let masked: String = mask_url_secrets_text(message);
     // `mut` allows building the neutralized message one character at a time.
     let mut single: String = String::with_capacity(masked.len());
     for character in masked.chars() {

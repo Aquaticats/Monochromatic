@@ -25,7 +25,7 @@
 
 /// Masks the userinfo of any URL in Git's words,
 /// as every journal entry of the service is masked.
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 /// The entry from a wrapper a person ran,
 /// which only Linux writes.
 #[cfg(target_os = "linux")]
@@ -99,8 +99,8 @@ pub fn record_text<S: AsRef<str>>(arguments: &[S], text: &str) {
         words.push(argument.as_ref());
     }
     let command: String = words.join(" ");
-    let message: String = mask_userinfo_text(format!("git {command} said: {trimmed}").as_str());
-    let fields: [(&str, String); 1] = [(COMMAND_FIELD, mask_userinfo_text(command.as_str()))];
+    let message: String = mask_url_secrets_text(format!("git {command} said: {trimmed}").as_str());
+    let fields: [(&str, String); 1] = [(COMMAND_FIELD, mask_url_secrets_text(command.as_str()))];
     if in_service() {
         let _delivered = log_entry(Priority::Info, message.as_str(), &fields);
         return;

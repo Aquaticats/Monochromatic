@@ -4,7 +4,8 @@
 //! refused when
 //!  the open handle is a named pipe,
 //! a device or a directory,
-//! and never read past a limit.
+//! and never read past a limit;
+//! and writing one the same way.
 //! Why:
 //!  Opening a named pipe for reading waits for a writer that may never come,
 //! and a command that waits while it
@@ -16,9 +17,10 @@
 //! a
 //!  registration's `gitdir`,
 //! a journal and a list of files are all read this way,
+//! and a name the wrapper writes inside a directory of its own is written this way,
 //! so the type is taken from the open
 //!  handle:
-//! a name swapped for a link or a pipe between a check and the open cannot redirect the read,
+//! a name swapped for a link or a pipe between a check and the open cannot redirect the read or the write,
 //!  and the read is bounded by the caller's limit.
 //! A file a person names in a configuration is read through a link
 //!  (`read_plain_file_through_links`):
@@ -28,6 +30,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const bytes = readPlainFile(path, limit); // throws when the file is not a plain one
+//! writePlainFile(path, bytes);              // the same, for a name the wrapper writes
 //! ```
 
 use std::os::unix::fs::OpenOptionsExt;
@@ -191,6 +194,56 @@ pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
         Ok(text) => Ok(text),
         Err(_not_text) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text")),
     };
+}
+
+/// What:
+///  The file `path` names,
+/// created when it is not there and emptied when it is,
+/// opened without blocking and without following a link,
+///  and refused when the open handle is not a plain file.
+/// Why:
+///   A write that follows a link replaces the file it points at,
+/// and one that opens a named pipe waits for a reader;
+///  both are entries another process may put at a name the wrapper writes,
+/// so the type of what was opened decides and never the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openedForWriting(path: string): File { const file = openSync(path, 'w', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); return fstatSync(file).isFile() ? file : refuse(); }
+/// ```
+fn opened_for_writing(path: &Path) -> std::io::Result<std::fs::File> {
+    let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create(true).truncate(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW).open(path) {
+        Ok(opened) => opened,
+        // A named pipe opened for writing without a reader answers this at once, so the caller's message says what the name
+        //  holds rather than what the kernel calls it.
+        Err(error) if error.raw_os_error() == Some(libc::ENXIO) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE)),
+        Err(error) => return Err(error),
+    };
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+    }
+    return Ok(file);
+}
+
+/// What:
+///  Write `bytes` to the plain file at `path`,
+/// created when it is not there,
+/// opened without blocking and without following a link,
+///  and refused when the name holds anything else.
+/// Why:
+///   See the module description:
+/// a write through a link loses the file it points at,
+/// and one to a named pipe
+///  waits for a reader that may never come.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePlainFile(path, bytes); // throws when the name holds a link, a pipe, a device or a directory
+/// ```
+pub fn write_plain_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut file: std::fs::File = opened_for_writing(path)?;
+    return file.write_all(bytes);
 }
 
 /// Plain-file controls stay out of the release executable.

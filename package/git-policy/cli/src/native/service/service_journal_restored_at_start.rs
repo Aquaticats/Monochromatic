@@ -18,7 +18,7 @@
 //!  watch only saves a wake.
 //! Both keep the directory they are read from,
 //! so this service writes its own plans and notes where the next one reads them,
-//! and both reads are made again after a pause
+//! and both reads are made again after a pause that doubles with each attempt whose job outlasted its ceiling
 //!  (`PushRetries::restore` and `ClaimWatch::retry`),
 //! so a journal that answers later does not leave a promised retry to a start that nothing requires to arrive.
 //!

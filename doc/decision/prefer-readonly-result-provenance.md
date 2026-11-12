@@ -669,7 +669,8 @@ observer derivation beside it.
 Instrumenting `callResultElementReceiver` named it in one run:
  `identity-mismatch` on
 `updates.filter(function hasContent(update,): update is PushUpdate & { readonly localOid: string })`
-in `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`.
+in the policy engine's `manual-push-candidates` module,
+one of the TypeScript files the Rust rewrite deleted on 2026-10-13 (`642b6d72cb`).
 
 A predicate that is a type guard selects `filter`'s narrowing overload,
  so the result holds `S` where
@@ -978,9 +979,10 @@ Superseded next step,
  kept because the instrumentation that replaced it is the method worth copying:
  starting with `records.reduce<Run[]>` in
 `package/logger/core/src/sink/console.ts` and the `filter` in
-`package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`,
- both of which appear in the
-instrumented output and neither of which is exotic.
+the TypeScript policy engine's `manual-push-candidates` module,
+deleted on 2026-10-13 (`642b6d72cb`);
+ both appear in the
+instrumented output and neither is exotic.
 
 That also explains the seeded-fold result above.
  The relation was added and changed nothing because a

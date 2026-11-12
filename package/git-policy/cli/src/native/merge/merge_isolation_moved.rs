@@ -85,7 +85,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
-    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), out).await;
+    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;
     // The installed state is read once here too,
     // the index first and the worktree second,
     // so a worktree that cannot be read is reported by what

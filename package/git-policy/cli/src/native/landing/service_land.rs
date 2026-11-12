@@ -145,7 +145,14 @@ pub fn land_batch_timed(
         None => false,
     };
     timing.reads_split.config = config_began.elapsed();
-    let settings: Settings<'_> = Settings { import_fsync: import_fsync.as_deref(), plain_history };
+    let settings: Settings<'_> = Settings {
+        import_fsync: import_fsync.as_deref(),
+        plain_history,
+        // The batch's side reference is a name the wrapper owns, so the landing writes it itself; a repository whose
+        //  write Git would make differently (a reference store it flushes, a shared repository, a lock pid file this
+        //  landing cannot read) keeps Git's own write, unchanged.
+        side_reference: crate::side_reference_written_here::the_plan_of(snapshot.as_ref()),
+    };
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(landing, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
@@ -241,3 +248,8 @@ mod finish_held_settlement_tests;
 #[cfg(test)]
 #[path = "service_land_index_stat_tests.rs"]
 mod index_stat_tests;
+
+/// Controls for a commit whose client is gone before it lands stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_client_gone_tests.rs"]
+mod client_gone_tests;

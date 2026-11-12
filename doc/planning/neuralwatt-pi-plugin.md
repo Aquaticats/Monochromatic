@@ -460,6 +460,43 @@ each run named with its backing.
   unless `ModelCostSchema` offers an explicit unknown marker,
   probed in the cost gate.
 
+## Reload-transaction deferral fix (2026-11-11T16:29:00-05:00)
+
+The DSH plugin's mount refresh wrote its route fire-and-forget from `apply`
+(`void refreshNeuralWattRoute({ settings })`),
+so a manager re-trigger (`set_plugin`, `install_bundle`, `set_bundle`)
+hit the same nested reload-transaction refusal
+the qwen-token-plan-individual provider documented
+(`HMR transactions cannot be nested`,
+`@deepseek-ai/dsh-hmr` `runExclusive`, `lib/index.js:749`).
+Commit `f0d569b5cd` re-roots the write the same way:
+`NEURALWATT_SETTINGS_WRITE_DEFERRAL_MARKERS`,
+`isNeuralWattSettingsWriteDeferral`,
+and `onWriteDeferral` on `refreshNeuralWattRoute`
+hand a whole-mount retry to `apply`,
+which re-runs it from `plugin-manager/changed`
+(`dsh-plugin-manager` `lib/index.js:3185`),
+emitted outside the reload transaction.
+
+Measured on the live web profile (`~/.dsh/profiles/web/cordis.patch.yml`),
+a `set_plugin` disable/enable cycle of `include:neuralwatt`
+was traced through every write of the file:
+the checked-in snapshot mapping (27 models)
+and then the live listing mapping (26 models)
+both landed,
+the 27-model intermediate state
+byte-equal to `mapNeuralWattProviders(neuralWattListingSnapshot)`.
+Before the fix the identical re-trigger refused both writes
+(the qwen provider's pre-fix run logged two
+`HMR transactions cannot be nested` refusals at 2026-11-11T15:54:00Z).
+
+Suites: the DSH plugin's unit tests cover the deferral classifier,
+both write sites,
+the whole-mount retry ordering,
+the no-handler fallback,
+and the `apply` wiring
+(`apply.unit.test.ts`).
+
 ## Out of scope
 
 - npm publishing,

@@ -57,7 +57,7 @@ fn selected(
         stage_tracked_changes: false,
         base_revision: base,
     };
-    initialize_commit_index(&git_context(), repo, repo.join(".git").join("index").as_path(), indexes, &choice)?;
+    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, &choice)?;
     return Ok(list_changed_index_paths(
         &git_context(),
         repo,

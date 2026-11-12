@@ -36,7 +36,7 @@
 
 use crate::wait_ceilings::waiting_notice_after;
 use crate::work_item::{FAILED, state_directory};
-use crate::worktree_snapshot_ahead::{AHEAD_KEPT, AheadLook, AheadService, POLL, ahead_key, candidates, kept_in, over_kept, pool_folder};
+use crate::worktree_snapshot_ahead::{AHEAD_KEPT, AheadLook, AheadService, POLL, ahead_key, candidates, kept_in, made_at, over_kept, pool_folder};
 use crate::add_timing::{begin_step, end_step, note as note_timing};
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, entry_metadata_at, identity_at, open_root, rename_at};
@@ -108,9 +108,12 @@ fn is_a_directory(folder: &File, name: &OsStr) -> bool {
 /// ```ts
 /// const claim = (source, stage, environment, folder, key) => { for (const name of candidates(folder, key)) { if (!isADirectory(folder, name)) continue; if (!prove(source, join(folderPath, name))) { stale.push(name); continue; } if (rename(folder, name, folder, stageName)) return proof; } };
 /// ```
-fn claim_the_newest_proven(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, folder: &File, folder_path: &Path, key: &str, stale: &mut Vec<OsString>, stages: &File) -> Option<Proof> {
+fn claim_the_newest_proven(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, folder: &File, folder_path: &Path, key: &str, stale: &mut Vec<OsString>, stages: &File) -> Option<(Proof, u128)> {
     let stage_name: &OsStr = stage.file_name()?;
     for name in candidates(folder, key) {
+        // The millisecond in the name is the instant the copy was made, and the ignored state of the new worktree is
+        //  that instant's; the caller names every ignored entry the source wrote after it.
+        let Some(copied_at_millis) = made_at(name.as_os_str()) else { continue };
         if !is_a_directory(folder, name.as_os_str()) {
             continue;
         }
@@ -131,7 +134,7 @@ fn claim_the_newest_proven(source: &SnapshotSource, stage: &Path, environment: &
             Ok(proof) => match rename_at(folder, name.as_os_str(), stages, stage_name, false) {
                 Ok(()) => {
                     debug(TAG, format!("{} was claimed as {} after proving it equal to the source's index", entry.display(), stage.display()).as_str());
-                    return Some(proof);
+                    return Some((proof, copied_at_millis));
                 }
                 // Another add claimed it between the proof and the rename; the next candidate is this add's chance.
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -161,14 +164,14 @@ fn claim_the_newest_proven(source: &SnapshotSource, stage: &Path, environment: &
 /// ```ts
 /// const claimNow = (source, stage, environment, stale) => claimed ?? undefined;
 /// ```
-fn claim_now(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, stale: &mut Vec<OsString>) -> Option<(ObjectId, Proof)> {
+fn claim_now(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, stale: &mut Vec<OsString>) -> Option<(ObjectId, Proof, u128)> {
     let folder_path: PathBuf = pool_folder(source.git_dir.as_path());
     let folder: File = open_root(folder_path.as_path()).ok()?;
     let stages: File = open_root(stage.parent()?).ok()?;
     let key: String = ahead_key(source.root.as_path());
-    let proof: Proof = claim_the_newest_proven(source, stage, environment, &folder, folder_path.as_path(), key.as_str(), stale, &stages)?;
+    let (proof, copied_at_millis): (Proof, u128) = claim_the_newest_proven(source, stage, environment, &folder, folder_path.as_path(), key.as_str(), stale, &stages)?;
     let made: ObjectId = identity_of_name(stage)?;
-    return Some((made, proof));
+    return Some((made, proof, copied_at_millis));
 }
 
 /// What:
@@ -230,12 +233,13 @@ fn in_words(ceiling: Duration) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Waited = { kind: 'claimed'; made: ObjectId; proof: Proof } | { kind: 'givenUp' } | { kind: 'ceiling' };
+/// type Waited = { kind: 'claimed'; made: ObjectId; proof: Proof; copiedAtMillis: number } | { kind: 'givenUp' } | { kind: 'ceiling' };
 /// ```
 enum Waited {
     /// A copy proved equal to the source's index,
-    /// and the object now at the stage name.
-    Claimed(ObjectId, Proof),
+    /// the object now at the stage name,
+    /// and the millisecond its name says it was made in.
+    Claimed(ObjectId, Proof, u128),
     /// The service gave this add's own request up for good.
     GivenUp,
     /// Nothing came within the ceiling.
@@ -297,8 +301,8 @@ fn wait_for_one(
     let work: PathBuf = crate::service_work::work_directory(source.git_dir.as_path());
     let mut noticed: bool = false;
     loop {
-        if let Some((made, proof)) = claim_now(source, stage, environment, stale) {
-            return Waited::Claimed(made, proof);
+        if let Some((made, proof, copied_at_millis)) = claim_now(source, stage, environment, stale) {
+            return Waited::Claimed(made, proof, copied_at_millis);
         }
         if given_up(work.as_path(), asked) {
             return Waited::GivenUp;
@@ -380,16 +384,16 @@ pub fn look_for_a_snapshot_ahead(source: &SnapshotSource, plan: &AddPlan, stage:
     let pool: PathBuf = pool_folder(source.git_dir.as_path());
     let mut stale: Vec<OsString> = Vec::new();
     let mut handed: Vec<OsString> = Vec::new();
-    let warm: Option<(ObjectId, Proof)> = claim_now(source, stage, environment, &mut stale);
+    let warm: Option<(ObjectId, Proof, u128)> = claim_now(source, stage, environment, &mut stale);
     // Whatever this add proved stale, and whatever it keeps no longer, goes to the service before it asks for a copy of
     //  its own: a request the service takes while the copies that should leave are still unqueued is a request it can only
     //  answer with a pool that is full of them.
     hand_over_what_leaves(pool.as_path(), source, service, &mut stale, &mut handed);
-    if let Some((made, proof)) = warm {
+    if let Some((made, proof, copied_at_millis)) = warm {
         note_timing("snapshotAhead", "claimed");
         // The add after this one needs one, and the wake that carries that request is the one that says what goes.
         let _asked = (service.ask)();
-        return AheadLook::Claimed { made, proof };
+        return AheadLook::Claimed { made, proof, copied_at_millis };
     }
     let asked: Option<String> = match (service.ask)() {
         Ok(answered) => answered,
@@ -416,9 +420,9 @@ pub fn look_for_a_snapshot_ahead(source: &SnapshotSource, plan: &AddPlan, stage:
         let _asked = (service.ask)();
     }
     return match waited {
-        Waited::Claimed(made, proof) => {
+        Waited::Claimed(made, proof, copied_at_millis) => {
             note_timing("snapshotAhead", "waited");
-            AheadLook::Claimed { made, proof }
+            AheadLook::Claimed { made, proof, copied_at_millis }
         }
         // A request the service gave up on answered above,
         // with its own timing note;

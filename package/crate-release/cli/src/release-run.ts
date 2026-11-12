@@ -17,6 +17,7 @@ import {
 import type { ReleaseOptions } from './release-options.ts';
 import {
   buildReleaseSteps,
+  releasePlanNotes,
   type ReleaseStep,
 } from './release-steps.ts';
 
@@ -256,7 +257,7 @@ async function runSteps({
 }
 
 /**
- Run a release: edit the manifests, then run each step until one fails.
+ Run a release: edit the manifests, say what the plan leaves out, then run each step until one fails.
 
  Every edit is computed before the first file is written, a manifest that already holds the target is not rewritten,
  and the first failing step stops the run with its label and status printed. Nothing is published; the release ends in a
@@ -302,6 +303,10 @@ export async function runRelease({
     readText,
     print
   })).map(writeText));
+  // The plan leaves steps out for some versions, so the log says which and why before the first step prints its own
+  // line: a step that vanished without a word would read as a release that ran everything.
+  for (const note of releasePlanNotes(options))
+    print(note);
   /**
    Exit status of the steps.
    */

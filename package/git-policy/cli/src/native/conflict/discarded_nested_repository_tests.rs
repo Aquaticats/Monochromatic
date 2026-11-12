@@ -15,7 +15,7 @@
 
 use super::{describe_rename_failure, set_nested_repositories_aside};
 use crate::command_test_support::{fixture, remove};
-use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy, SaveFailure};
+use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -115,41 +115,93 @@ fn a_refused_move_changes_nothing() {
         (vec![b"../outside".to_vec()], "../outside"),
         (vec![b"missing".to_vec()], "missing"),
     ] {
-        let failure: SaveFailure = set_nested_repositories_aside(
+        let stopped = set_nested_repositories_aside(
             found.common.as_path(),
             found.worktree.as_path(),
             repositories.as_slice(),
             3_000,
         )
         .expect_err("a refused move");
-        assert_eq!(failure.subject, expected);
+        assert_eq!(stopped.failure.subject, expected);
+        assert!(stopped.still_moved.is_empty(), "{:?}", stopped.still_moved);
         assert!(found.worktree.join("nested").exists(), "a refused move lost the repository it did not move");
     }
     remove(found.root.as_path());
 }
 
-/// A first move that succeeds stays saved when a later one fails,
-///  and the place it went is the one directory that save made.
+/// What:
+///  A first move that succeeds is put back when a later one fails,
+///  so the worktree is exactly as the command found it.
+/// Why:
+///  A rejection that says "nothing was changed" has to be true,
+///  and a repository left below the saved copies is one the sentence hides:
+///  the person is told the repository is where it was while it is somewhere else.
 #[test]
-fn a_later_move_that_fails_keeps_the_earlier_one_saved() {
+fn a_later_move_that_fails_puts_the_earlier_one_back() {
     let found: Places = places("discarded-nested-repository-later");
-    let failure: SaveFailure = set_nested_repositories_aside(
+    let stopped = set_nested_repositories_aside(
         found.common.as_path(),
         found.worktree.as_path(),
         &[b"nested".to_vec(), b"missing".to_vec()],
         4_000,
     )
     .expect_err("the second move fails");
-    assert_eq!(failure.subject, "missing");
-    assert!(!found.worktree.join("nested").exists(), "the first move is not undone");
-    let saved_root: PathBuf = found.common.join(SAVED_DIRECTORY);
-    let names: Vec<String> = std::fs::read_dir(saved_root.as_path())
-        .expect("the saved copies")
-        .map(|entry| { return entry.expect("an entry").file_name().to_string_lossy().into_owned(); })
-        .collect();
-    assert_eq!(names.len(), 1, "{names:?}");
-    let stamp: PathBuf = saved_root.join(names.first().expect("one directory"));
-    assert!(stamp.join("nested/.git/HEAD").exists(), "{}", stamp.display());
+    assert_eq!(stopped.failure.subject, "missing");
+    assert!(stopped.still_moved.is_empty(), "{:?}", stopped.still_moved);
+    assert_eq!(
+        std::fs::read_to_string(found.worktree.join("nested/tracked.txt")).expect("the repository is where it was"),
+        "modified user data\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(found.worktree.join("nested/.git/HEAD")).expect("its own history is where it was"),
+        "ref: refs/heads/inner\n"
+    );
+    assert!(
+        !std::fs::read_dir(found.common.join(SAVED_DIRECTORY))
+            .expect("the saved copies")
+            .flatten()
+            .any(|stamp| { return stamp.path().join("nested").exists(); }),
+        "a put-back left a copy of the repository below the saved copies"
+    );
+    remove(found.root.as_path());
+}
+
+/// What:
+///  A repository whose move the system refuses stops the save unchanged,
+///  from a directory the command may not write,
+///  and the reason is the system's own.
+/// Why:
+///  This is the shape a person meets on a real worktree:
+///  a directory that can be read but not written to.
+#[test]
+fn a_move_the_system_refuses_changes_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let found: Places = places("discarded-nested-repository-refused-write");
+    std::fs::create_dir_all(found.worktree.join("a/.git")).expect("the first repository");
+    std::fs::write(found.worktree.join("a/untracked.txt"), b"the person work\n").expect("its work");
+    std::fs::create_dir_all(found.worktree.join("container/b/.git")).expect("the second repository");
+    std::fs::write(found.worktree.join("container/b/untracked.txt"), b"more of the person work\n").expect("its work");
+    std::fs::set_permissions(found.worktree.join("container"), std::fs::Permissions::from_mode(0o500))
+        .expect("lock the container");
+    let stopped = set_nested_repositories_aside(
+        found.common.as_path(),
+        found.worktree.as_path(),
+        &[b"a".to_vec(), b"container/b".to_vec()],
+        5_000,
+    )
+    .expect_err("the second move fails");
+    std::fs::set_permissions(found.worktree.join("container"), std::fs::Permissions::from_mode(0o700))
+        .expect("free the container");
+    assert_eq!(stopped.failure.subject, "container/b");
+    assert!(stopped.still_moved.is_empty(), "{:?}", stopped.still_moved);
+    assert_eq!(
+        std::fs::read_to_string(found.worktree.join("a/untracked.txt")).expect("the first repository is where it was"),
+        "the person work\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(found.worktree.join("container/b/untracked.txt")).expect("the second is where it was"),
+        "more of the person work\n"
+    );
     remove(found.root.as_path());
 }
 

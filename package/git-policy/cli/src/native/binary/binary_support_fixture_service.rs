@@ -148,14 +148,26 @@ pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-c
 
 /// What:
 ///  The command that starts the resident service of this build:
-/// the one executable followed by the words of its service mode.
+/// the one executable followed by the words of its service mode,
+/// with no runtime directory and no session bus inherited from the process that runs the tests.
 /// Why:
 ///   The service is a mode of the wrapper's executable (`service_main.rs`),
 /// so every control that starts one names these words
 ///  first and its own options after them.
+/// A control must never reach the owner's real user manager:
+/// a service that inherited a developer's `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` could make that manager start,
+/// or stop,
+///  a unit for a throwaway worktree,
+/// and hundreds of units of deleted throwaway repositories were measured there on 2026-11-10
+/// (`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md`).
+/// A control that needs a bus or a runtime directory gives its own after this call,
+/// so nothing a control starts can find one by inheritance.
 pub fn service_command() -> Command {
     let mut command: Command = Command::new(SERVICE_PROGRAM);
-    command.args(git_policy_cli::service_main::SERVICE_WORDS);
+    command
+        .args(git_policy_cli::service_main::SERVICE_WORDS)
+        .env_remove("XDG_RUNTIME_DIR")
+        .env_remove("DBUS_SESSION_BUS_ADDRESS");
     return command;
 }
 

@@ -26,26 +26,13 @@
 
 use super::commit::wrapped_commit;
 use super::service_commit::{Running, runtime_for, start_worktree};
-use super::support::{Fixture, Observed, REAL_GIT, TIMED_OUT_SIGNAL, hermetic, observe};
+use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, Observed, native_git_bound, native_git_output, observe};
 use git_policy_cli::service_journal::DONE_EXTENSION;
-use std::ffi::OsStr;
-use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// The date both runs give their commits.
 const PINNED_DATE: &str = "2026-02-03T04:05:06+0000";
-
-/// The longest one native Git command of this harness runs before the control stops waiting for it,
-/// in seconds.
-/// Why not a smaller number:
-///  The oracle is one native `git commit` or one read of a fixture repository,
-/// and the slowest of the 1,036 reads and 28 native commits the conclusion controls made took 463 ms on 2026-11-11
-/// (`git-policy-cli-service-landing-state-control-times-out-alone`).
-/// Sixty seconds is 130 times that,
-/// so an ordinary read never reaches it even on a host other sessions load,
-/// and what does reach it is a Git waiting on something a control cannot see.
-const NATIVE_GIT_BOUND_SECONDS: &str = "60";
 
 /// The state files a merge,
 /// a cherry-pick or a revert leaves in the Git directory,
@@ -110,34 +97,20 @@ pub(super) fn copy_beside(fixture: &Fixture, repo: &Path, name: &str) -> PathBuf
 /// without the wrapper and without the person's own configuration,
 /// ready for the environment the caller adds.
 fn native_git_command(fixture: &Fixture, repo: &Path, arguments: &[&str], bound: &str) -> Command {
-    let mut command: Command = Command::new("/usr/bin/timeout");
-    command.arg("--signal=KILL").arg(bound).arg(REAL_GIT).args(arguments);
-    hermetic(&mut command, fixture, OsStr::new("/usr/bin:/bin"));
+    let mut command: Command = native_git_bound(fixture, bound);
+    command.args(arguments);
     command.current_dir(repo);
     return command;
-}
-
-/// Runs one prepared native Git command to its end,
-/// failing with the command,
-/// the repository and the bound when Git was ended at that bound instead of answering.
-fn native_git_run(command: &mut Command, repo: &Path, arguments: &[&str], bound: &str) -> std::process::Output {
-    let output: std::process::Output = command.output().expect("native Git starts");
-    assert_ne!(
-        output.status.signal(),
-        Some(TIMED_OUT_SIGNAL),
-        "native Git {} in {} was ended at its {bound} s bound: the control was waiting for the oracle it compares the service against, so no field of this case can be compared",
-        arguments.join(" "),
-        repo.display()
-    );
-    return output;
 }
 
 /// The text of a Git query,
 /// whether or not Git succeeded,
 /// under `bound`,
 /// as the bytes Git wrote them.
+/// The output is kept in files rather than pipes:
+/// `native_git_output` says why.
 pub(super) fn text_of_within(fixture: &Fixture, repo: &Path, arguments: &[&str], bound: &str) -> String {
-    let output: std::process::Output = native_git_run(&mut native_git_command(fixture, repo, arguments, bound), repo, arguments, bound);
+    let output: std::process::Output = native_git_output(fixture, &mut native_git_command(fixture, repo, arguments, bound), repo, bound);
     return String::from_utf8_lossy(output.stdout.as_slice()).into_owned() + &String::from_utf8_lossy(output.stderr.as_slice());
 }
 

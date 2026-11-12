@@ -118,21 +118,39 @@ fn single_file_and_missing_selection() {
     remove(root.as_path());
 }
 
-/// Sockets,
-/// FIFOs and device nodes stop the walk with the unsupported-type diagnostic and are never opened.
+/// A FIFO selected as a root is left out of the manifest and named,
+/// never opened,
+/// and the copy it stands in does not fail over it.
 #[cfg(unix)]
 #[test]
-fn fifo_is_refused_without_being_opened() {
+fn fifo_is_left_out_and_named_without_being_opened() {
     let root: PathBuf = fixture("manifest-fifo");
     let status = std::process::Command::new("mkfifo")
         .arg(root.join("pipe"))
         .status()
         .expect("mkfifo");
     assert!(status.success());
-    let failure: WorktreeCopyError =
-        collect_entry_manifest(root.as_path(), &[b"pipe".to_vec()], &[]).expect_err("fifo");
-    assert!(failure.0.starts_with("monochromatic-git-policy-cli: ignored path "));
-    assert!(failure.0.ends_with(" has unsupported filesystem type."));
+    std::fs::write(root.join("kept"), b"kept").expect("kept");
+    let mut left_out: LeftOut = LeftOut::default();
+    let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
+        root.as_path(),
+        &[b"pipe".to_vec(), b"kept".to_vec()],
+        &[],
+        Prune::Never,
+        &mut left_out,
+        &CopyCeiling::unbounded(),
+    )
+    .expect("a socket, a FIFO and a device node are left out of the walk, not fatal");
+    assert_eq!(left_out.uncopiable, vec![b"pipe".to_vec()]);
+    assert!(left_out.unreadable.is_empty());
+    assert_eq!(
+        entries,
+        vec![entry(
+            EntryKind::File,
+            retained_mode_of(root.join("kept").as_path()),
+            b"kept"
+        )]
+    );
     remove(root.as_path());
 }
 

@@ -77,7 +77,8 @@ pub struct Owed {
     /// The index file the update belongs to.
     pub index: PathBuf,
     /// The branch,
-    /// for a message that names it.
+    /// for a message that names it,
+    /// in the form a person can type.
     pub reference: String,
     /// The branch before the batch.
     pub old: String,
@@ -108,7 +109,7 @@ pub fn of_intent(intent: &Intent) -> Owed {
         repository: intent.repository.clone(),
         git_dir: intent.git_dir.clone(),
         index: intent.index.clone(),
-        reference: intent.reference.clone(),
+        reference: intent.reference.spoken(),
         old: intent.old.clone(),
         new: intent.new.clone(),
         paths: intent.paths.clone(),
@@ -212,7 +213,12 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     let path: PathBuf = path_of(owed.git_dir.as_path(), owed.seq);
     let folder: PathBuf = directory_of(owed.git_dir.as_path());
     if let Err(error) = create_private_directory_all(folder.as_path()) {
-        crate::service_error!("batch {}: the record of its owed index update cannot be made in {} ({error})", owed.seq, folder.display());
+        crate::service_error!(
+            "batch {} {}: the record of its owed index update cannot be made in {} ({error})",
+            owed.seq,
+            crate::service_timing::in_the_repository_at(owed.repository.as_path()),
+            folder.display()
+        );
         return None;
     }
     // A replay writes what the first landing wrote, and a batch built again under its own number replaces the commit it names: an
@@ -229,7 +235,12 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Some(path),
         Err(error) => {
-            crate::service_error!("batch {}: the record of its owed index update cannot be written in {} ({error})", owed.seq, path.display());
+            crate::service_error!(
+                "batch {} {}: the record of its owed index update cannot be written in {} ({error})",
+                owed.seq,
+                crate::service_timing::in_the_repository_at(owed.repository.as_path()),
+                path.display()
+            );
             None
         }
     };

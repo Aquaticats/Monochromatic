@@ -258,12 +258,13 @@ fn git_line(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
 ///  A repository whose `main` holds one commit,
 /// its clone,
 /// and a remote commit that adds
-///  `new.txt`,
-/// with `new.txt` in the clone untracked.
+///  `new.txt` at `name` (making the folders above it),
+/// with `name` in the clone untracked.
 /// Why:
 ///   That is the state the review reproduced:
 ///  the pull's fetch moves the checked-out branch,
 ///  and the move cannot overwrite the untracked file.
+///  A name below a folder is the state where the folder itself stands in the way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -284,10 +285,14 @@ fn a_clone_whose_remote_adds_an_untracked_path(fixture: &Fixture, name: &str, pr
     git(fixture, clone.as_path(), &["config", "remote.origin.fetch", "+refs/heads/main:refs/heads/main"]);
     git(fixture, clone.as_path(), &["config", "pull.rebase", "false"]);
     let from: String = git_line(fixture, clone.as_path(), &["rev-parse", "HEAD"]);
-    std::fs::write(remote.join(name), b"remote content\n").expect("the file the remote adds");
+    let written: PathBuf = remote.join(name);
+    std::fs::create_dir_all(written.parent().expect("the folders above the added path")).expect("the folders the remote's commit writes below");
+    std::fs::write(&written, b"remote content\n").expect("the file the remote adds");
     git(fixture, remote.as_path(), &["add", "--", name]);
     git(fixture, remote.as_path(), &["commit", "--quiet", "--message=adds-the-file"]);
-    std::fs::write(clone.join(name), precious.as_bytes()).expect("the untracked file only this worktree holds");
+    let untracked: PathBuf = clone.join(name);
+    std::fs::create_dir_all(untracked.parent().expect("the folders above the added path")).expect("the folders the untracked file stands below");
+    std::fs::write(&untracked, precious.as_bytes()).expect("the untracked file only this worktree holds");
     return (clone, remote, from);
 }
 
@@ -342,6 +347,129 @@ fn the_pulls_recovery_runs_as_printed_and_keeps_the_untracked_file() {
     assert_eq!(std::fs::read(clone.join("new.txt")).expect("the remote's file is checked out"), b"remote content\n");
     assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"), PRECIOUS.as_bytes(), "the printed reset left the copy alone");
     assert!(remote.join("new.txt").exists());
+    remove(&fixture);
+}
+
+/// What:
+///  Run the pull's recovery through the wrapper,
+///  as the words print it,
+///  from the worktree that holds what the move could not overwrite.
+/// Why:
+///  The proof that nothing was lost is the printed command running and the copy still holding the bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ran = runAsPrinted(fixture, clone, backticked(text).find((one) => one.includes(' reset ') && one.includes(WORKTREE_ENFORCEMENT_ESCAPE_HATCH)));
+/// ```
+fn the_pulls_recovery(fixture: &Fixture, clone: &Path, text: &str) -> Observed {
+    let printed: Vec<String> = backticked_commands(text);
+    let finish: &String = printed
+        .iter()
+        .find(|one| return one.contains(" reset ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH))
+        .unwrap_or_else(|| panic!("the words name the reset the guard refused: {text}"));
+    let ran: Observed = run_as_printed(fixture, clone, finish.as_str());
+    assert!(!refused_by_policy(&ran), "the command the words print was refused: {finish}\n{}", stderr_of(&ran));
+    assert_eq!(ran.code, Some(0), "{finish}: {}", stderr_of(&ran));
+    return ran;
+}
+
+/// A pull typed with `-C <the clone>` from the clone's parent
+/// keeps the untracked file the move would overwrite:
+///  the listing runs in the directory the person typed it in,
+///  so Git reads that relative change once.
+#[test]
+fn the_pulls_recovery_keeps_the_file_behind_a_relative_directory_change() {
+    const PRECIOUS: &str = "the only copy behind a relative -C\n";
+    let fixture: Fixture = fixture("printed-pull-relative-c");
+    let (clone, remote, from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "new.txt", PRECIOUS);
+
+    let pulled: Observed = run_wrapped(&fixture, fixture.root.as_path(), &["-C", "main", "pull", "--no-rebase", "origin"]);
+    let text: String = stderr_of(&pulled);
+    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
+    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
+    assert!(text.contains(from.as_str()), "Git's own words name the commit the diff compares against: {text}");
+    assert!(
+        !text.contains("could not be listed"),
+        "the listing runs whatever directory the caller's options name: {text}"
+    );
+    let copy: String = a_copy_the_words_name(text.as_str(), "new.txt")
+        .unwrap_or_else(|| panic!("the words name the copy the wrapper made: {text}"));
+    assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy is there"), PRECIOUS.as_bytes());
+    assert_eq!(std::fs::read(clone.join("new.txt")).expect("the untracked file is still there"), PRECIOUS.as_bytes());
+
+    let _ran: Observed = the_pulls_recovery(&fixture, clone.as_path(), text.as_str());
+    assert_eq!(std::fs::read(clone.join("new.txt")).expect("the remote's file is checked out"), b"remote content\n");
+    assert_eq!(
+        std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"),
+        PRECIOUS.as_bytes(),
+        "the printed reset left the copy alone"
+    );
+    assert!(remote.join("new.txt").exists());
+    remove(&fixture);
+}
+
+/// A file Git does not track standing where an added path needs a folder
+/// is what the pull's reset removes,
+/// so it is copied and the words name its copy rather than the path below it.
+#[test]
+fn the_pulls_recovery_keeps_a_file_standing_where_an_added_path_needs_a_folder() {
+    const PRECIOUS: &str = "the only copy of the parent-path blocker\n";
+    let fixture: Fixture = fixture("printed-pull-parent-file");
+    let (clone, _remote, _from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "dir/new.txt", PRECIOUS);
+    // The move needs a folder at `dir`, and a plain file stands there.
+    std::fs::remove_dir_all(clone.join("dir")).expect("the folder the untracked file stood below");
+    std::fs::write(clone.join("dir"), PRECIOUS.as_bytes()).expect("the file standing on the way");
+
+    let pulled: Observed = run_wrapped(&fixture, clone.as_path(), &["pull", "--no-rebase", "origin"]);
+    let text: String = stderr_of(&pulled);
+    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
+    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
+    assert_eq!(std::fs::read(clone.join("dir")).expect("the file is still there"), PRECIOUS.as_bytes());
+    let copy: String = a_copy_the_words_name(text.as_str(), "dir")
+        .unwrap_or_else(|| panic!("the words name the copy of the file that stands there: {text}"));
+    assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy is there"), PRECIOUS.as_bytes());
+
+    let _ran: Observed = the_pulls_recovery(&fixture, clone.as_path(), text.as_str());
+    assert!(clone.join("dir").join("new.txt").exists(), "the reset wrote the remote's file below `dir`");
+    assert_eq!(
+        std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"),
+        PRECIOUS.as_bytes(),
+        "the printed reset left the copy alone"
+    );
+    remove(&fixture);
+}
+
+/// A symbolic link standing where an added path needs a folder
+/// is kept as a link with its own target,
+/// which is the only record of that target when it leads nowhere.
+#[test]
+fn the_pulls_recovery_keeps_a_link_standing_where_an_added_path_needs_a_folder() {
+    let fixture: Fixture = fixture("printed-pull-parent-link");
+    let target: &str = "the-only-record-of-the-link-target";
+    let (clone, _remote, _from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "dir/new.txt", "an unused first copy\n");
+    std::fs::remove_dir_all(clone.join("dir")).expect("the folder the untracked file stood below");
+    std::os::unix::fs::symlink(target, clone.join("dir")).expect("the link standing on the way");
+
+    let pulled: Observed = run_wrapped(&fixture, clone.as_path(), &["pull", "--no-rebase", "origin"]);
+    let text: String = stderr_of(&pulled);
+    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
+    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
+    assert_eq!(std::fs::read_link(clone.join("dir")).expect("the link is still there"), PathBuf::from(target));
+    let copy: String = a_copy_the_words_name(text.as_str(), "dir")
+        .unwrap_or_else(|| panic!("the words name the copy of the link that stands there: {text}"));
+    assert_eq!(
+        std::fs::read_link(Path::new(copy.as_str())).expect("the copy is a link"),
+        PathBuf::from(target),
+        "the copy keeps the link's own target text"
+    );
+
+    let _ran: Observed = the_pulls_recovery(&fixture, clone.as_path(), text.as_str());
+    assert!(clone.join("dir").join("new.txt").exists(), "the reset wrote the remote's file below `dir`");
+    assert_eq!(
+        std::fs::read_link(Path::new(copy.as_str())).expect("the copy survives the reset"),
+        PathBuf::from(target),
+        "the printed reset left the copy alone"
+    );
     remove(&fixture);
 }
 

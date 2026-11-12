@@ -49,7 +49,11 @@ async fn refs_holding_awaiting(git: &PushGit, item: &WorkItem) -> Option<Vec<Str
     let answer = match crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["for-each-ref", "--contains", item.oid.as_str(), "--format=%(refname)"])).await {
         Ok(answer) => answer,
         Err(error) => {
-            crate::service_warn!("the refs that hold {} could not be read ({error}), so the notice does not say where the commit lives", item.oid);
+            crate::service_warn!(
+                "the refs that hold {} {} could not be read ({error}), so the notice does not say where the commit lives",
+                item.oid,
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
+            );
             return None;
         }
     };
@@ -70,7 +74,12 @@ async fn refs_holding_awaiting(git: &PushGit, item: &WorkItem) -> Option<Vec<Str
 /// ```
 fn refs_of(answer: crate::bounded_query::QueryOutput, item: &WorkItem) -> Option<Vec<String>> {
     if answer.code != Some(0) {
-        crate::service_warn!("the refs that hold {} could not be read (git for-each-ref exited {}), so the notice does not say where the commit lives", item.oid, match answer.code { Some(code) => code.to_string(), None => String::from("on a signal") });
+        crate::service_warn!(
+            "the refs that hold {} {} could not be read (git for-each-ref exited {}), so the notice does not say where the commit lives",
+            item.oid,
+            crate::service_timing::in_the_repository_at(item.repository.as_path()),
+            match answer.code { Some(code) => code.to_string(), None => String::from("on a signal") }
+        );
         return None;
     }
     let mut named: Vec<String> = Vec::new();

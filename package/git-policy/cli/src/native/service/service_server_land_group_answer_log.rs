@@ -123,9 +123,10 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
     let (steps, steps_dropped): (Vec<crate::transaction_step_durations::StepFigure>, usize) = crate::transaction_step_durations::drain_steps(arrival.accepted);
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
-        reference: request.reference.as_str(),
+        reference: request.reference.spoken().as_str(),
         outcome,
         batch: times.batch,
+        repository: request.repository.as_path(),
         size: times.size,
         position,
         queued_behind: times.queued_behind,
@@ -144,7 +145,7 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
     let fields: [(&str, String); 4] = [
         ("CLI_GIT_REQUEST_ID", request.id.clone()),
-        ("CLI_GIT_BRANCH", request.reference.clone()),
+        ("CLI_GIT_BRANCH", request.reference.spoken()),
         ("CLI_GIT_OUTCOME", outcome.to_string()),
         ("CLI_GIT_BATCH", times.batch.to_string()),
     ];

@@ -17,8 +17,9 @@ import {
 } from './deadline.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import {
-  anotherAttemptMayFix,
   continuationPromptOf,
+  driverRetries,
+  isRateLimit,
   kindOfModelError,
   retryDelayMilliseconds,
   waitAskedByProvider,
@@ -235,6 +236,9 @@ function noteRetryAnswer({
 /**
  Answers one model error with another attempt, when another attempt may fix it, or ends the run on it.
 
+ A 429 is never answered here, in any form it comes: Pi's own automatic retry makes its attempts at a rate limit, a concurrency
+ limit and a quota, and a run meets such an error only once that retry gave up on it.
+
  A failure another attempt may fix is waited out and then answered with a continuation prompt: Pi drops an assistant message
  that ended in an error when it builds the request for the model, so the attempt reads the last state the model produced
  successfully. The delay grows with each attempt and is cut to the time the run has left, so no attempt is waited for past the
@@ -319,14 +323,29 @@ export async function answerModelError(
    What kind of failure the model named.
    */
   const kind = kindOfModelError(failure.problem,);
+  if (!driverRetries({
+    kind,
+    problem: failure.problem,
+  },)) {
+    // A 429 in any form is Pi's own automatic retry's to answer: the driver re-prompts none of them and waits none of them out,
+    // so the run ends on what Pi reported when its own retry gave up.
+    if (isRateLimit(kind,)) {
+      watch.record
+        .note({
+          kind: 'problem',
+          problem: 'the model error names a rate limit, which the driver leaves to Pi\'s own automatic retry, so no attempt was made at it here',
+        },);
+    }
+    return 'model-error';
+  }
   /**
    How many attempts after a model error the run has made already.
    */
   const taken = watch.record
     .retriesTaken();
-  if ((!anotherAttemptMayFix(kind,)) || (taken
+  if (taken
     >= watch.options
-      .retryCap)) {
+      .retryCap) {
     return 'model-error';
   }
   /**

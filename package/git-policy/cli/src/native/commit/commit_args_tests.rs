@@ -4,8 +4,8 @@
 use super::*;
 
 /// Builds owned argument lists from string literals.
-fn args(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| { return String::from(*item); }).collect();
+fn args(items: &[&str]) -> Vec<OsString> {
+    return items.iter().map(OsString::from).collect();
 }
 
 /// A cluster carrying a value is split into flags and the value token;
@@ -40,7 +40,7 @@ fn normalise_keeps_attached_optional_values_whole() {
 /// other globals stay in order.
 #[test]
 fn split_drops_redirecting_globals_and_keeps_the_rest() {
-    let input: Vec<String> = args(&[
+    let input: Vec<OsString> = args(&[
         "-C", "r", "-c", "a.b=1", "--git-dir=g", "--bare", "commit", "-m", "x",
     ]);
     let (globals, commit) = split_commit_invocation(&input, 6);
@@ -55,9 +55,9 @@ fn split_drops_redirecting_globals_and_keeps_the_rest() {
 fn without_all_flag_removes_only_the_all_letter() {
     assert_eq!(without_all_flag(&args(&["-am", "x"])), args(&["-m", "x"]));
     assert_eq!(without_all_flag(&args(&["-a", "-m", "x"])), args(&["-m", "x"]));
-    assert_eq!(without_all_flag(&args(&["--all"])), Vec::<String>::new());
+    assert_eq!(without_all_flag(&args(&["--all"])), Vec::<OsString>::new());
     assert_eq!(without_all_flag(&args(&["-aSkey"])), args(&["-Skey"]));
-    assert_eq!(without_all_flag(&args(&["-a"])), Vec::<String>::new());
+    assert_eq!(without_all_flag(&args(&["-a"])), Vec::<OsString>::new());
 }
 
 /// A value-taking option's value is kept even when it spells `--all`,
@@ -65,6 +65,24 @@ fn without_all_flag_removes_only_the_all_letter() {
 #[test]
 fn without_all_flag_keeps_an_all_spelled_as_a_message() {
     assert_eq!(without_all_flag(&args(&["-m", "--all"])), args(&["-m", "--all"]));
+}
+
+/// What:
+///  A cluster whose value is not text keeps that value's bytes,
+///  and still loses `-a`.
+/// Why:
+///  `git commit -am<message>` with a message that is not UTF-8 must reach Git as `-m <message>`,
+///  so neither the value nor the `-a` the private index already applied survives wrongly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(withoutAllFlag([Buffer.from('-amnote-\xff')])).toEqual(['-m', Buffer.from('note-\xff')]);
+/// ```
+#[test]
+fn a_cluster_whose_value_is_not_text_keeps_the_value_bytes() {
+    let cluster: OsString = crate::path_bytes::os_from_path_bytes(b"-amnote-\xff");
+    let value: OsString = crate::path_bytes::os_from_path_bytes(b"note-\xff");
+    assert_eq!(without_all_flag(&[cluster]), vec![OsString::from("-m"), value]);
 }
 
 /// After the pathspec separator,
@@ -105,11 +123,11 @@ fn explicit_removal_keeps_a_message_that_equals_a_pathspec() {
 ///  `-o` or `--only` is never removed as that flag.
 #[test]
 fn an_abbreviated_value_option_takes_the_next_token() {
-    assert!(takes_next_token("--mess"));
-    assert!(takes_next_token("--auth"));
-    assert!(!takes_next_token("--mess=hello"));
-    assert!(!takes_next_token("--no-message"));
-    assert!(!takes_next_token("--n"));
+    assert!(takes_next_token(OsStr::new("--mess")));
+    assert!(takes_next_token(OsStr::new("--auth")));
+    assert!(!takes_next_token(OsStr::new("--mess=hello")));
+    assert!(!takes_next_token(OsStr::new("--no-message")));
+    assert!(!takes_next_token(OsStr::new("--n")));
     assert_eq!(
         private_explicit_commit_args(&args(&["--mess", "-o", "--", "a.txt"]), &args(&["a.txt"])),
         args(&["--mess", "-o"])
@@ -171,7 +189,7 @@ fn selection_removal_drops_selection_controls() {
 /// The real commit arguments depend on the mode and on whether selection ran privately.
 #[test]
 fn resolve_chooses_the_arguments_by_mode() {
-    let input: Vec<String> = args(&["--patch", "-m", "x", "a"]);
+    let input: Vec<OsString> = args(&["--patch", "-m", "x", "a"]);
     assert_eq!(
         resolve_private_commit_args(&input, &args(&["a"]), TransactionMode::ExplicitPath, false),
         args(&["--patch", "-m", "x"])

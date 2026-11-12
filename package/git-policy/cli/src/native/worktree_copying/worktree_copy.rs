@@ -559,7 +559,7 @@ fn settle_invocation(
     // The record of an add's steps covers a creating command the ladder serves; every other command is forwarded unrecorded.
     let recorded: bool = invocation.creates && invocation.add_plan.is_some();
     if recorded {
-        begin_timing(observation.common_dir.clone());
+        begin_timing(observation.common_dir.clone(), matches!(&invocation.add_plan, Some(plan) if plan.quiet));
     }
     let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
     if recorded {

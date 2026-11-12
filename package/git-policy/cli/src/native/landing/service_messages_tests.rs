@@ -60,6 +60,10 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
         ClientFailure::ContentPruned,
+        ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("a landing behind another program's index lock")) },
+        ClientFailure::Interrupted { signal: libc::SIGTERM, blocker: None },
+        ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, blocker: None },
+        ClientFailure::InterruptedNotKnown { signal: libc::SIGTERM, blocker: Some(String::from("the commit service has been inside a write for 21 minutes and has not heard back")) },
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
         all.push(ClientFailure::NoActivation(platform));
@@ -102,7 +106,9 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::WithdrawalUnconfirmed { .. } => 21,
         ClientFailure::SocketPathTooLong { .. } => 28,
         ClientFailure::ServiceElsewhere { .. } => 29,
-        ClientFailure::NothingAnswered { .. } => 30,
+        ClientFailure::NothingAnswered { .. } => 32,
+        ClientFailure::Interrupted { .. } => 30,
+        ClientFailure::InterruptedNotKnown { .. } => 31,
     };
 }
 
@@ -201,6 +207,32 @@ fn the_unplaced_notice_says_what_the_client_knows_and_no_more() {
     }
 }
 
+/// What:
+///  A commit whose service has been quiet for one silence bound is told how long,
+///  what the command does about it,
+///  and that nothing is asked of the reader.
+/// Why:
+///  The person cannot tell a busy service from a stopped one,
+///  so the words may not claim a stop the client has not seen:
+///  the service that printed this line on 2026-11-11 had landed the commit
+///  (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+#[test]
+fn the_silent_notice_names_the_seconds_and_asks_nothing_of_the_reader() {
+    let waited: String = silent_notice(Duration::from_secs(5));
+    assert_eq!(
+        waited,
+        "The commit service has said nothing for 5 seconds, so the same commit is being sent to it again; \
+         a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do."
+    );
+    assert_eq!(
+        silent_notice(Duration::from_millis(400)),
+        "The commit service has said nothing for 1 second, so the same commit is being sent to it again; \
+         a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do.",
+        "a part second is a second waited"
+    );
+    assert!(!waited.contains("stopped"), "the client cannot say the service stopped: {waited}");
+}
+
 /// The denylist check can fail:
 /// a text that leaks is caught,
 /// and a word inside another word is not.
@@ -275,6 +307,7 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
                 | ClientFailure::ServiceSilent
                 | ClientFailure::ServiceSilentAfterPreparing { .. }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
+                | ClientFailure::InterruptedNotKnown { .. }
                 | ClientFailure::WorkNotHandedOver(_)
         );
         assert_eq!(!claims, may_have_landed, "{failure:?}");

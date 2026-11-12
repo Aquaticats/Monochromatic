@@ -74,6 +74,33 @@ Worker required the URL form.
   `.git/config`.
 - The `lfs.<url>.locksverify` key name carries the token even where the value is `false`.
 
+### The mask hid the userinfo alone until 2026-11-11
+
+The wrapper's mask replaced the userinfo of a `scheme://userinfo@host` URL and left the rest of the
+URL as it stood,
+so the form this file describes (the token as the password) was covered and two
+other forms were not:
+
+- a token written as a path segment,
+  as in `https://host/<token>/lfs`;
+- a token written as a query value,
+  as in `https://host/lfs?token=<token>`.
+
+The audit `alpha-10-merge-lfs-and-package-repair` (finding F7) measured both in the wrapper's
+typed-push output and in the service log,
+against a local stand-in LFS server whose URL carried a
+canary in each position.
+Since 2026-11-11 the mask hides the userinfo,
+every path segment that is not a plain label,
+and
+every query and fragment value (`package/git-policy/cli/src/native/lfs/lfs_output_mask.rs`;
+the rule is stated in `package/git-policy/cli/SPEC.md`,
+"An LFS upload").
+What it still cannot hide is a token made of lowercase letters alone,
+which reads as a path label;
+whether the whole path of an LFS URL should be hidden instead is an open question for the owner.
+`git-lfs`'s own `.git/lfs/logs/*.log` files are outside the wrapper and still hold the URL it used.
+
 ## Inventory of every copy (paths and counts; nothing edited or deleted)
 
 Scanner:

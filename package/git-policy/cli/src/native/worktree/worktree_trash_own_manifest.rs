@@ -26,10 +26,11 @@
 //! ```ts
 //! const manifest = writeTrashManifest({ root, trash }); // root/.claude/cli-git-trash/<name>/.manifest
 //! const proved = readTrashManifest({ root, name });     // TrashManifest | undefined, identities compared
+//! const leaving = itsOwnManifest({ trash, name });      // { manifest, file } when the emptying may remove it
 //! ```
 
-use crate::fs_beneath::{handle_path, identity_of, open_directory_at, open_root, plain_components};
-use crate::plain_file::read_plain_file;
+use crate::fs_beneath::{handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components};
+use crate::plain_file::write_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use std::ffi::OsStr;
@@ -74,18 +75,44 @@ const MANIFEST_LIMIT: u64 = 1024 * 1024;
 /// That is why the write needs no staging name of its own,
 /// and leaves no
 ///  half-written file beside the manifest.
+/// The name is opened without following a link and without blocking,
+/// so a link another process put there is
+///  refused instead of written through,
+/// and a pipe is refused instead of waited on:
+/// neither is a file the wrapper made,
+/// and no bytes of the manifest's reach anything outside the trash.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeTrashManifest = ({ root, manifest }) => writeFileSync(join(root, TRASH_PARENT, manifest.name, '.manifest'), encodeManifest(manifest));
+/// const writeTrashManifest = ({ root, manifest }) => writePlainFile(join(root, TRASH_PARENT, manifest.name, '.manifest'), encodeManifest(manifest));
 /// ```
 pub fn write(root: &Path, manifest: &TrashManifest) -> Result<(), String> {
     let trash: std::fs::File = opened_trash(root, manifest.name.as_str())?;
     let path: PathBuf = handle_path(&trash).join(MANIFEST_FILE_NAME);
-    return match std::fs::write(path.as_path(), manifest.encode().as_bytes()) {
+    return match write_plain_file(path.as_path(), manifest.encode().as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("the manifest inside the trash {} cannot be written ({error})", shown(root, manifest.name.as_str()).display())),
     };
+}
+
+/// What:
+///  The manifest a trash carries inside itself,
+///  with the identity of the file that carries it.
+/// Why:
+///   The bytes say which trash the leave-out made,
+/// and the identity of the file they were read through is what the emptying compares again
+///  before it unlinks that file,
+/// so a file another process moved onto the name is never removed unread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwnManifest = { manifest: TrashManifest; file: ObjectId };
+/// ```
+pub struct OwnManifest {
+    /// What the leave-out made and moved.
+    pub manifest: TrashManifest,
+    /// The object that held those bytes when they were read.
+    pub file: crate::fs_beneath::ObjectId,
 }
 
 /// What:
@@ -110,40 +137,47 @@ pub fn read(root: &Path, name: &str) -> Option<TrashManifest> {
         Ok(found) => found,
         Err(_unreadable) => return None,
     };
-    let manifest: TrashManifest = read_its_own(&trash, name)?;
-    let found: crate::fs_beneath::ObjectId = identity_of(&trash).ok()?;
-    if manifest.trash != found {
-        return None;
-    }
-    return Some(manifest);
+    let own: OwnManifest = its_own(&trash, name)?;
+    return Some(own.manifest);
 }
 
 /// What:
-///  Whether the leftover file of a trash is the manifest the wrapper wrote,
-/// and not a person's file that shares the name.
+///  The manifest the wrapper wrote inside `trash`,
+/// and the identity of the file that holds it,
+///  or nothing when that file is not this trash's own.
 /// Why:
-///   The emptying removes the manifest before it removes the trash directory,
-/// so a file it cannot read as this trash's manifest
-///  must keep the whole directory,
+///   The emptying removes that file before it removes the trash directory,
+/// so a file it cannot read as this
+///  trash's manifest must keep the whole directory,
 /// as every other thing the snapshot did not put there does.
+/// The identity is taken from the handle the bytes were read through:
+/// a file moved onto the name after the read is
+///  another object,
+/// and the emptying compares this identity again immediately before it unlinks,
+/// so the file it removes
+///  is the one it examined.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isOwnManifest = ({ trash, name }) => decode(name, readFileSync(join(trash, '.manifest'))) !== undefined;
+/// const itsOwnManifest = ({ trash, name }) => { const file = openAt(trash, '.manifest', O_NOFOLLOW | O_NONBLOCK); const manifest = decode(name, read(file)); return manifest.trash === identity(trash) ? { manifest, file: identity(file) } : undefined; };
 /// ```
-pub fn is_its_own(trash: &std::fs::File, name: &str) -> bool {
-    return read_its_own(trash, name).is_some();
-}
-
-/// The encoded manifest inside `trash`,
-/// read as the manifest of the trash `name`,
-/// and nothing when the file is missing,
-/// unreadable or not that manifest.
-fn read_its_own(trash: &std::fs::File, name: &str) -> Option<TrashManifest> {
-    let path: PathBuf = handle_path(trash).join(MANIFEST_FILE_NAME);
-    let bytes: Vec<u8> = read_plain_file(path.as_path(), MANIFEST_LIMIT).ok()?;
+pub fn its_own(trash: &std::fs::File, name: &str) -> Option<OwnManifest> {
+    let file: std::fs::File = open_file_at(trash, OsStr::new(MANIFEST_FILE_NAME)).ok()?;
+    if !file.metadata().ok()?.file_type().is_file() {
+        return None;
+    }
+    let carrier: crate::fs_beneath::ObjectId = identity_of(&file).ok()?;
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, MANIFEST_LIMIT + 1), &mut bytes).ok()?;
+    if bytes.len() as u64 > MANIFEST_LIMIT {
+        return None;
+    }
     let text: String = String::from_utf8(bytes).ok()?;
-    return TrashManifest::decode(name, text.as_str()).ok();
+    let manifest: TrashManifest = TrashManifest::decode(name, text.as_str()).ok()?;
+    if manifest.trash != identity_of(trash).ok()? {
+        return None;
+    }
+    return Some(OwnManifest { manifest, file: carrier });
 }
 
 /// What:

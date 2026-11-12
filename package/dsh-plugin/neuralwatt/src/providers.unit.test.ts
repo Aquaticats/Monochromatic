@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  isNeuralWattSettingsWriteDeferral,
   mapNeuralWattProviders,
   NEURALWATT_ROUTE,
   NEURALWATT_SETTINGS_NAMESPACE,
@@ -17,6 +18,14 @@ import {
 //region Test fixtures
 
 /**
+ Exact refusal `@deepseek-ai/dsh-hmr` `runExclusive` throws when a settings
+ write is issued while the caller's chain already runs inside a reload
+ transaction (`dsh-hmr` `lib/index.js`). Quoted here rather than derived from
+ the plugin's markers so marker drift fails this test.
+ */
+const UPSTREAM_NESTED_TRANSACTION_MESSAGE = 'HMR transactions cannot be nested';
+
+/**
  One recorded settings merge write.
  */
 type RecordedWrite = {
@@ -27,11 +36,14 @@ type RecordedWrite = {
 /**
  Recording fake of the settings seam: serves a fixed form value through
  `describe`, records every accepted merge write, and can refuse writes at the
- given zero-based call indices to reach the failure branches.
+ given zero-based call indices to reach the failure branches. Refusals throw
+ `refuseWith`, so a test decides between a permanent refusal and the exact
+ contention text an upstream tool throws.
 
- @param options - stored form value and refusing call indices
+ @param options - stored form value, refusing call indices, and the failure
+ those refusals throw
 
- @returns fake target plus the writes it accepted
+ @returns fake target plus the writes it accepted and every call it saw
 
  @example
  ```ts
@@ -41,12 +53,15 @@ type RecordedWrite = {
 function fakeSettingsOf({
   stored,
   failWrites = [],
+  refuseWith = new Error('settings entry unavailable'),
 }: {
   readonly stored?: unknown;
   readonly failWrites?: readonly number[];
+  readonly refuseWith?: Error;
 } = {}): {
   readonly target: NeuralWattSettingsTarget;
   readonly writes: RecordedWrite[];
+  readonly attempts: RecordedWrite[];
 } {
   /**
    Writes the fake accepted.
@@ -68,11 +83,12 @@ function fakeSettingsOf({
          */
         const attempt = attempts.length;
         attempts.push({ ns, patch });
-        if (failWrites.includes(attempt)) throw new Error('settings entry unavailable');
+        if (failWrites.includes(attempt)) throw refuseWith;
         writes.push({ ns, patch });
       },
     },
     writes,
+    attempts,
   };
 }
 
@@ -158,6 +174,23 @@ await describe({
             },);
             expect(fake.writes.length,)
               .toBe(1,);
+          },
+        },),
+        it({
+          name: 'classifies the nested reload-transaction refusal as a deferral and every other refusal as not one',
+          fn: async () => {
+            expect(isNeuralWattSettingsWriteDeferral({
+              error: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },))
+              .toBe(true,);
+            expect(isNeuralWattSettingsWriteDeferral({
+              error: new Error('settings entry unavailable'),
+            },))
+              .toBe(false,);
+            expect(isNeuralWattSettingsWriteDeferral({
+              error: 'not even an error object',
+            },))
+              .toBe(false,);
           },
         },),
       ],
@@ -278,6 +311,136 @@ await describe({
               .toEqual({
                 providers: mapNeuralWattProviders({
                   listing: neuralWattListingSnapshot,
+                },),
+              },);
+          },
+        },),
+        it({
+          name: 'stops before the listing fetch and hands one retry to the deferral sink when the snapshot write is refused inside the reload transaction',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            /**
+             Retries the deferral sink was handed.
+             */
+            const retries: (() => Promise<void>)[] = [];
+            /**
+             Listing fetch calls seen; the deferred run must not fetch.
+             */
+            const fetches: number[] = [];
+            await refreshNeuralWattRoute({
+              settings: fake.target,
+              fetchListing: async () => {
+                fetches.push(1,);
+                return [{ id: 'live-a', },];
+              },
+              onWriteDeferral: function onWriteDeferral(retry) {
+                retries.push(retry,);
+              },
+            },);
+            expect(retries.length,)
+              .toBe(1,);
+            expect(fake.writes.length,)
+              .toBe(0,);
+            expect(fetches)
+              .toEqual([]);
+          },
+        },),
+        it({
+          name: 're-runs the whole mount refresh from the deferral retry, snapshot first and live listing second',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            /**
+             Retries the deferral sink was handed.
+             */
+            const retries: (() => Promise<void>)[] = [];
+            await refreshNeuralWattRoute({
+              settings: fake.target,
+              fetchListing: async () => [{ id: 'live-a', },],
+              onWriteDeferral: function onWriteDeferral(retry) {
+                retries.push(retry,);
+              },
+            },);
+            /**
+             Retry the deferral sink was handed, before the premise check.
+             */
+            const [retry] = retries;
+            if (retry === undefined) {
+              throw new Error('expected one deferred mount refresh retry');
+            }
+            await retry();
+            expect(fake.writes.length,)
+              .toBe(2,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({
+                providers: mapNeuralWattProviders({
+                  listing: neuralWattListingSnapshot,
+                },),
+              },);
+            expect(fake.writes[1]
+              ?.patch,)
+              .toEqual({
+                providers: mapNeuralWattProviders({
+                  listing: [{ id: 'live-a', },],
+                },),
+              },);
+          },
+        },),
+        it({
+          name: 'hands the deferral sink one retry when the live write is refused inside the reload transaction',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [1,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            /**
+             Retries the deferral sink was handed.
+             */
+            const retries: (() => Promise<void>)[] = [];
+            await refreshNeuralWattRoute({
+              settings: fake.target,
+              fetchListing: async () => [{ id: 'live-a', },],
+              onWriteDeferral: function onWriteDeferral(retry) {
+                retries.push(retry,);
+              },
+            },);
+            expect(retries.length,)
+              .toBe(1,);
+            expect(fake.writes.length,)
+              .toBe(1,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({
+                providers: mapNeuralWattProviders({
+                  listing: neuralWattListingSnapshot,
+                },),
+              },);
+          },
+        },),
+        it({
+          name: 'runs the live listing write anyway when no deferral sink is given for a nested reload-transaction refusal',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            await refreshNeuralWattRoute({
+              settings: fake.target,
+              fetchListing: async () => [{ id: 'live-a', },],
+            },);
+            expect(fake.writes.length,)
+              .toBe(1,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({
+                providers: mapNeuralWattProviders({
+                  listing: [{ id: 'live-a', },],
                 },),
               },);
           },

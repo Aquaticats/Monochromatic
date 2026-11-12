@@ -231,7 +231,7 @@ pub fn read_symbolic_head(layout: &RefFilesLayout<'_>) -> Option<SymbolicHead> {
     let line: &str = text.strip_suffix('\n')?;
     if let Some(name) = line.strip_prefix("ref: ") {
         if is_plain_branch_name(name) && loose_branch_is_plain(layout, name, length) {
-            return Some(SymbolicHead::Branch(String::from(name)));
+            return Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(name)));
         }
         return None;
     }

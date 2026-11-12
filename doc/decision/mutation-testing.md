@@ -17,7 +17,9 @@ Second consumer:
  its non-runtime tooling lives in sidecar packages so a whole-package run
  stays scoped to real runtime files.
 Reusable package:
- `package/dev-script/mutation-test`.
+ `package/mutation-test/cli`,
+which replaced the StrykerJS-based `package/dev-script/mutation-test`
+(deleted 2026-07-05 in `0f61846fed`).
 
 ## Context
 

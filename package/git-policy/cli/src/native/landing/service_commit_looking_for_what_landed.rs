@@ -94,7 +94,7 @@ pub(crate) fn looking_for_what_landed(look: LookForWhatLanded<'_>) -> Option<Str
         // An open batch names the commit it is making; the branch says whether it is made.
         match an_open_batch_making(journal, look.id) {
             Some((intent, commit)) => {
-                if what_the_branch_shows(look.context, look.cwd, intent.reference.as_str(), commit.as_str()) == WhatTheBranchShows::Made {
+                if what_the_branch_shows(look.context, look.cwd, &intent.reference, commit.as_str()) == WhatTheBranchShows::Made {
                     return Some(commit);
                 }
             }

@@ -68,6 +68,23 @@ fn the_argument_structures_have_the_size_the_requests_state() {
     assert_eq!(std::mem::size_of::<VolArgsV2>(), VOLUME_ARGUMENT_BYTES);
     assert_eq!(std::mem::offset_of!(VolArgs, name), 8);
     assert_eq!(std::mem::offset_of!(VolArgsV2, name), 8 + 8 + 8 + 32);
+    // The fields of the subvolume's own record start where the header puts them: the tree id, the 256-byte name,
+    // parent id, dir id, generation and flags, then the three UUIDs and the transactions.
+    assert_eq!(std::mem::size_of::<SubvolumeInfoArgs>(), SUBVOLUME_INFO_BYTES);
+    assert_eq!(std::mem::offset_of!(SubvolumeInfoArgs, uuid), 8 + 256 + 8 * 4);
+    assert_eq!(std::mem::offset_of!(SubvolumeInfoArgs, parent_uuid), 8 + 256 + 8 * 4 + 16);
+    assert_eq!(std::mem::offset_of!(SubvolumeInfoArgs, otransid), 8 + 256 + 8 * 4 + 16 * 3 + 8);
+}
+
+/// The request number of the subvolume's own record equals the header's `_IOR(0x94, 60, 504)` under each encoding,
+/// and the one this build uses is the value this host's kernel answered.
+#[test]
+fn the_subvolume_info_request_equals_the_header_values_of_every_encoding() {
+    for (layout, expected) in [(GENERIC_IOC_LAYOUT, 0x81f8_943cu64), (WIDE_DIRECTION_IOC_LAYOUT, 0x41f8_943c), (PARISC_IOC_LAYOUT, 0x41f8_943c)] {
+        assert_eq!(u64::from(ioc_read_with(layout, 60, SUBVOLUME_INFO_BYTES)), expected, "{layout:?}");
+    }
+    let wide: bool = HOST_IOC_LAYOUT == WIDE_DIRECTION_IOC_LAYOUT;
+    assert_eq!(u64::from(BTRFS_IOC_GET_SUBVOL_INFO as u32), if wide { 0x41f8_943c } else { 0x81f8_943c });
 }
 
 /// A name that is not one plain component is refused with `EINVAL` before any call,
@@ -122,6 +139,8 @@ fn off_btrfs_the_ioctls_report_a_missing_feature() {
     }
     let error: PrimitiveError = subvolume_create_at(root.join("sub").as_path()).expect_err("not btrfs");
     assert!(error.means_feature_missing(), "{error}");
+    let unread = subvolume_info(root.as_path()).expect_err("no subvolume record is readable here");
+    assert!(unread.means_feature_missing(), "{unread}");
     remove(root.as_path());
 }
 
@@ -144,6 +163,21 @@ fn btrfs_create_snapshot_and_destroy_each_work_once() {
     snapshot_create_at(source.as_path(), copy.as_path()).expect("snapshot");
     assert_eq!(is_subvolume_root(copy.as_path()), Ok(true));
     assert_eq!(std::fs::read(copy.join("file")).expect("file in the snapshot"), b"content");
+
+    // The record the kernel writes into the snapshot names the subvolume it was taken from, and a later transaction.
+    let facts: SubvolumeInfo = subvolume_info(copy.as_path()).expect("the facts of the snapshot");
+    let origin: SubvolumeInfo = subvolume_info(source.as_path()).expect("the facts of the source");
+    assert_eq!(facts.parent_uuid, origin.uuid, "the snapshot names the subvolume it was taken from");
+    // The source is no snapshot of anything, so its own parent is nobody, and the snapshot's record carries a transaction.
+    assert_eq!(origin.parent_uuid, [0u8; 16], "a plain subvolume was taken from no source");
+    assert_ne!(facts.transid_at_creation, 0, "the snapshot's record names the transaction that created it");
+    let holding: PathBuf = root.join("plain-for-facts");
+    std::fs::create_dir(holding.as_path()).expect("plain directory");
+    assert_ne!(
+        subvolume_info(holding.as_path()).expect("the facts of the holding subvolume").uuid,
+        origin.uuid,
+        "a plain directory answers with the subvolume that holds it, not with the source"
+    );
 
     let again = snapshot_create_at(source.as_path(), copy.as_path()).expect_err("the name exists");
     assert_eq!(again.errno, libc::EEXIST);

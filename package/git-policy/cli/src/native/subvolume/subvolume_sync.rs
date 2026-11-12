@@ -23,7 +23,9 @@
 //! and nothing names it in the tree this pass builds.
 //! A container is a directory,
 //! so a file or a link whose name merely begins the stage prefix is the source's own entry
-//!  and is copied like any other.
+//!  and is copied like any other,
+//! and a deletion pass leaves a container in the destination where it stands,
+//! because it belongs to the command filling it and not to this pass.
 //! The walk uses a work stack,
 //! not recursion,
 //! so a deep tree cannot overflow the stack;
@@ -197,6 +199,12 @@ impl Pass<'_> {
                 continue;
             }
             if self.options.excluded.contains(&relative.join(item.file_name())) {
+                continue;
+            }
+            // The same rule as the source side: a stage container belongs to the command filling it, so a deletion pass leaves
+            //  it where it is. The name a source container has is in `names` already; this is the container the source does not
+            //  hold, which is a copy another command is filling into this destination right now.
+            if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_encoded_bytes()) {
                 continue;
             }
             remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;

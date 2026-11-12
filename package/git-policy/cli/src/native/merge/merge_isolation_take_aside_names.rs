@@ -44,6 +44,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///  ends in no name Git reads.
 pub(crate) const ASIDE_PREFIX: &str = ".cli-git-recovery";
 
+/// The start of the private name the bytes of a merge's own write wait under before they take their path.
+///  It sits in the file's own directory,
+/// so the placing is one rename on whatever file system the worktree is on,
+///  and it ends in
+/// no name Git reads.
+///  It carries the key of the merge that wrote it,
+/// so a command that finds one a killed command left can say whose it
+///  is and remove only the names nothing is waiting on.
+pub(crate) const CARRY_PREFIX: &str = ".cli-git-carry";
+
 /// Makes two names set aside by one process differ.
 static ASIDE_COUNT: AtomicU64 = AtomicU64::new(0);
 
@@ -171,8 +181,30 @@ fn is_a_ran_number(text: &str) -> bool {
 /// function theMergeOfAName(name: string, location: string): string | null | undefined; // null: no record named
 /// ```
 fn the_merge_of_a_name(name: &str, location: &Path) -> Option<Option<String>> {
-    let prefix: String = format!("{ASIDE_PREFIX}-{}-", name_key(name_text(location).as_str()));
-    let rest: &str = name.strip_prefix(prefix.as_str())?;
+    return the_merge_of_a_private_name(ASIDE_PREFIX, name, location);
+}
+
+/// What:
+///  The merge a private name of `location` under `prefix` was made by,
+///  or nothing when the name is not one of that kind for that path.
+/// Why:
+///   The two kinds of private name are one shape:
+/// the file's own key,
+/// then the merge's key,
+///  then the
+/// process,
+/// the count and the moment,
+/// so one reading serves both and the names cannot drift apart.
+///  A name an earlier
+/// release wrote carries no merge key and is answered as such.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theMergeOfAPrivateName(prefix: string, name: string, location: string): string | null | undefined;
+/// ```
+fn the_merge_of_a_private_name(kind: &str, name: &str, location: &Path) -> Option<Option<String>> {
+    let start: String = format!("{kind}-{}-", name_key(name_text(location).as_str()));
+    let rest: &str = name.strip_prefix(start.as_str())?;
     let parts: Vec<&str> = rest.split('-').collect();
     return match parts.as_slice() {
         // A name an earlier release wrote named no record, so nothing claims it.
@@ -180,6 +212,52 @@ fn the_merge_of_a_name(name: &str, location: &Path) -> Option<Option<String>> {
         [merge, _process, _count, nanos] if is_a_key(merge) && is_a_ran_number(nanos) => Some(Some(String::from(*merge))),
         _ => None,
     };
+}
+
+/// What:
+///  Every private name beside `location` under which the bytes of a merge's own write were waiting,
+///  where the
+///  merge that wrote it is not one whose record still governs the worktree,
+///  or is the one this command is finishing.
+/// Why:
+///   A kill between writing those bytes and renaming them into place leaves the name behind,
+/// and it is the one
+///  thing a finished merge leaves in the worktree:
+/// the file it held is made again by the next carry,
+/// and the content is in
+///  the object store either way,
+/// so the name is a temporary nothing is waiting on.
+///  A name whose merge still has a
+/// record is left where it is,
+/// because that merge may be one the record names and no command can
+///  know whether it is running without reading the record:
+/// only the merge whose record this command is finishing is removed,
+///  and the ones whose records are gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function staleCarryNamesOf(location, live: string[], finished: string): string[]; // carry names whose merge is finished or unnamed
+/// ```
+pub(crate) fn stale_carry_names_of(location: &Path, live: &[String], finished: &str) -> Vec<PathBuf> {
+    let Some(directory) = location.parent() else {
+        return Vec::new();
+    };
+    let Ok(listing) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        let name: String = name_of(entry.file_name().as_os_str());
+        // A name of the file the merge writes, or of a path inside a directory it replaces, is still the file's own:
+        //  `name_text` is the base name it was written for.
+        let Some(Some(merge)) = the_merge_of_a_private_name(CARRY_PREFIX, name.as_str(), location) else { continue };
+        // The private name carries a key, and the caller names the merge it is finishing by its identifier.
+        if merge == name_key(finished) || !live.contains(&merge) {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    return found;
 }
 
 /// The order two files a take left are listed in,
@@ -223,6 +301,22 @@ pub(crate) fn asides_of(location: &Path) -> Vec<Aside> {
 }
 
 /// What:
+///  The key a merge's record carries,
+///  which the private name of a copy the merge took holds.
+/// Why:
+///   A recovery judges a copy by the record its name names,
+/// and the key has to be derived in one place
+///  or the two readings name different merges.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mergeKeyOfARecord = (record: string) => nameKey(stem(record));
+/// ```
+pub(crate) fn merge_key_of_a_record(record: &Path) -> String {
+    return name_key(record.file_stem().map(name_of).unwrap_or_default().as_str());
+}
+
+/// What:
 ///  The keys of the merges whose records are still there,
 ///  which are the only ones that may put a file back.
 /// Why:
@@ -243,7 +337,7 @@ pub(crate) fn live_merge_keys(git_dir: &Path) -> Vec<String> {
     };
     let mut keys: Vec<String> = Vec::with_capacity(records.len());
     for record in records {
-        keys.push(name_key(record.file_stem().map(name_of).unwrap_or_default().as_str()));
+        keys.push(merge_key_of_a_record(record.as_path()));
     }
     return keys;
 }

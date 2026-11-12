@@ -21,7 +21,7 @@ use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
 use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::ObjectWriter;
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 use crate::service_instance::instance_of;
 use crate::service_protocol::RELEASE;
 use std::path::Path;
@@ -156,7 +156,7 @@ pub fn trigger_line(decision: &Decision<'_>) -> String {
         .string("command", decision.command)
         .string("outcome", decision.outcome.word())
         .string("reason", decision.reason)
-        .string("detail", mask_userinfo_text(decision.detail).as_str());
+        .string("detail", mask_url_secrets_text(decision.detail).as_str());
     if let Some(name) = decision.branch {
         record.string("branch", name);
     }
@@ -176,7 +176,7 @@ pub fn trigger_line(decision: &Decision<'_>) -> String {
 /// recordDecision({ commonDir, origin, command: 'merge', outcome: 'declined', reason: 'upstream-equals-tip', detail, branch })
 /// ```
 pub fn record_decision(decision: &Decision<'_>) {
-    debug(TAG, &format!("{}: {} ({}) {}", decision.command, decision.outcome.word(), decision.reason, mask_userinfo_text(decision.detail)));
+    debug(TAG, &format!("{}: {} ({}) {}", decision.command, decision.outcome.word(), decision.reason, mask_url_secrets_text(decision.detail)));
     let Some(directory) = decision.common_dir else { return };
     let target = directory.join(TRIGGER_FILE);
     let line: String = trigger_line(decision);

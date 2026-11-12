@@ -228,37 +228,33 @@ pub const LANDING_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from
 ///  a killed `git update-ref --stdin` holding `refs/heads/main.lock`).
 pub const REFERENCE_LOCK_WAIT: Duration = crate::stale_ref_lock_judge::MARGIN;
 
-/// The slowest `git commit` step of the scratch repository in this repository's commit timing log,
-/// one figure per record,
-/// of the records that do not run past the 16 s the owner chose.
-/// Measured on 2026-11-09 from both generations of the timing log
-/// (`monochromatic-git-policy-cli-commit-timing.jsonl` and its one rotated generation,
-/// 958 records,
-/// 2026-11-08T03:29:55Z to 2026-11-09T04:33:32Z,
-/// releases 0.6.1-alpha.2 to 0.6.1-alpha.5,
-/// 907 of them naming each Git step):
-/// twelve records hold a step past the 3,006 ms ceiling this replaces,
-/// the three slowest hold 26,256,
-/// 36,651 and 171,383 ms,
-/// and the slowest of the rest holds 5,444 ms.
-/// The owner was shown the same figures over the 886 records the log held then and answered
-/// (2026-11-08,
-/// "About 16 seconds"):
-/// "About 16s,
-/// and investigate what happened for those 3 commits.
-/// If we can't figure it out,
-/// then we have a defect and should log more."
-/// The 5,444 ms figure is a step the 3,006 ms ceiling ended,
-/// so it holds the stop's own cost (2.4 s of it),
-/// and the next reading of an unstopped population may be larger.
+/// The slowest `git commit` step of the scratch repository that ended by itself,
+/// in this repository's commit timing log and every generation the rotation kept.
+/// Measured on 2026-11-12 from the eight generations the log held
+/// (`monochromatic-git-policy-cli-commit-timing.jsonl` and its seven rotations,
+/// 1,433 steps,
+/// 2026-11-10T19:56Z to 2026-11-12T01:12Z,
+/// releases 0.6.1-alpha.8 to 0.6.1-alpha.11):
+/// 12,735 ms,
+/// at 2026-11-11T19:01:09Z,
+/// whose step was seen in uninterruptible sleep at 44 of its looks and landed.
+/// The population is wider than the one this figure had before,
+/// because a ceiling read from one generation swings with the rotation:
+/// on the same day the steps of 932 commits had a median of 89 ms,
+/// a 99th percentile of 4,850 ms,
+/// nine steps over 5 s,
+/// five over 10 s,
+/// and two over 16 s,
+/// and those two are the only steps that reached the ceiling
+/// (37,153 and 47,978 ms,
+/// both of them killed in a disk wait and both of them failed commits;
+/// the seven rotations hold no step between 12,735 and 37,153 ms).
+/// The two slowest figures a ceiling may not be read from are those stops,
+/// which ended the step rather than waiting for it.
 /// The owner's signing probe on 2026-11-07 signed a commit in 16 ms against 9 ms unsigned,
 /// and the step runs with every hook off,
 /// so neither signing nor hooks is what makes a step long when nothing competes.
-/// Whole builds that took 11 to 406 s on 2026-11-07 are in the log too,
-/// but they name no step;
-/// a retry's private index without stat data made the scratch commit hash the whole work tree,
-/// and that is fixed (`initialize_retry_index`).
-pub const SLOWEST_MEASURED_COMMIT_STEP: Duration = Duration::from_millis(5_444);
+pub const SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF: Duration = Duration::from_millis(12_735);
 
 /// How many times the slowest measured step the ceiling of the scratch `git commit` is (owner,
 /// 2026-11-07,
@@ -273,19 +269,33 @@ pub const SLOWEST_MEASURED_COMMIT_STEP: Duration = Duration::from_millis(5_444);
 /// "three times the slowest ordinary step").
 pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 
+/// The shortest ceiling the scratch repository's `git commit` may have,
+/// whatever the step records say:
+/// one minute.
+/// Why:
+///  The figure the ceiling is derived from moves with the population it is read from,
+///  and a rotation that leaves a few quiet commits in the log would put the ceiling under an ordinary slow disk.
+///  One minute is 4.7 times the slowest step that ended by itself on 2026-11-11 (12,735 ms),
+///  13 times the 99th percentile of that day's 932 steps (4,850 ms),
+///  3.7 times the 16,332 ms ceiling it replaces,
+///  and 6.2 times below the first step the kernel ever held here long enough to be killed (37,153 ms).
+///  It is a floor and never a ceiling:
+///  a wider measurement still raises the ceiling above it.
+pub const SCRATCH_COMMIT_STEP_CEILING_FLOOR: Duration = Duration::from_secs(60);
+
 /// The longest the scratch repository's `git commit` runs when the message came with the command (`-m`,
 /// `-F`,
 /// `-C`),
 /// before the wrapper ends it with everything below it:
-/// three times the slowest step record,
-/// 3 x 5,444 ms = 16,332 ms,
-/// which the owner chose as "about 16 s" (2026-11-08,
-/// "About 16 seconds").
-/// The owner chose it knowing its price,
-/// which the option named:
-/// on the log of 2026-11-08 it still refuses the three commits whose step ran 26,256,
-/// 36,651 and 171,383 ms,
-/// two of which landed.
+/// three times the slowest step record that ended by itself,
+/// 3 x 12,735 ms = 38,205 ms,
+/// raised to `SCRATCH_COMMIT_STEP_CEILING_FLOOR` because a ceiling read from one generation of the log swings
+/// with the rotation:
+/// one minute.
+///  The 16,332 ms this replaces (three times 5,444 ms,
+///  the owner's "about 16 s" of 2026-11-08) was reached by an ordinary commit on 2026-11-11,
+///  in a disk wait the kernel held,
+///  and that commit failed (the record's step ran 47,978 ms).
 /// With an editor open the step has no ceiling,
 /// only the waiting notice:
 /// the person is the wait,
@@ -297,7 +307,64 @@ pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 /// the message is on the command line,
 /// and the same command can be run again.
 /// `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds.
-pub const SCRATCH_COMMIT_STEP_CEILING: Duration = Duration::from_millis(SLOWEST_MEASURED_COMMIT_STEP.as_millis() as u64 * SCRATCH_COMMIT_STEP_MARGIN as u64);
+pub const SCRATCH_COMMIT_STEP_CEILING: Duration = at_least(SCRATCH_COMMIT_STEP_CEILING_FLOOR, Duration::from_millis(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF.as_millis() as u64 * SCRATCH_COMMIT_STEP_MARGIN as u64));
+
+/// The longest the scratch repository's `git commit` is waited for while the kernel holds it in a call a signal cannot
+/// end:
+/// five minutes.
+/// Why:
+///  A step inside an uninterruptible call is waiting for the disk,
+///  not stuck in its own work:
+///  ending it fails a commit that would have landed,
+///  and on 2026-11-11 two commits failed that way,
+///  their steps held for 37,153 and 47,978 ms under a 16,332 ms ceiling.
+///  Five minutes is 6.2 times the slower of those two,
+///  five times the ceiling above it,
+///  and 23 times the slowest step that ever ended by itself here (12,735 ms),
+///  so an ordinary slow disk on this machine never reaches it.
+///  A step the kernel holds past this bound is ended as any step at its ceiling is,
+///  and the commit says nothing was committed and names the bound.
+///  A step that may open the editor has no bound at all:
+///  the person is the wait.
+pub const SCRATCH_COMMIT_STEP_STALL_CEILING: Duration = Duration::from_secs(300);
+
+/// What:
+///  The later of two spans.
+/// Why:
+///   A floor and a measured figure are two answers to one question,
+///  and the constant is the later of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const atLeast = (floor, span) => span < floor ? floor : span;
+/// ```
+const fn at_least(floor: Duration, span: Duration) -> Duration {
+    let floor_millis: u128 = floor.as_millis();
+    let span_millis: u128 = span.as_millis();
+    return Duration::from_millis(if span_millis < floor_millis { floor_millis as u64 } else { span_millis as u64 });
+}
+
+/// What:
+///  The longest the scratch `git commit` is waited for while the kernel holds it,
+///  counted from the step's start,
+///  given the ceiling it ran under.
+/// Why:
+///   A person may set the ceiling above the stall bound with `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS`,
+///  and a step must never be ended before the ceiling that person chose.
+///  A control plants another bound,
+///  so a test never waits the five minutes a real hold lasts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stallCeilingOf = (ceiling) => atLeast(ceiling, SCRATCH_COMMIT_STEP_STALL_CEILING);
+/// ```
+pub fn stall_ceiling_of(ceiling: Duration) -> Duration {
+    #[cfg(all(test, target_os = "linux"))]
+    if let Some(planted) = crate::native_commit_waiting_notice::the_controls_window::the_stall_ceiling_the_control_planted() {
+        return planted;
+    }
+    return at_least(ceiling, SCRATCH_COMMIT_STEP_STALL_CEILING);
+}
 
 /// The longest the settling of an earlier service's open batches took in the commit service's journal:
 /// the `settle_ms` of the
@@ -488,6 +555,32 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the route decision reads the file system for:
+///  the walk up from the start directory and the files it reads,
+///  which `landing/service_route.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a walk waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a walk that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a landing's own state step is granted (`LANDING_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
+
+/// The longest a preparation's own file read waits:
+/// the `-F` file of a commit message,
+/// which `landing/service_message.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a read waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a read that gives no answer is the answer an unreadable file gives,
+/// which hands the line to native `git commit` and the person reads Git's own words.
+/// No measurement fixes the value:
+/// it is `LANDING_STATE_CEILING`,
+/// the wait a landing's own state step is granted,
+/// because both are one read of a known file and a read that outlasts either is one the answer Git gives serves better.
+pub const PREPARATION_READ_CEILING: Duration = LANDING_STATE_CEILING;
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.
@@ -506,6 +599,38 @@ pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 /// two seconds is twice the slowest of 52 cold service starts,
 /// under the owner's 5,000 ms bound on what a command may add (2026-11-09).
 pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
+
+/// The longest one package-manager tool of a worktree repair (`pnpm install`,
+/// `cargo metadata`,
+/// `cargo clean`,
+/// `mpm-shadow install`)
+///  takes to start,
+/// before the run says it gave no answer and stops the child it finally starts.
+///  Why:
+///  `Command::spawn` returns only after the child's own `exec`,
+///  which can wait in the kernel with no end:
+/// a program on a mount whose server stopped answering,
+/// a disk that stalls.
+///  The quiet window,
+/// the ceiling and the notice above are all read from a clock the command has not reached
+///  while that wait stands,
+/// so the start is what has to be bounded;
+/// the owner's rule is "nothing should ever wait
+///  forever or indefinitely".
+///  Measured:
+/// no log here holds the length of a start,
+/// because every start it recorded returned as soon as
+///  the program was found;
+/// the value is `START_CEILING`,
+/// the wait a client grants the commit service's own start
+///  (the slowest of 52 cold starts took 1,041 ms),
+/// because both are one program's start on this host and a start that
+///  outlasts either is one the answer by hand serves better.
+/// A start that reaches it costs the repair and never the worktree:
+/// the finding names the tool
+///  and the command to run,
+/// and the worktree keeps the files Git wrote.
+pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
@@ -798,7 +923,61 @@ pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
 /// waitingNoticeAfter() // Duration
 /// ```
 pub fn waiting_notice_after() -> Duration {
-    return notice_after_of(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref());
+    return notice_after_from(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref(), WAITING_NOTICE_AFTER);
+}
+
+/// How long a `git worktree add` runs before it says which step it is in,
+/// then again at `ADD_STANDING_NOTICE_REPEAT` while it stays in one step.
+/// A notice threshold,
+/// not a bound:
+/// nothing ends at it.
+///  Owner,
+/// 2026-11-03:
+/// "60s is fine for adding worktrees",
+/// with the brief's "an add that is still waiting after a few seconds says what it
+///  waits for".
+///  Measured on this host,
+/// 2026-11-11,
+/// load average 58 to 61:
+/// five concurrent adds of a 24-package checkout took 29,487,
+/// 29,493,
+/// 31,652,
+/// 31,659 and 35,574 ms,
+/// and a single one took 4,288 ms;
+/// the steps of one add ran from a few milliseconds to 12,177 ms,
+/// and one `fsync` of its own bookkeeping took 11,239 ms.
+/// Five seconds is longer than a step of an add that is making progress on an idle host,
+/// and short enough that a person waiting on a loaded one is told before the wait looks like a hang.
+pub const ADD_STANDING_NOTICE_AFTER: Duration = Duration::from_secs(5);
+
+/// How long an add that stays in one step waits between two of the lines that name it.
+/// A notice threshold,
+/// not a bound.
+///  Measured on this host,
+/// 2026-11-11:
+/// the longest step of the five concurrent adds above was 13,903 ms,
+///  so fifteen seconds prints one line for a step and no second line for a step too short to be one.
+pub const ADD_STANDING_NOTICE_REPEAT: Duration = Duration::from_secs(15);
+
+/// The environment variable that sets how long an add waits before it says which step it is in,
+/// in whole
+///  seconds.
+/// Why:
+///   A control that checks what a healthy add prints must not depend on how slowly the host runs one,
+/// so it sets
+///  this past its own bound.
+pub const ADD_STANDING_NOTICE_VARIABLE: &str = "CLI_GIT_ADD_NOTICE_SECONDS";
+
+/// How long an add waits before it says which step it is in:
+/// the setting when it holds a positive number of seconds,
+/// `ADD_STANDING_NOTICE_AFTER` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addStandingNoticeAfter() // Duration
+/// ```
+pub fn add_standing_notice_after() -> Duration {
+    return notice_after_from(std::env::var(ADD_STANDING_NOTICE_VARIABLE).ok().as_deref(), ADD_STANDING_NOTICE_AFTER);
 }
 
 /// What:
@@ -813,13 +992,29 @@ pub fn waiting_notice_after() -> Duration {
 /// noticeAfterOf('30') // 30 s
 /// ```
 pub fn notice_after_of(setting: Option<&str>) -> Duration {
+    return notice_after_from(setting, WAITING_NOTICE_AFTER);
+}
+
+/// What:
+///  The wait a setting stands for,
+/// or `shipped` when the setting means nothing.
+/// Why:
+///   More than one notice has a variable of its own,
+/// and each shipped wait has its own measurement,
+/// so the reader of a setting and its fallback are one rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noticeAfterFrom('30', shipped) // 30 s
+/// ```
+pub fn notice_after_from(setting: Option<&str>, shipped: Duration) -> Duration {
     let seconds: Option<u64> = match setting {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,
     };
     return match seconds {
         Some(found) if found > 0 => Duration::from_secs(found),
-        _ => WAITING_NOTICE_AFTER,
+        _ => shipped,
     };
 }
 /// The longest the optional configuration warning of a commit may take to reach the stream it is written to.

@@ -49,8 +49,9 @@ pub enum Base {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SymbolicHead {
-    /// `HEAD` is symbolic to this ref.
-    Branch(String),
+    /// `HEAD` is symbolic to this ref,
+    /// by the bytes Git printed for its name.
+    Branch(crate::ref_name::RefName),
     /// `HEAD` is detached.
     Detached,
 }

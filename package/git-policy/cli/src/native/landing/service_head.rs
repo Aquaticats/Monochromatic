@@ -37,14 +37,17 @@ use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::wait_ceilings::LANDING_STATE_CEILING;
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// What a `HEAD` file says on its own.
 #[derive(Debug, Eq, PartialEq)]
 enum HeadFile {
-    /// The head names this reference.
-    Branch(String),
+    /// The head names this reference,
+    /// by its own bytes.
+    Branch(RefName),
     /// The head holds this object name:
     /// no branch is checked out.
     Detached(String),
@@ -58,14 +61,53 @@ enum HeadFile {
 ///  an empty one.
 const REFTABLE_PLACEHOLDER: &str = "refs/heads/.invalid";
 
-fn interpret(text: &str) -> HeadFile {
-    let line: &str = text.lines().next().unwrap_or("").trim_end();
-    return match line.strip_prefix("ref: ") {
-        Some(reference) if reference == REFTABLE_PLACEHOLDER => HeadFile::Unreadable,
-        Some(reference) => HeadFile::Branch(reference.to_string()),
-        None if line.is_empty() => HeadFile::Unreadable,
-        None => HeadFile::Detached(line.to_string()),
-    };
+fn interpret(text: &[u8]) -> HeadFile {
+    // The first line only, without the whitespace its end carries; a name that is not text is still a name.
+    let first: &[u8] = text.split(is_a_line_feed).next().unwrap_or(b"");
+    let line: &[u8] = trim_ascii_end(first);
+    if let Some(reference) = line.strip_prefix(b"ref: ") {
+        if reference == REFTABLE_PLACEHOLDER.as_bytes() {
+            return HeadFile::Unreadable;
+        }
+        return HeadFile::Branch(RefName::from_git_output(reference));
+    }
+    if line.is_empty() {
+        return HeadFile::Unreadable;
+    }
+    return HeadFile::Detached(String::from_utf8_lossy(line).trim_end().to_string());
+}
+
+/// What:
+///  Whether one byte ends a line.
+/// Why:
+///   A `HEAD` file is one line,
+/// and the name is the bytes before the line feed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isALineFeed = (byte: number) => byte === 10
+/// ```
+fn is_a_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  The bytes without the whitespace at their end,
+///  as `trim_end` treats text.
+/// Why:
+///  A `HEAD` file ends with a line feed,
+/// and a landing compares the name it holds with the name it recorded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const trimmed = line.replace(/\s+$/u, '')
+/// ```
+fn trim_ascii_end(bytes: &[u8]) -> &[u8] {
+    let mut end: usize = bytes.len();
+    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    return &bytes[..end];
 }
 
 /// Whether `directory` is the Git directory of a worktree of the repository whose common Git directory is `common_dir`:
@@ -95,8 +137,8 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
     if !belongs_to(git_dir, common_dir) {
         return HeadFile::Unreadable;
     }
-    return match std::fs::read_to_string(git_dir.join("HEAD")) {
-        Ok(text) => interpret(text.as_str()),
+    return match std::fs::read(git_dir.join("HEAD")) {
+        Ok(bytes) => interpret(bytes.as_slice()),
         Err(_unreadable) => HeadFile::Unreadable,
     };
 }
@@ -173,7 +215,7 @@ async fn head_file_awaiting(git_dir: &Path, common_dir: &Path) -> HeadFile {
 /// # Errors
 ///
 /// `Unavailable` when Git cannot be started or ends with a status other than 0 and 1.
-fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<String>, FailureCode> {
+fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<RefName>, FailureCode> {
     return named_of(run_git(git, &symbolic_head_request(repository)));
 }
 
@@ -210,13 +252,15 @@ fn symbolic_head_request(repository: &Path) -> GitRequest {
 /// # Errors
 ///
 /// `Unavailable` when Git could not be started or ended with a status other than 0 and 1.
-fn named_of(answered: std::io::Result<GitOutput>) -> Result<Option<String>, FailureCode> {
+fn named_of(answered: std::io::Result<GitOutput>) -> Result<Option<RefName>, FailureCode> {
     let output: GitOutput = match answered {
         Ok(finished) => finished,
         Err(_unstartable) => return Err(FailureCode::Unavailable),
     };
     return match output.code {
-        Some(0) => Ok(Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string())),
+        // The name is the bytes Git printed: a branch name is a byte string, and a reading that replaced a byte would name
+        //  another ref.
+        Some(0) => Ok(Some(RefName::from_git_output(output.stdout.as_slice()))),
         Some(1) => Ok(None),
         _ => Err(FailureCode::Unavailable),
     };
@@ -237,7 +281,7 @@ fn named_of(answered: std::io::Result<GitOutput>) -> Result<Option<String>, Fail
 /// ```ts
 /// async function symbolicHeadAwaiting(git: GitContext, repository: string): Promise<string | undefined>;
 /// ```
-async fn symbolic_head_awaiting(git: &GitContext, repository: &Path) -> Result<Option<String>, FailureCode> {
+async fn symbolic_head_awaiting(git: &GitContext, repository: &Path) -> Result<Option<RefName>, FailureCode> {
     return named_of(run_git_awaiting(git, &symbolic_head_request(repository)).await);
 }
 
@@ -266,8 +310,8 @@ async fn symbolic_head_awaiting(git: &GitContext, repository: &Path) -> Result<O
 /// # Errors
 ///
 /// The failure code when Git must be asked and cannot answer.
-pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str, new: &str) -> Result<bool, FailureCode> {
-    if reference != "HEAD" {
+pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName, new: &str) -> Result<bool, FailureCode> {
+    if !reference.is_head() {
         return head_names(git, repository, git_dir, common_dir, reference);
     }
     if let HeadFile::Detached(value) = head_file(git_dir, common_dir) {
@@ -281,8 +325,8 @@ pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_
 /// # Errors
 ///
 /// As `follows_move`.
-pub async fn follows_move_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str, new: &str) -> Result<bool, FailureCode> {
-    if reference != "HEAD" {
+pub async fn follows_move_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName, new: &str) -> Result<bool, FailureCode> {
+    if !reference.is_head() {
         return head_names_awaiting(git, repository, git_dir, common_dir, reference).await;
     }
     if let HeadFile::Detached(value) = head_file_awaiting(git_dir, common_dir).await {
@@ -334,9 +378,9 @@ fn shows_the_commit(answered: std::io::Result<GitOutput>, moved_to: &str) -> Res
 /// ```ts
 /// await headNames(git, { repository, gitDir, commonDir }, reference)
 /// ```
-pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
     match head_file(git_dir, common_dir) {
-        HeadFile::Branch(named) => return Ok(named == reference),
+        HeadFile::Branch(named) => return Ok(named == *reference),
         HeadFile::Detached(_) => return Ok(false),
         HeadFile::Unreadable => {}
     }
@@ -348,9 +392,9 @@ pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_di
 /// # Errors
 ///
 /// As `head_names`.
-pub async fn head_names_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+pub async fn head_names_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
     match head_file_awaiting(git_dir, common_dir).await {
-        HeadFile::Branch(named) => return Ok(named == reference),
+        HeadFile::Branch(named) => return Ok(named == *reference),
         HeadFile::Detached(_) => return Ok(false),
         HeadFile::Unreadable => {}
     }
@@ -368,9 +412,9 @@ pub async fn head_names_awaiting(git: &GitContext, repository: &Path, git_dir: &
 /// ```ts
 /// function namesOf(named: string | undefined, wanted: string): boolean;
 /// ```
-fn names_of(named: Option<String>, wanted: &str) -> Result<bool, FailureCode> {
+fn names_of(named: Option<RefName>, wanted: &RefName) -> Result<bool, FailureCode> {
     return match named {
-        Some(found) => Ok(found == wanted),
+        Some(found) => Ok(found == *wanted),
         None => Ok(false),
     };
 }
@@ -397,8 +441,8 @@ fn names_of(named: Option<String>, wanted: &str) -> Result<bool, FailureCode> {
 /// # Errors
 ///
 /// The failure code when Git must be asked and cannot be started.
-pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
-    if reference != "HEAD" {
+pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
+    if !reference.is_head() {
         return head_names(git, repository, git_dir, common_dir, reference);
     }
     match head_file(git_dir, common_dir) {
@@ -414,8 +458,8 @@ pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, co
 /// # Errors
 ///
 /// As `still_checked_out`.
-pub async fn still_checked_out_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
-    if reference != "HEAD" {
+pub async fn still_checked_out_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
+    if !reference.is_head() {
         return head_names_awaiting(git, repository, git_dir, common_dir, reference).await;
     }
     match head_file_awaiting(git_dir, common_dir).await {

@@ -17,10 +17,16 @@
 //! a long list and a gitlink need no
 //!  special case (`doc/planning/cli-git-resident-service.md`,
 //! "Landing every command line").
+//! Each step has two faces:
+//! the synchronous one a caller on a thread asks (`reset_entries`),
+//! and the awaited one a
+//!  task of the runtime asks (`reset_entries_awaiting`,
+//! `derived_names_awaiting`),
+//! which awaits every Git child on the runtime.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await updateIndex(git, repository, newCommit, paths); await removeConclusionState(git, repository, cleanup);
+//! await resetEntriesAwaiting(git, repository, index, newCommit, paths); await removeConclusionState(git, repository, cleanup);
 //! ```
 
 use crate::autostash_carry::carry_stash;
@@ -29,13 +35,12 @@ use crate::diagnostic_log::warn;
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_within};
 use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
 use crate::wait_progress::Cadence;
-use crate::inner_git_words::record_words;
 use crate::service_index_lock::IndexLock;
 use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale};
 use crate::commit_index_stat_staleness::WorktreeStaging;
 pub use crate::service_land_copy::PrivateCopy;
-use crate::service_protocol::{Cleanup, FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::service_protocol::{Cleanup, FailureCode};
+use crate::transaction_git::GitContext;
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
 use std::path::Path;
@@ -69,188 +74,16 @@ const INDEX_ATTEMPTS: usize = 5;
 ///  `INDEX_ATTEMPTS`).
 const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
-/// Which index entries a landing updates.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum IndexPaths<'a> {
-    /// The paths the request listed.
-    Listed(&'a [String]),
-    /// Paths given as bytes,
-    /// for a client that reconciles the index without a landing.
-    Named(&'a [Vec<u8>]),
-    /// Every path that differs between the branch before the landing and the new commit.
-    Derived {
-        /// The branch before the landing;
-        /// the all-zero name when the branch did not exist.
-        old: &'a str,
-    },
-}
-
-fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    // Every pathspec this module writes is its own, so no pathspec mode of the caller's reaches it
-    // (`GitRequest::own_pathspecs`), whether the caller set it as a variable or as a global option.
-    let mut request: GitRequest = GitRequest::new(repository, arguments).own_pathspecs();
-    request.input = input;
-    request.index = index.map(Path::to_path_buf);
-    return match run_git(git, &request) {
-        Ok(output) => Ok(output),
-        Err(_unstartable) => Err(FailureCode::Unavailable),
-    };
-}
-
-/// The failure a Git step that did not succeed stands for.
-pub fn classify(output: &GitOutput) -> FailureCode {
-    let text: String = output.error_text().to_lowercase();
-    if text.contains("no space left") || text.contains("quota exceeded") {
-        return FailureCode::RepositoryFull;
-    }
-    if text.contains("read-only file system") {
-        return FailureCode::RepositoryReadOnly;
-    }
-    if text.contains("permission denied") {
-        return FailureCode::PermissionDenied;
-    }
-    if text.contains("index.lock") {
-        return FailureCode::IndexInUse;
-    }
-    return FailureCode::Unavailable;
-}
-
-/// A path in the form `reset` reads literally from the top of the repository.
-fn literal(path: &[u8]) -> Vec<u8> {
-    let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-    spec.extend_from_slice(path);
-    return spec;
-}
-
-/// The names (bytes,
-/// NUL-separated) of the paths that differ between `old` and `new`.
-pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
-    let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
-    if is_zero_object(old) {
-        // A branch that did not exist: the commit is a root commit, and `--root` lists everything it holds.
-        arguments.push("--root");
-        arguments.push(new);
-    } else {
-        arguments.push(old);
-        arguments.push(new);
-    }
-    let output: GitOutput = run(git, repository, &arguments, None, None)?;
-    if !output.succeeded() {
-        return Err(classify(&output));
-    }
-    return Ok(output.stdout);
-}
-
-/// What:
-///  Whether a byte is the NUL that separates the names of a pathspec list.
-/// Why:
-///  `pathspec_input` splits a NUL-separated list into names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isZeroByte = (byte: number) => byte === 0;
-/// ```
-fn is_zero_byte(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// What:
-///  Whether a name from a NUL-separated list is not empty.
-/// Why:
-///  Two NULs in a row leave an empty name that names nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isNotEmptyName = (name: Uint8Array) => name.length > 0;
-/// ```
-fn is_not_empty_name(name: &&[u8]) -> bool {
-    return !name.is_empty();
-}
-
-/// What:
-///  A path as a pathspec that matches that path from the top of the worktree and nothing else.
-/// Why:
-///  `reset` is given one such spec per path the batch changed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const topLiteralSpec = (path: string) => `:(top,literal)${path}`;
-/// ```
-fn top_literal_spec(path: &String) -> String {
-    return format!(":(top,literal){path}");
-}
-
-/// The standard input of `reset --pathspec-from-file=- --pathspec-file-nul` for a list of NUL-separated names.
-fn pathspec_input(names: &[u8]) -> Vec<u8> {
-    let mut input: Vec<u8> = Vec::new();
-    for name in names.split(is_zero_byte).filter(is_not_empty_name) {
-        input.extend(literal(name));
-        input.push(0);
-    }
-    return input;
-}
-
-/// One try of the index update.
-fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
-    let output: GitOutput = match paths {
-        IndexPaths::Listed(listed) => {
-            let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
-            let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
-            arguments.extend(specs.iter().map(String::as_str));
-            run(git, repository, &arguments, None, index)?
-        }
-        IndexPaths::Named(names) => {
-            // Each name followed by a NUL, as `--pathspec-file-nul` reads them.
-            let mut joined: Vec<u8> = Vec::new();
-            for name in names.iter() {
-                joined.extend(name.iter().copied());
-                joined.push(0);
-            }
-            let input: Vec<u8> = pathspec_input(joined.as_slice());
-            if input.is_empty() {
-                return Ok(());
-            }
-            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
-        }
-        IndexPaths::Derived { old } => {
-            let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
-            if input.is_empty() {
-                return Ok(());
-            }
-            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
-        }
-    };
-    if !output.succeeded() {
-        return Err(classify(&output));
-    }
-    // The `reset` carries no `-q`: its list of paths left changed in the worktree ("Unstaged changes after reset:") is kept
-    //  in the service's log.
-    record_words(&["reset", "<commit>", "--", "<paths>"], &output);
-    return Ok(());
-}
-
-/// What:
-///  Resets the index entries of `names` in `index` to the commit `new`,
-///  without waiting and without a refresh.
-/// Why:
-///   The landing's own index update and the repair of an update it left owed are one step
-///   (`owed_index_update.rs`):
-///  a path whose entry the landing left is reset the same way by both.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await resetEntries(git, repository, index, newCommit, names);
-/// ```
-///
-/// # Errors
-///
-/// The failure code of the `reset` that was refused.
-pub fn reset_entries(git: &GitContext, repository: &Path, index: Option<&Path>, new: &str, names: &[Vec<u8>]) -> Result<(), FailureCode> {
-    if names.is_empty() {
-        return Ok(());
-    }
-    return reset_once(git, repository, new, IndexPaths::Named(names), index);
-}
+/// The entries a landing installs in the index and the reset that installs them,
+/// kept in a file of their own to stay under the file-size limit.
+#[path = "service_land_follow_index_reset.rs"]
+mod index_reset;
+pub use self::index_reset::{IndexPaths, reset_entries, reset_entries_awaiting};
+pub(crate) use self::index_reset::{classify, derived_names};
+use self::index_reset::reset_once;
+/// The awaited derived names, read by the control that compares both faces of the reset.
+#[cfg(test)]
+use self::index_reset::derived_names_awaiting;
 
 /// What:
 ///  Updates the index entries of the commit's paths to the commit `new`,
@@ -340,6 +173,9 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
 /// so a batch pays one refresh,
 /// in the step that already holds the lock,
 /// instead of one per client that then waits for the lock the landing needs.
+///  The copy keeps the live index's times through every write of it,
+/// so Git's own question about the stat data of an entry it has not read keeps the answer the live index gave
+///  (`PrivateCopy::keep_the_live_times`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -364,6 +200,34 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 }
 
 /// What:
+///  Gives the copy the live index's times back,
+/// whatever a step of the landing wrote into it,
+/// and never fails the landing for it.
+/// Why:
+///   A copy installed as the live index must be as old as the stat data its entries describe,
+/// or Git trusts a stat record whose file it would otherwise read again
+///  (`PrivateCopy::keep_the_live_times`).
+///  The times are a cache for the reader and never the landing's result,
+/// so a file system that refuses them leaves the copy installed and says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// copy.keepTheLiveTimes() // logged, never thrown
+/// ```
+pub(crate) fn put_the_live_times_back(copy: &PrivateCopy) {
+    if let Err(error) = copy.keep_the_live_times() {
+        crate::diagnostic_log::warn(
+            "serviceLand",
+            format!(
+                "the index {} keeps the time it was written at, so Git may trust stat data it would otherwise read again ({error})",
+                copy.path().display()
+            )
+            .as_str(),
+        );
+    }
+}
+
+/// What:
 ///  Records the worktree's stat data in the index the landing is about to install.
 /// Why:
 ///   The copy was made from the live index,
@@ -379,17 +243,28 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 /// and a path the person has since edited must keep no stat data that would hide the edit,
 /// which is what `update-index --refresh` does with it anyway
 /// (`commit_index_stat_staleness.rs`).
+///  The copy is as old as the live index while Git answers that question,
+/// because a stat check compares the fields it reads only to the second:
+/// an edit made in the same second as the stat the live index records differs from it in nothing Git compares,
+///  so only the entry being newer than the index makes Git read the file.
+///  A copy written a moment ago would be newer than every entry,
+/// Git would answer from the recorded stat,
+/// and the person's edit would reach neither the next commit nor `git status`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await keepTheStatData({ git, repository, written, copy }) // refresh_if_stale(copy, staging = `written`)
+/// await keepTheStatData({ git, repository, written, copy }) // copy.keepTheLiveTimes(); refresh_if_stale(copy, staging = `written`); copy.keepTheLiveTimes()
 /// ```
 fn keep_the_stat_data(git: &GitContext, repository: &Path, written: &[Vec<u8>], copy: &PrivateCopy) {
     let left_out: Vec<OsString> = exempt_names(written);
+    put_the_live_times_back(copy);
     // What the copy looked like before the refresh, so the release flushes it only when the refresh rewrote it.
     let untouched: Option<(u64, std::time::SystemTime)> = file_stamp(copy.path());
     let _outcome: StatRefresh = refresh_stat_data_when_stale(git, repository, copy.path(), WorktreeStaging::Named(left_out.as_slice()));
-    if file_stamp(copy.path()) != untouched {
+    let rewritten: bool = file_stamp(copy.path()) != untouched;
+    // The refresh replaces the copy when it records anything, so the times go back on after it as well.
+    put_the_live_times_back(copy);
+    if rewritten {
         // Git replaced the copy without flushing it; the release of the lock flushes what it installs (`service_land_finish.rs`).
         copy.set_flushed(false);
     }
@@ -551,3 +426,8 @@ pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cl
 #[cfg(test)]
 #[path = "service_land_follow_tests.rs"]
 mod tests;
+
+/// Controls for the awaited steps of the follow-up stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_follow_awaiting_tests.rs"]
+mod awaiting_tests;

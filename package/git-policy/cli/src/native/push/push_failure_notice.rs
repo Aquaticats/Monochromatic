@@ -40,7 +40,7 @@
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::auto_push_branch_key::encode_branch_key;
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 /// One record as a command holds it before it shows it,
@@ -187,7 +187,7 @@ pub fn record_name(branch_ref: &str, commit: &str) -> String {
 /// cleanReason(said)
 /// ```
 pub fn clean_reason(said: &str) -> String {
-    let masked: String = mask_userinfo_text(said);
+    let masked: String = mask_url_secrets_text(said);
     let mut kept: Vec<String> = Vec::new();
     for line in masked.lines() {
         let mut plain: String = String::new();

@@ -68,6 +68,8 @@ fn every_foreign_lock_wait_is_the_measured_whole_minute() {
 /// so that the loop in `landing/service_commit.rs` stays under the line limit;
 /// that move is d5af173797,
 /// which kept every condition and every message as it was.
+/// The decision the loop asks is `landing/service_commit_rebuild_ceiling.rs` (`0bafaea12d`),
+/// so `may_rebuild` is read where it is written.
 #[test]
 fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
@@ -79,21 +81,52 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
     assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");
-    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS") && !decision.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
 }
 
-/// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:
-/// the owner's answer of 2026-11-08 ("About 16 seconds"),
-/// 3 x 5,444 ms,
-/// with no rounding up.
+/// The scratch repository's `git commit` is stopped at three times the slowest step record that ended by itself,
+/// and never sooner than the floor a rotated log cannot lower,
+/// so that an ordinary slow disk does not reach it.
+/// Measured on 2026-11-12 over the eight generations the timing log held:
+/// 3 x 12,735 ms is 38,205 ms,
+/// the floor is 60,000 ms,
+/// so the ceiling is the floor.
 #[test]
-fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_step_record() {
-    assert_eq!(SLOWEST_MEASURED_COMMIT_STEP, Duration::from_millis(5_444), "the figure of the records below 16 s");
+fn the_scratch_commit_step_is_stopped_at_a_floor_or_three_times_the_slowest_step_that_ended() {
+    assert_eq!(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF, Duration::from_millis(12_735), "the slowest step that landed, of 1,433 steps");
     assert_eq!(SCRATCH_COMMIT_STEP_MARGIN, 3);
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SLOWEST_MEASURED_COMMIT_STEP * SCRATCH_COMMIT_STEP_MARGIN);
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_millis(16_332), "about 16 s, the owner's answer");
+    assert_eq!(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN, Duration::from_millis(38_205));
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING_FLOOR, Duration::from_secs(60));
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SCRATCH_COMMIT_STEP_CEILING_FLOOR, "the floor holds this population above it, so the ceiling is the floor");
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_secs(60), "one minute, 4.7 times the slowest step that ended by itself");
+    assert!(
+        SCRATCH_COMMIT_STEP_CEILING >= SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN,
+        "the ceiling is the later of the margin over the slowest ordinary step and the floor"
+    );
     let source: &str = include_str!("../commit/commit_preparation.rs");
     assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
+}
+
+/// What:
+///  A step the kernel holds in a disk wait is waited for to a bound far from an ordinary slow shelf,
+///  and never sooner than the ceiling the commit ran under.
+/// Why:
+///   Ending a step that is waiting for the disk fails a commit that would have landed,
+///  and on 2026-11-11 two commits failed that way,
+///  their steps held for 37,153 and 47,978 ms under a 16,332 ms ceiling.
+///  Five minutes is 6.2 times the slower of those two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stallCeilingOf(ceiling).toBe(max(ceiling, 300_000)))
+/// ```
+#[test]
+fn a_step_the_kernel_holds_is_waited_for_to_a_bound_far_from_an_ordinary_slow_disk() {
+    assert_eq!(SCRATCH_COMMIT_STEP_STALL_CEILING, Duration::from_secs(300));
+    assert!(SCRATCH_COMMIT_STEP_STALL_CEILING > SCRATCH_COMMIT_STEP_CEILING * 4, "the bound is far above the ceiling a step is noticed at");
+    assert!(SCRATCH_COMMIT_STEP_STALL_CEILING > Duration::from_millis(47_978) * 6, "the bound is 6 times the longest step the kernel ever held here");
+    assert_eq!(stall_ceiling_of(Duration::from_secs(1)), SCRATCH_COMMIT_STEP_STALL_CEILING, "a short ceiling is raised to the bound");
+    assert_eq!(stall_ceiling_of(Duration::from_secs(600)), Duration::from_secs(600), "a ceiling a person set above the bound is never lowered");
 }
 
 /// What:
@@ -217,4 +250,19 @@ fn the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add() {
     assert_eq!(SNAPSHOT_AHEAD_CEILING, Duration::from_secs(60), "the owner, 2026-11-10: \"60s is fine for adding worktrees\"");
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
     assert!(rung.contains("SNAPSHOT_AHEAD_CEILING"), "the snapshot rung takes this ceiling");
+}
+
+/// The start of one repair tool is bounded by the wait a client grants a service's own start:
+/// both are one program's start on this host,
+/// and the repair's run takes that bound from this file.
+/// A start that does not answer waits for ever otherwise,
+/// because the quiet window,
+/// the ceiling and the notice are read from a clock the run reaches only after the start.
+#[test]
+fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
+    assert_eq!(REPAIR_TOOL_START_CEILING, START_CEILING);
+    let run: &str = include_str!("../repair/package_repair_command.rs");
+    assert!(run.contains("REPAIR_TOOL_START_CEILING"), "the repair's run takes this bound");
+    let start: &str = include_str!("../repair/package_repair_start.rs");
+    assert!(start.contains("async fn start_within("), "the start of a tool is the bounded one");
 }
