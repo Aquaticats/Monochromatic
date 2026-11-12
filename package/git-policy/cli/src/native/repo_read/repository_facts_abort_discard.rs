@@ -364,32 +364,51 @@ fn merge_result_readable(facts: &mut GitFacts) -> Result<bool, String> {
 /// async function recordedCommit(answer: StateAnswer, record: 'sequencer/head'): Promise<string>; // throws
 /// ```
 fn recorded_commit(answer: &StateAnswer, record: &OsStr) -> Result<OsString, String> {
-    let Some((_, path)) = answer.restored_paths.iter().find(|(name, _)| { return OsStr::new(name) == record; }) else {
+    let mut place: Option<&PathBuf> = None;
+    for (name, path) in &answer.restored_paths {
+        if OsStr::new(name) == record {
+            place = Some(path);
+            break;
+        }
+    }
+    let Some(path) = place else {
         return Err(format!(
             "could not read the commit this abort restores: the wrapper asked Git for no record named {}.",
             record.to_string_lossy()
         ));
     };
-    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| {
-        return format!(
-            "could not read the commit this abort restores: Git records it in {} and the file could not be read ({error}).",
-            path.display()
-        );
-    })?;
-    let text: String = String::from_utf8(bytes).map_err(|error| {
-        return format!(
-            "could not read the commit this abort restores: Git records it in {} and the file is not text ({error}).",
-            path.display()
-        );
-    })?;
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(read) => read,
+        Err(error) => {
+            return Err(format!(
+                "could not read the commit this abort restores: Git records it in {} and the file could not be read ({error}).",
+                path.display()
+            ));
+        }
+    };
+    let text: String = match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(error) => {
+            return Err(format!(
+                "could not read the commit this abort restores: Git records it in {} and the file is not text ({error}).",
+                path.display()
+            ));
+        }
+    };
     let commit: &str = text.trim();
-    if commit.is_empty() || !commit.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) {
+    if commit.is_empty() || !commit.bytes().all(is_hex_digit) {
         return Err(format!(
             "could not read the commit this abort restores: Git records it in {} and the file holds no commit id.",
             path.display()
         ));
     }
     return Ok(OsString::from(commit));
+}
+
+/// Whether one byte of a record is a hexadecimal digit,
+///  which every commit id's bytes are.
+fn is_hex_digit(byte: u8) -> bool {
+    return byte.is_ascii_hexdigit();
 }
 
 /// What:

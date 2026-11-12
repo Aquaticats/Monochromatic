@@ -57,6 +57,21 @@ fn listing_arguments(global_prefix: &[OsString], option: &str, paths: &[Vec<u8>]
     return Ok(arguments);
 }
 
+/// Whether one byte ends a `-z` record.
+fn is_nul(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// Whether one byte separates the header's words from a record's path.
+fn is_tab(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
+/// Whether one byte separates the words of a `--stage` header.
+fn is_space(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
 /// What:
 ///  The paths whose index entry is at stage 0,
 ///  from one `git ls-files --stage -z` answer.
@@ -76,14 +91,14 @@ fn listing_arguments(global_prefix: &[OsString], option: &str, paths: &[Vec<u8>]
 /// ```
 fn staged_paths(answer: &[u8]) -> Vec<Vec<u8>> {
     let mut found: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for record in answer.split(|byte| { return *byte == 0; }) {
+    for record in answer.split(is_nul) {
         if record.is_empty() {
             continue;
         }
-        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else {
+        let Some(tab) = record.iter().position(is_tab) else {
             continue;
         };
-        let mut words = record[..tab].split(|byte| { return *byte == b' '; });
+        let mut words = record[..tab].split(is_space);
         let (Some(_mode), Some(_oid), Some(stage)) = (words.next(), words.next(), words.next()) else {
             continue;
         };

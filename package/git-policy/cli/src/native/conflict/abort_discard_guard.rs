@@ -20,8 +20,9 @@
 //!  Git refuses the command itself and discards nothing,
 //!  so it is left to Git;
 //!  the state is read per command,
-//!  because an abort form can end another operation's state
-//!  (a `git rebase --rebase-merges` merge step, or `git am --abort` during a rebase that applies patches).
+//!  because an abort form can end another operation's state:
+//!  a `git rebase --rebase-merges` merge step,
+//!  or `git am --abort` during a rebase that applies patches.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
