@@ -92,6 +92,11 @@ pub struct CeilingStop {
     /// Such a program may still be running,
     /// which the record and the stop's words say.
     pub below_unended: u32,
+    /// The bound the step ran under once the ceiling stood aside for a step the kernel held,
+    /// and nothing when the ceiling never stood aside.
+    /// The record takes it from here when no notice thread ran,
+    /// so a stop of a step the kernel held is still told from one that was working.
+    pub stall_ceiling: Option<Duration>,
 }
 
 // What:
@@ -239,6 +244,8 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
         return Ok((outcome_of(status), None));
     }
     let mut waited: Duration = began.elapsed();
+    // The bound the step ran under when the ceiling stood aside, which the stop keeps for the record.
+    let mut stood_aside: Option<Duration> = None;
     // What: The step reached its ceiling while the kernel held it in a disk wait.
     // Why:  Such a step is waiting for the disk and not stuck in its own work,
     //       and a signal cannot shorten that call;
@@ -248,6 +255,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     if ceilings.while_the_kernel_holds_it > waited
         && let Some(held) = crate::scratch_step_look_below::the_kernel_holds_the_step(owned.id())
     {
+        stood_aside = Some(ceilings.while_the_kernel_holds_it);
         let stalled: AStalledStep<'_> = AStalledStep {
             began,
             waited,
@@ -305,7 +313,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     {
         return Ok((outcome_of(status), None));
     }
-    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended })));
+    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended, stall_ceiling: stood_aside })));
 }
 
 /// What:

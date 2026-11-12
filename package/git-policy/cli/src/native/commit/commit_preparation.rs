@@ -280,6 +280,9 @@ pub fn run_native_commit_within(
         facts.stopped_after = Some(stop.waited);
         facts.below_unlisted = !stop.below_listed;
         facts.below_unended = stop.below_unended;
+        // A notice thread the system refused leaves no record of a ceiling that stood aside, and the wait that
+        //  enforced it names the bound here, so the words still say the step was waited for.
+        facts.stall_ceiling = facts.stall_ceiling.or(stop.stall_ceiling);
     }
     let stopped_after: Option<std::time::Duration> = facts.stopped_after;
     let below_unlisted: bool = facts.below_unlisted;
