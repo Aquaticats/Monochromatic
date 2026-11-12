@@ -16205,13 +16205,17 @@ and work that exists nowhere else is refused even there:
   (`src/native/repo_read/repository_facts_paths_the_form_writes.rs`);
   the paths come from the form's own words
   (`src/native/policy/policy_linked_worktree_exempt_written_paths.rs`):
-  the tree a hard reset, a forced checkout, a forced switch, a `restore --source` or a `read-tree -u` writes,
+  the tree a hard reset,
+  a forced checkout,
+  a forced switch,
+  a `restore --source` or a `read-tree -u` writes,
   the index a `restore` or `checkout` without a source writes,
   each under its `--prefix`,
   and the destination a `mv --force` writes;
 - a nested Git repository a clean would delete,
   found below the paths its own dry run names;
-- an ignored file whose path the tree a forced checkout, a forced switch or a hard reset writes tracks,
+- an ignored file whose path the tree a forced checkout,
+  a forced switch or a hard reset writes tracks,
   which is the refusal an ordinary linked worktree already makes (`ignored_file_message`).
 
 A clean that deletes ignored files and nothing else runs and is logged:

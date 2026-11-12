@@ -492,7 +492,8 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
 ///  and the audit names what it would have destroyed.
 /// Why:
 ///  The exemption covers the build step's own changes and never work Git did not put there;
-///  the file exists nowhere else, so the refusal is the only protection the wrapper has.
+///  the file exists nowhere else,
+///  so the refusal is the only protection the wrapper has.
 #[test]
 fn linked_worktree_exempt_refuses_the_untracked_file_a_form_would_overwrite() {
     let root: PathBuf = fixture("checks-cargo-build-untracked");

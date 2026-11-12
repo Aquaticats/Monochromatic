@@ -396,7 +396,8 @@ fn with_the_opt_out(arguments: &[&str]) -> Vec<String> {
     return words;
 }
 
-/// A nested repository inside `parent`, holding one commit and one uncommitted file,
+/// A nested repository inside `parent`,
+///  holding one commit and one uncommitted file,
 ///  which is the work no copy of the surrounding repository holds.
 fn nested_repository(fixture: &Fixture, parent: &Path, name: &str) -> PathBuf {
     let nested: PathBuf = parent.join(name);
@@ -431,7 +432,8 @@ fn clone_with_an_untracked_file_in_the_way(fixture: &Fixture) -> PathBuf {
 /// Why:
 ///  The exemption exists so a build step that resets its own vendored clone is not refused,
 ///  and the owner's rule of 2026-11-12 allows no saved copy:
-///  the refusal is the protection, not a copy beside the audit log.
+///  the refusal is the protection,
+///  not a copy beside the audit log.
 #[test]
 fn a_hard_reset_in_a_clone_under_the_cargo_build_directory_runs_without_a_copy() {
     let fixture: Fixture = fixture("cargo-build-directory-reset");
@@ -460,7 +462,8 @@ fn a_hard_reset_in_a_clone_under_the_cargo_build_directory_runs_without_a_copy()
 
 /// What:
 ///  A forced clean in a clone under the Cargo build directory is refused over the untracked file it would delete,
-///  the refusal names it, and its opt-out runs the clean as Git would with no copy made.
+///  the refusal names it,
+///  and its opt-out runs the clean as Git would with no copy made.
 /// Why:
 ///  The review found `git clean -fdx` losing that file there unsaved;
 ///  the owner's rule of 2026-11-12 is a refusal that names the file,
@@ -506,12 +509,15 @@ fn a_forced_clean_in_a_clone_under_the_cargo_build_directory_refuses_the_untrack
 
 /// What:
 ///  A clean with a second force that deletes no ignored file is refused over a nested repository it would delete,
-///  the refusal names the repository, and its opt-out deletes it as Git would with no copy.
+///  the refusal names the repository,
+///  and its opt-out deletes it as Git would with no copy.
 /// Why:
 ///  Git's second force removes a nested repository whatever `-x` asks
-///  (`builtin/clean.c`: `if (force > 1) rm_flags = 0`),
+///  (`builtin/clean.c`:
+///  `if (force > 1) rm_flags = 0`),
 ///  and the review found `git clean -ffd` in an exempt clone deleting one,
-///  history and uncommitted file included, with nothing saved.
+///  history and uncommitted file included,
+///  with nothing saved.
 #[test]
 fn a_forced_clean_without_ignored_files_in_a_clone_under_the_cargo_build_directory_refuses_a_nested_repository() {
     let fixture: Fixture = fixture("cargo-build-directory-clean-nested");
@@ -558,7 +564,8 @@ fn a_forced_clean_without_ignored_files_in_a_clone_under_the_cargo_build_directo
 ///  A forced clean of ignored files alone in a clone under the Cargo build directory runs and is logged,
 ///  with no refusal and no copy.
 /// Why:
-///  The owner decided on 2026-11-12 that `git clean -fX` and `git clean -fx` delete, exit 0 and are logged;
+///  The owner decided on 2026-11-12 that `git clean -fX` and `git clean -fx` delete,
+///  exit 0 and are logged;
 ///  an ignored file is the one class this guard does not refuse over.
 #[test]
 fn a_forced_clean_of_ignored_files_in_a_clone_under_the_cargo_build_directory_runs_and_is_logged() {
@@ -591,11 +598,17 @@ fn a_forced_clean_of_ignored_files_in_a_clone_under_the_cargo_build_directory_ru
 
 /// What:
 ///  Every tree-writing form that would overwrite an untracked file in a clone under the Cargo build directory
-///  is refused and names the file, and its opt-out runs the form as Git would with no copy.
+///  is refused and names the file,
+///  and its opt-out runs the form as Git would with no copy.
 /// Why:
-///  The review found `reset --hard`, a forced checkout, a forced switch, `restore`, `read-tree --reset -u`
+///  The review found `reset --hard`,
+///  a forced checkout,
+///  a forced switch,
+///  `restore`,
+///  `read-tree --reset -u`
 ///  and `checkout <rev> -- <path>` each replacing that file unsaved;
-///  the owner's rule of 2026-11-12 is one refusal per form, naming what it would destroy,
+///  the owner's rule of 2026-11-12 is one refusal per form,
+///  naming what it would destroy,
 ///  with the guard's opt-out as the way through.
 #[test]
 fn every_tree_form_that_would_overwrite_an_untracked_file_is_refused() {
@@ -649,9 +662,11 @@ fn every_tree_form_that_would_overwrite_an_untracked_file_is_refused() {
 
 /// What:
 ///  `mv --force` onto an untracked destination in a clone under the Cargo build directory is refused,
-///  names the destination, and its opt-out overwrites it as Git would with no copy.
+///  names the destination,
+///  and its opt-out overwrites it as Git would with no copy.
 /// Why:
-///  A move is not a tree write, so its written path is the destination itself;
+///  A move is not a tree write,
+///  so its written path is the destination itself;
 ///  the destination exists nowhere else once the move replaces it.
 #[test]
 fn a_forced_move_in_a_clone_under_the_cargo_build_directory_refuses_an_untracked_destination() {
@@ -693,7 +708,9 @@ fn a_forced_move_in_a_clone_under_the_cargo_build_directory_refuses_an_untracked
 
 /// What:
 ///  `checkout-index --force --prefix` over an untracked file in a clone under the Cargo build directory
-///  is refused, names the file under its prefix, and its opt-out writes it as Git would with no copy.
+///  is refused,
+///  names the file under its prefix,
+///  and its opt-out writes it as Git would with no copy.
 /// Why:
 ///  The index's paths move under the prefix the command names,
 ///  and the untracked file there is replaced by the index's content;
