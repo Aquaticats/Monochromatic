@@ -386,9 +386,9 @@ never by a commit the two could not share
 - `native:test:host -- --no-run`:
   `Finished` of the `test` profile in 2.71 s after the last code change.
 - `native:test:binary:host -- --no-run`:
-  see the line this section's commit carries.
+  `Finished` of the `test` profile in 3m 13s after the last code change.
 - `native:clippy` on every target:
-  `Finished` of the `dev` profile in 27.15 s at the tip,
+  `Finished` of the `dev` profile in 1m 29s at the tip,
   with warnings denied.
 - The modules this run touched,
   each read from its own summary line:
