@@ -400,7 +400,7 @@ fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, 
             ));
         }
     };
-    match keep_this_commit(git, common_dir, seq, commit.as_str()) {
+    return match keep_this_commit(git, common_dir, seq, commit.as_str()) {
         Some(name) => UnreadableKeeping::Kept(words_of_a_commit_kept_from_an_unreadable_record(record, scratch.as_str(), commit.as_str(), name.as_str())),
         None => UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
             record,
@@ -412,7 +412,7 @@ fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, 
             )
             .as_str(),
         )),
-    }
+    };
 }
 
 /// What:
