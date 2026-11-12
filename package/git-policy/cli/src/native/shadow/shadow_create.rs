@@ -529,6 +529,33 @@ pub struct ShadowTree {
 }
 
 /// What:
+///  Whether this attempt may ask the service for a drawn shadow.
+/// Why:
+///   Three cases the hand-out cannot serve, each of which keeps the commit on the path it knows:
+///  a reftable repository's shadow is Git's own tables,
+///  a linked worktree that keeps its own `info` builds its own directory,
+///  and both are never drawn for, so asking would be one round trip for nothing.
+///  A commit that concludes a merge,
+///  a cherry-pick or a revert copies the state that conclusion leaves and compares it with what Git removed in the
+///  shadow,
+///  reading the shadow at the path its own scratch tree holds,
+///  so it takes a member or makes its creation until that comparison names the tree the request built in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mayBeHandedATree = (template, carryConclusion) => template.refFormat !== 'reftable' && !keepsItsOwnInfo(template) && !carryConclusion;
+/// ```
+pub(crate) fn may_be_handed_a_tree(template: &ShadowTemplate, carry_conclusion: bool) -> bool {
+    if carry_conclusion {
+        return false;
+    }
+    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
+        return false;
+    }
+    return !crate::shadow_links::keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()).unwrap_or(false);
+}
+
+/// What:
 ///  The shadow of one commit:
 /// a finished one the service drew ahead and handed over,
 /// a finished one this invocation can use from the pool,
@@ -571,11 +598,7 @@ pub fn take_or_create_shadow(
     //       this invocation refuses is handed back and the commit takes the pool's member or makes its own: nothing about
     //       the question can fail a commit.
     clock.next("shadow hand-out");
-    // A reftable repository's shadow is Git's own tables and a worktree that keeps its own `info` builds its own,
-    //  so the service draws for neither and the commit does not ask.
-    let drawable: bool = template.ref_format != crate::transaction_journal::RefFormat::Reftable
-        && !crate::shadow_links::keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()).unwrap_or(false);
-    let asked: Option<PathBuf> = match drawable {
+    let asked: Option<PathBuf> = match may_be_handed_a_tree(&template, carry_conclusion) {
         true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory),
         false => None,
     };

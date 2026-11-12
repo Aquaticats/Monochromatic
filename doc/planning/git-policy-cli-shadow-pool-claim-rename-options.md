@@ -877,6 +877,17 @@ inside today's bounds,
 and says nothing unless the fallback itself is slow,
 which the timing record names.
 
+One case is left out of the hand-out, and the code says so where it decides:
+a commit that concludes a merge,
+a cherry-pick or a revert keeps the path it has today.
+The landing that concludes compares the state Git left in the shadow with the copy it kept,
+and it reads the shadow at the path the commit's own scratch tree holds
+(`conclusion_state_copy.rs`,
+`remove_conclusion_state`),
+which a tree used where it stands does not occupy.
+Naming the tree the request built in at that comparison is the follow-up this leaves,
+and until it is made those commits claim or create as they always did.
+
 #### The hand-out must not reintroduce a wait for the rename elsewhere
 
 The rename is on the draw's own thread, which delays nothing but the next draw,

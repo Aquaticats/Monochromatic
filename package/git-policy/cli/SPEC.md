@@ -13045,6 +13045,14 @@ in its checked form, so every question a claim asks is asked of the tree that is
   leaves the tree to the command, which releases it beside itself in the background.
 - A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
   their commit makes its creation, and it asks nothing.
+- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  and takes the pool's member or makes its creation as it did before:
+  the landing that concludes compares the state Git left in the shadow with the copy it kept,
+  reading the shadow at the path the commit's own scratch tree holds
+  (`conclusion_state_copy.rs`,
+  `remove_conclusion_state`),
+  which a tree used where it stands does not occupy
+  (`may_be_handed_a_tree` in `shadow_create.rs`).
 - `buildParts` names the ask and the check `shadow hand-out`:
   a build that took a drawn tree names no `shadow pool` and no creation stretch,
   so a reading of a slow commit tells the three routes apart.

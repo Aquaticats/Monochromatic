@@ -9,7 +9,7 @@
 use super::*;
 use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
 use crate::commit_build_part_durations::BuildPartClock;
-use crate::shadow_create::{ShadowTemplate, create_shadow_template};
+use crate::shadow_create::{ShadowTemplate, create_shadow_template, may_be_handed_a_tree};
 use crate::shadow_pool::{fill, members, pool_root};
 use crate::shadow_pool_member::refusal;
 use crate::test_support::{fixture, git, git_context, remove, repository};
@@ -256,5 +256,27 @@ fn a_tree_the_service_took_is_left_to_the_service_and_one_it_did_not_is_removed(
         "a tree the service did not take is removed beside the command"
     );
     assert!(taken.exists(), "a tree the service took is still there for the service to remove");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit that concludes a merge, a cherry-pick or a revert is never handed a drawn tree,
+///  and a reftable repository or a worktree that keeps its own `info` is never handed one either.
+/// Why:
+///   The landing of a conclusion compares the state Git left in the shadow with the copy it kept,
+///  reading the shadow at the path the commit's own scratch tree holds,
+///  so a tree used where it stands is not one that comparison can name yet.
+///  The other two cases are shadows no draw makes
+///  (`shadow_pool_member.rs`,
+///  `shadow_drawn.rs`).
+#[test]
+fn a_conclusion_commit_or_a_shadow_no_draw_makes_is_never_handed_a_tree() {
+    let root: PathBuf = fixture("shadow-drawn-gates");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    assert!(may_be_handed_a_tree(&template, false), "an ordinary commit of a files-backend repository is one the service may serve");
+    assert!(!may_be_handed_a_tree(&template, true), "a commit that concludes something is not");
+    let reftable: ShadowTemplate = ShadowTemplate { ref_format: crate::transaction_journal::RefFormat::Reftable, ..template_of(repo.as_path()) };
+    assert!(!may_be_handed_a_tree(&reftable, false), "a reftable repository's shadow is Git's own tables");
     remove(root.as_path());
 }
