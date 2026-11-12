@@ -14,6 +14,13 @@
  */
 
 /**
+ The document head and assets served with every page response.
+
+ @internal
+ */
+export { indexHtmlStart, } from './asset.ts';
+
+/**
  Feed fetching, parsing, and date sorting.
 
  @internal
