@@ -677,3 +677,215 @@ outside the repository:
   the split over all 330;
   `out/prims.json` and `out/mix.json`,
   the primitive and mixed-window figures.
+
+## The design the owner's decision made
+
+The owner decided on 2026-11-11 for option A of this record,
+in the checked form:
+the resident service renames a pool member into place ahead of a commit,
+hands the commit that path,
+and the commit still runs every check this record's
+"The claim today, and the guarantee it keeps" lists on the tree it is handed.
+Two things are decided with it:
+
+- Options C and D are not taken.
+  A tree a commit uses is compared with what its own creation would have made,
+  at the claim as today and again at the hand-out.
+- Option E is taken when its own probe passes.
+  The probe runs Git and `write_shadow_refs` in a shadow without `objects/pack`,
+  `refs/heads` and `refs/tags`,
+  and its result is in "The option E probe and its result" below.
+
+What follows is the design that carries the decision out,
+written before the code,
+and the sections below name the paths and the functions the code uses.
+
+### Where the drawn trees are kept
+
+A drawn tree is a finished shadow the service has already renamed out of the pool,
+so no commit's wait holds a rename of its own.
+It lives in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
+a folder beside the pool's own and never inside it,
+with the same key rule the pool uses
+(`pool_key` in `shadow_pool.rs`),
+and one entry per tree, named `drawn-<random identity>`.
+It is the wrapper's own state of the kind the pool is,
+so no shadow links either folder
+(`shadow_links.rs`,
+`is_shared_shadow_entry`).
+
+The reason it is a folder of its own and not an entry of the pool's:
+a claim takes a member by renaming it out of the pool,
+so nothing a commit uses is ever inside the pool's folder,
+and the removal of a removed worktree takes that folder out of its name with one rename
+before anything of it is deleted
+(`worktree_removal_clears_the_pool.rs`).
+A drawn tree is used where it stands,
+so it would be inside a tree that rename takes.
+Beside the pool a drawn tree is something a removal has to leave alone by asking whether a commit holds it,
+which is the question the sweep asks.
+
+A member is a skeleton, a `config`, an `objects/info/alternates`, a `HEAD` and one link per shared entry,
+so the drawn folder holds about what the pool holds:
+at most one drawn tree beside the pool's `POOL_LIMIT` members,
+which is why the draw stops at `DRAWN_LIMIT` (one) and leaves the pool's own limit where it is.
+
+### The message a commit sends, and the answer it gets
+
+A commit asks on the service's socket,
+on a connection of its own that ends with the answer,
+and never through the landing queue:
+
+- ``{"type":"shadow","gitDir":"<path>","scratch":"<path>"}``,
+  `ClientMessage::Shadow`,
+  sent once per attempt by `ask_for_a_drawn_shadow`
+  (`service_client_shadow_hand_out.rs`).
+  `scratch` is the commit's own scratch tree,
+  whose name carries the request's identity and the attempt's number,
+  so an answer can be given to a question about a tree this commit holds.
+- `{"type":"drawn","tree":"<path>"}`, `ServiceMessage::Drawn`,
+  or `{"type":"no-shadow"}`, `ServiceMessage::NoShadow`.
+
+The answer is given by the connection's own task (`service_server_connection_handling.rs`),
+which is where `Warm` is answered today,
+and never by the landing thread:
+the stock of drawn trees is a value of the service's own (`service_shadow_draw.rs`),
+read and taken under a lock that guards nothing on disk and dies with the process,
+so a commit that waits for its tree waits for a message and a mutex that guards nothing on disk, so nothing makes a commit queue behind a landing.
+
+A commit that is handed a tree asks nothing more of the service for it:
+
+- it runs `refusal` (`shadow_pool_member.rs`) on the tree,
+  which is the same check a claim runs and is all reads;
+- it renews the tree while it lives,
+  the way it renews its own scratch tree (`service_scratch_renewal.rs`);
+- the request it then sends names the tree in a new field, `shadow`,
+  so the service removes it once that request's landing is over,
+  beside the scratch tree it already removes (`service_scratch_release_removal.rs`).
+
+### The sweep, and how a tree in use is told from an abandoned one
+
+A tree in use is a fresh drawn tree,
+and a tree nobody uses is a stale one,
+which is the rule the wrapper already has for a commit's scratch tree:
+the client renews the tree it was handed every `SCRATCH_REFRESH_EVERY` while its command lives,
+so a drawn tree is never older than an hour while a commit holds it,
+and a client killed at any instruction stops renewing it,
+exactly as its scratch tree does (`service_scratch_abandonment.rs`).
+No lock is written, so no lock can be left held:
+the fact that decides is the modification time of a directory,
+which the wrapper writes in one call, and the two ends of the question are a client that renews and one that stopped.
+
+`sweep_drawn` (`shadow_drawn.rs`) removes the drawn trees of a worktree older than
+`SCRATCH_TREE_ABANDONED_AFTER` (two hours),
+the age the scratch sweep uses and the measured bound for how long the longest commit lives,
+and removes a worktree's folder once nothing is in it.
+It runs in three places:
+
+- beside every wrapped command,
+  next to the sweep of a gone worktree's pool (`sweep_gone_worktrees`),
+  so a repository nobody commits in still loses a tree a killed client left;
+- beside the service's own draw,
+  on that thread, so a busy repository collects as it goes;
+- when a worktree is removed (`worktree_removal_clears_the_pool.rs`),
+  where only that worktree's folder is asked,
+  and where a fresh tree is left alone:
+  a live commit's tree is fresh, and a removal that took it would take the ref store that commit had just written.
+
+The pool's own rule is unchanged:
+the pool of a removed worktree is still taken out of its name with one rename and deleted,
+because nothing a commit uses is in it.
+
+### A commit that finds no drawn tree, or no service
+
+The ask is an offer, never a step a commit needs:
+
+- `ask_for_a_drawn_shadow` gives the whole exchange `DRAWN_ANSWER_DEADLINE` (250 ms,
+  which is a hundred and fifty times the largest answer this record measured,
+  1.684 ms over 3,000 round trips),
+  and it starts nothing:
+  its connect and its reads are inside that one span.
+  The demand is bounded, the answer is one line, and the service is asked nothing else.
+- An empty stock is `NoShadow`,
+  a socket nothing listens on is no connection at all,
+  and a service that does not answer inside the span is a service that did not answer.
+  In every one of those cases the commit runs the path it runs today:
+  `take` renames a member out of the pool,
+  and a pool with none left leaves the creation, within the bounds it has today.
+- The fallback says nothing on the terminal.
+  A slow claim or a slow creation is named in the commit's timing record by the build parts it already writes
+  (`shadow pool`, `shadow skeleton`, `shadow config`, `shadow links`),
+  and the hand-out names itself beside them as `shadow hand-out`.
+  A commit that took a drawn tree names no creation part,
+  so a reading of a slow commit tells the three routes apart.
+- A tree the service hands out that this invocation's `refusal` answers with a reason is handed back
+  (removed in the background, as a refused member is today)
+  and the commit takes the path above:
+  the service's copy of the check is the fill's, and this commit's own facts are what decide.
+
+### Where the rename happens now, and what it can delay
+
+The rename moves from the commit to the service,
+where it runs on a thread of its own named `shadow-pool-draw`
+(`service_shadow_draw::start`,
+called beside the fill in `land_group`),
+so what it can delay is:
+
+- the next draw, which a guarded flag serializes, and nothing else on that thread;
+- nothing the landing thread does:
+  the draw takes a pool member and checks it, and the landing holds no lock on either;
+- nothing a client waits for:
+  the answer is a value in memory, and a draw that stalls 5,606 ms leaves the stock empty for that time,
+  which costs the commits in it today's path and costs no commit a wait.
+
+The second write a drawn tree costs is the renewal every `SCRATCH_REFRESH_EVERY`,
+on the client's own thread,
+and it is the same call the scratch tree already pays:
+no commit's wait holds it.
+
+### What the record's four cons became
+
+#### The commit waits for one more answer from the service
+
+It waits for one line,
+answered by the connection's task and never by the landing thread,
+and bounded at `DRAWN_ANSWER_DEADLINE` before it falls back.
+An answer that comes while another commit lands is measured in
+"What the hand-out costs" below,
+against the same question asked while nothing lands.
+
+#### A handed-out tree's lifetime is the service's
+
+It is the renewal's and the sweep's,
+and a removal leaves a fresh tree alone.
+The three cases the record names:
+
+- a client killed after the hand-out leaves a tree that stops being renewed,
+  which the sweep removes once it is two hours old,
+  exactly as the tree it would have made in its own scratch would go;
+- a worktree removal asks its own folder and leaves a fresh tree,
+  so the tree of a commit that is running in that worktree is still there when the commit's own Git reads it;
+- an answer the service gave that this commit did not use
+  (a request the service never took, a commit sent back to be prepared again)
+  is released beside the command in the background,
+  the way the scratch tree of such a request is released today.
+
+#### An empty stock, or a service that does not answer
+
+The commit falls back to the claim and then the creation,
+inside today's bounds,
+and says nothing unless the fallback itself is slow,
+which the timing record names.
+
+#### The hand-out must not reintroduce a wait for the rename elsewhere
+
+The rename is on the draw's own thread, which delays nothing but the next draw,
+and neither the claim nor the creation waits for it.
+
+### The option E probe and its result
+
+Not written yet: the probe runs before option E is built.
+
+### What the hand-out costs
+
+Not written yet: measured on this machine, after the change, as the sections above this one were.
