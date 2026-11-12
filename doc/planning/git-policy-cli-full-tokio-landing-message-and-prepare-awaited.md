@@ -7,7 +7,9 @@
   Commit `a443c41877` is the message and its identities,
   `23ddacc067` is the preparation's two steps,
   `81ab197344` is the two Clippy findings those two files still carried,
-  and `6a18f86d5c` is the split the line budget asked for.
+  `6a18f86d5c` is the split the line budget asked for,
+  `1bc21f1066` is this record,
+  and `8b8ac24b96` with `6f691c0b9b` are its own checks at the tip and one doc sentence.
   Not merged into the integration or `main`:
   the coordinator merges this branch.
 - What this run was asked to do,
