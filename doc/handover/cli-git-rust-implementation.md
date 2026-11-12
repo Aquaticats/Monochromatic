@@ -135,6 +135,153 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### 0.6.1-alpha.12 dispatched from pass 15, two branches landed on `main`, and decisions taken while the owner is away (2026-11-11T22:29:30-05:00)
+
+#### 0.6.1-alpha.12
+
+Integration pass 15 ended at 22:17 with tip `a739cb087a` on `integrate/git-policy-cli-pass-15-for-alpha-12`:
+all twelve branches merged (seven with conflicts it resolved),
+five repair commits,
+`main` merged twice.
+Its last lines:
+library test compile, binary test compile and Clippy over all targets each "Finished",
+exit 0;
+the three tests the coordinator named pass;
+"No suite was run. The gate is still the release's."
+Its whole report is `~/temp/agent/digest-2026-11-11T2225/integration-pass-15-final-report.md`;
+the section "Where I had to pick one side, for a reviewer to look at" is the reading list for the audits.
+
+`main` took it as `d90730337c` at 2026-11-11T22:24:59-05:00 (the merge ran ten seconds on `0.6.1-alpha.11`).
+`native:release -- 0.6.1-alpha.11 0.6.1-alpha.12` was dispatched at 22:25:33 in unit `gpc-release-0-6-1-alpha-12`
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.12.log`):
+`crate-release.yml` run 43148147189 completed with success and pushed the version commit `418ef369a6`;
+`cargo-publish.yml` run 43148284554 is building the two binaries,
+followed by unit `gpc-release-wait-0-6-1-alpha-12`.
+The full gate runs beside it, not waited for:
+unit `gpc-gate-wrapper-next-alpha-on-d90730337c-20261111T222552-0500`,
+log of the same name under `${HOME}/temp/agent/gate/`.
+Still to do:
+`native:install -- 0.6.1-alpha.12`,
+the global lock remedy by `mpm-shadow`'s full path,
+the commit numbers by hour,
+the gate's verdict,
+and the Kimi and Sonnet audits of the released commit.
+
+What `0.6.1-alpha.11` measured before it is replaced
+(`${HOME}/temp/agent/scratch-scripts/commit-timing-by-release.ts` over the timing log, 22:24):
+142 records, 132 landed;
+landed medians by clock hour 11,254 ms, then 4,206 ms, then 2,509 ms;
+four stopped commits
+(one at a Git step at 20:04 after 76,763 ms,
+two of unidentified kind at 20:11,
+and a native `git commit` exit status 1 at 21:47);
+the other six records are refusals of a pathspec.
+The slow first hour did not last.
+
+#### Why a release with open review findings in it
+
+The qwen4 review of the landed-sweep findings branch (`c3a640a77c`, merged in pass 15) reports five defects.
+Read against `0.6.1-alpha.11`, none is a loss that the new release adds:
+the two reset-onto removals exist in alpha.11 and the branch closes a third case of the same kind;
+the reflog read that blocks on a planted named pipe uses the same `std::fs::read` alpha.11 already uses for `branch_made_at`;
+the nested-worktree window is narrowed, not opened;
+the SHA-256 case keeps a worktree too long and loses nothing.
+The owner's standing rule covers the rest ("reviews and mutation testings don't block publishing").
+One thing the merge itself made:
+the removal of a landed worktree is now handed to the service,
+and the proof that nothing was added inside it is made before the hand-over, not when the service destroys.
+The pass's agent named that gap.
+Round 259 (`landed-removal-handed-to-the-service-proves-again-before-it-destroys`,
+base the pass 15 tip, started 22:28:43) measures the window and moves the proof to the destruction.
+
+#### Two branches on `main`
+
+- `feat/pi-shared-subagent-driver-review-commands-on-qwen4` as `b29b83a67b` at 22:20:56.
+  The branch already held every driver commit of `main`,
+  so the merged tree is the tree its agent tested.
+  `mise exec -- pnpm install --offline --frozen-lockfile` ran in the main checkout right after ("Already up to date"),
+  and three Pi runs started after it took turns.
+  First real use:
+  unit `start-reviews-round-260` runs `start-reviews-of-finished-branches` over five finished branches
+  (sweep spares busy worktrees, trash boundary, pooled shadow findings, worktree add within 60 s, the abort fix),
+  with `--reviews-folder=${HOME}/temp/agent/reviews`;
+  two review units were running within a minute.
+  A defect met on the way,
+  sent to the driver-tests agent:
+  `mise run //package/pi-shared/subagent-driver:<task> -- --help` ends in a TypeScript syntax error,
+  because `--help` lands in the task's inline script text.
+- `integrate/cargo-shadow-lean-runs-continuously-onto-main` as `8badf12ad4` at 22:27:58.
+  `cargo-shadow` `0.1.5-alpha.10` was dispatched at 22:28
+  (unit `cs-release-0-1-5-alpha-10`, `crate-release.yml` run 43148472892,
+  followed by unit `cs-release-wait-0-1-5-alpha-10`).
+  The unit's `ExecStart` is the installed `.cache/toolchain-bin/cargo-shadow lean run`,
+  so only a release makes the running cleanup current.
+  Still to do after it is published:
+  `mise run toolchain:install`,
+  one listing of what the new `lean run` would remove while agents are building,
+  then `cargo-shadow lean service-install` and the three checks its landing agent listed.
+
+Both merges were tried in memory first (`git merge-tree --write-tree`),
+because `git merge --abort` is refused in the main checkout.
+The installed release keeps a worktree with no commit of its own out of another branch's merge
+(`4b2d609814`, an ancestor of the alpha.11 version commit),
+so the fresh worktrees of running agents were not at risk.
+
+One reading of `git status` to know about:
+at 22:28:21, while the wrapper was bringing the main checkout up to the published merge of `main` and `origin/main`,
+`git status --short --branch` showed "behind 2" and the four files of the version commit as modified;
+twenty seconds later it showed neither.
+Nothing was wrong,
+and the audits of alpha.12 are asked whether a reader can tell that state from a real edit.
+
+#### The abort fix, first pass and second
+
+`fix/git-policy-cli-review-findings-abort-saves-a-copy-before-every-abort` ended at `8f25491161`:
+the four reviewed defects fixed with tests shown failing first
+(a per-command liveness question and a per-operation restored revision).
+Its report names no verdict on fitness,
+its last Clippy run came before its last commit,
+and one sentence of it (the refusal text saying the copy is "of what stood when it was saved") matches nothing in the branch.
+The digest is `~/temp/agent/digest-2026-11-11T2220/abort-fix-run.md`.
+
+Round 258 (`abort-and-skip-save-what-they-discard-second-pass`, base that tip, started 22:22:18) takes what it left open.
+
+#### Decided while the owner is away, each open to veto
+
+The owner, about 20:03:
+"Make decisions I'd definitely approve (based on my apparent taste) yourself."
+
+- Release `0.6.1-alpha.12` from pass 15 without waiting for the gate or for the open review findings
+  (standing rule for alphas; reasoning under "Why a release with open review findings in it").
+- Merge the two branches reported fit into `main`.
+- Release `cargo-shadow` `0.1.5-alpha.10` instead of installing a locally built binary
+  ("I'm authorizing you to bump and publish any updates this session.";
+  the unit runs the installed binary).
+- `--skip` saves a copy of the hand resolution it discards and goes on,
+  and does not start refusing where a copy makes it safe ("never discard user data").
+- Content that stands only in the index is saved with the abort's copies and the abort goes on;
+  the refusal the first pass added stays only for content that cannot be read or written.
+  A refusal lost nothing, but it stopped a command that could go on.
+- An untracked file that makes Git refuse an abort gets words that say so and name it;
+  no copy is announced that was not needed.
+- An edit written after the save is narrowed:
+  the saved paths are compared again immediately before Git starts and what changed is saved again,
+  a bounded number of rounds,
+  then the abort is refused naming the file.
+  The window that remains is written where a person reads it.
+- A foreign nested subvolume keeps the built behaviour (refuse and name it) until the owner answers;
+  nothing is changed there.
+
+#### For the owner's return
+
+- Whether qwen4 alone stays the reviewer of a change, given the four paired reviews recorded at 22:17.
+- Whether refusing a foreign nested subvolume by name meets "make the wrapper work in that case.",
+  or whether it is set aside under a kept name.
+- Worktree add still passes 60 s under the worst load measured (71 s), and the package repair's quiet window is 600 s.
+- Whether to keep the previous wrapper release on disk, so a way back exists.
+- The wg deploy (needs `sudo`, takes the tunnel down) and its new-exemptions branch.
+- The notification's 6,000 ms bound.
+
 ### What the runs that ended by 21:55 led to, and a run freed from a container that would not end (2026-11-11T22:17:19-05:00)
 
 The digest of those runs is `~/temp/agent/digest-2026-11-11T2155/digest.md`.
