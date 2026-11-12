@@ -231,7 +231,7 @@ fn a_landed_batch(commit: &str, request: &str) -> Intent {
         seq: 7,
         repository: PathBuf::from("/nowhere/repository"),
         common_dir: PathBuf::from("/nowhere/repository/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: "2".repeat(40),
         new: String::from(commit),
         ids: vec![String::from(request)],

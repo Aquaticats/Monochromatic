@@ -43,7 +43,7 @@ fn held() -> Held {
         repository: PathBuf::from(REPOSITORY),
         common_dir: PathBuf::from("/home/a person/repo/.git"),
         git_dir: PathBuf::from("/home/a person/repo/.git"),
-        reference: String::from(BRANCH),
+        reference: crate::ref_name::RefName::from_text(BRANCH),
         old: String::from("28eee868fd46048086fa119276660a6900226510"),
         new: String::from(COMMIT),
         commits: vec![String::from(COMMIT)],

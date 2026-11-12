@@ -20,7 +20,7 @@ use std::path::PathBuf;
 /// ```ts
 /// const [sync, awaited] = bothAnswers(context, repo, reference, prepared);
 /// ```
-fn both_answers(context: &GitContext, repo: &Path, reference: &str, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
+fn both_answers(context: &GitContext, repo: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
     let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, reference, prepared);
     let awaited: WhatTheBranchShows =
         crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, reference, prepared)).expect("the runtime");
@@ -59,8 +59,9 @@ fn the_awaited_branch_read_answers_what_the_synchronous_one_answers() {
         ("a commit the branch does not hold", elsewhere.as_str(), WhatTheBranchShows::NotMade),
         ("a commit no object store has", "0000000000000000000000000000000000000000", WhatTheBranchShows::Unread),
     ];
+    let main: crate::ref_name::RefName = crate::ref_name::RefName::from_text("refs/heads/main");
     for (label, prepared, expected) in cases {
-        let (synchronous, awaited) = both_answers(&context, repo.as_path(), "refs/heads/main", prepared);
+        let (synchronous, awaited) = both_answers(&context, repo.as_path(), &main, prepared);
         assert_eq!(synchronous, expected, "{label}: the synchronous read is what the two faces are compared on");
         assert_eq!(awaited, synchronous, "{label}: the two faces answer one thing about the branch");
     }
@@ -101,12 +102,13 @@ fn the_awaited_silence_reports_what_the_synchronous_one_reports() {
         ),
         ("a request with no prepared commit", None, Some(ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread })),
     ];
+    let main: crate::ref_name::RefName = crate::ref_name::RefName::from_text("refs/heads/main");
     for (label, prepared, expected) in cases {
-        let synchronous: Option<ClientFailure> = the_silent_service_after_a_prepare(&context, repo.as_path(), "refs/heads/main", prepared);
+        let synchronous: Option<ClientFailure> = the_silent_service_after_a_prepare(&context, repo.as_path(), &main, prepared);
         let awaited: Option<ClientFailure> = crate::lazy_runtime::run_on_runtime(the_silent_service_after_a_prepare_awaiting(
             &context,
             repo.as_path(),
-            "refs/heads/main",
+            &main,
             prepared,
         ))
         .expect("the runtime");

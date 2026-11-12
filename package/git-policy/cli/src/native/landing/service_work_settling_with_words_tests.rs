@@ -88,7 +88,7 @@ fn queued(name: &str, said: impl Fn(u32) -> Verdict + 'static) -> Queued {
 /// through the service's own drain.
 fn drained(queued: &Queued) {
     let mut replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    crate::lazy_runtime::run_on_runtime(drain_pending_awaiting(queued.common.as_path(), &queued.handlers, CLAIM_LEASE, Renewal::Timed, &mut replanning, &SERVICE_KINDS))
+    crate::lazy_runtime::run_on_runtime(drain_pending_awaiting(queued.common.as_path(), &queued.handlers, CLAIM_LEASE, Renewal::Timed, &mut replanning, &SERVICE_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND))
         .expect("the pending drain runs");
 }
 

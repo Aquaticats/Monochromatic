@@ -32,7 +32,7 @@ fn a_request(repository: &Path, base: &str, path: &str, captured: u64) -> Commit
         repository: repository.to_path_buf(),
         common_dir: common.clone(),
         git_dir: common.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: base.to_string(),
         changes: vec![crate::service_protocol::Change { path: PathBuf::from(path), blob: None, mode: 0o100644 }],
         message: String::from("a control\n"),

@@ -160,7 +160,7 @@ fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
         seq: 1,
         repository: repo.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: base.clone(),
         new: commit.clone(),
         ids: vec![String::from("landed")],
