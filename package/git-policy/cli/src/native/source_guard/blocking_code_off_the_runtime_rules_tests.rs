@@ -223,6 +223,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the helper that starts a thread and runs the work in turn where no thread can start; this is the one thread the runtime step replaces last",
     },
     Allowed {
+        file: "service/service_provision_slow_manager_notice.rs",
+        rule: "thread-start",
+        why: "the line about a service manager that has not answered is said by a thread of its own, because the D-Bus call that waits for it blocks the thread provisioning runs on and nothing else can count those seconds; a timeout around awaited manager calls replaces it when the provisioning is a task",
+    },
+    Allowed {
         file: "foundation/scratch_entry_removal.rs",
         rule: "thread-start",
         why: "the removal of a scratch entry on a thread it starts, awaited under a ceiling",
