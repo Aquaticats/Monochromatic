@@ -370,7 +370,7 @@ pub fn keep_what_an_ended_step_built(context: &crate::service_land_context::Land
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(seq);
     let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) else { return };
-    keep_an_unlanded_commit(&git, first.repository.as_path(), seq, scratch.as_str(), tip.as_str(), announce);
+    let _kept = keep_an_unlanded_commit(&git, first.repository.as_path(), seq, scratch.as_str(), tip.as_str(), announce);
 }
 
 /// Controls for the awaited Git steps of a landing stay out of the release executable.

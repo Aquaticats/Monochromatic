@@ -32,7 +32,7 @@ use crate::service_land_outcomes::Outcome;
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::service_server_land_group::forget_what_a_batch_owes;
 use crate::service_timing::LandTiming;
-use crate::transaction_git::{GitContext, NO_REFLOG_SETTING};
+use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -146,13 +146,18 @@ its commit is not kept; {} Run the commit again once the journal at {} can be wr
                 refused.context.journal.display()
             );
             refused.announce.announce(Announce::Holder(refused.words));
-            drop_the_batch(&DropTheBatch {
+            // The commit was built and is on no branch, so it is kept where a commit that did not land is kept: the record
+            //  that would have held it could not be written, and the person is told where the commit is
+            //  (`end_a_batch_that_will_not_land`).
+            end_a_batch_that_will_not_land(&DropTheBatch {
                 git: refused.git,
                 context: refused.context,
                 repository: refused.repository,
                 seq: refused.seq,
                 intent: refused.intent,
                 scratch: refused.scratch,
+                new: refused.new,
+                announce: refused.announce,
             });
             return Err(FailureCode::ReferenceLocked);
         }
@@ -208,6 +213,8 @@ pub struct GivenUp<'a> {
     pub intent: &'a Intent,
     /// The side reference that held the batch's commits.
     pub scratch: &'a str,
+    /// The commit the batch built.
+    pub new: &'a str,
     /// The branch,
     /// by the bytes Git printed for its name.
     pub reference: &'a crate::ref_name::RefName,
@@ -215,6 +222,31 @@ pub struct GivenUp<'a> {
     pub stderr: &'a [u8],
     /// The clients of the batch.
     pub announce: &'a dyn Announcer,
+}
+
+/// What:
+///  Gives a batch that will never land back,
+///  and keeps the commit it built where a commit that did not land is kept,
+///  so a commit the person is told was not made is still findable.
+/// Why:
+///   A commit no branch names and no reference names is one `git gc --prune=now` takes,
+///  and the person is told the commit was not made and where it is kept
+///  (the owner's rule "never discard user data").
+///  The reference the batch held it on goes only once the kept reference names the commit,
+///  and stays when that keep cannot be written
+///  (`keep_an_unlanded_commit`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = keepAnUnlandedCommit(...); forgetTheBatch(); if (kept.named) updateRef(['-d', scratch, new])
+/// ```
+pub(crate) fn end_a_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
+    let kept: crate::service_land_side_reference_write::AKeptCommit =
+        crate::service_land_side_reference_write::keep_an_unlanded_commit(drop.git, drop.repository, drop.seq, drop.scratch, drop.new, drop.announce);
+    forget_the_batch_that_will_not_land(drop);
+    if kept.named {
+        let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, drop.new);
+    }
 }
 
 /// What:
@@ -239,7 +271,16 @@ pub(crate) fn give_up(given: &GivenUp<'_>) -> FailureCode {
         given.reference
     );
     given.announce.announce(Announce::Holder(format!("The wait for the lock has ended, and Git said: {said}")));
-    drop_the_batch(&DropTheBatch { git: given.git, context: given.context, repository: given.repository, seq: given.seq, intent: given.intent, scratch: given.scratch });
+    end_a_batch_that_will_not_land(&DropTheBatch {
+        git: given.git,
+        context: given.context,
+        repository: given.repository,
+        seq: given.seq,
+        intent: given.intent,
+        scratch: given.scratch,
+        new: given.new,
+        announce: given.announce,
+    });
     return FailureCode::ReferenceLocked;
 }
 
@@ -257,6 +298,11 @@ pub struct DropTheBatch<'a> {
     pub intent: &'a Intent,
     /// The side reference that held the batch's commits.
     pub scratch: &'a str,
+    /// The commit the batch built,
+    /// the one value that reference is expected to name.
+    pub new: &'a str,
+    /// The clients of the batch.
+    pub announce: &'a dyn Announcer,
 }
 
 /// What:
@@ -264,20 +310,25 @@ pub struct DropTheBatch<'a> {
 ///  its intent,
 ///  what it owed,
 ///  the witness of the index it saw,
-///  and the side reference that held its commit.
+///  and the side reference that held its commit,
+///  and only while that reference still names the commit this batch built.
 /// Why:
 ///   Nothing of it will land,
 ///  so no record of it survives
 ///  and the objects it imported are left to Git's own pruning,
 ///  as they were before a commit could be held.
+///  A command that reads a reference and then removes it by name alone removes whatever another command wrote in between,
+///  and that may be the only name of another commit,
+///  so the removal is Git's own compare-and-delete with the value that was read
+///  (the owner's rule "never discard user data").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rm(intent); forgetWhatABatchOwes(intent); rm(start); updateRef(['-d', scratch])
+/// rm(intent); forgetWhatABatchOwes(intent); rm(start); updateRef(['-d', scratch, new])
 /// ```
 pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
     forget_the_batch_that_will_not_land(drop);
-    let _deleted = crate::service_land_git_steps_and_import_stream::run(drop.git, drop.repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", drop.scratch], None);
+    let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, drop.new);
 }
 
 /// What:
@@ -298,7 +349,7 @@ pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code:
         forget_the_batch_that_will_not_land(drop);
         return;
     }
-    drop_the_batch(drop);
+    end_a_batch_that_will_not_land(drop);
 }
 
 /// What:
@@ -320,3 +371,8 @@ pub(crate) fn forget_the_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
     forget_what_a_batch_owes(drop.intent);
     remove_start(drop.context.journal.as_path(), drop.seq);
 }
+
+/// Controls for giving a batch back, and for keeping the commit it built as it is given back.
+#[cfg(test)]
+#[path = "service_land_hold_a_batch_tests.rs"]
+mod tests;

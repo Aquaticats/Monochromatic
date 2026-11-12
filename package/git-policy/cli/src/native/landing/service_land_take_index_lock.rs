@@ -105,7 +105,7 @@ pub(crate) fn take_index_lock(
             //  a refusal that is not another program's lock (a read-only Git directory, a permission, a full disk, a stale lock
             //  nothing can remove) loses the commit exactly as one that is.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(journal, seq, OPEN_EXTENSION));
-            keep_an_unlanded_commit(git, repository, seq, scratch, new, announce);
+            let _kept = keep_an_unlanded_commit(git, repository, seq, scratch, new, announce);
             return Err(failure.code);
         }
     }

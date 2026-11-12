@@ -617,16 +617,17 @@ pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, 
 /// ```ts
 /// const kept = keepUnlanded(git, repository, seq, tip); announce(kept.line); if (kept.named) await updateRefDelete(scratchRef(seq), tip);
 /// ```
-pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str, announce: &dyn Announcer) {
+pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str, announce: &dyn Announcer) -> AKeptCommit {
     let kept: AKeptCommit = keep_unlanded(git, repository, seq, held, tip);
-    announce.announce(Announce::Waiting(kept.line));
+    announce.announce(Announce::Waiting(kept.line.clone()));
     if !kept.named {
-        return;
+        return kept;
     }
     if let_go_of_a_reference_only_while_it_names(git, repository, held, tip) {
-        return;
+        return kept;
     }
     crate::service_warn!("batch {seq} {}: the commit {tip} is kept, and its scratch reference {held} was left as it is: it does not name that commit any more, or it could not be removed", crate::service_timing::in_the_repository_at(repository));
+    return kept;
 }
 
 /// What:
@@ -643,7 +644,7 @@ pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: 
 /// ```ts
 /// const removed = await git(['-c', 'core.logAllRefUpdates=false', 'update-ref', '-d', '--no-deref', name, tip]); return removed.ok
 /// ```
-fn let_go_of_a_reference_only_while_it_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+pub(crate) fn let_go_of_a_reference_only_while_it_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
     return matches!(
         answering(git, GitRequest::new(repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", name, tip])),
         StepAnswer::Answered(output) if output.succeeded()
