@@ -1735,8 +1735,6 @@ fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes
     assert_eq!(std::fs::read(older.join("cache/data")).expect("recovered copy"), b"payload");
     remove(root.as_path());
 }
-    remove(root.as_path());
-}
 
 /// A creation whose command line names no readable destination copies nothing and says so once Git succeeded.
 #[cfg(unix)]

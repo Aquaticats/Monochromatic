@@ -38,6 +38,33 @@ Neuralwatt flex 22,
 opencode-go 20;
 `start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room,
 in that order).
+(Neuralwatt 20, Neuralwatt flex 22, opencode-go 20;
+`start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room, in that order).
+The owner changed the Neuralwatt limits on 2026-11-11 at about 17:05:
+"Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot frees up a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"."
+So the pools are Neuralwatt DeepSeek 18, Neuralwatt DeepSeek flex 20, Neuralwatt Kimi flex 20 (each per model), opencode-go 20, and the qwen plan 4 (comparison runs only);
+the Kimi flex 429 of 21:4xZ ("max 22 in flight at once") was that race.
+Minutes later: "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
+So the opencode-go pool's limit is 0 (no new run goes there) until the owner says the week has reset;
+the one run already on it continues, and if the cap ends it, it resumes on Neuralwatt.
+At about 17:45 the same day, on the qwen plan (which the 16:35 answer had kept for qwen4-max-preview alone):
+"I think there's no point to withholding all Qwen quota to Qwen itself.
+Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017"
+So default runs go first to the pool `qwen-plan-deepseek` (`qwen-token-plan-individual`, `deepseek-v4.1-flash-1017`, 18 slots, the size of the pool it replaces),
+then to Neuralwatt DeepSeek flex;
+standard Neuralwatt DeepSeek takes no new run (limit 0), and the runs already on it finish there.
+Pi lists that model and it answered a test prompt at 17:49.
+The plan's own concurrency limit is not stated or measured: a 429 that names one sets the real number.
+A resume whose pool is closed (standard Neuralwatt, OpenCode Go) now takes the first default pool with room.
+And: "It's Pi's native retry's responsibility to deal with 429s."
+The driver on `main` re-prompts after model errors on its own (`MODEL_ERROR_RETRY_CAP` and its siblings in `package/pi-shared/subagent-driver/src/driver-constants.ts`),
+and on the driver-port review's 429 both layers retried (Pi at 1, 2 and 4 s, then the driver three times) before the run ended.
+Round 225 (`fix/pi-shared-subagent-driver-leaves-429s-to-pis-native-retry`) takes 429s out of the driver's retry;
+`fix/pi-shared-subagent-driver-runs-survive-a-concurrency-429` (driver-side 429 handling, unmerged since 2026-11-10) does not land,
+and round 224, briefed to bring it onto `main`, was stopped before its agent started.
+Pi's native retry had `retry.maxRetries` unset (Pi 1.5.2's default 3) with `retry.baseDelayMs` 1000, so it gave up after about 7 s;
+asked through the question tool, the owner picked "Raise maxRetries to 8 (Recommended)",
+and `~/.pi/agent/settings.json` now carries `retry.maxRetries` 8 (waits of 1 to 60 s, about 3 minutes in all, under `retry.maxAgentDelayMs`' 60 s default), every other key unchanged.
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
@@ -107,6 +134,140 @@ when it lands,
 move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
+
+### The owner is away for eight hours, and the first commits on 0.6.1-alpha.11 (2026-11-11T20:05:00-05:00)
+
+The owner, at about 20:03: "I'll be away for 8h, you keep working. Make decisions I'd definitely approve (based on my apparent taste) yourself."
+And, on reading that the first commit on alpha.11 spent 17.6 s starting the new release's commit service:
+"Also, I believe stopping the old commit service can be made async."
+
+`native:install -- 0.6.1-alpha.11` finished at 20:02:14:
+`monochromatic-git-policy-cli 0.6.1-alpha.11, shadowing git at /usr/bin/git`, the lock committed as
+`chore(toolchain): monochromatic-git-policy-cli 0.6.1-alpha.11` (only the wrapper's entry and the digest moved).
+The machine at the time: load average about 121, `/proc/pressure/io` `some avg10=58.91`, `full avg10=36.66`
+(the gate's container build, the install and several dozen agents writing).
+
+Three commits on alpha.11 in the main checkout, each one file:
+
+- The install's sample commit, 28,662 ms. Its timing line: `provisionMs` 17,621 ("Starting the commit service..."),
+  `submitMs` 6,937 (`reachMs` 1,746, `answerWaitMs` 5,190), `prepareMs` 3,580 (index copy 2,395, index stat check 777),
+  `buildMs` 266 with one "shadow pool refused".
+- The handover commit started 20:02:58 failed at 20:04:15 with nothing committed:
+  "the `git commit` this commit runs in its scratch repository was stopped after 21 seconds, the most a commit whose message came
+  with the command may take (16 seconds, three times the slowest `git commit` step this repository's commit timing log holds)".
+  The scratch child was in uninterruptible sleep (state `D`), waiting for the disk, and the line about `SIGKILL` printed three times.
+  The ceiling was 16,332 ms, taken from a timing log of 52 lines.
+- The same command again, 20:04:39 to 20:04:50, committed (`c9d2b92aaf`).
+
+One failed commit in three is against "Commits should never fail."
+alpha.11 stays installed: the failure says what happened, the retry lands, and going back would give up the 25 merged fixes.
+This is the coordinator's decision under the owner's delegation; the count of failed commits on alpha.11 is read from the timing log
+at each hourly pass, and a rate that makes agents lose work is the reason to reinstall 0.6.1-alpha.10.
+
+Pushes on alpha.11: the lock commit `cda4585cf2` and the handover commit `c9d2b92aaf` were both on the remote at 20:07:00
+with no hand push, where alpha.10's `d9580168f5` had sat unpushed for three and a half minutes.
+Two commits are a small sample; the hourly pass looks again.
+
+Round 246, both from `main`:
+
+- `fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls`:
+  a scratch step that passes its ceiling while it waits for the disk is slow, not stuck, and the commit goes on;
+  the ceiling gets a floor or a wider memory than a freshly rotated log; the `SIGKILL` line is said once.
+- `perf/git-policy-cli-first-commit-after-an-install-does-not-wait-for-the-old-service`:
+  split the 17.6 s by its steps, then take off the commit's wait what need not be on it,
+  the old service's stop first (the owner's suggestion, stated in the brief as the project's direction to be checked by measurement).
+
+A fourth commit on alpha.11 (this section's own, 20:07:25 to 20:07:47) landed in 22 s and printed
+"The commit service has not said where this commit stands yet; it has waited 10 seconds."
+
+Decided under the owner's delegation while away, each open to veto:
+
+- alpha.11 stays installed (reason and the condition for going back are in this section).
+- Integration pass 15 for 0.6.1-alpha.12 started at 20:09 (round 247, `integrate/git-policy-cli-pass-15-for-alpha-12`, from `main`):
+  the twelve finished branches pass 14 did not hold, among them the two that fix the day's worst jams
+  (`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`,
+  `perf/git-policy-cli-service-runs-independent-work-side-by-side`),
+  the Clippy fix, and the shadow pool planning record. It compiles the code and the tests and runs Clippy once; no suite.
+  When it ends with a compiling tip, alpha.12 is released the way alpha.11 was. Reviews of those branches run on qwen4 beside it
+  and do not hold the release (the owner: "didn't I also say reviews and mutation testings don't block publishing?").
+- The long audits (Kimi and Sonnet side by side) are run on the alpha.12 code, not on alpha.11:
+  the fixes for the alpha.10 audits' findings are still landing (round 235 and the branches in pass 15),
+  so an audit of alpha.11 would mostly find again what is already being fixed.
+
+Also: every Git command printed `mpm-shadow`'s warning that the machine's global lock still named 0.6.1-alpha.10.
+Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`, again did not run as printed
+(`bash: command not found: mpm-shadow`), so the installed binary was run by its full path, as after alpha.9.
+The fix that puts `mpm-shadow` on `PATH` (`fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`) is not in the installed `mpm-shadow`.
+
+### 0.6.1-alpha.11 dispatched, and the third cull pass (2026-11-11T19:51:30-05:00)
+
+The integration branch `integrate/git-policy-cli-jam-fixes-after-alpha-9` was fast-forwarded to pass 14's tip `e33452755e`
+and `main` merged into it (`7e3b74281a`, 19:35:38; no Rust source of the wrapper differs from the tip pass 14 built).
+`main` was fast-forwarded to `7e3b74281a` and pushed at 19:50:59.
+`native:release -- 0.6.1-alpha.10 0.6.1-alpha.11` ran in unit `gpc-release-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.11.log`): it printed
+"no dispatch gate: an alpha release does not wait for node bin/native-release-host-controls.ts, which every other release does"
+and started `crate-release.yml` run 43130367751, which completed with success;
+`cargo-publish.yml` run 43130519508 followed (built from `c434449377`), watched by unit `gpc-release-wait-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/release-wait-0.6.1-alpha.11.log`).
+The full gate runs beside it, not waited for:
+unit `gpc-gate-wrapper-next-alpha-on-7e3b74281a-20261111T195115-0500`, log of the same name under `${HOME}/temp/agent/gate/`.
+Published at 19:59:41: `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.11`, with the x86_64 and aarch64 Linux tarballs
+(crates.io skipped, as for every alpha).
+Timings against the estimate for an alpha with no extra work (about 64 to 71 s for the release job and 342 s for the publish):
+`crate-release.yml` 77 s (00:51:35Z to 00:52:52Z), `cargo-publish.yml` 411 s (00:52:50Z to 00:59:41Z),
+486 s from the first run's creation to the second's end. No host gate ran and no `cargo check` step held the release.
+The publish run's time is the compile of the two binaries, which a release cannot do without:
+detection 36 s, then the x86_64 build 355 s and the aarch64 build 301 s side by side (the crate job beside them took 40 s).
+The earlier release with the btrfs gate waited 3,286 s before it dispatched anything.
+`native:install -- 0.6.1-alpha.11` started at 20:00:52 in unit `gpc-install-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/install-0.6.1-alpha.11.log`).
+Still to do: read the install's sample commit, watch whether a commit's push leaves by itself on alpha.11,
+the gate's verdict when it comes, and the Kimi and Sonnet audits of the released commit.
+
+Whether a queued push leaves by itself, on alpha.10: the handover commit `d9580168f5` (19:57:14) was made without a hand push,
+and was still not on the remote at 19:58:10 and at 20:00:43, three and a half minutes later,
+while every Git command in the checkout kept saying a commit "is queued for its push".
+The commit before it had gone out with its own command
+("push: origin/main had new commits, so the merge 46dc24847a... of main and origin/main was published").
+So on alpha.10 a queued push can sit for minutes; the same watch is repeated on alpha.11.
+
+A measurement of the installed 0.6.1-alpha.10 from this landing:
+`git merge --ff-only` of the integration branch in the main checkout had moved `refs/heads/main` by 19:50,
+and the command, started at 19:36:15, went on with its after-merge work, starting one short Git child after another,
+until 19:56:13: twenty minutes for a fast-forward.
+During it, at about 19:54:20, a one-file docs commit in the same checkout printed
+"The commit service stopped answering; asking it again with the same commit, which cannot land twice." and then landed;
+round 240's agent has that timed occurrence by inbox note.
+The same fast-forward in the integration worktree took about four and a half minutes.
+The fix that takes the landed-worktree sweep off the merge's wait
+(`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`, 552 ms where the release took 25 s)
+is not in alpha.11; it goes into the next pass.
+
+The fast-forward also brought the sections agents wrote into this file on the integration branch,
+which now sit between this section and "Reviews go to qwen4 instead of Kimi, and pass 14 ended".
+
+The third cull pass (19:50). Decisions since the second pass: the service hands a commit its shadow (19:12),
+reviews go to qwen4 and running Kimi reviews finish (19:27 and 19:31), and pass 14 is on `main` (19:50).
+
+- Reframed by inbox note (19:53): the three agents that started from pass 14's branch while it stood at `7c0583c34c`,
+  where the package's tests do not compile
+  (`worktree-removal-finishes-while-its-dependencies-are-being-linked`, `commit-service-hands-a-commit-its-shadow`,
+  `commit-service-silence-on-an-ordinary-commit`): merge `main`, which holds the two later repairs.
+- Reframed by inbox note (19:34): the port agent (review commands model-neutral, qwen4 the default) and round 236 (the base option first).
+  The port agent ended at 19:49 having read both notes and reached neither the review commands nor the brief writers
+  (ported: the listing commands, the launcher lister, `remove-finished-worktrees` with the in-use check,
+  `start-a-batch-in-its-own-unit`, the wake step inside the launcher, a pool-limit override from the environment; 119 suites pass).
+  Round 244 (`feat/pi-shared-subagent-driver-review-commands-on-qwen4`, on the port branch) merges `main`,
+  ports the review starter and brief writer with qwen4 as the default and no model in any name, then the fix-brief writer and the rest.
+- No Kimi review is queued: 18 of round 231 are running and one has finished; the other two of that round were never started,
+  because their branches change nothing under `package/git-policy/cli/src/native`
+  (`open-issues-next-batch`, `pass-11-gate-failures`).
+  The one worktree made for them (`pi-kimi-review-open-issues-next-batch-round-231`) is removed;
+  the removal logged `worktreeRemovalInterruptedDestroy` and then removed the subvolume in one step.
+- Kept: every running fix agent (none rests on a changed decision), the four landing agents of round 241,
+  the four qwen4 reviews running and the four queued (round 243: landed sweep, service side by side, merge-asides findings, landed-sweep findings).
+- Nothing was stopped.
 
 ### The integration tip's two compile breaks, and the snapshot identity no record names (2026-11-11T17:57:56-05:00)
 
@@ -263,6 +424,426 @@ and one each in `service_durable.rs`,
 `worktree_remove_hand_over_tests.rs`,
 `worktree_copy_source_still_being_filled_tests.rs`,
 and `service_work_drain_pending_claims.rs`).
+### Reviews go to qwen4 instead of Kimi, and pass 14 ended (2026-11-11T19:27:00-05:00)
+
+The owner, at about 19:27: "Make the Qwen 4 pool 18, and use it for reviews INSTEAD of Kimi."
+
+What that changes:
+
+- The `qwen-token-plan` pool (`qwen-token-plan-individual`, `qwen4-max-preview`) is 18 in the package
+  (`package/pi-shared/subagent-driver/src/pool-limits.ts`, with the owner's words beside it).
+  The scratch gate still says 4 and is not edited, so only a start through the package's gate sees 18.
+- Every new review of a change is a qwen4 run. No new Kimi review is started.
+- The Kimi reviews already running (round 231 and a few of round 210 and 219) are left to finish.
+  The owner, 19:31, through the question tool (options: let them finish, stop and re-run on qwen4, stop without re-running):
+  "Let them finish (Recommended)".
+- Long audits are unchanged: Kimi and Sonnet side by side, and qwen4 "Not used for audits" (the owner, 17:58).
+- `AGENTS.md` rules KRV and PFW now name qwen4.
+  The owner, 19:31, through the question tool (options: rewrite both, this session only): "Rewrite KRV and PFW (Recommended)".
+  KRV reads "Reviews of a change go to qwen4-max-preview alone: Pi with
+  `--provider qwen-token-plan-individual --model qwen4-max-preview`, in a worktree of its own, on the qwen4 pool.";
+  PFW says "a qwen4 review". LHZ (long audits) is untouched.
+- What stands in the way of 18 at once: a review's worktree starts at the reviewed commit, and the package's launcher cannot yet
+  start a run from a named commit (round 236 adds it). Until then qwen4 reviews start through the scratch starter, four at a time.
+
+Round 242, started 19:26 before that instruction as the paired trial and now simply the first qwen4 reviews:
+`merge-abort-is-allowed-during-a-merge`, `merge-commit-landing-in-a-busy-checkout`,
+`held-notice-names-a-published-commit-and-reviews-stay-claimed`, `alpha-10-audit-merge-never-waits-on-a-fifo-and-takes-hidden-edits`.
+Their briefs are the Kimi briefs of round 231 with the run folder and worktree names changed
+(`~/temp/agent/qwen-trials/qwen-review-<name>/`, the same `change.diff`).
+
+Pass 14 ended at about 19:27 (325 turns): all 25 branches merged, tip `e33452755e`
+on `integrate/git-policy-cli-pass-14-for-alpha-11`, with three repair commits
+(`7c0583c34c` four build breaks, `18d0ccf431` thirteen test-side breaks, `e33452755e` a duplicated control).
+`native:build` and `native:test:host --no-run` pass at that tip; no test suite, Clippy or mutation run was made.
+Where it had to pick one side, for a reviewer to look at: the settlement judgement (`AtTheDestination`, `NotCompared` kept),
+the held path's forget, a service keeping its own journal, and reviews before the freeing steps with the housekeeping budget.
+
+### The package launcher started none of round 235, and a removal that left its folder (2026-11-11T19:08:40-05:00)
+
+Round 235 did not start at 18:57.
+The package's `start-pi-runs-from-a-batch-list` ran from 18:57:28 to 19:00:54 and printed, for each of the ten entries,
+`<name>: status 1 Node.js v26.13.0`: no run folder, no worktree.
+The earlier note that two of its units were up was wrong: the two units counted were round 227's, whose names match the same pattern.
+Why each start exited 1 is not known yet, because the batch prints the last line of a failed start, and Node's last line is its version.
+Gaps found in the package while looking:
+
+- A batch entry's `base` is not read (`BatchEntry` has no such field), and `makeWorktree` always starts a new branch from `main`;
+  the scratch launcher took a base, and every fix-for-a-review brief needs one.
+  The wrapper refuses `git branch <name> <start>` in the main checkout (`branch-worktree-only/branch-creation-requires-worktree`),
+  so a branch cannot be made beforehand.
+- A start with a prompt file that does not exist still takes a slot, makes a worktree and starts a unit, which exits 1 after five seconds.
+- `mise run //package/pi-shared/subagent-driver:retry-pi-run-start-until-a-pool-has-room -- ... -- ...` loses its second `--`,
+  so the task cannot be used as its usage line says.
+
+What was done: the same list was started again at about 19:05 with the scratch starter, run unedited (it reads `base`),
+in unit `launch-agents-batch-round-235`;
+and round 236 starts an agent for the package
+(`fix/pi-shared-subagent-driver-batch-starts-from-a-base-and-says-why-a-start-failed`, from `main`):
+find why the ten starts failed, a failed start says its reason, a batch entry names its base, everything is checked before anything is made.
+Until that lands and one package start is shown working from a unit, every batch goes through the scratch starter, unedited:
+a probe of the package's retrying start from a shell got as far as a started unit, further than the ten starts in the batch's unit did,
+so the unread base is not shown to be what failed them.
+The restart worked: all ten round 235 units were up at 19:13,
+and `git merge-base --is-ancestor` confirms the dirty-snapshot one sits on its reviewed branch.
+
+A new jam, met while cleaning up the probe that showed the missing-prompt gap.
+`git worktree remove .claude/worktrees/pi-probe-does-not-start` (installed 0.6.1-alpha.10), started about half a minute after the
+worktree's dependencies were linked, ran from about 19:03:32 to 19:04:36 and printed only Git's
+`error: failed to delete '...': Directory not empty`.
+Afterwards the worktree was gone from `git worktree list` and its folder was still on disk
+(a subvolume of its own, no nested subvolume, 91 top-level entries, its `.git` file still there),
+with `node_modules` and `package` last written at 19:04:36: something was still writing dependency links into it while Git deleted it.
+No notice followed on later commands, and nothing was left to finish the removal; `btrfs subvolume delete` by hand cleared it.
+Which process was writing is not known.
+Round 236's second agent (`fix/git-policy-cli-worktree-removal-finishes-while-its-dependencies-are-being-linked`,
+on `integrate/git-policy-cli-pass-14-for-alpha-11`) finds the writer, reproduces it, and makes the removal end with the folder gone
+or with a record the next command finishes.
+
+Also at this time:
+pass 14 repaired its four compile breaks (`7c0583c34c`, 19:00:57) and is still running;
+the shadow pool claim proposal ended (`docs/git-policy-cli-shadow-pool-claim-rename-options`, `8cd9486260`,
+`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`): over 330 wrapped commits the claim's tail is one directory `rename`
+(22 claims over 100 ms, 3 over 2 s, the largest 5,623 ms with 5,606 ms in the rename), and it ranks
+the service handing out a drawn tree first, a mark renamed inside the member second, a smaller skeleton third, nothing fourth;
+its three questions go to the owner through the question tool.
+
+The owner's answer, 2026-11-11T19:12-05:00, through the question tool, to "Who should do the rename?"
+(options: the service hands out a tree, a mark inside the member, leave it as it is):
+"Service hands out a tree (Recommended)".
+So the commit service renames a pool member into place ahead of time and hands the commit its path,
+and the commit still runs every check on the tree it is handed (the record's option A, checked form).
+The record's other two questions were picked under the owner's delegation of non-destructive choices, open to veto:
+every check the claim makes stays (options C and D, the claim trusting the fill, are not taken:
+the saving is 0.82 ms at the median and the tail does not move);
+and the smaller skeleton with one listing (option E) is built if its probe passes
+(Git and `write_shadow_refs` in a shadow without `objects/pack`, `refs/heads` and `refs/tags`), since it changes no guarantee.
+Round 237 builds all of it (`perf/git-policy-cli-commit-service-hands-a-commit-its-shadow`,
+on `integrate/git-policy-cli-pass-14-for-alpha-11`, brief `commit-service-hands-a-commit-its-shadow-prompt.md`).
+
+A defect in the same code, seen on the handover commit of 19:09 (installed 0.6.1-alpha.10):
+`[shadowPool] refused the pooled shadow member-...: the shared entry monochromatic-git-policy-cli-commit-timing.jsonl.7 is not in the member`.
+A rotated generation of the wrapper's own timing log, appearing after a member was filled, got that member refused
+(`src/native/shadow/shadow_pool_member.rs`).
+Whether every member filled before a rotation is refused, and what a refusal costs the commit, is not measured;
+round 237's brief carries it: the wrapper writing its own log must never spend the pool.
+
+The qwen review trial, scored at 19:17 by a Claude Code native subagent
+(a second pass by the same vendor as the coordinator, not an independent review; `~/temp/agent/qwen-trials/review-trial-scoring.md`).
+Three changes, each reviewed by both models, each finding held against what the round 227 fix agents confirmed or refuted:
+Kimi made 6 findings, 4 confirmed, 1 refuted on a later base than the reviewed commit, 1 mixed;
+qwen made 8, 3 confirmed, none refuted, 5 with no verdict (the fix agents were given Kimi's review only).
+Each model had one confirmed finding the other missed
+(Kimi: `push.default=matching` ignores the pinned commit; qwen: a relative program path started from the worktree, fixed in `70b105bf1c`).
+Two qwen findings nobody ran look real by reading and are unfixed on the fix branch:
+`git commit -m msg --end-of-options -m x` drops the file named `-m` from the commit and exits 0,
+and an abbreviated `--only` (`--on`) reaches Git without its paths and fails.
+Round 239 (`fix/git-policy-cli-commit-options-end-of-options-and-abbreviated-only`,
+on `fix/git-policy-cli-kimi-findings-commit-message-options-round-210-findings`) reproduces and fixes them.
+Limits: three reviews; the qwen blocked-commits review wrote no `review.md` and was scored from its last message;
+two fix agents worked on later bases than the reviewed commits.
+On reviews, unlike on audits, qwen is not behind Kimi in this sample; the owner's "Trial beside Kimi" stands, and more paired reviews would firm it up
+(not started: each qwen review brief is written by hand, and the earlier ones name an owner, which briefs no longer do).
+
+Round 238 (`fix/git-policy-cli-kimi-findings-worktree-remove-audit-ceiling-round-210-findings`) takes the one finding of the
+round 210 review of `fix/git-policy-cli-worktree-remove-does-not-wait-on-a-read-only-git`:
+a read-only `status` whose descendant ignores `SIGTERM` holds a removal 7.2 s, past the audit's two-second ceiling,
+because the watcher's five-second stop grace is waited out afterwards.
+
+Round 240 (`fix/git-policy-cli-commit-service-silence-on-an-ordinary-commit`, on the pass 14 branch) takes the notice
+"The commit service stopped answering; asking it again with the same commit, which cannot land twice."
+seen on a one-file docs commit in the main checkout this afternoon (minute not kept):
+it counts the day's commits that took the silence path from the timing log and the service's log, finds the cause,
+says whether the pass 14 branch still has it, and fixes it if so.
+
+Round 241, four agents that each bring finished changes outside the wrapper up to date with `main`, run the package's own tasks,
+check at the place the change is used, and end with a verdict; none merges into `main` (the coordinator does, on a "fit" verdict):
+`integrate/cargo-shadow-lean-runs-continuously-onto-main` (also lists the commands a real install of the unit takes),
+`integrate/pi-plugin-agent-settled-notification-delivers-under-load-onto-main`,
+`integrate/pi-shared-subagent-driver-429s-and-preflight-onto-main` (the 429 branch and the preflight branch together),
+`integrate/wg-lifecycle-and-its-review-findings-onto-main` (also lists the other unmerged `wg` branches and the deploy commands; it runs none).
+
+Stale notices seen through the evening on alpha.10: "the commit 389eac3daa... is queued for its push ... N more commits are queued"
+on every Git command in the main checkout, after those commits had been pushed by hand (`b2a2c50fa1..389eac3daa` at 19:10).
+The fix is in pass 14 (`fix/git-policy-cli-held-notice-names-a-published-commit-and-reviews-stay-claimed` is an ancestor of it).
+Whether a queued push ever leaves without a later hand push is not shown either way: each was pushed by hand at once.
+After alpha.11 is installed, the sample commit is left alone until its push is seen to leave by itself.
+
+Inbox notes sent at 19:18, none changing a task: to the three agents working on the pooled shadow
+(`kimi-findings-pooled-shadow-review-findings`, `kimi-findings-pooled-shadow-symlink-round-210-findings`,
+`kimi-findings-commits-within-5-s-round-208-findings`), the decision that the service hands a commit its shadow and which branch builds it;
+to the port agent (`subagent-driver-takes-the-remaining-scratch-scripts`), that round 236 now changes the batch list and the worktree launcher.
+The 600 s quiet window of an add's inline package repair against "60s is fine for adding worktrees"
+(`~/temp/agent/sonnet-audits/integration-tip-never-stuck/findings.md`, finding 5) is asked once
+the run `worktree-add-within-60-s-on-the-pass-12-tip` reports where an add's time goes.
+
+### Prompts to Pi imply no human owner (2026-11-11T18:12:12-05:00)
+
+The owner, at about 18:07:
+"From now on, in prompts to Pi, don't imply there is a human owner."
+It covers everything the coordinator sends a Pi run: briefs, inbox notes, wake notes and the shared rules a brief points at.
+A requirement is stated as the project's own, with the path of its record when one helps,
+never as a person's words, wishes or approval ("the owner said", "its owner requires", "I will review").
+What changed:
+
+- The shared rules a brief points at are now `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`,
+  in the workspace and without an owner in them;
+  new briefs name that file, by its path in the main checkout,
+  in place of `~/temp/agent/pi-runs/shared-rules-for-pi-briefs.md` (left as it is for the runs that already read it).
+- The round 231 review briefs are written one by one by a starter that was already running,
+  each with "Its owner requires:" and "the owner's session bus".
+  A one-time job rewrites each as it appears, before its review reads it
+  (`~/temp/agent/reword-round-231-review-briefs/`);
+  the seven reviews that had already started read the old wording.
+- Runs briefed before 18:07 keep the briefs they have.
+- Not covered by this change, and Pi still reads them: `AGENTS.md`, this handover and other repository docs, which speak of the owner throughout.
+  Asked how far the instruction reaches, the owner picked "Prompts I send only (Recommended)", so those stay as they are.
+- Asked whether to write it into `AGENTS.md` as a new rule plus an amendment, the owner answered "Amend BRQ only."
+  The first amendment said "to Pi,"; the owner, on reading it: "\"to Pi,\" - too specific."
+  So rule `BRQ` now says it of every brief and note, whichever agent it goes to:
+  a requirement is stated as the project's own, with its record's path, implying no human owner.
+  That covers Claude Code native subagents and reviewers of other vendors as well as Pi.
+  The owner then: "You may change DQB."
+  Rule `DQB` told a brief to "quote every owner decision and amendment";
+  it now says to state every decision and amendment that bears on the task as the project's own, with path and lines.
+- The scratch brief writers (`write-kimi-findings-briefs-round-159.ts`, `write-kimi-review.ts` and the others) still put the old wording into what they write.
+  They may no longer be edited where they are, so their output is reworded as data before a run starts,
+  until the brief writers live in the workspace package.
+
+### Superseded work is culled every hour (first pass 2026-11-11T18:03:00-05:00)
+
+The owner, at about 18:00:
+"Please take a look at in flight and queued work now and cull or reframe anything that's superseded.
+In fact, make this an hourly cron lasting for 12h."
+Cron `4c1ff2ae` fires hourly until 2026-11-12T06:40-05:00 (`c921d8d2` deletes it then);
+both live only in the coordinator's session, so a restart loses them and they are made again.
+Each pass looks at running `pi-*` units, `launch-*` batch units, retry loops waiting for a slot and briefs not started,
+against owner decisions and landed work since those runs were briefed, and records here what it stopped or reframed and why.
+
+First pass, with 50 `pi-*` and `launch-*` units running:
+
+- Reframed, the alpha.11 release itself:
+  it no longer waits for the full gate, for round 213's two test fixes, or for `native:clippy` on `main`
+  (the owner's answers of 17:58 under "Pi tooling lives in the workspace, and alphas run no extra release work").
+  It needs a tip that builds (round 216), the merge pass, the merge into `main`, the release and the install;
+  the gate starts on the release commit and is read afterwards.
+- Reframed, round 212's driver-port agent: the pool and gate files went to round 230, by inbox note.
+- Superseded, nothing to stop: `fix/git-policy-cli-open-issues-next-batch` was ported as `fix/git-policy-cli-open-issues-fourth-pass` (merged),
+  and the review starter refused it on its own ("nothing to review").
+  The coordinator first reported it as "deletable when you allow it"; the owner, at about 18:08:
+  "uh, I said to auto delete."
+  So a superseded branch is deleted by the coordinator without asking,
+  once its content is shown to live elsewhere (the earlier note that branch deletion needs permission each time was wrong).
+  Asked whether to write that into `AGENTS.md`, the owner answered "Add the rule, and make it cover not just branches.",
+  and rule `XSU` now covers anything superseded (branches, worktrees, units, briefs, scratch).
+  This one's four commits were all documentation,
+  its planning file `doc/planning/git-wrapper-open-issues-round-4.md` is in the integration in a newer form (`7f84c90b1b`),
+  no worktree held it,
+  and it was deleted here and on the remote at about 18:10.
+- Superseded, already stopped: round 224 (driver-side 429 handling) and the two Kimi reviews of the launcher port (rounds 212 and 221), whose worktrees the landed sweep removed when the port was merged into its landing branch.
+- Still wanted, though no longer release-blocking: round 228 (Clippy after the daily update, issue 6284) and round 213's two test fixes.
+- Kept as they are: every other running fix, tokio, review and port agent; none rests on a decision that changed.
+
+Second pass, 2026-11-11T18:58:34-05:00, with 36 `pi-*` units running:
+
+- Deleted, fully merged into `main` (rule `XSU`), here and on the remote where they existed:
+  `feat/crate-release-cli-alpha-releases-run-no-extra-work`,
+  `feat/pi-shared-subagent-driver-takes-the-launcher-fixes`,
+  `feat/pi-shared-subagent-driver-launcher-and-todays-pools-onto-main`,
+  `feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`,
+  the two `test/kimi-review-pi-shared-subagent-driver-takes-the-launcher-fixes-round-*` review branches,
+  and the four `test/qwen-audit-alpha-10-*` branches, which pointed at `574063773d` and held no commit of their own
+  (their reports stay under `~/temp/agent/qwen-trials`).
+  The clean leftover worktree `pi-pi-subagent-driver-takes-the-launcher-fixes` was removed first.
+- Kept, and why: `fix/pi-shared-subagent-driver-runs-survive-a-concurrency-429` is rejected work, not work that lives elsewhere
+  (the owner: "It's Pi's native retry's responsibility to deal with 429s."), so its diff is the only record of that approach;
+  `feat/pi-shared-subagent-driver-run-management` is not merged into `main`;
+  the three `test/qwen-review-*` branches hold the commits the review trial reads until it is scored.
+- Kept running: the Kimi review of `fix/git-policy-cli-sonnet-findings-removal-with-a-nested-subvolume`.
+  Round 234 replaces that branch's refusal, but it builds on the branch, so the review's findings go to round 234's agent when it ends.
+- Not yet deleted, to do once alpha.11 is on `main`: the fix branches that pass 14 merged, which will then be ancestors of `main`.
+- Nothing running rests on a decision that changed since the first pass.
+
+The fill of the same hour (the pools at 18:52: qwen plan DeepSeek 2 of 18, DeepSeek flex 11 of 20, Kimi flex 20 of 20):
+round 235 starts ten fix agents, one for each round 210 review that reported defects and had no fix agent yet
+(dirty snapshot, LFS upload configuration, sweep sparing busy worktrees, trash boundary, service of a gone worktree,
+pooled shadow symlink, gate and install scripts, delayed relink, shared remote file option, held commit surviving a prune).
+Their briefs come from one template (`review-findings-fix-brief-template-round-235.md`, filled per review, no owner in it),
+and the batch was started through the package's `start-pi-runs-from-a-batch-list` in unit `launch-agents-batch-round-235`
+(it started none: see "The package launcher started none of round 235, and a removal that left its folder").
+
+Read in that hour, from runs that had finished:
+the landed-sweep agent (the merge no longer waits: 552 ms where the installed release took 25 s, the removal handed to the commit service;
+a process holding a file open in a worktree now keeps it),
+the commit-service agent (one item per worktree per wave, at most four at once, one place of the blocking bound kept free of slow work),
+and the merge-asides agent, which confirmed qwen's shared-capture finding as real and fixed it (`db58158b31`).
+With the open-file guard also confirmed, all six distinct qwen audit findings are confirmed and none refuted;
+the owner's "Not used for audits" stands, and the notes in `~/temp/agent/qwen-trials/comparison-notes.md` say so.
+
+A jam met during the first pass, and the owner's instruction on it.
+The worktree of the finished round 228 run (`pi-clippy-passes-after-the-daily-update-of-2026-11-11`) could not be removed:
+its Git directory held the wrapper's own snapshot taken ahead (`monochromatic-git-policy-cli/ahead/.cli-git-worktree-ahead-*`),
+the wrapper's removal refused it as "a nested subvolume or another filesystem",
+and every Git command in the main checkout printed "The interrupted removal of ... cannot be finished"
+until the coordinator ran `btrfs subvolume delete` on that snapshot and `git worktree prune` at about 18:45.
+The owner, on reading "because of a nested subvolume": "make the wrapper work in that case."
+Round 234 (`fix/git-policy-cli-worktree-removal-finishes-with-a-nested-subvolume`,
+on top of `fix/git-policy-cli-sonnet-findings-removal-with-a-nested-subvolume`, whose answer was to refuse)
+makes the removal delete every subvolume the wrapper itself made and finish an interrupted removal unaided;
+for a subvolume that is not the wrapper's own it reports the ways to remove the worktree without losing that data and builds one only if it is shown safe.
+
+### Pi tooling lives in the workspace, and alphas run no extra release work (2026-11-11T17:55:17-05:00)
+
+The owner, at about 17:50, after the coordinator had again edited scratch scripts:
+"I've said to fold pi-runs set of scripts into a proper workspace package before.
+I believe there is also a launcher already as a proper workspace package.
+I don't wanna see you edit pi-runs outside the workspace again.
+Please pick that up."
+So no script under `~/temp/agent/pi-runs` is created or edited any more;
+only data lives there (briefs, batch lists, inbox notes, run folders).
+The launcher is `package/pi-shared/subagent-driver`
+(`start-pi-run-in-a-worktree`, `start-pi-run-when-a-pool-has-room`, `retry-pi-run-start-until-a-pool-has-room`, `start-pi-runs-from-a-batch-list`),
+ported on `feat/pi-shared-subagent-driver-takes-the-launcher-fixes` and not yet on `main`.
+The coordinator lands it through `feat/pi-shared-subagent-driver-launcher-and-todays-pools-onto-main`
+(worktree `.claude/worktrees/coordinator-subagent-driver-launcher-onto-main`, the port merged at `d99ebfec76`).
+Its pool gate is behind the scratch gate (old limits, OpenCode Go open, no qwen pools, no free-space floor),
+so round 230 (`feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`) brings it level first;
+round 212's agent (`feat/pi-shared-subagent-driver-takes-the-remaining-scratch-scripts`) keeps the rest:
+a batch as its own unit, the after-run steps of a launcherless run, the finished-worktree remover's in-use check.
+Until both are on `main` the existing scratch scripts are still run, unedited, to start agents.
+Round 230 finished and is on `main` since 18:49:32 (merge `bd66513014` of `feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`):
+the package's gate holds today's pool table, the closed-pool rule for resumes and the free-space floor.
+Run one after the other at about 18:50, `mise run //package/pi-shared/subagent-driver:start-pi-run-when-a-pool-has-room -- --counts-only`
+and the scratch gate printed the same line
+(`qwen-plan-deepseek 2/18, neuralwatt 3/0, neuralwatt-flex 11/20, opencode-go 0/0, neuralwatt-kimi-flex 20/20, qwen-token-plan 0/4; 336 GiB free on /var/mnt/encrypted`).
+So new batches start through the package's `start-pi-runs-from-a-batch-list`, in a `systemd-run --user` unit named on the command line,
+and the scratch gate and launcher are no longer used for new runs;
+the scratch review starter is the one starter still in use, until round 212's port replaces it.
+
+The owner, minutes later, quoting the coordinator's "the release pipeline runs native:clippy on main":
+"make the release pipeline avoid running any extra work for alphas."
+The coordinator's own steps change at once: an alpha gets no `native:clippy` run on `main`.
+In the coded pipeline an alpha today still waits for the crate's `dispatchGate` (the btrfs controls, 3286 s when measured),
+a `cargo check`, a `cargo publish --dry-run` and a `cargo package`, though an alpha never goes to crates.io;
+round 229 (`feat/crate-release-cli-alpha-releases-run-no-extra-work`) removes what an alpha does not need.
+It finished and is on `main` since 18:50:36 (merge `ca42d44590`):
+an alpha skips the dispatch gate and the `cargo check` (166.4 s of the 230 s release job of the recorded alpha.10 run `43019306127`),
+refreshes the crate's lockfile on purpose (the check used to do that as a side effect, and two `--locked` calls need it),
+and prints one line for each step it leaves out;
+the publish dry run was already skipped for alphas by the label rule, and the binary builds and the GitHub release are unchanged.
+Its estimate for an alpha: about 64 to 71 s of release job plus the 342 s publish run, with no wait before the dispatch.
+Every other label's plan is unchanged, and tests in `package/crate-release/cli/src` pin that.
+This narrows the owner's 2026-11-10 choice "Before each release (Recommended)"
+("A wrapper release waits for that run, and a skipped test fails it."): the coordinator reads it as holding for every release but an alpha.
+The owner's answers of 2026-11-11T17:58-05:00, through the question tool, each asked with its options and a ranking:
+
+- qwen4-max-preview in long audits: "Not used for audits".
+  The result put to him: on Kimi's own audit prompts over three areas of the alpha.10 wrapper code,
+  Kimi reported 22 findings and Sonnet 20 (on its own briefs), every one confirmed by a fix agent;
+  qwen reported 6 distinct findings over four runs (none on the commit path, where Kimi had 9),
+  4 confirmed, 2 with fix agents to reproduce, none refuted;
+  it read nothing forbidden and no other model helped it (`~/temp/agent/qwen-trials/comparison-notes.md`).
+  So long audits stay Kimi and Sonnet side by side.
+- qwen4-max-preview on change reviews, which it had never done: "Trial beside Kimi (Recommended)".
+  Kimi reviews resume, which ends the hold of 16:5x ("Before the Qwen 4 review verdict, avoid starting more reviews.");
+  qwen4 reviews three changes Kimi already reviewed, without seeing Kimi's review, and both are scored against what the fix agents confirm.
+- The btrfs control run before an alpha: "Skip for alphas (Recommended)".
+  The 2026-11-10 choice "Before each release (Recommended)" holds for every release but an alpha.
+- The full test gate (`native:gate`) before an alpha: "Run it, don't wait (Recommended)".
+  The gate starts on the release commit, the alpha is released and installed at once,
+  and what the gate finds is fix work for the next alpha.
+
+### Cleanup runs continuously, and what a Claude Code restart loses (2026-11-11T17:30:24-05:00)
+
+The owner, 2026-11-11 at about 17:2x:
+"Make the cleanups a systemd service that runs continuously."
+This replaces the once-a-day schedule of `doc/planning/lean-build-dirs.md` option F
+(`cargo-shadow-lean.timer`, 04:30, written by `cargo-shadow lean timer-install` from `src/lean_timer_units.rs`).
+As a stopgap the coordinator rewrote `~/.config/systemd/user/cargo-shadow-lean.service` by hand:
+`Type=simple`, `Restart=always`, `RestartSec=60`, `RuntimeMaxSec=12600` per pass, `StartLimitIntervalSec=0`,
+the same CPU, memory, task, disk-weight, nice and idle-I/O limits as before,
+and `[Install] WantedBy=default.target`;
+the timer is disabled with `--now`, and the service is enabled and running (its journal shows image removals).
+Never run `cargo-shadow lean timer-install` until round 226's branch `feat/cargo-shadow-lean-runs-continuously` lands:
+that installer writes the daily timer back.
+Round 226 makes the installer write the continuous service, with tests, the README section F and the planning doc;
+the coordinator merges it and runs the new install, which replaces the stopgap file.
+A manual pass started as `cargo-shadow-lean-at-17-30` through `mise exec` failed at once
+(`mise ERROR "cargo-shadow" couldn't exec process: No such file or directory`);
+the service calls `.cache/toolchain-bin/cargo-shadow` by its full path and is not affected.
+
+The owner asked at 17:3x when Claude Code can be restarted.
+Every launcher (`start-pi-run-in-worktree.ts`), its `retry-start-until-a-slot-frees.ts` and its batch starter run as background shells of the coordinator's Claude Code process,
+while each Pi agent runs in its own `pi-*` unit.
+Probe at 17:3x: a throwaway `systemd-run --user --wait` client sent SIGTERM exited, and its unit kept running,
+so the Pi agents survive a restart.
+What a restart loses:
+each launcher's after-run steps (the wake-wait resume of an agent that ended with its work still running, and the immediate worktree removal, which the 15-minute removal timer also does),
+the one launcher in its wake wait at the time (`qwen-audit-alpha-10-commit-path`, round 217),
+and the session-only crons (`36b34a30`, the hourly fill until 19:55, and `b00d10e8`, which deletes it).
+The owner restarted at about 17:31. Measured at 17:33 to 17:36:
+47 `pi-*` units still ran, every launcher but one was gone,
+and both crons were still listed (the session was resumed, so that prediction was wrong).
+Of the runs that ended between 17:00 and 17:33, none had a process left in its worktree or run folder
+(`list-runs-that-ended-since.ts`), so none was owed a wake.
+For the 46 units left without a launcher,
+`do-after-run-steps-for-runs-without-a-launcher.ts` runs as the user unit `after-run-steps-for-pi-runs-without-a-launcher`:
+when one of them ends idle with its own work still running, it waits for that work and resumes the session through `retry-start-until-a-slot-frees.ts`;
+its journal names each outcome, and it ends once every watched unit and resume is over (two days at most).
+From now on a batch starts through `start-batch-in-its-own-unit.ts <list.json>`,
+which runs `start-batch-with-retries.ts` as the user unit `launch-<list name>` (output in `<list name>.out`),
+so launchers no longer live inside the coordinator's Claude Code process
+(AGENTS.md says long background runs get their own unit).
+Both scripts are scratch in `~/temp/agent/pi-runs`; the port into `package/pi-shared/subagent-driver` is still open.
+
+### The owner's answers of 2026-11-11T16:35-05:00, through the question tool
+
+Eight choices, each asked with its options, pros, cons and a ranking; the owner's picks, verbatim:
+
+- The `qwen-token-plan-individual` plan's DeepSeek models as a fourth pool for regular agents: "Keep it for qwen only".
+  The slot script's `qwen-token-plan` pool takes only `qwen4-max-preview`.
+- `refactor/git-policy-cli-source-layout` (`671eb1c6d1`) and `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` (`2ac6da873e`): "Delete outright"
+  (over pinning their tips under a kept ref, and over keeping them).
+  The coordinator removed the clean worktree each was checked out in and deleted both, and the first on `origin` too.
+- Issue #3024 (a vendored clone under the Cargo build directory refused by the worktree policy): "Exempt Cargo build dir (Recommended)",
+  whose text was "Read CARGO_BUILD_DIR, then CARGO_TARGET_DIR, add it beside uv and mise, and state the exemption's limit in the function's doc."
+  Round 220, `fix/git-policy-cli-vendored-clone-under-the-cargo-build-dir-is-exempt`.
+- The stale decision records of issues #1698, #3258, #3275, #3276 and #3745: "Rewrite the stale parts" ("Replace old text with current facts."),
+  over dated notes beside the old text and over leaving them.
+  That is the owner's approval to edit those sentences of `doc/decision/`, and for them it replaces rule `WR6`'s keep-the-original-plus-a-note.
+  Round 220, `docs/decision-records-stale-parts-rewritten`.
+- Issue #1768 (a session whose `git` is not the wrapper loses every protection silently): "Launcher preflight only",
+  over also fixing the shell-command analyzer's PATH-prefix hole.
+  Round 220, `feat/pi-shared-subagent-driver-preflight-finds-a-session-without-the-wrapper`.
+- Round 187's adopted choice (a worktree add installs a copy taken ahead and names the ignored entries that changed after it): vetoed, "Fresh snapshot every add"
+  (measured 5.4 s at the median and 26 s at worst in that agent's fixture).
+  Sent to the round 218 agent fixing that branch's review findings, and to the round 212 worktree-add agent.
+- Round 187's adopted removal of an orphan snapshot whose identity was never recorded: "Keep removing, fix the check"
+  (over naming such snapshots and never removing them automatically);
+  the round 218 agent fixes the Kimi finding that the check can match a different snapshot holding the only copy of data.
+- Issues #492, #574, #1717, #3796 and #630, whose options are not yet researched: "Defer until alpha.11 (Recommended)".
+
+Two more from the owner the same hour:
+
+- "Before the Qwen 4 review verdict, avoid starting more reviews."
+  The coordinator stopped every queued Kimi review that had not started (12: ten of round 219, one of round 210, and round 221's rerun of the driver-port review) and the starters of rounds 219 and 221;
+  the 22 reviews already running finish.
+  No hourly fill starts a review until the qwen4-max-preview verdict is delivered.
+- "I want desktop notifications."
+  The Pi extension `package/pi-plugin/agent-settled-notification` failed in 100 of the 373 agent runs started that day
+  ("settled-agent desktop notification unavailable: Command failed with exit code 1: notify-send ..."),
+  with `notify-send`'s standard error discarded and a one-second bound (`NOTIFICATION_TIMEOUT_MS = 1_000`);
+  the same command from a transient user unit exited 0.
+  Round 222 (`fix/pi-plugin-agent-settled-notification-delivers-under-load`) finds the cause and makes delivery work under the host's load.
+  The shared brief rules now say desktop notifications are the one thing allowed on the desktop and never to be disabled.
+
+The driver-port review (round 212) ended `model-error` on Neuralwatt's
+"429 ... lowpri_budget_exceeded ... You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 22 in flight at once)",
+with the Kimi pool at its limit of 22: the first measured statement of that limit.
+
+Still to ask: the shadow pool claim's rename once round 212's proposal lands,
+and Sonnet's finding that an add can stay quiet for 600 s against "60s is fine for adding worktrees" once it is framed with options.
+
 ### Pass 13 does not build, a launcher that waited on other agents, and qwen4-max-preview against Kimi and Sonnet (2026-11-11T16:45:00-05:00)
 
 Pass 13 merged 17 branches onto `3b94069dbf`, to `8d9febd625`, and 5 conflicted (round 215 re-merges them).
@@ -428,6 +1009,7 @@ an add that installs a copy taken ahead names every ignored entry that changed a
 Adopted under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself", with the veto open:
 a copy taken ahead is kept and its newer entries named, rather than a fresh snapshot on every add (a fresh snapshot measured 5.4 s at the median and 26 s in the agent's fixture, against "60s is fine for adding worktrees");
 and the kill-window proof is the record's instant plus the folder's shape, since the object's identity cannot exist before the object.
+The owner answered both on 2026-11-11 ("The owner's answers of 2026-11-11T16:35-05:00"): the copy taken ahead is vetoed for "Fresh snapshot every add", and the removal stays with its check fixed.
 Its report also named a test run that lost 157 tests when its binary vanished mid-run;
 the build folder's ledger names only that agent's worktree, so the cause is open, and round 203 proves or rules out the cargo shadow's sweeps.
 
@@ -13675,6 +14257,27 @@ because another agent's build replaced this worktree's test binary while the run
 which is why the gate judges a run by the controls it names
 and by what each control printed,
 not by the exit status alone.
+Narrowed for alphas,
+2026-11-11,
+by his words
+"make the release pipeline avoid running any extra work for alphas",
+spoken beside "Release now,
+fixes in alpha.11",
+"Prioritize fixing the jams and release jam fixes asap"
+and his standing rule
+"Alphas don't even have to resolve all flakes".
+As read by the coordinator and built in `package/crate-release/cli`
+(`isAlphaVersion` and `releaseRunsCargoCheck`,
+used by the dispatch command and the release command):
+an alpha release no longer waits for the btrfs controls,
+nor for the `cargo check` of the release job,
+and every other release,
+a beta included,
+still does both.
+The reading stands in `package/crate-release/cli/README.md` ("What an alpha release leaves out")
+and `package/git-policy/cli/README.md` ("Development"),
+with those quotes and dates,
+so he can veto it.
 
 ## Working rules for this effort
 

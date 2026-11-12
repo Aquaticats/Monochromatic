@@ -5276,7 +5276,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
-- A real wrapper release waits for that run:
+- A wrapper release waits for that run,
+  unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`
   (`bin/native-release-host-controls.ts`) reports that every control passed on this host,
   and that task is what the crate's entry in `package/crate-release/cli/releasable-crates.json` names as its
@@ -5296,6 +5297,22 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and what a person does on a host that has no btrfs filesystem to run the controls on.
   `--dry-run` skips the controls and says so,
   because a dry run runs nothing their evidence would cover.
+  The owner chose "Before each release (Recommended)" on 2026-11-10:
+  "A wrapper release waits for that run,
+  and a skipped test fails it."
+  On 2026-11-11 he added,
+  "make the release pipeline avoid running any extra work for alphas",
+  after "Release now,
+  fixes in alpha.11".
+  The coordinator reads the later words as:
+  an alpha release no longer waits for the controls,
+  and every other release still does,
+  which is what `--crate monochromatic-git-policy-cli` of the dispatch command does,
+  through the label rule and not a list of versions here
+  (`package/crate-release/cli/README.md`,
+  "What an alpha release leaves out").
+  An alpha is therefore released without this host's btrfs controls,
+  and `native:release:host-controls` is still the task that runs them for every other release.
   A control that needs a filesystem that is not btrfs does print that line on this host,
   which is the one such line a green release run holds
   (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
@@ -5303,7 +5320,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   (`package/crate-release/cli/README.md`).
   A wrapper release runs two workflows:
   `crate-release.yml` bumps the version,
-  checks the crate and pushes the bump to `main`,
+  checks the crate (an alpha is released without that check)
+  and pushes the bump to `main`,
   and the `cargo-publish.yml` run that its `publish` job dispatches publishes the crate and builds the tarballs of the
   GitHub release.
   Both are followed to their own end,
