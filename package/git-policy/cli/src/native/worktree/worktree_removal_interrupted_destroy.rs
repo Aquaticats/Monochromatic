@@ -340,7 +340,8 @@ fn record_owner_may_be_running(owner: Option<&String>) -> bool {
 ///  (a coordinating note of 2026-11-12).
 ///  A record with no owner is one an earlier build wrote,
 ///  and an identity that cannot be read proves nothing,
-///  so both are read as abandoned: the finish is safe for them and waiting on an unproven owner would keep a registration
+///  so both are read as abandoned:
+/// the finish is safe for them and waiting on an unproven owner would keep a registration
 ///  for ever.
 ///
 /// In TS you'd write (pseudocode):

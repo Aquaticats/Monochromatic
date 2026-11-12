@@ -157,7 +157,8 @@ pub fn record_kept_worktree(common_dir: &Path, worktree: &Path, branch: &str, wh
 ///   The notice is what says a removal of this worktree was a decision this program made and told the person about,
 ///  so a record that carries one is not a record nothing ever looked at.
 ///  Asking for the file by the name it would have costs one look,
-///  and a notice another command claimed (renamed) is one it is showing now, which is still a decision that was made.
+///  and a notice another command claimed (renamed) is one it is showing now,
+/// which is still a decision that was made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

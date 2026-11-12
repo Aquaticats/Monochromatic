@@ -626,12 +626,14 @@ impl WorkHandlers for Answering {
 ///  A slow item that answered `Retry` is looked at again when its own claim runs out,
 ///  with no command and no other wake.
 /// Why:
-///  A `Retry` keeps the claim, and the lease is what returns the record to `pending`.
+///  A `Retry` keeps the claim,
+/// and the lease is what returns the record to `pending`.
 ///  A slow item claimed after the round's own reading of claim expiries had no timer at all,
 ///  so a removal that answered `Retry` waited for a command nobody ran
 ///  (an audit of the release changeover,
 ///  finding 3).
-///  The lane's own answer is what makes the look happen, and this control reads it instead of waiting out a
+///  The lane's own answer is what makes the look happen,
+/// and this control reads it instead of waiting out a
 ///  lease.
 #[test]
 fn a_slow_item_that_retries_names_when_the_lane_looks_again() {

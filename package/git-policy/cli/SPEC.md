@@ -3096,7 +3096,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  exactly as a failed push's record does.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
- The hand-over writes, beside the registration,
+ The hand-over writes,
+beside the registration,
  in the file `monochromatic-git-policy-cli-removal-identity`,
  the device and the inode of the registration and of the worktree root,
  and the service compares them with the two directories standing there before it removes anything.
@@ -3112,7 +3113,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  A record whose hand-over wrote no such identity,
  which is every record an earlier release queued,
  is compared with the name it was keyed by,
- which is the name the release before this one computed from the path and the registration's device, inode and
+ which is the name the release before this one computed from the path and the registration's device,
+inode and
  change time:
  a match proves the registration is untouched since the hand-over,
  and a mismatch leaves the worktree and names it.
@@ -3129,25 +3131,65 @@ A queue outlives the program that writes to it,
  and a version above this build's,
  are left in `pending` and looked at again,
  which is one read per record per round;
- a field this build does not know is ignored, and the record is this build's work when its kind and version are;
- and a record that is not a record at all, which no release can ever read, is settled in `failed`
+ a field this build does not know is ignored,
+and the record is this build's work when its kind and version are;
+ and a record that is not a record at all,
+which no release can ever read,
+is settled in `failed`
  (`record_of_a_later_release` in `src/native/landing/work_item.rs`).
- A whole-worktree removal that a commit service of an earlier release refused is queued once more by the next command
- of the repository,
+ A whole-worktree removal that a commit service of an earlier release refused is queued once more,
+ by the next command of the repository and by the service's own slow lane,
  with a line that names the worktree:
  that service reads the record's `oid` as a subvolume number,
  answers a failure,
  and nothing reads `failed` again,
  so the landed worktree stayed for ever and nothing said so.
+ The lane queues it immediately before its own look at the slow kinds
+ (`src/native/landing/service_work_slow_lane.rs`),
+ so that look claims it,
+ because a record queued after the look's listing waits for a wake nothing sends;
+ the command wakes the service after it queues one.
  The second attempt is marked in the record itself,
  through the attempt count it already carries,
  so a removal Git refuses again is not queued by every later command.
- A record an earlier release wrote carries neither the identity of its worktree nor the worktree its ignored files were
+ What separates a failure from a keep is the kept-worktree notice the paragraph above describes:
+ a removal this release's own service kept wrote one,
+ and a person has been told why,
+ so that record is a decision and not a misunderstanding.
+ A record this release handed over carries the identity of its worktree and the worktree its ignored files were
  compared with,
+ which is what lets the second attempt prove the worktree again and remove it;
+ a record an earlier release wrote carries neither,
  so this release cannot prove those files again:
  the service keeps that worktree and names it in the kept-worktree record,
  which the person's next command shows,
  rather than removing it on a proof it cannot repeat.
+How long a handed-over removal waits is the step the service is inside and not a number it keeps.
+ The record is claimed by the slow lane,
+which looks at one repository at a time and runs this program's deletions
+ before that look's trashes (`src/native/landing/service_work_drain_pending_claims.rs`),
+ so a removal waits for the items already running behind it,
+up to the lane's width,
+ and for each item a trash of one worktree can take as long as that worktree is large.
+ That is measured rather than assumed:
+a control holds the lane inside one trash of another repository for 400 ms and
+ the removal handed over meanwhile waits 451 ms,
+starting as soon as the trash ends
+ (`a_removal_waits_for_the_trash_the_lane_is_inside`).
+ A removal that answers `Retry` keeps its claim and is looked at again when that claim runs out,
+ which the lane names as its own next look (`a_slow_item_that_retries_names_when_the_lane_looks_again`).
+A removal another process is still carrying out is that process's work,
+and no other command touches it:
+ the record a destroy writes names the process and its birth identity,
+ and a command that reads a record whose owner is shown to be that live process leaves the record and the registration
+ exactly as they stand and prints nothing.
+ A path that is already gone is what a removal wants,
+so the emptying of a registration treats a missing entry as
+ removed,
+and the finish of a recorded destroy does not report it as one it could not take.
+ Only a record whose owner is proven gone is finished by another command,
+and only a refusal that leaves the registration
+ standing names a step for the person.
 Nothing about a worktree added inside a landed one is promised after that last reading:
  a worktree registered,
  a lock taken,
@@ -16726,7 +16768,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16816,7 +16859,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.

@@ -1196,6 +1196,28 @@ The record names one worktree and not a path:
  and the service recomputes that name before it removes anything.
 A worktree you removed by hand and added again at the same path is therefore a different worktree,
  and the record of the earlier one leaves it exactly as it is.
+How long the removal waits is the step the service is inside,
+not a number it keeps:
+ a removal waits for the slow lane's current repository and for the items already running there,
+ and a trash of one worktree can take as long as that worktree is large.
+ Measured with the package's own control:
+ with the lane held inside one trash of another repository for 400 ms,
+ a removal handed over meanwhile waited 451 ms and started as soon as the trash ended.
+ A removal the service had to leave for a later look is looked at again by the service itself when its claim runs out,
+ with no command of yours in between.
+A removal another command is still carrying out is left alone:
+ a command that meets one prints nothing about it and touches neither its record nor its registration,
+ and a file a removal already deleted is never reported as one that could not be removed.
+A record a service of an earlier release failed is queued once more,
+by your next command in that repository and by the
+ service's own next look,
+ so a machine that replaces the release needs no command of yours to finish the removal it handed over.
+ A removal this release handed over is then proved again and removed;
+ one an earlier release wrote carries no identity and no worktree its ignored files were compared with,
+ so the service keeps that worktree and names it for you instead of removing it on a proof it cannot repeat.
+The line about a kept worktree is the whole of what a keep costs you:
+ nothing is kept in silence,
+and nothing of yours is deleted on a proof the wrapper cannot repeat.
 
 **What goes with the worktree.**
 The files Git ignores in it go too,

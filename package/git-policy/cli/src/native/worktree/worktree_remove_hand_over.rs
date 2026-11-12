@@ -72,13 +72,15 @@ const PROCESS_TABLE: &str = "/proc";
 
 /// The file beside a worktree's registration that names the worktree a landed sweep compared its ignored files with.
 ///
-/// It lives in the registration, so a removal of the worktree takes it with the directory,
+/// It lives in the registration,
+/// so a removal of the worktree takes it with the directory,
 /// and a worktree that is kept keeps it for the next reading.
 pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-compared-with";
 
 /// The file beside a worktree's registration that names the worktree and the registration the record was written for.
 ///
-/// It holds the device and the inode of each, which is what tells the worktree the proof was made for from one a person
+/// It holds the device and the inode of each,
+/// which is what tells the worktree the proof was made for from one a person
 /// added at the same path while the record waited.
 pub const IDENTITY_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-identity";
 
@@ -502,7 +504,8 @@ pub fn hand_over_worktree_removal(
 ///  and never run.
 ///  A registration that cannot be read leaves the path alone,
 ///  which is the record this release wrote before the identity was added.
-///  The bytes are the path and the registration's device, inode and change time,
+///  The bytes are the path and the registration's device,
+/// inode and change time,
 ///  exactly as the release before this one computed them:
 ///  a record queued while that release ran is still the record this one finds under its id,
 ///  and a change of the name here would have left it queued for a worktree nothing removes.
@@ -736,7 +739,8 @@ fn why_this_is_another_worktree(item: &WorkItem, target: &Path, registration: &P
 ///  while one with no notice beside it was settled by a service that could read neither.
 ///  A record this release wrote carries the identity of its worktree beside the registration,
 ///  and that is exactly the record an earlier release's service fails:
-///  it must be queued again, or a machine that ran the earlier release would never remove a landed worktree again.
+///  it must be queued again,
+/// or a machine that ran the earlier release would never remove a landed worktree again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -865,7 +869,8 @@ fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
 ///  so nothing of the person's goes with a half-deleted tree.
 ///  A staged deletion and a working-tree deletion are both deletions;
 ///  anything else Git names is not.
-///  A Git that cannot answer proves nothing, and the answer is false.
+///  A Git that cannot answer proves nothing,
+/// and the answer is false.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

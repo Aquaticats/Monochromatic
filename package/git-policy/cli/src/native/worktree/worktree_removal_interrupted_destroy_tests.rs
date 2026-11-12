@@ -120,16 +120,19 @@ fn btrfs_a_recorded_destroy_is_finished_when_a_pool_a_killed_clear_left_is_the_o
 ///  and the registration still standing with the worktree's own state in it.
 /// Why:
 ///  The finish of a recorded destroy is about one state:
-/// the files are gone, and what the registration still holds is this program's to delete.
+/// the files are gone,
+/// and what the registration still holds is this program's to delete.
 /// Every control below starts there and changes one thing.
 struct Destroyed {
-    /// The fixture root, removed at the end.
+    /// The fixture root,
+    /// removed at the end.
     root: PathBuf,
     /// The common Git directory.
     common: PathBuf,
     /// The registration of the worktree that is gone.
     admin: PathBuf,
-    /// The worktree's own state in that registration, which the finish empties.
+    /// The worktree's own state in that registration,
+    /// which the finish empties.
     held: PathBuf,
 }
 
@@ -159,7 +162,8 @@ fn a_registration_left_by_a_recorded_destroy(name: &str, owner: Option<&str>) ->
 /// What:
 ///  A command that meets a removal whose owner is still emptying the registration prints nothing and changes nothing.
 /// Why:
-///  The kernel call returned, so the record is one the finish would take,
+///  The kernel call returned,
+/// so the record is one the finish would take,
 /// but the removal that wrote it is emptying that same registration right now:
 /// two clearings of one tree race,
 /// the second listed a file the first had deleted,
@@ -167,7 +171,8 @@ fn a_registration_left_by_a_recorded_destroy(name: &str, owner: Option<&str>) ->
 /// with an instruction to run `git worktree prune` about a removal finishing by itself
 ///  (a coordinating note of 2026-11-12,
 /// three sightings in the installed release).
-///  The record names its owner, and a process that is shown to be alive is carrying the removal out.
+///  The record names its owner,
+/// and a process that is shown to be alive is carrying the removal out.
 #[test]
 fn a_removal_whose_owner_is_still_emptying_the_registration_is_left_alone() {
     let destroyed: Destroyed = a_registration_left_by_a_recorded_destroy("destroy-finished-by-its-owner", None);
@@ -187,7 +192,8 @@ fn a_removal_whose_owner_is_still_emptying_the_registration_is_left_alone() {
 /// the finish counted that as "its content cannot be removed (No such file or directory)"
 /// and told the person to run `git worktree prune`
 ///  (a coordinating note of 2026-11-12).
-///  The owner here is shown to be gone, so the finish is this command's work.
+///  The owner here is shown to be gone,
+/// so the finish is this command's work.
 #[test]
 fn a_record_another_process_already_removed_does_not_stop_the_finish() {
     let destroyed: Destroyed = a_registration_left_by_a_recorded_destroy("destroy-record-already-gone", Some("1:ended"));

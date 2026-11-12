@@ -507,7 +507,8 @@ fn whole_name(commit: &str) -> String {
 ///  with the worktree it compared the ignored files with,
 ///  and no service told.
 /// Why:
-///  This is the exact state a merge leaves: the record queued,
+///  This is the exact state a merge leaves:
+/// the record queued,
 ///  the worktree standing,
 ///  and the destruction owed to the commit service.
 ///
@@ -941,8 +942,12 @@ fn put_a_record(common: &Path, state: &str, item: &WorkItem) {
 ///  so every removal answered that refusal,
 ///  the second look read it as ignored files nothing could vouch for,
 ///  and the service kept every worktree it was ever handed
-///  (a probe of this branch found it, and it was fixed with no control).
-///  The round is the whole path: the record is pending, the round claims it, and the worktree goes.
+///  (a probe of this branch found it,
+/// and it was fixed with no control).
+///  The round is the whole path:
+/// the record is pending,
+/// the round claims it,
+/// and the worktree goes.
 #[test]
 fn a_service_round_removes_the_worktree_it_was_handed_inside_the_runtime() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-inside-the-runtime");
@@ -957,7 +962,9 @@ fn a_service_round_removes_the_worktree_it_was_handed_inside_the_runtime() {
 
 
 /// What:
-///  A removal this release handed over, that a service of an earlier release failed, is queued again and this release's
+///  A removal this release handed over,
+/// that a service of an earlier release failed,
+/// is queued again and this release's
 ///  service performs it.
 /// Why:
 ///  This is the changeover a machine really makes:
@@ -971,7 +978,8 @@ fn a_service_round_removes_the_worktree_it_was_handed_inside_the_runtime() {
 ///  (an audit of the release changeover,
 ///  finding 2).
 ///  The record's own identity and the worktree its ignored files were compared with are what let this release prove the
-///  worktree again, so the second attempt is a removal and not a keep.
+///  worktree again,
+/// so the second attempt is a removal and not a keep.
 #[test]
 fn a_removal_this_release_handed_over_and_an_earlier_service_failed_is_removed_by_this_release() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-refused-with-its-identity");
@@ -1000,7 +1008,8 @@ fn a_removal_this_release_handed_over_and_an_earlier_service_failed_is_removed_b
 ///  (an audit of the release changeover,
 ///  finding 2).
 ///  The record is put back immediately before the lane's own look at the slow kinds,
-///  so that look claims it: a record queued after its listing waits for a wake nothing sends.
+///  so that look claims it:
+/// a record queued after its listing waits for a wake nothing sends.
 #[test]
 fn the_slow_lane_queues_a_removal_an_earlier_release_failed_and_performs_it() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-round-requeues");
@@ -1027,7 +1036,8 @@ fn the_slow_lane_queues_a_removal_an_earlier_release_failed_and_performs_it() {
 ///  and `keep_the_worktree` writes a notice the next command shows,
 ///  so a record with a notice beside it is one the person has been told about.
 ///  Queuing it again would re-prove a worktree this program already decided about,
-///  and a notice nobody has claimed yet must still count: the person may not have run a command since.
+///  and a notice nobody has claimed yet must still count:
+/// the person may not have run a command since.
 #[test]
 fn a_worktree_this_release_kept_is_not_queued_again() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-removal-kept-and-spoken", "*.log\n");
