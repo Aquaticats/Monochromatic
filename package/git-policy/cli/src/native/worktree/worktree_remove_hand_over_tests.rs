@@ -900,7 +900,7 @@ fn a_record_of_a_removal_whose_worktree_is_gone_names_the_worktree_standing_ther
 ///  taken when the registration standing there carries an identity that is not the one standing there,
 ///  settled the record `done` with nothing said,
 ///  while the merge's own line reads `done` as "the worktree is gone".
-///  Unreachable route: a worktree's own record cannot write an identity that lies about the worktree standing beside it,
+///  A worktree's own record cannot write an identity that lies about the worktree standing beside it,
 ///  so this writes the record by hand.
 #[test]
 fn a_record_whose_identity_beside_the_registration_belongs_to_another_directory_names_the_one_standing_there() {

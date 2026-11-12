@@ -135,8 +135,10 @@ fn clean_subvolume_worktree(root: &Path) -> (PathBuf, PathBuf) {
 ///  and a batch can meet a reference lock in the whole time after that,
 ///  so the keeping belongs in the process that destroys,
 ///  as it already is in the service's own removal
-///  (a review of the landed removal, finding 1;
-///  a review of the landed sweep, finding 1).
+///  (a review of the landed removal,
+///  finding 1;
+///  a review of the landed sweep,
+///  finding 1).
 #[test]
 fn btrfs_a_held_commit_of_the_worktree_is_kept_before_the_destroy() {
     let Some(root) = btrfs_fixture("remove-held-commit") else { return };
@@ -171,7 +173,8 @@ fn btrfs_a_held_commit_of_the_worktree_is_kept_before_the_destroy() {
 ///  The destroy deletes the only two things that name the commit,
 ///  so nothing may be destroyed while no reference names it:
 ///  the removal refuses before anything happened,
-///  and the worktree, its held record and its per-worktree reference stay exactly as they were.
+///  and the worktree,
+///  its held record and its per-worktree reference stay exactly as they were.
 #[test]
 fn btrfs_a_worktree_whose_held_commit_no_reference_can_keep_is_not_destroyed() {
     let Some(root) = btrfs_fixture("remove-held-commit-refused") else { return };
