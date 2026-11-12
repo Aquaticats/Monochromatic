@@ -29,13 +29,23 @@ rule for every ending that answers a batch as not made.
 (`commit refs/worktree/cli-git-service/<batch>`),
 so `git fast-import` writes the commit objects and
 updates that reference at its end.
-A commit Git built elsewhere is named by the client's shadow until the landing writes the batch's
-reference (`src/native/landing/service_land_objects_of_batch.rs`,
-the `keep_on_the_scratch_reference`
-call).
+A commit Git built elsewhere is in the repository's own object store before any reference of that
+repository names it,
+and the landing writes the batch's reference for it
+(`src/native/landing/service_land_objects_of_batch.rs`):
+the release writes that reference itself where its write is provably Git's
+(`src/native/landing/side_reference_written_here.rs`, an exclusive lock and a rename),
+and leaves it to Git otherwise, waiting for Git's write and reading the reference to answer it
+(`keep_on_the_scratch_reference`,
+`src/native/landing/service_land_side_reference_write.rs`).
 
 **Nothing proves a name here.**
 This is the one window left open.
+It is the same window for both writers:
+an object exists before any reference names it,
+and a landing killed between the object and the write of the reference leaves that object to the
+collector's grace,
+as a killed `git fast-import` does.
 The wrapper's automatic maintenance uses `gc --auto` with the default grace,
 so only a concurrent `gc --prune=now` in that instant takes the commit,
 and closing it means naming the reference in the same import transaction for every case,
@@ -43,8 +53,11 @@ which is a change to how batches are built and has not been decided.
 
 ### 2. One name: `refs/worktree/cli-git-service/<batch>`
 
-Every way this reference is removed,
-and the proof it now has:
+That reference comes into existence two ways,
+the import's own `commit` line and the landing's own write for a commit Git built elsewhere,
+and every way it is removed asks the same question:
+is another reference proven to name the commit,
+and does this reference still name it?
 
 - A step ended at its ceiling (`keep_what_an_ended_step_built`):
   the kept reference is proven written,
@@ -95,6 +108,13 @@ and the proof it now has:
   before Git removes the worktree;
   when neither can be written the command stops before Git runs.
 
+A landing killed inside its own write of that reference leaves `<batch>.lock` below
+`.git/refs/worktree/cli-git-service/` and no reference,
+so the commit is back in the window of step 1 until a later landing of the same batch writes it;
+the lock is what the next write of that name waits for or clears by its own staleness rule
+(`src/native/landing/side_reference_written_here.rs`,
+`src/native/lock/stale_ref_locks.rs`).
+
 ### 3. The branch names it
 
 The branch move and the delete of the batch's reference are one `update-ref --stdin` transaction
@@ -108,6 +128,30 @@ A kept reference that names a commit the branch also has costs space once that c
 branch,
 never the person's data.
 The sweep that drops a batch removes it compare-and-delete only when it proves the commit safe.
+
+## How this was established
+
+A disposable repository, its own `HOME` and `XDG_RUNTIME_DIR`, a commit service started the way its
+unit file starts it,
+and an open descriptor on `.git/index.lock` (a holder the service can prove alive) or a Git index in
+a folder the account may not write:
+the landing then answers the batch as not made,
+and a copy of the fixture is taken before `git gc --prune=now`.
+
+On 2026-11-12,
+with the released wrapper of 0.6.1-alpha.13 (the code `main` held before this branch),
+both fixtures built the commit,
+left no reference naming it,
+and the prune took it.
+The same fixtures with the wrapper built from this branch named the commit,
+at `refs/worktree/cli-git-service/<batch>` when the kept reference could not be written and at
+`refs/cli-git/kept/<batch>` when the index lock was refused,
+printed that name to the person,
+and the commit survived the prune in both.
+The controls live in the package's own tests
+(`src/native/landing/service_land_side_reference_write_tests.rs`,
+`src/native/landing/service_land_tests.rs`,
+`src/native/landing/service_land_hold_a_batch_tests.rs`).
 
 ## What a person is told
 
