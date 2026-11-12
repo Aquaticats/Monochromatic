@@ -5237,6 +5237,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   and a check still running then has its scope ended by name and is reported as stopped at its deadline
   rather than waited on:
   killing the `systemd-run` client alone would leave the command running in the scope.
+  The deadline is refused when it is 0,
+  because a step started with no bound could wait forever,
+  and when it is longer than 2147483 seconds,
+  which is the longest delay Node's timers honour;
+  either refusal exits 1 before a scope starts.
+  A scope name carries the run's own identity beside its label and second-precise stamp
+  (`bin/native-capped-scope-command.ts`),
+  so two runs of one check started in the same second ask the manager for two names:
+  one shared name would make the manager refuse the second run's scope while the first was active,
+  which ended that check with status 2 without running it.
   The caps the scopes carry are the ones the scratch script used
   (`CPUQuota=200%`,
   `MemoryMax=4G`,
@@ -5262,10 +5272,18 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   the lock committed as `chore(toolchain): monochromatic-git-policy-cli <version>`,
   and then the newest line of the wrapper's commit timing record beside the common Git directory
   and the service journal of that commit.
-  A lockfile that already names the release commits nothing and says so,
-  and reads no journal,
-  because there is then no sample commit;
-  an install of a release already recorded therefore survives instead of failing a commit with nothing to stage.
+  The commit is decided from the lockfile as it is after the tools were installed,
+  compared with the commit the checkout points at,
+  rather than from the diff printed before the install:
+  that is what a commit of the path would record,
+  so a lockfile an earlier step had already staged is committed,
+  and an install of a release another install committed in the meantime records nothing and says so instead of
+  failing a commit with nothing to record.
+  A lockfile another process writes while the release is installed is never committed under this release's name:
+  the install prints the write it found,
+  refuses,
+  and leaves that write exactly where it is,
+  so a concurrent `toolchain:update` of another tool is never recorded as this release.
   Every toolchain step is bounded by `--deadline-seconds`
   (1800 by default;
   no run of either step was timed,
