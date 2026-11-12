@@ -2987,11 +2987,17 @@ with the same force:
   so such a worktree can never go
   this way:
   the refusal comes before anything is renamed,
-  it names the volume it found and the branch the linked worktree
-  there has checked out,
-  and it gives the one command that removes that worktree while keeping its branch
+  and it names the volume it found:
+  for a worktree this repository registers,
+  the branch that worktree has checked out or that it is on a detached `HEAD`,
+  and the one command that removes it while keeping what its `HEAD` names
   (`git worktree remove <inner>`),
   which refuses while anything there is uncommitted.
+  A volume that is no registration of this repository is named with what it is,
+  with the move or the unmount that keep every file of it first,
+  and with a delete last and for what it destroys,
+  because a subvolume there may be another repository's worktree,
+  whose commits only its own removal keeps.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -3323,9 +3329,12 @@ it,
 and refuses before it deletes anything when a directory below the tree is a nested subvolume (its device differs
 from the top directory's) or a mount point;
 the report names that path and says to move it out,
-to delete it with
-`btrfs subvolume delete`,
-or to unmount it.
+which keeps every file of it,
+or to unmount a mount point,
+which keeps its contents;
+`btrfs subvolume delete` is named after those and for what it does,
+because it destroys everything inside that subvolume,
+which the command that refused cannot see.
 A boundary that appears after that first pass is refused again at the directory where it is met,
 named with the same ways forward,
 and a directory whose listing was removed and that the kernel then refuses as not empty is
@@ -13475,6 +13484,10 @@ from this invocation's own capture.
   because Git makes a registration before it makes the checkout,
   and a folder the wrapper did not name stays,
   because only a folder named for a worktree can be proven to belong to one.
+  A name that is no directory is no pool either:
+  the pool's folder and every pool in it are read as entries before anything below them is,
+  so a link at either name is somebody else's and its target is never listed,
+  never read and never removed.
   A removal that fails is named in the diagnostic log and left for the next command,
   and nothing it removes is followed through a member's links into this repository.
   A removal that succeeds prints nothing:

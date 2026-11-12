@@ -750,6 +750,44 @@ fn removing_the_pool_of_a_gone_worktree_leaves_what_a_member_links_to() {
 }
 
 /// What:
+///  A symbolic link at the pool's folder, or at a pool's own name,
+///  is no pool of this program:
+///  the sweep reads nothing below either name and removes nothing.
+/// Why:
+///   Nobody but this program writes the pool's folder or a name inside it,
+/// and a name it built is no proof of
+///  what stands at it:
+/// the listing followed the link and every removal below it deleted a directory of
+///  the linked tree, then reported the pool of a gone worktree as collected (a review finding,
+/// F4).
+///  A name is not a proof of what is at it.
+#[test]
+fn a_link_at_the_pools_folder_or_at_a_pools_name_is_no_pool_and_what_it_points_at_survives() {
+    let root: PathBuf = fixture("shadow-pool-links");
+    let common: PathBuf = root.join("repo/.git");
+    let outside: PathBuf = root.join("outside");
+    let a_stranger_tree: PathBuf = outside.join("worktree-gone");
+    std::fs::create_dir_all(a_stranger_tree.as_path()).expect("a folder somebody keeps outside the pool");
+    std::fs::write(a_stranger_tree.join("keep.txt").as_path(), b"mine\n").expect("its file");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    let pool_folder: PathBuf = common.join(SHADOW_POOL_FOLDER);
+    std::os::unix::fs::symlink(outside.as_path(), pool_folder.as_path()).expect("a link at the pool's folder");
+    let followed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert!(followed.is_empty(), "a link at the pool's folder is no pool to sweep: {followed:?}");
+    assert_eq!(std::fs::read(a_stranger_tree.join("keep.txt").as_path()).expect("the file below the link's target"), b"mine\n", "the file in the linked tree survives");
+    std::fs::remove_file(pool_folder.as_path()).expect("the link the control made");
+    // The same shape at one pool's own name, with the folder this program made around it.
+    let pool: PathBuf = a_pool_folder(common.as_path(), "worktree-topic");
+    std::fs::remove_dir_all(pool.as_path()).expect("the pool folder the control made");
+    std::os::unix::fs::symlink(a_stranger_tree.as_path(), pool.as_path()).expect("a link at a pool's name");
+    let named: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert!(named.is_empty(), "a link at a pool's name is no pool to sweep: {named:?}");
+    assert_eq!(std::fs::read(a_stranger_tree.join("keep.txt").as_path()).expect("the file below the link's target"), b"mine\n", "the file in the linked tree survives that too");
+    assert!(std::fs::symlink_metadata(pool.as_path()).is_ok(), "and the link itself is not this program's to remove");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A second sweep of the same repository removes nothing and fails nothing.
 /// Why:
 ///   Every command in the repository sweeps,

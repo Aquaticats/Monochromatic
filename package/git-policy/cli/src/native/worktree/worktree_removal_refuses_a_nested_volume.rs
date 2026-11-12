@@ -114,6 +114,12 @@ fn named_worktree_report(target: &Path, worktree: &RegisteredWorktree) -> String
 ///  deletion too,
 /// so the report names it and every way to move,
 /// unmount or delete it.
+///  Nothing here is a command the wrapper would refuse to run itself, and the two commands that destroy
+///  are named last and for what they are:
+/// a subvolume may be another repository's worktree with
+///  commits only its own removal keeps,
+/// and its files are the reason the inner removal was written to keep
+///  every one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,8 +129,13 @@ fn unnamed_volume_report(target: &Path, found: &Boundary) -> String {
     return format!(
         "{PREFIX}the worktree {target} holds {inner}, which is {what}, and the kernel cannot destroy a subvolume that \
          contains one. Nothing was removed, and nothing of {inner} was deleted.\n\
-         Move {inner} out of {target}, or delete it yourself (`btrfs subvolume delete {inner}`, or `umount {inner}` for \
-         a mount point), and then run this removal again. To keep it, remove the worktree by hand, one file at a time.",
+         Move {inner} out of {target} and run this removal again: a move keeps every file of it, and the removal then \
+         finishes. A subvolume that is a worktree of another repository goes with `git worktree remove {inner}`, run in \
+         that repository, which keeps its branch and refuses while anything there is uncommitted.\n\
+         What is still there is kept by no command of this one: `btrfs subvolume delete {inner}` destroys everything \
+         inside it, which this wrapper cannot see, so use it only when you know {inner} holds nothing of yours, and \
+         `umount {inner}` (which keeps its contents) for a mount point. To keep it without moving it, remove the \
+         worktree by hand, one file at a time.",
         target = target.display(),
         inner = found.path.display(),
         what = found.what

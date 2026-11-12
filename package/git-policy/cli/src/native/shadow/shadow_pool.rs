@@ -406,6 +406,13 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
 ///  A folder the wrapper did not name stays:
 ///  only a folder named for a worktree can be proven to belong to one,
 ///  and the pool holds state of the person's own otherwise.
+///  A name that is no directory stays as well:
+/// the pool's folder and every pool in it are directories this program
+///  made,
+/// and a link at either name is somebody else's,
+/// whose target this sweep never reads and never removes
+///  (a review finding,
+/// F4).
 ///  Nothing here can fail a command:
 ///  a folder that cannot be removed is named in the diagnostic log and left for the next command.
 ///
@@ -415,6 +422,11 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
 /// ```
 pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
     let root: PathBuf = common_dir.join(SHADOW_POOL_FOLDER);
+    // Both names this program made above a pool are read before any entry below them is: a link at the pool's folder
+    // would send the listing and every removal below it into whatever tree it names (a review finding, F4).
+    if !the_pool_path_is_the_wrappers_own(root.as_path()) {
+        return Vec::new();
+    }
     let Ok(entries) = std::fs::read_dir(root.as_path()) else { return Vec::new() };
     // The keys of the worktrees Git lists, made with the same rule the folders were named by.
     let mut listed: Vec<String> = Vec::new();
@@ -428,6 +440,11 @@ pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if !name.starts_with(WORKTREE_KEY_PREFIX) || listed.contains(&name) {
             continue;
+        }
+        // What the entry is, never what it is named: `file_type` answers for the entry itself and follows no link.
+        match entry.file_type() {
+            Ok(kind) if kind.is_dir() => {}
+            _not_a_pool => continue,
         }
         let folder: PathBuf = entry.path();
         match remove_tree(folder.as_path()) {

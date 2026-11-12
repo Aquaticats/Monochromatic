@@ -141,9 +141,15 @@ fn shown_path(frame: &Frame, name: &OsStr) -> PathBuf {
 
 /// The ways forward for a boundary,
 /// as the last sentence of a refusal.
+/// Why the order:
+///   Moving the entry out keeps every file it holds and is always a way on,
+/// a mount point is kept whole by `umount`,
+///  and a subvolume delete destroys everything inside the entry,
+/// which the command that refuses here cannot see.
+/// So the two commands that keep what stands there come first, and the one that destroys is named for what it does.
 fn ways_forward(top: &Path, found: &Path) -> String {
     return format!(
-        "To go on: move {found} out of {top}, or delete it yourself (for a subvolume `btrfs subvolume delete {found}`, for a mount `umount {found}`), then run the removal again; to keep it, remove the other entries of {top} by hand.",
+        "To go on: move {found} out of {top}, which keeps every file of it, and run the removal again; a mount point of it goes with `umount {found}`, which keeps its contents. `btrfs subvolume delete {found}` destroys everything inside that subvolume, so use it only for one you know holds nothing of yours; to keep it where it is, remove the other entries of {top} by hand.",
         found = found.display(),
         top = top.display()
     );
