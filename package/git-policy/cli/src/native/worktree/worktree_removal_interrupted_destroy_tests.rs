@@ -15,9 +15,32 @@ use super::*;
 use crate::fs_beneath::identity_of;
 use crate::fs_btrfs_ioctl::{subvolume_create_at, subvolume_destroy_at};
 use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
-use crate::test_support::{git, git_context, remove, repository};
-use crate::transaction_git::GitContext;
+use crate::test_support::{git, remove, repository};
 use std::path::PathBuf;
+
+/// What:
+///  The answer the hand-over's wake gives,
+///  so a control reaches no commit service and no session bus.
+/// Why:
+///   This tree's hand-over asks a value that says who is told, not a closure,
+/// and a control needs one answer:
+/// `Some(..)` is a wake that did not reach a service,
+/// `None` one that did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const told = new Answer('nothing answered'); // told(commonDir) throws that reason
+/// ```
+struct Answer(Option<String>);
+
+impl crate::worktree_remove_hand_over::ToldOfHandOver for Answer {
+    fn told(&self, _common_dir: &Path) -> Result<(), String> {
+        return match self.0.as_ref() {
+            Some(reason) => Err(reason.clone()),
+            None => Ok(()),
+        };
+    }
+}
 
 /// What:
 ///  A removal whose destroy happened and whose registration stayed is finished by the next command even when the only
@@ -234,7 +257,6 @@ fn btrfs_a_removal_killed_after_the_rename_and_before_the_mark_is_finished_by_th
     let parent: File = crate::fs_beneath::open_root(parent_path.as_path()).expect("the folder the worktree stands in");
     let id: u64 = crate::fs_btrfs_ioctl::subvolume_id(&std::fs::File::open(worktree.as_path()).expect("the worktree"), worktree.as_path()).expect("the id of its subvolume");
     let handed = crate::worktree_remove_hand_over::hand_over_with(
-        &git_context(),
         common_dir.as_path(),
         &parent,
         parent_path.as_path(),
@@ -242,7 +264,7 @@ fn btrfs_a_removal_killed_after_the_rename_and_before_the_mark_is_finished_by_th
         id,
         worktree.as_path(),
         std::ffi::OsStr::new("wt"),
-        &|_: &GitContext, _at: &Path| { return Err(String::from("the kill took the process before the service answered")) },
+        &Answer(Some(String::from("the kill took the process before the service answered"))),
     );
     handed.expect("the record, the place and the rename are the hand-over's own steps");
     // The kill lands here, between the rename and the mark.
@@ -274,7 +296,6 @@ fn btrfs_a_removal_killed_after_the_mark_is_finished_by_the_next_command() {
     let parent: File = crate::fs_beneath::open_root(parent_path.as_path()).expect("the folder the worktree stands in");
     let id: u64 = crate::fs_btrfs_ioctl::subvolume_id(&std::fs::File::open(worktree.as_path()).expect("the worktree"), worktree.as_path()).expect("the id of its subvolume");
     crate::worktree_remove_hand_over::hand_over_with(
-        &git_context(),
         common_dir.as_path(),
         &parent,
         parent_path.as_path(),
@@ -282,7 +303,7 @@ fn btrfs_a_removal_killed_after_the_mark_is_finished_by_the_next_command() {
         id,
         worktree.as_path(),
         std::ffi::OsStr::new("wt"),
-        &|_: &GitContext, _at: &Path| { return Ok(()) },
+        &Answer(None),
     )
     .expect("the hand-over");
     record_destroyed(common_dir.as_path(), std::ffi::OsStr::new("wt"));
