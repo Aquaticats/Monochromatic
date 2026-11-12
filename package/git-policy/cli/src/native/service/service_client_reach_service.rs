@@ -346,18 +346,15 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             Some(fixed) => fixed,
             None => {
                 let _written = writeln!(notices, "{UPDATING_NOTICE}");
-                // What: The record of the unit texts the manager was told about is dropped the moment another release
-                //       answers.
-                // Why:  That answer alone proves the unit the manager loaded and the files describe are not the same
-                //       (an interrupted downgrade, then an interrupted upgrade), whatever happens next: the service may
-                //       take the retire and leave, and the manager may then try a cached executable an upgrade removed,
-                //       which ends the wait with `DidNotStart` instead of the retirement deadline. Dropping the record
-                //       here makes the next commit write the units and reload instead of taking the fast path into that
-                //       same answer (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-                //       findings 2 of the round-2 review and 3 of the round-3 review).
-                if let Some(directory) = config.units_record_dir.as_ref() {
-                    crate::service_provision_loaded_unit_texts::forget(directory.as_path());
-                }
+                // What: The record of the unit texts the manager was told about is left as it is.
+                // Why:  Another release answering used to be proof that the unit the manager loaded and the files describe
+                //       were not the same, and the record was dropped so the next commit wrote the units and reloaded. A unit
+                //       text no longer names a release: it names a link the wrapper points at its own executable
+                //       (`service_provision_program_pointer.rs`), so the manager's text is the one on disk until a template
+                //       itself changes, and a template that changed is repaired by the missing record alone
+                //       (`service_provision_loaded_unit_texts.rs`). Dropping the record here made every commit after a
+                //       release change, in every worktree, read every unit again: 3,521 to 20,002 ms of provisioning each on
+                //       2026-11-11T20:01-20:12-05:00, and two commits that ended without a commit.
                 let fresh: Instant = Instant::now() + config.start_wait;
                 give_up_at = Some(fresh);
                 fresh

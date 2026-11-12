@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 
 /// A manager that records what it is asked and can be made to fail.
 #[derive(Clone, Default)]
-pub(super) struct Recorder {
+pub(crate) struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
     failure: Arc<Mutex<Option<CallError>>>,
     /// What a stop is answered with,
@@ -140,7 +140,7 @@ impl Recorder {
         }
     }
 
-    pub(super) fn calls(&self) -> Vec<String> {
+    pub(crate) fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
     }
 
@@ -150,12 +150,12 @@ impl Recorder {
     }
 }
 
-pub(super) struct Machine {
-    pub(super) root: PathBuf,
-    pub(super) host: ProvisionHost,
+pub(crate) struct Machine {
+    pub(crate) root: PathBuf,
+    pub(crate) host: ProvisionHost,
 }
 
-pub(super) fn machine(name: &str) -> Machine {
+pub(crate) fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
     let runtime: PathBuf = short_runtime_directory();
     let host: ProvisionHost = ProvisionHost {
@@ -232,7 +232,9 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
         assert!(!text.contains(BINARY_PLACEHOLDER) && !text.contains(GIT_PLACEHOLDER), "no placeholder is left in {name}");
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "{name} carries the marker");
     }
-    assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
+    let program: PathBuf = crate::service_provision_program_pointer::program_of(machine.host.runtime_dir.as_path(), machine.host.service_binary.as_path());
+    assert!(written(&machine, SERVICE_UNIT_NAME).contains(program.to_string_lossy().as_ref()), "the service unit starts the program through the link");
+    assert!(!written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()), "and names no executable of its own");
     assert_eq!(recorder.calls(), with_earlier_instance_questions(vec![format!("start {}", instance_socket())]));
     remove(machine.root.as_path());
 }
@@ -350,7 +352,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
 
 /// The socket the units activate,
 /// as the manager would have made it.
-pub(super) fn add_socket(machine: &Machine) {
+pub(crate) fn add_socket(machine: &Machine) {
     let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
     std::fs::write(&socket, b"").expect("socket stand-in");
@@ -399,35 +401,24 @@ fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place(
     remove(machine.root.as_path());
 }
 
-/// A provisioned unit that names a program an upgrade removed is not in place,
-/// and provisioning repairs it:
-/// the unit is
-///  rewritten with the program that exists,
-/// the manager reloaded,
-/// failed state cleared,
-/// and the socket started.
+/// What:
+///  A provisioning of an installation that is already what this command would write asks the manager nothing.
+/// Why:
+///  The manager is asked only about a unit it may hold changed or a socket that is not there;
+/// a
+///  commit whose only change is the program link (a release change, or a second build of one release) reads one link and
+///  returns,
+///  which is what keeps a first commit after an install from queueing behind a manager that is reading every
+///  unit.
 #[test]
-fn a_unit_naming_a_removed_program_is_repaired_with_a_reload_and_a_reset() {
-    let machine: Machine = machine("provision-removed-lib");
+fn a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing() {
+    let machine: Machine = machine("provision-in-place-asks-nothing-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
-    let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
-    let removed: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bin/cli-git-service";
-    std::fs::write(&unit, written(&machine, SERVICE_UNIT_NAME).replace(machine.host.service_binary.to_string_lossy().as_ref(), removed)).expect("older unit");
-    assert!(!in_place(&machine.host));
-    let mut recorder: Recorder = Recorder::default();
-    provision_with(&machine.host, &mut recorder).expect("repaired");
-    assert!(!written(&machine, SERVICE_UNIT_NAME).contains(removed));
     assert!(in_place(&machine.host));
-    assert_eq!(
-        recorder.calls(),
-        with_earlier_instance_questions(vec![
-            String::from("reload"),
-            format!("reset-failed {}", instance_service()),
-            format!("reset-failed {}", instance_socket()),
-            format!("start {}", instance_socket())
-        ])
-    );
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned again");
+    assert!(recorder.calls().is_empty(), "nothing to write and nothing to start, so nothing is asked: {:?}", recorder.calls());
     remove(machine.root.as_path());
 }
 
@@ -479,21 +470,6 @@ fn a_refused_reload_leaves_no_unit_that_looks_installed() {
     remove(machine.root.as_path());
 }
 
-/// A moved service program (an upgrade) rewrites the service unit only,
-/// and reloads.
-#[test]
-fn a_moved_program_rewrites_the_service_unit_and_reloads() {
-    let mut machine: Machine = machine("provision-moved-lib");
-    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
-    let socket_before: String = written(&machine, SOCKET_UNIT_NAME);
-    machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
-    let mut recorder: Recorder = Recorder::default();
-    provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
-    assert_eq!(written(&machine, SOCKET_UNIT_NAME), socket_before);
-    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"));
-    remove(machine.root.as_path());
-}
 
 /// What:
 ///  An upgrade whose process wrote the new service template and was killed before the manager was reloaded
@@ -521,14 +497,15 @@ fn a_moved_program_rewrites_the_service_unit_and_reloads() {
 /// ```
 #[test]
 fn an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit() {
-    let mut machine: Machine = machine("provision-interrupted-upgrade-lib");
+    let machine: Machine = machine("provision-interrupted-upgrade-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("the replaced release provisioned");
     add_socket(&machine);
     assert!(in_place(&machine.host), "the replaced release is installed and the manager was told");
-    // The upgrading release wrote its template and was killed before it asked the manager to reload.
-    machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
-    let texts: [(&'static str, String); 2] = unit_texts(&machine.host);
-    let (name, text) = &texts[1];
+    // The upgrading release changed the service template itself (a line the other release did not write) and was killed
+    // before it asked the manager to reload. A release that moves only its program leaves the template alone, and the record
+    // with it (`service_provision_program_pointer.rs`), so this is the state that repair is still for.
+    let name: &'static str = SERVICE_UNIT_NAME;
+    let text: String = format!("{}# a line the upgrading release added\n", written(&machine, SERVICE_UNIT_NAME));
     std::fs::write(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name), text).expect("the upgrading release's template");
     assert!(!in_place(&machine.host), "the manager was never told about the template the kill left behind");
     let mut recorder: Recorder = Recorder::default();
@@ -775,13 +752,39 @@ fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_m
     remove(machine.root.as_path());
 }
 
-/// A timeout outside the retirement wait is still the manager not answering.
+/// What:
+///  A manager that does not answer within the exchange's time never fails the commit:
+/// the units stay written,
+/// the record of what it
+///  was told stays unwritten,
+/// the person reads what the wait was for once,
+/// and the next commit asks again.
+/// Why:
+///   The units being written is what the manager needs,
+/// and a service of this release that is already running can answer the request
+///  however slowly the manager reads its units;
+/// a commit that ended here told the person this account has no user services, which was false, and
+///  left the change uncommitted (two commits of 2026-11-11, twenty seconds of provisioning each).
+/// The record must not be written: only the manager's own answer may say it was told.
 #[test]
-fn a_call_that_times_out_outside_the_retirement_wait_is_a_manager_that_does_not_answer() {
+fn a_manager_that_does_not_answer_never_fails_the_commit() {
     let machine: Machine = machine("provision-timeout-lib");
     let mut recorder: Recorder = Recorder::default();
     *recorder.failure.lock().expect("lock") = Some(CallError::TimedOut);
-    assert_eq!(provision_with(&machine.host, &mut recorder), Err(ClientFailure::NoActivation(platform_without_manager())));
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        provision_with(&machine.host, &mut recorder).expect("a manager that does not answer is not a failure");
+    });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    assert_eq!(said.len(), 1, "one line says what the wait was for: {said:?}");
+    assert!(said[0].contains(&format!("within {} seconds", EXCHANGE_WAIT.as_secs())), "{said:?}");
+    assert!(said[0].contains(instance_socket().as_str()), "{said:?}");
+    assert!(said[0].contains("the commit goes on") && said[0].contains("the next commit asks the manager again"), "{said:?}");
+    assert!(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME).exists(), "the units are written");
+    assert!(!crate::service_provision_loaded_unit_texts::remembers(machine.host.runtime_dir.as_path(), unit_texts(&machine.host).as_slice()), "the record is unwritten, so the next commit asks again");
+    let mut next: Recorder = Recorder::default();
+    add_socket(&machine);
+    provision_with(&machine.host, &mut next).expect("the next commit asks again");
+    assert_eq!(next.calls().first().map(String::as_str), Some("reload"), "the reload the manager never answered: {:?}", next.calls());
     remove(machine.root.as_path());
 }
 

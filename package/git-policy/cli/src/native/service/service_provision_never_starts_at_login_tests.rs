@@ -171,7 +171,13 @@ fn provisioning_writes_only_in_the_runtime_unit_directory_and_links_nothing() {
             }
             let ancestors_of_runtime_units: bool = runtime_units.starts_with(path);
             assert!(path.starts_with(&runtime_units) || ancestors_of_runtime_units, "{} was created or changed outside {}", path.display(), runtime_units.display());
-            assert!(!matches!(entry, Entry::Link(_)), "{} is a link", path.display());
+            // What: The one link provisioning makes is the program the units start, and it is named by the unit file,
+            //       not an enabling link of a target.
+            // Why:  A link anywhere else would make a unit start at login, which the owner forbids; the pointer is a file the
+            //       manager never reads as a unit, and the service unit names it as its program.
+            if matches!(entry, Entry::Link(_)) {
+                assert_eq!(path, &crate::service_provision_program_pointer::program_pointer_path(machine.host.runtime_dir.as_path()), "{} is a link", path.display());
+            }
             let name: String = path.file_name().map(|text| { return text.to_string_lossy().into_owned(); }).unwrap_or_default();
             assert!(!name.ends_with(".wants") && !name.ends_with(".requires"), "{} is an enabling folder", path.display());
         }
@@ -214,12 +220,14 @@ fn an_earlier_releases_enabling_link_is_removed() {
 #[test]
 fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit() {
     let allowed: [&str; 6] = ["reload", "reset-failed", "start", "stop", "stop-alone", "state"];
+    let mut asked: usize = 0;
     for (machine, _before, _after, calls) in runs() {
-        assert!(!calls.is_empty(), "the run asked the manager for something");
         for call in &calls {
             let verb: &str = call.split(' ').next().unwrap_or("");
             assert!(allowed.contains(&verb), "{call}: not a call that provisioning may make");
         }
+        asked += calls.len();
         remove(machine.root.as_path());
     }
+    assert!(asked > 0, "one of the runs asked the manager something, so the list is checked against real calls");
 }

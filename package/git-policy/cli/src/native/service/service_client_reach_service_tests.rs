@@ -303,31 +303,26 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
 
 
 /// What:
-///  A service of another release that will not retire is proof that the unit the manager loaded and the files
-///  disagree,
-/// so the record of the texts the manager was told about is dropped.
+///  A service of another release that will not stop ends the wait with the words that name it,
+/// and leaves the record of
+///  the unit texts the manager was told about as it was.
 /// Why:
-///  The record can certify the files while the manager runs the release they replaced:
-/// an interrupted downgrade
-///  writes and reloads the older release's files and is killed before it records them,
-/// and an interrupted upgrade
-///  then writes the newer files without a reload,
-/// which leaves the files and the record agreeing and the manager running
-///  the older release.
-/// Repeating the commit took the fast path into the same answer,
-/// `ClientFailure::OtherRelease`,
-/// for ever
-///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-/// finding 2 of the round-2 review).
-/// The next commit now writes the units and reloads,
-/// which is the one repair of that state.
+///  Another release answering is a service that was started before the program link moved, and the ret
+///  that follows ends it;
+/// it is no longer proof that the manager's unit text and the files disagree, because a unit text names the link and
+///  not a release (`service_provision_program_pointer.rs`).
+/// Dropping the record here made every commit after a release change read every unit again,
+///  which took 3,521 to 20,002 ms of provisioning on 2026-11-11T20:01-20:12-05:00 and failed two commits
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// findings 2 of the round-2 review and 3 of the round-3
+///  review, superseded by the program link).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await reachCurrent(configWithAnotherRelease)).toEqual({ otherRelease: true }); expect(recordExists()).toBe(false);
+/// expect(await reachCurrent(configWithAnotherRelease)).toEqual({ otherRelease: true }); expect(recordExists()).toBe(true);
 /// ```
 #[test]
-fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units() {
+fn a_service_of_another_release_that_will_not_stop_leaves_the_record_of_the_units() {
     let socket: String = address("client-reach-other-release");
     let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
     // The service answers every connection as a later release of this wrapper, which reads no retire of this one.
@@ -363,8 +358,8 @@ fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units
         .expect_err("a service of another release that will not stop ends the command");
     assert_eq!(failure, ClientFailure::OtherRelease);
     assert!(
-        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
-        "the record is dropped, so the next commit sets the units up again"
+        crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
+        "the record stands, so the next commit writes nothing and reads nothing of the manager"
     );
     done.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the service's thread");
@@ -373,30 +368,22 @@ fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units
 
 
 /// What:
-///  A service of another release that takes the retire and then cannot come back still drops the record.
+///  A service of another release that takes the retire and cannot come back leaves the record too,
+/// and the wait ends
+///  with the words that name what it found.
 /// Why:
-///  Seeing another release answer at all proves that the unit the manager loaded is not the one the
-/// files describe,
-///  whatever happens next:
-/// the service that took the retire exits,
-/// the manager tries its cached older executable,
-///  which an upgrade may have removed,
-/// and the next connection finds nothing,
-/// so the wait ends with `DidNotStart`
-///  and never reaches the retirement deadline that dropped the record
-/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-/// finding 3 of the
-///  round-3 review).
-/// The record has to be dropped when the other release is seen,
-/// or every later commit keeps the fast
-///  path into the manager's unchanged unit.
+///  The record says the manager was told about the texts on disk,
+/// which stays true however the other release's service
+///  ended;
+/// what protects the next commit from a manager that starts a program an upgrade removed is that the unit
+///  names the program link rather than an executable (`service_provision_program_pointer.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await reachCurrent(answeringOnceFromAnotherRelease)).toEqual({ didNotStart: true }); expect(recordExists()).toBe(false);
+/// expect(await reachCurrent(answeringOnceFromAnotherRelease)).toEqual({ didNotStart: true }); expect(recordExists()).toBe(true);
 /// ```
 #[test]
-fn a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record() {
+fn a_service_of_another_release_that_takes_the_retire_and_never_returns_leaves_the_record() {
     let socket: String = address("client-reach-other-release-once");
     let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
     // One answer from another release, then nothing: the service left and the manager could not start its own.
@@ -421,8 +408,8 @@ fn a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_th
         .expect_err("a service that left and cannot come back ends the wait");
     assert_eq!(failure, ClientFailure::DidNotStart);
     assert!(
-        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
-        "the record is dropped when the other release answers, whatever the wait then finds"
+        crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
+        "the record stands when the other release answers, whatever the wait then finds"
     );
     serving.join().expect("the service's thread");
     crate::test_support::remove(runtime.as_path());

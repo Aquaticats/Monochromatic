@@ -7223,6 +7223,11 @@ and
   a service in the middle of a write is never stopped by the wrapper,
   and the command that waited ends
   with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again.
+  That retire is the whole cost a release change leaves on a commit:
+  the program the manager starts is a link the wrapper owns,
+  so the change rewrites no unit,
+  asks no reload,
+  and pays no round trip to the manager (see "What a release change costs a commit" below).
   The single service of the releases before one service per
   worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it,
   because the manager's
@@ -7259,28 +7264,59 @@ and
   however often it is run.
   Test:
   `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
-  The record alone cannot tell a state the manager disagrees with:
-  an interrupted downgrade writes and reloads the
-    older release and is killed before it records that,
-  and an interrupted upgrade then writes the newer files without a reload,
-  which leaves the files and the record agreeing while the manager runs the release they replaced.
-  The client knows:
-  another release answering at all is proof that the unit the manager loaded and the files on disk
-  disagree,
-  so `reach_current` drops the record
-  (`units_record_dir` in the client's settings) the moment it first sees that answer,
-  not at the retirement deadline:
-  a service that takes the retire and leaves can be followed by a manager trying a cached executable
-  an upgrade removed,
-  which ends the wait with `DidNotStart` and never reaches the deadline
-  (finding 3 of the round-3 review).
-  The next commit then writes the units and asks for the reload.
-  The message says so,
-  and names the restart for a service that still will not stop.
+  Nothing else drops the record.
+  Another release answering used to be taken as proof that the unit the manager loaded and the
+  files on disk disagreed, and `reach_current` dropped the record then, so the next commit wrote the
+  units and reloaded.
+  A unit text no longer names a release, so that answer says only that a service started before
+  the program link moved is still running, which the retire ends:
+  the record is left as it is
+  (findings 2 of the round-2 review and 3 of the round-3 review, superseded by the program link below).
   Tests:
-  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`,
+  `a_service_of_another_release_that_will_not_stop_leaves_the_record_of_the_units`,
   and
-  `a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record`.
+  `a_service_of_another_release_that_takes_the_retire_and_never_returns_leaves_the_record`.
+- What a release change costs a commit, measured on 2026-11-11T20:01-05:00 on this host
+  (load average 120, `/proc/pressure/io` `full avg10` 37):
+  the first commit of `0.6.1-alpha.11` over `0.6.1-alpha.10` took 28,616 ms, and its
+  `provisionMs` was 17,621 of them.
+  The service manager's own journal splits it:
+  `Reload requested from client PID 1832701` at 20:01:46 and `Reloading finished in 13324 ms`
+  at 20:02:00, and 4.2 s more of provisioning calls that queued behind another client's reload,
+  which took 2,793 ms.
+  The template named the executable of the release that wrote it, so the release change rewrote it
+  and asked the manager to read every unit it holds; under this host's load that read is seconds,
+  and a read that outlasted `EXCHANGE_WAIT` failed the commit with "no way to reach the service",
+  which was false (two commits of 20:11:32, 20,000 ms of provisioning each).
+  The unit names a program link the wrapper replaces instead
+  (`src/native/service/service_provision_program_pointer.rs`):
+  `$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`,
+  a symlink replaced by a rename, so a reader sees the old program or the new one and never a
+  half-written link.
+  A release change, and a second build of one release, then move only that link:
+  no unit text changes, the manager is told nothing, and the commit pays one read and one rename.
+  Two structural consequences are part of the rule:
+  a unit can no longer name a program an upgrade removed, because every provisioning points the link
+  before anything starts, and `in_place` counts an installation only while the link names the
+  executable the commit runs.
+  The manager is asked nothing at all when the texts, the record, the link and the socket agree and
+  no earlier socket of the worktree listens, which is what keeps a commit off a manager that is
+  reading its units for another worktree.
+  A manager that does not answer within `EXCHANGE_WAIT` no longer fails the commit: the units stay
+  written, the record stays unwritten so the next commit asks again, and one line says what the wait
+  was for, on which unit, and that the commit goes on
+  (`src/native/service/service_provision_slow_manager_notice.rs` says the same after a moment of a
+  wait that has not ended).
+  Tests:
+  `two_releases_write_one_unit_text_naming_the_link`,
+  `a_release_change_moves_the_link_and_asks_the_manager_nothing`,
+  `an_installation_whose_link_names_another_program_is_not_in_place`,
+  `a_link_naming_a_removed_program_is_pointed_at_this_program`,
+  `a_replacement_that_stops_before_its_rename_leaves_the_old_link`,
+  `a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing`,
+  `a_manager_that_does_not_answer_never_fails_the_commit`,
+  and
+  `the_line_is_said_once_and_only_when_the_calls_outlast_the_moment`.
 
 
 #### Commands that add commits
