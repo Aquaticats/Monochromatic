@@ -28,7 +28,7 @@ use super::commit::remove_settled;
 use super::service_commit::{Running, start};
 use super::service_landing_selection::base_repository;
 use super::service_landing_support::{Case, case, compare, copy_beside, finished, run_native, run_served, text_of_within};
-use super::support::{Fixture, direct, executable, fixture, git};
+use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, executable, fixture, git, native_git_output};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -38,10 +38,13 @@ fn write(repo: &Path, name: &str, text: &str) {
 }
 
 /// Runs real Git and accepts any status (a conflicted merge exits 1).
+/// The run is a control's fixture step and not its oracle,
+/// but a Git waiting on a lock or a hook here would still hold the control,
+/// so it carries the same bound as every other native Git command.
 fn attempt(fixture: &Fixture, repo: &Path, arguments: &[&str]) {
-    let mut command: Command = direct(fixture);
-    command.current_dir(repo).args(arguments).env("GIT_EDITOR", "true");
-    let _output = command.output().expect("Git starts");
+    let mut command: Command = super::support::direct(fixture);
+    command.args(arguments).env("GIT_EDITOR", "true");
+    let _output = native_git_output(fixture, &mut command, repo, NATIVE_GIT_BOUND_SECONDS);
 }
 
 /// A side branch and the main branch both changed `b.txt`;

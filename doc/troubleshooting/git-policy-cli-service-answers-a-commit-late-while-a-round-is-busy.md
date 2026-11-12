@@ -217,3 +217,52 @@ after 5 s before the reply change),
 `worktree_trash_entries::tests::a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client` (fails after 10 s
 before the place change) and
 `service_work::tests::a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round`.
+
+## What the three silences of 2026-11-11 had in common
+
+`0.6.1-alpha.10` was the installed release for that whole day and does not carry the change above
+(`git merge-base --is-ancestor 28f5f7b14f monochromatic-git-policy-cli-v0.6.1-alpha.10` fails).
+Three commits of that day printed the sentence, and each one's records name the same two facts: the service
+reached the end of its work on that commit while the client heard nothing, and the same service logged the
+device under its journal taking seconds to answer a few small writes.
+
+- 18:05:32 local (`23:05:32Z`), the main checkout, `totalMs=6645`, `submitMs=5453`, `answerWaitMs=5428`,
+  outcome `landed`, exit `0`. The service line for its request (`3ef36edc-cc1c-48ea-9250-e005673b9c45`)
+  has `read_ms=0`, `landing_ms=4737` (`index_update_ms=3447`, `ref_ms=1241`) and `answer_ms=8`:
+  the request was read at once, the landing worked for 4.7 s, and the answer was written 8 ms after it ended.
+  That landing's six record syncs began 19.3 s after its answer and took 547 ms.
+- 19:50:09, a worktree (`pi-kimi-findings-gate-and-install-scripts-round-210-findings`), `totalMs=14391`,
+  `submitMs=13812`, `answerWaitMs=12590`, outcome `landed`, exit `0`. Its service line
+  (`ba969533-1db1-4499-a58f-3001ec423879`) has `read_ms=3506`, so the request sat 3.5 s before the service
+  read it, then `landing_ms=6253` (`reads_ms=5638`) and `total_ms=13651`; the same instance logged its
+  journal syncs at 4678 ms for one record and 18861 ms for six.
+- 19:54:31, the main checkout, `totalMs=11491`, `submitMs=5575`, `answerWaitMs=5527`, outcome `landed`,
+  exit `0`. Its line (`6389996c-e1d6-4cbd-afda-5bd48d2e433d`) has `read_ms=0`, `queued_ms=50`,
+  `landing_ms=5418` (`objects_ms=3870`, `reads_ms=563`) and `answer_ms=0`, and the instance's next line is
+  "the background sync of 6 records of a landing took 10680 ms", begun 10 s after that landing's answer.
+  A `git merge --ff-only` of that checkout had been running for more than a quarter of an hour while this
+  commit ran, starting one short Git child after another.
+
+So "what made the service silent" is not one step of the landing: in all three the landing was working or had
+just finished while the client heard nothing. The one step between two beats in that release was the note, a
+read of the journal's board through the blocking pool awaited with no ceiling, so a device that slow can hold
+a beat past the five seconds a client allows even when nothing else is wrong. The 19:50 record shows the pool
+occupied as well (`read_ms=3506` before the read of a request that names another worktree), which is the
+mechanism the "Fixed" section above removed on two fronts.
+
+The controls that hold it are the three the "Fixed" section names, and `service_reply_tests.rs` adds
+`a_note_that_takes_a_while_is_written_after_the_beat` and
+`a_note_that_outlives_its_beat_is_left_for_the_next_beat`.
+
+What the person read is now `silent_notice` in
+`package/git-policy/cli/src/native/landing/service_messages_of_a_wait_for_the_service.rs`: it names the seconds
+the service has said nothing, says that the same commit is sent again, and says that the command goes on by
+itself, so nothing is asked of the reader. The older words claimed the service had stopped answering, which the
+records above show it had not, and named no duration.
+
+## The change in the field, later the same day
+
+`0.6.1-alpha.11` carries the change above and was installed at about 20:01 local. From then to 21:41 the
+repository's timing log holds 91 commits of that release: 18 of them waited five seconds or more for their
+answer (the longest 27,145 ms of `answerWaitMs`), and none of the 91 printed the notice. So what a slow answer
+costs is still there to fix, and the false claim that the service had stopped did not come back.

@@ -141,24 +141,33 @@ fn reads_as_false(value: &str) -> bool {
 
 /// What:
 ///  Whether the caller switched the upload off for this push,
-/// with `-c hook.cli-git-lfs-pre-push.enabled=false` among
-///  the global options or the same pair in `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`.
+/// with `-c hook.cli-git-lfs-pre-push.enabled=false` or the same setting named through the environment
+///  (`--config-env`) among the global options,
+/// or the same pair in `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`.
 /// Why:
 ///   It is a documented way to push without the upload,
 /// so a missing `git-lfs` must not stop such a push.
 /// The last
 ///  setting decides,
 /// as Git reads them,
-/// and `-c` options come after the environment's pairs.
+/// and the caller's command-line options come after the environment's pairs.
+/// Both spellings of a command-line
+///  setting are read from one answer,
+/// so `-c` and `--config-env` cannot push differently.
 /// A repository or account
 ///  configuration file is not read:
 /// that would cost a Git start for every push;
 /// use `--no-verify` or
 ///  `GIT_LFS_SKIP_PUSH` for a standing choice in the environment.
+/// Gotcha:
+///  A `--config-env` the environment cannot answer is a command line Git itself refuses,
+///  so the push never runs;
+/// this answer then reports only what the numbered pairs set,
+///  and the upload refuses to start for the same reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// lastEnabledSetting([...envPairs, ...cPairs], `hook.${name}.enabled`) is false
+/// lastEnabledSetting([...envPairs, ...commandLinePairs(prefix, env)], `hook.${name}.enabled`) is false
 /// ```
 pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
     let mut off: bool = false;
@@ -175,24 +184,18 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
             };
         }
     }
-    let mut tokens = global_prefix.iter();
-    while let Some(token) = tokens.next() {
-        if token.as_os_str() != "-c" {
-            continue;
-        }
-        let Some(setting_token) = tokens.next() else {
-            continue;
-        };
-        let Some(setting) = setting_token.to_str() else {
+    let Some(pairs) = crate::lfs_command_line_configuration::command_line_pairs(global_prefix, environment) else {
+        // Git refuses this command line, so the push never runs; a switch the numbered pairs set still stands.
+        return off;
+    };
+    for (name, value) in pairs {
+        // A name that is not valid text is no switch: Git compares the name's letters, and such a name holds none.
+        let Some(text) = name.to_str() else {
             continue;
         };
-        // Git reads the name case-insensitively and a name without `=` as the boolean true.
-        let (name, value): (&str, Option<&str>) = match setting.split_once('=') {
-            Some((named, valued)) => (named, Some(valued)),
-            None => (setting, None),
-        };
-        if is_switch_key(name) {
-            off = value.is_some_and(reads_as_false);
+        if is_switch_key(text) {
+            // Git reads a name without `=` as the boolean true, which the resolver already wrote as that value.
+            off = value.to_str().is_some_and(reads_as_false);
         }
     }
     return off;

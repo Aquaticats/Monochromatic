@@ -11,6 +11,8 @@
  measured on this host on 2026-11-11: `systemctl --user kill --signal=SIGKILL --kill-whom=all <name>.scope` turned an
  active `sleep 40` scope inactive, and `stop` on an unloaded scope answered "Unit ... not loaded." with status 5.
  */
+import { randomUUID } from 'node:crypto';
+
 import { systemdRunProgram } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
 
 import {
@@ -138,27 +140,55 @@ export function checkedScopeCaps({ caps }: { readonly caps: ScopeCaps; }): Scope
 }
 
 /**
+ The identity one run gives its scope names, which keeps them apart from another run's.
+
+ A stamp alone is second-precise, so two runs of one check started in the same second asked the manager for the same unit
+ name; while the first scope was active the manager refused the second run's start, which ended that check with status 2
+ without running it. This token is a UUID without hyphens, 122 random bits: two runs drawing the same token is not a
+ realistic event, which is the same reason the planted-controls launcher names its units by a launch token
+ (`native-planted-parallel.ts`).
+
+ @returns the token a run puts in every scope name it makes
+
+ @example
+ ```ts
+ runTokenOfScopes();
+ ```
+ */
+export function runTokenOfScopes(): string {
+  return randomUUID()
+    .replaceAll(
+    '-',
+    '',
+    );
+}
+
+/**
  The name of one check's scope.
 
  @param label - what the check covers, in lowercase letters, digits and hyphens
 
  @param stamp - the moment the run started, from `localStamp`
 
+ @param runToken - the identity of the run the scope belongs to, from {@link runTokenOfScopes}
+
  @returns the scope's name, without the `.scope` suffix
 
  @example
  ```ts
- checkScopeName({ label: 'git-policy-cli-test-unit', stamp: '20261111T133700-0500' });
+ checkScopeName({ label: 'git-policy-cli-test-unit', stamp: '20261111T133700-0500', runToken: 'a1b2c3d4' });
  ```
  */
 export function checkScopeName({
   label,
   stamp,
+  runToken,
 }: {
   readonly label: string;
   readonly stamp: string;
+  readonly runToken: string;
 }): string {
-  return `${checkScopeNamePrefix}-${label}-${stamp}`;
+  return `${checkScopeNamePrefix}-${label}-${stamp}-${runToken}`;
 }
 
 /**

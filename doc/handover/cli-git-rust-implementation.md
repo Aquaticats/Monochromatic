@@ -135,6 +135,255 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### After the restart: 0.6.1-alpha.13 published, the agent for issue 6286 started, the fleet held until the install (2026-11-12T08:39:44-05:00)
+
+The machine was restarted at 04:03:18.
+The owner, at about 08:25: "I've restarted and GPT has finished its investigation."
+The other session's records are `doc/handover/plasma-session-reload-investigation.md`,
+`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` and `doc/planning/git-wrapper-reload-remedy.md`.
+Its proposal names three directions and chooses none; it records that the owner was not sure and handed the work on.
+
+#### 0.6.1-alpha.13
+
+- Trial merge of `integrate/git-policy-cli-pass-16-for-alpha-13` into `main` with `git merge-tree`: clean.
+- Merged as `157d07cd3b` at 08:26:33 and pushed.
+- The first dispatch at 08:27:32 was refused by the release task: "The release <note> must be at most 200 characters, got 275."
+  Dispatched again at 08:29 with a shorter note; workflow run 43227729787.
+- `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.13` at 08:39:44.
+- Installed at 08:40:02 (log `~/temp/agent/gate/install-0.6.1-alpha.13.log`): "the sample commit took 1441 ms";
+  the globally shadowed wrapper moved to 0.6.1-alpha.13 with `mpm-shadow update -g`.
+- The install's own commit asked the user manager for a reload, as a changed template makes the present code do:
+  "Reload requested from client PID 176325 ('monochromatic-g') (unit gpc-install-0-6-1-alpha-13.service)" at 08:40:00,
+  "Reloading finished in 487 ms."
+  The manager held 319 units then. That is why the install ran before any other agent was started.
+
+#### Issue 6286
+
+`wrapper-never-asks-the-user-manager-for-a-manager-wide-reload` has been running since 08:28 (round 278, base `main` at `157d07cd3b`).
+Its brief states the issue's required outcome as the target and gives four directions as suggestions:
+the proposal's three (a stable program link in the template, one unit file per worktree, changing only the waits)
+and one more, a transient unit with no unit file at all, which needs no reload to exist or to change.
+It has to measure the alternation between two programs and where a slow reload spends its time,
+and to prove its result in a container with an unrelated `Type=dbus` service bound to a target.
+It never touches this machine's own manager.
+Which direction is built is decided by that evidence, open to the owner's veto; the proposal's layout question stays the owner's if the evidence does not settle it.
+
+#### Started after the install, at 08:41
+
+- Round 279, eleven continuation briefs (`<run name>-continued-prompt.md`, written by
+  `~/temp/agent/scratch-scripts/write-continuation-briefs-for-stopped-runs.ts`): the ten runs that were stopped or ended early for the restart,
+  and the killed tokio run, which goes on from its half-finished merge and its rescue commit.
+- Round 280, the four qwen4 reviews that were killed (the vendored-clone exemption, the shadow hand-out, the package-repair fix, the clean fix).
+
+#### Being read
+
+Three Sonnet digests of the thirty-three runs that ended between 01:05 and 03:26
+(`~/temp/agent/digest-2026-11-12T0830-a/`, `-b/` and `-c/`, brief `~/temp/agent/digest-brief-2026-11-12T0830.md`).
+Reviews and the next integration pass follow from them.
+
+#### The hourly job
+
+The owner, at about 08:35: "Re-arm the hourly fill and cull. This time don't set an expiry date."
+Cron `c0352b43`, every hour at :41, first fire 09:04, with no end date in its prompt.
+It is session-only, and the harness deletes a recurring job after seven days, so it is re-created about 2026-11-19 if the session still runs.
+Each fire culls or reframes superseded work, reads what ended, routes findings, and starts the next tracked work to keep the pools filled;
+it starts nothing while free space is under 80 GiB.
+
+### The desktop session was lost at 01:24:54; state before the owner's restart of the machine (2026-11-12T03:32:55-05:00)
+
+#### What happened
+
+The graphical session ended at 01:24:54 after a reload of the user service manager that took 139,770 ms,
+requested by the wrapper from inside an agent's unit.
+The record is `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` (issue 6286),
+written by another session; that session is investigating, and this one changed nothing in the wrapper.
+The coordinating session ended with the desktop; it was started again at about 03:25.
+The machine itself has been up since 2026-11-05.
+
+The owner, at about 03:25: "There was a kinda serious issue in which the wrapper contributed to a whole desktop crash.
+GPT is investigating it. I need to reboot anyway. Please tell me when is a good time to reboot."
+
+#### What was found at 03:26
+
+- `main` is on the remote at `1d90bd6d00` (`git ls-remote`).
+- No release, install or launcher unit is running. 0.6.1-alpha.13 has not been released.
+- Ten agent units are still active. Twenty-nine runs ended with a summary between 01:05 and 03:26.
+- Five runs have no summary and no unit, so they were killed:
+  `tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted-1`,
+  and the qwen4 reviews of the vendored-clone exemption, the shadow hand-out, the package-repair fix and the clean fix (round 275).
+- Free space is 202 GiB.
+
+#### Pass 16 is finished
+
+Its second run ended at 01:52 with a full report: `/home/user/temp/agent/pi-integration-pass-16/report-second-run.md`.
+Tip `844c85d3d5`. Twenty-one of twenty-three branches are merged.
+Two are not, each a conflict that needs design work and not a resolution:
+the held-commit-survives-a-prune branch (against the awaited faces of the message slice)
+and the commit-options branch (bytes on one side, strings on the other).
+The build, both test compiles and Clippy pass at the tip; the eleven tests of the scratch-commit ceiling fix pass;
+the two landed-removal controls that failed the alpha.12 gate still fail, as recorded.
+The one place a side was dropped is merge 17, `worktree_copy_stage_claim_reaping.rs`: no flush, by choice, said in the commit's body.
+
+#### Pushes failed for want of a login after the session was lost
+
+From about 01:27, agents' pushes were refused: "could not read Username ... terminal prompts disabled".
+Pushes from the coordinating session's shell work.
+At 03:31 the coordinating session pushed, never forced, the eighteen branches of this session's agents that held commits the remote lacked
+(`~/temp/agent/scratch-scripts/push-branches-the-remote-lacks.ts --push <branches>`), the integration branch among them; all eighteen were accepted.
+Why the commit service inside an agent's unit has no login after a lost session is not established.
+
+Eleven older local branches also hold commits the remote lacks and were left alone, since nothing says they were meant to be pushed:
+`e2e-trace-diagnosis-20261101`, `feat/cli-git-worktree-copy` (thirty-eight commits ahead of the remote),
+`issue-150-isolated-dts`, four `research/depot-*` branches, `spike/linter-closure-static`,
+`translation-repair-prerebase-backup`, and two `trial/depot-*` branches.
+
+#### What is on this disk only
+
+- The ten running agents were sent a note at 03:30 to commit what they have, finished or not, and to write down where they are;
+  every one shows the note as delivered. Their branches need one more push after they have committed.
+- The killed tokio agent's worktree is in the middle of its second merge:
+  four conflicted files, three new `*_awaiting.rs` files, three more modified.
+  Those thirty-two files are saved as commit `520e63bf01` under
+  `refs/rescue/2026-11-12T0335/pi-tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted`, which is on the remote;
+  it was made with an index of its own and the worktree is as the agent left it
+  (`~/temp/agent/scratch-scripts/snapshot-uncommitted-files-of-worktrees-to-rescue-refs.ts <label> <worktree paths>`).
+  `git fetch origin 'refs/rescue/*:refs/rescue/*'` brings such commits back.
+- About fifty older worktrees hold a few uncommitted files each (the `pi-ready-issues-*` runs, `agent-*`, `fix-ureq` and others);
+  `~/temp/agent/scratch-scripts/worktrees-holding-work-that-is-only-on-this-disk.ts` lists them.
+- Everything under `~/temp/agent`: the audit reports and their reproductions, the digests, the reviews, the briefs,
+  the run folders with the final reports of the twenty-nine ended runs, and the Pi sessions under `~/.pi`.
+
+#### State at 03:45, when the owner was told the restart is safe
+
+- No agent, launcher or release unit is running.
+  Of the ten agents, five ended by themselves after the note, and the coordinating session stopped the other five at 03:43:20:
+  the discard guard, the fast-forward carry, the push notices, the second merge, and the add that does not wait for its repair.
+  All ten are unfinished and are continued from their branches.
+- Every branch of this session's agents is on the remote; `push-branches-the-remote-lacks.ts` lists only the eleven older branches.
+- Uncommitted files are saved as commits on the remote under three labels:
+  `refs/rescue/2026-11-12T0335/` (the killed tokio agent),
+  `refs/rescue/2026-11-12T0336/` (thirty-eight other worktrees, the main checkout's five files of other sessions among them),
+  and `refs/rescue/2026-11-12T0344/` (what three of the stopped agents had not committed).
+- Not saved anywhere but this disk:
+  two external worktrees whose staging the wrapper refused (`/var/home/user/worktrees/translation-repair` and `verify-coverage`, two files each);
+  two review worktrees skipped for their size (`pi-kimi-review-suite-only-failures-of-the-alpha-11-gate-round-231`, 17,540 untracked files,
+  and `pi-alpha-10-audit-commit-keeps-non-utf-8-bytes`, 403);
+  the eleven older branches; and everything under `~/temp/agent` and `~/.pi`.
+- Seven worktrees of ended runs disappeared between 03:26 and 03:43 (126 worktrees, then 119).
+  Their branches are on the remote. What removed them was not looked into.
+
+#### After the restart, in this order
+
+The owner was asked at 03:45 which comes first, with three options (fix issue 6286 first and ship it in alpha.13, recommended;
+release alpha.13 as it stands; hold everything until the other session reports).
+The owner's answer: "Release alpha.13 as it stands".
+So the fix for issue 6286 follows in the release after it, and agents run under alpha.13 meanwhile.
+
+1.  0.6.1-alpha.13 from `844c85d3d5`: trial merge with `git merge-tree`, merge into `main`, release, install.
+    It was not started before the restart, so that no release is in flight when the machine goes down.
+2.  Issue 6286, one agent, started at once after step 1 is dispatched: the wrapper never asks the user manager for a manager-wide reload.
+    Until that is in an installed release, every agent that commits can end the desktop session again.
+3.  A digest of the twenty-nine ended runs, then reviews and the next integration pass.
+4.  The five killed runs, started again; the tokio one from its rescue commit.
+5.  The agents that were running at the restart, continued from their last commits.
+6.  Whether an agent's push has a login again.
+
+### Pass 16 closed by its driver with two merges to go, and continued (2026-11-12T01:19:27-05:00)
+
+The first run of integration pass 16 ended at 01:16:47, `endReason` `idle`, after 238 turns.
+It had not finished: it started a build with its `process` tool, ended its turn saying it would be brought back when the build ended,
+and the scratch driver closed the run 129 seconds after that first `settled` record of the whole run.
+The review of the worktree-add change was lost the same way an hour earlier.
+
+What it left, checked at 01:17:53:
+
+- twenty-one merges on `integrate/git-policy-cli-pass-16-for-alpha-13`, the last `510a56e135` at 01:04:45;
+- one uncommitted repair in `package/git-policy/cli/src/native/shadow/shadow_pool_member.rs`;
+- its notes and merge messages in `/home/user/temp/agent/pi-integration-pass-16/`.
+
+The continuation started at 01:19:27 in the same worktree and unit name
+(batch `agents-batch-round-269.json`, brief `integration-pass-16-for-alpha-13-continued-prompt.md`, run folder `integration-pass-16-for-alpha-13-2`).
+Its brief names the state left, tells it to look for the earlier build before starting one,
+and has it run builds and tests as foreground commands.
+0.6.1-alpha.13 is released when it ends.
+
+The driver defect went to `subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable-1` by note at 01:19:
+a run that settles while a process it started still runs is kept and brought back, and the summary tells that end apart from a true idle end.
+Until the driver does that, `rules-every-pi-brief-carries.md` carries a labelled workaround:
+a step whose result the next step needs runs as a foreground command with a bound.
+Runs already started have not read it; a run that ends early with a build running is restarted with a continuation brief.
+
+### The last three Kimi audits of alpha.12 routed, and round 277 started (2026-11-12T01:13:26-05:00)
+
+`~/temp/agent/digest-2026-11-12T0045/digest.md` covers the audits of the commit service's landing,
+of worktree removal and the landed sweep, and of worktree add, with five work branches and two reviews.
+All thirteen audits of 0.6.1-alpha.12 are now read.
+Free space is 170 GiB, nine less than twelve minutes before; the pools hold 17 of 18 and 16 of 20.
+
+#### Sent by note at 01:10 to agents already in that code
+
+- The four hand-over cases of the removal audit (a replacement worktree at the same path, a commit held after the hand-over,
+  a nested worktree, a process that started working there), each run through the built wrapper and its service,
+  and two tests of the release that still expect a synchronous removal:
+  to `landed-removal-handed-to-the-service-proves-again-before-it-destroys-1`.
+- The reset-branch removal, confirmed independently, and the unreadable held record shown end to end on a typed `git worktree remove`:
+  to `review-findings-landed-sweep-keeps-a-worktree-reset-onto-another-branch-1`.
+- Files written into the trash and deleted with it, from two audits:
+  to `review-findings-worktree-trash-hand-over-round-231-2`.
+- A service answer that never ends its line, and a resent request that lands a second commit after the done-records were pruned by count:
+  to `commit-is-made-when-the-service-stops-reading-or-answering-1`.
+- An unrelated reference lock that keeps a held commit held, with a message naming a lock that is gone:
+  to `landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused-1`.
+- A forwarded add that waits past sixty seconds in silence:
+  to `review-findings-add-says-why-it-waits-round-219-2`.
+- A snapshot add that silently copies nothing from a source still being filled, and a settling failure below a read-only directory:
+  to `worktree-copy-record-that-cannot-be-read-never-stops-another-command-1`.
+- The changeover measured by another agent (after a change of release: wall median 8,920 ms against 1,200 ms for a reinstall of the same bytes,
+  fifteen of sixteen landed): to `first-commit-after-an-install-does-not-wait-for-the-old-service-1`.
+
+#### Round 277
+
+Started 01:13, unit `launch-agents-batch-round-277`.
+
+- `commit-that-does-not-land-says-what-stopped-it` (base `main`):
+  seven of the eight commits that did not land under alpha.12 are recorded as stopped by nothing the wrapper can name.
+  It reads those records, lists everything that can end a commit, reproduces each, and makes the record and the person's line say which.
+- `tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted` (base `main`):
+  merges the owed-index slice (`7ed062b33a`) and the batch-body slice (`d45106ed1d`), makes the linter pass,
+  and converts the landing's batch body to the awaited faces, the plan's next step.
+
+#### What the measurement of a commit's time concluded
+
+Branch `perf/git-policy-cli-alpha-11-against-alpha-10-where-a-commits-time-goes` (`03ecb3fed9`, not in `main`),
+record `doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md` on it.
+In steady state the two releases do not differ beyond one binary's spread.
+The cost is the changeover, in the client's reach for the service and the new service's first answers, not in provisioning.
+It also found a step outside the timing record: `name_unaccounted_trash` opened 525 queue records in one ordinary commit, one `openat` taking 7.35 s;
+its commit `fc835cd1bc` makes a command open only the records it can use.
+That commit is a candidate for the next integration pass once reviewed.
+
+#### For a third pass on abort and skip
+
+The abort second-pass agent is past three hundred and fifty turns with three notes. Not sent to it:
+
+- the qwen4 review of the first pass (final, one finding): `git rebase --abort` reads the restored-revision record with an unbounded blocking read
+  (`repo_read/repository_facts_abort_discard.rs:380` on that branch); with a FIFO there the command had not returned after twelve seconds.
+  Whether real Git would wait on the same file was not tested.
+
+#### For the owner's return, added
+
+- The removal audit contests three documented behaviours, each shown through the built wrapper:
+  the landed sweep removes unique ignored files below ignored directories (`README.md:1162-1166`);
+  an unforced `git worktree remove` deletes unique ignored files, as real Git does;
+  and it removes a worktree a live process is working in (`README.md:974`).
+  A fourth, an unforced removal deleting a nested worktree with its untracked file, has no record either way.
+- Finished records of the commit service are pruned by count in `README.md:6847-6849` and kept by age in `SPEC.md:10795-10801`;
+  the audit landed a commit twice through the gap, with a thousand landings in between.
+- The package-repair fix (`9478219b1d`) asks for a veto on its new line to the person
+  ("it was let go and its own start gave no answer within 60s, so it was stopped, and what it wrote before that stands")
+  and its new state `ToolStart::LetGoWithoutAnAnswer`.
+- The commit-options change lets `-i` with `-o` make a commit where real Git refuses (qwen4 review, "for awareness only").
+
 ### The eighth cull pass, an unreadable record that stops every linked worktree, and six more reviews (2026-11-12T01:04:35-05:00)
 
 #### Cull
