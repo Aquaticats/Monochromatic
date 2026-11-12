@@ -58,7 +58,7 @@ pub(super) async fn settle_after_the_push(
             // A push of the branch went through, so an earlier failure to push it is no longer true.
             if let Some(latest) = newest {
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
-                replanning.forget(git_dir, latest.item.branch_ref.as_str());
+                replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
             }
             return settle_all_awaiting(held, work_dir, settling, DONE).await;
         }
@@ -68,7 +68,7 @@ pub(super) async fn settle_after_the_push(
             //  whether a plan will try it again.
             let (said, outcome): (String, PushOutcome) = match (newest, replanning.first) {
                 (Some(latest), Some(first)) => {
-                    let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &latest.item, 1, text.as_str());
+                    let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &latest.item, 1, text.as_str()).await;
                     // The framing promises a retry only when the plan the words speak of exists.
                     let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
                     (planned.words, outcome)
@@ -109,7 +109,7 @@ pub(super) async fn settle_after_the_push(
             //  the refusal is recorded: a service killed between the two then leaves the plan, so a later one tries the
             //  push again instead of the person waiting for a try nothing schedules.
             if let Some(latest) = newest {
-                replanning.forget(git_dir, latest.item.branch_ref.as_str());
+                replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
             }
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }

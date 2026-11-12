@@ -108,7 +108,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
         //  that was deleted.
         let worktree: Option<PathBuf> = worktree_named_by(retrying, git_dir);
         return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::TheMountTable::default()) {
-            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable),
+            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable).await,
             crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone).await,
         };
     }
@@ -223,7 +223,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 "the push of {branch} {} is not tried again: its repository or branch record is no longer acceptable",
                 crate::service_timing::in_the_repository_at(due.item.repository.as_path())
             );
-            replanning.forget(git_dir, branch);
+            replanning.forget(git_dir, branch).await;
             continue;
         }
         let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
@@ -232,7 +232,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
         match verdict {
             Verdict::Done => {
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
-                replanning.forget(git_dir, branch);
+                replanning.forget(git_dir, branch).await;
                 crate::service_log!(
                     "the push of {branch:?} {} landed on try {} push_ms={}",
                     crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
@@ -263,13 +263,13 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                     if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await {
                         crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                     }
-                    replanning.forget(git_dir, branch);
+                    replanning.forget(git_dir, branch).await;
                     continue;
                 }
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
                 let first: Option<Duration> = replanning.first;
                 let planned: Option<PlannedRetry> = match first {
-                    Some(first) => Some(planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str())),
+                    Some(first) => Some(planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()).await),
                     None => None,
                 };
                 let (said, outcome): (String, PushOutcome) = match planned {
@@ -288,7 +288,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 //  between the two leaves a plan a later one tries again, never a notice that promises a retry nothing
                 //  schedules.
                 if !keeps_a_plan {
-                    replanning.forget(git_dir, branch);
+                    replanning.forget(git_dir, branch).await;
                 }
             }
             Verdict::Failed(text) => {
@@ -307,7 +307,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
                     );
                 }
-                replanning.forget(git_dir, branch);
+                replanning.forget(git_dir, branch).await;
             }
             Verdict::Skipped(text) => {
                 if !text.is_empty()
@@ -319,7 +319,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                     );
                 }
                 // The skip's words go before the plan's file, as every other record of a push's end does here.
-                replanning.forget(git_dir, branch);
+                replanning.forget(git_dir, branch).await;
             }
         }
     }

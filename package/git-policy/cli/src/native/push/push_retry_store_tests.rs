@@ -242,6 +242,152 @@ fn a_file_that_holds_no_plan_is_removed() {
     remove_fixture(root.as_path());
 }
 
+/// How long a control's reading of one plan's file is given before it counts as waiting for a writer.
+/// Why:
+///  A read of a pipe nobody writes to waits for ever in a service,
+///  so the control puts a deadline on the read instead of holding the suite:
+///  an answer inside it is the proof that no writer was waited for.
+const A_READ_THAT_MUST_NOT_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// What:
+///  Make `path` a pipe nobody writes to,
+///  which is a name a plan's file can hold without being a plan.
+/// Why:
+///  Opening such a name for reading waits inside `open(2)` for a writer that may never come,
+///  which is the wait a record's reader must never make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(mkfifo(path, 0o600) === 0);
+/// ```
+fn a_pipe_at(path: &Path) {
+    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the pipe stands at {}: {}", path.display(), std::io::Error::last_os_error());
+}
+
+/// What:
+///  Open the pipe at `path` for writing and close it again,
+/// which ends a read of it that waited for a writer.
+/// Why:
+///  A read that waited is left behind by the control's deadline,
+///  and the thread it holds is released here rather than with the process.
+fn end_the_read_of(path: &Path) {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < A_READ_THAT_MUST_NOT_WAIT {
+        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+            Ok(writer) => {
+                drop(writer);
+                return;
+            }
+            // No reader waits in the pipe, so nothing is left to release.
+            Err(_no_reader) => std::thread::sleep(std::time::Duration::from_millis(10)),
+        }
+    }
+}
+
+/// What:
+///  A plan's file that is a pipe is never waited for,
+///  read by the removal, by a save's cleanup or by a start,
+///  and it is never discarded either.
+/// Why:
+///  Reading a record waits inside `open(2)` for a writer when the name holds a pipe,
+///  and the drain does that read on a worker of the runtime,
+///  so a pipe at a plan's name would hold the drain for ever
+/// (finding 2 of the review of `96c4677d30`).
+///  The record is read the way every record of this wrapper is read,
+///  so the pipe is answered at once and stays:
+///  it is not a plan,
+///  and the store discards what it cannot read as one.
+///  A read that was answered without a writer is the proof, and the deadline names the wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(planPath); expect(within(2, () => remove(dir, gitDir, branch))).toBeDefined(); expect(exists(planPath)).toBe(true);
+/// ```
+#[test]
+fn a_plan_file_that_is_a_pipe_is_never_waited_for() {
+    use crate::test_support::finished_within_at;
+    let root: PathBuf = fixture("retry-store-plan-pipe");
+    let waiting: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
+    save(root.as_path(), &waiting).expect("saved");
+    let only: PathBuf = std::fs::read_dir(root.as_path()).expect("listing").flatten().next().expect("the plan's file").path();
+    std::fs::remove_file(only.as_path()).expect("the plan's file makes way for the pipe");
+    a_pipe_at(only.as_path());
+    let removed: Option<()> = finished_within_at(A_READ_THAT_MUST_NOT_WAIT, {
+        let (directory, git_dir, branch): (PathBuf, PathBuf, String) = (root.clone(), waiting.git_dir.clone(), waiting.item.branch_ref.clone());
+        move || { remove(directory.as_path(), git_dir.as_path(), branch.as_str()); }
+    });
+    if removed.is_none() {
+        end_the_read_of(only.as_path());
+    }
+    assert!(removed.is_some(), "the removal of a branch's plans waited for a writer of a pipe that holds no plan");
+    assert!(only.exists(), "a name the removal could not read as a plan stays, so nothing of the person's is discarded");
+    let kept: Option<()> = finished_within_at(A_READ_THAT_MUST_NOT_WAIT, {
+        let (directory, next): (PathBuf, StoredPlan) = (root.clone(), plan("refs/heads/main", SECOND_OID, 2));
+        move || {
+            save(directory.as_path(), &next).expect("the newer plan of the branch");
+        }
+    });
+    if kept.is_none() {
+        end_the_read_of(only.as_path());
+    }
+    assert!(kept.is_some(), "the save of a plan waited for a writer of a pipe that holds no plan");
+    assert!(only.exists(), "the save's cleanup of the branch's earlier files keeps what it cannot read as a plan");
+    let read: Option<LoadedPlans> = finished_within_at(A_READ_THAT_MUST_NOT_WAIT, {
+        let directory: PathBuf = root.clone();
+        move || { return load_reporting(directory.as_path()); }
+    });
+    if read.is_none() {
+        end_the_read_of(only.as_path());
+    }
+    let read: LoadedPlans = read.expect("the read of the journal waited for a writer of a pipe that holds no plan");
+    assert_eq!(read.plans, vec![plan("refs/heads/main", SECOND_OID, 2)], "the plan beside the pipe is read, so the pipe costs no push its retry");
+    assert!(!read.unread, "a name that is no plan is not read again after a pause, because a second read of it answers the same");
+    assert!(only.exists(), "the read keeps what is not a plan it can remove, so no file of another program is discarded");
+    remove_fixture(root.as_path());
+}
+
+/// What:
+///  A listing that failed part way through is not read as a complete journal.
+/// Why:
+///  `read_dir` opens a directory and then yields its entries,
+///  and the iterator can fail before it named them all,
+///  which is what a directory read on a mount that stopped answering does.
+///  A plan the listing never named is absent from the plans this process holds,
+///  and an item already in `failed` produces no wake of its own,
+///  so a read that treated the failure as the end of the listing
+///  leaves that push waiting for the life of the service
+/// (finding 3 of the review of `96c4677d30`).
+///  The control hands the reader one plan and then the error,
+///  which is the order a directory read fails in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const read = readThePlans(dir, [ok(plan), err('the directory stopped answering')]); expect(read.unread).toBe(true);
+/// ```
+#[test]
+fn a_listing_that_failed_part_way_through_is_read_again() {
+    let root: PathBuf = fixture("retry-store-listing-failed");
+    let waiting: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
+    save(root.as_path(), &waiting).expect("saved");
+    let only: PathBuf = std::fs::read_dir(root.as_path()).expect("listing").flatten().next().expect("the plan's file").path();
+    let written: SystemTime = std::fs::metadata(only.as_path()).and_then(|meta| { return meta.modified(); }).expect("the plan's own time");
+    // The listing names the plan first and fails after it, so the error is the entry the read below meets.
+    let listed: Vec<std::io::Result<ListedPlan>> = vec![
+        Ok(ListedPlan { path: only.clone(), written }),
+        Err(std::io::Error::other("the directory stopped answering")),
+    ];
+    let read: LoadedPlans = read_the_plans(root.as_path(), listed.into_iter());
+    assert_eq!(read.plans, vec![waiting], "the plan the listing named before the failure is read");
+    assert!(
+        read.unread,
+        "a listing that failed part way through is read again, so a plan it never named is not left for the life of the service"
+    );
+    remove_fixture(root.as_path());
+}
+
 /// What:
 ///  A plan whose record could not be read is read again at a later start,
 /// not removed.

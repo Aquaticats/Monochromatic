@@ -5057,6 +5057,16 @@ A removal that fails is said in the service's own log,
 and the file stays:
 no later round tries that removal again,
 so a service started later finds the plan of a push that has landed and tries it once more.
+Both the write and the removal are jobs of the process's blocking pool,
+awaited by the task that decided the change
+(`push_retry_store.rs`,
+`save_awaiting` and `remove_awaiting`):
+the plan's own file is storage,
+and a task that listed the journal or read a record itself would hold a worker the runtime needs,
+where a name holding a pipe would hold it for ever.
+A record of a plan is read the way every record of this wrapper is read
+(`private_storage::read_regular_file`),
+so a pipe at a plan's name is answered at once and left alone rather than waited on and discarded.
 A start whose read of that journal gave no answer within its ceiling keeps both directories,
 writes the plans and notes it makes there,
 and reads both again after a pause,

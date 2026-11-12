@@ -466,13 +466,18 @@ impl Replanning {
     ///  (finding 4 of the same review).
     /// A removal that fails is said,
     /// and the next start reads the file again.
+    /// The removal is a job of the process's blocking pool,
+    /// awaited here no longer than the journal's own state step:
+    /// this runs inside the drain, which is a task of the runtime,
+    /// and a task that read or removed a file itself would hold the worker the runtime needs
+    /// (`blocking_jobs_within_the_budget.rs`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// forget(gitDir, branch): removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
+    /// await forget(gitDir, branch): await removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
     /// ```
-    pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.take_the_plan_file(git_dir, branch_ref);
+    pub(crate) async fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.take_the_plan_file(git_dir, branch_ref).await;
         self.push_forget(git_dir, branch_ref, false, None);
     }
 
@@ -497,22 +502,33 @@ impl Replanning {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// forgetWhenUnreachable(gitDir, due):
-    ///   if (!isDirectory(gitDir)) removePlans(this.plans, gitDir, due.item.branchRef);
+    /// await forgetWhenUnreachable(gitDir, due):
+    ///   if (!isDirectory(gitDir)) await removePlans(this.plans, gitDir, due.item.branchRef);
     ///   this.changes.push({ forget: { gitDir, branchRef: due.item.branchRef, onlyWhileUnreachable: true, taken: due } });
     /// ```
-    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, due: &Due) {
+    pub(crate) async fn forget_when_unreachable(&mut self, git_dir: &Path, due: &Due) {
         if !git_dir.is_dir() {
-            self.take_the_plan_file(git_dir, due.item.branch_ref.as_str());
+            self.take_the_plan_file(git_dir, due.item.branch_ref.as_str()).await;
         }
         self.push_forget(git_dir, due.item.branch_ref.as_str(), true, Some(due.clone()));
     }
 
     /// Removes the plan's file of a branch from the journal,
-    /// where a directory keeps one at all.
-    fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
-        if let Some(directory) = self.plans.as_deref() {
-            crate::push_retry_store::remove(directory, git_dir, branch_ref);
+    /// where a directory keeps one at all,
+    /// as a job of the process's blocking pool.
+    /// Why:
+    ///   The removal lists the journal, reads each file of the branch to prove it is the branch's,
+    /// and unlinks it,
+    /// and any of those can wait in the kernel on a disk, a lock or a mount that stopped answering.
+    /// The caller is a task of the runtime, which may not make that wait itself.
+    async fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
+        let Some(directory) = self.plans.clone() else { return };
+        let (git_dir, branch_ref): (PathBuf, String) = (git_dir.to_path_buf(), String::from(branch_ref));
+        if let Err(reason) = crate::push_retry_store::remove_awaiting(directory.as_path(), git_dir.as_path(), branch_ref.as_str()).await {
+            crate::service_warn!(
+                "the retry plan file of {branch_ref} {} could not be removed, so the next start reads it again: {reason}",
+                crate::service_timing::in_the_repository_at(git_dir.as_path())
+            );
         }
     }
 
@@ -542,12 +558,13 @@ impl Replanning {
     /// ```ts
     /// return savePlans(this.plans, { gitDir, item, attempt });
     /// ```
-    pub(crate) fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) -> bool {
+    pub(crate) async fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) -> bool {
         let Some(directory) = self.plans.as_deref() else {
             // A plan kept in memory only is kept as long as the service that keeps it lives.
             return true;
         };
-        return match crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
+        let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt };
+        return match crate::push_retry_store::save_awaiting(directory, &plan).await {
             Ok(()) => true,
             Err(reason) => {
                 crate::service_warn!(
@@ -586,7 +603,7 @@ impl Replanning {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const said = plannedRetry(gitDir, replanning, first, item, attempt, text);
+/// const said = await plannedRetry(gitDir, replanning, first, item, attempt, text);
 /// ```
 /// What:
 ///  The words a record of a planned retry carries,
@@ -608,11 +625,11 @@ pub(crate) struct PlannedRetry {
     pub(crate) kept: bool,
 }
 
-pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> PlannedRetry {
+pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> PlannedRetry {
     let pause: Duration = pause_before(attempt, first);
     // The notice below says the service keeps trying, so the plan that keeps it is written first,
     // and its answer says whether the words may promise it.
-    let kept: bool = replanning.keep_the_plan(git_dir, item, attempt);
+    let kept: bool = replanning.keep_the_plan(git_dir, item, attempt).await;
     replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
     // A protected-branch refusal is retried a fixed number of times, so a record that promised tries until the push lands would be
     //  untrue for the one cause that stops on its own; its words name the last try instead.
@@ -681,7 +698,7 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = prove(gitDir, mounts); if (gone) { log(goneLine(gitDir, gone, branches)); for (const due of dueOf(gitDir)) forget(due); }
+/// const gone = prove(gitDir, mounts); if (gone) { log(goneLine(gitDir, gone, branches)); for (const due of dueOf(gitDir)) await forget(due); }
 /// ```
 pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable, gone: &Gone) -> Drained {
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
@@ -691,7 +708,7 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
             continue;
         }
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
-        replanning.forget_when_unreachable(git_dir, due);
+        replanning.forget_when_unreachable(git_dir, due).await;
     }
     // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here while its
     //  repository is still missing, and the change drops the branch from the list the loop reads. A repository that is
@@ -717,9 +734,9 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const due of retrying.due) if (due.gitDir === gitDir) plan(gitDir, due.item, due.attempt + 1, pauseBefore(due.attempt + 1))
+/// for (const due of retrying.due) if (due.gitDir === gitDir) await plan(gitDir, due.item, due.attempt + 1, pauseBefore(due.attempt + 1))
 /// ```
-pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable) -> Drained {
+pub(crate) async fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable) -> Drained {
     crate::service_warn!("{unreachable}; its work stays where it is for the next command, nothing runs, and its push plans keep their pauses");
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     let Some(first) = retrying.first else {
@@ -728,7 +745,7 @@ pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, 
     for due in &retrying.due {
         if due.git_dir == git_dir {
             let cause: String = format!("the repository at {} is not reachable now (is its drive mounted?)", git_dir.display());
-            let _said: PlannedRetry = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str());
+            let _said: PlannedRetry = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str()).await;
         }
     }
     return Drained { wait: None, changes: replanning.changes };
