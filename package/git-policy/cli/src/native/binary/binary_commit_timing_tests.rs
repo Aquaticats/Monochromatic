@@ -1803,3 +1803,66 @@ fn a_commit_the_person_stops_states_the_signal_and_who_sent_it() {
     assert_eq!(record["stop"]["sender"], sender, "the record names the process that sent the stop: {record}");
     remove_settled(&fixture);
 }
+
+/// What:
+///  A commit whose client is killed while it waits is not made,
+///  everything that was staged is still staged,
+///  and nothing lands later by itself.
+/// Why:
+///  This is the one cause a record cannot name, because the process that writes the record is the one that was killed:
+///  a caller that gives up on a slow commit kills it exactly this way,
+///  and the owner's rule is that such a commit ends as one of two things and nothing else.
+///  The client used to survive as an orphan whose request landed from the snapshot taken at its start;
+///  since `65cc3dddd6` the service drops a request whose connection closed before it landed,
+///  and this control reads the whole of that promise from outside:
+///  the branch did not move, the index still holds the change, and the service says it dropped the request.
+#[test]
+fn a_commit_whose_client_is_killed_while_it_waits_is_not_made() {
+    let fixture: Fixture = fixture("timing-client-killed");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-client-killed-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    // A change the person staged, so "everything they staged is still staged" is a fact this control can read. It is not the
+    //  file the foreign commit names, which that commit takes for itself.
+    std::fs::write(repo.join("c.txt"), b"staged by the killed control\n").expect("c.txt");
+    super::support::git(&fixture, &repo, &["add", "--", "c.txt"]);
+    let staged: String = git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]);
+    assert_eq!(staged.trim(), "c.txt", "the change is staged before the commit");
+    // A foreign commit holds the repository's index, so this commit waits in the service's landing.
+    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
+    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let running = super::fault_run::spawn_watched(&fixture, &mut command);
+    // What: The commit is given time to prepare and send before the caller gives up on it.
+    // Why:  The landing logs nothing while it waits for a foreign lock, so the control measures the wait it grants instead:
+    //       a preparation, a build and a send take milliseconds, and five seconds is far beyond any of them.
+    std::thread::sleep(Duration::from_secs(5));
+    // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
+    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGKILL) }, 0, "the caller gives up and kills the commit");
+    let _finished = running.finish();
+    std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+    let held = holder.wait_with_output().expect("the foreign commit ends");
+    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    // The service gets time to land anything it is going to land before the branch is read.
+    std::thread::sleep(Duration::from_secs(5));
+    println!("SERVICE LOG: {}", std::fs::read_to_string(&places.log).unwrap_or_default());
+    // The foreign commit is the branch's only new commit: the killed commit's own work landed nothing.
+    assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\n", "nothing landed after the client was killed");
+    assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]), staged, "what was staged is still staged");
+    // Nothing is left for a restart to finish: the intents of the landing are gone.
+    let intents: String = format!(".{}", git_policy_cli::service_journal::OPEN_EXTENSION);
+    let left: Vec<String> = std::fs::read_dir(fixture.root.join("journal"))
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+                .filter(|entry_name| { return entry_name.ends_with(intents.as_str()); })
+                .collect();
+        })
+        .unwrap_or_default();
+    assert!(left.is_empty(), "no batch is left for a restart to finish: {left:?}");
+    remove_settled(&fixture);
+}

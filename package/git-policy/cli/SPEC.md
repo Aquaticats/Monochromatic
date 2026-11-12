@@ -6473,9 +6473,22 @@ on the commit path:
   and the command succeeds;
   one the service gave up ends the command with the words that the commit was not made and that nothing lands later by itself,
   by the signal's own status,
-  which a shell reports as `128 + the signal`,
-  and the timing record names the signal (`client-signal`).
-  A second signal ends the command at once.
+  which a shell reports as `128 + the signal`.
+  The timing record says `client-signal` with the signal and,
+  where the kernel names the process that sent it,
+  that process's number,
+  and it is written before the command ends by the signal:
+  the raise used to happen inside the report,
+  so an interrupted commit left no record at all,
+  and no record of 1,792 has ever said `client-signal`.
+  The sender is what tells a keyboard's interrupt from the stop a caller sends at its own bound,
+  which is the same `SIGTERM`.
+  A second signal ends the command at once,
+  and a `SIGKILL` is caught by nobody,
+  so that command leaves no record:
+  the next command in the worktree finds the branch where it was and everything the person staged still staged.
+  A commit that landed before the signal came stays landed and says so,
+  and the next command reads the landing from the branch.
   A kill that no process can catch is withdrawn by nobody,
   and the service's own rule about a request whose client is gone decides it:
   the request makes no commit when its connection closed before its batch landed.
@@ -15292,13 +15305,44 @@ which is a start that was refused or a step ended at its ceiling),
 with `step` and `status` as before,
 `engine-failure` for the wrapper's own engine failing where no step explains the stop,
 with `code` the engine failure's stable code,
+`client-refusal` for a stop the command itself decided,
+with `reason` the one word that failure goes by (`src/native/landing/service_messages.rs`,
+`failure_code`:
+`did-not-start` and `nothing-answered` for the start bound that ran out,
+`no-activation` and `could-not-start` for a service manager that could not be asked,
+`other-release` and `no-common-version` for a service of another release that would not retire,
+`still-with-service` and `withdrawal-unconfirmed` for the answer ceiling,
+`service-silent` and `may-not-have-landed` for a service that stopped,
+`refused`,
+`unavailable`,
+`index-in-use`,
+`reference-locked`,
+`step-too-slow`,
+`repository-full`,
+`repository-read-only`,
+`permission-denied`,
+`repository-frozen`,
+`branch-keeps-changing`,
+`branch-moved`,
+`branch-switched`,
+`conclusion-state-changed`,
+`content-pruned` and the rest,
+each one a literal of this crate),
+`client-signal` for a commit the person stopped while it waited,
+with `signal` and,
+where the kernel names the process that sent it,
+`sender`,
 and `unidentified` where no step,
 policy,
 transform or engine failure explains the stop,
-which is where a route that stops a commit with words of its own (the branch kept moving,
-the content was pruned,
-the service was not there) lands,
-and which is the signal the owner's rules call a defect that should log more;
+with `ruledOut` naming the routes that were looked for and were not it,
+so the record says how far the wrapper looked;
+`unidentified` is the signal the owner's rules call a defect that should log more,
+and it is no longer where a route that stops a commit in words of its own lands:
+every such route names itself,
+which is what the seven stopped records of 2026-11-12 could not do while the person had already been told the cause;
+a stop by a signal is written before the command ends by that signal,
+so an interrupted commit leaves a record like any other;
 `stop` is null for a command that ended without landing and without failing,
 because nothing stopped it;
 the failing step is the note the Git runner keeps (`src/native/commit/git_step_failure.rs`),
