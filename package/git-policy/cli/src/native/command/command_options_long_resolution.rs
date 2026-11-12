@@ -217,7 +217,8 @@ pub(crate) fn resolve_long_option(
 /// Why:
 ///   A transform that drops a control reads the option asked for,
 ///  and one that reads a state (`--gpg-sign` and `--no-gpg-sign`) reads both,
-///  and both follow Git: every unambiguous prefix counts,
+///  and both follow Git:
+/// every unambiguous prefix counts,
 ///  with or without `--no-`,
 ///  and a line Git refuses leaves no state to guess from.
 ///

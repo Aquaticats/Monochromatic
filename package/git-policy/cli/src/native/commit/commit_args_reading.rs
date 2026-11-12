@@ -37,7 +37,8 @@ use crate::command_options_long_resolution::long_option_takes_next_token;
 pub(super) const PATHSPEC_SEPARATOR: &str = "--";
 
 /// The token that ends the options without being a path of its own,
-/// which Git consumes as the separator is consumed (parse-options.c:1119-1125, Git 2.56.0).
+/// which Git consumes as the separator is consumed (parse-options.c:1119-1125,
+/// Git 2.56.0).
 pub(super) const END_OF_OPTIONS: &str = "--end-of-options";
 
 /// What:

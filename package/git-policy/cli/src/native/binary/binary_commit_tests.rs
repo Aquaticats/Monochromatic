@@ -1623,7 +1623,8 @@ fn a_path_after_the_end_of_options_that_spells_a_value_option_is_committed() {
 /// Why:
 ///  The removal compared `-o` and `--only` exactly,
 ///  so the real commit received `--on` with no paths and answered
-///  "No paths with --include/--only does not make sense" with exit 128, and nothing landed.
+///  "No paths with --include/--only does not make sense" with exit 128,
+/// and nothing landed.
 #[test]
 fn an_abbreviated_only_commits_the_named_path() {
     let fixture: Fixture = fixture("commit-abbreviated-only");

@@ -680,7 +680,8 @@ fn a_finished_command_prints_nothing_more() {
 
 /// What:
 ///  Where the signature request is read as Git reads it:
-///  after `--`, after `--end-of-options` and as the value of another option it is the person's text,
+///  after `--`,
+/// after `--end-of-options` and as the value of another option it is the person's text,
 ///  and every spelling Git accepts for `--gpg-sign`,
 ///  in a cluster too,
 ///  is one.

@@ -53,8 +53,10 @@ fn named_signing_option(words: &[&str]) -> Option<String> {
 ///  The signing option of a command line in the spelling `git commit-tree` takes,
 ///  including a key named with the long option or inside a short cluster.
 /// Why:
-///  A commit made again is signed with the key the person chose (rule: what the wrapper passes to
-///  Git means what the person typed), and `--gpg-sign=KEY` names one as `-SKEY` does;
+///  A commit made again is signed with the key the person chose (rule:
+/// what the wrapper passes to
+///  Git means what the person typed),
+/// and `--gpg-sign=KEY` names one as `-SKEY` does;
 ///  the long option alone names the default key,
 ///  which `commit-tree` takes as `-S`.
 ///  A value that spells the option and a path after the options end are neither.

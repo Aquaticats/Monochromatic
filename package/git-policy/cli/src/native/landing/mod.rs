@@ -341,6 +341,11 @@ pub mod service_replay_conclusion;
 /// on top of the branch as it is now.
 pub mod service_amend_replayed;
 
+/// The key a signed amend names,
+/// in the spelling `git commit-tree` takes,
+/// which `service_amend_replayed` signs its commit again with.
+pub mod service_amend_replayed_signing;
+
 /// The commits real Git builds for the service:
 /// an editor,
 /// a signature,

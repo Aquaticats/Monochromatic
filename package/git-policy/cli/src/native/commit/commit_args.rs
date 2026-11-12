@@ -215,7 +215,8 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 ///  The pathspec removal takes the last path of each pathspec,
 ///  as `lastIndexOf` found it in the incumbent.
 ///  Everything after `--` or `--end-of-options` is a path and nothing else,
-///  so a path that spells `--pathspec-file-nul`, `-o` or `--all` is committed as the path it is.
+///  so a path that spells `--pathspec-file-nul`,
+/// `-o` or `--all` is committed as the path it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

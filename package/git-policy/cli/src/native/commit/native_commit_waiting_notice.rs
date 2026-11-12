@@ -335,7 +335,8 @@ const SIGNING_LETTER: char = 'S';
 ///  the configuration says so or the command line asks for it.
 /// Why:
 ///   A stop's words tell the person to check the signing program first,
-///  so the answer follows Git: a request after `--` or `--end-of-options`,
+///  so the answer follows Git:
+/// a request after `--` or `--end-of-options`,
 ///  or one that is the value of another option,
 ///  is neither,
 ///  and every spelling Git accepts of `--gpg-sign`,

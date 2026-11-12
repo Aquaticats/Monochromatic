@@ -113,7 +113,8 @@ pub mod commit_args;
 
 /// The `commit` argument region as Git reads it:
 ///  which token takes the next as its value,
-///  where the pathspec separator is,
+///  where the options end,
+///  which tokens are a value,
 ///  and the region with every short cluster's value separated.
 pub mod commit_args_reading;
 
