@@ -11,7 +11,7 @@
 
 use super::{LeftBehind, finish_after_git, finish_left_behind_folders, remember_before_git};
 use crate::test_support::{fixture, remove};
-use crate::worktree_removal_left_behind_record::{RECORD_FOLDER, record_before_git, record_before_git_with_owner};
+use crate::worktree_removal_left_behind_record::{RECORD_FOLDER, record_before_git_with_owner};
 use crate::worktree_removal_left_behind_record::{forget, read_record};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

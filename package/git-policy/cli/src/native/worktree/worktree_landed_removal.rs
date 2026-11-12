@@ -503,13 +503,13 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
         Ok(finished) => finished,
         Err(error) => return Attempt::Kept(format!("Git could not be started to remove it ({error})")),
     };
-    let Some(remembered) = remembered else {
+    let Some(recorded_folder) = remembered else {
         return match output.code {
             Some(0) => Attempt::Removed,
             _ => Attempt::Kept(format!("Git refused to remove it: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
         };
     };
-    return match finish_after_git(&remembered) {
+    return match finish_after_git(&recorded_folder) {
         LeftBehind::Removed => Attempt::RemovedAfterGitCouldNotEmpty(finished_notice(one.worktree.as_path())),
         LeftBehind::Kept { names, reason } => Attempt::Kept(kept_notice(one.worktree.as_path(), names.as_slice(), reason.as_str())),
         // Git emptied the folder and took the registration, or refused and nothing moved: Git's own words are the answer.

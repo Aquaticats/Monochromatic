@@ -424,13 +424,13 @@ fn removal_about_to_be_handed_to_git(facts: &CopyFacts) -> Option<Remembered> {
 #[cfg(unix)]
 fn finished_after_git(remembered: Option<Remembered>, finished: ForwardedRun) -> ForwardedRun {
     use std::io::Write;
-    let Some(remembered) = remembered else { return finished };
+    let Some(recorded_folder) = remembered else { return finished };
     // A removal this program could not start did not hand the folder to Git, so its record names a folder it never walked.
     if matches!(finished, ForwardedRun::Failed { .. }) {
         return finished;
     }
-    let outcome: LeftBehind = finish_after_git(&remembered);
-    for line in notice_of(&outcome, remembered.target.as_path()) {
+    let outcome: LeftBehind = finish_after_git(&recorded_folder);
+    for line in notice_of(&outcome, recorded_folder.target.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }

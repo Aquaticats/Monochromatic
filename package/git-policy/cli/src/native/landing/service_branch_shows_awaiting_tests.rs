@@ -23,7 +23,7 @@ use std::path::PathBuf;
 fn both_answers(context: &GitContext, repo: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
     let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, reference, prepared);
     let awaited: WhatTheBranchShows =
-        crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, &reference, prepared)).expect("the runtime");
+        crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, reference, prepared)).expect("the runtime");
     return (synchronous, awaited);
 }
 

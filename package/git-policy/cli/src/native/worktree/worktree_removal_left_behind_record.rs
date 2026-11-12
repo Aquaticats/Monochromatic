@@ -147,9 +147,9 @@ pub fn record_before_git_with_owner(common_dir: &Path, id: &OsStr, target: &Path
 pub fn entries_of(target: &Path) -> Result<Vec<OsString>, String> {
     let listing = std::fs::read_dir(target).map_err(|error| format!("{} cannot be listed ({error})", target.display()))?;
     let mut names: Vec<OsString> = Vec::new();
-    for entry in listing {
-        let entry = entry.map_err(|error| format!("{} cannot be read ({error})", target.display()))?;
-        names.push(entry.file_name());
+    for listed in listing {
+        let found = listed.map_err(|error| format!("{} cannot be read ({error})", target.display()))?;
+        names.push(found.file_name());
     }
     return Ok(names);
 }

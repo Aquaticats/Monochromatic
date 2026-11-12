@@ -2866,11 +2866,19 @@ and the package-manager relink of that same worktree
 runs `pnpm install --offline --frozen-lockfile` inside it,
 in the repository's commit service,
 for as long as its own ceiling allows (`REPAIR_TOOL_CEILING`).
-Measured on 2026-11-11 about 19:03-05:00 with the installed 0.6.1-alpha.10:
-a worktree added 19:03:06 was removed with
-`error: failed to delete '<path>': Directory not empty` at 19:04:36,
-`git worktree list` no longer held it,
-and the folder stood there with `node_modules` still being written in the second the walk gave up.
+The owner reported on 2026-11-11 about 19:03-05:00,
+with the installed 0.6.1-alpha.10,
+a worktree added at 19:03:06 whose removal printed
+`error: failed to delete '<path>': Directory not empty` at 19:04:36 and ended;
+`git worktree list` no longer held the worktree,
+and its folder stood there with `node_modules` written in the second the walk gave up.
+Reproduced on a btrfs fixture on 2026-11-12 with that same release and with the sources of this entry:
+the removal printed
+`<path> is not proven clean (.gitignore is as new as the index, so its stat fields prove nothing); Git decides`,
+then Git's `error: failed to delete '<path>': Directory not empty`,
+exited 255,
+deleted the registration,
+and left the folder holding `node_modules` with no record and no line anywhere.
 The refusal of the stat data alone handed it to Git's file-by-file walk,
 the walk met the relink's writes,
 and Git deletes the registration whether or not its walk emptied the folder
