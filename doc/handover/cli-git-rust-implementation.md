@@ -164,7 +164,16 @@ move its durable facts to their canonical doc and delete it from this page.
 
 - Acknowledged as the file asks: a comment on commit `869cd1ff95` on GitHub (comment 209661196, posted by 16:41:25).
 - `podman image prune --force` (dangling images) was started at about 16:05 and `podman image prune --all --force` at about 16:10,
-  each in a capped scope. Their results were not read back before this was written; `df` on `/var/home` after the restart says what they freed.
+  each in a capped scope.
+  Read at 16:52:07: the first one failed after about forty-seven minutes and freed nothing:
+  "write /var/home/user/.local/share/containers/storage/overlay-images/.tmp-images.json...: no space left on device".
+  `podman` has to rewrite its own image list to remove an image, and the drive had no room for that.
+  The second was still running at 16:45:40 and faces the same.
+  `/var/home` read 2138 MiB free at 16:43:15 and 1 MiB at 16:45:40: something was still writing to it; what, is not established.
+  After the restart the drive needs some room made by other means before a prune can work.
+- The wind-down commit `dbc00b10dc` was on the remote's `main` at 16:45:25
+  (the wrapper's first try answered "The commit service could not finish this commit, so it was not made";
+  a try with real Git directly was stopped by the repository's own guard and not worked around; the second try through the wrapper landed, and an explicit push published it).
 - The hourly loop is cancelled (cron `c0352b43` deleted). It is to be set up again after the restart, with no expiry, as the owner asked on 2026-11-12.
 - At 16:41:25 no `pi-*` and no `launch-*` unit of this work was live: every run and every launcher had ended by itself.
   So no run had to be stopped, and the wind-down note
