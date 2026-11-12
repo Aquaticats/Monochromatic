@@ -17513,7 +17513,7 @@ Before release readiness:
 - Clippy reports no warning and the crate's tests pass in the bounded container
   (`mise run //package/git-policy/cli:native:test:container`);
 - the btrfs controls pass on this host,
-  which a real release waits for before it dispatches
+  which a release that is not an alpha waits for before it dispatches
   (`mise run //package/git-policy/cli:native:release:host-controls`):
   the container gate runs on an overlay filesystem,
   where each of those controls prints `BTRFS CONTROL NOT RUN`,
@@ -17523,7 +17523,10 @@ Before release readiness:
   when one prints that line for any reason but needing a filesystem that is not btrfs,
   when the run was stopped at the deadline it is given,
   or when the run holds no passing status line for one of the controls the gate requires;
-  a `--dry-run` skips the controls and starts the workflow's dry run instead;
+  an alpha release dispatches without the controls
+  (the owner's standing rule of 2026-11-11,
+  "make the release pipeline avoid running any extra work for alphas"),
+  and a `--dry-run` skips the controls and starts the workflow's dry run instead;
 - the release executable builds with `cargo build --release --locked --bin monochromatic-git-policy-cli`;
 - the `git` that `PATH` resolves first leads to `monochromatic-git-policy-cli`
   (`readlink --canonicalize "$(command -v git)"`);

@@ -38,3 +38,65 @@ extends = "test:unit"
 [tasks.buildAndTest]
 description = "Build the library, then run unit tests; the unit tests import the built library and run the bin from source"
 run = ["mise run build", "mise run test:unit"]
+
+[vars]
+# Runs one of this package's commands from its source entry, passing the caller's words through and keeping its exit status: the
+# pool gate answers 3 for no room and 4 for a run already going, and the retrying start reads both.
+run_pi_command = """
+const { spawnSync } = await import('node:child_process')
+// Entry name is the command's own, so a rename breaks the task rather than running a neighbour.
+const runPiCommand = (name) => {
+  const status = spawnSync(process.execPath, [`src/${name}.ts`, ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' }).status
+  process.exit(status ?? 1)
+}
+"""
+
+[tasks."start-pi-run-when-a-pool-has-room"]
+description = "Start one Pi run when its provider pool has room, or say why it started none: the worktree launcher's options, plus --session-of=<run folder> and --counts-only"
+usage = 'arg "[args]" var=#true help="Options of the worktree launcher, plus --session-of=<run folder> and --counts-only"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-pi-run-when-a-pool-has-room')
+"""
+
+[tasks."start-pi-run-in-a-worktree"]
+description = "Make a run's worktree from the checkout's main, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
+usage = 'arg "[args]" var=#true help="--name, --branch, --prompt, --cpu, --memory, --tasks and --wall are required; the rest have defaults"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-pi-run-in-a-worktree')
+"""
+
+[tasks."retry-pi-run-start-until-a-pool-has-room"]
+description = "Ask the pool gate for a slot until it starts the run or the deadline passes: --deadline-seconds and --period-seconds, then -- and the pool gate's words"
+usage = 'arg "[args]" var=#true help="--deadline-seconds=<n> --period-seconds=<n> -- <pool gate options>"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('retry-pi-run-start-until-a-pool-has-room')
+"""
+
+[tasks."start-pi-runs-from-a-batch-list"]
+description = "Start every entry of a batch list through the retrying start, one at a time, and print the line each entry ended with"
+usage = 'arg "[args]" var=#true help="--batch-file=<file> [--runs-folder=<folder>] [--deadline-seconds=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-pi-runs-from-a-batch-list')
+"""
+
+[tasks."save-the-final-message-of-a-review-that-wrote-no-review-file"]
+description = "Write the last assistant message of a review's newest finished run as that review's review.md, when the run wrote none"
+usage = 'arg "[args]" var=#true help="--review=<name> (repeatable), [--runs-folder=<folder>], [--review-folder=<folder>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('save-the-final-message-of-a-review-that-wrote-no-review-file')
+"""
