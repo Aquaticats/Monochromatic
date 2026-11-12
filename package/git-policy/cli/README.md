@@ -1136,6 +1136,32 @@ The files Git ignores in it go too,
  exactly as they do when a person runs `git worktree remove`:
  a `node_modules/` and a `target/` are rebuilt by the next task,
  and anything else ignored that you put there yourself is gone.
+**A worktree this program has just added goes in one call.**
+Its files and its index are written in the same instant,
+ so the recorded times and inodes of every tracked file prove nothing,
+ and the removal reads those files and compares them with the committed blobs instead.
+That is what keeps the package-manager relink of a new worktree
+ (which runs `pnpm install` in it, in the commit service, after the add returned)
+ from being written into while a removal walks the same folder:
+the folder leaves your path in the one call,
+ and whatever the relink writes afterwards reaches nothing.
+A removal never waits for that relink.
+
+**A removal Git had to be helped with says so.**
+The removal the wrapper hands to Git is a walk it does not control,
+ and Git deletes the worktree's registration whether or not that walk emptied the folder
+ (`builtin/worktree.c`,
+ `remove_worktree`:
+ "continue on even if ret is non-zero, there's no going back from here").
+So the removal writes down what the folder held before Git ran,
+ and once Git returns it removes what the removal asked for itself;
+when the walk had already emptied the folder,
+ that is the folder and nothing else.
+An entry that appeared in the folder while the removal was running is not the removal's,
+ so it stays with the folder around it,
+ one line names it,
+ and the record that names the folder is what the next command of the repository finishes the removal from once it is gone.
+Nothing is left as a folder nothing points at.
 That is the whole reason a worktree is removed only when this program made it:
  a worktree you created by hand is never removed by itself,
  because this program cannot know which ignored files in it are yours.

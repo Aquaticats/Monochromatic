@@ -173,10 +173,11 @@ pub fn finish_recorded(common_dir: &Path, id: &OsStr) -> LeftBehind {
             LeftBehind::Nothing
         }
         Ok(Some(found)) if !found.is_dir() => {
-            // The name holds a file or a link now, which no removal made, so nothing here is the removal's.
-            let outcome: LeftBehind = LeftBehind::Kept { names: vec![shown_name(record.target.as_path())], reason: String::from("the name holds a file or a link now, and the removal did not make one") };
+            // The name holds a file or a link now, which no removal made, so nothing here is the removal's and the folder it
+            // named is already gone.
             forget(common_dir, id);
-            outcome
+            debug(TAG, format!("{} holds a file or a link now, so no removal left a folder there", record.target.display()).as_str());
+            LeftBehind::Nothing
         }
         Ok(Some(_directory)) => finish_the_folder(common_dir, id, &record),
         Err(reason) => LeftBehind::Kept { names: Vec::new(), reason },
@@ -211,7 +212,9 @@ fn finish_the_folder(common_dir: &Path, id: &OsStr, record: &LeftBehindRecord) -
         }
         Err(error) => return LeftBehind::Kept { names: names_of(target), reason: format!("its tree cannot be walked for a mount point or a subvolume ({error})") },
     }
-    let now: Vec<OsString> = match entries_of(target) {
+    // The entries are read through the descriptor, not through the path, so a folder replaced at that name between the two
+    // calls is not the one this finish judges.
+    let now: Vec<OsString> = match entries_of(handle_path(&held).as_path()) {
         Ok(found) => found,
         Err(reason) => return LeftBehind::Kept { names: Vec::new(), reason },
     };
