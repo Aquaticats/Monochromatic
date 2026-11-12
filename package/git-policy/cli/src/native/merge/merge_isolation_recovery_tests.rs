@@ -225,6 +225,21 @@ fn one_path_merge_world(name: &str) -> World {
 /// const repo = repository(...); write('target.txt', 'payload\n'); symlink('target.txt', 'link'); commit(); /* feature: rm link, write file 'link' */ const merge = mergeTreeCommit(...);
 /// ```
 fn symlink_to_file_world(name: &str) -> World {
+    return symlink_to_file_world_with(name, false);
+}
+
+/// What:
+///  That repository with the merge's file executable when `executable_after` is set,
+///  so Git records `100755` instead of `100644`.
+/// Why:
+///  The install keeps the executable bits of the file Git's entry checked out and gives back every other bit,
+///  so the executable entry is the second branch of that mask and a control needs one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = symlinkToFileWorld(name); chmod('link', 0o755); git.add('link'); // feature writes 'link' executable
+/// ```
+fn symlink_to_file_world_with(name: &str, executable_after: bool) -> World {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
     std::fs::write(repo.join("target.txt"), b"payload\n").expect("the link's target");
@@ -235,6 +250,10 @@ fn symlink_to_file_world(name: &str) -> World {
     git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
     std::fs::remove_file(repo.join("link")).expect("the link goes");
     std::fs::write(repo.join("link"), b"link as a file\n").expect("a file where the link stood");
+    if executable_after {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("link"), std::fs::Permissions::from_mode(0o755)).expect("the merge's executable file");
+    }
     git(repo.as_path(), &["add", "--", "link"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
     git(repo.as_path(), &["switch", "--quiet", "main"]);
@@ -2689,6 +2708,103 @@ fn a_saved_merge_that_replaces_a_symlink_finishes() {
     );
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
     assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  The permission bits Git's own checkout gives one path of a world's index.
+/// Why:
+///  The install gives each file it wrote the bits the take read and keeps the executable bits Git's entry decided,
+///  and the mode Git's entry implies is what `checkout-index` writes under this run's umask,
+///  never a number a control names:
+/// a repository that records file modes writes `100644` as `0644` only where the umask allows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theModeGitChecksOut = (world, path) => mode(join(world.parent, 'git-wrote', path)); // after `git checkout-index --prefix=...`
+/// ```
+#[cfg(unix)]
+fn the_mode_git_checks_out(world: &World, path: &str) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    let elsewhere: PathBuf = world.parent.join("git-wrote");
+    std::fs::create_dir(elsewhere.as_path()).expect("a directory Git checks the entry out into");
+    git(world.repo.as_path(), &["checkout-index", format!("--prefix={}/", elsewhere.display()).as_str(), "--", path]);
+    return std::fs::symlink_metadata(elsewhere.join(path)).expect("Git's checkout of the entry").permissions().mode() & 0o7777;
+}
+
+/// What:
+///  A saved merge that replaces a symbolic link with a plain file leaves the file the mode Git's entry implies.
+/// Why:
+///  Installing a saved merge gives each file back the permission bits it had when the take read it
+///  (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its fifth finding).
+/// The entry a link change takes aside is the link itself,
+/// whose own permission bits are the platform's `0777` and say
+///  nothing of the link,
+/// so the mask replaced `0644` with `0666`:
+/// a world-writable file the person never set,
+/// which Git
+///  would not have written either
+///  (a Qwen review of `72013e1710`,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = symlinkToFileWorld('merge-recovery-symlink-mode'); record(sideRef); await recover(...); expect(mode('link')).toBe(theModeGitChecksOut(world, 'link'));
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_saved_merge_that_replaces_a_symlink_leaves_the_mode_git_checks_out() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = symlink_to_file_world("merge-recovery-symlink-mode");
+    let record: PathBuf = deferred_record_of(&world, "53535353-0000-4000-8000-000000000053", "refs/cli-git/kept/53");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    let link: PathBuf = world.repo.join("link");
+    let written: u32 = std::fs::symlink_metadata(link.as_path()).expect("the merge's file").permissions().mode() & 0o7777;
+    let git_writes: u32 = the_mode_git_checks_out(&world, "link");
+    assert_eq!(
+        written, git_writes,
+        "the merge's file was given {written:o} where Git's entry writes {git_writes:o}, and the entry the merge replaced was a link, whose own mode is not the person's"
+    );
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  That saved merge leaves an executable file both the executable bits Git's entry decided and no others.
+/// Why:
+///  The mask takes the bits Git does not record from the entry it replaces and the executable bits from the checkout,
+/// so the executable entry is the other half of the same decision:
+/// a link's `0777` turned Git's `0755` into `0777`,
+///  three bits more than the entry holds (a Qwen review of `72013e1710`,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = symlinkToFileWorldWith('merge-recovery-symlink-executable-mode', true); record(sideRef); await recover(...); expect(mode('link') & 0o111).not.toBe(0); expect(mode('link')).toBe(theModeGitChecksOut(world, 'link'));
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_saved_merge_that_replaces_a_symlink_leaves_an_executable_file_the_mode_git_checks_out() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = symlink_to_file_world_with("merge-recovery-symlink-executable-mode", true);
+    let record: PathBuf = deferred_record_of(&world, "54545454-0000-4000-8000-000000000054", "refs/cli-git/kept/54");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    let link: PathBuf = world.repo.join("link");
+    let written: u32 = std::fs::symlink_metadata(link.as_path()).expect("the merge's file").permissions().mode() & 0o7777;
+    let git_writes: u32 = the_mode_git_checks_out(&world, "link");
+    assert_ne!(written & 0o111, 0, "the executable bits Git's entry decided are kept: {written:o}");
+    assert_eq!(
+        written, git_writes,
+        "the merge's executable file was given {written:o} where Git's entry writes {git_writes:o}, and the entry the merge replaced was a link, whose own mode is not the person's"
+    );
     remove(world.parent.as_path());
 }
 
