@@ -149,6 +149,37 @@ second and third equally):
 Every commit of both releases stayed far inside the bar in the fixture,
 and alpha.11 was the cheaper of the two there.
 
+## The log by hour, which is what the claim "it did not last" rests on
+
+Reading the whole log of this repository at 2026-11-12T04:35Z,
+the median `totalMs` of landed commits by release and clock hour:
+
+- 0.6.1-alpha.10:
+  16Z 9,720 ms (23 commits),
+  17Z 8,248 (15),
+  18Z 2,423 (28),
+  19Z 4,775 (67),
+  20Z 3,739 (46),
+  21Z 4,380 (46),
+  22Z 1,771 (87),
+  23Z 1,631 (94),
+  00Z 2,542 (49).
+- 0.6.1-alpha.11:
+  01Z 11,254 (47),
+  02Z 4,206 (57),
+  03Z 2,178 (51).
+- 0.6.1-alpha.12:
+  03Z 14,878 (13),
+  04Z 10,692 (53).
+
+So alpha.11's first hour was several times its own later hours,
+and alpha.10 alone ranged from 1,631 ms to 9,720 ms at the median between one hour and the next:
+an hour on this machine says more about what else ran in it than about the binary.
+alpha.12's second hour is still 10,692 ms over 53 commits,
+so the shape "slow for one hour and then fine" is not what alpha.12 shows yet,
+and no reading of these hours alone can say whether a change of release or the work beside it did it.
+That is what the fixture below separates.
+
 ## The changeover, and plain load, in one fixture
 
 The release's first hour was slow and the hours after it were not,
