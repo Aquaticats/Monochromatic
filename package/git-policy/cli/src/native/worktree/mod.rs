@@ -238,3 +238,8 @@ pub mod worktree_trash_manifest;
 /// never following a link.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_remove;
+
+/// Throwaway controls for the add-route audit; never committed.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "audit_scratch_tests.rs"]
+mod audit_scratch;
