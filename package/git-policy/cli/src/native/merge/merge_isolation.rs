@@ -32,7 +32,9 @@
 //! ```
 
 /// Names and sets of unsaved work.
-use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
+use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths};
+/// The paths a merge that writes or deletes them would discard.
+use crate::merge_isolation_dirty_paths::dirty_paths;
 /// Reading an environment value.
 use crate::child_environment::environment_value;
 /// Diagnostics for the log.
@@ -41,9 +43,6 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The merge messages.
 use crate::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
-/// The ignored untracked files of the person's that stand at the paths a merge writes,
-/// which `git status` never lists.
-use crate::merge_isolation_ignored_paths::ignored_untracked_among;
 /// The word-level second pass over the conflicts of the merge tree,
 /// and the attribute tree it reads.
 use crate::merge_second_pass::Merged;
@@ -365,44 +364,6 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
     return Ok(with_second_pass_report(done, second_pass_files.as_slice()));
 }
 
-/// What:
-///  Every path whose worktree or index differs from the branch,
-/// untracked files included,
-/// and the ignored untracked
-///  files of the person's that stand at the paths the merge touches.
-/// Why:
-///   These are exactly the paths a merge that writes them would discard,
-/// and the untracked ones are why native
-///  Git refuses a merge that adds a path a file already stands at.
-///  `git status` never lists a file an ignore rule covers,
-/// so those paths are read from Git's own list of the untracked files the
-///  rules cover (`merge_isolation_ignored_paths.rs`);
-/// the merge writes over the only copy of their bytes as it would over
-///  any other untracked file's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'])).concat(ignoredUntrackedAmong(context, root, touched));
-/// ```
-fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Bail> {
-    let status: GitOutput = session.run(&[
-        "--no-optional-locks",
-        "status",
-        "--porcelain=v1",
-        "-z",
-        "--untracked-files=all",
-    ])?;
-    if !status.succeeded() {
-        return Err(Bail::from(format!("git status failed: {}", status.error_text())));
-    }
-    let mut paths: Vec<Vec<u8>> = status_paths(status.stdout.as_slice());
-    for path in ignored_untracked_among(&session.context, root, touched).map_err(Bail::from)? {
-        if !paths.contains(&path) {
-            paths.push(path);
-        }
-    }
-    return Ok(paths);
-}
 
 /// What:
 ///  The person's own work in `paths`,

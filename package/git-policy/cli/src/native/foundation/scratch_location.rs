@@ -309,10 +309,27 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
         None => git_dir.to_path_buf(),
     };
     let mut tree: PathBuf = directory.join(name);
+    // What:
+    //  The tree this attempt makes, from the one call that also proves it.
+    // Why:
+    //   `mkdir` gives the new directory to this account with mode `0700` less the umask,
+    //  so a metadata call after a creation of this process cannot change the answer,
+    //  and it is one round trip to the device that a commit waits for before it can answer.
+    //  The audit of 2026-11-12 charged 8,594 ms of one 9,892 ms commit to this preparation,
+    //  and a device that stalls a metadata call is what its slowest requests met
+    //  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+    //  The proof stays for a path that was there already,
+    //  which is another process's until the leftover handling below has taken it away.
+    match create_private_directory(tree.as_path()) {
+        // A directory this call made, which no other process could have made under this name.
+        Ok(()) => return Ok(tree),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error),
+    }
     // A tree of this command's own earlier attempt is removed first, so every attempt of one command starts from an empty one:
-    //  the name carries this command's identity and no other command makes it.
-    let present: bool = std::fs::symlink_metadata(tree.as_path()).is_ok();
-    if present {
+    //  the name carries this command's identity and no other command makes it,
+    //  and the creation above found it there.
+    {
         // The old tree is moved aside before anything removes it, and only the aside's name is given to the removal: a removal
         //  that outlives its ceiling keeps the pathname it was given and never learns that the tree moved, so one handed this
         //  attempt's name could empty the tree this attempt makes next. The aside's name is one no attempt ever makes.
@@ -357,8 +374,8 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
             }
         }
     }
+    // The name is this attempt's now, because the leftover that held it is gone, and the creation is its own proof.
     create_private_directory(tree.as_path())?;
-    assert_private_directory(tree.as_path())?;
     return Ok(tree);
 }
 
@@ -408,13 +425,44 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
 /// ```
 pub fn prepare_repository_scratch_for_a_commit(common_dir: &Path) -> std::io::Result<PathBuf> {
     let directory: PathBuf = common_dir.join(REPOSITORY_SCRATCH_NAME);
-    match create_private_directory(directory.as_path()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+    proved_or_made_private(directory.as_path())?;
+    return Ok(directory);
+}
+
+/// What:
+///  Prove `directory` is this account's private directory,
+///  making it first when it is not there,
+///  in the fewest round trips to the device that hold the proof.
+/// Why:
+///  A commit writes the private index and the conclusion copies inside this directory,
+///  so it must be this account's and closed to other accounts before anything of the commit is written there,
+///  and a directory that was there already may be another account's or carry a loosened mode.
+///  A directory this call makes needs no proof after it:
+///  `mkdir` gives the new directory to this account with mode `0700` less the umask,
+///  so the proof would be a round trip the device answers with what the call already did.
+///  The proof comes first and the creation only when there is nothing to prove,
+///  because a proof of the directory found there is what a commit waits for when it exists,
+///  which is every commit but the first.
+///  The audit of 2026-11-12 charged 8,594 ms of one 9,892 ms commit to this preparation,
+///  and each metadata call is a round trip a stalled device can hold for seconds
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// proveOrMakePrivate(directory); // throws when another account owns it
+/// ```
+fn proved_or_made_private(directory: &Path) -> std::io::Result<()> {
+    match assert_private_directory(directory) {
+        Ok(()) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
-    assert_private_directory(directory.as_path())?;
-    return Ok(directory);
+    match create_private_directory(directory) {
+        Ok(()) => return Ok(()),
+        // Another process made it between the proof and this creation, so it is proved as any directory found there is.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return assert_private_directory(directory),
+        Err(error) => return Err(error),
+    }
 }
 
 /// What:
@@ -500,6 +548,10 @@ fn sweep_earlier_repository_scratch(common_dir: &Path) {
 fn assert_private_directory(path: &Path) -> std::io::Result<()> {
     // `MetadataExt` gives the owner and the mode bits.
     use std::os::unix::fs::MetadataExt;
+    // A control reads which paths were proved and which were never asked about
+    //  (`scratch_location_privacy_proofs_test_support.rs`).
+    #[cfg(test)]
+    test_proofs::note(path);
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path)?;
     if !metadata.is_dir() {
         return Err(std::io::Error::other("it is a link or a file, not a directory"));
@@ -621,6 +673,12 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
 #[cfg(test)]
 #[path = "scratch_location_removal_targets_test_support.rs"]
 pub(crate) mod test_targets;
+
+/// The paths whose privacy a preparation proved,
+/// for the control that it proves the directory it did not make and not the tree it did.
+#[cfg(test)]
+#[path = "scratch_location_privacy_proofs_test_support.rs"]
+pub(crate) mod test_proofs;
 
 /// Environment resolution,
 /// preparation,

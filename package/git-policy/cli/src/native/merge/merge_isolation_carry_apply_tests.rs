@@ -242,6 +242,57 @@ fn the_holder_has_its_descriptor_on(holder: &std::process::Child, location: &Pat
     panic!("the holder never opened {}", location.display());
 }
 
+/// What:
+///  A process holding `location` open that no process of this account can inspect,
+///  and a marker file it writes once its descriptor is open.
+/// Why:
+///  `prctl(PR_SET_DUMPABLE, 0)` closes `/proc/<pid>/fd` to every process of this account,
+///  so a scan of the holders cannot look at this one and must not read that as nothing holding the file
+///  (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+/// its first finding).
+/// The marker says the descriptor is open without reading the descriptor directory the holder exists to make unreadable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holder = spawnOwned(['python3', '-c', program, location, marker]);
+/// ```
+#[cfg(target_os = "linux")]
+fn a_holder_nobody_can_read(location: &Path, marker: &Path) -> std::process::Child {
+    let program: &str = "import ctypes, os, sys, time\nfd = os.open(sys.argv[1], os.O_RDWR)\nctypes.CDLL(None, use_errno=True).prctl(4, 0, 0, 0, 0)\nopen(sys.argv[2], 'w').close()\ntime.sleep(30)\n";
+    return crate::test_support::spawn_owned(
+        std::process::Command::new("python3")
+            .args(["-c", program, location.to_str().expect("a UTF-8 path"), marker.to_str().expect("a UTF-8 marker")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null()),
+    )
+    .expect("a holder no process can read");
+}
+
+/// What:
+///  Wait,
+/// bounded,
+/// until a holder has its descriptor open.
+/// Why:
+///  A start and an open take a moment,
+/// and a control that judged the scan before the descriptor existed would be measuring nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await until(() => existsSync(marker), 10_000);
+/// ```
+#[cfg(target_os = "linux")]
+fn the_holder_holds_a_file(marker: &Path) {
+    let started: std::time::Instant = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_secs(10) {
+        if marker.exists() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("the holder never opened a file: {}", marker.display());
+}
+
 /// Every file at the top of `repository` whose whole content is `bytes`.
 ///
 /// In TS you'd write (pseudocode):
@@ -293,6 +344,64 @@ fn a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried
     let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
     assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry wrote its own layer");
     let save: &[u8] = b"SAVE-THROUGH-OPEN-DESCRIPTOR\n";
+    use std::io::{Seek, Write};
+    buffer.set_len(0).expect("the buffer is replaced");
+    buffer.rewind().expect("the buffer's start");
+    buffer.write_all(save).expect("the save");
+    buffer.sync_all().expect("the save is on disk");
+    drop(buffer);
+    let mut stopped: std::process::Child = holder;
+    let _killed = stopped.kill();
+    let _waited = stopped.wait();
+    let kept: Vec<PathBuf> = files_that_hold(repo.as_path(), save);
+    assert_eq!(kept.len(), 1, "the save is in one file a person can reach: {kept:?}");
+    let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
+    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the file that holds it is named: {said}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A save that arrives through the descriptor of a program no process of this account can inspect
+///  is kept in the file that was set aside,
+///  and named.
+/// Why:
+///  The proof that lets the last name of a file go is a scan of the processes;
+/// a program whose `/proc` entries are closed to this account is one the scan cannot look at,
+///  and the scan read that as nothing holding the file,
+/// so the aside was unlinked and the program's write and fsync landed in an inode no name reached
+///  (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+/// its first finding).
+/// A file the scan cannot prove is free stays where it is and is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const buffer = open('a.txt'); const holder = spawnUnreadableHolder('a.txt'); carry(); write(buffer, save); expect(filesHolding(repo, save)).toHaveLength(1);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_save_through_the_descriptor_of_a_process_nobody_can_read_is_kept() {
+    let (root, repo, old, new) = diverged("carry-save-through-unreadable-descriptor");
+    let context = git_context();
+    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
+    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
+    let mut out: Vec<u8> = Vec::new();
+    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
+    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    let location: PathBuf = repo.join("a.txt");
+    // The program opens the file before the carry and closes its own `/proc` entries to every other process of this account;
+    //  this control's own descriptor is on the same entry, and the scan skips the process it runs in.
+    let mut buffer: std::fs::File = std::fs::File::options().read(true).write(true).open(location.as_path()).expect("the program's descriptor");
+    let marker: PathBuf = root.join("unreadable-holder-opened");
+    let holder: std::process::Child = a_holder_nobody_can_read(location.as_path(), marker.as_path());
+    the_holder_holds_a_file(marker.as_path());
+    assert!(
+        std::fs::read_dir(format!("/proc/{}/fd", holder.id())).is_err(),
+        "the control's holder must be one no process of this account can inspect"
+    );
+    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
+    assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry wrote its own layer");
+    let save: &[u8] = b"SAVE-THROUGH-UNREADABLE-DESCRIPTOR\n";
     use std::io::{Seek, Write};
     buffer.set_len(0).expect("the buffer is replaced");
     buffer.rewind().expect("the buffer's start");

@@ -166,6 +166,7 @@ fn added_worktree_receives_ignored_state_without_a_lock() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut stderr,
@@ -214,6 +215,7 @@ fn opted_out_invocation_skips_synchronization() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| {
             runs += 1;
@@ -257,6 +259,7 @@ fn main_worktree_command_that_creates_nothing_is_not_settled() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| {
             runs += 1;
@@ -296,6 +299,7 @@ fn non_worktree_command_runs_without_settlement() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| {
             runs += 1;
@@ -341,6 +345,7 @@ fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invo
         context: git_context(),
         add_plan: None,
         repair: crate::package_repair::RepairSwitch::default(),
+        quiet: false,
     };
 }
 
@@ -434,6 +439,7 @@ fn an_add_aimed_at_a_registered_worktree_does_not_mark_it_as_being_filled() {
                 context: git_context(),
                 add_plan: None,
                 repair: crate::package_repair::RepairSwitch::default(),
+                quiet: false,
             };
             let _settled = run_with_worktree_copy(
                 &nested,
@@ -499,6 +505,7 @@ fn two_adds_at_one_destination_copy_once_into_the_reserved_directory() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| {
             // A whole add of another command at the same destination, run while this command's Git runs.
@@ -634,6 +641,7 @@ fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_: &GitStep<'_>| {
             // Another command at the same destination, whose own Git registers and fills the worktree.
@@ -785,6 +793,7 @@ fn a_skipped_unfinished_source_keeps_the_record_of_the_worktree_it_did_not_fill(
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_: &GitStep<'_>| return Ok(run_real(filling.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
         &mut stderr,
@@ -905,6 +914,7 @@ fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
         context: git_context(),
         add_plan: None,
         repair: crate::package_repair::RepairSwitch::default(),
+        quiet: false,
     };
     let _settled = run_with_worktree_copy(
         &nested,
@@ -1512,6 +1522,7 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| return Ok(run_real(older_canonical.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
         &mut stderr,
@@ -1587,6 +1598,7 @@ fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
         context: git_context(),
         add_plan: None,
         repair: crate::package_repair::RepairSwitch::default(),
+        quiet: false,
     };
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
@@ -1720,6 +1732,7 @@ fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| return Ok(GitStatus { code: Some(0) }),
         &mut recovery_stderr,
@@ -1908,6 +1921,7 @@ fn add_from_main(root: &Path, main: &Path, common: &Path, flags: (bool, bool)) -
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| return Ok(run_real(main, args.as_slice())),
         &mut stderr,
@@ -2169,6 +2183,7 @@ fn a_worktree_add_between_paths_that_are_not_text_copies_the_ignored_state() {
             context: git_context(),
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
+            quiet: false,
         },
         &mut |_step: &GitStep<'_>| {
             let add_arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
@@ -2187,5 +2202,37 @@ fn a_worktree_add_between_paths_that_are_not_text_copies_the_ignored_state() {
     let replacement: PathBuf = PathBuf::from(topic.to_string_lossy().into_owned());
     assert!(!replacement.exists(), "nothing is written at the replacement spelling");
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    remove(root.as_path());
+}
+
+/// What:
+///  An add the ladder does not serve writes the record of its steps and says it is still running.
+/// Why:
+///   The record and the notice were started only when the ladder had a plan,
+/// so an add handed to plain
+///  Git left nothing behind and said nothing while it ran;
+/// the review of release 0.6.1-alpha.12 measured
+///  13 seconds, and a first add of 64.8 seconds, of silence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runWithWorktreeCopy(creationFrom(main, common, Some(destinationInsideAMissingFolder)));
+/// expect(readFile(join(common, ADD_TIMING_FILE))).toMatch(/"route":"plain"/);
+/// ```
+#[test]
+fn an_add_the_ladder_does_not_serve_writes_its_record() {
+    let root: PathBuf = fixture("add-records-when-plain");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    // A folder the destination goes in that was never made: the ladder's own reading refuses the add.
+    let destination: PathBuf = canonical_root.join("missing-parent").join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let mut run = |_step: &GitStep<'_>| {
+        return Ok(run_real(main.as_path(), add_arguments("topic", destination.as_path()).as_slice()));
+    };
+    let _settled = run_with_worktree_copy(&creation_from(main.as_path(), common.as_path(), Some(destination.as_path())), &mut run, &mut stderr);
+    let record: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's own record");
+    assert!(record.contains("\"route\":\"plain\""), "the record says the add ran as plain Git: {record}");
+    assert!(record.contains("does not exist yet"), "and names the folder that put it there: {record}");
     remove(root.as_path());
 }

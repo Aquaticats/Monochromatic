@@ -11,8 +11,7 @@ use crate::merge_isolation_recovery_index_lock::may_install;
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
 use crate::merge_isolation_recovery_steps::{install_entries, put_back_stranded_takes_awaiting, standing};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-use std::io::Write;
+use crate::test_support::{REAL_GIT, executable, fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
@@ -225,6 +224,21 @@ fn one_path_merge_world(name: &str) -> World {
 /// const repo = repository(...); write('target.txt', 'payload\n'); symlink('target.txt', 'link'); commit(); /* feature: rm link, write file 'link' */ const merge = mergeTreeCommit(...);
 /// ```
 fn symlink_to_file_world(name: &str) -> World {
+    return symlink_to_file_world_with(name, false);
+}
+
+/// What:
+///  That repository with the merge's file executable when `executable_after` is set,
+///  so Git records `100755` instead of `100644`.
+/// Why:
+///  The install keeps the executable bits of the file Git's entry checked out and gives back every other bit,
+///  so the executable entry is the second branch of that mask and a control needs one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = symlinkToFileWorld(name); chmod('link', 0o755); git.add('link'); // feature writes 'link' executable
+/// ```
+fn symlink_to_file_world_with(name: &str, executable_after: bool) -> World {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
     std::fs::write(repo.join("target.txt"), b"payload\n").expect("the link's target");
@@ -235,6 +249,10 @@ fn symlink_to_file_world(name: &str) -> World {
     git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
     std::fs::remove_file(repo.join("link")).expect("the link goes");
     std::fs::write(repo.join("link"), b"link as a file\n").expect("a file where the link stood");
+    if executable_after {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("link"), std::fs::Permissions::from_mode(0o755)).expect("the merge's executable file");
+    }
     git(repo.as_path(), &["add", "--", "link"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
     git(repo.as_path(), &["switch", "--quiet", "main"]);
@@ -2098,8 +2116,7 @@ fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     // A writer that kept its descriptor appends a line the clean filter drops.
-    use std::io::Write;
-    let mut file: std::fs::File = std::fs::File::options().append(true).open(aside.as_path()).expect("the writer's descriptor");
+        let mut file: std::fs::File = std::fs::File::options().append(true).open(aside.as_path()).expect("the writer's descriptor");
     file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
     drop(file);
     let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
@@ -2159,8 +2176,7 @@ fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
     crate::service_fault::hooks::set(
         "aside-scanned",
         std::rc::Rc::new(move || {
-            use std::io::Write;
-            let mut file: std::fs::File = std::fs::File::options().append(true).open(written.as_path()).expect("the writer's descriptor");
+                        let mut file: std::fs::File = std::fs::File::options().append(true).open(written.as_path()).expect("the writer's descriptor");
             file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
         }),
     );
@@ -2689,6 +2705,103 @@ fn a_saved_merge_that_replaces_a_symlink_finishes() {
     );
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
     assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  The permission bits Git's own checkout gives one path of a world's index.
+/// Why:
+///  The install gives each file it wrote the bits the take read and keeps the executable bits Git's entry decided,
+///  and the mode Git's entry implies is what `checkout-index` writes under this run's umask,
+///  never a number a control names:
+/// a repository that records file modes writes `100644` as `0644` only where the umask allows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theModeGitChecksOut = (world, path) => mode(join(world.parent, 'git-wrote', path)); // after `git checkout-index --prefix=...`
+/// ```
+#[cfg(unix)]
+fn the_mode_git_checks_out(world: &World, path: &str) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    let elsewhere: PathBuf = world.parent.join("git-wrote");
+    std::fs::create_dir(elsewhere.as_path()).expect("a directory Git checks the entry out into");
+    git(world.repo.as_path(), &["checkout-index", format!("--prefix={}/", elsewhere.display()).as_str(), "--", path]);
+    return std::fs::symlink_metadata(elsewhere.join(path)).expect("Git's checkout of the entry").permissions().mode() & 0o7777;
+}
+
+/// What:
+///  A saved merge that replaces a symbolic link with a plain file leaves the file the mode Git's entry implies.
+/// Why:
+///  Installing a saved merge gives each file back the permission bits it had when the take read it
+///  (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its fifth finding).
+/// The entry a link change takes aside is the link itself,
+/// whose own permission bits are the platform's `0777` and say
+///  nothing of the link,
+/// so the mask replaced `0644` with `0666`:
+/// a world-writable file the person never set,
+/// which Git
+///  would not have written either
+///  (a Qwen review of `72013e1710`,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = symlinkToFileWorld('merge-recovery-symlink-mode'); record(sideRef); await recover(...); expect(mode('link')).toBe(theModeGitChecksOut(world, 'link'));
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_saved_merge_that_replaces_a_symlink_leaves_the_mode_git_checks_out() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = symlink_to_file_world("merge-recovery-symlink-mode");
+    let record: PathBuf = deferred_record_of(&world, "53535353-0000-4000-8000-000000000053", "refs/cli-git/kept/53");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    let link: PathBuf = world.repo.join("link");
+    let written: u32 = std::fs::symlink_metadata(link.as_path()).expect("the merge's file").permissions().mode() & 0o7777;
+    let git_writes: u32 = the_mode_git_checks_out(&world, "link");
+    assert_eq!(
+        written, git_writes,
+        "the merge's file was given {written:o} where Git's entry writes {git_writes:o}, and the entry the merge replaced was a link, whose own mode is not the person's"
+    );
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  That saved merge leaves an executable file both the executable bits Git's entry decided and no others.
+/// Why:
+///  The mask takes the bits Git does not record from the entry it replaces and the executable bits from the checkout,
+/// so the executable entry is the other half of the same decision:
+/// a link's `0777` turned Git's `0755` into `0777`,
+///  three bits more than the entry holds (a Qwen review of `72013e1710`,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = symlinkToFileWorldWith('merge-recovery-symlink-executable-mode', true); record(sideRef); await recover(...); expect(mode('link') & 0o111).not.toBe(0); expect(mode('link')).toBe(theModeGitChecksOut(world, 'link'));
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_saved_merge_that_replaces_a_symlink_leaves_an_executable_file_the_mode_git_checks_out() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = symlink_to_file_world_with("merge-recovery-symlink-executable-mode", true);
+    let record: PathBuf = deferred_record_of(&world, "54545454-0000-4000-8000-000000000054", "refs/cli-git/kept/54");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    let link: PathBuf = world.repo.join("link");
+    let written: u32 = std::fs::symlink_metadata(link.as_path()).expect("the merge's file").permissions().mode() & 0o7777;
+    let git_writes: u32 = the_mode_git_checks_out(&world, "link");
+    assert_ne!(written & 0o111, 0, "the executable bits Git's entry decided are kept: {written:o}");
+    assert_eq!(
+        written, git_writes,
+        "the merge's executable file was given {written:o} where Git's entry writes {git_writes:o}, and the entry the merge replaced was a link, whose own mode is not the person's"
+    );
     remove(world.parent.as_path());
 }
 
@@ -3807,24 +3920,19 @@ fn a_pipe_beside_a_path_does_not_hold_the_command() {
     crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
     let git_dir: PathBuf = world.git_dir.clone();
     let recovery_place: RecoveryPlace = place(&world);
-    let (answered, answers): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
-    let probe: std::thread::JoinHandle<Vec<u8>> = std::thread::spawn(move || {
+    let deadline: std::time::Duration = std::time::Duration::from_secs(20);
+    // A reading of the pipe waits for a writer that never comes, so the probe thread is not joined: one that cannot answer
+    //  within the deadline is left to its wait and the control fails with what it has, because joining it here would hold this
+    //  test on the very wait it forbids (`parallel_test_support::finished_within_at`).
+    let answered: Option<Vec<u8>> = crate::parallel_test_support::finished_within_at(deadline, move || {
         let mut said: Vec<u8> = Vec::new();
         let _outcomes = recover_interrupted_merges(&recovery_place, git_dir.as_path(), &mut said).expect("recovery");
-        let _sent = answered.send(());
         return said;
     });
-    let deadline: std::time::Duration = std::time::Duration::from_secs(20);
-    let finished: Result<(), std::sync::mpsc::RecvTimeoutError> = answers.recv_timeout(deadline);
-    if finished.is_err() {
-        // A reading of the pipe waits for a writer, so one is given to it here: the thread ends and the control fails.
-        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(location.as_path()).expect("a writer opens the pipe");
-        writer.write_all(b"same bytes\n").expect("the writer writes");
-        drop(writer);
-    }
-    let said: Vec<u8> = probe.join().expect("the probe thread ends");
+    let Some(said) = answered else {
+        panic!("a command did not answer within {deadline:?} for a pipe beside a copy");
+    };
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(finished.is_ok(), "a command did not answer within {deadline:?} for a pipe beside a copy: {text}");
     assert!(aside.exists(), "the copy stays: a pipe holds no bytes to compare: {text}");
     remove(world.parent.as_path());
 }
@@ -4389,5 +4497,79 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
         "the ref that another record still names keeps the person's capture"
     );
     assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", capture.commit.as_str()]).trim(), "commit", "the capture's commit is still there");
+    remove(world.parent.as_path());
+}
+
+/// A stand-in for real Git that refuses the first deletion of a capture ref,
+/// as another command's lock on that ref makes Git refuse it,
+/// and answers everything else itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shim = (parent) => executable('locked-capture-deletion-git', `#!/bin/sh ... : > .git/$4.lock; realGit "$@"; rm -f .git/$4.lock ...`);
+/// ```
+fn git_that_locks_the_first_capture_deletion(parent: &Path) -> PathBuf {
+    let shim: PathBuf = parent.join("locked-capture-deletion-git");
+    let marker: PathBuf = parent.join("the-deletion-was-locked");
+    let log: PathBuf = parent.join("shim-invocations.txt");
+    let script: String = format!(
+        "#!/bin/sh\necho \"$*\" >> '{log}'\ndeletes=no\nref=\nlast=\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then deletes=yes; fi\n  if [ \"$last\" = -d ]; then ref=\"$argument\"; fi\n  last=\"$argument\"\ndone\nif [ \"$deletes\" = yes ] && [ -n \"$ref\" ]; then\n  case \"$ref\" in\n    refs/cli-git/carried/*)\n      if [ ! -e '{marker}' ]; then\n        : > '{marker}'\n        lock=\"$({real} rev-parse --absolute-git-dir)/$ref.lock\"\n        : > \"$lock\"\n        {real} \"$@\"\n        status=$?\n        rm -f \"$lock\"\n        exit $status\n      fi\n      ;;\n  esac\nfi\nexec {real} \"$@\"\n",
+        marker = marker.display(),
+        log = log.display(),
+        real = REAL_GIT
+    );
+    executable(shim.as_path(), script.as_bytes());
+    return shim;
+}
+
+/// What:
+///  A capture ref whose deletion another command's lock blocked is deleted by the next call,
+///  because the merge's record,
+///  which is the only thing that still names it,
+///  stayed.
+/// Why:
+///  Removing the record before the ref left a name nothing retried and a capture nothing needed,
+/// and a
+///  person had to clean it up by hand (a cross-vendor audit of alpha.12,
+/// "Capture-ref cleanup is never retried after a
+///  transient failure").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = await dropTheRecordsRefsThenTheRecord(placeWithShim, ...); expect(first).toBe(false); expect(refExists(ref)).toBe(true); const second = await dropTheRecordsRefsThenTheRecord(place, ...); expect(second).toBe(true); expect(refExists(ref)).toBe(false);
+/// ```
+#[test]
+fn a_capture_ref_a_lock_blocked_is_deleted_by_the_next_call() {
+    let world: World = world("merge-recovery-capture-ref-locked");
+    let id: &str = "2b2b2b2b-0000-4000-8000-00000000002b";
+    let capture: crate::merge_isolation_carry_parts::Capture = half_carried(&world, id);
+    let reference: String = capture.reference.clone().expect("the capture's ref");
+    let record: PathBuf = intent_path(world.git_dir.as_path(), id);
+    let bytes: Vec<u8> = std::fs::read(record.as_path()).expect("the record");
+    let intent: MergeIntent = parse_merge_intent(bytes.as_slice()).expect("a record");
+    let shim: PathBuf = git_that_locks_the_first_capture_deletion(world.parent.as_path());
+    let mut locked: RecoveryPlace = place(&world);
+    locked.git.real_git = shim;
+    let run_cleanup = |place: RecoveryPlace, kept_record: PathBuf, kept_intent: MergeIntent| {
+        return crate::lazy_runtime::run_on_runtime(async move {
+            return crate::merge_isolation_recovery_carry::drop_the_records_refs_then_the_record(
+                &place,
+                place.cwd.as_path(),
+                kept_record.as_path(),
+                &kept_intent,
+                crate::merge_isolation_recovery_carry::SideRef::Drop,
+            )
+            .await
+            .expect("the cleanup");
+        });
+    };
+    let cleared: bool = run_cleanup(locked, record.clone(), intent.clone()).expect("the runtime ran the cleanup");
+    assert!(!cleared, "the record stays while the ref it names could not go");
+    assert!(record.exists(), "the record is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), reference);
+    let retried: bool = run_cleanup(place(&world), record.clone(), intent.clone()).expect("the runtime ran the retry");
+    assert!(retried, "the next call removes both once the lock is gone");
+    assert!(!record.exists(), "the record goes with the ref");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), "", "no name is left");
     remove(world.parent.as_path());
 }

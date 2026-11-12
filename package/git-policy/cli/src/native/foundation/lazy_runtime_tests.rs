@@ -183,6 +183,66 @@ const BEFORE_THE_DEADLINE: Duration = Duration::from_millis(50);
 /// because one worker is what a watcher of a wait needs.
 const ONE_WORKER: usize = 1;
 
+/// How long a caller that must have a worker is given in the pair of controls below:
+/// a stated span,
+/// short enough that the control ends in a moment and long enough that the wait inside it is measurable.
+const A_STATED_WAIT: Duration = Duration::from_millis(200);
+
+/// How long the control that has nothing coming gives a wait that must not happen:
+/// long enough that waiting the whole of it would be unmistakable in the control's own measurement.
+const A_WAIT_NOTHING_ANSWERS: Duration = Duration::from_secs(5);
+
+/// What:
+///  A caller that must have a worker waits for a build that outlasted its deadline and is still coming.
+/// Why:
+///   The positive control of the pair below:
+/// a caller's wait for a build that is on its way must not become no wait at all,
+/// and the stand-in for a late build is how this process reaches that state,
+/// because the runtime this process builds is the multi-thread one on any host that gives it a thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const late = standInForALateBuild(); const began = now(); expect(spawnOnRuntimeWithin(200, async () => {})).toBeUndefined(); expect(now() - began).toBeGreaterThanOrEqual(200)
+/// ```
+#[test]
+fn a_task_that_needs_a_worker_waits_for_a_build_that_is_still_coming() {
+    let refused: RefusalForTheControl = a_control_refuses_every_task();
+    let late: LateRuntimeForTheControl = a_control_stands_in_for_a_late_runtime();
+    let began: Instant = Instant::now();
+    let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime_within(A_STATED_WAIT, async {});
+    let waited: Duration = began.elapsed();
+    drop(late);
+    drop(refused);
+    assert!(started.is_none(), "a system that refuses every thread gives no worker, so nothing was started");
+    assert!(waited >= A_STATED_WAIT, "the wait for a build that is still coming lasted its whole bound: {waited:?}");
+}
+
+/// What:
+///  A caller that must have a worker does not wait when no build is on its way.
+/// Why:
+///   The other half of the pair:
+/// a system that refuses every thread has nothing coming,
+/// so a wait there spends the person's command on a state no wait can change,
+/// and the service must end at once with the line that says which way its build went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = refuseEveryTask(); const began = now(); expect(spawnOnRuntimeWithin(5000, async () => {})).toBeUndefined(); expect(now() - began).toBeLessThan(1000)
+/// ```
+#[test]
+fn a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings() {
+    let refused: RefusalForTheControl = a_control_refuses_every_task();
+    let began: Instant = Instant::now();
+    let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime_within(A_WAIT_NOTHING_ANSWERS, async {});
+    let waited: Duration = began.elapsed();
+    drop(refused);
+    assert!(started.is_none(), "a system that refuses every thread starts nothing");
+    assert!(
+        waited < A_WAIT_NOTHING_ANSWERS / 2,
+        "nothing was coming, so the caller did not wait the bound it was given: {waited:?} of {A_WAIT_NOTHING_ANSWERS:?}"
+    );
+}
+
 /// What:
 ///  A runtime that arrives after the deadline and while the caller is in its stand-in is kept.
 /// Why:

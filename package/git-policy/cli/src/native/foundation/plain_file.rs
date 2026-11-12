@@ -138,6 +138,8 @@ pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 /// function readPlainFileWith(path, limit, links) { const file = openedPlain(path, links); ...; }
 /// ```
 fn read_plain_file_with(path: &Path, limit: u64, links: Links) -> std::io::Result<Vec<u8>> {
+    #[cfg(test)]
+    note_a_read(path);
     let file: std::fs::File = opened_plain(path, links)?;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
@@ -190,7 +192,38 @@ pub fn read_plain_file_through_links(path: &Path, limit: u64) -> std::io::Result
 /// The text of the plain file at `path`,
 /// read like `read_plain_file`.
 pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
-    return match String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?) {
+    return read_plain_text_at(path, SMALL_FILE_LIMIT);
+}
+
+/// How many bytes of a mount table this reads:
+/// the kernel's own,
+/// under `/proc/<pid>/mountinfo` or this process's.
+/// Why:
+///  The number of mounts is the system's state and not this command's:
+/// a container's namespace can hold tens of thousands of entries,
+/// and each one is read into this process's memory whole.
+///  Measured on this host on 2026-11-12:
+/// this process's own table was 5,250 bytes.
+///  A table past the bound is refused rather than read,
+///  and a caller that refuses a mount it cannot see treats the file as one that may be held.
+pub const MOUNT_TABLE_LIMIT: u64 = 4 << 20;
+
+/// What:
+///  The text of the plain file at `path`,
+///  refused when it is larger than `limit` or not text.
+/// Why:
+///   A file under `/proc` is text the kernel writes,
+///  and what it holds can be the system's state or another process's:
+///  the limit is the caller's,
+///  because one bound for every such file would be too small for a mount table
+///  and too large for a process name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readPlainTextAt(path: string, limit: number): string;
+/// ```
+pub fn read_plain_text_at(path: &Path, limit: u64) -> std::io::Result<String> {
+    return match String::from_utf8(read_plain_file(path, limit)?) {
         Ok(text) => Ok(text),
         Err(_not_text) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text")),
     };
@@ -244,6 +277,40 @@ pub fn write_plain_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;
     let mut file: std::fs::File = opened_for_writing(path)?;
     return file.write_all(bytes);
+}
+
+// What: The plain files this thread has read, and the writer that records them.
+// Why:  A control says how many files a step opens, which is the cost that a machine under I/O pressure makes a person wait
+//       for; a step that reads a queue of thousands of records to use one of them shows here
+//       (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`). The record is per thread, so controls that
+//       nextest runs beside each other do not see one another's reads.
+#[cfg(test)]
+thread_local! {
+    /// The paths read on this thread since the last control took them.
+    static READS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Records one read of the thread's own list,
+/// which the controls read.
+#[cfg(test)]
+fn note_a_read(path: &Path) {
+    READS.with(|reads| { reads.borrow_mut().push(path.to_path_buf()); });
+}
+
+/// What:
+///  The plain files this thread has read since the last call,
+///  taken and forgotten.
+/// Why:
+///  A control asks what a step it is about to run opens,
+///  so the list starts empty at the question rather than at the start of the test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paths = takeReads();
+/// ```
+#[cfg(test)]
+pub(crate) fn take_reads() -> Vec<std::path::PathBuf> {
+    return READS.with(|reads| { return std::mem::take(&mut *reads.borrow_mut()); });
 }
 
 /// Plain-file controls stay out of the release executable.

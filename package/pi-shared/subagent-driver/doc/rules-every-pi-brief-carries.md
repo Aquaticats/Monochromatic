@@ -111,6 +111,21 @@ Each rule is the project's own requirement.
   run a build,
   a test or any other step whose result the next step needs as a foreground command with a bound of its own,
   and end a turn only when nothing of yours that matters is still running.
+- A workaround for a defect of the Git wrapper that is fixed in the installed release (0.6.1-alpha.15) and in `main`
+  since commit `afc0545123`,
+  and that a wrapper built from a branch without that commit still has:
+  such a wrapper,
+  when it looks for the holder of a file,
+  reads the descriptor record of every process of the account,
+  and one such read can cost hundreds of megabytes of kernel memory and minutes while an IDE's file watcher runs
+  (on 2026-11-12 a wrapper in a scope capped at 512 MB was killed by the kernel for it,
+  which raised a low-memory alarm on the desktop).
+  So a scope or container that runs a wrapper built from your branch gets a memory cap of at least 4G
+  until your branch holds that commit
+  (`git merge-base --is-ancestor afc0545123 HEAD` answers);
+  the installed wrapper needs no such cap.
+  To be removed when no branch in work is older than that commit.
+  And nobody reads `/proc/<pid>/fdinfo/<n>` of a process they did not start.
 - Bound every read of the journal:
   `journalctl` gets `--since` and `--lines`,
   and one unit instead of a pattern where the unit is known.

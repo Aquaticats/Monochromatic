@@ -199,8 +199,10 @@ export async function processesAtTheirFolders({
       },];
     }
     catch (error) {
-      // Another user's process, or one that ended between the listing and the read, works in no folder this run owns.
-      if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'ENOTDIR')) {
+      // Another user's process, one that ended between the listing and the read, or one whose folder this account may not read,
+      // works in no folder this run owns. A process list always holds such entries, and the first of them is process 1: on
+      // 2026-11-11 remove-finished-worktrees ended at once because reading process 1's folder was refused.
+      if (SKIPPED_PROCESS_CODES.has(errorCodeOf(error,),)) {
         return [];
       }
       throw error;
@@ -208,6 +210,17 @@ export async function processesAtTheirFolders({
   },));
   return read.flat();
 }
+
+/**
+ The failures that mean a process is none of this run's business: its folder is gone, is not a folder, or may not be read by this
+ account.
+ */
+const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
+  MISSING_PATH_CODE,
+  'ENOTDIR',
+  'EACCES',
+  'EPERM',
+]);
 
 /**
  Reads the kernel's name for the program one process runs.
