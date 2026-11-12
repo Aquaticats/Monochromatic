@@ -121,7 +121,7 @@ fn an_edit_survives_a_second_merge_that_arrives_while_the_carry_runs() {
     git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", on_main_a())).expect("the person's unsaved line");
     let paused: Paused = paused_at(&fixture, repo.as_path(), "merge-applied");
-    let mut second: std::process::Child = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "agent"])
+    let second: std::process::Child = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "agent"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
         .spawn()

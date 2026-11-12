@@ -374,11 +374,6 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     });
 }
 
-/// Reaching a marker phase.
-
-
-
-
 /// What:
 ///  Reach a marker phase,
 /// failing the invocation when the marker variable is malformed.

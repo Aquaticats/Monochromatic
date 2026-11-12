@@ -118,7 +118,7 @@ impl Held {
         for stem in [self.phase.clone(), format!("{}-1", self.phase), format!("{}-2", self.phase)] {
             std::fs::write(self.markers.join(format!("{stem}.release")), b"").expect("the release");
         }
-        return self.child.wait().ok().and_then(|status| status.code());
+        return self.child.wait().ok().and_then(|status| { return status.code(); });
     }
 }
 
@@ -134,7 +134,7 @@ impl Drop for Held {
 fn hold_the_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> Held {
     let markers: PathBuf = fixture.root.join(format!("markers-{phase}-{}", std::process::id()));
     std::fs::create_dir_all(markers.as_path()).expect("the marker directory");
-    let child: Child = wrapped_commit(fixture, repo, &["merge", "--no-edit", "feature"])
+    let mut child: Child = wrapped_commit(fixture, repo, &["merge", "--no-edit", "feature"])
         .env(PHASE_SIGNAL_VARIABLE, format!("{phase}:pause:{}", markers.display()))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -153,6 +153,9 @@ fn hold_the_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> Held {
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+    // A merge that never reached its marker is ended before the control fails, so no process is left behind.
+    let _ended = child.kill();
+    let _waited = child.wait();
     panic!("the merge never reached {phase}");
 }
 
@@ -202,9 +205,9 @@ fn a_second_merge_waits_for_the_install_and_the_worktree_ends_in_one_whole_state
         .expect("the second merge starts");
     std::thread::sleep(Duration::from_secs(2));
     let first: Option<i32> = held.release();
-    let second: std::process::Output = second.wait_with_output().expect("the second merge ends");
-    let said: String = String::from_utf8_lossy(&second.stderr).into_owned();
-    assert_eq!(second.status.code(), Some(0), "the second merge ends with 0: {said}");
+    let ended_second: std::process::Output = second.wait_with_output().expect("the second merge ends");
+    let said: String = String::from_utf8_lossy(&ended_second.stderr).into_owned();
+    assert_eq!(ended_second.status.code(), Some(0), "the second merge ends with 0: {said}");
     assert_eq!(first, Some(0), "the first merge ends with 0");
     assert!(
         said.contains("still waiting for the merge that is installing its result in this worktree")

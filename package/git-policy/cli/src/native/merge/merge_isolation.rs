@@ -177,7 +177,7 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
     //  worktree at a time"). The wait is bounded and names the merge it waits for; a merge that still installs at the
     //  ceiling is met again by the install's own mark, which saves this merge on a side ref instead of installing it
     //  (`merge_isolation_apply.rs`).
-    match wait_for_the_installing_merge(git_dir, &mut std::io::stderr()).map_err(|error| refused(2, format!("monochromatic-git-policy-cli: git merge: {error}\n")))? {
+    match wait_for_the_installing_merge(git_dir, &mut std::io::stderr()).map_err(|error| { return refused(2, format!("monochromatic-git-policy-cli: git merge: {error}\n")); })? {
         GuardWait::Free => {}
         // Another merge installed under this one, so the round is computed again on the branch as it is now.
         GuardWait::Released(_) => return Err(Bail::Again(String::from("a merge finished its install in this worktree while this merge waited for it"))),
