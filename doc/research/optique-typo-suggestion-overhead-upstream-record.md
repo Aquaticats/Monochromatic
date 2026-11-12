@@ -279,9 +279,13 @@ At tag `1.3.1`,
 the last release before the patch,
 a search of `packages/core/src/*.test.ts` for a thousand-element input,
 `performance`,
-`throughput` or `scaling` found no test of parse cost;
-the hits are timeouts,
-numeric literals and unrelated names.
+`throughput` or `scaling` found no test of parse cost.
+The hits are timeouts,
+numeric literals,
+unrelated names,
+and one block in `dependency-extra.test.ts` named "Performance and stress tests":
+eight tests that check the `dependency()` combinator gives correct results under repeated or large use,
+none of which times anything or asserts how much work was done.
 
 ### How long it shipped
 
@@ -313,7 +317,8 @@ nobody reported it".
 This project measured the cost on 2026-07-15 and replaced the parser the same day.
 It recorded the finding in its commit messages and,
 from 2026-08-14,
-in `doc/handover/cli-git-cac-migration.md`;
+in `doc/handover/cli-git-cac-migration.md`
+and `doc/audit/tech-cli-git-command-line-argument-parser-replac-vet-2026-08-14.md`;
 no file under `doc/troubleshooting/` described it until 2026-11-12.
 
 Upstream found it by reading this repository.
@@ -470,12 +475,12 @@ Upstream treats a known performance defect as a bug worth fast work:
    asking for a reassessment and a reproducer.
 
 Upstream does not treat performance as a property to be guarded before a report:
-the 2025 design note estimated cost without measuring it,
+the 2025 design note gives an estimate and records no measurement,
 the measurement scripts for both fixes were not kept,
 and the one maintained benchmark excludes parsing.
 
 The fair summary is that performance is a concern upstream responds to,
-not a goal it designs or tests for.
+not a goal it measures or tests for.
 
 ## The owned parser is not a like-for-like comparison
 
@@ -532,7 +537,8 @@ This is the measurement the [maintainer comment][] says upstream has not made.
    The installed files confirm what the JSR version strings say:
    `1.4.0-dev.2664` has no `dist/internal/failure.js`,
    the other three have it,
-   and `1.4.0-dev.2665` and `1.4.0-dev.2667` differ only in their `version` field.
+   and `1.4.0-dev.2665` and `1.4.0-dev.2667` differ only inside `package.json`,
+   in the `version` field and the pinned version of `@optique/env`.
 - Floor:
    the owned parser from commit `4879a44e6a`,
    under the limit the section "The owned parser is not a like-for-like comparison" states.
@@ -551,7 +557,9 @@ This is the measurement the [maintainer comment][] says upstream has not made.
    a container from `docker.io/cachyos/cachyos-v4:latest` with Node v26.13.1,
    no mounts,
    `--cpus 2 --memory 4g --pids-limit 512 --blkio-weight 10`,
-   on a host whose load average stayed between 29 and 42.
+   on a host whose one-minute load average,
+   recorded with every run,
+   ranged from 29 to 56.
 
 A Pi agent built and ran the harness.
 Its medians for the thousand-path input were recomputed here from its raw records and match,
@@ -654,9 +662,10 @@ The likely reason is that this parser's option names are long,
 so the new length check rejects them against a token of one to three characters;
 that reading comes from the patch's code and was not tested separately.
 
-On 1.3.2 and later,
+From 1.3.2 through 1.3.6,
 short and long paths cost the same,
-about 0.18 ms each.
+about 0.18 ms each,
+and on the pre-releases with [pull request 997][] about 0.09 ms each.
 What remains no longer depends on the token's length.
 
 ### Upstream's own reproduction
@@ -683,16 +692,20 @@ thirty options and a thousand long paths:
 
 Upstream reported 1,736 ms to 167 ms for [pull request 992][] and 112 ms to 65 ms for [pull request 997][].
 The ratios here,
-8.6 and 1.8,
+8.6 from 1.3.1 to 1.3.2 and 1.8 from `1.4.0-dev.2664` to `1.4.0-dev.2665`,
 are close to upstream's 10.4 and 1.7;
 the absolute values differ with the machine and the two-CPU cap.
 
 ### Control: paths after the separator
 
 With `['--message', 'x', '--', ...paths]`,
-`parseCommitRegion` hands Optique three tokens.
-Every Optique arm took 0.52 to 0.74 ms whatever the path count,
-and the owned parser 0.03 to 0.05 ms.
+`parseCommitRegion` cuts the list at the separator and hands Optique two tokens,
+`--message` and `x`.
+Across every path count and both path lists,
+the Optique arms' medians ran from 0.39 to 0.97 ms,
+with no version standing apart.
+The owned parser took 0.03 to 0.05 ms up to a hundred paths and 0.16 to 0.17 ms at a thousand,
+since it reads the paths itself.
 No version changes that fixed cost.
 
 ### Where the remaining time goes
@@ -919,6 +932,37 @@ The gaps between earlier minor releases (63,
    A GitHub-wide issue search for `optique Levenshtein` returns nothing,
    but the same words scoped to upstream's repository find issues 38 and 989,
    so the wide search returns less than exists and its silence means nothing.
+
+## Independent review
+
+A reviewer from another model vendor,
+qwen4-max-preview run through Pi,
+checked this document and the troubleshooting document against their sources on 2026-11-12,
+reading them as they stood at commit `b104ae74cd`.
+It recomputed every figure from the raw records and reread every quoted source.
+
+It reported every quotation verbatim,
+every code excerpt matching its tag and lines,
+and every millisecond figure in the measurement lists reproducing from the raw records.
+It found seventeen points in the prose around them,
+none in the data.
+Each was checked against the records before being acted on.
+The ones that were errors of fact and are now corrected:
+the load range,
+the token count and ranges of the control with paths after the separator,
+what the duplicate search returns,
+the mention of Optique under `.out-of-scope/`,
+a test block named for performance at tag 1.3.1,
+the second field in which two pre-release builds differ,
+which pushes publish a pre-release,
+and a second document that had recorded the cost in August.
+Four were over-wide wordings and are narrowed.
+One,
+that a ratio of 8.6 should read 8.7,
+compared a different pair of versions from the one meant;
+the text now names the pair.
+
+The sections "Answered here before asking upstream" and everything dated after that commit were not part of that review.
 
 ## What the record cannot answer
 

@@ -157,7 +157,7 @@ the failure and its message are thrown away.
     }
 ```
 
-`levenshteinDistance()` fills a table of token length times name length.
+`levenshteinDistance()` does work in proportion to token length times name length.
 So one parse does work in proportion to
 tokens times option parsers times option names times token length.
 A profile of a thousand-path parse on 1.1.1 put 93.1% of the parse in `levenshteinDistance`.
@@ -278,8 +278,9 @@ on 2026-11-12.
 
 A standalone script that needs only `@optique/core` beside it.
 Its parser has the shape of the old commit parser:
-the same options and flags,
-`multiple(argument(string()))`,
+the same Git options and flags,
+without the wrapper's own `--no-enforce-only`,
+then `multiple(argument(string()))`
 and `passThrough()`.
 
 ```ts
@@ -367,7 +368,7 @@ console.log(JSON.stringify({
 Each run was a fresh process,
 with the versions alternating inside each round.
 Every run parsed all thousand paths.
-The host's load average was above 29 throughout,
+These runs did not record the host's load,
 and the rounds differ from one another by more than the careful measurement in the research document does;
 the figures here are the lowest and highest round medians.
 
@@ -422,7 +423,8 @@ so the search in step 2 is never reached.
         };
 ```
 
-On this input the pre-release took about twice as long as 1.1.1 and 1.3.6 in both rounds.
+On this input the pre-release took 1.6 to 2.2 times as long as 1.1.1 and 1.3.6,
+taking each round by itself.
 Two rounds are too few to call that a regression;
 it is recorded because the ranges do not overlap.
 
@@ -479,7 +481,7 @@ Verified by the `1.4.0-dev.2971` figures.
 
 Tradeoffs:
 
-- It is a pre-release published from each push to `main`,
+- It is a pre-release published from every push to any branch that is not a tag,
    and upstream's README and `docs/` say nothing about installing or supporting these builds.
 - Custom mismatch callbacks run only when their message is read,
    so a callback used for a side effect may run fewer times.
@@ -522,14 +524,18 @@ and whether to post it is the owner's decision.
 
 `.out-of-scope/`,
 read 2026-11-12:
-no file there names Optique or this bug class,
+the one mention of Optique there is in `.out-of-scope/jsr.md`,
+which lists `@optique/*` among packages once imported from JSR.
+That file exempts JSR registry defects,
+not how Optique parses,
 so no exemption applies.
 
 Duplicate search,
 2026-11-12:
 `gh issue list --repo dahlia/optique --state all --search 'performance OR slow OR benchmark OR levenshtein OR overhead OR latency in:title,body'`
-returns upstream issues 988 and 989,
-both closed.
+returns 51 issues,
+with upstream issues 988 and 989 first.
+Both are closed.
 They describe this cost,
 cite this repository's commits as their source,
 and were fixed by pull requests 992 and 997.
@@ -655,7 +661,7 @@ So #992 removed 93% of it and #997 about half of the rest. Three things you may 
   (`traverseUsage`, `findSimilar`, `createErrorWithSuggestions`); `levenshteinDistance` itself is down to 6%.
 - `main` at #997's base, which contains 1.3.2, took 229 ms on this input against 180 ms for 1.3.2 itself.
 - Short tokens did improve at 1.3.2 here (300 ms to 185 ms for a thousand 1 to 3 character names), unlike the
-  short-path note in #992. This parser's option names are long, so the length check rejects them.
+  short-path note in #992. My guess, untested, is that this parser's long option names fail the new length check.
 
 On the current dev build the suggestion code is gone from the profile; what is left is `short-option.js` (31%),
 `input-trace.js` (23%) and `constructs.js` (14%), because every token is still offered to every option parser. Is
