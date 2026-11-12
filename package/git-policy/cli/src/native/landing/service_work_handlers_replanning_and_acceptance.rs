@@ -522,12 +522,12 @@ impl Replanning {
     /// and any of those can wait in the kernel on a disk, a lock or a mount that stopped answering.
     /// The caller is a task of the runtime, which may not make that wait itself.
     async fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
-        let Some(directory) = self.plans.clone() else { return };
-        let (git_dir, branch_ref): (PathBuf, String) = (git_dir.to_path_buf(), String::from(branch_ref));
-        if let Err(reason) = crate::push_retry_store::remove_awaiting(directory.as_path(), git_dir.as_path(), branch_ref.as_str()).await {
+        let Some(plans) = self.plans.clone() else { return };
+        let (repository, branch): (PathBuf, String) = (git_dir.to_path_buf(), String::from(branch_ref));
+        if let Err(reason) = crate::push_retry_store::remove_awaiting(plans.as_path(), repository.as_path(), branch.as_str()).await {
             crate::service_warn!(
-                "the retry plan file of {branch_ref} {} could not be removed, so the next start reads it again: {reason}",
-                crate::service_timing::in_the_repository_at(git_dir.as_path())
+                "the retry plan file of {branch} {} could not be removed, so the next start reads it again: {reason}",
+                crate::service_timing::in_the_repository_at(repository.as_path())
             );
         }
     }

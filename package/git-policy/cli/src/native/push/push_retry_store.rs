@@ -334,8 +334,8 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
             return;
         }
     };
-    for entry in listing {
-        let entry = match entry {
+    for listed in listing {
+        let entry = match listed {
             Ok(entry) => entry,
             // An entry the listing could not read may be a plan of this branch, and it stays to be read again.
             Err(error) => {
@@ -453,8 +453,8 @@ pub fn load_reporting(directory: &Path) -> LoadedPlans {
             return LoadedPlans { plans: Vec::new(), unread: true };
         }
     };
-    let listed = listing.map(|entry| {
-        let entry = entry?;
+    let listed = listing.map(|listed| {
+        let entry: std::fs::DirEntry = listed?;
         let written: SystemTime = match entry.metadata() {
             Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
             Err(_) => SystemTime::UNIX_EPOCH,

@@ -267,17 +267,19 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                     continue;
                 }
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
-                let first: Option<Duration> = replanning.first;
-                let planned: Option<PlannedRetry> = match first {
-                    Some(first) => Some(planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()).await),
+                let first_pause: Option<Duration> = replanning.first;
+                let planned: Option<PlannedRetry> = match first_pause {
+                    Some(pause) => Some(planned_retry(git_dir, replanning, pause, &due.item, due.attempt + 1, text.as_str()).await),
                     None => None,
                 };
                 let (said, outcome): (String, PushOutcome) = match planned {
                     // The framing promises a retry only when the plan the words speak of exists.
-                    Some(planned) => (planned.words, if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry }),
+                    Some(kept_plan) => {
+                        (kept_plan.words, if kept_plan.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry })
+                    }
                     None => (text, PushOutcome::UnfinishedWithNoRetry),
                 };
-                let keeps_a_plan: bool = first.is_some();
+                let keeps_a_plan: bool = first_pause.is_some();
                 if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, outcome, said.as_str()).await {
                     crate::service_error!(
                         "the failed push of {commit} {} could not be recorded for the person: {reason}",

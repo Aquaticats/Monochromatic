@@ -342,9 +342,9 @@ fn a_plan_file_that_is_a_pipe_is_never_waited_for() {
     if read.is_none() {
         end_the_read_of(only.as_path());
     }
-    let read: LoadedPlans = read.expect("the read of the journal waited for a writer of a pipe that holds no plan");
-    assert_eq!(read.plans, vec![plan("refs/heads/main", SECOND_OID, 2)], "the plan beside the pipe is read, so the pipe costs no push its retry");
-    assert!(!read.unread, "a name that is no plan is not read again after a pause, because a second read of it answers the same");
+    let journal: LoadedPlans = read.expect("the read of the journal waited for a writer of a pipe that holds no plan");
+    assert_eq!(journal.plans, vec![plan("refs/heads/main", SECOND_OID, 2)], "the plan beside the pipe is read, so the pipe costs no push its retry");
+    assert!(!journal.unread, "a name that is no plan is not read again after a pause, because a second read of it answers the same");
     assert!(only.exists(), "the read keeps what is not a plan it can remove, so no file of another program is discarded");
     remove_fixture(root.as_path());
 }
