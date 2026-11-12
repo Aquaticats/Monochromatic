@@ -550,6 +550,12 @@ pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 /// the finding names the tool
 ///  and the command to run,
 /// and the worktree keeps the files Git wrote.
+///  That promise holds because the tool is held before its own `exec` until the run lets it go
+/// (`start_within`):
+/// a start this bound ends has run nothing of the tool,
+/// and the one child that was already let go and then did not
+///  come up is stopped and named as stopped,
+/// because what it wrote stands.
 pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,

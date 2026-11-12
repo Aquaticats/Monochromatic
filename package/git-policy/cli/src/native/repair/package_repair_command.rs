@@ -370,6 +370,9 @@ fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error)
 /// and the looks at the clock and the ceiling are made at `POLL_INTERVAL`.
 ///  The start itself is bounded by `REPAIR_TOOL_START_CEILING`;
 /// `run_tool_reaping_started_within` takes that bound from its caller.
+///  The tool is held before its own `exec` until the run lets it go (`package_repair_start.rs`),
+/// so a start the bound ends has run nothing of the tool,
+/// and the one answer that cannot promise that says so in its own words.
 pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &Reap) -> ToolRun {
     return run_tool_reaping_started_within(program, command, limits, crate::wait_ceilings::REPAIR_TOOL_START_CEILING, reap).await;
 }
@@ -403,19 +406,23 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
         Err(error) => return no_place_for_output(program, started, &error),
     };
     starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
-    // A control holds the child before its own exec, which is the only way a test can make a start take time.
-    #[cfg(test)]
-    crate::package_repair_start::hold_the_start_before_its_exec(&mut starting);
     for (name, value) in &command.set {
         starting.env(name, value);
     }
     let mut child: OwnedChild = match start_within(start, starting).await {
-        ToolStart::Running(running) => adopt(running),
+        ToolStart::Running(not_yet_taken) => adopt(not_yet_taken.taken()),
         ToolStart::Refused(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
         ToolStart::NoAnswer => {
-            // Nothing reads what the tool writes: the run says it did not start here, and the child it finally starts is stopped.
+            // Nothing reads what the tool writes: the run says it did not start here, and the gate kept the child from
+            // ever running, so the worktree keeps exactly the files Git wrote.
             captured.discard();
             return ToolRun { end: ToolEnd::Failed(format!("{} could not start: it gave no answer within {start:?}, so nothing of it ran", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+        }
+        ToolStart::LetGoWithoutAnAnswer => {
+            // The child was let go and never came up, so it was stopped: nothing reads what it may have written before
+            // that, and the finding says so instead of promising that nothing ran.
+            captured.discard();
+            return ToolRun { end: ToolEnd::Failed(format!("{} could not start: it was let go and its own start gave no answer within {start:?}, so it was stopped, and what it wrote before that stands", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
         }
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
