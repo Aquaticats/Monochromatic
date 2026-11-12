@@ -164,8 +164,27 @@ From the wrapper's own timing log, by hour (UTC), read at 01:01:
 
 Eight commits did not land. Seven are recorded as stopped with the kind `unidentified` after 15 to 67 seconds, on six different branches,
 and one as stopped in the `git commit` step after 37 seconds on `main` (the failure of 22:52).
-Who or what stopped the seven is not known; the third digest covers the agent that measured where a commit's time goes.
+Who or what stopped the seven was not known when this was written;
+the third digest covers the agent that measured where a commit's time goes,
+and the paragraph below answers the seven.
 Twelve more relink records were given up in the 05Z hour, and twenty-six records wait in `pending`.
+
+The seven are answered on `fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (2026-11-12).
+Each one ran to its own end and wrote a complete record,
+so no signal and no caller's bound stopped any of them:
+the record lost the cause the command had already printed.
+Three spent 20,000 to 20,409 ms in one exchange with the session bus and stopped at it (`provisionMs`);
+two ended at a reach bound,
+one after 10,073 ms of retire rounds against a service of `0.6.1-alpha.11` that would not exit,
+and one after 41,026 ms and another after 61,771 ms of a service that greeted nothing while its unit was started or stopped;
+and one was answered a failure by a service in 23 ms.
+The record now names the failure,
+as `client-failure` with one word per failure of the client,
+and an interrupted commit writes a record at all,
+which no record of 1,792 ever did,
+as `client-signal` with the signal and,
+where the kernel names it,
+the process that sent it.
 
 #### An unreadable worktree-copy record stops every command in every linked worktree
 
