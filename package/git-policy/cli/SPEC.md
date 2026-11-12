@@ -4038,6 +4038,31 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
+  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  state a build could reuse:
+  Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
+  so a worktree that starts without one rebuilds its own crates by itself,
+  and a copied `target/` alone is no reason to clean.
+  Measured on 2026-11-12 on this repository:
+  a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
+  build, which named the copy's own path,
+  while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
+  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
+  Where the worktree's build directory does hold that state,
+  the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
+  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  so no build that starts at once finds artifacts Cargo would call fresh:
+  it finds no build directory and compiles everything itself, which is correct and only slower.
+  The filling then cleans that staged copy and publishes it back with the rename that never replaces,
+  so a worktree that built in the meantime keeps what it made.
+  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
+  Where the state cannot be moved aside at all (a staging name another writer holds,
+  or a directory that cannot be renamed),
+  the add cleans it where it stands as every release before this one did,
+  the finding names the clean to run by hand when that fails,
+  and the tool's own window applies to that case.
   The workspaces are repaired side by side on as many threads as the host's available parallelism (the standard library reads the
   CPU quota of the control group,
   so a capped session gets its own share),
@@ -4218,6 +4243,11 @@ When all repairs worked,
 one line on standard error names the worktree,
 each tool's detail and its time,
 unless `--quiet` was given.
+The detail of work the add handed over names where its progress shows:
+the queue's own states,
+`<git-common-dir>/monochromatic-git-policy-cli/work/{pending,claimed,done,failed}`,
+and the commit service's journal,
+so a person who reads that a filling happens after the add returns is told where to look for what became of it.
 A repair that did not finish,
 including a missing tool,
 prints one line per failure,

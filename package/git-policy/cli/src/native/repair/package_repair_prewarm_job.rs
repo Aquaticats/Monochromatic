@@ -171,7 +171,7 @@ const MARKER_SUFFIX: &str = ".owner";
 
 /// The text a marker carries,
 /// so a person who finds one knows which program wrote it and what it claims.
-const MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
+pub(crate) const MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
 The directory whose name is this file's name without '.owner' is its staging copy, \
 and the '.target' directory beside it is the target its clean deletes from. \
 Both are the wrapper's own and are removed or published when the filling ends.\n";
@@ -553,15 +553,206 @@ pub(crate) enum Filled {
 /// async function fillOne({ fill, entry }): Promise<Filled>;
 /// ```
 async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
-    // A destination that exists is a build that got there first: the worktree keeps everything it made.
+    // A destination that exists is a build that got there first: the worktree keeps everything it made. A filling of this
+    //  workspace that was killed after it published left its marker and an empty staging copy beside that directory, and
+    //  this job's marker is the proof those names are its own, so the next filling gives them back.
     if entry.to.exists() {
+        give_back_what_a_killed_filling_left(entry);
         return Ok(Filled::Kept);
     }
     make_the_destinations_own_directory(entry)?;
-    let names: TheNames = names_for(entry.to.as_path())?;
+    let names: TheNames = match entry.staged_in.as_ref() {
+        // The add moved the worktree's own copied state aside before it answered, so there is nothing to clone: the state to
+        //  clean is already there.
+        Some(staging) => match staged_names(staging)? {
+            Some(names) => names,
+            None => return Ok(Filled::Kept),
+        },
+        None => names_for(entry.to.as_path())?,
+    };
     let filled: Result<Filled, String> = fill_the_staging(fill, entry, &names).await;
     give_back(&names);
     return filled;
+}
+
+/// What:
+///  The names a filling of the worktree's own staged state works in,
+/// or nothing when the add staged none.
+/// Why:
+///   The add moves the copied build state to the staging name in one rename before the add answers,
+/// so a build that starts at once finds no build directory and compiles everything itself.
+/// This run cleans that state out of the way it always does,
+/// and publishes it back only where the worktree still has no build directory of its own.
+/// The marker the add wrote is the proof the directory is the wrapper's own,
+/// so anything without it is somebody's work and is never removed.
+///
+/// # Errors
+///
+/// A staging name this job's own marker does not claim.
+fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
+    if !staging.exists() {
+        return Ok(None);
+    }
+    let marker: PathBuf = marker_of(staging);
+    if !marker_claims(marker.as_path()) {
+        return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
+    }
+    let target: PathBuf = target_of(staging);
+    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker) }));
+}
+
+/// What:
+///  Move the worktree's own copied build state into the filling's staging name,
+/// under this job's marker,
+/// in one rename;
+/// or say that there was nothing to move.
+/// Why:
+///   Cargo treats the copied artifacts of the worktree's own crates as fresh,
+/// so a build that started before a clean would reuse them at the wrong paths.
+/// The add cannot wait for the clean (`REPAIR_TOOL_CEILING` is eighteen minutes and the quiet window is six hundred
+///  seconds), and it must not leave that state where a build can trust it,
+/// so it moves the state aside in one rename before it answers:
+/// a build that starts at once finds no build directory and compiles everything itself,
+/// which is correct and only slower,
+/// and this job cleans the state and publishes it back where nothing has rebuilt yet.
+/// The marker is written first,
+/// so a kill between the two leaves a name this job proves is its own.
+///
+/// # Errors
+///
+/// A staging name another file or directory holds,
+/// and a state that cannot be moved.
+pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<&Path>) -> Result<Staged, String> {
+    if !destination.exists() {
+        return Ok(Staged::Nothing);
+    }
+    // The staging name sits beside the build directory it takes, so the rename stays inside the worktree's own subvolume:
+    // btrfs refuses to rename a directory out of a subvolume, and a worktree of this repository is one.
+    let staging: PathBuf = staging_of(destination);
+    let marker: PathBuf = marker_of(staging.as_path());
+    if marker_claims(marker.as_path()) {
+        // A killed add left the names it claimed; the state is already out of the worktree.
+        return Ok(if staging.exists() { Staged::Staged(staging) } else { Staged::Nothing });
+    }
+    if staging.exists() || marker.exists() {
+        return Err(format!(
+            "{} already holds something this wrapper did not stage, so the copied build state is left where it is; the worktree's first build would reuse it, so run `cargo clean --offline --package <member>` in {} instead",
+            staging.display(),
+            destination.display()
+        ));
+    }
+    // The staging name and the target directory its clean uses stand inside the worktree, so the repository's own exclude file
+    // names them and no `git status` or `git add -A` of the person's sees them.
+    if let Some(directory) = git_dir
+        && let Err(reason) = exclude_the_staging_names(directory)
+    {
+        return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
+    }
+    match write_marker(marker.as_path())? {
+        TheMarkersAnswer::WrittenByThisRun => {}
+        TheMarkersAnswer::WrittenByAnother => {
+            return Err(format!(
+                "{} was taken by another writer, so the copied build state is left where it is; run `cargo clean --offline --package <member>` in {} instead",
+                marker.display(),
+                destination.display()
+            ));
+        }
+    }
+    return match std::fs::rename(destination, staging.as_path()) {
+        Ok(()) => Ok(Staged::Staged(staging)),
+        Err(error) => {
+            // Nothing moved, so the marker claims a name nothing is in; take it back and say the state stays where it is.
+            let _taken_back = std::fs::remove_file(marker.as_path());
+            Err(format!(
+                "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
+                destination.display()
+            ))
+        }
+    };
+}
+
+/// The patterns that keep this job's staging names out of the person's `git status` and `git add -A`.
+///
+/// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
+/// because the names stand beside the build directory they take, inside the worktree.
+pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 3] = ["*.monochromatic-prewarm/", "*.monochromatic-prewarm.target/", "*.monochromatic-prewarm.owner"];
+
+/// What:
+///  Name this job's staging patterns in the repository's exclude file,
+/// once.
+/// Why:
+///   The staging name sits inside the worktree beside the build directory it takes,
+/// because btrfs refuses a rename of a directory out of a worktree that is a subvolume,
+/// so without this the person's `git status` would show it and a `git add -A` would commit a copy of `target/`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const excludeTheStagingNames = (gitDir) => { const path = join(gitDir, 'info/exclude'); if (!read(path, '').includes(PATTERNS[0])) appendFileSync(path, PATTERNS.join('\n') + '\n'); };
+/// ```
+pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
+    let info: PathBuf = git_dir.join("info");
+    let exclude: PathBuf = info.join("exclude");
+    let already: String = std::fs::read_to_string(exclude.as_path()).unwrap_or_default();
+    if already.contains(EXCLUDED_STAGING_PATTERNS[0]) {
+        return Ok(());
+    }
+    if let Err(error) = std::fs::create_dir_all(info.as_path()) {
+        return Err(format!("{} could not be made ({error})", info.display()));
+    }
+    let mut text: String = already;
+    if !text.is_empty() && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    for pattern in EXCLUDED_STAGING_PATTERNS {
+        text.push_str(pattern);
+        text.push('\n');
+    }
+    // The file is the person's own and Git made it when the repository was; this appends to it and never replaces it.
+    return match std::fs::write(exclude.as_path(), text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("{} could not be written ({error})", exclude.display())),
+    };
+}
+
+/// What a staging step came to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Staged {
+    /// The worktree's own copied state now sits at this staging path, under this job's marker.
+    Staged(PathBuf),
+    /// The worktree held no build state of its own to move.
+    Nothing,
+}
+
+/// What:
+///  Remove the staging copy, its target directory and the marker a filling of this workspace left behind
+///  when it was killed after it published,
+/// and nothing at all when this job's own marker is not there.
+/// Why:
+///   A publish is one rename that leaves no trace of the filling that made it,
+/// so a kill between the publish and the giving back of the names strands an empty directory and its marker for ever:
+/// every later filling of that workspace answers `Filled::Kept` at the destination and never looks at the names again.
+/// The marker is what proves the names are this job's own,
+/// so anything else standing there is somebody's work and stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const giveBackWhatAKilledFillingLeft = (destination) => { const staging = stagingOf(destination); const marker = markerOf(staging); if (!markerClaims(marker)) return; removeIfAny(staging); removeIfAny(targetOf(staging)); removeFileIfPresent(marker); };
+/// ```
+fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
+    let staging: PathBuf = match entry.staged_in.as_ref() {
+        Some(staged) => staged.clone(),
+        None => staging_of(entry.to.as_path()),
+    };
+    let marker: PathBuf = marker_of(staging.as_path());
+    if !marker_claims(marker.as_path()) {
+        return;
+    }
+    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker) };
+    if let Err(reason) = remove_if_any(names.staging.as_path()) {
+        // Nothing of the worktree depends on this directory; the next filling of the same workspace tries again.
+        debug(TAG, format!("{reason}; a staging copy a killed filling left stays for the next one").as_str());
+    }
+    give_back(&names);
 }
 
 /// What:
@@ -605,10 +796,15 @@ fn make_the_destinations_own_directory(entry: &PrewarmEntry) -> Result<(), Strin
 /// async function fillTheStaging({ fill, entry, names }): Promise<Filled>;
 /// ```
 async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> Result<Filled, String> {
-    let made: Result<Cloned, String> = clone_tree_awaiting(entry.from.as_path(), names.staging.as_path(), 1).await;
-    if let Err(reason) = made {
-        let _removed = remove_if_any(names.staging.as_path());
-        return Err(format!("the build state of {} could not be cloned ({reason})", entry.from.display()));
+    if entry.staged_in.is_none() {
+        let Some(from) = entry.from.as_ref() else {
+            return Err(String::from("a filling that clones was handed no source build directory, so nothing was cleaned"));
+        };
+        let made: Result<Cloned, String> = clone_tree_awaiting(from.as_path(), names.staging.as_path(), 1).await;
+        if let Err(reason) = made {
+            let _removed = remove_if_any(names.staging.as_path());
+            return Err(format!("the build state of {} could not be cloned ({reason})", from.display()));
+        }
     }
     // A build that started during the clone owns the destination now, and this job touches nothing of it.
     if entry.to.exists() {
@@ -642,7 +838,7 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The clean itself \
              never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved by Cargo first, and the checked-out bytes go \
              back over bytes only that resolution wrote, so a write of yours stays yours. {}",
-            entry.from.display(),
+            entry.from.as_deref().unwrap_or(names.staging.as_path()).display(),
             what_to_do_next(entry, reason.as_str()),
         ));
     }

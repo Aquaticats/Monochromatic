@@ -57,6 +57,7 @@ use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 #[path = "package_repair_cargo_jobs.rs"]
 mod jobs;
 use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
+use crate::package_repair_prewarm_job::stage_the_worktrees_own_state;
 use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
@@ -85,9 +86,14 @@ pub enum BuildStatePlan {
     /// the text says why,
     /// for the log.
     Nothing(String),
-    /// The state is already in the worktree (copied with `target/`):
-    /// only the members are cleaned.
-    CleanOnly,
+    /// The worktree holds build state of its own, copied with `target/`:
+    /// the add moves it aside in one rename and the service cleans it there,
+    /// so no build can trust the copy's artifacts and the add asks Cargo nothing.
+    MovedAside {
+        /// The worktree's build directory,
+        /// which the add moves to the filling's staging name.
+        to: PathBuf,
+    },
     /// The source's external build directory is filled into the worktree's by the commit service,
     /// and the members are cleaned there,
     /// so the add does not wait for the clone.
@@ -108,19 +114,22 @@ pub enum BuildStatePlan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type StateFacts = { sourceBuild?: string; sourceBuildExists: boolean; destinationBuildExists: boolean; destinationTargetExists: boolean; destinationBuildIsInside: boolean; destinationTargetIsInside: boolean };
+/// type StateFacts = { sourceHasTheWorkspace: boolean; sourceBuild?: string; sourceBuildExists: boolean; destinationBuildExists: boolean; destinationBuildIsInside: boolean; destinationTargetIsInside: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StateFacts {
+    /// Whether the source checkout has a counterpart workspace at all;
+    /// one walk of the tracked manifests answers it,
+    /// without asking Cargo anything.
+    pub source_has_the_workspace: bool,
     /// The build directory of the source's counterpart workspace;
-    /// none when the source has no such workspace.
+    /// read only where the worktree's own build directory is absent,
+    /// because only a fill uses it.
     pub source_build: Option<PathBuf>,
     /// Whether that directory exists.
     pub source_build_exists: bool,
     /// Whether the worktree's build directory exists.
     pub destination_build_exists: bool,
-    /// Whether the worktree's target directory exists.
-    pub destination_target_exists: bool,
     /// Whether the worktree's build directory is still inside the worktree once its links are followed.
     pub destination_build_is_inside: bool,
     /// Whether the worktree's target directory is still inside the worktree once its links are followed.
@@ -133,26 +142,34 @@ pub struct StateFacts {
 ///   Reusing state that is shared with the source,
 /// or cleaning where there is none,
 /// would do harm or nothing.
+/// A clean runs only where the worktree's own build directory holds state a build could reuse:
+/// Cargo keeps the fingerprints that make artifacts fresh inside that directory,
+/// so a worktree whose build directory is absent rebuilds its own crates by itself,
+/// which was measured on 2026-11-12 with a copy of a built workspace whose `target/` held the
+///  source's binary (the copy's first build rebuilt it and named the copy's own path).
+/// A copied `target/` alone is therefore no reason to clean,
+/// and on the host whose Cargo keeps the build directory outside the worktree it made every one of
+///  an add's 34 cleans a full workspace resolution that deleted nothing
+/// (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function planBuildState(destination: Workspace, destinationRoot: string, facts: StateFacts): BuildStatePlan;
 /// ```
 pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts: &StateFacts) -> BuildStatePlan {
-    let Some(source_build) = facts.source_build.as_ref() else {
-        return BuildStatePlan::Nothing(String::from("the source has no such workspace, so no state was carried"));
-    };
-    if *source_build == destination.build_directory {
-        return BuildStatePlan::Nothing(String::from("the source and the worktree share one build directory, which a clean would damage"));
-    }
     if destination.build_directory.starts_with(destination_root) {
         // A copied `target/` can be a link to a directory outside the worktree, and a clean through it would delete the
         //  files of the checkout that link names, which this repair does not serve.
         if !facts.destination_build_is_inside || !facts.destination_target_is_inside {
             return BuildStatePlan::Nothing(String::from("the build state is reached through a link that leaves the worktree, and a clean there would delete another directory's files"));
         }
-        return if facts.destination_build_exists || facts.destination_target_exists {
-            BuildStatePlan::CleanOnly
+        // What a clean here would remove is the copy's state for the worktree's own crates, so nothing was carried when the
+        //  source has no counterpart workspace.
+        if !facts.source_has_the_workspace {
+            return BuildStatePlan::Nothing(String::from("the source has no such workspace, so no state was carried"));
+        }
+        return if facts.destination_build_exists {
+            BuildStatePlan::MovedAside { to: destination.build_directory.clone() }
         } else {
             BuildStatePlan::Nothing(String::from("the build directory is inside the worktree and was not carried"))
         };
@@ -160,10 +177,18 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
     if facts.destination_build_exists {
         return BuildStatePlan::Nothing(String::from("the worktree's build directory already holds state of its own"));
     }
+    let Some(source_build) = facts.source_build.as_ref() else {
+        return BuildStatePlan::Nothing(String::from("the source holds no build directory this repair could read, so there is nothing to fill"));
+    };
+    if *source_build == destination.build_directory {
+        return BuildStatePlan::Nothing(String::from("the source and the worktree share one build directory, which a clean would damage"));
+    }
     if facts.source_build_exists {
         return BuildStatePlan::FillFromTheSource { from: source_build.clone(), to: destination.build_directory.clone() };
     }
-    return if facts.destination_target_exists { BuildStatePlan::CleanOnly } else { BuildStatePlan::Nothing(String::from("neither side holds build state")) };
+    return BuildStatePlan::Nothing(String::from(
+        "the worktree's build directory does not exist and the source holds none for it, so a clean would reach nothing a build could reuse",
+    ));
 }
 
 /// What:
@@ -286,6 +311,9 @@ enum Done {
 /// the clone that fills it is the repair's heaviest step,
 /// and the worktree is correct without it
 /// (`package_repair_prewarm.rs`).
+/// A workspace whose build directory holds state the copy carried is cleaned here and nowhere later:
+/// Cargo would treat the copied artifacts of the worktree's own crates as fresh,
+/// so a clean that ran after the add returned could be overtaken by a build that then reused them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -293,12 +321,20 @@ enum Done {
 /// ```
 async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path, kept_in: Option<&Path>) -> Done {
     let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
+    // The repository's Git directory, whose own exclude file names the staging patterns: the staging sits beside the build
+    //  directory it takes, inside the worktree, and without that the person's `git status` would show it.
+    let staging_root: Option<PathBuf> = kept_in.map(Path::to_path_buf);
     let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
         debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
         return Done::Skipped;
     };
     let source_workspace: PathBuf = source.join(relative);
-    let source_build: Option<PathBuf> = if source_workspace.join(MANIFEST).is_file() {
+    let source_has_the_workspace: bool = source_workspace.join(MANIFEST).is_file();
+    // The source's build directory is read only where the worktree's own is absent:
+    // a worktree whose build directory holds state needs its own members cleaned and nothing cloned,
+    // and reading the source there would be a workspace resolution with no answer the plan uses.
+    let destination_build_exists: bool = workspace.build_directory.exists();
+    let source_build: Option<PathBuf> = if !destination_build_exists && source_has_the_workspace {
         match timed_read_workspace_awaiting("cargoMetadataSource", tool, source_workspace.as_path()).await {
             Ok(found) => Some(found.build_directory),
             Err(reason) => {
@@ -310,13 +346,13 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         None
     };
     let facts: StateFacts = StateFacts {
+        source_has_the_workspace,
         source_build_exists: match source_build.as_ref() {
             Some(path) => path.exists(),
             None => false,
         },
         source_build,
-        destination_build_exists: workspace.build_directory.exists(),
-        destination_target_exists: workspace.target_directory.exists(),
+        destination_build_exists,
         destination_build_is_inside: is_inside_the_worktree(destination_root, workspace.build_directory.as_path()),
         destination_target_is_inside: is_inside_the_worktree(destination_root, workspace.target_directory.as_path()),
     };
@@ -327,9 +363,30 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         // The clone that fills this worktree's build directory is the service's work, and the same clean runs on the copy
         //  it publishes, so this workspace is done here.
         BuildStatePlan::FillFromTheSource { from, to } => {
-            return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: from.clone(), to: to.clone(), members: workspace.members.clone() });
+            return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: Some(from.clone()), to: to.clone(), members: workspace.members.clone(), staged_in: None });
         }
-        BuildStatePlan::CleanOnly => {}
+        // The state the copy carried is moved aside here, before the add answers: one rename, no Cargo run, so no build can
+        //  start on artifacts Cargo would call fresh and the add never waits for a clean. The staging name lies under the
+        //  repository's Git directory, never in the worktree, which the person reads with `git status` the moment it exists.
+        BuildStatePlan::MovedAside { to } => {
+            let staged: Result<crate::package_repair_prewarm_job::Staged, String> = match staging_root.as_ref() {
+                Some(root) => stage_the_worktrees_own_state(to.as_path(), Some(root.as_path())),
+                None => Err(String::from("the repair was handed no Git directory to stage the copied build state in")),
+            };
+            match staged {
+                Ok(crate::package_repair_prewarm_job::Staged::Staged(staged_in)) => {
+                    return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: None, to: to.clone(), members: workspace.members.clone(), staged_in: Some(staged_in) });
+                }
+                Ok(crate::package_repair_prewarm_job::Staged::Nothing) => return Done::Skipped,
+                // The state could not be moved aside, and a build would reuse it where it stands, so this add cleans it here
+                //  as every release before this one did. The wait is then the repair tool's own window, which this path keeps
+                //  for the case a rename cannot happen at all, and the finding names the clean to run if it fails.
+                Err(reason) => {
+                    eprintln!("PROBE staging refused: {reason}");
+                    debug(TAG, format!("{reason}; the clean runs here instead").as_str())
+                }
+            }
+        }
     }
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
@@ -461,6 +518,9 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
     let Some(cargo) = found_program else {
         return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
+    // The repository's common Git directory, asked once for the whole lane: a moved-aside build state waits under it, out of the
+    //  worktree, and the lock bytes a clean displaces are kept under it too.
+    let common_dir: Option<PathBuf> = common_directory_awaiting(request.git, request.destination).await.ok();
     let workers: usize = request.environment.workers;
     let tool: CargoTool = CargoTool { program: cargo, limits: request.environment.limits() };
     let listed: Arc<[PathBuf]> = Arc::from(directories);
@@ -488,7 +548,7 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         // A worktree whose real path cannot be read is used as the caller named it.
         Err(_cannot_be_resolved) => request.destination.to_path_buf(),
     };
-    let repairer: RepairWorkspaceJob = RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), kept_in: request.git.common_dir.clone() };
+    let repairer: RepairWorkspaceJob = RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), kept_in: common_dir.clone() };
     let repaired: Vec<Result<Done, String>> =
         map_concurrent_awaiting(Arc::clone(&workspaces), workers, Arc::new(RepairLabel), Arc::new(repairer)).await;
     let mut done: Vec<Done> = Vec::new();
@@ -522,7 +582,7 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}{kept}"), millis: started.elapsed().as_millis() } });
     }
     if !handed_over.is_empty() {
-        findings.push(hand_the_filling_over(request, handed_over.as_slice()).await);
+        findings.push(hand_the_filling_over(request, handed_over.as_slice(), common_dir.as_deref()).await);
     }
     return findings;
 }
@@ -543,29 +603,52 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
 /// ```ts
 /// const handedOver = async (request, entries) => { const told = await handOverWithinTheBudget(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(told); };
 /// ```
-async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry]) -> Finding {
+async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry], common_dir: Option<&Path>) -> Finding {
     let began: Instant = begin_work();
-    let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
+    // Where a person watches what became of the work this add leaves behind: the queue's own states, and the service's journal.
+    let the_queues_states: Option<String> = common_dir.map(|common| crate::service_work::work_directory(common).display().to_string());
     let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
-        Ok(common) => {
+        Some(common) => {
             let state: (crate::transaction_git::GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>) =
-                (request.git.clone(), common, request.destination.to_path_buf(), entries.to_vec());
+                (request.git.clone(), common.to_path_buf(), request.destination.to_path_buf(), entries.to_vec());
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
-        Err(reason) => Ok(Err(reason)),
+        None => Ok(Err(String::from("git could not name the repository's common directory"))),
     };
     end_work("cargoPrewarmHandOver", began);
+    let staged: usize = entries.iter().filter(|entry| entry.staged_in.is_some()).count();
     let workspace_noun: &str = if entries.len() == 1 { "build directory" } else { "build directories" };
+    let them: &str = if entries.len() == 1 { "it" } else { "them" };
+    let queue: String = match the_queues_states {
+        Some(directory) => format!("`{directory}/{{pending,claimed,done,failed}}` and the service's journal"),
+        // No queue directory could be named, so the line says only what happens; a command naming a path that is not there would
+        //  be worse than none.
+        None => String::from("the commit service's journal"),
+    };
+    // A workspace whose own copied state the add moved aside is named apart: what waits for the service there is a clean of
+    //  state the worktree no longer holds, and a build started at once compiles it itself.
+    let moved: String = if staged == 0 {
+        String::new()
+    } else {
+        format!(
+            ", and the cleaning of the {staged} {} the copy carried, moved aside before this command answered so that no build trusts {}",
+            if staged == 1 { "build state" } else { "build states" },
+            if staged == 1 { "it" } else { "them" }
+        )
+    };
     let detail: String = match told {
-        Ok(Ok(())) => format!("Cargo kept dependency builds and handed the filling of {} {workspace_noun} to the commit service, which fills them after this command returns", entries.len()),
+        Ok(Ok(())) => format!(
+            "Cargo kept dependency builds and handed the filling of {} {workspace_noun} to the commit service{moved}, whose progress shows in {queue}, and which fills or cleans {them} after this command returns",
+            entries.len()
+        ),
         // The record stays and the service fills it when it next runs for this repository, so this is a line of the report and
         //  never the add's failure: the worktree is whole either way and its first build only compiles more.
         Ok(Err(reason)) => format!(
-            "Cargo kept dependency builds and wrote the record that fills {} {workspace_noun}, which it could not hand to the commit service ({reason}); the service fills them when it next runs for this repository",
+            "Cargo kept dependency builds and wrote the record that fills {} {workspace_noun}{moved}, which it could not hand to the commit service ({reason}); the worktree's first build compiles what it needs itself, and the record waits in {queue} until a service runs for this repository",
             entries.len()
         ),
         Err(refusal) => format!(
-            "Cargo kept dependency builds and could not write the record that fills {} {workspace_noun} ({refusal}); the worktree's first build compiles them instead",
+            "Cargo kept dependency builds and could not write the record that fills {} {workspace_noun}{moved} ({refusal}); the worktree's first build compiles what it needs itself, and nothing was left for a service to pick up",
             entries.len()
         ),
     };

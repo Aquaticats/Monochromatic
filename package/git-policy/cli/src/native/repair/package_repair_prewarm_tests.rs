@@ -15,9 +15,10 @@ use std::path::{Path, PathBuf};
 fn entry(root: &str, from: &str, to: &str) -> PrewarmEntry {
     return PrewarmEntry {
         root: PathBuf::from(root),
-        from: PathBuf::from(from),
+        from: Some(PathBuf::from(from)),
         to: PathBuf::from(to),
         members: vec![String::from("monochromatic-lint"), String::from("monochromatic-lint-closure")],
+        staged_in: None,
     };
 }
 

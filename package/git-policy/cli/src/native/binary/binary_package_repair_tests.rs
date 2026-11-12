@@ -505,6 +505,12 @@ fn cargo_control(name: &str, external: bool) {
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
     let outside: Observed = add(&fixture, repo.as_path(), &["--quiet"], "outside", "../deeper/outside");
     let nested: Observed = add(&fixture, repo.as_path(), &["--quiet"], "nested", ".claude/worktrees/nested");
+    if !external {
+        // Under the default layout the add answers before the filling cleans the state the copy carried, and a build that
+        //  starts in that window compiles everything itself. This control is about what the repair leaves: once the filling
+        //  has run, the dependency builds are reused and the worktree's own crates were cleaned out of them.
+        settle_service_work(repo.as_path());
+    }
     for (label, root) in [("outside", fixture.root.join("deeper/outside")), ("nested", repo.join(".claude/worktrees/nested"))] {
         let reported: String = format!("{} {}", stderr_of(&outside), stderr_of(&nested));
         assert!(!reported.contains(PENDING_WORDS), "{label}: {reported}");
@@ -528,6 +534,74 @@ fn cargo_control(name: &str, external: bool) {
 #[test]
 fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
     cargo_control("repair-real-cargo-external", true);
+}
+
+/// What:
+///  A build started at once in a new worktree is correct,
+/// and the add starts no `cargo clean` for a workspace whose build directory the worktree does not have.
+/// Why:
+///   The copy carries each workspace's `target/`,
+/// so the plan used to clean every workspace whose source checkout had never been built:
+/// 34 of 35 workspaces on 2026-11-12, 32.8 to 47.7 s of workspace resolutions that deleted nothing
+/// (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
+/// Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
+/// so a worktree that starts without one rebuilds its own crates by itself,
+/// which this control checks by building right after the add returned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const created = add(fixture, repo, ['--quiet'], 'at-once', '../deeper/at-once'); expect(record).not.toContain('clean'); expect(compiled(outside)).toEqual(['app', 'lib'])
+/// ```
+#[test]
+fn a_build_started_at_once_is_correct_and_the_add_starts_no_clean() {
+    let name: &str = "a_build_started_at_once_is_correct_and_the_add_starts_no_clean";
+    let fixture: Fixture = fixture("repair-at-once");
+    if !prepare_cargo(&fixture, name) {
+        remove(&fixture);
+        return;
+    }
+    // Every run of Cargo the add starts is recorded; the real one runs behind the record.
+    let record: PathBuf = fixture.root.join("cargo-record");
+    let real: PathBuf = bin(&fixture).join("cargo-real");
+    std::fs::rename(bin(&fixture).join("cargo"), real.as_path()).expect("the real Cargo aside");
+    executable(
+        bin(&fixture).join("cargo").as_path(),
+        format!("#!/bin/sh\nprintf '%s\\n' \"$* | $(pwd -P)\" >> '{}'\nexec '{}' \"$@\"\n", record.display(), real.display()).as_bytes(),
+    );
+    let repo: PathBuf = cargo_repository(&fixture, true);
+    // A second workspace of the repository that nothing has ever built, whose `target/` a developer's copy carries:
+    //  the workspace the add used to clean for nothing.
+    let other: PathBuf = repo.join("other");
+    std::fs::create_dir_all(other.join("src")).expect("the second workspace's source directory");
+    std::fs::write(other.join("Cargo.toml"), b"[package]\nname = \"other\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n").expect("the second manifest");
+    std::fs::write(other.join("src/main.rs"), b"fn main() { println!(\"{}\", env!(\"CARGO_MANIFEST_DIR\")); }\n").expect("the second crate");
+    std::fs::create_dir_all(other.join("target/debug")).expect("a leftover of the developer's");
+    std::fs::write(other.join("target/debug/leftover"), b"not a build\n").expect("the leftover");
+    git(&fixture, repo.as_path(), &["add", "--", "other/Cargo.toml", "other/src/main.rs"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=the second workspace"]);
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "at-once", "../deeper/at-once");
+    let worktree: PathBuf = fixture.root.join("deeper/at-once");
+    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
+    let recorded: String = std::fs::read_to_string(record.as_path()).unwrap_or_default();
+    // The add's own clean never passes `--locked` (the worktree was just made and nobody has it); the filling's clean of its
+    //  staging copy always does, so a locked line is the service's work and not the add's wait.
+    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| line.starts_with("clean ") && !line.contains("--locked")).collect();
+    assert!(
+        cleaned.is_empty(),
+        "the add starts no clean for a workspace whose build directory the worktree does not have; it ran:\n{recorded}"
+    );
+    // The build the person starts at once: the worktree's own crates rebuild and name the worktree's own paths.
+    let first: Vec<String> = compiled(&fixture, worktree.as_path());
+    assert!(
+        first.contains(&String::from("app")) && first.contains(&String::from("lib")),
+        "the worktree's own crates are compiled by the first build, whether or not the filling got there before it: {first:?}"
+    );
+    let ran: String = run_tool(&fixture, "cargo", worktree.as_path(), &["run", "--offline", "--quiet"]);
+    assert_eq!(ran.trim(), worktree.join("lib").to_str().expect("utf8"), "the build at once names the worktree's own paths");
+    let copy: PathBuf = worktree.join("other/target/debug/leftover");
+    assert!(copy.exists(), "the copy's own leftover is left where the copy put it: {}", copy.display());
+    remove(&fixture);
 }
 
 /// The package whose build artifact the shared-target control builds,
@@ -606,6 +680,46 @@ fn a_shared_target_a_link_carries_out_of_the_worktree_is_left_built() {
     let _cleaned: String = run_tool(&fixture, "cargo", worktree.as_path(), &["clean", "--offline", "--package", SHARED_TARGET_PACKAGE]);
     assert!(!artifact.exists(), "a clean in the worktree reaches the source's build output through the copied link: {}", artifact.display());
     assert!(shared.join("debug").is_dir(), "the shared build directory is the one the clean deleted from");
+}
+
+/// What:
+///  A copied `target` that is a link into somebody else's directory is left alone,
+/// and its artifact survives an add whose source has no external build directory yet.
+/// Why:
+///   The audit of 2026-11-11 (`kimi-audit-alpha-12-package-repair-on-add-and-commit`) reproduced the opposite with the
+/// real executable:
+/// a crate built through a `target` symlink into a shared directory,
+/// an external `build-dir` configured without building again,
+/// and a wrapped add that deleted the shared artifact through the copied link.
+/// `SPEC.md` ("Package-manager repair of a new worktree") and `README.md` promise such a target is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { artifact } = sharedTargetRepository(fixture); add(fixture, repo, ['--quiet'], 'linked', '../deeper/linked'); expect(existsSync(artifact)).toBe(true)
+/// ```
+#[test]
+fn an_external_build_directory_never_cleans_through_a_linked_target() {
+    let fixture: Fixture = fixture("repair-external-build-linked-target");
+    if !prepare_cargo(&fixture, "an_external_build_directory_never_cleans_through_a_linked_target") {
+        remove(&fixture);
+        return;
+    }
+    let (repo, _shared, artifact): (PathBuf, PathBuf, PathBuf) = shared_target_repository(&fixture);
+    // Build the shared target before enabling external intermediates: the source's external build directory is absent
+    //  while its copied target link still holds a real artifact.
+    let layout: String = format!("[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n", fixture.root.join("cargo-build").display());
+    std::fs::create_dir_all(repo.join(".cargo")).expect("Cargo config directory");
+    std::fs::write(repo.join(".cargo/config.toml"), layout).expect("external build-dir config");
+    git(&fixture, repo.as_path(), &["add", "--", ".cargo/config.toml"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=external build dir"]);
+    assert!(artifact.exists(), "positive control: the source artifact exists before the add");
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "linked", "../deeper/linked");
+    let survived: bool = artifact.exists();
+    let reported: String = stderr_of(&created);
+    assert!(!reported.contains(PENDING_WORDS), "{reported}");
+    remove(&fixture);
+    assert!(survived, "the add's Cargo repair deleted the source artifact through the copied target link: {reported}");
 }
 
 /// Cargo's default layout,

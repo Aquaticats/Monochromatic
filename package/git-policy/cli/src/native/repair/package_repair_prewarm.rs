@@ -68,19 +68,23 @@ pub const STAGING_SUFFIX: &str = ".monochromatic-prewarm";
 pub const TARGET_DIRECTORY_VARIABLE: &str = "CARGO_TARGET_DIR";
 
 /// What:
-///  One workspace whose build directory the service fills:
+///  One workspace whose build state the service fills or cleans:
 /// the workspace to ask Cargo about,
-/// the source checkout's build directory,
+/// where the builds worth keeping come from,
 /// the new worktree's build directory,
-/// and the members whose own artifacts must not be carried.
+/// the members whose own artifacts must not be carried,
+/// and whether the add already moved the worktree's own copied state into the filling's staging name.
 /// Why:
-///   The four facts are what the add already read from `cargo metadata`,
+///   The facts are what the add already read from `cargo metadata`,
 /// so the service runs no metadata read of its own,
 /// and the record says exactly what the add would have done.
+/// An entry the add staged itself carries no source directory:
+/// the state to clean is the worktree's own copy,
+/// moved aside in one rename before the add answered so that no build could trust it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PrewarmEntry = { root: string; from: string; to: string; members: string[] };
+/// type PrewarmEntry = { root: string; from?: string; to: string; members: string[]; stagedIn?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrewarmEntry {
@@ -88,13 +92,20 @@ pub struct PrewarmEntry {
     /// where the clean runs.
     pub root: PathBuf,
     /// The source workspace's build directory,
-    /// which holds the dependency builds worth keeping.
-    pub from: PathBuf,
+    /// which holds the dependency builds worth keeping;
+    /// nothing for an entry the add staged itself.
+    pub from: Option<PathBuf>,
     /// The new worktree's build directory,
     /// which does not exist yet.
     pub to: PathBuf,
     /// The package names the clean removes from the copy.
     pub members: Vec<String>,
+    /// Where the add moved the worktree's own copied build state before it answered,
+    /// or nothing when the filling clones one from `from` instead.
+    ///
+    /// The path lies under the repository's Git directory, never in the worktree:
+    /// a name beside the build directory would show in the person's `git status` until the filling ran.
+    pub staged_in: Option<PathBuf>,
 }
 
 /// What:
@@ -127,14 +138,30 @@ fn text_field(entry: &serde_json::Value, name: &str) -> Option<PathBuf> {
 pub fn encode(entries: &[PrewarmEntry]) -> Result<String, String> {
     let mut written: Vec<serde_json::Value> = Vec::with_capacity(entries.len());
     for entry in entries {
-        let (Some(root), Some(from), Some(to)) = (entry.root.to_str(), entry.from.to_str(), entry.to.to_str()) else {
+        let (Some(root), Some(to)) = (entry.root.to_str(), entry.to.to_str()) else {
             return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it"));
         };
+        let from: Option<&str> = match entry.from.as_ref() {
+            None => None,
+            Some(path) => match path.to_str() {
+                Some(text) => Some(text),
+                None => return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it")),
+            },
+        };
         let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-        for (name, value) in [("root", root), ("from", from), ("to", to)] {
+        for (name, value) in [("root", root), ("to", to)] {
             fields.insert(String::from(name), serde_json::Value::from(value));
         }
+        if let Some(text) = from {
+            fields.insert(String::from("from"), serde_json::Value::from(text));
+        }
         fields.insert(String::from("members"), serde_json::Value::from(entry.members.clone()));
+        if let Some(staging) = entry.staged_in.as_ref() {
+            let Some(text) = staging.to_str() else {
+                return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it"));
+            };
+            fields.insert(String::from("stagedIn"), serde_json::Value::from(text));
+        }
         written.push(serde_json::Value::Object(fields));
     }
     return Ok(serde_json::Value::Array(written).to_string());
@@ -162,9 +189,18 @@ pub fn decode(payload: &str) -> Result<Vec<PrewarmEntry>, String> {
     };
     let mut entries: Vec<PrewarmEntry> = Vec::with_capacity(list.len());
     for value in list {
-        let (Some(root), Some(from), Some(to)) = (text_field(value, "root"), text_field(value, "from"), text_field(value, "to")) else {
-            return Err(String::from("a prewarm entry names no workspace, no source directory or no destination"));
+        let (Some(root), Some(to)) = (text_field(value, "root"), text_field(value, "to")) else {
+            return Err(String::from("a prewarm entry names no workspace or no destination"));
         };
+        let staged_in: Option<PathBuf> = text_field(value, "stagedIn");
+        let from: Option<PathBuf> = text_field(value, "from");
+        // An entry says where the builds come from, or where the add staged the worktree's own state, and never both:
+        // the two are clean-ups of different directories, and a payload that claims both cannot be acted on.
+        match (staged_in.is_some(), from.is_some()) {
+            (false, false) => return Err(String::from("a prewarm entry names no source directory to clone")),
+            (true, true) => return Err(String::from("a prewarm entry both stages the worktree's own state and names a source directory")),
+            _ => {}
+        }
         let Some(members) = value.get("members").and_then(serde_json::Value::as_array) else {
             return Err(String::from("a prewarm entry names no members"));
         };
@@ -172,7 +208,7 @@ pub fn decode(payload: &str) -> Result<Vec<PrewarmEntry>, String> {
         if names.len() != members.len() || names.is_empty() {
             return Err(String::from("a prewarm entry names no members"));
         }
-        entries.push(PrewarmEntry { root, from, to, members: names });
+        entries.push(PrewarmEntry { root, from, to, members: names, staged_in });
     }
     if entries.is_empty() {
         return Err(String::from("the prewarm payload names no workspaces"));

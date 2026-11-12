@@ -9,7 +9,7 @@ use crate::package_repair_cargo_workspaces::{MANIFEST, distinct_workspaces, mani
 use crate::transaction_git::GitContext;
 use crate::package_repair_command::ToolLimits;
 use crate::test_support::{fixture, git_context, git_text, remove, repository};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The `cargo metadata --no-deps` text of a workspace,
 /// built from the fields the repair reads (the paths are plain text).
@@ -59,10 +59,10 @@ fn a_workspace_is_listed_once_in_root_order() {
 /// with both of the worktree's directories inside it once their links are followed.
 fn facts(source_build: &str) -> StateFacts {
     return StateFacts {
+        source_has_the_workspace: true,
         source_build: Some(PathBuf::from(source_build)),
         source_build_exists: true,
         destination_build_exists: false,
-        destination_target_exists: true,
         destination_build_is_inside: true,
         destination_target_is_inside: true,
     };
@@ -78,20 +78,21 @@ fn an_external_build_directory_is_filled_by_the_service() {
 }
 
 /// Under the default layout the build directory is inside the worktree and arrived with `target/`:
-/// only the clean remains.
+/// the add moves that state aside and the service cleans it, so no build can trust the copy's artifacts.
 #[test]
-fn an_in_tree_build_directory_is_only_cleaned() {
+fn an_in_tree_build_directory_the_copy_carried_is_moved_aside() {
     let destination: Workspace = workspace("/w/new/ws", "/w/new/ws/target", &["app"]);
-    let plan: BuildStatePlan = plan_build_state(&destination, Path::new("/w/new"), &facts("/w/old/ws/target"));
-    assert_eq!(plan, BuildStatePlan::CleanOnly);
+    let mut carried: StateFacts = facts("/w/old/ws/target");
+    carried.destination_build_exists = true;
+    let plan: BuildStatePlan = plan_build_state(&destination, Path::new("/w/new"), &carried);
+    assert_eq!(plan, BuildStatePlan::MovedAside { to: PathBuf::from("/w/new/ws/target") });
 }
 
 /// An in-tree build directory that did not arrive leaves nothing to clean.
 #[test]
 fn an_absent_in_tree_state_needs_nothing() {
     let destination: Workspace = workspace("/w/new/ws", "/w/new/ws/target", &["app"]);
-    let mut absent: StateFacts = facts("/w/old/ws/target");
-    absent.destination_target_exists = false;
+    let absent: StateFacts = facts("/w/old/ws/target");
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &absent), BuildStatePlan::Nothing(_)));
 }
 
@@ -113,6 +114,7 @@ fn a_build_directory_a_link_carries_out_of_the_worktree_is_left_alone() {
     // Each of the two directories the clean deletes from, one at a time.
     for outside in ["build", "target"] {
         let mut linked: StateFacts = facts("/w/old/ws/target");
+        linked.destination_build_exists = true;
         if outside == "build" {
             linked.destination_build_is_inside = false;
         } else {
@@ -140,23 +142,212 @@ fn a_shared_build_directory_is_left_alone() {
 fn a_new_workspace_and_existing_state_are_left_alone() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
     let mut unknown: StateFacts = facts("/cache/old");
+    unknown.source_has_the_workspace = false;
     unknown.source_build = None;
+    unknown.source_build_exists = false;
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &unknown), BuildStatePlan::Nothing(_)));
     let mut existing: StateFacts = facts("/cache/old");
     existing.destination_build_exists = true;
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &existing), BuildStatePlan::Nothing(_)));
 }
 
-/// A source with no build state clones nothing,
-/// and a worktree with a copied target is still cleaned.
+/// A source with no build state fills nothing,
+/// and a worktree with a copied target is still not cleaned.
+///
+/// What:
+///  The worktree's build directory is absent, so Cargo has no fingerprint of its own crates to trust:
+/// it rebuilds them,
+/// and a clean would delete nothing a build could reuse.
+/// Why:
+///   This is the case every add on this host takes (34 of 35 workspaces in the records of 2026-11-12),
+/// and the clean cost 32.8 to 47.7 s of work per add there while deleting nothing.
+/// A copy of a built workspace whose `target/` holds the source's binary is rebuilt by Cargo by itself:
+/// the copy's first build named the copy's own path
+/// (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// planBuildState(destination, root, { ...facts, sourceBuild: undefined, sourceBuildExists: false }) // Nothing
+/// ```
 #[test]
-fn an_empty_source_clones_nothing() {
+fn a_worktree_with_no_build_state_of_its_own_is_never_cleaned() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
     let mut empty: StateFacts = facts("/cache/old");
     empty.source_build_exists = false;
-    assert_eq!(plan_build_state(&destination, Path::new("/w/new"), &empty), BuildStatePlan::CleanOnly);
-    empty.destination_target_exists = false;
-    assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &empty), BuildStatePlan::Nothing(_)));
+    assert!(
+        matches!(plan_build_state(&destination, Path::new("/w/new"), &empty), BuildStatePlan::Nothing(_)),
+        "a worktree whose build directory is absent holds nothing a clean would reach, so it is not cleaned: {:?}",
+        plan_build_state(&destination, Path::new("/w/new"), &empty)
+    );
+    // The positive control: the same facts with the worktree's build directory present are cleaned.
+    let mut carried: StateFacts = facts("/cache/old");
+    carried.destination_build_exists = true;
+    assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &carried), BuildStatePlan::Nothing(_)), "state of the worktree's own is kept, not filled");
+    let mut in_tree: StateFacts = facts("/w/old/ws");
+    in_tree.destination_build_exists = true;
+    let in_tree_workspace: Workspace = workspace("/w/new/ws", "/w/new/ws/target", &["app"]);
+    assert_eq!(plan_build_state(&in_tree_workspace, Path::new("/w/new"), &in_tree), BuildStatePlan::MovedAside { to: PathBuf::from("/w/new/ws/target") });
+}
+
+/// A stand-in `cargo` that records the arguments and the directory of every run it is given,
+/// and answers `metadata` with one workspace.
+fn recording_cargo(root: &Path, metadata: &str) -> (PathBuf, PathBuf) {
+    let program: PathBuf = root.join("cargo");
+    let calls: PathBuf = root.join("calls.log");
+    crate::test_support::executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$* | $(pwd -P)\" >> '{}'\ncase \"$1\" in\nmetadata) printf '%s\\n' '{}' ;;\nesac\nexit 0\n",
+            calls.display(),
+            metadata
+        )
+        .as_bytes(),
+    );
+    return (program, calls);
+}
+
+/// What:
+///  The metadata one workspace of a fixture answers with,
+/// naming the source as its root and the two directories the plan reads.
+/// Why:
+///   The stand-in's answer is the only place those paths are spelled,
+/// so a control names them once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const metadataOf = ({ root, build, target }) => JSON.stringify({ packages: [{ name: 'tiny' }], workspace_root: root, build_directory: build, target_directory: target });
+/// ```
+fn metadata_of(root: &Path, build: &Path, target: &Path) -> String {
+    return format!(
+        "{{\"packages\":[{{\"name\":\"tiny\"}}],\"workspace_root\":\"{}\",\"build_directory\":\"{}\",\"target_directory\":\"{}\"}}",
+        root.display(),
+        build.display(),
+        target.display()
+    );
+}
+
+/// What:
+///  The add answers without waiting for a clean it would not need:
+/// a worktree whose build directory is absent holds nothing a build could reuse,
+/// so it starts no `cargo clean`.
+/// Why:
+///   Every add on this host took that clean for 34 of its 35 workspaces,
+/// 32.8 to 47.7 s of workspace resolutions that deleted nothing
+/// (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`),
+/// and a copied `target/` is what made the plan choose it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done = await repairWorkspaceAwaiting(tool, workspace, worktree, source, undefined); expect(recorded).not.toContain('clean')
+/// ```
+#[test]
+fn a_worktree_with_no_build_directory_of_its_own_runs_no_clean() {
+    let root: PathBuf = crate::test_support::fixture("cargo-repair-no-clean");
+    let worktree: PathBuf = root.join("worktree");
+    let package: PathBuf = worktree.join("package/tiny");
+    let source: PathBuf = root.join("source");
+    std::fs::create_dir_all(package.as_path()).expect("the worktree's workspace");
+    std::fs::create_dir_all(source.join("package/tiny")).expect("the source's counterpart workspace");
+    std::fs::write(source.join("package/tiny/Cargo.toml"), b"[package]\nname = \"tiny\"\n").expect("the source's manifest");
+    // The copy carried the workspace's `target/`, and the worktree has no build directory of its own.
+    std::fs::create_dir_all(package.join("target/debug")).expect("the copied target directory");
+    let external: PathBuf = root.join("build/aa/cccccccccccccc");
+    // The source checkout's own build directory is a different one, which nothing has built: the case every add on this
+    //  host takes, where the worktree holds no build state and the source holds none for it either.
+    let unbuilt: PathBuf = root.join("build/aa/ssssssssssssss");
+    let (cargo, calls): (PathBuf, PathBuf) = recording_cargo(
+        root.as_path(),
+        metadata_of(source.as_path(), unbuilt.as_path(), package.join("target").as_path()).as_str(),
+    );
+    let tool: CargoTool = CargoTool { program: cargo, limits: ToolLimits { window: std::time::Duration::from_secs(60), ceiling: std::time::Duration::from_secs(60) } };
+    let workspace: Workspace = Workspace { root: package.clone(), build_directory: external.clone(), target_directory: package.join("target"), members: vec![String::from("tiny")] };
+    let done: Done = crate::lazy_runtime::run_on_runtime(repair_workspace_awaiting(&tool, &workspace, worktree.as_path(), source.as_path(), None)).expect("this process's runtime starts");
+    let recorded: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
+    // The stand-in records the argument line, so the verb is the first word of a line; a directory whose name holds "clean" is
+    // not a clean.
+    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| line.starts_with("clean ")).collect();
+    assert!(cleaned.is_empty(), "the add starts no clean where the worktree holds no build directory: {cleaned:?} of {recorded}");
+    assert!(!matches!(done, Done::Cleaned(_)), "nothing of the worktree was cleaned");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A build directory inside the worktree that the copy carried is moved aside before the add answers,
+/// in one rename and with no Cargo run at all,
+/// and the workspace is handed over as an entry whose own state is staged.
+/// Why:
+///   This is the positive control of the test above:
+/// the same stand-in records a Cargo run for the worktree whose build directory is absent,
+/// and records none at all where the copy carried state a build could trust.
+/// Cargo would treat that state as fresh, so it must be out of the way before the add returns,
+/// and the rename is what puts it there without a `cargo clean` the add would have to wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done = await repairWorkspaceAwaiting(tool, workspace, worktree, source, undefined); expect(done.staged).toBe(true); expect(existsSync(staging)).toBe(true); expect(recorded).not.toContain('clean')
+/// ```
+#[test]
+fn a_build_directory_the_copy_carried_is_moved_aside_before_the_add_answers() {
+    let root: PathBuf = crate::test_support::fixture("cargo-repair-carried-state");
+    let worktree: PathBuf = root.join("worktree");
+    let package: PathBuf = worktree.join("package/tiny");
+    let source: PathBuf = root.join("source");
+    std::fs::create_dir_all(package.join("target/debug")).expect("the copied build state");
+    std::fs::write(package.join("target/debug/copied"), b"the copy's state\n").expect("a file of the copy");
+    std::fs::create_dir_all(source.join("package/tiny")).expect("the source's counterpart workspace");
+    std::fs::write(source.join("package/tiny/Cargo.toml"), b"[package]\nname = \"tiny\"\n").expect("the source's manifest");
+    let (cargo, calls): (PathBuf, PathBuf) = recording_cargo(
+        root.as_path(),
+        metadata_of(source.as_path(), package.join("target").as_path(), package.join("target").as_path()).as_str(),
+    );
+    let tool: CargoTool = CargoTool { program: cargo, limits: ToolLimits { window: std::time::Duration::from_secs(60), ceiling: std::time::Duration::from_secs(60) } };
+    let workspace: Workspace = Workspace { root: package.clone(), build_directory: package.join("target"), target_directory: package.join("target"), members: vec![String::from("tiny")] };
+    // The repository's Git directory of this fixture, whose exclude file names the staging patterns.
+    let git_directory: PathBuf = root.join("git-directory");
+    std::fs::create_dir_all(git_directory.as_path()).expect("the fixture's Git directory");
+    let done: Done = crate::lazy_runtime::run_on_runtime(repair_workspace_awaiting(&tool, &workspace, worktree.as_path(), source.as_path(), Some(git_directory.as_path()))).expect("this process's runtime starts");
+    let recorded: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
+    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| line.starts_with("clean ")).collect();
+    assert!(cleaned.is_empty(), "the add runs no clean for state it moved aside: {recorded}");
+    let Done::HandedOver(entry) = done else {
+        panic!("the workspace is handed over to the filling");
+    };
+    let staged: PathBuf = entry.staged_in.clone().expect("the entry says where the worktree's own state waits");
+    assert_eq!(entry.to, package.join("target"));
+    assert!(!entry.to.exists(), "the copied state is out of the worktree's build directory before the add answers");
+    assert_eq!(staged, crate::package_repair_prewarm_job::staging_of(entry.to.as_path()), "the state waits beside the build directory it was taken from");
+    let exclude: String = std::fs::read_to_string(git_directory.join("info/exclude")).expect("the repository's exclude file names the staging patterns");
+    assert!(exclude.contains("*.monochromatic-prewarm/"), "the staging name is kept out of the person's `git status`: {exclude}");
+    assert!(staged.join("debug/copied").is_file(), "the copy's state sits at the staging name: {}", staged.display());
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A copied `target` that is a link into somebody else's directory is never cleaned,
+/// even where Cargo keeps its build directory outside the worktree.
+/// Why:
+///   The audit of 2026-11-11 (`kimi-audit-alpha-12-package-repair-on-add-and-commit`) found the external layout
+/// skipped the linked-target guard:
+/// a copied `target` link plus a source with no build directory chose `CleanOnly`,
+/// and the clean deleted the artifact the link names (`README.md`, "the target is left alone").
+/// The workspace holds no build directory of its own here,
+/// so nothing a build could reuse is in the worktree and no clean runs at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// planBuildState(external, root, { ...facts, sourceBuildExists: false, destinationTargetIsInside: false }) // Nothing
+/// ```
+#[test]
+fn a_target_link_that_leaves_the_worktree_is_never_cleaned_with_an_external_build_directory() {
+    let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
+    let mut found: StateFacts = facts("/cache/old");
+    found.source_build_exists = false;
+    found.destination_target_is_inside = false;
+    assert!(
+        matches!(plan_build_state(&destination, Path::new("/w/new"), &found), BuildStatePlan::Nothing(_)),
+        "a clean must never reach outside the worktree it was started for: {:?}",
+        plan_build_state(&destination, Path::new("/w/new"), &found)
+    );
 }
 
 /// Every member gets its own `--package` and the clean never uses the network;

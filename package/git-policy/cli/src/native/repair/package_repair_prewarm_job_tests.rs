@@ -21,9 +21,10 @@ fn fill_of_nowhere() -> Fill {
 fn entry_of(root: &Path) -> PrewarmEntry {
     return PrewarmEntry {
         root: root.join("package/linter/rust"),
-        from: root.join("source-build"),
+        from: Some(root.join("source-build")),
         to: root.join("worktree-build"),
         members: vec![String::from("monochromatic-lint")],
+        staged_in: None,
     };
 }
 
@@ -90,8 +91,8 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     let root: PathBuf = fixture("prewarm-failed-clean");
     let entry: PrewarmEntry = entry_of(root.as_path());
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.join("left-by-a-killed-run")).expect("a staging directory an earlier run left");
     super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker an earlier run left");
@@ -100,6 +101,160 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     assert!(!staged.exists(), "the staging directory this job's marker claims is removed");
     assert!(!super::marker_of(staged.as_path()).exists(), "and the marker goes with it");
     assert!(!entry.to.exists(), "and nothing is published under the worktree's name");
+    remove(root.as_path());
+}
+
+/// What:
+///  A filling killed after it published leaves nothing of its own:
+/// the marker and the empty staging copy beside a build directory a build now holds are given back by the next filling,
+/// and the directory the build made is kept byte for byte.
+/// Why:
+///   A publish is one rename that leaves no trace of the filling that made it,
+/// so a kill between the publish and the giving back of the names stranded a directory and its marker for ever:
+/// every later filling answered `Filled::Kept` at the destination and never looked at the names again.
+/// A kill at any instruction must leave a worktree the next command completes by itself,
+/// and nothing of the wrapper's left behind beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filled = fillOne(fill, entry); expect(filled).toBe('kept'); expect(existsSync(staging)).toBe(false)
+/// ```
+#[test]
+fn a_filling_killed_after_it_published_leaves_nothing_of_its_own() {
+    let root: PathBuf = fixture("prewarm-killed-after-publish");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.as_path()).expect("the build directory the killed filling published");
+    std::fs::write(entry.to.join("kept"), b"a build's own artifact").expect("the file");
+    let staged: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(staged.as_path()).expect("the staging directory the publish left empty");
+    super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker the killed filling wrote first");
+    let filled: Filled = super::fill_one_in_a_control(&fill_of_nowhere(), &entry).expect("a filled destination is kept");
+    assert_eq!(filled, Filled::Kept, "the worktree keeps what the build made");
+    assert_eq!(std::fs::read(entry.to.join("kept")).expect("the file"), b"a build's own artifact");
+    assert!(!staged.exists(), "the staging directory the killed filling left is given back: {}", staged.display());
+    assert!(!super::marker_of(staged.as_path()).exists(), "and the marker that claimed it goes with it");
+    remove(root.as_path());
+}
+
+/// What:
+///  The state a worktree's own copy carried is moved aside by the add,
+/// and the filling cleans it there and publishes it back,
+/// so no build trusts the copy's artifacts and no `cargo clean` ever runs in the add.
+/// Why:
+///   Cargo treats the copied artifacts of the worktree's own crates as fresh, so a build that started before a clean would
+///  reuse them at the wrong paths;
+/// the add answers within its bound only if the state is out of the way before it returns.
+/// A rename does that in one step, and the clean of that state is the filling's work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stageTheWorktreesOwnState(destination); fillOne(fill, { ...entry, staged: true, from: undefined }); expect(published).toBe(true)
+/// ```
+#[test]
+fn a_staged_state_the_add_moved_aside_is_cleaned_and_published() {
+    let root: PathBuf = fixture("prewarm-staged-by-the-add");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    // The copy carried the worktree's own build state, which the add moves aside in one rename.
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    std::fs::write(entry.to.join("debug/copied"), b"the copy's state\n").expect("a file of the copy");
+    let git_directory: PathBuf = root.join("git-directory");
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the state is moved aside");
+    let Staged::Staged(staged_in) = staged else {
+        panic!("the state is moved aside");
+    };
+    assert!(!entry.to.exists(), "the worktree's build directory is out of the way before the add answers");
+    assert_eq!(staged_in, staging_of(entry.to.as_path()), "the state waits beside the build directory it was taken from");
+    assert!(!entry.to.exists(), "and out of the build directory itself");
+    let working: PrewarmEntry = PrewarmEntry { staged_in: Some(staged_in.clone()), from: None, ..entry.clone() };
+    let cargo: PathBuf = root.join("cargo");
+    crate::test_support::executable(cargo.as_path(), b"#!/bin/sh\nexit 0\n");
+    let fill: Fill = Fill { cargo, limits: ToolLimits { window: std::time::Duration::from_millis(500), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &working).expect("the staged state is cleaned and published");
+    assert_eq!(filled, Filled::Published);
+    assert!(entry.to.join("debug/copied").is_file(), "the cleaned copy is published under the worktree's build directory name");
+    assert!(!staged_in.exists(), "and the staging name is given back");
+    assert!(!super::marker_of(staged_in.as_path()).exists(), "with the marker that claimed it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A build that made the worktree's build directory while the filling ran keeps everything it made,
+/// and the state the add moved aside is given back.
+/// Why:
+///   The filling only ever adds state a build would otherwise compile, and it must never replace what a build made.
+/// A staged entry is the one case where the state it would publish is slower to make than the build itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stageTheWorktreesOwnState(destination); mkdirSync(destination); expect(fillOne(fill, staged)).toBe('kept'); expect(staging).not.toExist()
+/// ```
+#[test]
+fn a_build_that_got_there_first_keeps_its_own_and_the_staged_state_is_given_back() {
+    let root: PathBuf = fixture("prewarm-staged-taken");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    let git_directory: PathBuf = root.join("git-directory");
+    let Staged::Staged(staged_in) = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the state is moved aside") else {
+        panic!("the state is moved aside");
+    };
+    let staging: PathBuf = staged_in.clone();
+    // A build got there first, in the second between the add's rename and this filling.
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the build's own directory");
+    std::fs::write(entry.to.join("debug/built"), b"the build's own artifact\n").expect("the build's file");
+    let working: PrewarmEntry = PrewarmEntry { staged_in: Some(staged_in), from: None, ..entry.clone() };
+    let filled: Filled = super::fill_one_in_a_control(&fill_of_nowhere(), &working).expect("a directory a build made is kept");
+    assert_eq!(filled, Filled::Kept);
+    assert!(entry.to.join("debug/built").is_file(), "the build keeps what it made");
+    assert!(!staging.exists(), "the staged state is given back");
+    remove(root.as_path());
+}
+
+/// What:
+///  A staging name another writer holds is never renamed over or removed,
+/// and the worktree says so instead of leaving state a build would trust wrongly.
+/// Why:
+///   The names are the job's by convention, and only this job's own marker proves what stands there is its own;
+/// anything else is somebody's work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(staging); expect(stageTheWorktreesOwnState(destination)).toThrow(); expect(existsSync(destination)).toBe(true)
+/// ```
+#[test]
+fn a_staging_name_another_writer_holds_is_never_renamed_over() {
+    let root: PathBuf = fixture("prewarm-staged-taken-name");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    let git_directory: PathBuf = root.join("git-directory");
+    let staging: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(staging.as_path()).expect("somebody else\'s directory at the staging name");
+    let refused: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
+    assert!(refused.is_err(), "a name this wrapper did not take is refused: {refused:?}");
+    assert!(entry.to.join("debug").is_dir(), "the copied state stays where it is");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose build directory is not there has nothing to move aside.
+/// Why:
+///   The plan asks this before it says the state is staged, and a worktree that never had one must not be sent to the
+/// service for a clean of nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stageTheWorktreesOwnState(missing)).toBe('nothing')
+/// ```
+#[test]
+fn a_worktree_with_no_build_state_has_nothing_to_move_aside() {
+    let root: PathBuf = fixture("prewarm-nothing-to-stage");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    let git_directory: PathBuf = root.join("git-directory");
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("nothing is nothing");
+    assert_eq!(staged, Staged::Nothing);
+    assert!(!staging_of(entry.to.as_path()).exists(), "and no staging directory is made");
+    assert!(!git_directory.join("info/exclude").exists(), "and no exclude file is written for a worktree with nothing to stage");
     remove(root.as_path());
 }
 
@@ -121,8 +276,8 @@ fn a_build_directory_beside_a_folder_that_is_not_there_yet_is_still_filled() {
     // The two characters Cargo's own layout puts above the hash.
     entry.to = root.join("worktree-build/6f/0123456789abcd");
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     let Err(reason) = filled else { panic!("a clean that cannot run is reported: {filled:?}") };
     assert!(reason.starts_with("the copy of"), "the filing got as far as the clean, so the marker and the staging copy were made: {reason}");
@@ -261,7 +416,7 @@ fn the_filling_publishes_a_clean_copy_and_leaves_the_source_alone() {
             .expect("cargo runs");
         assert!(built.status.success(), "the fixture builds with CARGO_INCREMENTAL={incremental}: {}", String::from_utf8_lossy(built.stderr.as_slice()));
         let destination_build: PathBuf = root.join("worktree-build");
-        let entry: PrewarmEntry = PrewarmEntry { root: workspace.clone(), from: source_build.clone(), to: destination_build.clone(), members: vec![String::from(MEMBER)] };
+        let entry: PrewarmEntry = PrewarmEntry { root: workspace.clone(), from: Some(source_build.clone()), to: destination_build.clone(), members: vec![String::from(MEMBER)], staged_in: None };
         let item: WorkItem = crate::package_repair_prewarm::item_of(root.as_path(), workspace.as_path(), std::slice::from_ref(&entry)).expect("the record");
         let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting(&item)).expect("the filling runs");
         assert_eq!(verdict, Verdict::Done, "the filling published the copy (CARGO_INCREMENTAL={incremental})");
@@ -303,7 +458,7 @@ fn built_workspace(root: &Path) -> PrewarmEntry {
     let built: std::process::Output = std::process::Command::new(cargo)
         .args(["build", "--offline", "--quiet"])
         .current_dir(entry.root.as_path())
-        .env(BUILD_DIRECTORY_VARIABLE, entry.from.as_os_str())
+        .env(BUILD_DIRECTORY_VARIABLE, entry.from.as_ref().expect("the source's build directory").as_os_str())
         .env(TARGET_DIRECTORY_VARIABLE, root.join("source-target").as_os_str())
         .output()
         .expect("cargo runs");
@@ -439,8 +594,8 @@ fn a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it(
         let root: PathBuf = fixture(format!("prewarm-person-lock-{state}").as_str());
         let entry: PrewarmEntry = entry_of(root.as_path());
         std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-        std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-        std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+        std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+        std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
         let lock: PathBuf = entry.root.join(LOCK_FILE);
         if state == "stale" {
             std::fs::write(lock.as_path(), b"# a lock that no longer matches its manifest\n").expect("the checked-out lock");
@@ -472,8 +627,8 @@ fn a_lock_that_is_current_costs_no_resolution_and_is_never_written() {
     let root: PathBuf = fixture("prewarm-lock-current");
     let entry: PrewarmEntry = entry_of(root.as_path());
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let lock: PathBuf = entry.root.join(LOCK_FILE);
     std::fs::write(lock.as_path(), THE_RESOLUTIONS_LOCK.as_bytes()).expect("a lock the clean agrees with");
     let record: PathBuf = root.join("cargo-record");
@@ -518,8 +673,8 @@ fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed()
         let root: PathBuf = fixture(format!("prewarm-stranger-{stranger}").as_str());
         let entry: PrewarmEntry = entry_of(root.as_path());
         std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-        std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-        std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+        std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+        std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
         let staged: PathBuf = staging_of(entry.to.as_path());
         std::fs::create_dir_all(staged.join("keep-me")).expect("a directory this filling did not make");
         std::fs::write(staged.join("keep-me/a-file"), b"someone's work").expect("the file");
@@ -549,8 +704,8 @@ fn a_published_filling_leaves_no_target_directory_of_its_own() {
     let root: PathBuf = fixture("prewarm-target-given-back");
     let entry: PrewarmEntry = entry_of(root.as_path());
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     // A clean that makes the target directory it is given, as a real Cargo does.
     let program: PathBuf = root.join("cargo-that-cleans");
     crate::test_support::executable(
@@ -587,8 +742,8 @@ fn a_build_directory_below_directories_that_do_not_exist_yet_is_filled() {
     // The shape Cargo resolves an external build directory to, and the source's own build directory beside it.
     let entry: PrewarmEntry = PrewarmEntry { to: root.join("cargo-build/8d/0e503e8832e433"), ..named };
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     std::fs::create_dir_all(root.join("cargo-build")).expect("the root the person's configuration names");
     assert!(!entry.to.parent().expect("the destination has a directory").exists(), "the destination's own directory is not there before the filling");
     let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
@@ -626,7 +781,7 @@ fn the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_wor
     let destination_build: PathBuf = root.join("worktree-build");
     // A build got there first, so nothing is cloned or cleaned and only the lookup is under test.
     std::fs::create_dir_all(destination_build.as_path()).expect("a build directory a build made");
-    let entry: PrewarmEntry = PrewarmEntry { root: nested.clone(), from: root.join("source-build"), to: destination_build, members: vec![String::from(MEMBER)] };
+    let entry: PrewarmEntry = PrewarmEntry { root: nested.clone(), from: Some(root.join("source-build")), to: destination_build, members: vec![String::from(MEMBER)], staged_in: None };
     let item: WorkItem = item_for(root.as_path(), worktree.as_path(), &entry);
     let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting_with(&item, &an_environment_with_no_programs())).expect("the filling runs");
     assert_eq!(verdict, Verdict::Done, "the worktree's own Cargo link is found from the worktree root");
@@ -665,8 +820,8 @@ fn named_pipe_at(path: &Path) {
 fn an_entry_with_a_source_build(root: &Path) -> PrewarmEntry {
     let entry: PrewarmEntry = entry_of(root);
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     return entry;
 }
 
