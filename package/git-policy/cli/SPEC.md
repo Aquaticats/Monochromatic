@@ -12334,11 +12334,35 @@ a directory that mixes shared and per-worktree entries becomes a private directo
 whose shared entries are linked individually.
 `lfs`,
 where `git-lfs` keeps its objects and logs,
-is linked whether the repository holds it or not:
-the creation makes it first when it is absent,
-because a clean filter of the commit writes its object there,
+is linked whether the repository holds it or not,
+and the creation makes a directory there only when the name is absent:
+a clean filter of the commit writes its object there,
 and a filter that finds nothing to write into leaves the object in the private tree,
-which is released with that tree.
+which is released with that tree,
+while a link that reaches nothing makes the filter fail,
+and the commit with it.
+The store is made after its link,
+so a store another command removes during the creation is made again rather than left as a name nothing reaches.
+What the repository holds at that name is the person's, in every form,
+and the creation never replaces,
+moves or deletes it:
+a directory,
+an empty one,
+one without `objects` or `tmp`,
+a symbolic link to one store several clones share,
+a symbolic link whose target is not mounted,
+a regular file,
+a symbolic link to a file,
+a directory this account cannot write or cannot read,
+and a directory on another filesystem are each linked exactly as they stand,
+so a wrapped commit runs with the layout real Git's commit runs with.
+Where the name cannot be made (an unwritable Git directory)
+the creation leaves the link and no commit fails for it:
+a filter that needs the store reports what it cannot write,
+which is where real Git's commit fails too.
+`git-lfs` 3.8.1 keeps that store in the common Git directory,
+and its `LfsStorageDir` in a linked worktree is the common one as well,
+so a linked worktree's shadows link the store the main worktree's commits write into.
 The shadow has no `index`;
 `GIT_INDEX_FILE` names the private commit index.
 
@@ -12447,6 +12471,13 @@ from this invocation's own capture.
   (`git-lfs`'s clean filter writes its object into `<git-dir>/lfs`).
   The check follows each link it accepts once,
   so a member filled while `lfs` or `rr-cache` was there and claimed after it went is removed rather than trusted.
+  A worktree whose store name reaches nothing is one no member is trusted for:
+  every member's store link reaches nothing,
+  the check refuses each one,
+  and every commit makes its own creation,
+  which links that same name.
+  Nothing about it fails a commit;
+  the pool simply helps such a worktree not at all.
   A member that fails the check is removed and the next one is tried,
   and a pool with none left leaves the commit making its creation.
 - A refusal is the wrapper's own cache being repaired,

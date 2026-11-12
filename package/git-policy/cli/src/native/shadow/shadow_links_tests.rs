@@ -656,3 +656,49 @@ fn a_store_the_account_cannot_make_does_not_fail_the_creation() {
     );
     remove(root.as_path());
 }
+/// What:
+///  The creation's step that makes the store:
+///  a link that reaches nothing is made to reach a directory,
+/// and a name that already holds one is left exactly as it is.
+/// Why:
+///  The creation links the store before it makes it,
+/// so the moment a removal can land in is the one before that step:
+/// a store another command removed after the shadow's link was made leaves the commit's filter a name it cannot
+/// write through,
+///  and `git-lfs`'s clean filter then fails the commit (`fatal: <path>: clean filter 'lfs' failed`),
+///  where real Git's own filter makes the directory and the commit lands.
+///  A store that is there is the person's,
+/// so the step makes one only when the name is absent.
+#[cfg(unix)]
+#[test]
+fn the_store_step_makes_a_link_that_reaches_nothing_reach_the_store() {
+    use std::os::unix::fs::MetadataExt;
+    let root: PathBuf = fixture("shadow-links-store-step");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    // The link a creation makes while the repository has no store: what a removal leaves behind it.
+    std::os::unix::fs::symlink(common.join(LFS_STORE_ENTRY_NAME), shadow.join(LFS_STORE_ENTRY_NAME))
+        .expect("the link a creation makes");
+    assert!(
+        std::fs::metadata(shadow.join(LFS_STORE_ENTRY_NAME)).is_err(),
+        "the link reaches nothing, which is the state a store removed after the link leaves"
+    );
+    make_the_store_a_filter_writes_into(common.as_path());
+    let made: std::fs::Metadata = std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).expect("the step made the store");
+    assert!(made.is_dir(), "the step makes a directory at the store's name");
+    assert!(
+        shadow.join(LFS_STORE_ENTRY_NAME).metadata().is_ok_and(|metadata| { return metadata.is_dir(); }),
+        "and the link the creation made reaches it, which is what the commit's filter writes through"
+    );
+    // A store that is there is not made again: only an absent name is the creation's to make.
+    let inode: u64 = made.ino();
+    make_the_store_a_filter_writes_into(common.as_path());
+    assert_eq!(
+        std::fs::metadata(common.join(LFS_STORE_ENTRY_NAME)).expect("the store is still there").ino(),
+        inode,
+        "a store the repository holds is left as it is"
+    );
+    remove(root.as_path());
+}
