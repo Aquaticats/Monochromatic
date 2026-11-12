@@ -4,7 +4,8 @@
 //!  no worker and turns into a sentence rather than a guess,
 //! and the repair runs inside a task where the synchronous face is refused.
 
-use super::{exclude_with_note, exclude_with_note_awaiting};
+use super::super::exclude_with_note;
+use super::{exclude_with_note_awaiting, exclude_with_note_within};
 use crate::owed_index_update::Owed;
 use crate::service_land_start::{IndexWitness, witness_of};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
@@ -375,7 +376,7 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_stops_the_commit() {
         let captured: IndexWitness = witness_of(index.as_path()).expect("the live index is witnessed");
         async move {
             let mut note: Option<String> = None;
-            return super::exclude_with_note_within(SHORT_CEILING, &context, repo.as_path(), git_dir.as_path(), index.as_path(), Some(copy.as_path()), Some(copy.as_path()), &captured, &mut note)
+            return exclude_with_note_within(SHORT_CEILING, &context, repo.as_path(), git_dir.as_path(), index.as_path(), Some(copy.as_path()), Some(copy.as_path()), &captured, &mut note)
                 .await;
         }
     };
