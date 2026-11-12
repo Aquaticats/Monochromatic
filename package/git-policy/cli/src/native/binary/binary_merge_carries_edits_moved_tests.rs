@@ -90,15 +90,28 @@ fn an_edit_survives_a_commit_that_lands_while_the_carry_runs() {
     remove_settled(&fixture);
 }
 
-/// The interleaving the audit reported:
-/// a second wrapped merge lands on the branch while the first merge carries,
-/// both commands exit 0,
-/// the
-///  second agent's commit and line survive,
-/// and the person's earlier unsaved line is merged onto that new head
-///  rather than dropped.
+/// What:
+///  A second wrapped merge that arrives while the first merge carries its person's work:
+///  it waits for the install that holds the worktree,
+///  lands on what that install left,
+///  and the person's earlier line is merged onto the new head rather than dropped.
+/// Why:
+///  One merge installs in a worktree at a time (`SPEC.md`,
+///  "One install in a worktree at a time"):
+/// the interleaving the audit reported,
+///  two installs beside each other,
+///  left an index the merge commit did not explain.
+/// A second merge is not refused for it:
+/// it waits, and what it
+///  merges into is the branch as the first merge left it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paused = pausedAt('merge-applied'); const second = spawn(merge('agent')); paused.release();
+/// expect(second.code).toBe(0); expect(read('a.txt')).toContain('the person line'); expect(records()).toBe('');
+/// ```
 #[test]
-fn an_edit_survives_a_second_merge_that_lands_while_the_carry_runs() {
+fn an_edit_survives_a_second_merge_that_arrives_while_the_carry_runs() {
     let fixture: Fixture = fixture("carry-live-second-merge");
     let repo: PathBuf = diverged(&fixture, "repo");
     // The branch a second agent merged while the first merge carries: it appends a line to the very same file.
@@ -108,20 +121,33 @@ fn an_edit_survives_a_second_merge_that_lands_while_the_carry_runs() {
     git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", on_main_a())).expect("the person's unsaved line");
     let paused: Paused = paused_at(&fixture, repo.as_path(), "merge-applied");
-    let second: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "agent"]), b"");
-    assert_eq!(second.code, Some(0), "the second merge lands while the first carries: {}", said(&second));
-    let landed: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut second: std::process::Child = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "agent"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the second merge starts");
+    std::thread::sleep(std::time::Duration::from_secs(2));
     let output: Output = paused.released("merge-applied");
     let words: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert_eq!(output.status.code(), Some(0), "the first merge exits 0: {words}");
-    assert_the_later_commit_stands(&fixture, repo.as_path(), landed.as_str(), "a second merge landing during the carry");
+    let second_out: Output = second.wait_with_output().expect("the second merge ends");
+    let second_words: String = String::from_utf8_lossy(second_out.stderr.as_slice()).into_owned();
+    assert_eq!(second_out.status.code(), Some(0), "the second merge ends 0 after the install it waited for: {second_words}");
+    assert!(
+        second_words.contains("still waiting for the merge that is installing its result in this worktree") || second_words.contains("Already up to date"),
+        "the second merge says what it waited for or that it had nothing to do: {second_words}"
+    );
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
-    assert!(after.contains(AGENT_LINE), "the second agent's line stands in the file: {after:?}");
+    assert!(after.contains(AGENT_LINE), "the second agent's line is in the file: {after:?}");
     assert!(after.contains(PERSON_LINE), "the person's earlier line is merged onto the new head: {after:?}");
     assert!(after.contains(FEATURE_THIRD), "the first merge's line is in the file too: {after:?}");
     let head: String = git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]);
     assert!(head.contains(AGENT_LINE), "the new head holds the second agent's line: {head:?}");
+    assert!(head.contains(FEATURE_THIRD), "the new head holds the first merge's line: {head:?}");
     assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the person's line is still unsaved: {words}");
+    assert_eq!(records(repo.as_path()), "", "no merge record is left");
+    assert_eq!(side_refs(&fixture, repo.as_path()), "", "no side ref is left");
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "no MERGE_HEAD is left");
     remove_settled(&fixture);
 }
 
