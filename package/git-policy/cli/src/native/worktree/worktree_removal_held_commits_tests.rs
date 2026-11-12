@@ -8,7 +8,7 @@
 
 use super::keep_held_commits;
 use crate::held_commit_record::{Held, write};
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref_only_if_free;
+use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
 use crate::test_support::{fixture, git, git_text, remove};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -290,7 +290,7 @@ fn a_side_reference_another_command_wrote_is_never_replaced() {
     let elsewhere: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
     let name: String = the_kept_name(SEQ);
     git(repo.as_path(), &["update-ref", name.as_str(), elsewhere.as_str()]);
-    let refused: Option<String> = keep_on_a_side_ref_only_if_free(&context(git_dir.as_path()), git_dir.as_path(), name.as_str(), held_commit.as_str());
+    let refused: Option<String> = keep_on_a_side_ref(&context(git_dir.as_path()), git_dir.as_path(), name.as_str(), held_commit.as_str());
     assert!(refused.is_some(), "a name that is taken is not written");
     assert!(refused.as_deref().unwrap_or_default().contains("cannot lock ref"), "Git's own words say why: {refused:?}");
     assert_eq!(git_text(repo.as_path(), &["rev-parse", name.as_str()]).trim(), elsewhere, "the commit the name already held stays named");

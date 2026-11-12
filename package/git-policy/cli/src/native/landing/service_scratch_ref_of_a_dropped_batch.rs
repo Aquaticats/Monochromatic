@@ -37,7 +37,7 @@ use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_a
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::CommitRequest;
-use crate::transaction_git::{GitContext, GitRequest, NO_REFLOG_SETTING, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::wait_ceilings::LANDING_STATE_CEILING;
 use std::path::{Path, PathBuf};
@@ -125,23 +125,33 @@ pub(crate) enum ScratchRefRemoval {
     Left,
 }
 
-/// What Git said about a reference.
+/// What Git said about a reference,
+/// read as the reference's own value.
 /// Why:
 ///   A reference that is not there,
-/// a reference that names an object and a question Git gave no answer to are three
+/// a reference that names an object,
+/// a reference whose own value is the name of another reference and a question Git gave no answer to are four
 ///  different answers,
-/// and removing a reference on the third would be removing it on no answer.
+/// and removing a reference on any of the last two would be removing it on no proof.
 /// The restart that keeps a batch's commit asks the same question about the kept reference,
 /// so it never replaces a commit another batch was kept under.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RefValue = { names: string } | 'absent' | 'unasked'
+/// type RefValue = { names: string } | { symbolic: string } | 'absent' | 'unasked'
 /// ```
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum RefValue {
     /// The reference names this object.
     Names(String),
+    /// The reference is symbolic: its own value is the name of this other reference,
+    /// never an object.
+    /// Why:
+    ///   A reference the wrapper writes is written with `--no-deref`,
+    ///  so a symbolic reference at such a name was made by another command,
+    ///  and the object it leads to is held by that other reference,
+    ///  which its owner can move.
+    Symbolic(String),
     /// Git said for certain that the reference is not there.
     Absent,
     /// Git gave no answer.
@@ -149,7 +159,86 @@ pub(crate) enum RefValue {
 }
 
 /// What:
+///  Whether `name` is a symbolic reference,
+/// and what it leads to when it is.
+/// Why:
+///  A symbolic reference names another reference, not an object,
+///  and every reference the wrapper asks about is one it writes with `--no-deref`:
+///  its own value is the only value that says what this command put there,
+///  and what the target names can change without this reference moving
+///  (the owner's rule "never discard user data":
+///  a commit that only the target names is one the command that moves that target takes with it).
+///  A read that followed the symbolic reference answered a refused write as written
+///  (a review of the side-reference write of the landing).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ASymbolicReference = { pointsAt: string } | 'not-symbolic' | 'unasked'
+/// ```
+enum ASymbolicReference {
+    /// The reference is symbolic and leads to this reference.
+    PointsAt(String),
+    /// The reference is not symbolic, so its own value is an object name.
+    NotSymbolic,
+    /// Git gave no answer.
+    Unasked,
+}
+
+/// What:
+///  The question that says whether `name` is a symbolic reference.
+/// Why:
+///  `symbolic-ref` reads the reference itself,
+/// so it answers with the reference's own value where `rev-parse` answers with the object its target names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = { cwd: repository, arguments: ['symbolic-ref', '--quiet', name] };
+/// ```
+fn symbolic_request(repository: &Path, name: &str) -> GitRequest {
+    return GitRequest::new(repository, &["symbolic-ref", "--quiet", name]);
+}
+
+/// What:
+///  What Git's answer to `symbolic_request` says about the reference.
+/// Why:
+///   `--quiet` makes a name that is not a symbolic reference exit 1 with nothing on either stream,
+///  whether it is a direct reference or no reference at all;
+/// every other answer (a lock,
+/// a broken reference file,
+/// a store Git cannot open) is no answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function symbolicAnsweredBy(answered: GitOutput | Error): ASymbolicReference;
+/// ```
+fn symbolic_answered_by(answered: std::io::Result<GitOutput>) -> ASymbolicReference {
+    let Ok(output) = answered else {
+        return ASymbolicReference::Unasked;
+    };
+    if output.succeeded() {
+        return ASymbolicReference::PointsAt(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    }
+    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() { ASymbolicReference::NotSymbolic } else { ASymbolicReference::Unasked };
+}
+
+fn symbolic_reference(git: &GitContext, repository: &Path, name: &str) -> ASymbolicReference {
+    return symbolic_answered_by(run_git(git, &symbolic_request(repository, name)));
+}
+
+/// What:
+///  `symbolic_reference` with its Git child awaited on the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function symbolicReferenceAwaiting(git, repository, name): Promise<ASymbolicReference>;
+/// ```
+async fn symbolic_reference_awaiting(git: &GitContext, repository: &Path, name: &str) -> ASymbolicReference {
+    return symbolic_answered_by(run_git_awaiting(git, &symbolic_request(repository, name)).await);
+}
+
+/// What:
 ///  The value of a reference,
+/// its own value,
 /// as Git reports it now.
 /// Why:
 ///   `--quiet` makes a missing reference exit 1 with nothing on the standard error;
@@ -158,13 +247,20 @@ pub(crate) enum RefValue {
 ///  mount,
 /// a store Git cannot open,
 /// a reference file it cannot read) is no answer.
+///  A symbolic reference is asked about first,
+/// because `rev-parse` follows one and answers what its target names
+/// (`ASymbolicReference`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function valueOf(git, repository, name) { const asked = await git(['rev-parse', '--verify', '--quiet', name]); return asked.code === 0 ? { names: asked.out.trim() } : asked.code === 1 && !asked.err ? 'absent' : 'unasked'; }
+/// async function valueOf(git, repository, name) { const symbolic = await git(['symbolic-ref', '--quiet', name]); if (symbolic.code === 0) return { symbolic: symbolic.out.trim() }; if (symbolic.code !== 1 || symbolic.err) return 'unasked'; const asked = await git(['rev-parse', '--verify', '--quiet', name]); return asked.code === 0 ? { names: asked.out.trim() } : asked.code === 1 && !asked.err ? 'absent' : 'unasked'; }
 /// ```
 pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefValue {
-    return value_answered_by(run_git(git, &value_request(repository, name)));
+    return match symbolic_reference(git, repository, name) {
+        ASymbolicReference::PointsAt(target) => RefValue::Symbolic(target),
+        ASymbolicReference::Unasked => RefValue::Unasked,
+        ASymbolicReference::NotSymbolic => value_answered_by(run_git(git, &value_request(repository, name))),
+    };
 }
 
 /// `value_of` with its Git child awaited on the runtime.
@@ -174,7 +270,11 @@ pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefVa
 /// async function valueOfAwaiting(git, repository, name): Promise<RefValue>;
 /// ```
 pub(crate) async fn value_of_awaiting(git: &GitContext, repository: &Path, name: &str) -> RefValue {
-    return value_answered_by(run_git_awaiting(git, &value_request(repository, name)).await);
+    return match symbolic_reference_awaiting(git, repository, name).await {
+        ASymbolicReference::PointsAt(target) => RefValue::Symbolic(target),
+        ASymbolicReference::Unasked => RefValue::Unasked,
+        ASymbolicReference::NotSymbolic => value_answered_by(run_git_awaiting(git, &value_request(repository, name)).await),
+    };
 }
 
 /// What:
@@ -203,7 +303,7 @@ fn value_request(repository: &Path, name: &str) -> GitRequest {
 /// ```ts
 /// function valueAnsweredBy(answered: GitOutput | Error): RefValue;
 /// ```
-fn value_answered_by(answered: std::io::Result<crate::transaction_git::GitOutput>) -> RefValue {
+fn value_answered_by(answered: std::io::Result<GitOutput>) -> RefValue {
     let Ok(output) = answered else {
         return RefValue::Unasked;
     };
@@ -250,7 +350,7 @@ async fn write_ref_awaiting(git: &GitContext, repository: &Path, arguments: &[&s
 /// ```ts
 /// function gitTookIt(answered: GitOutput | Error): boolean;
 /// ```
-fn git_took_it(answered: std::io::Result<crate::transaction_git::GitOutput>) -> bool {
+fn git_took_it(answered: std::io::Result<GitOutput>) -> bool {
     return matches!(answered, Ok(output) if output.succeeded());
 }
 
@@ -299,6 +399,12 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
         RefValue::Names(found) => found,
         // No scratch reference at all: the landing made no objects, or its branch write removed it.
         RefValue::Absent => return ScratchRefRemoval::Removed,
+        // A symbolic reference is not one of the wrapper's writes, so what it holds is not proven to be the batch's commit: nothing
+        //  is removed on it (`RefValue::Symbolic`).
+        RefValue::Symbolic(target) => {
+            left(seq, format!("{scratch} is a symbolic reference to {target}, not a reference of the wrapper's own, so nothing is removed").as_str());
+            return ScratchRefRemoval::Left;
+        }
         RefValue::Unasked => {
             left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
             return ScratchRefRemoval::Left;
@@ -311,12 +417,20 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
             left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
+        // The commit is held by the reference this one leads to, which its owner can move: the batch's commit is not proven to be
+        //  safe elsewhere, so the scratch reference stays.
+        RefValue::Symbolic(target) => {
+            left(seq, format!("{kept} is a symbolic reference to {target} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
+            return ScratchRefRemoval::Left;
+        }
         RefValue::Unasked => {
             left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
-            if !write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]) {
+            // The empty old value asks Git for a write of a name that names nothing: a reference another command writes between this
+            //  read and the write is never replaced (`keep_on_a_side_ref`, the owner's rule "never discard user data").
+            if !write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str(), ""]) {
                 left(
                     seq,
                     format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),
@@ -360,6 +474,12 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
         RefValue::Names(found) => found,
         // No scratch reference at all: the landing made no objects, or its branch write removed it.
         RefValue::Absent => return ScratchRefRemoval::Removed,
+        // A symbolic reference is not one of the wrapper's writes, so what it holds is not proven to be the batch's commit: nothing
+        //  is removed on it (`RefValue::Symbolic`).
+        RefValue::Symbolic(target) => {
+            left(seq, format!("{scratch} is a symbolic reference to {target}, not a reference of the wrapper's own, so nothing is removed").as_str());
+            return ScratchRefRemoval::Left;
+        }
         RefValue::Unasked => {
             left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
             return ScratchRefRemoval::Left;
@@ -372,12 +492,20 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
             left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
+        // The commit is held by the reference this one leads to, which its owner can move: the batch's commit is not proven to be
+        //  safe elsewhere, so the scratch reference stays.
+        RefValue::Symbolic(target) => {
+            left(seq, format!("{kept} is a symbolic reference to {target} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
+            return ScratchRefRemoval::Left;
+        }
         RefValue::Unasked => {
             left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
-            if !write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]).await {
+            // The empty old value asks Git for a write of a name that names nothing: a reference another command writes between this
+            //  read and the write is never replaced (`keep_on_a_side_ref`, the owner's rule "never discard user data").
+            if !write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str(), ""]).await {
                 left(
                     seq,
                     format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),

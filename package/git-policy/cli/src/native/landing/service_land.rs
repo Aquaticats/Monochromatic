@@ -152,6 +152,10 @@ pub fn land_batch_timed(
     if result == Err(FailureCode::StepTooSlow) {
         crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(landing, announce, requests, seq);
     }
+    // A batch whose own side reference did not keep the commit Git built is answered as not made, and the commit is on no branch: it is
+    //  kept where a commit that did not land is kept, and the person is told where, because a commit no reference names is one
+    //  `git gc --prune=now` takes (`keep_what_a_side_reference_write_left`).
+    crate::service_land_git_steps_and_import_stream::keep_what_a_side_reference_write_left(landing, announce, requests, seq);
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
     //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
     //  removes the branch itself (`service_scratch_ref_of_a_dropped_batch.rs`). One that wrote its intent leaves it to the restart.

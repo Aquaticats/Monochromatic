@@ -20,7 +20,7 @@ use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};
 use std::path::{Path, PathBuf};
-use crate::service_land_git_steps_and_import_stream::{ASideRefWrite, commits_from_marks, import_stream, keep_on_the_scratch_reference, run};
+use crate::service_land_git_steps_and_import_stream::{ASideRefWrite, commits_from_marks, import_stream, keep_on_the_scratch_reference, remember_the_tip_a_side_reference_does_not_hold, run};
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
 
 /// What:
@@ -102,15 +102,28 @@ pub(crate) fn objects_of_batch(
         //  with the person's index and worktree as they were, so the answer that it was not made is true of anything they can reach.
         //  A step a stop ended is the landing's own ending, and it keeps its code so that the commit is kept beside it
         //  (`service_land.rs`, `keep_what_an_ended_step_built`).
+        // The batch's own reference not naming the commit leaves the commit on no branch and no reference: the landing keeps it on the
+        //  reference a commit that did not land is kept on and names that to the person, because `git gc --prune=now` takes an object
+        //  nothing names (the owner's rule "never discard user data", `keep_what_a_side_reference_write_left`).
         record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
         return match keep_on_the_scratch_reference(git, repository, scratch, built) {
             ASideRefWrite::Written => Ok((vec![built.to_string()], built.to_string())),
             ASideRefWrite::Refused(words) => {
                 crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");
+                remember_the_tip_a_side_reference_does_not_hold(built, format!("Git refused the write of {scratch} ({words})"));
+                Err(FailureCode::Unavailable)
+            }
+            ASideRefWrite::LeftRunning => {
+                crate::service_error!("batch {seq}: the write of {scratch} was left running, so whether it names the commit Git built is not known");
+                remember_the_tip_a_side_reference_does_not_hold(
+                    built,
+                    format!("this command stopped waiting for the write of {scratch}, so whether that reference names it is not known"),
+                );
                 Err(FailureCode::Unavailable)
             }
             ASideRefWrite::Ended(code) => {
                 crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch}, because the write of it was ended ({code:?})");
+                remember_the_tip_a_side_reference_does_not_hold(built, format!("the write of {scratch} was ended ({code:?})"));
                 Err(code)
             }
         };

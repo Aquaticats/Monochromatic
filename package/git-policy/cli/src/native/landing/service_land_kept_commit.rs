@@ -28,7 +28,7 @@
 //! ```
 
 use crate::service_journal::Intent;
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
+use crate::service_land_git_steps_and_import_stream::keep_the_batches_commit;
 use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, value_of};
 use crate::transaction_git::GitContext;
 
@@ -64,12 +64,19 @@ pub(crate) fn keep_what_the_branch_does_not_show(git: &GitContext, intent: &Inte
             intent.seq,
             intent.new
         ),
+        // A symbolic reference is not one of the wrapper's writes, and the command that moves the reference it leads to takes this
+        //  commit with it: nothing is proven kept here, so the commit is left where the landing put it.
+        RefValue::Symbolic(target) => crate::service_error!(
+            "batch {} is not on its branch, and {kept} is a symbolic reference to {target}, so its commit {} is not kept there and is left where the landing put it",
+            intent.seq,
+            intent.new
+        ),
         RefValue::Unasked => crate::service_error!(
             "batch {} is not on its branch, and {kept} cannot be read, so its commit {} is left where the landing put it",
             intent.seq,
             intent.new
         ),
-        RefValue::Absent => match keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
+        RefValue::Absent => match keep_the_batches_commit(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
             None => crate::service_log!("batch {} is not on its branch, so its commit {} is kept at {kept}", intent.seq, intent.new),
             Some(words) => crate::service_error!(
                 "batch {} is not on its branch, and its commit {} could not be kept at {kept} ({words}), so the commit is left where the landing put it",

@@ -53,7 +53,7 @@
 
 use crate::held_commit_record::{Held, list};
 use crate::held_commit_words::{locks_named, removal};
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref_only_if_free;
+use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
 use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, rescue_ref, value_of};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -161,7 +161,7 @@ enum Keeping {
 ///  and it must not be replaced when it already names another commit:
 ///  that would forget the commit it was made for.
 ///  A create-only write answers the same question for a name another command writes at the same moment
-///  (`keep_on_a_side_ref_only_if_free`).
+///  (`keep_on_a_side_ref`).
 ///  The write that failed is read again before the name beside it is tried,
 ///  so a reference another command had just written for this same commit is not written twice.
 ///  The question is asked in `common_dir`,
@@ -180,14 +180,14 @@ fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
         return if named == held.new { Keeping::Nothing } else { Keeping::Kept(words_of_a_kept_name_taken(held, name.as_str(), named.as_str())) };
     }
     let rescue: String = rescue_ref(held.seq);
-    let Some(words) = keep_on_a_side_ref_only_if_free(git, common_dir, name.as_str(), held.new.as_str()) else {
+    let Some(words) = keep_on_a_side_ref(git, common_dir, name.as_str(), held.new.as_str()) else {
         return Keeping::Kept(words_of_a_commit_kept(held, name.as_str()));
     };
     // The write failed, but another command may have written this very commit between the question and it.
     if let RefValue::Names(named) = value_of(git, common_dir, name.as_str()) {
         return if named == held.new { Keeping::Nothing } else { Keeping::Kept(words_of_a_kept_name_taken(held, name.as_str(), named.as_str())) };
     }
-    let Some(also_refused) = keep_on_a_side_ref_only_if_free(git, common_dir, rescue.as_str(), held.new.as_str()) else {
+    let Some(also_refused) = keep_on_a_side_ref(git, common_dir, rescue.as_str(), held.new.as_str()) else {
         return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), words.as_str()));
     };
     return Keeping::Refused(words_of_a_commit_nothing_keeps(held, name.as_str(), words.as_str(), rescue.as_str(), also_refused.as_str()));
