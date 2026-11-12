@@ -17,6 +17,8 @@
 //! ```
 
 use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::subvolume_index::walk_entries;
+use crate::subvolume_sha::{sha1, sha256};
 use crate::test_support::{age, git, git_output};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_identity::WorktreeIdentity;
@@ -144,4 +146,39 @@ pub(crate) fn hide_an_edit(repo: &Path, relative: &str, original: &[u8], edited:
         }
     }
     return false;
+}
+
+/// What:
+///  The index `index` as a Git built without nanosecond support writes it:
+/// every entry's change and modification
+///  nanoseconds zero,
+/// and the checksum recomputed over the new bytes.
+/// Why:
+///   Zero is how such a Git records a time it cannot express,
+/// and the comparison of recorded stat data reads zero
+///  as "any value",
+/// so a whole entry set loses the only field that could prove which bytes a file holds.
+/// A control that
+///  needs that proof has to write this view of an index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// asAGitWithoutNanosecondsWroteIt(readFileSync(index), 20); // the counts zero, the checksum over the new bytes
+/// ```
+pub(crate) fn as_a_git_without_nanoseconds_wrote_it(index: &[u8], hash_length: usize) -> Vec<u8> {
+    let Some((entries, _end)) = walk_entries(index, hash_length) else { panic!("the fixture's index has a layout the walk knows") };
+    let Some(checksum_at) = index.len().checked_sub(hash_length) else { panic!("the fixture's index is longer than its checksum") };
+    let mut zeroed: Vec<u8> = index.to_vec();
+    for entry in &entries {
+        zeroed[entry.start + 4..entry.start + 8].fill(0);
+        zeroed[entry.start + 12..entry.start + 16].fill(0);
+    }
+    if hash_length == 32 {
+        let digest: [u8; 32] = sha256(&zeroed[..checksum_at]);
+        zeroed[checksum_at..].copy_from_slice(&digest);
+    } else {
+        let digest: [u8; 20] = sha1(&zeroed[..checksum_at]);
+        zeroed[checksum_at..].copy_from_slice(&digest);
+    }
+    return zeroed;
 }

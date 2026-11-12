@@ -40,6 +40,10 @@ pub mod repository_facts_staged_selection;
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_ignored_files;
 
+/// The listed paths whose only content is the index,
+///  read beside the provider so its interface file stays within its line bound.
+pub mod repository_facts_index_only_paths;
+
 /// The worktree entries that stand where one guarded form writes,
 ///  whatever Git's status calls them.
 pub mod repository_facts_paths_in_the_way;

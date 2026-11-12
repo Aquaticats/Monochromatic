@@ -146,6 +146,14 @@ struct RegisteredPath {
 /// a
 ///  `worktrees` directory that cannot be listed leaves the list unknown,
 /// which is an error.
+/// A record is read the way the target's own records are read:
+/// without following a link,
+/// up to the bytes Git writes,
+/// and without waiting for a writer,
+/// so a `gitdir` that is a named pipe is skipped as one Git would skip
+/// instead of holding the removal inside `open(2)` for ever
+/// (`SPEC.md`,
+/// "Every wait has a bound").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,7 +173,11 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Registere
             Ok(listed) => listed,
             Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", worktrees.display())),
         };
-        let Ok(text) = std::fs::read(entry.path().join("gitdir")) else { continue };
+        // A registration Git would skip is skipped here too: one whose record is missing, unreadable, no regular file Git writes,
+        //  or larger than a record. A named pipe at the name would wait inside `open(2)` for a writer that may never come.
+        let Ok(text) = crate::worktree_registration_proof::read_record_here(entry.path().join("gitdir").as_path(), "a registration's back-link") else {
+            continue;
+        };
         let trimmed: &[u8] = text.trim_ascii_end();
         if trimmed.is_empty() {
             continue;

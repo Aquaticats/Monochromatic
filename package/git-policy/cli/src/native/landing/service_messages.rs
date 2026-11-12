@@ -30,7 +30,7 @@ use std::time::Duration;
 /// because the rendering of every failure is at its line bound,
 /// and the call sites read them from here.
 pub use crate::service_messages_of_a_wait_for_the_service::{
-    SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice, rebuild_notice, restarting_notice, starting_notice, unplaced_notice,
+    STARTING_NOTICE, UPDATING_NOTICE, position_notice, rebuild_notice, restarting_notice, silent_notice, starting_notice, unplaced_notice,
 };
 /// The sentences about what the service last said it waited for are read by the failures below and by the two of an interrupt.
 pub(crate) use crate::service_messages_of_a_wait_for_the_service::{it_had_said, waiting_for};
