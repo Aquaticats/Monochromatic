@@ -50,6 +50,14 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
         Verdict::Done => {
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
+        Verdict::Delivered { said, .. } => {
+            // Only a push answers this, and a push is settled by `settle_after_the_push`, which records what it said before
+            //  the item moves. A kind that answers in words reaches this only if a handler is given a push's verdict shape,
+            //  which this module cannot make: the words are said rather than dropped, and the item is settled as done, because
+            //  nothing here may fail a person's work over the shape of an answer.
+            crate::service_warn!("a step that answers in words answered as a push did, and its words are said here: {said}");
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
+        }
         Verdict::Failed(reason) => {
             say_it_failed(kind, &item, reason.as_str());
             return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;

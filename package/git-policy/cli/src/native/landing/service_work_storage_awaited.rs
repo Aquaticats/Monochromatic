@@ -37,7 +37,7 @@
 
 use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_once_awaited_no_longer_than};
 use crate::claim_time::ClaimTime;
-use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
+use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_report, record_push_skip};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_handlers_replanning_and_acceptance::{
     MAX_TRIES, SkipNotice, is_acceptable, settle_all, still_held,
@@ -275,6 +275,10 @@ pub(crate) async fn clear_push_failures_before_awaiting(git_dir: &Path, branch_r
 /// Why:
 ///   The record is a file written into the repository's directory,
 /// which can wait on storage like any other write.
+/// A refusal is answered with the words it refused, in the journal:
+/// a caller leaves the work unsettled so that a later try says it again,
+/// and a journal is what a
+///  person reading the log has until then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -285,7 +289,8 @@ pub(crate) async fn record_push_failure_awaiting(git_dir: &Path, branch_ref: &st
     let branch: String = String::from(branch_ref);
     let oid: String = String::from(commit);
     let words: String = String::from(said);
-    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that did not land", "none was written", move || {
+    let for_the_journal: String = crate::push_failure_notice::clean_words(said);
+    let refusal: Result<(), String> = match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that did not land", "none was written", move || {
         return record_push_failure(directory.as_path(), branch.as_str(), oid.as_str(), outcome, words.as_str());
     })
     .await
@@ -294,6 +299,48 @@ pub(crate) async fn record_push_failure_awaiting(git_dir: &Path, branch_ref: &st
         Ok(answer) => answer,
         Err(refusal) => Err(refusal),
     };
+    if let Err(reason) = &refusal {
+        crate::service_error!("the push of {commit} did not land, and what Git said could not be recorded for the person: {reason}. What it said:\n{for_the_journal}");
+    }
+    return refusal;
+}
+
+/// What:
+///  Leave the person a record of what a push that landed said,
+/// with every line the push chose to show.
+/// Why:
+///   The record is a file written into the repository's directory,
+/// which can wait on storage like any other write,
+/// and it is the only copy of what the server and the reconcile said:
+/// nothing makes an accepted push say it again.
+///  A refusal is said in the journal with the words it refused,
+/// and the caller keeps the item out of `done`, because nothing makes an accepted push say them again
+/// (`service_work_settling_a_verdict.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordPushReportAwaiting(gitDir, branch, commit, said)
+/// ```
+pub(crate) async fn record_push_report_awaiting(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+    let directory: PathBuf = git_dir.to_path_buf();
+    let branch: String = String::from(branch_ref);
+    let oid: String = String::from(commit);
+    let words: String = String::from(said);
+    // What the refusal says, for a person who can read the journal: the words are the only copy of what a server said about a push
+    //  the remote accepted, and a notice this storage refused is the one place they would have been kept.
+    let for_the_journal: String = crate::push_failure_notice::clean_words(said);
+    let refusal: Result<(), String> = match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of what a push that landed said", "none was written", move || {
+        return record_push_report(directory.as_path(), branch.as_str(), oid.as_str(), words.as_str());
+    })
+    .await
+    {
+        Ok(answer) => answer,
+        Err(refusal) => Err(refusal),
+    };
+    if let Err(reason) = &refusal {
+        crate::service_error!("the push of {commit} landed, but what it said could not be recorded for the person: {reason}. What it said:\n{for_the_journal}");
+    }
+    return refusal;
 }
 
 /// What:
@@ -301,7 +348,9 @@ pub(crate) async fn record_push_failure_awaiting(git_dir: &Path, branch_ref: &st
 /// with the words the push gave.
 /// Why:
 ///   The record is a file,
-/// as for a failed push.
+/// as for a failed push,
+/// and a refusal is answered with the words it refused in the journal,
+/// because the caller leaves the work unsettled and a later try says it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -312,7 +361,8 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
     let branch: String = String::from(branch_ref);
     let oid: String = String::from(commit);
     let words: String = String::from(said);
-    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that was skipped", "none was written", move || {
+    let for_the_journal: String = crate::push_failure_notice::clean_words(said);
+    let refusal: Result<(), String> = match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that was skipped", "none was written", move || {
         return record_push_skip(directory.as_path(), branch.as_str(), oid.as_str(), words.as_str());
     })
     .await
@@ -320,6 +370,10 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
         Ok(answer) => answer,
         Err(refusal) => Err(refusal),
     };
+    if let Err(reason) = &refusal {
+        crate::service_error!("the push of {commit} was skipped, and why could not be recorded for the person: {reason}. What the service said:\n{for_the_journal}");
+    }
+    return refusal;
 }
 
 /// What:

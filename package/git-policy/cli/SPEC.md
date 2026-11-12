@@ -7708,6 +7708,39 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
+  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  and never the newest work record the round claimed:
+  a commit that lands after that claim is what the push sends,
+  so a record named for the claimed commit would replace an unread account of that commit with words about another one and
+  label them as its,
+  and nothing makes the replaced account say itself again.
+  A record replaces an earlier record of the same commit in one rename,
+  so a kill in that write leaves one of the two accounts rather than none.
+  A push the retry plan makes leaves the same record as a push of a round,
+  by the same words and under the same name.
+  A record the storage refuses is said in the service journal with every line the push chose to show,
+  and the work record is settled as failed rather than done,
+  because a push settled as done with no record tells the person nothing and leaves nothing that could be told later.
+  The account of a push that landed keeps every line,
+  because nothing makes such a push say it again;
+  the display cap of a notice stays on a push that did not finish,
+  which a later try says the same thing about.
+- A record that could not be written never leaves its work items settled as if it existed:
+  the words it would have carried go to the service journal, every line of them,
+  and what the items become follows what a later try can say.
+  A push that landed,
+  whose account the storage refused,
+  is settled failed:
+  its words cannot be said again,
+  and a record settled as done would leave the person nothing and nothing that could be said later.
+  A refusal or a skip whose record could not be written leaves the claims to their lease,
+  so the service asks the server again,
+  and the next try records what it says then;
+  settling it would end the work with its reason said to nobody.
+  A push a retry plan carries may settle either way,
+  because the plan says the same words on its next try.
+  A notice replaces the notice of its commit in one rename,
+  so a kill in that write leaves one of the two records rather than none.
 - The reconcile is one loop,
   and it is awaited
   (`integrate_and_push_awaiting` in `src/native/push/auto_push_reconcile_awaiting.rs`);
@@ -8166,6 +8199,13 @@ in-process reader can) gives every value of the multi-valued keys.
   a stopped or unfinished push says only that it did not finish and that the remote may or may
   not have taken the commit,
   and the retry is what settles it.
+- The plan of a branch whose last try a server refused is removed only after that refusal is recorded,
+  and a record the storage refused leaves the plan,
+  planned again after a pause,
+  because the plan is the only durable record that the branch waits for a person:
+  a plan removed before its refusal is written would leave neither the plan nor the notice,
+  nothing would try the branch again,
+  and the refusal would be said to nobody.
 
 ### Manual push
 

@@ -33,8 +33,8 @@ use crate::service_work_handlers_replanning_and_acceptance::{
     keep_plans_while_unreachable, planned_retry, work_directory,
 };
 use crate::service_work_storage_awaited::{
-    clear_push_failures_before_awaiting, instance_of_awaiting, next_claim_expiry_awaiting, record_push_failure_awaiting, record_push_skip_awaiting,
-    requeue_expired_awaiting,
+    clear_push_failures_before_awaiting, instance_of_awaiting, next_claim_expiry_awaiting, record_push_failure_awaiting, record_push_report_awaiting,
+    record_push_skip_awaiting, requeue_expired_awaiting,
 };
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
@@ -240,6 +240,23 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     began.elapsed().as_millis()
                 );
             }
+            Verdict::Delivered { commit: sent, said } => {
+                // This push landed on the branch's retry plan, so its account is a record the next command shows exactly as the
+                //  round's own push leaves one: without it a server's line about a push the service made after a failure would
+                //  reach nobody, and nothing makes an accepted push say it again. The step itself says in the journal what it could
+                //  not record, with the words.
+                if !said.is_empty() {
+                    let _recorded: bool = record_push_report_awaiting(git_dir, branch, sent.as_str(), said.as_str()).await.is_ok();
+                }
+                clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
+                replanning.forget(git_dir, branch);
+                crate::service_log!(
+                    "the push of {branch:?} {} landed on try {} push_ms={}",
+                    crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
+                    due.attempt + 1,
+                    began.elapsed().as_millis()
+                );
+            }
             Verdict::Retry(text) => {
                 // What:
                 //  A push the service has given every try it gives a protected-branch refusal is reported as failed,
@@ -260,9 +277,17 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                         due.attempt + 1,
                         cause_line(text.as_str()).unwrap_or_default()
                     );
-                    replanning.forget(git_dir, branch);
-                    if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await {
-                        crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                    // The plan is the only durable record that this push is waiting for the person, so it goes only once the refusal
+                    //  is written: a kill between the two would otherwise leave neither the plan nor the notice, nothing would try the
+                    //  branch again, and the server's refusal would be said to nobody. A refusal the storage refused stays in the plan
+                    //  for a later look, which asks the server again and says the same thing.
+                    let recorded: bool = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await.is_ok();
+                    if recorded {
+                        replanning.forget(git_dir, branch);
+                    } else if let Some(first) = replanning.first {
+                        // The refusal could not be written, so the plan stays: its next look asks the server again and says the same
+                        //  thing. It is planned again so that the look comes after a pause and not at once.
+                        let _planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, said.as_str());
                     }
                     continue;
                 }

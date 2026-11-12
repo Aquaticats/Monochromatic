@@ -325,7 +325,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 if let Some(newest) = members.last() {
                     // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
                     let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
-                        Verdict::Done => (Priority::Info, "done", ""),
+                        Verdict::Done | Verdict::Delivered { .. } => (Priority::Info, "done", ""),
                         Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
                         Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
                         Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
@@ -380,6 +380,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 let upkeep_began: Instant = Instant::now();
                 match handlers.maintenance_awaiting(&item.item).await {
                     Verdict::Failed(reason) | Verdict::Retry(reason) => crate::service_warn!("automatic maintenance did not run: {reason}"),
+                    // Only a push answers `Delivered`, and the upkeep of this kind keeps no record; what it said would be a line about
+                    //  work that was not a push, so it is said in the journal beside the line that the upkeep ran.
+                    Verdict::Delivered { said, .. } => crate::service_log!(
+                        "automatic maintenance ran maintenance_ms={} and said: {said}",
+                        upkeep_began.elapsed().as_millis()
+                    ),
                     Verdict::Done | Verdict::Skipped(_) => crate::service_log!("automatic maintenance ran maintenance_ms={}", upkeep_began.elapsed().as_millis()),
                 };
             }

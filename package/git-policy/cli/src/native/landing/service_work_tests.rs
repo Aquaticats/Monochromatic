@@ -493,21 +493,27 @@ fn a_silent_skip_keeps_an_earlier_failure_and_adds_no_notice() {
     remove(repo.root.as_path());
 }
 
-/// A skip whose notice cannot be written does not settle as done:
-/// the item stays in `failed`,
-/// where the missing notice can be
-///  found,
-/// instead of the person never hearing of it.
+/// What:
+///  A skip whose notice cannot be written is not settled either way:
+///  its claim is left to its lease.
+/// Why:
+///  Nothing scans the `failed` records,
+/// so settling as failed would end the work with its reason said to nobody;
+/// a settled `done` would say the person was told.
+/// The claim is what makes the next look work the skip out again and record it then,
+/// and the words the failed write refused are in the journal.
 #[test]
-fn a_skip_whose_notice_cannot_be_written_settles_as_failed() {
+fn a_skip_whose_notice_cannot_be_written_leaves_its_item_to_its_lease() {
     let repo: Repo = repo("work-skip-unrecorded");
     let skipped: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&skipped));
     // A file where the notice directory must be makes writing any notice fail.
     std::fs::write(repo.common.join("monochromatic-git-policy-cli").join("notices"), "in the way").expect("blocker");
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::from("monochromatic-git-policy-cli: nothing to push to."))), &ClaimTime::read());
-    assert_eq!(names(&repo, FAILED), vec![skipped.id()]);
-    assert!(names(&repo, DONE).is_empty());
+    assert!(names(&repo, DONE).is_empty(), "a skip nothing recorded is settled as done");
+    assert!(names(&repo, FAILED).is_empty(), "a skip nothing recorded is settled as failed, and nothing tries it again");
+    let claimed: Vec<String> = names(&repo, CLAIMED);
+    assert!(claimed.iter().any(|name| { return name.contains(skipped.id().as_str()); }), "no claim is left, so nothing works the skip out again: {claimed:?}");
     remove(repo.root.as_path());
 }
 
