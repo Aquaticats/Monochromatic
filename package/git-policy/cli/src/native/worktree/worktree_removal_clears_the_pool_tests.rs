@@ -45,6 +45,29 @@ fn the_pool_of_a_worktree_that_is_gone_is_removed() {
     remove(fixture.root.as_path());
 }
 
+/// What:
+///  A pool folder that is a link is not removed through,
+///  so a removal takes nothing of the tree the link names.
+/// Why:
+///   A removal renames the tree it finds at the pool's path out of that name and deletes it,
+/// so a link there would delete whatever tree it names,
+/// and the tree is not the wrapper's to remove.
+#[test]
+fn a_pool_folder_that_is_a_link_is_not_removed_through() {
+    let fixture: Fixture = fixture_with_a_pooled_worktree("removal-pool-linked-folder");
+    let folder: PathBuf = fixture.pool.parent().expect("the pool folder").to_path_buf();
+    std::fs::remove_dir_all(folder.as_path()).expect("the pool folder goes first");
+    // A tree a process that is not the wrapper made, at the name the removal looks for.
+    let elsewhere: PathBuf = fixture.root.join("elsewhere");
+    let outside: PathBuf = elsewhere.join(fixture.pool.file_name().expect("the pool's own name"));
+    std::fs::create_dir_all(outside.join("kept").as_path()).expect("a tree that is not a pool");
+    std::os::unix::fs::symlink(elsewhere.as_path(), folder.as_path()).expect("the pool folder is a link");
+    std::fs::remove_dir_all(fixture.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
+    assert!(outside.join("kept").is_dir(), "the removal takes nothing of the tree the link names");
+    remove(fixture.root.as_path());
+}
+
 /// A worktree that is still registered keeps its pool,
 /// so a removal Git refused loses nothing the worktree would have taken.
 #[test]

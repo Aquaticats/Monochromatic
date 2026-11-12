@@ -46,6 +46,52 @@ fn a_creation_is_what_a_member_must_be() {
     remove(root.as_path());
 }
 
+/// A link at a member's name is refused,
+/// because a creation makes the directory it made and a claim relies on that directory,
+/// never on whichever directory a link there names.
+/// Why:
+///   Reading the member follows a link,
+/// so a link here would be judged as the tree it names,
+/// and the commit's own writes would land in that tree:
+///  they are gone when the tree's owner claims it,
+/// and a commit whose writes fail is a commit real Git would have completed.
+#[test]
+fn a_member_that_is_a_link_to_another_member_is_refused() {
+    let root: PathBuf = fixture("shadow-pool-member-link");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let member: PathBuf = creation(root.as_path(), &template, "created");
+    assert_eq!(refusal(&template, member.as_path()).expect("checked"), None, "a creation is a member");
+    let link: PathBuf = root.join("member-link");
+    std::os::unix::fs::symlink(member.as_path(), link.as_path()).expect("a link at a member's name");
+    assert_eq!(
+        refusal(&template, link.as_path()).expect("checked"),
+        Some(String::from("it is not the directory a creation makes")),
+        "a link to a member is not the directory a creation made"
+    );
+    remove(root.as_path());
+}
+
+/// A link at a name the creation makes itself is refused,
+/// because a creation writes a file or makes a directory there and never a link,
+/// and a write through a link reaches the file it names,
+/// which here is the repository's own `HEAD`.
+#[test]
+fn a_link_at_a_name_the_creation_makes_is_refused() {
+    let root: PathBuf = fixture("shadow-pool-member-own-link");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    std::fs::remove_file(shadow.join("HEAD").as_path()).expect("the HEAD a creation wrote");
+    std::os::unix::fs::symlink(repo.join(".git").join("HEAD").as_path(), shadow.join("HEAD").as_path()).expect("a link where the creation writes HEAD");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("it holds HEAD as a link, which this invocation's creation does not make")),
+        "a link at HEAD is not the file a creation writes"
+    );
+    remove(root.as_path());
+}
+
 /// A per-worktree configuration that differs from the one a creation would copy is refused,
 /// byte for byte:
 /// two files whose bytes differ in a way that decodes to the same text are still two configurations,
