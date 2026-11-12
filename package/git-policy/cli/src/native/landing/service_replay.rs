@@ -50,7 +50,11 @@ use crate::replay_subsumption::{SubsumptionBase, subsume_landed_changes};
 use crate::service_messages::NOTHING_CHANGED;
 use crate::service_prepare_ready_shapes::Ready;
 use crate::service_protocol::LandedCapture;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
+use crate::wait_ceilings::COMMIT_OWN_STATE_CEILING;
+use std::time::Duration;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -254,9 +258,54 @@ fn capture_of(ready: &Ready, landed: Vec<LandedCapture>, tree: String) -> Captur
 ///
 /// `TransactionStop::Message` when the commit cannot be read.
 pub fn tree_of_commit(context: &GitContext, cwd: &Path, commit: &str) -> Result<String, TransactionStop> {
+    let read = run_git_checked(context, &tree_of_commit_request(cwd, commit))?;
+    return Ok(tree_of(read.stdout.as_slice()));
+}
+
+/// `tree_of_commit` with its Git child awaited on the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await treeOfCommitAwaiting(context, cwd, commit)
+/// ```
+///
+/// # Errors
+///
+/// `TransactionStop::Message` when the commit cannot be read.
+pub async fn tree_of_commit_awaiting(context: &GitContext, cwd: &Path, commit: &str) -> Result<String, TransactionStop> {
+    let read = run_git_checked_awaiting(context, &tree_of_commit_request(cwd, commit)).await?;
+    return Ok(tree_of(read.stdout.as_slice()));
+}
+
+/// What:
+///  The question `tree_of_commit` asks Git:
+///  the tree of the commit `commit`.
+/// Why:
+///  Both faces ask the one question,
+/// so neither reads another commit's tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = { cwd, arguments: ['rev-parse', '--verify', `${commit}^{tree}`] };
+/// ```
+fn tree_of_commit_request(cwd: &Path, commit: &str) -> GitRequest {
     let spec: String = format!("{commit}^{{tree}}");
-    let read = run_git_checked(context, &GitRequest::new(cwd, &["rev-parse", "--verify", spec.as_str()]))?;
-    return Ok(String::from_utf8_lossy(read.stdout.as_slice()).trim().to_string());
+    return GitRequest::new(cwd, &["rev-parse", "--verify", spec.as_str()]);
+}
+
+/// What:
+///  The tree Git's answer to `tree_of_commit_request` names,
+/// with the line break removed.
+/// Why:
+///  Both faces read the name through this one function,
+/// so the two cannot answer different trees for one commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = (stdout) => stdout.toString().trim();
+/// ```
+fn tree_of(stdout: &[u8]) -> String {
+    return String::from_utf8_lossy(stdout).trim().to_string();
 }
 
 /// What:
@@ -278,10 +327,7 @@ pub fn tree_of_commit(context: &GitContext, cwd: &Path, commit: &str) -> Result<
 /// await capturedTree(context, cwd, commitIndex, objectDirectory)
 /// ```
 pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, object_directory: &Path) -> Result<String, TransactionStop> {
-    let present: bool = match std::fs::symlink_metadata(commit_index) {
-        Ok(metadata) => metadata.is_file(),
-        Err(_) => false,
-    };
+    let present: bool = matches!(std::fs::symlink_metadata(commit_index), Ok(metadata) if metadata.is_file());
     if !present {
         return Err(failed(format!(
             "The change this commit captured cannot be read back: the private index of the attempt that captured it, {}, is not there, \
@@ -290,6 +336,103 @@ pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, obje
         )));
     }
     let written = run_git_checked(context, &indexed_request(context, cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
+    return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
+}
+
+/// The private index one look names,
+/// owned so that a job of the blocking pool can take it.
+struct CapturedIndex {
+    /// The private index file of the attempt that captured the change.
+    path: PathBuf,
+}
+
+/// What one look at a private index answered.
+enum CapturedIndexLook {
+    /// The file is there,
+    /// so the change it holds can be written out.
+    Present,
+    /// Nothing is there.
+    Absent,
+    /// The look gave no answer in time.
+    NoAnswer,
+}
+
+/// The look one job of the pool does:
+/// whether the private index of the attempt is a file.
+fn captured_index_is_there(work: CapturedIndex) -> bool {
+    return matches!(std::fs::symlink_metadata(work.path.as_path()), Ok(metadata) if metadata.is_file());
+}
+
+/// What:
+///  Whether the private index of the attempt that captured the change is there,
+/// as a job of the blocking pool awaited no
+///  longer than `ceiling`.
+/// Why:
+///   A task of the runtime may not wait on a filesystem,
+/// and this look waits in the kernel on a mount that stopped answering.
+///  The three answers are kept apart:
+/// a file that is there,
+/// one that is not,
+/// and a look that gave nothing in time,
+/// so
+///  no answer is never read as "the index is gone".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function capturedIndexLookWithin(ceilingMs, index): Promise<'present' | 'absent' | 'no answer'>;
+/// ```
+async fn captured_index_look_within(ceiling: Duration, index: &Path) -> CapturedIndexLook {
+    let work: CapturedIndex = CapturedIndex { path: index.to_path_buf() };
+    return match run_a_job_awaited_no_longer_than(ceiling, work, captured_index_is_there).await {
+        TheAnswerOfAJobAwaited::Ran(true) => CapturedIndexLook::Present,
+        TheAnswerOfAJobAwaited::Ran(false) => CapturedIndexLook::Absent,
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => CapturedIndexLook::NoAnswer,
+    };
+}
+
+/// What:
+///  `captured_tree` with its look at the private index a job of the blocking pool awaited no longer than
+///  `COMMIT_OWN_STATE_CEILING`,
+///  and its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime may neither wait on a filesystem nor enter the runtime to wait for a child,
+/// and a replay
+///  that is a task reads the change its preparation captured through this face.
+/// A look that gave nothing in time is told
+///  apart from an index that is gone,
+/// and the commit stops either way,
+/// because a write-tree over an index nothing saw would
+///  rebuild the commit as a deletion of every file and report a conflict naming paths it never touched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await capturedTreeAwaiting(context, cwd, commitIndex, objectDirectory)
+/// ```
+///
+/// # Errors
+///
+/// `TransactionStop::Message` when the private index is not there or cannot be looked at,
+/// and when the write-tree
+///  fails.
+pub async fn captured_tree_awaiting(context: &GitContext, cwd: &Path, commit_index: &Path, object_directory: &Path) -> Result<String, TransactionStop> {
+    match captured_index_look_within(COMMIT_OWN_STATE_CEILING, commit_index).await {
+        CapturedIndexLook::Present => {}
+        CapturedIndexLook::Absent => {
+            return Err(failed(format!(
+                "The change this commit captured cannot be read back: the private index of the attempt that captured it, {}, is not there, \
+                 so this commit was not made. Run the commit again. {NOTHING_CHANGED}",
+                commit_index.display()
+            )));
+        }
+        CapturedIndexLook::NoAnswer => {
+            return Err(failed(format!(
+                "The change this commit captured cannot be read back: the private index of the attempt that captured it, {}, could not be \
+                 looked at in time, so this commit was not made. Run the commit again. {NOTHING_CHANGED}",
+                commit_index.display()
+            )));
+        }
+    }
+    let written = run_git_checked_awaiting(context, &indexed_request(context, cwd, &["write-tree"], Some(commit_index), Some(object_directory))).await?;
     return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
 }
 
