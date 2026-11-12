@@ -114,6 +114,12 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
     }
     let work_dir: PathBuf = work_directory(git_dir);
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+    // A whole-worktree removal a service of an earlier release failed is a record nothing reads again, and a machine that
+    // ran that release may never run another command: the round a release's own service makes puts it back in the queue,
+    // exactly as the command path does (`requeue_removals_an_earlier_release_refused`).
+    for line in crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(git_dir) {
+        crate::service_log!("{line}");
+    }
     // The notice is written before the item moves to `failed`: nothing scans `failed`, so the order is the only thing that
     //  keeps a kill in between from abandoning the branch in silence.
     requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
@@ -182,6 +188,11 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
         return Drained::default();
     }
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+    // The removals of this repository live in its common directory's queue, which this instance drains for a bare
+    //  repository, so a failed one is put back here too (`requeue_removals_an_earlier_release_refused`).
+    for line in crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(common.as_path()) {
+        crate::service_log!("{line}");
+    }
     requeue_expired_awaiting(work_directory(common.as_path()).as_path(), common.as_path(), now, lease).await;
     let housekeeping_wait: Option<Duration> =
         drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;

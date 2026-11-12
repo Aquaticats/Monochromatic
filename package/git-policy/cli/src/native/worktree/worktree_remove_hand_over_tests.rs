@@ -683,6 +683,44 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
 }
 
 /// What:
+///  A process that starts working in the handed-over worktree after the hand-over keeps it,
+///  and the files it is working on stay.
+/// Why:
+///  The sweep read the process table before the record was written,
+///  and the service's own reading is the only one that covers a process which started afterwards.
+///  That is the ordinary shape of the loss:
+///  a person starts a build or a shell in the worktree in the seconds while the merge returns,
+///  and Git's own removal deletes the working folder under it
+///  (a cross-vendor audit of the release changeover,
+///  finding 1).
+#[test]
+fn the_service_keeps_a_worktree_a_process_started_working_in_after_the_hand_over() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-process");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let bound: PathBuf = linked.worktree.join("bound.txt");
+    std::fs::write(bound.as_path(), b"what the process is building\n").expect("a file the process works on");
+    // The process the sweep could not have seen: it starts after the record was written and stays inside the worktree.
+    let mut working: std::process::Child = std::process::Command::new("sleep")
+        .arg("120")
+        .current_dir(linked.worktree.as_path())
+        .spawn()
+        .expect("a process whose working folder is the handed-over worktree");
+    let verdict: Verdict = delete_subvolume_of(&item);
+    let _ended = working.kill();
+    let _waited = working.wait();
+    assert!(
+        matches!(&verdict, Verdict::Failed(words) if words.contains("is working in it")),
+        "the worktree a process is working in stays, and the reason names the process: {verdict:?}"
+    );
+    assert_eq!(std::fs::read(bound.as_path()).expect("the file the process works on is still there"), b"what the process is building\n");
+    assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
+    let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
+    assert_eq!(texts.len(), 1, "the person is told once: {texts:?}");
+    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
+    remove(linked.root.as_path());
+}
+
+/// What:
 ///  An ignored file written into the handed-over worktree after the hand-over keeps it,
 ///  and the person reads which file.
 /// Why:
@@ -888,6 +926,112 @@ fn put_a_record(common: &Path, state: &str, item: &WorkItem) {
     let directory: PathBuf = work_of(common).join(state);
     crate::private_storage::create_private_directory_all(directory.as_path()).expect("the state directory");
     std::fs::write(directory.join(item.id()).as_path(), item.encode().as_bytes()).expect("the record");
+}
+
+/// What:
+///  A removal a service round performs inside the runtime its rounds run on removes the worktree,
+///  and the record ends `done`.
+/// Why:
+///  A round is a task of the process's runtime,
+///  and the Git a removal starts is a step the wrapper waits for through that runtime,
+///  which refuses a call made from inside itself.
+///  The handler the service used for a whole-worktree removal ran the synchronous removal on the round's own thread,
+///  so every removal answered that refusal,
+///  the second look read it as ignored files nothing could vouch for,
+///  and the service kept every worktree it was ever handed
+///  (a probe of this branch found it, and it was fixed with no control).
+///  The round is the whole path: the record is pending, the round claims it, and the worktree goes.
+#[test]
+fn a_service_round_removes_the_worktree_it_was_handed_inside_the_runtime() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-inside-the-runtime");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
+    let _wait: Option<std::time::Duration> = crate::service_work::drain(linked.common.as_path(), &handlers, &crate::claim_time::ClaimTime::read());
+    let done: PathBuf = work_of(linked.common.as_path()).join("done").join(item.id());
+    assert!(done.is_file(), "the record ends done: {:?}", std::fs::read_dir(work_of(linked.common.as_path())).map(|found| return found.flatten().map(|entry| return entry.file_name()).collect::<Vec<_>>()));
+    assert!(!linked.worktree.exists(), "the worktree the round was handed is gone");
+    remove(linked.root.as_path());
+}
+
+
+/// What:
+///  A removal this release handed over, that a service of an earlier release failed, is queued again and this release's
+///  service performs it.
+/// Why:
+///  This is the changeover a machine really makes:
+///  it runs the installed release,
+///  its merge hands a removal over with the identity and the compared-with worktree beside the registration,
+///  the service of the release before that one reads the record's digest as a subvolume number and fails it,
+///  and the release is replaced.
+///  Nothing reads `failed` again,
+///  so without a second attempt the landed worktree would stand there for ever with no word about it,
+///  and the person would have to remove it by hand
+///  (an audit of the release changeover,
+///  finding 2).
+///  The record's own identity and the worktree its ignored files were compared with are what let this release prove the
+///  worktree again, so the second attempt is a removal and not a keep.
+#[test]
+fn a_removal_this_release_handed_over_and_an_earlier_service_failed_is_removed_by_this_release() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-refused-with-its-identity");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    // The service of the release before this one claims the record and settles it in `failed`, which is what a claim does
+    // with the queue entry before it runs anything.
+    std::fs::remove_file(work_of(linked.common.as_path()).join("pending").join(item.id())).expect("the record a claim takes out of the queue");
+    put_a_record(linked.common.as_path(), "failed", &item);
+    let said: Vec<String> = requeue_removals_an_earlier_release_refused(linked.common.as_path());
+    assert_eq!(said.len(), 1, "the person is told once: {said:?}");
+    let queued: PathBuf = work_of(linked.common.as_path()).join("pending").join(item.id());
+    let again: WorkItem = WorkItem::decode(std::fs::read_to_string(queued.as_path()).expect("the queued record").as_str()).expect("a record this release reads");
+    assert_eq!(again.tries, 1, "the second attempt is marked in the record");
+    assert_eq!(delete_subvolume_of(&again), Verdict::Done, "this release proves the worktree again and removes it");
+    assert!(!linked.worktree.exists(), "the worktree the merge landed is gone");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A service round reads the removals a service of an earlier release failed and performs them,
+///  with no command of the repository in between.
+/// Why:
+///  A machine that replaces the release and starts its service again may never run another command:
+///  the round is then the only thing that can put back a record nothing would ever read.
+///  Without it the landed worktree stands for ever and the person is told nothing
+///  (an audit of the release changeover,
+///  finding 2).
+#[test]
+fn a_service_round_queues_a_removal_an_earlier_release_failed_and_performs_it() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-round-requeues");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    std::fs::remove_file(work_of(linked.common.as_path()).join("pending").join(item.id())).expect("the record a claim takes out of the queue");
+    put_a_record(linked.common.as_path(), "failed", &item);
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
+    let _wait: Option<std::time::Duration> = crate::service_work::drain(linked.common.as_path(), &handlers, &crate::claim_time::ClaimTime::read());
+    let done: PathBuf = work_of(linked.common.as_path()).join("done").join(item.id());
+    assert!(done.is_file(), "the round takes the failed record, performs the removal, and settles it done");
+    assert!(!linked.worktree.exists(), "the landed worktree is gone");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A removal this release's own service kept is not queued again.
+/// Why:
+///  A keep is a decision with a reason,
+///  and `keep_the_worktree` writes a notice the next command shows,
+///  so a record with a notice beside it is one the person has been told about.
+///  Queuing it again would re-prove a worktree this program already decided about,
+///  and a notice nobody has claimed yet must still count: the person may not have run a command since.
+#[test]
+fn a_worktree_this_release_kept_is_not_queued_again() {
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-removal-kept-and-spoken", "*.log\n");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let written: PathBuf = linked.worktree.join("person.log");
+    std::fs::write(written.as_path(), b"what the person wrote after the hand over\n").expect("an ignored file the person wrote");
+    assert!(matches!(delete_subvolume_of(&item), Verdict::Failed(_)), "the worktree is kept, with its notice");
+    // The service settles the record it claimed in `failed`, so the queue entry it took is no longer pending.
+    std::fs::remove_file(work_of(linked.common.as_path()).join("pending").join(item.id())).expect("the record a claim takes out of the queue");
+    put_a_record(linked.common.as_path(), "failed", &item);
+    assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a worktree this release kept and named is not queued again");
+    assert!(linked.worktree.is_dir(), "and it stays exactly where the person left it");
+    remove(linked.root.as_path());
 }
 
 /// What:

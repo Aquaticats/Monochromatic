@@ -730,9 +730,13 @@ fn why_this_is_another_worktree(item: &WorkItem, target: &Path, registration: &P
 ///  so a removal Git refuses again is not queued a third time by every later command.
 ///  A record that is not a worktree removal is left exactly as it is,
 ///  and so is one whose worktree is already gone,
-///  and one whose hand-over recorded the worktree's identity:
-///  the service of this release reads every record it writes,
-///  so a failure of one of those is a decision this release made and already said on the person's next command.
+///  and one this release kept and named:
+///  a kept worktree writes a notice that says why,
+///  so a record the person has already been told about is a decision and not a misunderstanding,
+///  while one with no notice beside it was settled by a service that could read neither.
+///  A record this release wrote carries the identity of its worktree beside the registration,
+///  and that is exactly the record an earlier release's service fails:
+///  it must be queued again, or a machine that ran the earlier release would never remove a landed worktree again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -752,11 +756,11 @@ pub fn requeue_removals_an_earlier_release_refused(common_dir: &Path) -> Vec<Str
         if !target.is_absolute() || !target.exists() {
             continue;
         }
-        // Only a record an earlier release wrote is a candidate: the hand-over of this release writes the identity of the
-        // worktree beside the registration, and its service reads every record it wrote, so a failure of one of its own is
-        // a decision and not a misunderstanding.
-        let Ok(registration) = registered_worktree(common_dir, target.as_path()) else { continue };
-        if identity_recorded(registration.admin.as_path()).is_some() {
+        // Only a record nothing has explained is a candidate. The hand-over of this release writes the identity of the
+        // worktree beside the registration, and that is what an earlier release's service could not read: it failed the
+        // record without looking at the worktree at all. A removal this release's own service kept writes a notice, and
+        // the person has been told why, so that record is a decision and not a misunderstanding.
+        if crate::worktree_kept_notices::a_notice_names(common_dir, target.as_path()) {
             continue;
         }
         // The record is queued with one attempt behind it, so a removal Git refuses again is not queued by every later

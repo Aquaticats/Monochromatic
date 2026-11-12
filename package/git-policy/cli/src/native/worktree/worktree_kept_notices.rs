@@ -36,7 +36,7 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
-use crate::push_failure_notice_claimed_by_one_command::{ClaimToken, claim, claimed_by_a_live_command, record_of_claim, take_over};
+use crate::push_failure_notice_claimed_by_one_command::{CLAIM_SUFFIX, ClaimToken, claim, claimed_by_a_live_command, record_of_claim, take_over};
 use crate::push_failure_notice_shown_then_removed::Notice;
 use crate::shell_quote::shell_quote;
 use std::path::{Path, PathBuf};
@@ -149,6 +149,30 @@ pub fn record_kept_worktree(common_dir: &Path, worktree: &Path, branch: &str, wh
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };
+}
+
+/// What:
+///  Whether this repository holds a notice that a removal kept `worktree`.
+/// Why:
+///   The notice is what says a removal of this worktree was a decision this program made and told the person about,
+///  so a record that carries one is not a record nothing ever looked at.
+///  Asking for the file by the name it would have costs one look,
+///  and a notice another command claimed (renamed) is one it is showing now, which is still a decision that was made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aNoticeNames(commonDir, worktree) // boolean
+/// ```
+pub(crate) fn a_notice_names(common_dir: &Path, worktree: &Path) -> bool {
+    let plain: String = record_name(worktree);
+    let Ok(listing) = std::fs::read_dir(kept_notice_directory(common_dir)) else { return false };
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name == plain || (name.starts_with(plain.as_str()) && name.ends_with(CLAIM_SUFFIX)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

@@ -1111,6 +1111,8 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
     let held: String = hold_a_commit_in_the_worktree(&landed, 7);
     let sweep: LandedSweep = land_feature(&landed);
     assert_eq!(sweep.handed_over.len(), 1, "the landed worktree waits for the commit service: {sweep:?}");
+    assert_eq!(let_the_service_finish(&sweep), vec![Verdict::Done], "the service's own removal succeeds");
+    assert!(!landed.worktree.exists(), "the worktree is gone with the service's removal");
     assert_eq!(sweep.kept_commits.len(), 1, "the person is told about the one held commit: {sweep:?}");
     let kept: String = String::from("refs/cli-git/kept/7");
     assert!(sweep.kept_commits[0].contains(kept.as_str()), "the line names where the commit is kept: {}", sweep.kept_commits[0]);
@@ -1144,7 +1146,9 @@ fn a_landed_worktree_whose_held_record_cannot_be_read_keeps_its_commit() {
     // The record another release wrote: this build cannot parse it, and its file name is the only field it can read.
     std::fs::write(record_path.as_path(), b"a record another release wrote\n").expect("a record this build cannot read");
     let sweep: LandedSweep = land_feature(&landed);
-    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed once its commit is kept: {sweep:?}");
+    assert_eq!(sweep.handed_over.len(), 1, "the landed worktree waits for the commit service once its commit is kept: {sweep:?}");
+    assert_eq!(let_the_service_finish(&sweep), vec![Verdict::Done], "the service's own removal succeeds");
+    assert!(!landed.worktree.exists(), "the worktree is gone with the service's removal");
     assert!(
         sweep.kept_commits.iter().any(|line| return line.contains(record_path.display().to_string().as_str())),
         "the person reads which record could not be read: {sweep:?}"
@@ -1465,10 +1469,14 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
         Examined::Unproven => String::from("unproven"),
     };
     assert!(
-        matches!(examined, Examined::Kept(_)),
+        matches!(examined, Examined::Kept(_) | Examined::Refused(_)),
         "a worktree that holds another worktree stays, whatever list was read before it arrived (it came to {came_to}, the proof ran: {}, and its refusal: {:?})",
         stand.proof_ran.get(),
         stand.proof_refusal.borrow()
+    );
+    assert!(
+        came_to.contains("another worktree this repository registers is inside it"),
+        "and the reason names the worktree inside it: {came_to}"
     );
     assert!(landed.worktree.exists(), "the worktree the person has is where it was");
     assert_eq!(
