@@ -426,7 +426,8 @@ const MANIFEST_TAKEN_NAME: &str = ".manifest.removing";
 /// so the object it removes is the one it examined,
 /// and a file another process moved onto the name
 ///  keeps its bytes at that name
-/// and keeps the whole directory, which is reported instead.
+/// and keeps the whole directory,
+/// which is reported instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -25,7 +25,9 @@
 //!  and the read is bounded by the caller's limit.
 //! A name the wrapper writes is one it made itself,
 //! so anything already there is another process's entry:
-//! no file, link or pipe that is already at the name is ever emptied, awaited or replaced.
+//! no write empties it,
+//! no read waits on it,
+//! and no file at it is replaced.
 //! A file a person names in a configuration is read through a link
 //!  (`read_plain_file_through_links`):
 //! the pipe is what must not be waited on there,
