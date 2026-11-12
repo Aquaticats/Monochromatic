@@ -320,6 +320,76 @@ fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::
 /// ```
 static LATE_RUNTIME: std::sync::OnceLock<Runtime> = std::sync::OnceLock::new();
 
+/// What:
+///  How many more reads of the late runtime a control makes answer as the moment before the arrival.
+/// Why:
+///  The seam of the control below:
+/// the race is a build that arrived between two reads of this cell,
+/// which is one stale answer followed by the truth,
+/// and no scheduling pressure can order that moment from outside.
+/// Nextest gives every control its own process,
+/// so the countdown cannot reach another.
+#[cfg(test)]
+static THE_ARRIVAL_IS_ONE_READ_BEHIND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// What:
+///  The runtime a build that outlasted `BUILD_DEADLINE` left for the work it was built for,
+///  once it arrived,
+///  which is how every question about a worker reads it.
+/// Why:
+///   This cell is the only state here that changes under a running process,
+/// and a caller that reads it twice can describe two different moments:
+/// "no worker yet" and then "no build coming" is a build that arrived between the two reads,
+///  and a caller that cannot do its work without a worker then gives up while one is there
+/// (the review of 2026-11-12T09:34-05:00 found that pair ending a commit service with status 4).
+/// A control reads through this function too,
+///  so it can answer as the moment before the arrival.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const late = lateRuntime(); // undefined until the build that missed its deadline arrives
+/// ```
+fn the_late_runtime() -> Option<&'static Runtime> {
+    #[cfg(test)]
+    if THE_ARRIVAL_IS_ONE_READ_BEHIND
+        .try_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |answers_left| { return answers_left.checked_sub(1); })
+        .is_ok()
+    {
+        return None;
+    }
+    return LATE_RUNTIME.get();
+}
+
+/// What:
+///  Makes the next read of the late runtime answer as the moment before the arrival.
+/// Why:
+///  The seam of the race above;
+/// the count is cleared however the control ends,
+///  a panic included.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const behind = oneReadBehind(); // lateRuntime() === undefined once, then the arrival
+/// ```
+#[cfg(test)]
+pub fn a_control_answers_one_read_of_the_late_runtime_as_the_moment_before_the_arrival() -> TheArrivalOneReadBehind {
+    THE_ARRIVAL_IS_ONE_READ_BEHIND.store(1, std::sync::atomic::Ordering::SeqCst);
+    return TheArrivalOneReadBehind;
+}
+
+/// The stand-in of `a_control_answers_one_read_of_the_late_runtime_as_the_moment_before_the_arrival`,
+/// cleared when it is dropped.
+#[cfg(test)]
+pub struct TheArrivalOneReadBehind;
+
+/// Clears the control's stand-in.
+#[cfg(test)]
+impl Drop for TheArrivalOneReadBehind {
+    fn drop(&mut self) {
+        THE_ARRIVAL_IS_ONE_READ_BEHIND.store(0, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 /// The process's runtime,
 /// built by the first call that needs it;
 /// the error is the reason no runtime could be built.
@@ -439,8 +509,8 @@ pub fn tasks_can_run() -> bool {
         return false;
     }
     return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
-        Err(_no_runtime) => LATE_RUNTIME.get().is_some(),
+        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || the_late_runtime().is_some(),
+        Err(_no_runtime) => the_late_runtime().is_some(),
     };
 }
 
@@ -505,7 +575,7 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    let late: &Runtime = LATE_RUNTIME.get()?;
+    let late: &Runtime = the_late_runtime()?;
     return Some(late.spawn(future));
 }
 
@@ -560,7 +630,7 @@ where
 /// const coming = builtFlavor()?.kind === 'late' && lateRuntime === undefined;
 /// ```
 pub fn a_build_is_still_on_its_way() -> bool {
-    return built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline) && LATE_RUNTIME.get().is_none();
+    return built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline) && the_late_runtime().is_none();
 }
 
 /// How often `await_a_worker_within` asks whether the late build arrived:
@@ -639,8 +709,8 @@ where
 /// ```
 pub fn has_workers() -> bool {
     return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
-        Err(_) => LATE_RUNTIME.get().is_some(),
+        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || the_late_runtime().is_some(),
+        Err(_) => the_late_runtime().is_some(),
     };
 }
 
@@ -648,7 +718,7 @@ pub fn has_workers() -> bool {
 /// a control of the late build reads it.
 #[cfg(test)]
 pub(crate) fn late_build_arrived() -> bool {
-    return LATE_RUNTIME.get().is_some();
+    return the_late_runtime().is_some();
 }
 
 /// What:

@@ -244,6 +244,39 @@ fn a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings() 
 }
 
 /// What:
+///  A caller that must have a worker starts the task when the build that outlasted its deadline arrives
+///  while the caller is asking whether anything is coming.
+/// Why:
+///   The review of 2026-11-12T09:34-05:00 found the caller reading the late runtime twice:
+/// a build that arrived between the two reads made the first answer "no worker yet" and the second "no build coming",
+/// and the service ended with status 4 although a worker was there.
+/// The state here is the real one, a process that serves from the stand-in of a build that missed its deadline and keeps that build,
+/// and only the moment of the first answer is the control's,
+/// so the caller is under exactly the interleaving the review described.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serveFromTheStandInAndKeepTheLateBuild(); const behind = oneReadBehind(); expect(spawnOnRuntimeWithin(200, async () => {})).not.toBeUndefined()
+/// ```
+#[test]
+fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_about_it() {
+    let stand_in: Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a stand-in runtime");
+    RUNTIME
+        .set(Ok(BuiltRuntime { runtime: stand_in, flavor: BuiltFlavor::CurrentThreadAfterDeadline }))
+        .ok()
+        .expect("this control is the first need of a runtime in its own process");
+    let arrived: Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("the runtime the late build kept");
+    LATE_RUNTIME.set(arrived).ok().expect("this control owns the late runtime of its own process");
+    let one_read_behind: TheArrivalOneReadBehind = a_control_answers_one_read_of_the_late_runtime_as_the_moment_before_the_arrival();
+    let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime_within(A_STATED_WAIT, async {});
+    drop(one_read_behind);
+    assert!(
+        started.is_some(),
+        "the build arrived, so a caller that must have a worker starts its task instead of ending for want of one"
+    );
+}
+
+/// What:
 ///  A runtime that arrives after the deadline and while the caller is in its stand-in is kept.
 /// Why:
 ///   The window between the deadline and the closing of the channel is the caller's own stand-in:
