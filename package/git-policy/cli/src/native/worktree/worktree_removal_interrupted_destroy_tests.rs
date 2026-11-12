@@ -57,7 +57,7 @@ fn btrfs_a_recorded_destroy_is_finished_when_the_snapshots_ahead_are_the_only_th
     std::fs::write(member.join("tracked.txt"), b"the worktree's own file\n").expect("its files");
     // The state a removal killed between its kernel call and the emptying of the registration leaves.
     let identity = identity_of(&std::fs::File::open(admin.as_path()).expect("the registration")).expect("its identity");
-    record_destroy(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("the record of the destroy");
+    record_destroy_with_owner(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some("1:ended")).expect("the record of the destroy");
     subvolume_destroy_at(worktree.as_path()).expect("the destroy the record names");
     record_destroyed(common_dir.as_path(), std::ffi::OsStr::new("wt"));
     let problems: Vec<String> = finish_interrupted_destroys(common_dir.as_path());
@@ -104,7 +104,7 @@ fn btrfs_a_recorded_destroy_is_finished_when_a_pool_a_killed_clear_left_is_the_o
     subvolume_create_at(member.as_path()).expect("the member a killed clear left under its taken name");
     std::fs::write(member.join("tracked.txt"), b"a copy of the worktree\n").expect("its files");
     let identity = identity_of(&std::fs::File::open(admin.as_path()).expect("the registration")).expect("its identity");
-    record_destroy(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("the record of the destroy");
+    record_destroy_with_owner(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some("1:ended")).expect("the record of the destroy");
     subvolume_destroy_at(worktree.as_path()).expect("the destroy the record names");
     record_destroyed(common_dir.as_path(), std::ffi::OsStr::new("wt"));
     let problems: Vec<String> = finish_interrupted_destroys(common_dir.as_path());
@@ -112,4 +112,95 @@ fn btrfs_a_recorded_destroy_is_finished_when_a_pool_a_killed_clear_left_is_the_o
     assert!(!admin.exists(), "the registration is gone and the path is free again");
     assert!(!left.exists(), "and the pool the killed clear left went with it");
     remove(root.as_path());
+}
+
+/// What:
+///  A repository with one worktree,
+///  the record of a destroy that returned,
+///  and the registration still standing with the worktree's own state in it.
+/// Why:
+///  The finish of a recorded destroy is about one state:
+/// the files are gone, and what the registration still holds is this program's to delete.
+/// Every control below starts there and changes one thing.
+struct Destroyed {
+    /// The fixture root, removed at the end.
+    root: PathBuf,
+    /// The common Git directory.
+    common: PathBuf,
+    /// The registration of the worktree that is gone.
+    admin: PathBuf,
+    /// The worktree's own state in that registration, which the finish empties.
+    held: PathBuf,
+}
+
+/// Build the state a removal killed between its kernel call and its registration's emptying leaves.
+fn a_registration_left_by_a_recorded_destroy(name: &str, owner: Option<&str>) -> Destroyed {
+    let root: PathBuf = crate::test_support::fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    let worktree: PathBuf = root.join("wt");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", worktree.to_str().expect("utf-8")]);
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = common.join("worktrees/wt");
+    let identity = identity_of(&std::fs::File::open(admin.as_path()).expect("the registration")).expect("its identity");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), owner).expect("the record of the intent");
+    // The destroy itself: the files go and the record says so, while the registration stays as the owner leaves it.
+    std::fs::remove_dir_all(worktree.as_path()).expect("the files the kernel call had already destroyed");
+    record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
+    // What the registration holds and the finish must delete: the wrapper's own work records of the worktree.
+    let held: PathBuf = admin.join("monochromatic-git-policy-cli/work/failed");
+    std::fs::create_dir_all(held.as_path()).expect("the work records of the worktree");
+    std::fs::write(held.join("push-4e9fe0b911bf0c457b301c5e1330c153280947cd-cfb7333dc1afd1ca"), b"{}\n").expect("a work record");
+    return Destroyed { root, common, admin, held };
+}
+
+/// What:
+///  A command that meets a removal whose owner is still emptying the registration prints nothing and changes nothing.
+/// Why:
+///  The kernel call returned, so the record is one the finish would take,
+/// but the removal that wrote it is emptying that same registration right now:
+/// two clearings of one tree race,
+/// the second listed a file the first had deleted,
+/// and it reported that as an interrupted removal that "cannot be finished",
+/// with an instruction to run `git worktree prune` about a removal finishing by itself
+///  (a coordinating note of 2026-11-12,
+/// three sightings in the installed release).
+///  The record names its owner, and a process that is shown to be alive is carrying the removal out.
+#[test]
+fn a_removal_whose_owner_is_still_emptying_the_registration_is_left_alone() {
+    let destroyed: Destroyed = a_registration_left_by_a_recorded_destroy("destroy-finished-by-its-owner", None);
+    let problems: Vec<String> = finish_interrupted_destroys(destroyed.common.as_path());
+    assert!(problems.is_empty(), "a live owner's removal is not a problem to report: {problems:?}");
+    assert!(destroyed.held.is_dir(), "the owner's own state is where the owner left it");
+    assert!(destroyed.admin.is_dir(), "and the registration is left for the owner to finish");
+    remove(destroyed.root.as_path());
+}
+
+/// What:
+///  A file another process already removed is not a step the finish reports as one it could not take.
+/// Why:
+///  A path that vanished is what a removal wants.
+///  The registration is walked after it was listed,
+/// and a record the other process deleted is gone by then:
+/// the finish counted that as "its content cannot be removed (No such file or directory)"
+/// and told the person to run `git worktree prune`
+///  (a coordinating note of 2026-11-12).
+///  The owner here is shown to be gone, so the finish is this command's work.
+#[test]
+fn a_record_another_process_already_removed_does_not_stop_the_finish() {
+    let destroyed: Destroyed = a_registration_left_by_a_recorded_destroy("destroy-record-already-gone", Some("1:ended"));
+    let gone: PathBuf = destroyed.held.join("push-4e9fe0b911bf0c457b301c5e1330c153280947cd-cfb7333dc1afd1ca");
+    let held: PathBuf = destroyed.held.clone();
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed| {
+        if listed == held.as_path() {
+            let _removed = std::fs::remove_file(gone.as_path());
+        }
+    });
+    let problems: Vec<String> = finish_interrupted_destroys(destroyed.common.as_path());
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    assert!(problems.is_empty(), "a path that is already gone is what the removal wanted: {problems:?}");
+    assert!(!destroyed.admin.exists(), "the registration is gone and the path is free again");
+    remove(destroyed.root.as_path());
 }

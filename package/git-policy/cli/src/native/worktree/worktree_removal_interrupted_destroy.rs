@@ -332,6 +332,29 @@ fn record_owner_may_be_running(owner: Option<&String>) -> bool {
 }
 
 /// What:
+///  Whether the record names a process that is shown to be the one that wrote it,
+///  and not one whose number was given to another process since.
+/// Why:
+///  A destroyed record whose owner is proven alive is a removal still emptying its registration,
+///  and this command leaves it to that owner
+///  (a coordinating note of 2026-11-12).
+///  A record with no owner is one an earlier build wrote,
+///  and an identity that cannot be read proves nothing,
+///  so both are read as abandoned: the finish is safe for them and waiting on an unproven owner would keep a registration
+///  for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shownAlive = recordOwnerIsShownToBeRunning(record.owner); // boolean
+/// ```
+fn record_owner_is_shown_to_be_running(owner: Option<&String>) -> bool {
+    let Some(spelled) = owner else { return false };
+    let Some((spelled_pid, identity)) = spelled.split_once(':') else { return false };
+    let Ok(pid) = spelled_pid.parse::<i64>() else { return false };
+    return matches!(process_birth_identity(pid), Ok(Some(now)) if now == identity);
+}
+
+/// What:
 ///  The report for a registration whose `gitdir` names a checkout other than the path the record holds,
 ///  or nothing when it names
 ///  that path.
@@ -489,9 +512,18 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
     };
     if !read.destroyed && record_owner_may_be_running(read.owner.as_ref()) {
         // Another command is removing that worktree now, and its record is what it marks when the kernel call returns, so
-        // nothing here reads, decides or forgets anything yet. A marked record is finished even while its owner lives: the
-        // call it names has returned, and the owner's own removal of the registration is what finishing completes.
+        // nothing here reads, decides or forgets anything yet.
         debug(TAG, format!("the record {} was written by a command that may still be running, so it is left alone", record.display()).as_str());
+        return;
+    }
+    if read.destroyed && record_owner_is_shown_to_be_running(read.owner.as_ref()) {
+        // The kernel call returned and the removal is emptying the registration right now. Two clearings of one tree race
+        //  each other: the second listed a file the first had already deleted, reported it as one it could not remove, and
+        //  told a person to run `git worktree prune` about a removal finishing by itself
+        //  (a coordinating note of 2026-11-12, three sightings).
+        //  A record whose owner is shown to be gone is finished below, and one whose owner lives is finished by that owner,
+        //  so nothing waits here and nothing is lost.
+        debug(TAG, format!("the record {} names a removal that is still emptying its registration, so it is left alone", record.display()).as_str());
         return;
     }
     let worktrees_path: PathBuf = common_dir.join("worktrees");

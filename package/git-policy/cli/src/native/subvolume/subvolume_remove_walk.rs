@@ -345,6 +345,12 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
                 && let (Some(name), Some(parent)) = (done.name.as_ref(), stack.last())
                 && let Err(error) = remove_at(&parent.directory, name, true)
             {
+                // A path another process already removed is what a removal wants: a live removal of the same tree deletes
+                //  below this one, and reporting its work as a step that "cannot be removed" told a person to run
+                //  `git worktree prune` about a removal finishing by itself (a coordinating note of 2026-11-12).
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    continue;
+                }
                 // A directory that was listed and emptied is not the directory the kernel was asked to remove when it is not
                 //  empty there, so the look below says what stands there now and leaves it as it is.
                 if refused_as_not_empty(&error) {
@@ -361,6 +367,12 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
         }
         if !is_directory {
             if let Err(error) = remove_at(&frame.directory, &name, false) {
+                // A file another process already removed is what a removal wants: a live removal of the same tree deletes
+                //  below this one, and its work is never a step that "cannot be removed" (a coordinating note of
+                //  2026-11-12).
+                if pass == Pass::Remove && error.kind() == std::io::ErrorKind::NotFound {
+                    continue;
+                }
                 return Err(WalkRefusal::Failed(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", path.display()))));
             }
             continue;
@@ -368,6 +380,9 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
         let opened: std::io::Result<File> = open_directory_widening(&frame.directory, &name);
         let child: File = match opened {
             Ok(child) => child,
+            // A directory another process removed between the listing and this open is gone, which is what the removal
+            //  wants.
+            Err(error) if pass == Pass::Remove && error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
                 return Err(WalkRefusal::Boundary(Boundary { path, what: A_MOUNT_POINT }));
             }
@@ -375,12 +390,22 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
                 return Err(WalkRefusal::Failed(std::io::Error::new(error.kind(), format!("{} cannot be opened without following a link ({error})", path.display()))));
             }
         };
-        let child_facts: std::fs::Metadata = child.metadata().map_err(WalkRefusal::Failed)?;
+        let child_facts: std::fs::Metadata = match child.metadata() {
+            Ok(found) => found,
+            // The directory went between the open and this reading.
+            Err(error) if pass == Pass::Remove && error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(WalkRefusal::Failed(error)),
+        };
         if child_facts.dev() != baseline && child_facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
             return Err(WalkRefusal::Boundary(Boundary { path, what: ANOTHER_FILESYSTEM }));
         }
         let _child_widened = widen_directory(&child);
-        let pending: Vec<(OsString, bool)> = list(&child, pass == Pass::Check).map_err(WalkRefusal::Failed)?;
+        let pending: Vec<(OsString, bool)> = match list(&child, pass == Pass::Check) {
+            Ok(found) => found,
+            // A directory whose entries another process already removed has nothing left for this one.
+            Err(error) if pass == Pass::Remove && error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(WalkRefusal::Failed(error)),
+        };
         #[cfg(test)]
         let just_listed: PathBuf = path.clone();
         stack.push(Frame { directory: child, name: Some(name), path, pending });
