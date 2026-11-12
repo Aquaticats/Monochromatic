@@ -62,7 +62,7 @@ pub enum Place {
 /// function placeOf(target: string, link: string, root: string): Place;
 /// ```
 pub fn place_of(target: &Path, link: &Path, root: &Path) -> Place {
-    let parent: &Path = link.parent().unwrap_or_else(|| Path::new(""));
+    let parent: &Path = link.parent().unwrap_or(Path::new(""));
     if target.is_absolute() {
         return match target.strip_prefix(root) {
             Ok(inside) => Place::Inside(normalized_path(inside)),
@@ -104,11 +104,9 @@ fn walked_from_the_root(from_root: &Path, target: &Path) -> Option<Vec<OsString>
     for component in target.components() {
         match component {
             Component::CurDir => {}
+            // A climb that would leave the root leaves the tree, which is the one answer this walk collects.
             Component::ParentDir => {
-                let climbed: Option<OsString> = parts.pop();
-                if climbed.is_none() {
-                    return None;
-                }
+                parts.pop()?;
             }
             Component::Normal(name) => parts.push(name.to_os_string()),
             Component::RootDir | Component::Prefix(_) => return None,
@@ -131,7 +129,7 @@ fn walked_from_the_root(from_root: &Path, target: &Path) -> Option<Vec<OsString>
 /// function textFromTheLinkTo(inside: string, link: string, root: string): string;
 /// ```
 fn text_from_the_link_to(inside: &Path, link: &Path, root: &Path) -> PathBuf {
-    let from_root: &Path = link.parent().unwrap_or_else(|| Path::new("")).strip_prefix(root).unwrap_or_else(|_elsewhere| Path::new(""));
+    let from_root: &Path = link.parent().unwrap_or(Path::new("")).strip_prefix(root).unwrap_or(Path::new(""));
     let mut from: Vec<Component<'_>> = from_root.components().collect();
     let mut to: Vec<Component<'_>> = inside.components().collect();
     let mut shared: usize = 0;
