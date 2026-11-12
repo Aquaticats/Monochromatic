@@ -5,6 +5,7 @@
 //! Why:
 //!  A `saved-conflict` line says where the content that vanished from a conflicted path went,
 //!  a `saved-nested-repository` line says where a repository a clean would have deleted went,
+//!  a `saved-overwritten` line says where a file or a directory a form wrote over went,
 //! and such a line is the only account of that place.
 //! A generation that
 //!  names a copy still on disk therefore outlives the bound the other generations live under (the owner's answer of
@@ -29,8 +30,13 @@ use std::path::Path;
 /// The words each line that names a saved copy carries,
 /// which no other line has:
 /// a conflicted file the command replaced,
-/// and a nested repository the command would have deleted.
-const SAVED_COPY_MARKS: [&[u8]; 2] = [b"\"outcome\":\"saved-conflict\"", b"\"outcome\":\"saved-nested-repository\""];
+/// a nested repository the command would have deleted,
+/// and a file or a directory the command would have written over.
+const SAVED_COPY_MARKS: [&[u8]; 3] = [
+    b"\"outcome\":\"saved-conflict\"",
+    b"\"outcome\":\"saved-nested-repository\"",
+    b"\"outcome\":\"saved-overwritten\"",
+];
 
 /// The characters that stand for a byte the line's writer could not show as text:
 /// a place that has one cannot be looked up.
@@ -92,7 +98,8 @@ fn line_names_a_copy(line: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a generation holds a `saved-conflict` or `saved-nested-repository` line that names a copy still on disk,
+///  Whether a generation holds a `saved-conflict`,
+///  a `saved-nested-repository` or a `saved-overwritten` line that names a copy still on disk,
 /// read in one pass over the file.
 /// Why:
 ///   Only such a line says where a copy went;

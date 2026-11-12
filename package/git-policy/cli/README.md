@@ -2384,13 +2384,24 @@ The rule is:
   Nothing is lost when nothing would be replaced,
   and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
 - A forced `git checkout -f`,
-  a forced `git switch -f` and a `git reset --hard` (`--merge`,
-  `--keep`) override that token,
-  so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
-  write tracks,
-  or where one of those paths needs a directory,
-  and the rejection names the path.
-  The tracked state of the worktree is still what makes the worktree clean or dirty.
+  a forced `git switch -f`, a `git reset --hard`,
+  a path `git checkout <revision> -- <path>` and a `git restore --source=<revision> <path>` override that
+  token or write files whatever the status says,
+  so in a linked worktree those forms ask Git which paths they write before they run and keep every entry
+  the worktree holds there that Git did not put there:
+  an untracked file,
+  an ignored file,
+  a directory, and with it the work inside a nested repository.
+  Each one is copied or moved whole to
+  `.git/monochromatic-git-policy-cli/discarded/<stamp>/<path>`, a line names the entry and the copy, and
+  the form runs as you typed it;
+  `git restore --source=<revision> -- .env` and `git checkout <revision> -- .env` therefore end the same
+  way, with your file saved and the command run.
+  The only refusal there is a copy that cannot be made, and it names what stopped it.
+  A worktree that holds untracked files elsewhere, off the paths the form writes, is untouched by this.
+  The tracked state of the worktree is still what makes the worktree clean or dirty,
+  and an edit to a path you marked with `git update-index --assume-unchanged` counts, because those forms
+  overwrite it whatever the mark says.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
    Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`,
@@ -2402,7 +2413,8 @@ The rule is:
   a `GIT_INDEX_FILE` that names another index is not read as absent,
    and `git checkout -f`,
   `git reset --hard` and the other forms that overwrite stay rejected.
-- A status Git cannot read stops the command instead of reading as clean.
+- A status Git cannot read stops the command instead of reading as clean,
+  and so does a listing of the paths a form would write over.
 - `git stash drop` and `git stash clear` delete entries of `refs/stash`,
   the one stash every worktree of the repository shares,
   so they are rejected in a linked worktree while the repository holds an entry,
@@ -2464,6 +2476,15 @@ one whose value moves the directory or sets an environment variable,
 which Git refuses and runs nothing for,
 and one whose name an installed `git-<name>` program carries,
 which Git runs before it looks any alias up.
+A name neither of those is, and which no configuration defines either, is one Git answers with its own error;
+`help.autocorrect` can make Git run the command it guessed instead,
+so a mistyped `git rset --hard` ran a hard reset with no guard and no copy.
+That one case is forwarded with `-c help.autocorrect=0`, written after your own global options:
+Git prints `git: 'rset' is not a git command` with the most similar command,
+and runs nothing.
+Every other unknown name still reaches Git and answers as it did,
+and a name an installed `git-<name>` program carries is untouched,
+because Git corrects nothing it found.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
@@ -2720,7 +2741,8 @@ the highest is
 The rotated files are kept up to 32 MiB together,
 oldest removed first,
 and
- a rotated file with a `saved-conflict` or `saved-nested-repository` line whose copy still exists is never removed,
+ a rotated file with a `saved-conflict`,
+`saved-nested-repository` or `saved-overwritten` line whose copy still exists is never removed,
 which can take the log past 32 MiB.
  The reading of a rotated file to see whether it names a copy happens on a thread of its own,
 never on the command's path.

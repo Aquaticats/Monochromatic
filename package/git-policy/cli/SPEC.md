@@ -16130,7 +16130,27 @@ which refuses rather than saves the wrong file.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
-A `clean` counts untracked files as well.
+That status is not the whole question.
+It names the worktree's own changes to tracked files,
+never a file Git did not put there,
+so a second reading decides what this command,
+with these arguments,
+would overwrite or delete whatever Git's status calls the file
+(`repo_read/repository_facts_paths_in_the_way.rs`):
+an untracked file,
+an ignored file,
+and the work inside a nested repository at such a path are all work a person made.
+Every one of them is copied or moved aside first,
+named,
+and the command runs as typed
+(`policy/policy_linked_worktree_saved_overwrite.rs`);
+a refusal would only send the person to move the file by hand,
+and a clean worktree that merely holds untracked files elsewhere is neither stopped nor slowed,
+because only the paths the command writes are asked about.
+The one refusal this reading has is a copy that cannot be made,
+and it names what stopped it.
+A `clean` counts untracked files as well,
+and keeps its own recorded answer for the files it deletes.
 An ignored file is not a reason to refuse a clean in a linked worktree,
 by the owner's answer of 2026-11-10 ("All four are deleted,
 exit 0,
@@ -16202,6 +16222,14 @@ A directory that cannot be named
 and no readable process directory)
 is a `fact-unavailable` finding,
 never a measurement from the caller's directory.
+`-d` is not part of that question:
+it is how a clean reaches an untracked directory,
+while a pathspec names one Git deletes without it
+(`git clean -ffX -- vendor`),
+so a reading that waited for `-d` let that clean delete a repository unsaved,
+and what the clean really deletes is Git's own dry run.
+The same holds for the interactive transform,
+which caps a menu that offers a repository whether the clean descends or names a pathspec.
 Git removes such a repository whole (`builtin/clean.c`,
 `if (force > 1) rm_flags = 0`),
 with its own history and its uncommitted files,
@@ -16315,50 +16343,70 @@ or where Git refuses the region;
 a caller's own `--overwrite-ignore` after it still wins,
 because Git applies the last spelling.
 A forced `checkout -f` or `reset --hard` overrides the token,
-so the ignored file it would replace inside the process is decided before the command runs:
-for a forced `checkout`,
-a forced `switch` and a hard `reset` (`--hard`,
-`--merge`,
-`--keep`),
-the guard reads the paths of the tree that form writes (`git ls-tree -r -z --name-only <revision>`,
-`HEAD` when the form names no tree)
-and asks Git which of them the worktree holds as ignored files,
-then refuses,
-naming the paths,
-while any path is both.
+so the ignored file it would replace inside the process is decided before the command runs.
+The reading is the paths this command writes,
+asked of Git and not guessed from the words
+(`command/command_written_paths.rs`):
+a forced `checkout`,
+a forced `switch`,
+a hard `reset` (`--hard` only:
+`--merge` and `--keep` leave a path Git did not write alone and refuse it themselves)
+and the index's own paths for a restore without a source write a whole tree,
+read with `git ls-tree -r -z --name-only <revision>`,
+`HEAD` when the form names no tree;
+a `checkout <revision> -- <paths>` and a `restore` with a source write the tree paths their own
+pathspecs reach,
+which Git matches itself;
+a restore with no source writes what the index holds at its pathspecs.
 Every directory on the way to each of those paths is asked about as well,
 because a tree creates the directories it needs,
 and a worktree that holds a file where one of them must go loses that file
-(Git removes it to make the directory);
-an entry Git lists inside a directory the tree also has is not counted,
-because writing the tree leaves it alone.
-An entry Git lists inside a path the tree holds as a regular file is counted:
-the tree replaces that directory with the file,
-so every file inside it is deleted,
-and that is the answer a filter that kept only exact names would drop.
-Only these three forms are read that way,
-and only in a linked worktree;
-the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
-so no query walks the worktree's ignored files
-(measured on this repository's worktree at 1,860 tracked paths and their 42 directories:
-`git ls-tree` 4 to 6 ms and `git ls-files` 8 to 11 ms per start,
-in ten-run batches with a load average of 61).
+(Git removes it to make the directory).
+Only the outermost of those paths is asked about,
+because a pathspec that names a path inside a nested repository makes Git answer nothing at all
+for every path in the same query,
+and a path below another one is inside that one's answer anyway.
+The question is two listings over those paths alone,
+`git ls-files --others --exclude-standard --directory` and
+`git ls-files --others --ignored --exclude-standard --directory`,
+so no query walks a worktree nobody asked about,
+and `--directory` names a directory the worktree holds whole as one entry (`nested/`),
+which is the entry a save must keep whole.
 Every path is named with `:(top,literal)` magic,
 anchored at the top of the worktree and read as itself,
 and the query turns off a caller's `--literal-pathspecs`,
 which would otherwise make the magic a path.
-A revision Git cannot resolve is read as `HEAD`,
-because every form that names no tree writes `HEAD`'s content.
+A revision Git cannot resolve writes no path,
+which is what `git checkout -f <a path>` needs:
+Git writes that path from the index and no tree at all.
 A revision spelled `-`,
 which only `switch` and `checkout` read as the previous branch,
 is read as `@{-1}` before the tree is listed,
 because no other Git command resolves `-` and the tree would otherwise be read as `HEAD`'s;
 `@{-N}` is resolved by Git itself wherever an object name is read.
-A tree or an answer Git cannot read is a `fact-unavailable` finding,
-never a clean worktree.
+Each entry found is kept before Git starts:
+a file or a symbolic link is copied,
+because the command may still refuse it and the worktree must stay as it was when it does,
+and a directory is moved whole,
+because nothing copies a nested repository's history cheaply and a rename keeps every byte.
+The copies live where the package's other copies live,
+`<common git dir>/monochromatic-git-policy-cli/discarded/<stamp>/<path below the worktree>`,
+under the age and size limits those copies already have,
+and the notice names each entry and its place before Git runs;
+the audit line carries `outcome` `saved-overwritten` with one `copies` entry per saved path.
+The ignored file those forms replace is therefore saved and the form runs,
+which is the same answer `checkout <rev> -- <path>` gives for the same bytes:
+before this reading existed the pair refused,
+and a refusal sends the person to move the file by hand while the copy keeps them.
+The one refusal is a copy that cannot be made,
+and it names the entries,
+the failure and the place the copies go,
+and leaves the worktree exactly as it was.
+A listing Git cannot read is that refusal too,
+never a clean answer:
+what the command would overwrite was never seen.
 A status Git cannot read is a `fact-unavailable` finding,
-never a clean worktree.
-Repositories under an allowlisted tool cache are exempt.
+never a clean worktree.Repositories under an allowlisted tool cache are exempt.
 The list is chosen by the invocation's own environment:
 uv's cache (`UV_CACHE_DIR`,
 else `XDG_CACHE_HOME/uv`,
@@ -17027,13 +17075,12 @@ so the line cannot know whether Git ran the deletion or refused it:
 and each leaves the same line as the deletion that ran.
 The field says that in words a reader cannot take for the result,
 where `outcome` alone said `logged` for both.
-A `rejected` line of a forced `checkout`,
-a forced `switch` or a hard `reset` whose tree tracks a path the worktree ignores also has
-`ignoredAndTracked`,
-the paths it read,
-and its `dirty` is `false` because the tracked state of the worktree was clean:
-the refusal is about the ignored files,
-and the paths are named so a reader sees which of them the command would have replaced.
+A `saved-overwritten` line names each entry the command would have written over and the place its
+copy is,
+written `<path> => <place>`,
+so a reader sees what was kept and where it went;
+its `dirty` is what the status question answered,
+which is `false` for a clean worktree and `null` for a form that asks no status question.
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory,
