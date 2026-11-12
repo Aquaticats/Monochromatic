@@ -135,6 +135,80 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The gate on the alpha.12 code, four reviews lost by the new review command, and a correction (2026-11-11T22:52:30-05:00)
+
+#### A correction to the 22:43 section
+
+It says of `start-reviews-of-finished-branches` that "its five reviews ... take turns".
+Three had started when that was written and two never did;
+by 22:50 all five had ended with status 1 and no usable review.
+The coordinator wrote the sentence from two running units without reading the starter's result.
+
+#### What lost them
+
+- A turn cap.
+  The command starts each review with `--turn-cap=47`.
+  The reviews of the sweep-spares, trash-boundary and abort branches each ended with `"endReason": "turn-cap"` at 47 turns
+  (966 s and 1,052 s for the first two),
+  in the middle of their reading.
+  Finished reviews of the same kind took 56 and 65 turns by the driver's own count.
+- A slow worktree add.
+  The starts of the pooled-shadow and add-within-60-s reviews were given up
+  while the wrapper was still printing "`git worktree add` is still running after 110 seconds",
+  with several other adds running.
+- Silence.
+  The starter prints its lines when every review has ended,
+  so its output held one line for twenty-three minutes.
+
+Two of the cut reviews had written a file marked not final;
+both are set aside under `${HOME}/temp/agent/reviews/partial-reviews-cut-at-the-turn-cap/`
+so that a rerun does not start from them.
+Both defects went to the driver-tests agent by note at 22:49,
+with a third found the same hour:
+`list-running-units-whose-worktree-is-gone`, run through `mise`, takes the package folder for the checkout
+and reports every running unit as without its worktree
+(42 of 42; with `--checkout-folder=<repository>` it reports none).
+
+Round 263 (22:48:59) restarts the reviews through the scratch starter, with the briefs the package wrote, which are sound:
+the four lost ones (the abort review follows when a slot is free)
+and three of the five branches that finished since
+(the scratch commit that stalls, commit options, a held commit that survives a prune).
+The total stays under the nine at which the qwen plan refused requests.
+
+#### The gate on `d90730337c`
+
+`Summary [ 889.281s] 8378 tests run: 8371 passed (5 slow), 7 failed, 25 skipped`
+(log `${HOME}/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-d90730337c-20261111T222552-0500.log`;
+the failing names of both gates are in `failures-alpha-11-code.txt` and `failures-alpha-12-code.txt` beside it).
+Against the gate on the alpha.11 code:
+
+- three no longer fail
+  (`package_repair::a_shared_target_a_link_carries_out_of_the_worktree_is_left_built`
+  and the two `testing::run_progress` controls);
+- four fail as before and stay with the round 255 agent
+  (`policy_checks`, `service_units_of_removed_worktrees`, `wait_ceilings`, `source_guard`);
+- three are new.
+  `landing::service_rules_precompile::tests::a_landing_warms_the_first_time_and_when_the_rules_change` failed after 120.345 s
+  and went to the round 255 agent.
+  `worktree::worktree_landed_removal::tests::a_landed_worktree_whose_tip_another_branch_was_made_at_is_removed`
+  and `...::a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person`
+  came with one landed-sweep branch and fail since the other made the sweep hand its removal to the service;
+  they went to the round 259 agent,
+  which has to say for each whether the control only looks too early or the behaviour is gone.
+  The second one matters:
+  if the hand-over drops the record, a person never learns that a push failed.
+
+The control for what the coordinator relied on when merging into `main` passed in this gate:
+`a_worktree_whose_branch_holds_no_commit_of_its_own_is_not_removed_by_another_branchs_merge`.
+
+#### The two changeover audits
+
+Their briefs told them to build the previous release "from the parent of the version commit".
+That parent is `d90730337c`, which is the alpha.12 code.
+Both were sent the alpha.11 version commit `c434449377` at 22:50
+(an inbox note to the Kimi audit, a message to the Sonnet one),
+and asked to say in their report if anything had already been compared against the wrong commit.
+
 ### 0.6.1-alpha.12 installed, a removal jam met on the way, and the audits of the released code started (2026-11-11T22:43:30-05:00)
 
 #### The release
