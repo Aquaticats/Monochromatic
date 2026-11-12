@@ -256,6 +256,82 @@ move its durable facts to their canonical doc and delete it from this page.
   `runs-that-ended-since.ts` does not show a run that never started,
   so check `agents-batch-round-285.out` and `agents-batch-round-289.out` for "no slot freed before the deadline".
 
+#### The digest of the seven reviews, routed, and round 290 (2026-11-12T10:10:08-05:00)
+
+The digest:
+`~/temp/agent/digest-2026-11-12T0956-reviews/digest.md`,
+read against `main` at `cab3be6473` and pass 17's tip `ebbdff9f87`.
+All seven reviews are final.
+
+- Loses data,
+  and is in `main` and the installed release:
+  a commit held in a worktree after the landed sweep's single call to the keeper is destroyed with the worktree.
+  Two reviews reached it by two paths
+  (the landed-sweep branch `93ada9d6db` through the built wrapper with a planted held record,
+  the landed-removal branch `32323116f1` through the library's in-process destroy).
+  Both branches are in pass 17 and leave the gap;
+  neither introduces it.
+  The trigger needs a branch lock held at that moment (the digest's assessment: rare).
+- A regression that a branch in pass 17 introduces:
+  the late-runtime branch `f75d80f0fc` lets the service exit with status 4 in a window of a few instructions,
+  shown by a harness of the logic,
+  not by the built service.
+  Against `main`,
+  which waits five seconds for a late build,
+  the digest reads the branch as an improvement overall.
+  The branch stays in pass 17:
+  reviews do not hold an alpha (the owner's standing rule),
+  and its fix follows.
+- Not in pass 17:
+  untracked files overwritten unsaved by `reset --hard` and five more commands in an exempt repository
+  (and,
+  seen once,
+  in an ordinary linked worktree on that branch's build,
+  with `main` not run);
+  `clean -ffd` deleting a nested repository unsaved there;
+  a nested repository made during a clean's save window deleted unsaved;
+  `--no-force` counted wrongly by clean;
+  a write to standard error without a bound on the package-repair path,
+  also in `main`.
+- The review of the commit service handing a commit its shadow (`3a4949f5ed`) found no defect.
+  Its new test panics under a long `HOME`;
+  that goes with the branch into the pass after pass 17 as a thing to fix first.
+- Plain `git` calls through the installed wrapper took 38 to 46 seconds in four review sessions,
+  on commits unrelated to the reviewed changes.
+  No control separates that from issue 6287;
+  it is evidence for it,
+  not a new finding.
+
+Round 290,
+five fix agents,
+each on the branch its review read,
+started 10:10:
+
+- `service-checks-its-runtime-again-before-it-gives-up-on-a-late-one`
+- `held-commit-is-kept-again-before-a-landed-worktree-is-destroyed-in-process`
+  (both reviews of the gap,
+  one fix)
+- `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards`
+  (first to run the commands against `main`,
+  and to read the discard-guard branch before fixing anything twice)
+- `clean-counts-no-force-as-git-does-and-saves-a-repository-made-while-it-saves`
+- `package-repair-never-waits-on-a-reader-of-its-messages-that-has-stalled`
+
+A slip of this session while writing those briefs,
+repaired:
+the package's `write-a-fix-brief-for-each-review` writes to `<review name>-prompt.md`,
+and five review names equal the names of the earlier runs,
+so five earlier briefs were written over.
+They were restored from the first message of each earlier run's session,
+and the new briefs were renamed for what each fix does
+(`~/temp/agent/scratch-scripts/rename-round-290-fix-briefs-and-restore-the-briefs-they-overwrote.ts`).
+Nothing had been started from the wrong files.
+The command's part
+(it replaces a file that exists without a word,
+names the fix run as the review,
+and doubles a prefix)
+went to round 287's agent as a second note at 10:10:08.
+
 ### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
 
 #### What the owner said
