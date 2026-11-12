@@ -91,7 +91,7 @@ pub enum Settled {
 /// ```
 pub fn settled_words(seq: u64, held: &Held, settled: &Settled) -> String {
     let repository: String = crate::service_timing::in_the_repository_at(held.repository.as_path());
-    let branch: String = held.reference.clone();
+    let branch: String = held.reference.spoken();
     return match settled {
         Settled::WaitsForLocks(locks) => format!("batch {seq} {repository} is still held: the commit {} is kept, and the move of {branch} waits for {}. The branch moves as soon as the lock is gone, on this command or the next one in that worktree; nothing is needed from you unless no Git process is using that repository, and then removing the lock with `{}` lets the commit land.", held.new, crate::held_commit_words::locks_named(locks.as_slice()), crate::held_commit_words::removal(locks.as_slice())),
         Settled::Landed { commit } => format!("batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now"),

@@ -32,9 +32,6 @@ pub mod repo_read_main_worktree;
 ///  with the real-Git provider.
 pub mod repository_facts;
 
-/// The ignored-and-tracked fact of the real-Git provider.
-pub mod repository_facts_ignored_files;
-
 /// What one `git add` selects,
 ///  counted from real Git's own listings.
 pub mod repository_facts_staged_selection;

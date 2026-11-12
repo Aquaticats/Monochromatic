@@ -37,7 +37,7 @@ use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The index entries a batch's intent names.
 pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
