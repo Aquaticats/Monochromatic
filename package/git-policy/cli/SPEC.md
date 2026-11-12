@@ -5067,6 +5067,14 @@ where a name holding a pipe would hold it for ever.
 A record of a plan is read the way every record of this wrapper is read
 (`private_storage::read_regular_file`),
 so a pipe at a plan's name is answered at once and left alone rather than waited on and discarded.
+The listing of that journal answers twice:
+the entries it names,
+and an error that ended it before it named them all,
+which is what a directory read on a mount that stopped answering does;
+such an error leaves the journal unread,
+and it is listed again after a pause,
+because a plan it never named is otherwise absent from the plans the service holds
+and nothing else scans the item that waits for its push.
 A start whose read of that journal gave no answer within its ceiling keeps both directories,
 writes the plans and notes it makes there,
 and reads both again after a pause,
