@@ -65,6 +65,10 @@ pub struct CopyFacts {
     /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
     ///  absent for every other command.
     pub remove_plan: Option<RemovePlan>,
+    /// Whether the person asked a `git worktree add` for `--quiet`,
+    /// read from the words whether or not the ladder serves the form,
+    /// so a plainly run add prints no line a quiet one would suppress.
+    pub quiet: bool,
 }
 
 /// What:
@@ -490,6 +494,7 @@ fn run_settled(
         short_circuit: false,
         context,
         add_plan: facts.add_plan.clone(),
+        quiet: facts.quiet,
         #[cfg(target_os = "linux")]
         repair: crate::package_repair::RepairSwitch::from_arguments(arguments),
     };

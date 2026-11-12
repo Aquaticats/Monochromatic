@@ -370,6 +370,29 @@ pub(crate) fn finish_instructions(destination: &Path, admin: &Path) -> String {
 }
 
 /// What:
+///  Whether the add a claim's record names recorded that it finished,
+/// by the completion marker the claim and its records share a name with.
+/// Why:
+///   The marker is written once the ignored state has arrived,
+/// from a copy that ran or from a snapshot
+///  that carried it,
+/// and it is the add's own record that nothing is left to finish.
+/// A release removes the record of the
+///  object the stage's creation made before the claim's own records,
+/// so a command killed between those
+///  removals leaves a finished add whose object record is gone;
+/// the marker is what still says it finished,
+///  and a claim that carries one owes no copy and names no missing file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const finished = (claim) => existsSync(claim.replace(/\.stage$/, '.done'));
+/// ```
+pub(crate) fn the_add_finished(claim: &Path) -> bool {
+    return std::fs::symlink_metadata(claim.with_extension(&COMPLETE_SUFFIX[1..])).is_ok();
+}
+
+/// What:
 ///  Report an add that was interrupted before it was marked complete,
 /// and change nothing.
 /// Why:

@@ -2819,6 +2819,17 @@ The settlement of that add answers no notice of its own
 and the sweep that proves the exchange says the one line that the snapshot carried the ignored state
 (`worktree_copy_swapped_add_settlement.rs`),
 rather than naming files that are present.
+A claim whose completion marker stands owes no copy either,
+because the marker is the add's own record that it finished:
+it is written once the ignored state has arrived,
+from a copy that ran or from a snapshot that carried it,
+and a release removes the record of the object the stage's creation made before the claim's own records,
+so a command killed between those removals leaves a finished add whose object record is gone
+(`the_add_finished`,
+`worktree_copy_interrupted_add_settlement.rs`).
+Without that answer a worktree holding its whole ignored state was named as owing it,
+on every command,
+until it was removed.
 The cost:
 an interrupted or failed add keeps naming the same worktree and stage in every command that
 runs the recovery,
@@ -15710,6 +15721,22 @@ The line goes to the standard error,
 is advisory only,
 and nothing waits for it:
 a stream nobody drains holds that one thread and never the add.
+It is written to the descriptor itself
+(`standard_error_descriptor.rs`),
+never through `std::io::stderr()`:
+that handle is one lock for the whole process,
+so a notice whose reader stopped draining would hold it while it waited,
+and the add's own next report would wait behind its own notice.
+Each step is said in the words of the work it is,
+from one table of every step an add enters (`STEP_SENTENCES`):
+a control reads the crate's own `begin_step("…")` calls and fails when a step has no sentence
+or a sentence names a step nothing enters (`every_step_an_add_enters_has_its_own_sentence`),
+and a step a Git run is timed as (`git read-tree`) is said from its own subcommand.
+An add the ladder does not serve says the same line with the fact that put it on that route,
+and writes its record:
+`begin_on_route` notes `route=plain` and the clause naming the fact,
+so an add handed to plain Git because the folder its destination goes in does not exist
+is neither silent while it runs nor absent from the record afterwards.
 `CLI_GIT_ADD_NOTICE_SECONDS` moves the wait,
 and a setting that is missing,
 is not a number or is zero leaves the shipped one.
