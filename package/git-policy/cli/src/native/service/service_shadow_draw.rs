@@ -33,6 +33,8 @@ use crate::service_protocol::CommitRequest;
 /// and where the pool's members are made from them.
 use crate::shadow_create::ShadowTemplate;
 use crate::shadow_drawn::{DRAWN_LIMIT, draw, sweep_drawn};
+/// Where the pool holds what a draw moves out of it, and what a fill makes when it holds nothing.
+use crate::shadow_pool::{members, pool_root_for};
 /// The service's own log.
 use crate::transaction_git::{GitContext, GitFailure};
 use std::path::PathBuf;
@@ -194,7 +196,14 @@ fn draw_one(
 ) -> Result<(), GitFailure> {
     let template: ShadowTemplate = crate::service_shadow_pool_fill::template_of(context, common_dir, git_dir, repository)?;
     let _swept: Vec<PathBuf> = sweep_drawn(common_dir, SystemTime::now());
-    // An empty pool is no reason to say anything: the next landing draws again.
+    // A pool with no member yet is the fill's work, and this thread does that work too: a draw that found the pool empty
+    //  at the moment the landing started its fill drew nothing, which is every commit after the first on a repository
+    //  whose commits each take the one member the pool holds.
+    if members(pool_root_for(common_dir, git_dir).as_path()).is_empty() {
+        let _made: Option<PathBuf> = crate::shadow_pool::fill(context, &template)?;
+    }
+    // A pool that stays empty (a reftable repository, a worktree that keeps its own info, a refused fill) is no reason to
+    //  say anything: the next landing draws again, and the commit that asked took its own path.
     let Some(tree) = draw(context, &template)? else { return Ok(()) };
     crate::diagnostic_log::debug("shadowDrawn", format!("drew {} ahead of a commit", tree.display()).as_str());
     stock.note_ready(tree);

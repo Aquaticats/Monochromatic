@@ -259,10 +259,6 @@ pub(crate) fn land_group(
     //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
     if let Some(first) = requests.first() {
         crate::service_shadow_pool_fill::start(&context.git, first);
-        // What: The next commit in this worktree is handed a finished shadow the service renamed out of the pool before it asked.
-        // Why:  The rename is the call that waited seconds on this volume, and doing it here — on a thread of its own, beside
-        //       this landing — takes it off every commit's wait while leaving every check the claim makes with the commit.
-        crate::service_shadow_draw::start(&context.git, first, drawn);
         // What: The scratch trees a killed command left are collected while this landing runs.
         // Why:  The collection lists the repository scratch directory and asks the file system about every entry, which was
         //       the largest single cause of a commit's own time in the records of 2026-11-11 (13,482 ms of 48). The commit
@@ -272,6 +268,14 @@ pub(crate) fn land_group(
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
+    // What: The next commit in this worktree is handed a finished shadow the service renamed out of the pool before it asked.
+    // Why:  The rename is the call that waited seconds on this volume, and doing it here — on a thread of its own, after this
+    //       landing — takes it off every commit's wait while leaving every check the claim makes with the commit. It runs
+    //       after the landing rather than before it so that the fill this landing started has made its member by then,
+    //       and it makes one itself when the pool is still empty (`draw_one`).
+    if let Some(first) = requests.first() {
+        crate::service_shadow_draw::start(&context.git, first, drawn);
+    }
     // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
     drop(claim);
     // How many requests were still waiting when this landing finished: the batch's own are still unanswered here, so they come
