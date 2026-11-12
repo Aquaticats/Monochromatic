@@ -193,9 +193,10 @@ fn error_text(error: std::io::Error) -> String {
 /// a send that lands between the caller's last read and its closing of the channel succeeds into a channel that is then dropped,
 ///  and the runtime goes with it.
 /// A runtime lost that way left the process for ever believing a build was still coming,
-///  so every later task spent the whole patience on it and the service ended with status 4 (the review of
-/// 2026-11-12T09:34-05:00, its second finding).
-/// Held by both, the send happens either before the caller's read,
+///  so every later task spent the whole patience on it,
+///  and the service ended with status 4 (the review of 2026-11-12T09:34-05:00 found this one too).
+/// Held by both,
+/// the send happens either before the caller's read,
 /// which then takes the runtime,
 /// or after the channel is closed,
 /// which makes the build keep it;
@@ -346,18 +347,6 @@ fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::
 static LATE_RUNTIME: std::sync::OnceLock<Runtime> = std::sync::OnceLock::new();
 
 /// What:
-///  How many more reads of the late runtime a control makes answer as the moment before the arrival.
-/// Why:
-///  The seam of the control below:
-/// the race is a build that arrived between two reads of this cell,
-/// which is one stale answer followed by the truth,
-/// and no scheduling pressure can order that moment from outside.
-/// Nextest gives every control its own process,
-/// so the countdown cannot reach another.
-#[cfg(test)]
-static THE_ARRIVAL_IS_ONE_READ_BEHIND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// What:
 ///  The runtime a build that outlasted `BUILD_DEADLINE` left for the work it was built for,
 ///  once it arrived,
 ///  which is how every question about a worker reads it.
@@ -376,43 +365,10 @@ static THE_ARRIVAL_IS_ONE_READ_BEHIND: std::sync::atomic::AtomicUsize = std::syn
 /// ```
 fn the_late_runtime() -> Option<&'static Runtime> {
     #[cfg(test)]
-    if THE_ARRIVAL_IS_ONE_READ_BEHIND
-        .try_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |answers_left| { return answers_left.checked_sub(1); })
-        .is_ok()
-    {
+    if tests::this_read_of_the_late_runtime_is_held_back() {
         return None;
     }
     return LATE_RUNTIME.get();
-}
-
-/// What:
-///  Makes the next read of the late runtime answer as the moment before the arrival.
-/// Why:
-///  The seam of the race above;
-/// the count is cleared however the control ends,
-///  a panic included.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const behind = oneReadBehind(); // lateRuntime() === undefined once, then the arrival
-/// ```
-#[cfg(test)]
-pub fn a_control_answers_one_read_of_the_late_runtime_as_the_moment_before_the_arrival() -> TheArrivalOneReadBehind {
-    THE_ARRIVAL_IS_ONE_READ_BEHIND.store(1, std::sync::atomic::Ordering::SeqCst);
-    return TheArrivalOneReadBehind;
-}
-
-/// The stand-in of `a_control_answers_one_read_of_the_late_runtime_as_the_moment_before_the_arrival`,
-/// cleared when it is dropped.
-#[cfg(test)]
-pub struct TheArrivalOneReadBehind;
-
-/// Clears the control's stand-in.
-#[cfg(test)]
-impl Drop for TheArrivalOneReadBehind {
-    fn drop(&mut self) {
-        THE_ARRIVAL_IS_ONE_READ_BEHIND.store(0, std::sync::atomic::Ordering::SeqCst);
-    }
 }
 
 /// The process's runtime,
@@ -517,7 +473,8 @@ pub fn flavor_words(flavor: BuiltFlavor) -> String {
 ///  whether one can run a task,
 ///  and whether a build that outlasted its deadline is still on its way.
 /// Why:
-///   One cell in this module changes under a running process, the build that missed its deadline and arrived late,
+///   One cell in this module changes under a running process,
+/// the build that missed its deadline and arrived late,
 /// and a caller that reads it once per question can describe an arrival it has passed:
 /// "no worker yet" and then "no build coming" is a build that arrived between the two reads,
 ///  so a caller that cannot do its work without a worker gives up while one is there
@@ -528,12 +485,12 @@ pub fn flavor_words(flavor: BuiltFlavor) -> String {
 /// ```ts
 /// const answers = workerAnswers(); // { canRun, aBuildIsComing }, read at one moment
 /// ```
-struct WorkerAnswers {
+pub(crate) struct WorkerAnswers {
     /// Whether a task of this process's runtime runs on a worker thread of its own.
     can_run: bool,
     /// Whether a build that outlasted its deadline is still on its way,
     /// which is the one state a caller can usefully wait in.
-    a_build_is_coming: bool,
+    pub(crate) a_build_is_coming: bool,
 }
 
 /// What:
@@ -548,21 +505,19 @@ struct WorkerAnswers {
 /// ```ts
 /// const answers = workerAnswers();
 /// ```
-fn the_worker_answers() -> WorkerAnswers {
+pub(crate) fn the_worker_answers() -> WorkerAnswers {
+    // The build is the first need of a runtime, as it always was for `tasks_can_run`.
+    let _built: &Result<BuiltRuntime, String> = RUNTIME.get_or_init(build_for_this_process);
     // The one cell that can change under this call, read once: an arrival is seen by both answers or by neither.
     let arrived_late: bool = the_late_runtime().is_some();
-    let built: Option<BuiltFlavor> = match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => Some(built.flavor),
-        Err(_no_runtime) => None,
-    };
-    // `built_flavor` names the stand-in a control can stand in for; with no control it is the flavor read just above.
-    let a_build_is_coming: bool = !arrived_late && built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    let flavor: Option<BuiltFlavor> = built_flavor();
+    let a_build_is_coming: bool = !arrived_late && flavor == Some(BuiltFlavor::CurrentThreadAfterDeadline);
     #[cfg(test)]
     if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
         // A control's stand-in for a system that refuses every thread: no task of this process runs, whatever a build would bring.
         return WorkerAnswers { can_run: false, a_build_is_coming };
     }
-    return WorkerAnswers { can_run: arrived_late || matches!(built, Some(BuiltFlavor::MultiThread { .. })), a_build_is_coming };
+    return WorkerAnswers { can_run: arrived_late || matches!(flavor, Some(BuiltFlavor::MultiThread { .. })), a_build_is_coming };
 }
 
 /// What:
@@ -686,26 +641,6 @@ where
     };
 }
 
-/// What:
-///  Whether a build that outlasted `BUILD_DEADLINE` is still on its way,
-///  which is the one state a caller can usefully wait in.
-/// Why:
-///   A caller that must have a worker can only wait for a build that is still running:
-/// a runtime the system refused,
-/// a build that failed,
-/// and a plan of the current-thread runtime have nothing coming,
-/// and waiting there spends the person's command on a state no wait can change.
-/// It is one of the two answers of `the_worker_answers`,
-/// so no caller reads it beside the worker question and gets two different moments.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const coming = builtFlavor()?.kind === 'late' && lateRuntime === undefined;
-/// ```
-pub fn a_build_is_still_on_its_way() -> bool {
-    return the_worker_answers().a_build_is_coming;
-}
-
 /// How often `await_a_worker_within` asks whether the late build arrived:
 /// short enough that a worker that arrives is used at once,
 /// long enough that the wait costs the scheduler nothing.
@@ -765,24 +700,6 @@ where
         return None;
     }
     return spawn_on_runtime(future);
-}
-
-/// What:
-///  Whether this process can run a task beside a blocked thread now:
-/// its own runtime came up multi-threaded,
-/// or the build that missed
-///  its deadline has arrived since.
-/// Why:
-///   A caller that needs a worker asks once and gets one,
-/// and a control of what needs a worker can tell a runtime the system refused
-///  from one that was merely late.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ready = builtFlavor()?.kind === 'multi' || lateRuntime !== undefined;
-/// ```
-pub fn has_workers() -> bool {
-    return the_worker_answers().can_run;
 }
 
 /// Whether the build that missed its deadline has arrived;

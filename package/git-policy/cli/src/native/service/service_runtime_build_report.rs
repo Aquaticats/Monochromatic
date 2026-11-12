@@ -21,7 +21,7 @@
 //! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(4); }
 //! ```
 
-use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, a_build_is_still_on_its_way, flavor_words, runtime_build, spawn_on_runtime_within};
+use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, flavor_words, runtime_build, spawn_on_runtime_within, the_worker_answers};
 use crate::wait_ceilings::RUNTIME_BUILD_PATIENCE;
 
 /// What:
@@ -110,7 +110,7 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    if a_build_is_still_on_its_way() {
+    if the_worker_answers().a_build_is_coming {
         crate::service_warn!("{}", waiting_words(what));
     }
     return spawn_on_runtime_within(RUNTIME_BUILD_PATIENCE, future);

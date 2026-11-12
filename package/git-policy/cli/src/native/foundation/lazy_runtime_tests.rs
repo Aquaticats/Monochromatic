@@ -193,6 +193,29 @@ const A_STATED_WAIT: Duration = Duration::from_millis(200);
 const A_WAIT_NOTHING_ANSWERS: Duration = Duration::from_secs(5);
 
 /// What:
+///  Whether a control holds one read of the late runtime at the moment before the arrival.
+/// Why:
+///   The race of `the_late_runtime` is a build that arrived between two reads of the cell,
+///  which is one stale answer followed by the truth,
+/// and no scheduling pressure can order that moment from outside.
+/// A control sets the flag just before the call that reads,
+/// and the read that takes it lets it go,
+/// so the answer is stale exactly once.
+/// Nextest gives every control its own process,
+/// so the flag cannot reach another.
+static THE_ARRIVAL_IS_HELD_BACK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Takes the control's hold on one read of the late runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heldBack = takeTheHold(); // true once, while a control stands in for the moment before the arrival
+/// ```
+pub(super) fn this_read_of_the_late_runtime_is_held_back() -> bool {
+    return THE_ARRIVAL_IS_HELD_BACK.swap(false, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What:
 ///  A caller that must have a worker waits for a build that outlasted its deadline and is still coming.
 /// Why:
 ///   The positive control of the pair below:
@@ -250,26 +273,27 @@ fn a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings() 
 ///   The review of 2026-11-12T09:34-05:00 found the caller reading the late runtime twice:
 /// a build that arrived between the two reads made the first answer "no worker yet" and the second "no build coming",
 /// and the service ended with status 4 although a worker was there.
-/// The state here is the real one, a process that serves from the stand-in of a build that missed its deadline and keeps that build,
+/// The state here is the real one,
+/// a process that serves from the stand-in of a build that missed its deadline and keeps that build,
 /// and only the moment of the first answer is the control's,
 /// so the caller is under exactly the interleaving the review described.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// serveFromTheStandInAndKeepTheLateBuild(); const behind = oneReadBehind(); expect(spawnOnRuntimeWithin(200, async () => {})).not.toBeUndefined()
+/// serveFromTheStandInAndKeepTheLateBuild(); holdOneReadBack(); expect(spawnOnRuntimeWithin(200, async () => {})).not.toBeUndefined()
 /// ```
 #[test]
 fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_about_it() {
     let stand_in: Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a stand-in runtime");
-    RUNTIME
-        .set(Ok(BuiltRuntime { runtime: stand_in, flavor: BuiltFlavor::CurrentThreadAfterDeadline }))
-        .ok()
-        .expect("this control is the first need of a runtime in its own process");
+    assert!(
+        RUNTIME.set(Ok(BuiltRuntime { runtime: stand_in, flavor: BuiltFlavor::CurrentThreadAfterDeadline })).is_ok(),
+        "this control is the first need of a runtime in its own process"
+    );
     let arrived: Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("the runtime the late build kept");
-    LATE_RUNTIME.set(arrived).ok().expect("this control owns the late runtime of its own process");
-    let one_read_behind: TheArrivalOneReadBehind = a_control_answers_one_read_of_the_late_runtime_as_the_moment_before_the_arrival();
+    assert!(LATE_RUNTIME.set(arrived).is_ok(), "this control owns the late runtime of its own process");
+    // The build has arrived, and the first question the caller asks about it answers as the moment before.
+    THE_ARRIVAL_IS_HELD_BACK.store(true, std::sync::atomic::Ordering::SeqCst);
     let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime_within(A_STATED_WAIT, async {});
-    drop(one_read_behind);
     assert!(
         started.is_some(),
         "the build arrived, so a caller that must have a worker starts its task instead of ending for want of one"
@@ -287,7 +311,8 @@ fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_a
 /// and ended the service with status 4.
 /// The control holds the one moment itself and releases the build into it with the caller already past its deadline,
 /// then lets the two settle in whichever order they arrive;
-/// the caller takes the runtime, or the build keeps it,
+/// the caller takes the runtime,
+/// or the build keeps it,
 /// and either way the runtime is kept.
 ///
 /// In TS you'd write (pseudocode):
