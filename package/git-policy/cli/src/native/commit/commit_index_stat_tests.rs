@@ -193,7 +193,8 @@ fn a_named_directory_takes_its_assume_unchanged_files() {
 /// so `git commit -m x -- a.txt b.txt` over an edited skip-worktree `a.txt` commits `b.txt` alone
 ///  (measured against Git 2.56.0,
 /// and the binary table's row for a named skip-worktree path is the contrast);
-///  the wrapper's private index carries no mark, so this puts the entry back after the staging
+///  the wrapper's private index carries no mark,
+/// so this puts the entry back after the staging
 ///  rather than recording bytes Git would not.
 ///
 /// In TS you'd write (pseudocode):

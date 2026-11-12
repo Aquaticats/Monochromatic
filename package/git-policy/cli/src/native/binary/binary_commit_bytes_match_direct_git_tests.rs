@@ -45,7 +45,8 @@ const AUTHOR_DATE: &str = "2001-02-03T04:05:06+0000";
 const COMMITTER_DATE: &str = "2001-02-03T04:05:06+0000";
 
 /// The name of an author or committer whose bytes are not UTF-8:
-/// `Ren\xe9 \xff`, as a legacy Latin-1 `.gitconfig` holds it.
+/// `Ren\xe9 \xff`,
+/// as a legacy Latin-1 `.gitconfig` holds it.
 const RAW_NAME: &[u8] = b"Ren\xe9 \xff";
 
 /// Files the two arms must both have as untracked files,
@@ -64,12 +65,15 @@ enum Expectation {
     /// and the wrapper's display of what is left names a path an index mark hides,
     /// which Git's own display leaves out:
     /// the mark lives in the real index and the wrapper's own commit index does not carry it.
-    /// `SPEC.md`, "Explicit-path commit", records the difference.
+    /// `SPEC.md`,
+    /// "Explicit-path commit",
+    /// records the difference.
     RefusesAndNamesOnePathMore,
     /// The project records this difference on purpose:
     /// the wrapper commits the paths the command line names,
     /// and real Git refuses them.
-    /// `doc/decision/cli-git-policies-platform.md`, "Transactional commit gate",
+    /// `doc/decision/cli-git-policies-platform.md`,
+    /// "Transactional commit gate",
     /// names "selected deletion and untracked paths" among the commits it covers.
     WrapperCommitsWhatGitRefuses,
 }
@@ -88,11 +92,14 @@ enum IndexMark {
 
 /// One commit shape and the state it starts from.
 struct Shape {
-    /// What the row covers, in words.
+    /// What the row covers,
+    /// in words.
     label: &'static str,
-    /// Files written after the base commit, name and content.
+    /// Files written after the base commit,
+    /// name and content.
     edits: &'static [(&'static str, &'static [u8])],
-    /// Files written and never committed, name and content.
+    /// Files written and never committed,
+    /// name and content.
     extra: &'static [(&'static str, &'static [u8])],
     /// Paths staged after the edits.
     stage: &'static [&'static str],
@@ -387,7 +394,8 @@ struct Repos {
 }
 
 /// What:
-///  One row: prepare both arms,
+///  One row:
+/// prepare both arms,
 /// run each arm's command,
 /// and compare what they ended with.
 /// Why:

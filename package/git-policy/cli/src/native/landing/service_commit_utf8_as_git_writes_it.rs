@@ -13,7 +13,8 @@
 //!  So a committer name held in Latin-1 bytes was recorded as the replacement character
 //!  where real Git records the bytes of its repair,
 //! and the audit that found it holds the two objects side by side.
-//!  The rule is Git's own, byte for byte:
+//!  The rule is Git's own,
+//! byte for byte:
 //! a sequence that is too long,
 //!  too short,
 //! overlong for its length,
@@ -36,7 +37,9 @@ pub const COMMIT_UTF8_WARN: &str = "Warning: commit message did not conform to U
 
 /// The largest code point each sequence length may hold,
 /// as Git's `max_codepoint` table states it:
-/// one continuation byte, two, then three.
+/// one continuation byte,
+/// two,
+/// then three.
 const MAX_CODEPOINT: [u32; 4] = [0x7f, 0x7ff, 0xffff, 0x10ffff];
 
 /// The first sequence of `bytes` that is not UTF-8 text,

@@ -12631,7 +12631,8 @@ the whole line reaches real Git,
 which answers it in its own words and with its own status and makes no commit
 (`refused_by_git` in `src/native/command/command_commit.rs`,
 `run_commit_if_real` in `src/native/invocation/wrapped_command.rs`).
-The conditions are Git 2.56.0's own, from `builtin/commit.c`:
+The conditions are Git 2.56.0's own,
+from `builtin/commit.c`:
 a line that names two of `-i/--include`,
 `-o/--only`,
 `-a/--all` and `--interactive/-p/--patch`
@@ -12651,7 +12652,8 @@ each of these exited `0` and made a commit the wrapper's own reading had built,
 while real Git exited `128` and made none;
 they are rows of `binary_commit_bytes_match_direct_git_tests.rs` now.
 An `-i`/`-o` selection whose pathspec file names no path is read by the wrapper as an empty selection,
-as before, so Git's `No paths with --include/--only does not make sense.` is not given for it.
+as before,
+so Git's `No paths with --include/--only does not make sense.` is not given for it.
 
 #### The message and the identities a commit records
 

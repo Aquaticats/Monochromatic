@@ -17,7 +17,8 @@ use std::process::{Command, Output};
 
 /// One source name and the bytes Git records for it.
 struct Case {
-    /// What the case covers, in words.
+    /// What the case covers,
+    /// in words.
     what: &'static str,
     /// The name as a person's configuration holds it.
     given: &'static [u8],
@@ -26,7 +27,8 @@ struct Case {
     repaired: Option<&'static [u8]>,
 }
 
-/// The corpus: text,
+/// The corpus:
+/// text,
 /// then every way a byte sequence fails to be text,
 /// including the ones a screen of replacement characters would hide.
 const CASES: &[Case] = &[
@@ -97,7 +99,8 @@ fn the_repair_is_the_one_real_git_records() {
     remove(root.as_path());
 }
 
-/// The warning is Git's, word for word.
+/// The warning is Git's,
+/// word for word.
 #[test]
 fn the_warning_is_gits_own() {
     assert_eq!(

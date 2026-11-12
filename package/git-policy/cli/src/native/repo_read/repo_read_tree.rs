@@ -407,7 +407,8 @@ fn git_takes_off_the_end(byte: u8) -> bool {
 ///  with a single space,
 /// where the white space is `git_takes_off_the_end`'s set and not everything Rust trims;
 /// any message the plain rule does not cover
-///  (a carriage return inside a line, a NUL) returns `None`.
+///  (a carriage return inside a line,
+/// a NUL) returns `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

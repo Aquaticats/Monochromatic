@@ -123,7 +123,8 @@ pub struct CommitRegion {
 
 /// What:
 ///  Whether Git refuses this command line itself,
-/// before it looks at the index, the worktree or any path.
+/// before it looks at the index,
+/// the worktree or any path.
 /// Why:
 ///   `git commit` answers a line that names two selection controls,
 /// or a path beside `-a`,
@@ -136,14 +137,18 @@ pub struct CommitRegion {
 /// because it must decide before it acts;
 ///  the words and the exit status stay Git's,
 /// because a line refused here is handed to Git whole
-///  (`wrapped_command.rs`, `run_commit_if_real`).
+///  (`wrapped_command.rs`,
+/// `run_commit_if_real`).
 ///
-/// The rules, from Git 2.56.0's `builtin/commit.c`:
+/// The rules,
+/// from Git 2.56.0's `builtin/commit.c`:
 ///
 /// - `parse_and_validate_options` lets a line name at most one of `-i/--include`,
 ///   `-o/--only`,
-///   `-a/--all` and `--interactive/-p/--patch`, and `git commit -i -a` dies
-///   (`die_for_incompatible_opt4`, line 1385);
+///   `-a/--all` and `--interactive/-p/--patch`,
+///   and `git commit -i -a` dies
+///   (`die_for_incompatible_opt4`,
+///   line 1385);
 /// - the same function refuses a path beside `-a` (line 1419);
 /// - `prepare_index` refuses `--pathspec-from-file` beside `--interactive/-p/--patch`,
 ///   beside `-a` and beside a path,

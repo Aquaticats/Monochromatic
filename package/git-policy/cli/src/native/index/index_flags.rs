@@ -97,7 +97,8 @@ pub enum IndexFlags {
 /// What:
 ///  The paths an index marks so that Git's own staging of `-a` or of a named path leaves them alone.
 /// Why:
-///  `git commit -a` and `git commit -- <path>` skip a skip-worktree entry and, for `-a`,
+///  `git commit -a` and `git commit -- <path>` skip a skip-worktree entry and,
+/// for `-a`,
 ///  an assume-unchanged one,
 ///  measured against Git 2.56.0;
 ///  the wrapper's private index is seeded from the base and holds no mark,
