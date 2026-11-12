@@ -366,8 +366,9 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
             return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: Some(from.clone()), to: to.clone(), members: workspace.members.clone(), staged_in: None });
         }
         // The state the copy carried is moved aside here, before the add answers: one rename, no Cargo run, so no build can
-        //  start on artifacts Cargo would call fresh and the add never waits for a clean. The staging name lies under the
-        //  repository's Git directory, never in the worktree, which the person reads with `git status` the moment it exists.
+        //  start on artifacts Cargo would call fresh and the add never waits for a clean. The staging name lies beside the
+        //  build directory it takes, inside the worktree, because btrfs refuses to rename a directory out of a subvolume, and
+        //  the repository's `info/exclude` names it so the person's `git status` and `git add -A` never see it.
         BuildStatePlan::MovedAside { to } => {
             let staged: Result<crate::package_repair_prewarm_job::Staged, String> = match staging_root.as_ref() {
                 Some(root) => stage_the_worktrees_own_state(to.as_path(), Some(root.as_path())),
@@ -381,10 +382,7 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
                 // The state could not be moved aside, and a build would reuse it where it stands, so this add cleans it here
                 //  as every release before this one did. The wait is then the repair tool's own window, which this path keeps
                 //  for the case a rename cannot happen at all, and the finding names the clean to run if it fails.
-                Err(reason) => {
-                    eprintln!("PROBE staging refused: {reason}");
-                    debug(TAG, format!("{reason}; the clean runs here instead").as_str())
-                }
+                Err(reason) => debug(TAG, format!("{reason}; the clean runs here instead").as_str()),
             }
         }
     }
