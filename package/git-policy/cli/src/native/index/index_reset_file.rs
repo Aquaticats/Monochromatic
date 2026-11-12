@@ -240,7 +240,7 @@ fn indexed_attribute_directories(index: &FullIndex, tree: &[FlatEntry]) -> Vec<V
 /// The update,
 /// with every decline as `None`,
 /// and the names it reset.
-fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<Vec<Vec<u8>>> {
+fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> Option<Vec<Vec<u8>>> {
     let around: Surroundings = surroundings(git, repository)?;
     let (mut index, stamp) = read_index(built, around.layout.object_format)?;
     let new_tree: Vec<u8> = root_tree(&around.database, new, around.layout.object_format)?;
@@ -299,7 +299,9 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let trailer: Trailer = if around.settings.skip_hash { Trailer::Skipped { checksum_length: name_length(format) } } else { Trailer::Hashed };
     let bytes: Vec<u8> = write_full_index(&index, &hash, trailer)?;
     // A copy that could not be published is a decline, and Git's own reset then runs.
-    if publish(built, bytes.as_slice(), around.settings.shared_repository).is_err() {
+    // The published copy takes the live index's times with its bytes, in the one flush the step makes
+    // (`index_reset_publish.rs`, `publish_with`).
+    if publish(built, bytes.as_slice(), around.settings.shared_repository, times).is_err() {
         return None;
     }
     return Some(names);
@@ -309,9 +311,10 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// as the guard calls it with the Git context,
 /// the repository,
 /// the commit,
-/// the paths and the copy.
-fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path, &str, IndexPaths<'_>, &Path)) -> Option<Vec<Vec<u8>>> {
-    return reset_file(git, repository, new, paths, built);
+/// the paths,
+/// the copy and its times.
+fn reset_file_guarded((git, repository, new, paths, built, times): (&GitContext, &Path, &str, IndexPaths<'_>, &Path, Option<(std::time::SystemTime, std::time::SystemTime)>)) -> Option<Vec<Vec<u8>>> {
+    return reset_file(git, repository, new, paths, built, times);
 }
 
 /// What:
@@ -340,7 +343,7 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
         return None;
     }
     let built: PathBuf = copy.path().to_path_buf();
-    let done: Option<Vec<Vec<u8>>> = guarded((git, repository, new, paths, built.as_path()), reset_file_guarded);
+    let done: Option<Vec<Vec<u8>>> = guarded((git, repository, new, paths, built.as_path(), copy.live_times()), reset_file_guarded);
     // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.
     copy.set_flushed(done.is_some());
     debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done.is_some() { "done" } else { "declined, Git answers" }).as_str());

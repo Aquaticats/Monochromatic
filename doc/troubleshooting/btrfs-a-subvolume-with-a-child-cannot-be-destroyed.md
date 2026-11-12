@@ -162,6 +162,62 @@ The walk costs one `openat2` and two `getdents64` per directory:
 against the 5,413 ms median btrfs transaction wait the destroy
 route already pays (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
 
+### The wrapper's own snapshot ahead inside the registration, 2026-11-11
+
+A registration is emptied after the destroy, so a nested volume inside
+`<admin>` strands the removal in the opposite order:
+the worktree's files go
+and the registration stays.
+The wrapper's own pool of snapshots ahead lives there
+(`<admin>/monochromatic-git-policy-cli/ahead`),
+and a worktree that was the source of one `git worktree add` holds one.
+
+On 2026-11-11 the removal of a finished run's worktree stopped at exactly that:
+
+```text
+$ git worktree remove .../.claude/worktrees/pi-clippy-passes-after-the-daily-update-of-2026-11-11
+monochromatic-git-policy-cli: the worktree ... was removed (its subvolume was destroyed), but its
+registration .git/worktrees/pi-clippy-passes-... was not: its content cannot be removed
+(.git/worktrees/pi-clippy-passes-.../monochromatic-git-policy-cli/ahead/.cli-git-worktree-ahead-7fdab9145329c7f4-...
+is a nested subvolume or another filesystem inside .git/worktrees/pi-clippy-passes-..., so it holds data
+that is not part of ...). Git still lists the worktree as missing. To finish, run `git worktree prune`
+```
+
+and every later command that sweeps the registrations printed:
+
+```text
+The interrupted removal of .../pi-clippy-passes-... cannot be finished: it holds something this command
+does not delete (.../monochromatic-git-policy-cli/ahead/.cli-git-worktree-ahead-7fdab9145329c7f4-... is a
+nested subvolume ...). Run `git worktree prune` for the repository.
+```
+
+The person finished it with `btrfs subvolume delete` on that member and `git worktree prune`.
+Nothing was lost,
+but a leftover the wrapper made had become a person's job,
+and `git worktree prune`
+reached the member only because this mount allows `rmdir` of an empty subvolume
+(`user_subvol_rm_allowed`):
+without the option the pruned registration would have kept it.
+
+The three rules that came out of it
+(`src/native/worktree/worktree_removal_clears_the_ahead_pool.rs`,
+`src/native/worktree/worktree_remove_reports.rs`):
+
+- Ownership is what the wrapper wrote inside a registration: the pool a fill reads
+  (`<admin>/monochromatic-git-policy-cli/ahead`), and a pool a clear renamed to `removing-<identity>` and a
+  kill left, where the prefix is the clear's own and the body is an identity shape the wrapper makes.
+  Nothing else in that Git directory is taken, so a subvolume somebody else put beside them is not either.
+  The data folder around them stays, because it also holds what a person reads: the push-failure notices,
+  the files a pull kept out of the way, and the service's work queue.
+- A clear renames a pool to that name before it deletes a member,
+  so a command killed in the middle of a clear leaves a pool the next removal takes rather than refusing its
+  own leftover.
+- The registration is proved before the destroy, with the walk above,
+  so a volume the wrapper did not make is named while the worktree and every file of it are still there,
+  instead of leaving the files gone and a notice on every later command.
+  The one folder this program keeps in a registration is left out of that proof,
+  because the clear empties it and a pool a fill makes there in the moments since is its own.
+
 ## Verification
 
 Host under test:

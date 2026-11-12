@@ -365,6 +365,9 @@ where
                 let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Unavailable });
             }
             Some(false) => {
+                // The tree this request names is one the landing has still to read, however long the queue before it takes,
+                //  so a collection spares it until the service is done with the request (`service_scratch_trees_of_queued_requests.rs`).
+                crate::service_scratch_trees_of_queued_requests::note(request.id.as_str(), request.scratch.as_path());
                 let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
                 crate::service_fault::queued(id.as_str());
             }

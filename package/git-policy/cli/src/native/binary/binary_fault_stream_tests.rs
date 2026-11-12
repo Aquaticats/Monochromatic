@@ -26,7 +26,7 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::fault::{staged_repository, verify_recovery};
-use super::support::{Fixture, bounded, close_on_exec_pipe, direct, fixture, git, repository, wrapper_first_path};
+use super::support::{Fixture, bounded, close_on_exec_pipe, direct_held, fixture, git, repository, wrapper_first_path};
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
@@ -154,7 +154,8 @@ fn a_commit_with_faulty_streams_ends_as_git_does() {
         apply(&mut through_wrapper, fault);
         let wrapped: ExitStatus = through_wrapper.status().expect("the wrapped commit starts");
         let direct_repo: PathBuf = staged_repository(&fixture, &format!("direct-{fault:?}"));
-        let mut straight: Command = direct(&fixture);
+        // No `timeout` in front: this control compares the ending signal of the Git it starts with the wrapper's.
+        let mut straight: Command = direct_held(&fixture);
         straight.current_dir(direct_repo.as_path()).args(SUMMARY_COMMIT);
         apply(&mut straight, fault);
         let oracle: ExitStatus = straight.status().expect("the direct commit starts");
@@ -191,7 +192,8 @@ fn show_both_ways(fixture: &Fixture, repo: &Path, fault: StreamFault) -> (ExitSt
     let mut through_wrapper: Command = bounded(fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(fixture).as_os_str());
     through_wrapper.current_dir(repo).args(["show", "HEAD:big.txt"]);
     apply(&mut through_wrapper, fault);
-    let mut straight: Command = direct(fixture);
+    // No `timeout` in front: this control compares the ending signal of the Git it starts with the wrapper's.
+    let mut straight: Command = direct_held(fixture);
     straight.current_dir(repo).args(["show", "HEAD:big.txt"]);
     apply(&mut straight, fault);
     return (
