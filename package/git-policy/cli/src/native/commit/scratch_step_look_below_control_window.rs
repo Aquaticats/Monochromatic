@@ -64,6 +64,23 @@ pub(crate) fn the_kernel_holds(number: i32, name: &str) {
     *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((number, name.to_string()));
 }
 
+/// What:
+///  Stop stating that the kernel holds a process,
+///  so a control can make a step leave the state it stated.
+/// Why:
+///   A step the kernel holds at one look and does not at the next is one condition two enforcers can meet differently,
+///  which is the disagreement between the notice's thread and the wait that owns the child
+///  (finding 2 of the 2026-11-12 review of the stand-aside).
+///  No run on this host can make a real process leave that state on demand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theKernelLetsGo(); // the next look finds no process in state `D`
+/// ```
+pub(crate) fn the_kernel_lets_go() {
+    *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+}
+
 /// The process a control states the kernel holds,
 /// or nothing when it states none.
 pub(crate) fn a_control_says_the_kernel_holds() -> Option<(i32, String)> {

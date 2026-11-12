@@ -672,6 +672,32 @@ await describe({
       name: poolChoiceFor.name,
       children: [
         it({
+          name: 'gives no room to a run naming a pool a caller closed through the variable, which is what the variable is for',
+          fn: async () => {
+            /**
+             The pools with the qwen 4 pool closed by a caller, as a coordinator closes a pool whose week is spent.
+             */
+            const pools = poolsWithTheseLimits({
+              limits: limitsIn({ listed: `${QWEN_PLAN_QWEN4_MAX_PREVIEW.name}=0`, },),
+            },);
+            /**
+             The pool the run's own words name, which is the pool the caller closed.
+             */
+            const requested = poolNamed({
+              provider: QWEN_PLAN_QWEN4_MAX_PREVIEW.provider,
+              model: QWEN_PLAN_QWEN4_MAX_PREVIEW.model,
+            },);
+            expect(poolChoiceFor({
+              requested,
+              tallies: talliesOf({
+                runs: [],
+                pools,
+              },),
+              resumes: false,
+            },),).toEqual({ destination: 'no-room', },);
+          },
+        },),
+        it({
           name: 'moves a run that names a default model, here the closed pool the launcher defaults name, to the first pool with room, and says it was moved',
           fn: async () => {
             expect(poolChoiceFor({

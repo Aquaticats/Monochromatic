@@ -3,7 +3,9 @@
  `start-pi-run-in-a-worktree`: makes the worktree a run works in, links its dependencies, starts the driver as a capped systemd
  unit, and removes the worktree once the run has finished with it. See `README.md` for the options.
 
- One line is printed per step, and the driver's own files land in the run folder.
+ Nothing is made before these pass, in this order: the `git` the session would run is this repository's policy wrapper, the
+ prompt file can be read, the base names a commit, and no unit already holds the run's name. One line is printed per step, and
+ the driver's own files land in the run folder.
 
  @module
  */
@@ -30,6 +32,7 @@ import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import { nextRunNumber, } from './next-run-number.ts';
 import {
   NO_WORKTREE_BRANCH,
+  WORKTREE_LAUNCHER_USAGE,
   parseWorktreeLauncherOptions,
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
@@ -39,6 +42,7 @@ import {
 } from './required-output-of-a-command.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import {
   UNIT_WAIT_GRACE_SECONDS,
   waitForUnitToEnd,
@@ -52,7 +56,22 @@ import {
 } from './turn-cap-of-finished-runs.ts';
 import { unitCommandOf, } from './unit-command-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
+import {
+  launcherEndedLineOf,
+  unitStateNow,
+} from './the-line-a-launcher-ends-with.ts';
 import { makeWorktree, } from './worktree-of-a-run.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: WORKTREE_LAUNCHER_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  How git is asked a question in this command.
@@ -147,25 +166,12 @@ async function sizedTurnCap(): Promise<number> {
 }
 
 /**
- Every reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no run
- folder and no unit, and spends no provider slot on a run that could not have worked.
- */
-const refusals = await startRefusalsIn({
-  promptFile: options.promptFile,
-  git,
-  checkoutFolder: options.checkoutFolder,
-  base: options.base,
-  run: runCommandWithChildProcess,
-  runName: options.name,
-},);
-if (refusals.length > 0) {
-  throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
-}
-
-/**
  The `PATH` the session's own processes get, which a systemd unit does not inherit from the shell that started this command.
+
+ It is read before any check that asks about the session, and reading it makes nothing: it is one question of the mise
+ environment the run is about to be started with, and a start refused after it leaves no worktree, no run folder and no unit.
  */
-const pathOfMiseEnvironment = await requiredOutputOf({
+const sessionPath = await requiredOutputOf({
   run: runCommandWithChildProcess,
   command: 'mise',
   words: [
@@ -177,6 +183,56 @@ const pathOfMiseEnvironment = await requiredOutputOf({
   folder: options.checkoutFolder,
 },);
 
+// Issue 1768: which git a session's own `PATH` resolves to is the first question of this start, because it decides whether any
+// later question asked through git can be trusted. A session whose git is the system binary never runs the wrapper, so this run
+// is refused before anything is started rather than started without the policies, the guards against discarding work and the
+// automatic push. Asking it first is also what tells a reader the real reason: the base a run starts at is read with git, so
+// when git is the wrong program, "the base main names no commit" would name a symptom and hide the cause. The question is
+// asked in the checkout rather than in the run's worktree, which does not exist yet and must not be made for a start that is
+// refused. The check refuses with an error of this package's own, whose message says everything a reader needs; any other
+// failure is not a refusal and is left as the uncaught error it is.
+try {
+  console.log(`git: ${await refuseUnlessTheWrapperAnswersGit({
+    run: runCommandWithChildProcess,
+    sessionPath,
+    workingFolder: options.checkoutFolder,
+  },)} answers as the policy wrapper`,);
+}
+catch (error) {
+  if (!Error.isError(error,)) {
+    throw error;
+  }
+  console.error(`${options.name}: refusing to start: ${error.message}`,);
+  process.exit(1,);
+}
+
+/**
+ Every other reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no
+ run folder and no unit, and spends no provider slot on a run that could not have worked.
+ */
+const {
+  refusals,
+  warnings,
+} = await startRefusalsIn({
+  promptFile: options.promptFile,
+  git,
+  checkoutFolder: options.checkoutFolder,
+  base: options.base,
+  run: runCommandWithChildProcess,
+  runName: options.name,
+  sessionPath,
+  home: env.HOME ?? '',
+  runsFolder: options.runsFolder,
+},);
+if (refusals.length > 0) {
+  throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
+}
+// A question this start could not get an answer to is no reason to refuse a run, and saying nothing about it would hide that the
+// session's extensions were never checked.
+for (const warning of warnings) {
+  console.error(`${options.name}: ${warning}`,);
+}
+
 if (!readOnlyInMain) {
   console.log(await makeWorktree({
     git,
@@ -185,25 +241,6 @@ if (!readOnlyInMain) {
     branch: options.branch,
     base: options.base,
   },),);
-}
-
-try {
-  console.log(`git: ${await refuseUnlessTheWrapperAnswersGit({
-    run: runCommandWithChildProcess,
-    sessionPath: pathOfMiseEnvironment,
-    workingFolder: worktree,
-  },)} answers as the policy wrapper`,);
-}
-catch (error) {
-  // Issue 1768: a session whose git is the system binary never runs the wrapper, so this run is refused before anything is
-  // started rather than started without the policies, the guards against discarding work and the automatic push. The check
-  // refuses with an error of this package's own, whose message says everything a reader needs; any other failure is not a
-  // refusal and is left as the uncaught error it is.
-  if (!Error.isError(error,)) {
-    throw error;
-  }
-  console.error(`${options.name}: refusing to start: ${error.message}`,);
-  process.exit(1,);
 }
 
 if (!readOnlyInMain) {
@@ -244,7 +281,7 @@ const unit = unitCommandOf({
   memory: options.memory,
   taskCount: options.taskCount,
   wallSeconds: options.wallSeconds,
-  pathOfMiseEnvironment,
+  pathOfMiseEnvironment: sessionPath,
   home: env.HOME ?? '',
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
@@ -309,7 +346,18 @@ const waited = await waitForUnitToEnd({
 const status = (waited.ended === 'the-unit-ended')
   ? (waiter.exitCode ?? 0)
   : 1;
-console.log(`${options.name}: unit ${waited.ended} with status ${String(status,)}; run folder ${runFolder}; worktree ${worktree}`,);
+console.log(launcherEndedLineOf({
+  runName: options.name,
+  unitName: unitNameOfGiven({ name: options.name, },),
+  unitState: await unitStateNow({
+    run: runCommandWithChildProcess,
+    unitName: unitNameOfGiven({ name: options.name, },),
+  },),
+  ended: waited.ended,
+  status,
+  runFolder,
+  worktree,
+},),);
 
 /**
  What finishing the run answered, which is the status this command exits with.

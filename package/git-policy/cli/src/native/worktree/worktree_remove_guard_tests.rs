@@ -117,7 +117,7 @@ fn forced_plan_named(target: &Path, operand: &str) -> RemovePlan {
 /// Run the removal of `plan` in the repository `repo` on the stand-in.
 fn run(stand: &Stand, repo: &Path, plan: &RemovePlan) -> RemoveOutcome {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return remove_with(stand, &RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path() });
+    return remove_with(stand, &RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None });
 }
 
 /// The administrative directory of the worktree registered at `worktree` in `repo`.
