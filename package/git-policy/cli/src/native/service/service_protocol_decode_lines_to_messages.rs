@@ -14,7 +14,7 @@
 use serde_json::Value;
 use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
 
 /// What:
@@ -175,7 +175,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && is_scratch_path(request.scratch.as_path(), request.git_dir.as_path())
         // The drawn shadow is a tree of the wrapper's own, in the folder the service draws into, so a request cannot name any
         //  directory of the account for removal.
-        && request.shadow.as_deref().is_none_or(|tree| crate::shadow_drawn::is_a_drawn_tree(tree, request.common_dir.as_path(), request.git_dir.as_path()))
+        && request.shadow.as_deref().is_none_or(|tree| { return is_a_drawn_tree_of_the_request(tree, &request); })
         && !request.committer.contains(['\0', '\n'])
         && author_clean
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
@@ -188,6 +188,24 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         return Err(String::from("request is not acceptable"));
     }
     return Ok(ClientMessage::Commit(Box::new(request)));
+}
+
+/// What:
+///  Whether the drawn shadow a request names is one of the wrapper's own trees of that request's worktree.
+/// Why:
+///   The service removes the tree a request names once its landing is over,
+///  so the name must be one only the wrapper makes
+///  (`shadow_drawn.rs`,
+///  `is_a_drawn_tree`),
+///  and a request built in this process never passes this decoder,
+///  so the check lives where a name and the two directories it is judged by are in reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isADrawnTreeOfTheRequest = (tree, request) => isADrawnTree(tree, request.commonDir, request.gitDir);
+/// ```
+fn is_a_drawn_tree_of_the_request(tree: &Path, request: &CommitRequest) -> bool {
+    return crate::shadow_drawn::is_a_drawn_tree(tree, request.common_dir.as_path(), request.git_dir.as_path());
 }
 
 /// What:

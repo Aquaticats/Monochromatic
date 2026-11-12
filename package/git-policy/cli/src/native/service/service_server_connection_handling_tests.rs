@@ -540,10 +540,10 @@ fn a_question_for_a_drawn_shadow_is_answered_while_the_landing_thread_holds_a_ba
         assert_eq!(next_line(&mut client).await, ServiceMessage::Drawn { tree: drawn.clone() }, "the tree is the answer while the landing holds a batch");
         // A second commit that asks now is told there is none: the first one's tree left the stock with its answer.
         let again: String = encode_client(&ClientMessage::Shadow { git_dir, scratch });
-        let (_read_half, mut write_half, mut client) = connection();
-        answer_request(again.as_str(), &mut write_half, &shared, Instant::now()).await;
-        drop(write_half);
-        assert_eq!(next_line(&mut client).await, ServiceMessage::NoShadow, "one tree answers one commit");
+        let (_second_read, mut second_write, mut second_client) = connection();
+        answer_request(again.as_str(), &mut second_write, &shared, Instant::now()).await;
+        drop(second_write);
+        assert_eq!(next_line(&mut second_client).await, ServiceMessage::NoShadow, "one tree answers one commit");
     });
     assert!(matches!(jobs.try_recv(), Ok(Job::Commit(..))), "the landing's own job is still the queue's whole");
     assert!(jobs.try_recv().is_err(), "the question took no place in the landing's queue");

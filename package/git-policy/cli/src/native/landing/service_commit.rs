@@ -303,11 +303,11 @@ pub fn service_commit<F: RepositoryFacts>(
         //  hands its trees back to this command, so the commit removes them itself once that answer's arm has read what it needs.
         //  A request the service took, answered or not, leaves both trees to the service.
         let handed_back_to_this_command: bool = matches!(submitted, Ok(Submitted::PrepareAgain { .. } | Submitted::Moved));
-        if let Some(tree) = handed.as_mut()
+        if let Some(held) = handed.as_mut()
             && !handed_back_to_this_command
             && !the_service_never_took(&submitted)
         {
-            tree.the_service_removes_it();
+            held.the_service_removes_it();
         }
         // The service answered that this attempt did not land the commit: the rebuild below captures the change from this
         //  attempt's private index, so this is the instant a control holds to prove that index is still there to be read.

@@ -501,10 +501,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 // The finished shadow the service drew ahead of this commit, when it was handed one: it is a tree of the
                 //  wrapper's own in this worktree's drawn folder, and the landing that read it is the only place that says
                 //  when the commit is done with it.
-                if let Some(drawn) = queued.0.shadow.as_deref()
-                    && crate::shadow_drawn::is_a_drawn_tree(drawn, queued.0.common_dir.as_path(), queued.0.git_dir.as_path())
+                if let Some(handed) = queued.0.shadow.as_deref()
+                    && crate::shadow_drawn::is_a_drawn_tree(handed, queued.0.common_dir.as_path(), queued.0.git_dir.as_path())
                 {
-                    trees.push((queued.0.id.clone(), drawn.to_path_buf()));
+                    trees.push((queued.0.id.clone(), handed.to_path_buf()));
                 }
             }
             // The shutdown waits for this landing and refuses one that would begin after the stop.
