@@ -47,6 +47,9 @@ pub struct ScratchStepStop {
     /// How many programs below the step were not ended,
     /// so each of them may still be running.
     pub below_unended: u32,
+    /// Whether the ceiling had already stood aside once for this step because the kernel held it in a disk wait,
+    /// so the words say the step was waited for before it was ended.
+    pub waited_while_the_kernel_held_it: bool,
 }
 
 /// What:
@@ -71,7 +74,14 @@ pub struct ScratchStepStop {
 /// stopWords({ waited, ceiling, signs, belowUnlisted, belowUnended })
 /// ```
 pub fn stop_words(stop: ScratchStepStop) -> String {
-    let ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended } = stop;
+    let ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended, waited_while_the_kernel_held_it } = stop;
+    // A step the kernel held in a disk wait was already given the longer bound before it was ended, and the person is
+    //  told so: otherwise the wait looks like one that ended a step working on its own.
+    let held: &str = if waited_while_the_kernel_held_it {
+        " The kernel held it in a disk wait, so it was waited for to that bound before it was stopped."
+    } else {
+        ""
+    };
     let signing: &str = if signs {
         " The commit signs the commit because `commit.gpgsign` or `-S` asks for it, so the signing program is the first thing to check."
     } else {
@@ -90,9 +100,10 @@ pub fn stop_words(stop: ScratchStepStop) -> String {
         count => format!(" {count} programs it started could not be ended, so they may still be running; check with `ps`."),
     };
     return format!(
-        "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, the most a commit whose \
-         message came with the command may take ({} seconds, three times the slowest `git commit` step this repository's commit timing log holds); nothing was \
-         committed, and your index and files are as they were.{signing}{unlisted}{unended} Run the same `git commit` command again.\n",
+        "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, at the bound this release \
+         holds for a commit whose message came with the command ({} seconds: three times the slowest `git commit` step that ended by itself in this \
+         repository's commit timing log, or the one-minute floor, whichever is later); nothing was committed, and your index and files are as they were.\
+         {held}{signing}{unlisted}{unended} Run the same `git commit` command again.\n",
         waited.as_secs(),
         ceiling.as_secs()
     );

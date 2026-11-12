@@ -160,6 +160,11 @@ pub mod service_land_side_reference_write;
 /// or the commits made from the requests' changes.
 pub mod service_land_objects_of_batch;
 
+/// The reference that keeps a batch's commits reachable until its branch moves,
+/// written by the landing itself where that write is provably Git's,
+/// and left to Git everywhere else.
+pub mod side_reference_written_here;
+
 /// What the commit service's landing does once the branch has moved:
 /// index entries and conclusion state.
 pub mod service_land_copy;
@@ -273,6 +278,10 @@ pub mod service_commit_saved_message;
 
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
+
+/// The two Git steps a service preparation starts itself,
+/// with the face a task of the runtime asks.
+pub mod service_prepare_own_git_steps;
 
 /// The smaller steps of a service preparation.
 pub mod service_prepare_changes_config_and_pathspec_steps;
