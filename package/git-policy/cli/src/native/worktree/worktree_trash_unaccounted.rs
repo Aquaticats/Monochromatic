@@ -190,7 +190,7 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
                 //  repository's service is told; a record that was already there tells it nothing new.
                 waiting = true;
                 format!(
-                    "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one trash at a time for this repository.",
+                    "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one worktree's trashes at a time.",
                     entry.path().display()
                 )
             }
