@@ -546,15 +546,20 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function aRecordStillNamesTheCapture(gitDir: string, capture: Capture): boolean; // listMergeIntents().some((one) => one.carried?.reference === capture.reference)
+/// function anotherRecordStillNamesTheCapture(gitDir: string, capture: Capture, finishing?: string): boolean; // listMergeIntents().some((one) => one.path !== finishing && one.carried?.reference === capture.reference)
 /// ```
-pub(crate) fn a_record_still_names_the_capture(git_dir: &Path, capture: &Capture) -> bool {
+pub(crate) fn another_record_still_names_the_capture(git_dir: &Path, capture: &Capture, finishing: Option<&Path>) -> bool {
     let Some(reference) = capture.reference.as_deref() else { return false };
     let Ok(records) = crate::merge_isolation_journal::list_merge_intents(git_dir) else {
         // A listing that failed proves nothing, so the ref is kept: a name that outlives its bytes costs a person one `rm`.
         return true;
     };
     for record in records {
+        // The record this command is finishing is not another one, and a caller that deletes the refs before the record
+        //  names it here: the ref is only left standing when a record other than that one still needs it.
+        if finishing == Some(record.as_path()) {
+            continue;
+        }
         let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
         let Some(intent) = crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice()) else { continue };
         let Some(carried) = intent.carried.as_ref() else { continue };
@@ -584,8 +589,8 @@ pub(crate) fn a_record_still_names_the_capture(git_dir: &Path, capture: &Capture
 /// ```ts
 /// async function dropCaptureRef({ context, root, capture }): Promise<boolean>;
 /// ```
-pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture) -> bool {
-    return match run_on_runtime(drop_capture_ref_awaiting(context, git_dir, root, capture)) {
+pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture, finishing: Option<&Path>) -> bool {
+    return match run_on_runtime(drop_capture_ref_awaiting(context, git_dir, root, capture, finishing)) {
         Ok(dropped) => dropped,
         // A deletion that could not be started leaves the ref where it is, which is what the awaited face reports too.
         Err(refusal) => {
@@ -608,13 +613,13 @@ pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, captu
 /// ```ts
 /// async function dropCaptureRef({ context, root, capture }): Promise<boolean>;
 /// ```
-pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture) -> bool {
+pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture, finishing: Option<&Path>) -> bool {
     let Some(reference) = capture.reference.as_deref() else { return true };
     // The record this command is finishing may not be the only one that names this capture: a merge that saved its result
     //  writes a second record beside the first, and both keep one capture. While another record still names the ref, its bytes
     //  are the person's only copy of that work, so the name stays, and the caller keeps its record: the command that finishes
     //  that other merge drops the name, and this one's next attempt finds it gone.
-    if a_record_still_names_the_capture(git_dir, capture) {
+    if another_record_still_names_the_capture(git_dir, capture, finishing) {
         debug(TAG, format!("the capture's ref {reference} is still named by a merge record, so it was left where it is").as_str());
         return false;
     }

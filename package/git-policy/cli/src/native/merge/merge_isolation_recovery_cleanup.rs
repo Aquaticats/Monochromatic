@@ -403,7 +403,7 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
     };
     // The capture's bytes are the person's files' own, so the ref that kept them goes before the record that names it: a
     //  deletion that fails keeps the record, and the next command's recovery tries again.
-    if !crate::merge_isolation_recovery_carry::drop_capture_awaiting(place, root, intent).await {
+    if !crate::merge_isolation_recovery_carry::drop_capture_awaiting(place, root, record, intent).await {
         let _noted = out.write_all(
             format!(
                 "monochromatic-git-policy-cli: the merge saved on {saved_ref} was not made, and the keep of the work it carries could not be \

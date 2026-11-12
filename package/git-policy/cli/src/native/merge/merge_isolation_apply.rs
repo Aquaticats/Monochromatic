@@ -192,7 +192,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
             // A capture whose record could not be written names nothing a later command would settle, so it goes; a capture whose
             //  ref stays names itself in the refusal, because nothing else does.
             let kept: String = match plan.carried {
-                Some(capture) if !drop_capture_ref(&session.context, git_dir, root, capture) => match capture.reference.as_deref() {
+                Some(capture) if !drop_capture_ref(&session.context, git_dir, root, capture, None) => match capture.reference.as_deref() {
                     Some(kept) => format!(", and the keep of your edits is still on {kept}, which nothing removes: `git update-ref -d {kept}` deletes it"),
                     None => String::new(),
                 },
@@ -327,7 +327,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         //  deletion another command's lock blocked keeps the record, and the next command's recovery retries it instead of the
         //  name being left for a person to clean up (a cross-vendor audit of alpha.12).
         let gone: bool = match plan.carried {
-            Some(capture) => drop_capture_ref(&session.context, git_dir, root, capture),
+            Some(capture) => drop_capture_ref(&session.context, git_dir, root, capture, Some(record.as_path())),
             None => true,
         };
         if gone {

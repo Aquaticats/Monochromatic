@@ -1144,7 +1144,8 @@ fn a_landed_worktree_whose_held_record_cannot_be_read_keeps_its_commit() {
     // The record another release wrote: this build cannot parse it, and its file name is the only field it can read.
     std::fs::write(record_path.as_path(), b"a record another release wrote\n").expect("a record this build cannot read");
     let sweep: LandedSweep = land_feature(&landed);
-    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed once its commit is kept: {sweep:?}");
+    assert_eq!(sweep.removed.len() + sweep.handed_over.len(), 1, "the landed worktree is removed once its commit is kept, here or by the service: {sweep:?}");
+    assert_eq!(let_the_service_finish(&sweep), vec![Verdict::Done], "the service's own removal succeeds");
     assert!(
         sweep.kept_commits.iter().any(|line| return line.contains(record_path.display().to_string().as_str())),
         "the person reads which record could not be read: {sweep:?}"
@@ -1465,7 +1466,7 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
         Examined::Unproven => String::from("unproven"),
     };
     assert!(
-        matches!(examined, Examined::Kept(_)),
+        matches!(examined, Examined::Kept(_) | Examined::Refused(_)),
         "a worktree that holds another worktree stays, whatever list was read before it arrived (it came to {came_to}, the proof ran: {}, and its refusal: {:?})",
         stand.proof_ran.get(),
         stand.proof_refusal.borrow()

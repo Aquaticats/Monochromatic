@@ -199,11 +199,11 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
 /// ```ts
 /// function dropCapture({ place, root, intent }): boolean;
 /// ```
-pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> bool {
+pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> bool {
     let Some(capture) = intent.carried.as_ref() else {
         return true;
     };
-    return drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture).await;
+    return drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture, Some(record)).await;
 }
 
 /// What:
@@ -254,7 +254,7 @@ pub(crate) async fn drop_the_records_refs_then_the_record(
     intent: &MergeIntent,
     side_ref: SideRef,
 ) -> Result<bool, RecoveryError> {
-    if !drop_capture_awaiting(place, root, intent).await {
+    if !drop_capture_awaiting(place, root, record, intent).await {
         return Ok(false);
     }
     if side_ref == SideRef::Drop && !crate::merge_isolation_recovery_cleanup::drop_side_ref_awaiting(place, root, intent).await {
