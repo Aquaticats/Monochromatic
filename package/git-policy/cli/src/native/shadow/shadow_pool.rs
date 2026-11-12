@@ -146,6 +146,44 @@ pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
 }
 
 /// What:
+///  Whether one name of the pool's path is a directory this wrapper made,
+///  or is not there yet.
+/// Why:
+///   A name that is there and is a link or a file is not the wrapper's:
+/// the wrapper makes its folders with `create_private_directory_all` and keeps its members inside them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theWrappersOwnDirectory(path) // false for a link and for a file, true for a directory and for nothing
+/// ```
+fn the_wrappers_own_directory(path: &Path) -> bool {
+    return match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.is_dir(),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    };
+}
+
+/// What:
+///  Whether the two names the wrapper makes above its members are directories it made,
+///  or are not there yet.
+/// Why:
+///   The pool's path is the pool's folder and the worktree's folder inside it,
+///  and a link at either one sends a creation, a claim and the sweep of a killed fill into
+///  whatever tree somebody else chose,
+///  where the sweep removes whole trees.
+///  A path that is not there is the empty pool every caller already handles,
+/// which `create_private_directory_all` makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePoolPathIsTheWrappersOwn(root) // false when either name is a link or a file
+/// ```
+pub(crate) fn the_pool_path_is_the_wrappers_own(root: &Path) -> bool {
+    let folder_is_ours: bool = root.parent().is_none_or(the_wrappers_own_directory);
+    return folder_is_ours && the_wrappers_own_directory(root);
+}
+
+/// What:
 ///  Takes one finished shadow into `destination`,
 /// and answers whether the pool had one this invocation can use.
 /// Why:
@@ -167,6 +205,11 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
         return false;
     }
     let root: PathBuf = pool_root(template);
+    // A path that is not the wrapper's own is no pool: a link there would put the claim's `rename`, and the removal of a
+    // refused claim, inside whatever tree it names.
+    if !the_pool_path_is_the_wrappers_own(root.as_path()) {
+        return false;
+    }
     let Ok(entries) = std::fs::read_dir(root.as_path()) else { return false };
     let mut examined: usize = 0;
     for entry in entries.flatten() {
@@ -187,9 +230,40 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
             Ok(Some(reason)) => note_refusal(name.as_str(), reason.as_str()),
             Err(error) => note_refusal(name.as_str(), error.to_string().as_str()),
         }
-        let _removed: std::io::Result<()> = remove_tree(destination);
+        remove_claim(destination);
     }
     return false;
+}
+
+/// What:
+///  Removes a claimed entry that was refused,
+///  whatever kind of entry the claim renamed here.
+/// Why:
+///   The pool's names are the wrapper's, but the claim trusts nothing about them:
+/// a link or a file at a member's name is refused,
+///  and `remove_dir_all` refuses those two,
+/// so a claim left at this path would make the creation that follows fail on every later commit of the worktree.
+///  A removed claim is the wrapper cleaning up after itself,
+/// and a claim that cannot be removed is named in the debug log rather than written to the terminal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeClaim(destination) // the tree, or the one name a link or a file is
+/// ```
+fn remove_claim(path: &Path) {
+    let removed: std::io::Result<()> = match std::fs::symlink_metadata(path) {
+        // A real directory goes with its entries; every other kind is the one name the claim moved, which is never followed.
+        Ok(metadata) if metadata.is_dir() => remove_tree(path),
+        Ok(_) => std::fs::remove_file(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = removed {
+        crate::diagnostic_log::debug(
+            "shadowPool",
+            format!("the refused claim {} cannot be removed: {error}", path.display()).as_str(),
+        );
+    }
 }
 
 /// What:
@@ -254,6 +328,15 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
         Err(error) => return Err(GitFailure(format!("whether the worktree keeps its own info directory cannot be read: {error}"))),
     }
     let root: PathBuf = pool_root(template);
+    // A link or a file anywhere on the pool's path is nobody's pool: a member made there would land in the tree the link
+    // names, and the sweep below would remove that tree's own entries that look like a half-made member.
+    if !the_pool_path_is_the_wrappers_own(root.as_path()) {
+        crate::diagnostic_log::debug(
+            "shadowPool",
+            format!("made no member at {}: it is not a folder this wrapper's pool can be", root.display()).as_str(),
+        );
+        return Ok(None);
+    }
     if members(root.as_path()).len() >= POOL_LIMIT {
         return Ok(None);
     }
@@ -317,6 +400,10 @@ pub fn members(root: &Path) -> Vec<PathBuf> {
 /// sweepAbandoned(root, now)
 /// ```
 fn sweep_abandoned(root: &Path, now: SystemTime) {
+    // Only the wrapper's own folder is swept.
+    if !the_pool_path_is_the_wrappers_own(root) {
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(root) else { return };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();

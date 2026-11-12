@@ -100,6 +100,18 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// await refusalOfMember(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
+    // The member itself first, and asked of the name and never of what a link there names:
+    // listing it below follows a link, so a link at a member's name would be judged, and then written into, as the tree
+    // it points at rather than as the tree a creation made.
+    // The name carries no separator, which `join("")` would add and which makes `lstat` resolve the link.
+    let own_directory: bool = match std::fs::symlink_metadata(member) {
+        Ok(metadata) => metadata.is_dir(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
+    if !own_directory {
+        return Ok(Some(String::from("it is not the directory a creation makes")));
+    }
     if read_bytes(member.join("config").as_path())? != template.config_bytes() {
         return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
@@ -109,7 +121,7 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     if read_bytes(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD.as_bytes() {
         return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
-    // The member itself is not asked about: listing it below is the answer to that question.
+    // The skeleton's directories are asked about by name, and the member itself is the question above.
     for relative in SKELETON_DIRECTORIES {
         if relative.is_empty() {
             continue;
@@ -136,6 +148,11 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         let spelled: String = name.to_string_lossy().into_owned();
         let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
         if own {
+            // A creation writes these entries itself, so a link at one of them is a leftover of a use,
+            // and a write through it reaches the file it names: `HEAD` is written with `fs::write`.
+            if *is_link {
+                return Ok(Some(format!("it holds {spelled} as a link, which this invocation's creation does not make")));
+            }
             continue;
         }
         if !is_shared_shadow_entry(spelled.as_str()) {

@@ -130,6 +130,16 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
         return;
     }
     let pool: PathBuf = pool_root_for(common_dir, git_dir);
+    // The path is the wrapper's own or the removal takes nothing:
+    // the tree this finds is renamed out of its name and deleted,
+    // so a link there would delete whatever tree it names.
+    if !crate::shadow_pool::the_pool_path_is_the_wrappers_own(pool.as_path()) {
+        debug(
+            TAG,
+            format!("{} is not a folder this wrapper's pool can be, so nothing of it is removed", pool.display()).as_str(),
+        );
+        return;
+    }
     let taken: PathBuf = match take_the_pool_out_of_its_name(pool.as_path()) {
         Ok(Some(taken)) => taken,
         // The pool is not there any more, so nothing of it is left to remove.
