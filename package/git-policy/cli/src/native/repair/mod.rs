@@ -56,6 +56,13 @@ pub mod package_repair_prewarm;
 #[cfg(target_os = "linux")]
 pub mod package_repair_prewarm_job;
 
+/// The claim a filling leaves beside the names it takes:
+/// what a marker says,
+/// how one is read,
+/// and whose claim it can be.
+#[cfg(target_os = "linux")]
+pub mod package_repair_prewarm_marker;
+
 /// The hand-over of a new worktree's copied package state to the commit service,
 /// so the add does not wait for pnpm's relink or the toolchain install.
 #[cfg(target_os = "linux")]
