@@ -135,6 +135,31 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The fourth cull pass (2026-11-11T20:50:00-05:00)
+
+Changed since the third pass: alpha.11 is installed; `main` got the test fix `08ece74c5e`; the owner is away until about 04:00.
+
+- Reframed by inbox note (20:52), task unchanged: six running wrapper agents that started from `main` before `08ece74c5e`
+  (the scratch-ceiling agent, the first-commit agent, the abort agent, the removal-beside-a-link agent, the shadow hand-out agent,
+  the silent-service agent) merge `main` before they build the binary-level tests.
+- Nothing running was stopped: no running task rests on a decision that changed.
+- Twenty-three runs ended between 19:50 and 20:50 (six fix agents, three landing agents, six Kimi reviews, eight qwen4 reviews).
+  A Claude Code native subagent writes a digest of their reports to `~/temp/agent/digest-2026-11-11T2050/digest.md`
+  (a reading aid by the coordinator's own vendor, not a review); what it leads to is recorded when it is acted on.
+- Queued (round 250): qwen4 reviews of seven branches that finished this hour
+  (gate and install scripts, service of a gone worktree, shared remote file option, commits within 5 s findings,
+  tokio landing message and prepare, shared-target fixture, tests that fail only on this host).
+  The Clippy branch needs none: nothing of it differs from `main` under the package any more.
+- Deleted, as superseded with their content shown to be in `main`
+  (`git for-each-ref --merged=main`, this work's branches only: names holding `git-policy-cli`, `cli-git`,
+  `pi-shared-subagent-driver`, `cargo-shadow`, `crate-release`, `fix/wg-`, and the `test/kimi-review-*` and `test/qwen-review-*` branches):
+  670 local branches and 488 of them on the remote. The list is `~/temp/agent/merged-branches-in-scope-2026-11-11T2055.txt`.
+- Kept: 63 merged branches that a worktree has checked out (some are agents that have not committed yet, so their branch equals `main`);
+  5 that Git's own safe delete refused because their remote copy holds commits `main` lacks (`feat/cli-git-native-install` is one):
+  those want a look, not a deletion; every branch of other sessions (1,269 local branches in all are merged into `main`; 531 are not this work's).
+- Not done: the old worktrees whose branches are merged. Removing dozens of worktrees with a wrapper whose removal still has open jams
+  is left to the landed-worktree sweep and to `remove-finished-worktrees` once the package's commands are on `main`.
+
 ### The owner is away for eight hours, and the first commits on 0.6.1-alpha.11 (2026-11-11T20:05:00-05:00)
 
 The owner, at about 20:03: "I'll be away for 8h, you keep working. Make decisions I'd definitely approve (based on my apparent taste) yourself."
