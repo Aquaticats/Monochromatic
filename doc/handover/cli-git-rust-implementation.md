@@ -670,6 +670,46 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### `0.6.1-alpha.17` published and installed; the jam fix's author answered its review; three more branches finished (2026-11-13T14:56:09-05:00)
+
+Not complete: every branch named here waits for a review.
+Read from each run's own report by the coordinating session; the release's times are from its commands' output.
+
+- **`0.6.1-alpha.17`**: published at 14:50:57 with both Linux archives
+  (`crate-release.yml` run 43494523496, `cargo-publish.yml` run 43494707054; crates.io skipped as for every alpha),
+  nine minutes and forty-seven seconds after the dispatch.
+  Installed at 14:53:46 with `native:install -- 0.6.1-alpha.17`; the install's sample commit took 1,705 ms and landed;
+  `git --version` names `monochromatic-git-policy-cli 0.6.1-alpha.17`.
+  The service journal shows no line since that commit began.
+- **The jam fix's author** (`commit-fails-within-a-bound…`), tip `3382d69ea0`, `main` merged in.
+  It ran all three parts of the review and saw each; with its fix the request without its newline is answered by nothing, the branch does not move,
+  and the service logs that it refused a line that ended with its connection.
+  Three changes: the service takes a request only when its whole framed line arrived;
+  the client says "may not have landed" (the tree kept) whenever any attempt put a whole line on the wire, never "never taken";
+  and the message no longer promises that a waking service drops the commit.
+  It says plainly that the landing's check for a gone client still loses a race with the heartbeat, which is why the words changed.
+  Cost: below what the host resolves (medians 55 to 85 ms within one arm).
+  Its run is marked `driver-failed` by issue 6295.
+  The review of the branch with its answer is first in the queue (`main...3382d69ea0`).
+- **The commit service that needs no manager**, tip `53726ade2d`, `main` merged in: the two-release control is written and found a defect of the upgrade.
+  An older client met a newer service and none of three commits was made, because the service announced and demanded the newest protocol number alone;
+  it now serves the range it can serve, and both directions make three of three.
+  `service stop` and the earlier releases' units are done, the last with a control in a container.
+  Fit to merge by its report; six controls of `main`'s fail in its tree, in files identical to `main`'s.
+  First review queued.
+- **`file-mode-through-a-merge-is-written-as-real-git-writes-it`**, tip `f89786b089`: a merge writes the mode real Git writes
+  (the installed release wrote 0711 where Git writes 0700 under one umask).
+  It names a second effect it found and handled: without a mode in the dirty-path scan, a conflict over staged work is forwarded to real Git where it was refused.
+  Fit to merge by its report; first review queued.
+- **`lfs-url-is-shown-and-only-a-recognised-secret-in-it-is-masked`**, tip `28f7377091`: the URL is shown and only recognised secrets in it are masked
+  (the user information always; token prefixes of GitHub and GitLab from their documentation; signed-URL parameter names);
+  masking is done before the output is cut; a helper that detaches stays a descendant the wrapper owns.
+  Fit to merge by its report; first review queued.
+- **Ranges for reviews of answers**: an author that merged `main` makes the range from the reviewed commit to its tip hold `main`'s changes too.
+  From here such a review is asked over `main...<tip>`; the five asked for at 14:39 to 14:47 were asked the other way and may read more than the answer.
+- **Issue 6297** filed: a rate-limit answer ends a Pi run after one attempt.
+  Three reviews ended so at 14:49:16 to 14:49:18 (the reload fix's, guards-refuse's, and discarding-commands' second start) and are queued again.
+
 #### Two owner decisions; pass 19 is on `main` and `0.6.1-alpha.17` is dispatched; seven reviews came back, six with defects (2026-11-13T14:41:59-05:00)
 
 Not complete: the release is running; every branch named here but the two in the pass is with its author or in review.
