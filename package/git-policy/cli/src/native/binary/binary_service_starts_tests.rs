@@ -311,3 +311,39 @@ fn a_client_keeps_a_service_of_a_newer_release_and_asks_it_to_leave_not_once() {
     drop(newer);
     finish(&fixture, runtime.as_path());
 }
+
+/// What:
+///  A client replaces a service of an *older* release, and its own service serves the next command.
+/// Why:
+///  The other half of `service_release_order.rs`: a service older than this build is the one case where asking it to
+/// leave is right, because it is the program whose faults this release was installed to remove. A machine that installs
+///  a release therefore stops being served by the old program at its first commit, and every command after it reaches
+///  the new one.
+#[test]
+fn a_client_replaces_a_service_of_an_older_release() {
+    let (fixture, repo, runtime) = prepared("starts-older-release-replaced");
+    let mut older: super::service_commit::Running = super::service_commit::start_in_release(fixture.root.as_path(), runtime.as_path(), Some("0.6.1-alpha.12"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let note: PathBuf = pid_note(runtime.join(git_policy_cli::service_instance::SOCKET_DIRECTORY).as_path(), instance.as_str());
+    let served = read_note(note.as_path()).expect("the older service wrote its note");
+    let committed: Output = commit(&fixture, repo.as_path(), runtime.as_path());
+    let said: String = String::from_utf8_lossy(committed.stderr.as_slice()).into_owned();
+    assert!(committed.status.success(), "the commit lands, served by this release's own service: {said}");
+    assert_eq!(subject(&fixture, repo.as_path()), "subject");
+    assert!(said.contains("Updating the commit service"), "the older service was asked to leave: {said}");
+    assert_eq!(said.matches("Updating the commit service").count(), 1, "once, and not again in this command: {said}");
+    let after = read_note(note.as_path()).expect("a service is named after the commit");
+    assert_ne!(after.pid, served.pid, "the older service was replaced by this release's");
+    // The second command reaches the service the first one left, and asks nothing to leave.
+    std::fs::write(repo.join("a.txt"), "base\nmore\nagain\n").expect("a second edit");
+    let second: Output = commit(&fixture, repo.as_path(), runtime.as_path());
+    let again: String = String::from_utf8_lossy(second.stderr.as_slice()).into_owned();
+    assert!(second.status.success(), "{again}");
+    assert!(!again.contains("Updating the commit service"), "the second command replaces nothing: {again}");
+    let served_again = read_note(note.as_path()).expect("the service is named");
+    assert_eq!(served_again.pid, after.pid, "and reaches the same one");
+    // The service this control started is gone; the client's own is the control's to end.
+    let _ended = older.kill();
+    drop(older);
+    finish(&fixture, runtime.as_path());
+}
