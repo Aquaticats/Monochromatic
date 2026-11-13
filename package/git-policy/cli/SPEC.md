@@ -12524,14 +12524,20 @@ and every file its commit service owns is written inside that runtime directory
 (`src/native/service/service_session_of_the_runtime_directory.rs` answers the question,
 and both halves read that one answer).
 The socket,
-the service's log and its process note already lived there;
-so now do the journal (`service/<instance>`),
-the plans of the pushes the service retries (`service/<instance>/push-retries`),
-the records a later command shows,
-the real-Git record and the wrapper's own scratch files (`scratch`),
-all below `<runtime directory>/monochromatic-git-policy-cli/`
-(`state_dir_of_the_command` in `src/native/service/service_host_of_a_worktree.rs`,
-and `state_directory` in `src/native/foundation/scratch_location.rs`).
+the service's log,
+its process note and the real-Git record already lived there;
+so now does everything the service keeps as its own state:
+the journal (`service/<instance>`,
+which also holds the repository the rules warm remembers and the plans of the pushes the service retries),
+and the wrapper's own scratch files (`scratch`),
+all below `<runtime directory>/monochromatic-git-policy-cli/`.
+The records a later command shows stay where they were,
+in the worktree's Git directory:
+a push failure belongs to the repository that made the commit and is read in that repository,
+whichever runtime directory the service that wrote it was given.
+The two places that answer where the rest goes are `state_dir_of_the_command` in
+`src/native/service/service_host_of_a_worktree.rs` and `state_directory` in
+`src/native/foundation/scratch_location.rs`.
 Nothing of such a run is written under the account's real state directory
 (`XDG_STATE_HOME`, else `~/.local/state`) and nothing of it reaches the account's manager.
 A run given its own runtime directory therefore commits,
@@ -12544,7 +12550,9 @@ An address the environment does not name at all, or names while no bus was inher
 is a runtime directory of the command's own too: there is no session it belongs to.
 
 Three cases are unaffected, and the container proof measures all three
-(`keep/repro-in-a-container.sh` beside the report for issue 6293):
+(`bin/proof-private-runtime-directory.ts`,
+which `mise run //package/git-policy/cli:native:proof:private-runtime` runs,
+and which fails when any of the three moves):
 
 - a person whose `XDG_RUNTIME_DIR` is their session's own keeps the account's state directory,
   the same journal paths earlier releases used,

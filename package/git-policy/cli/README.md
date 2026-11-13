@@ -6772,7 +6772,7 @@ account's service manager (`src/native/service/service_server_start_through_the_
 Typed by hand with no socket and no address it refuses and starts nothing.
 A commit in a run given a runtime directory of its own therefore leaves nothing in the account's manager and nothing
 under the account's real state directory:
-its journal, its retry plans, its notices and its scratch files all sit under that runtime directory
+its journal, the plans of the pushes the service retries, and its scratch files all sit under that runtime directory
 (see "State on disk", and `SPEC.md` "A runtime directory of the command's own").
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
