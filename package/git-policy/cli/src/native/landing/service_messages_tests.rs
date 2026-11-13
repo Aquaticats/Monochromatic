@@ -348,6 +348,38 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     }
 }
 
+/// What:
+///  A commit whose whole request did reach the service is not described as one that can never land.
+/// Why:
+///  The review of this change showed the landing's client-gone check losing to the connection writer's heartbeat,
+///  so a service that wakes can land a request whose command is gone:
+/// the branch read shows "not made" only at the moment it was read, and the words may say no more than that.
+///  A commit whose request never arrived whole is the other case, and its words say the reason that is true.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(render({ kind: 'silent-after-preparing', shows: 'not-made' })).toMatch(/may still land it/)
+/// ```
+#[test]
+fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_land() {
+    let not_made: String =
+        render(&ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::NotMade });
+    assert!(not_made.contains("may still land it"), "the words allow a service that wakes to land it: {not_made}");
+    assert!(not_made.contains(CHECK_COMMANDS[0]), "they name the read that shows whether it has: {not_made}");
+    assert!(!not_made.contains("dropped before it lands"), "they do not claim a drop the landing does not promise: {not_made}");
+    assert!(not_made.contains("once `git log -1` has shown that it was not made"), "and the step that runs it again waits for that read: {not_made}");
+    // The other way round: a request that never reached the service whole says the reason that is true.
+    for never_arrived in [
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+    ] {
+        let words: String = render(&never_arrived);
+        assert!(words.contains("framing newline"), "{never_arrived:?} says a request is read only when its newline arrived: {words}");
+        assert!(!words.contains("dropped before it lands"), "{never_arrived:?} claims no drop: {words}");
+    }
+}
+
 /// Queue notices count the commits ahead.
 #[test]
 fn position_notices_count_the_commits_ahead() {
