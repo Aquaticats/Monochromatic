@@ -12,6 +12,12 @@ and searches of this repository.
 It did not clone,
 build,
 or run Kitesurf.
+The same session corrected it at 2026-11-13T16:56:35-05:00,
+after a second pass by the advisor model (same vendor, so not an independent review),
+in the Kitesurf build requirements,
+the source for the Boa fallback,
+the file that holds the stay-on-this-machine rule,
+and the reading of the EAGAIN troubleshooting doc.
 
 Kitesurf exits at screening,
 so there is no vet report under `doc/audit/`:
@@ -39,7 +45,7 @@ It is the command-line driver agents call:
 `set media`,
 named `--session`s.
 By default it launches a local Chromium.
-Its `--help` also lists `--engine lightpanda` and `--engine obscura` (marked experimental),
+Its `--help` also lists `lightpanda` and `obscura` as `--engine` values besides the default `chrome`,
 and `--cdp <port|url>` with `--cdp-headers <json>` to attach to any Chrome DevTools Protocol endpoint.
 
 ### Kitesurf
@@ -48,21 +54,20 @@ Kitesurf is a browser engine,
 not a driver.
 It runs on Cloudflare Workers and exposes a Chrome DevTools Protocol endpoint
 ([landing page][kitesurf-landing]).
-Layout and paint come from Blitz,
-CSS from Stylo,
-and page JavaScript from Dynamic Workers with Boa as a fallback
-([repository README][kitesurf-readme-engine]).
+Layout and paint come from Blitz and CSS from Stylo ([repository README][kitesurf-readme-engine]);
+page JavaScript runs in Dynamic Workers,
+with Boa in WebAssembly "[as the last resort][kitesurf-boa-fallback]" ([announcement][kitesurf-open-source]).
 It comes in these forms:
 
-- the public playground at `wss://kitesurf.dev/devtools/browser`,
-  no account needed;
+- the public playground at kitesurf.dev,
+  which agents can try "[without an account][kitesurf-playground-no-account]";
 - managed Browser Run,
   opted into with `browser=kitesurf` on a Cloudflare account with an API token;
 - a self-run engine,
   possible since Cloudflare published the source under Apache 2.0 on 2026-11-12
   ([announcement][kitesurf-open-source]),
   started with `wrangler dev` on `127.0.0.1:8787`
-  and built with Bazel and a pinned nightly Rust ([README][kitesurf-readme-bazel]).
+  and built with Bazel ([README][kitesurf-readme-bazel]).
 
 Because Kitesurf is an engine,
 the only way it fits the existing workflow is behind `agent-browser --cdp`.
@@ -103,7 +108,7 @@ and that alone rules out the replacement.
 The playground and Browser Run run on Cloudflare's network.
 The rendering checks this repository records run against `file://` paths or loopback servers,
 which a remote engine cannot open without a tunnel exposing them to that host.
-`AGENTS.md` keeps agent-authored pages on this machine.
+`CLAUDE.md` keeps agent-authored pages on this machine.
 This record did not check whether Browser Run keeps copies of page content.
 
 ### The self-run form is new and has a heavy build
@@ -111,10 +116,11 @@ This record did not check whether Browser Run keeps copies of page content.
 The source was published one day before this record.
 The README calls the engine "[experimental][kitesurf-readme-engine]"
 and the announcement says it is "[under heavy development][kitesurf-heavy-development]".
-A local engine needs Bazel,
-a pinned nightly Rust,
+A local engine needs Bazelisk (Bazel then downloads its own pinned Rust toolchains),
+Node 22 or newer,
 and pnpm 9.15.4,
-none of which `toolchain:install` provides today.
+and its first build compiles the Rust core.
+This repository's `toolchain.plan.jsonc` has `pnpm` and `wrangler` entries but no Bazel or Bazelisk entry.
 
 ## What Kitesurf would offer
 
@@ -124,9 +130,11 @@ as "[medians of five Browser Run Quick Action runs][kitesurf-benchmark]" over it
 That is a hosted benchmark,
 not a measurement on this machine.
 
-Host pressure matters here:
+No repository record ties an `agent-browser` failure to Chromium's CPU or memory.
 `doc/troubleshooting/agent-browser-eagain.md` records `Resource temporarily unavailable`
-during heavy parallel `agent-browser` use.
+during heavy parallel use,
+but its root cause section names the per-user task ceiling and a read timeout,
+so it is no evidence that a lighter engine would help.
 The `agent-browser` troubleshooting docs cover versions 0.36.0 to 0.39.1,
 not the installed 0.43.0,
 so nobody has shown they are current defects.
@@ -198,7 +206,7 @@ and it also replaces the command-line driver the repository's rules and runbooks
 A narrower role,
 such as a cheap engine for reading public pages during research,
 would need its own vet.
-`agent-browser` 0.43.0 already offers `--engine lightpanda` and `--engine obscura` for that role,
+`agent-browser` 0.43.0 already accepts `--engine lightpanda` and `--engine obscura`,
 so such a vet would compare those with Kitesurf behind `--cdp`.
 
 Sources accessed 2026-11-13.
@@ -208,6 +216,8 @@ Sources accessed 2026-11-13.
 [kitesurf-readme-bazel]: https://github.com/cloudflare/kitesurf#:~:text=Bazel%20builds%20everything
 [kitesurf-open-source]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=open%20source%20on%20GitHub%20under%20the%20Apache%202.0%20license
 [kitesurf-heavy-development]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=under%20heavy%20development
+[kitesurf-boa-fallback]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=as%20the%20last%20resort
+[kitesurf-playground-no-account]: https://kitesurf.dev/#:~:text=without%20an%20account
 [kitesurf-pixel-perfect]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=pixel%2Dperfect%20rendering
 [kitesurf-video-webgl]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=Play%20video%20or%20render%20WebGL
 [kitesurf-auth-session]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=long%2Drunning%2C%20authenticated%20session
