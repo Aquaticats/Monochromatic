@@ -439,11 +439,11 @@ await describe({
           },
         },),
         it({
-          name: 'says the pool the qwen plan replaced and the pool whose week is used up take no new run, and the pools that were given room do',
+          name: 'says the pool the qwen plan replaced, the qwen plan pool the owner took out and the pool whose week is used up take no new run, and the pools that were given room do',
           fn: async () => {
             expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
             expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(true,);
-            expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(false,);
+            expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(true,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_DEEPSEEK_FLEX, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, },),).toBe(false,);
@@ -585,11 +585,12 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order, which starts with the qwen plan pool and then Neuralwatt flex, and skips a closed pool and a pool that takes only its own model',
+          name: 'takes the owner order, which reaches Neuralwatt flex first because the qwen plan pool and standard Neuralwatt before it are closed, and skips a pool that takes only its own model',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(QWEN_PLAN_DEEPSEEK,);
+            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+            // Runs still going on the pool the owner took out are counted there, and take no room from the pool a new run goes to.
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,), },),
+              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, NEURALWATT_DEEPSEEK_FLEX.limit,), },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
           },
         },),
@@ -671,6 +672,32 @@ await describe({
     describe({
       name: poolChoiceFor.name,
       children: [
+        it({
+          name: 'gives no room to a run naming a pool a caller closed through the variable, which is what the variable is for',
+          fn: async () => {
+            /**
+             The pools with the qwen 4 pool closed by a caller, as a coordinator closes a pool whose week is spent.
+             */
+            const pools = poolsWithTheseLimits({
+              limits: limitsIn({ listed: `${QWEN_PLAN_QWEN4_MAX_PREVIEW.name}=0`, },),
+            },);
+            /**
+             The pool the run's own words name, which is the pool the caller closed.
+             */
+            const requested = poolNamed({
+              provider: QWEN_PLAN_QWEN4_MAX_PREVIEW.provider,
+              model: QWEN_PLAN_QWEN4_MAX_PREVIEW.model,
+            },);
+            expect(poolChoiceFor({
+              requested,
+              tallies: talliesOf({
+                runs: [],
+                pools,
+              },),
+              resumes: false,
+            },),).toEqual({ destination: 'no-room', },);
+          },
+        },),
         it({
           name: 'moves a run that names a default model, here the closed pool the launcher defaults name, to the first pool with room, and says it was moved',
           fn: async () => {

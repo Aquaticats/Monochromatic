@@ -20,6 +20,7 @@ import {
   type ShownCommandEnding,
   runCommandShowingItsOutput,
 } from './run-command.ts';
+import { lastOfPiStandardError, } from './last-of-pi-standard-error.ts';
 import {
   SessionFileUnreadableError,
   sessionFileOfRun,
@@ -348,6 +349,41 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
       checkoutFolder: request.checkoutFolder,
       worktree: request.worktree,
     },)}`,);
+  }
+  // A run whose Pi left before the run got going is the one ending whose reason only Pi can give: a load failure, a refused
+  // provider, a missing module all reach its standard error and nothing else. It is reported last, because a batch's one line
+  // per entry is the last line of what a start printed, and `status 1 Memory peak: 12M` was what it said instead.
+  if ((request.unitStatus !== 0) && ((endReason === undefined) || (endReason === 'pi-exited'))) {
+    /**
+     Where the driver kept what Pi printed.
+     */
+    const standardErrorFile = join(
+      request.runFolder,
+      'stderr.log',
+    );
+    /**
+     The last of what Pi printed, and the reason among it.
+     */
+    const piStandardError = await lastOfPiStandardError({
+      file: standardErrorFile,
+    },);
+    /**
+     The lines Pi printed, in the order it printed them.
+     */
+    const piLines = piStandardError.lines;
+    /**
+     Whether Pi printed anything at all, which a run whose Pi never started did not.
+     */
+    const piSaidSomething = (piLines.length > 0);
+    if (piSaidSomething) {
+      request.report(`${request.runName}: the last of what Pi printed, from ${standardErrorFile}:`,);
+      for (const line of piLines) {
+        request.report(line,);
+      }
+      if (piStandardError.reason !== undefined) {
+        request.report(`Pi's own reason: ${piStandardError.reason}`,);
+      }
+    }
   }
   return { status: request.unitStatus, };
 }

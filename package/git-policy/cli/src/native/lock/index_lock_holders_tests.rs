@@ -198,11 +198,12 @@ fn the_proc_scan_matches_descriptors_by_identity() {
     std::fs::write(proc_root.join("100/comm"), "git\n").expect("holder comm");
     describe_descriptor(proc_root.join("101").as_path(), 3, FAKE_MOUNT, other_inode, other.as_path());
     describe_descriptor(proc_root.join("7").as_path(), 3, FAKE_MOUNT, inode, lock.as_path());
-    // A descriptor whose name is gone is still the open file: the descriptor's link is the file itself,
-    //  as `/proc/<pid>/fd/<n>` is for a file that was unlinked while it was open.
-    describe_descriptor(proc_root.join("104").as_path(), 4, FAKE_MOUNT, inode, lock.as_path());
-    std::fs::remove_file(proc_root.join("104/fd/4")).expect("the link the describe made is replaced");
-    std::fs::hard_link(&lock, proc_root.join("104/fd/4")).expect("the open file, whose name nothing has any more");
+    // A descriptor whose link names the file through another of its names is still the open file: the judgement matches
+    //  the device number and the inode, never the text of a link,
+    //  and the text of a link a file system answered is only the gate that says a descriptor can be a file at all.
+    let alias: PathBuf = root.join("alias");
+    std::fs::hard_link(&lock, &alias).expect("a second name of the lock");
+    describe_descriptor(proc_root.join("104").as_path(), 4, FAKE_MOUNT, inode, alias.as_path());
     std::fs::create_dir_all(proc_root.join("self")).expect("self directory");
     std::fs::create_dir_all(proc_root.join("105")).expect("exited process");
     std::fs::create_dir_all(proc_root.join("103")).expect("unreadable process");

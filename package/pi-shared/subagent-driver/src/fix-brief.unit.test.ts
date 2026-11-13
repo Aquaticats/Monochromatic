@@ -12,16 +12,18 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  DoubledBranchSegmentError,
   FIX_BRIEF_PLACEHOLDERS,
   FIX_BRIEF_WALL_SECONDS,
   NO_SYNTHETIC_HOST_LOAD,
   TemplatePlaceholderError,
   branchOfAFixFor,
+  branchOfAReview,
   briefOfAFix,
-  changeNameOfAFixFor,
   fixBriefValues,
   placeholdersIn,
   placeholdersInTheFixBrief,
+  runNameOfAReview,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -39,17 +41,17 @@ function aReview(): string {
 }
 
 /**
- The change the review read, which the fix is named after.
+ What the review read, as its own brief words it.
 
- @returns the change's name
+ @returns what was reviewed
 
  @example
  ```ts
- const change = aChange();
+ const subject = aSubject();
  ```
  */
-function aChange(): string {
-  return 'rewrite-the-gate';
+function aSubject(): string {
+  return `main...${aReview()} at commit ${aBase()}`;
 }
 
 /**
@@ -77,7 +79,21 @@ function aBase(): string {
  ```
  */
 function aBranchPrefix(): string {
-  return 'fix/';
+  return 'fix/git-policy-cli-';
+}
+
+/**
+ The name the caller gives the fix run of this file's review, which says what the fix fixes.
+
+ @returns the run's name
+
+ @example
+ ```ts
+ const name = aFixName();
+ ```
+ */
+function aFixName(): string {
+  return 'a-late-runtime';
 }
 
 /**
@@ -147,18 +163,22 @@ function aRulesFile(): string {
  ```
  */
 function aBriefRequest(): {
+  readonly name: string;
   readonly review: string;
   readonly branch: string;
   readonly base: string;
+  readonly subject: string;
   readonly packageFolder: string;
   readonly reviewsFolder: string;
   readonly checkoutFolder: string;
   readonly rulesFile: string;
 } {
   return {
+    name: aFixName(),
     review: aReview(),
-    branch: branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),
+    branch: branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },),
     base: aBase(),
+    subject: aSubject(),
     packageFolder: aPackageFolder(),
     reviewsFolder: aReviewsFolder(),
     checkoutFolder: aCheckoutFolder(),
@@ -184,29 +204,36 @@ await describe({
   name: '',
   children: [
     describe({
-      name: changeNameOfAFixFor.name,
-      children: [
-        it({
-          name: 'names a fix after the change a review read, without the round that wrote the review, and leaves a name without a round alone',
-          fn: async () => {
-            expect(changeNameOfAFixFor({ review: aReview(), },),).toBe(aChange(),);
-            expect(changeNameOfAFixFor({ review: aChange(), },),).toBe(aChange(),);
-          },
-        },),
-      ],
-    },),
-    describe({
       name: branchOfAFixFor.name,
       children: [
         it({
-          name: 'puts a fix on a branch of the change name under the namespace its caller names, so no branch name says which model reviewed it',
+          name: 'puts a fix on a branch of its own under the namespace its caller names, never on the reviewed change\'s branch or the review\'s own',
           fn: async () => {
-            expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),)
-              .toBe(`${aBranchPrefix()}${aChange()}`,);
-            expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
+            expect(branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },),)
+              .toBe(`${aBranchPrefix()}${aFixName()}`,);
+            expect(branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },),)
+              .not.toBe(branchOfAReview({ review: aReview(), },),);
+            // Two fixes of one change answer on two branches, so the second does not find the first one's commits.
+            expect(branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },),)
+              .not.toBe(branchOfAFixFor({ name: 'a-second-fix', branchPrefix: aBranchPrefix(), },),);
+            expect(branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
               .not.toContain('kimi',);
-            expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
+            expect(branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
               .not.toContain('qwen',);
+          },
+        },),
+        it({
+          name: 'refuses a name that repeats the prefix\'s own last words, which is how a branch came to say review-findings twice',
+          fn: async () => {
+            expect(() => branchOfAFixFor({
+              name: `review-findings-${aFixName()}`,
+              branchPrefix: 'fix/git-policy-cli-review-findings-',
+            },),).toThrow(DoubledBranchSegmentError,);
+            // The refusal names the branch and the words it says twice.
+            expect(() => branchOfAFixFor({
+              name: `review-findings-${aFixName()}`,
+              branchPrefix: 'fix/git-policy-cli-review-findings-',
+            },),).toThrow('review-findings-',);
           },
         },),
       ],
@@ -255,16 +282,17 @@ await describe({
           },
         },),
         it({
-          name: 'names the package, the branch, the commit, the worktree and the review\'s files, so an agent reads the review it answers',
+          name: 'names the package, the branch, the commit, what the review read, the worktree and the review\'s files, so an agent reads the review it answers',
           fn: async () => {
             expect(aBrief(),).toContain(aPackageFolder(),);
-            expect(aBrief(),).toContain(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),);
+            expect(aBrief(),).toContain(branchOfAFixFor({ name: aFixName(), branchPrefix: aBranchPrefix(), },),);
             expect(aBrief(),).toContain(aBase(),);
+            expect(aBrief(),).toContain(aSubject(),);
             expect(aBrief(),).toContain(join(
               aCheckoutFolder(),
               '.claude',
               'worktrees',
-              `pi-${aChange()}`,
+              `pi-${aFixName()}`,
             ),);
             expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'review.md',),);
             expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'change.diff',),);

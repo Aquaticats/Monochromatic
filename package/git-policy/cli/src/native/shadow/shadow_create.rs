@@ -22,6 +22,9 @@
 use crate::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 /// Invocation capture.
 use crate::capture_invocation::{InvocationCapture, InvocationLayout};
+/// What a tree must be for this invocation,
+/// which is the question a claim and a hand-out both ask.
+use crate::shadow_pool_member::refusal;
 /// The in-process entries of an empty bare repository.
 use crate::shadow_skeleton::create_shadow_skeleton;
 /// Format copy and the config bytes.
@@ -503,9 +506,84 @@ pub fn create_shadow_repository_carrying(
 }
 
 /// What:
+///  The shadow one commit was given,
+///  and the finished one the service drew ahead of it when that is where it came from.
+/// Why:
+///   A drawn tree is used where it stands and is not the commit's own,
+///  so the value that keeps it renewed,
+///  releases it,
+///  and tells the request which tree to name travels with the path:
+///  a caller that took the path alone would leave a tree nothing renews.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ShadowTree = { path: string; handed?: HandedShadow };
+/// ```
+pub struct ShadowTree {
+    /// Where the shadow is.
+    pub path: PathBuf,
+    /// The drawn tree the service handed this commit,
+    /// which is renewed while the commit lives and released when the service does not take it;
+    /// nothing when the shadow is inside the commit's own scratch tree.
+    pub handed: Option<crate::shadow_drawn::HandedShadow>,
+}
+
+/// What:
+///  Whether the worktree holds the state a conclusion leaves,
+///  which is the state a commit may conclude.
+/// Why:
+///   The landing that concludes compares what Git removed in the shadow with the copy of those files,
+///  and it reads the shadow at the path the commit's own scratch tree holds,
+///  so the hand-out is bounded by the presence of the state itself and not by the caller's wish to carry it:
+///  every explicit-path commit asks to carry it, and almost none of them has any
+///  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+///  "The design the owner's decision made").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const conclusionStatePresent = (gitDir) => REMOVED_CONCLUSION_FILES.some((name) => exists(join(gitDir, name)));
+/// ```
+fn conclusion_state_present(git_dir: &Path) -> bool {
+    for name in crate::conclusion_cleanup::REMOVED_CONCLUSION_FILES {
+        if git_dir.join(name).exists() {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether this attempt may ask the service for a drawn shadow.
+/// Why:
+///   Three cases the hand-out cannot serve, each of which keeps the commit on the path it knows:
+///  a reftable repository's shadow is Git's own tables,
+///  a linked worktree that keeps its own `info` builds its own directory,
+///  and both are never drawn for, so asking would be one round trip for nothing.
+///  A commit that concludes a merge,
+///  a cherry-pick or a revert copies the state that conclusion leaves and compares it with what Git removed in the
+///  shadow,
+///  reading the shadow at the path its own scratch tree holds,
+///  so it takes a member or makes its creation until that comparison names the tree the request built in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mayBeHandedATree = (template, carryConclusion) => template.refFormat !== 'reftable' && !keepsItsOwnInfo(template) && !carryConclusion;
+/// ```
+pub(crate) fn may_be_handed_a_tree(template: &ShadowTemplate, carry_conclusion: bool) -> bool {
+    if carry_conclusion {
+        return false;
+    }
+    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
+        return false;
+    }
+    return !crate::shadow_links::keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()).unwrap_or(false);
+}
+
+/// What:
 ///  The shadow of one commit:
-/// a finished one this invocation can use,
-/// or one made here when the pool holds none that is what a creation would make.
+/// a finished one the service drew ahead and handed over,
+/// a finished one this invocation can use from the pool,
+/// or one made here when neither is there.
 /// Why:
 ///   The creation is about 40 calls that create a directory entry on the volume the commit already waits on:
 /// ten `mkdir`,
@@ -535,15 +613,48 @@ pub fn take_or_create_shadow(
     transaction_directory: &Path,
     carry_conclusion: bool,
     clock: &mut BuildPartClock,
-) -> Result<(), GitFailure> {
+    service: &crate::service_server_socket_binding::Bind,
+) -> Result<ShadowTree, GitFailure> {
     let template: ShadowTemplate = ShadowTemplate::of(context, &capture.layout)?;
+    // What: The commit asks whether the service drew a finished shadow ahead of it, and where it is.
+    // Why:  The one write a claim makes is the call that waited seconds on this volume, and the service made it before
+    //       the commit asked. Every check a claim runs is still run here, on the tree the commit was handed, and a tree
+    //       this invocation refuses is handed back and the commit takes the pool's member or makes its own: nothing about
+    //       the question can fail a commit.
+    clock.next("shadow hand-out");
+    let concludes: bool = carry_conclusion && conclusion_state_present(capture.layout.git_dir.as_path());
+    let asked: Option<PathBuf> = match may_be_handed_a_tree(&template, concludes) {
+        true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory),
+        false => None,
+    };
+    if let Some(drawn) = asked {
+        match refusal(&template, drawn.as_path()) {
+            Ok(None) => {
+                let handed = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
+                carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock)?;
+                return Ok(ShadowTree { path: drawn, handed: Some(handed) });
+            }
+            Ok(Some(reason)) => crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str(),
+            ),
+            Err(error) => crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!("refused the drawn shadow {}: {error}", drawn.display()).as_str(),
+            ),
+        }
+        // A tree this invocation cannot use is the service's own, and this commit is the last thing that held it.
+        crate::service_scratch_release_removal::start(drawn);
+    }
     clock.next("shadow pool");
     if crate::shadow_pool::take(&template, shadow) {
-        return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+        carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
+        return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
     }
     clock.next("shadow skeleton");
     create_shadow_template(context, &template, shadow, clock)?;
-    return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+    carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
+    return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
 }
 
 /// What:

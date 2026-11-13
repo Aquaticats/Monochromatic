@@ -77,15 +77,22 @@ impl Warms {
     /// and gives the answer then;
     /// nothing when they did not end within `WARM_PATIENCE`,
     /// which only a warm that never ends reaches.
+    ///  The claim a warm runs under is part of the answer:
+    /// a job records its end before the runtime task that owns the claim releases it,
+    /// and a landing that arrives in that window is skipped as one more warm is still running,
+    /// so a control that read the news alone could make a landing nothing would judge.
     fn after(&self, count: usize) -> Option<Warms> {
         let began: Instant = Instant::now();
-        while WARM_JOBS_ENDED.load(Ordering::SeqCst) < self.ended.saturating_add(count) {
+        loop {
+            let ended: usize = WARM_JOBS_ENDED.load(Ordering::SeqCst);
+            if ended >= self.ended.saturating_add(count) && !RUNNING.load(Ordering::SeqCst) {
+                return Some(warms());
+            }
             if began.elapsed() >= WARM_PATIENCE {
                 return None;
             }
             std::thread::sleep(LOOK_EVERY);
         }
-        return Some(warms());
     }
 }
 

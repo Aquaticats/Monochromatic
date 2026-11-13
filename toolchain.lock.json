@@ -289,7 +289,7 @@
     },
     "uv": {
       "request": "github:astral-sh/uv@latest",
-      "version": "0.13.7",
+      "version": "0.13.8",
       "route": "archive",
       "bins": [
         "uv",
@@ -299,20 +299,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "71279f8d3c67241e807b9d8db872d1bf541579fb9f08b7d1eb1682196d1e57dc"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.8/uv-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "74f2f5c6024d397481db228db8fc25eed420db192243f88438c118e7e013e585"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "2d3ec076a0c4c0e8250bb6418c44080828b544f1a3be0b6e46adf9fb6923de45"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.8/uv-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "0c6f8593fcf1eadfc60e663b685c408267559d7c5d61c689bbb9f3a7e369ba32"
         },
         "linux-x64": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.8/uv-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "287491da03f2a785c70fa75b13e1f849918c2f2b5415fe84876b8214eeb792f9"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.8/uv-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "61fb26dabc4f0cf1d050fc6c67d40e43e4fae2994af21ebc1e050b233bf2b5ed"
         }
       }
     },
@@ -464,10 +464,10 @@
     },
     "rust": {
       "request": "rust@nightly",
-      "version": "nightly-2026-11-12",
+      "version": "nightly-2026-11-13",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-11-12",
+      "packageId": "nightly-2026-11-13",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -482,7 +482,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-11-12"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-13"
       },
       "options": {
         "rustComponents": [
@@ -613,7 +613,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.6.1-alpha.13",
+      "version": "0.6.1-alpha.17",
       "route": "archive",
       "bins": [
         "monochromatic-git-policy-cli"
@@ -635,20 +635,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.13/monochromatic-git-policy-cli-0.6.1-alpha.13-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "d2fdfebb7a7db9b8fee8732304931f3768bf22fb950d7981bace9d34f7bf0127"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "7677965ce6a1a4f0bec7929c56a0f2885755bc72899aeb3392a296137747a359"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.13/monochromatic-git-policy-cli-0.6.1-alpha.13-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "d2fdfebb7a7db9b8fee8732304931f3768bf22fb950d7981bace9d34f7bf0127"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "7677965ce6a1a4f0bec7929c56a0f2885755bc72899aeb3392a296137747a359"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.13/monochromatic-git-policy-cli-0.6.1-alpha.13-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "8f981b723ae76ab16c583e4a6049c55729116236c0be417ebcf92497caeef843"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ac57c46092cd9f2be573b99c796a6f3f5dae7f073e448bf01f1dc1a695955db9"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.13/monochromatic-git-policy-cli-0.6.1-alpha.13-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "8f981b723ae76ab16c583e4a6049c55729116236c0be417ebcf92497caeef843"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ac57c46092cd9f2be573b99c796a6f3f5dae7f073e448bf01f1dc1a695955db9"
         }
       }
     },
@@ -883,7 +883,7 @@
     },
     "cmake": {
       "request": "github:Kitware/CMake@latest",
-      "version": "4.4.5",
+      "version": "4.5.0",
       "route": "archive",
       "bins": [
         "ccmake",
@@ -896,20 +896,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-aarch64.tar.gz",
-          "sha256": "301d5063ab259577c1b57ce5490b1aab9ea5c56dc4c822f73499553dab94925f"
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-linux-aarch64.tar.gz",
+          "sha256": "0c8447e7bba9701467b5ac6155d157aa9e309e71af4981f78bd4b9176107f553"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-aarch64.tar.gz",
-          "sha256": "301d5063ab259577c1b57ce5490b1aab9ea5c56dc4c822f73499553dab94925f"
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-linux-aarch64.tar.gz",
+          "sha256": "0c8447e7bba9701467b5ac6155d157aa9e309e71af4981f78bd4b9176107f553"
         },
         "linux-x64": {
-          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz",
-          "sha256": "ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0"
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-linux-x86_64.tar.gz",
+          "sha256": "81f0d5b0960fb6adc8197030ffc827fba937640d51e73e39e0e9e40d88c66f6f"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz",
-          "sha256": "ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0"
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-linux-x86_64.tar.gz",
+          "sha256": "81f0d5b0960fb6adc8197030ffc827fba937640d51e73e39e0e9e40d88c66f6f"
         }
       }
     },
@@ -1098,7 +1098,7 @@
     },
     "rumdl": {
       "request": "github:rvben/rumdl@latest",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "route": "bin-sourced",
       "bins": [
         "rumdl"
@@ -1107,20 +1107,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.3/rumdl-v0.3.3-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "c9233ea9233f9cf23dc9b063363d32fb55d28f9b0bdcf472288fc29c305c5bc2"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.4/rumdl-v0.3.4-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "d51bfff8c4aacebb786f701918389b3b568129cb9c16aee12567ede6869a61ad"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.3/rumdl-v0.3.3-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "84e5ecb564dc55483b480aa3287751e133771caeb5bb92d349105fe20e2b234d"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.4/rumdl-v0.3.4-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "712d7b0c5413a5bc0315c939f29a9cc87dbee43fb9a119138fff1d6599a41f92"
         },
         "linux-x64": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.3/rumdl-v0.3.3-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "2e82399d566b4663625405bad6c36427477a81c7ff726a4986c4d9947e3a51ef"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.4/rumdl-v0.3.4-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "36f1524f0cfaf33f5dfe68ac19220e1bd57ded1f0f9205931f6ee1de32f4a040"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.3/rumdl-v0.3.3-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "225291d073d46654030cb2c256ce98252965e1f475b77fee4f28a3dbb3632cfd"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.4/rumdl-v0.3.4-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "2e64c7654906f0df82218fcc73cbdded2e41f37961f5be3e876e708bdf42e367"
         }
       }
     },
@@ -1425,7 +1425,7 @@
     },
     "npm:typescript-language-server": {
       "request": "npm:typescript-language-server@latest",
-      "version": "6.0.3",
+      "version": "6.1.0",
       "route": "mpm-pnpm",
       "bins": [
         "typescript-language-server"
@@ -1451,7 +1451,7 @@
     },
     "npm:socket": {
       "request": "npm:socket@latest",
-      "version": "1.14.1",
+      "version": "1.15.0",
       "route": "mpm-pnpm",
       "bins": [
         "socket",
@@ -1466,7 +1466,7 @@
     },
     "npm:wrangler": {
       "request": "npm:wrangler@latest",
-      "version": "4.160.1",
+      "version": "4.161.0",
       "route": "mpm-pnpm",
       "bins": [
         "cf-wrangler",
@@ -1490,7 +1490,7 @@
     },
     "betterleaks": {
       "request": "github:betterleaks/betterleaks@latest",
-      "version": "1.10.0",
+      "version": "1.10.1",
       "route": "bin-sourced",
       "bins": [
         "betterleaks"
@@ -1499,20 +1499,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_arm64.tar.gz",
-          "sha256": "3d7585cbe4f947aef6e31662f65beb5b43b104381a691b6b81b157ebfbb0c02d"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_arm64.tar.gz",
+          "sha256": "62a63199f9f61a6b5e5a6f58f048493db20fbc8c770014f4d903a4d97886e1bf"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_arm64.tar.gz",
-          "sha256": "3d7585cbe4f947aef6e31662f65beb5b43b104381a691b6b81b157ebfbb0c02d"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_arm64.tar.gz",
+          "sha256": "62a63199f9f61a6b5e5a6f58f048493db20fbc8c770014f4d903a4d97886e1bf"
         },
         "linux-x64": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_x64.tar.gz",
-          "sha256": "9d9ad503cd5d80d18a939352266c3fcca52f10da9b83cd5cfe646989b13940fe"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz",
+          "sha256": "c174b42d7aa60caf58c0c3e555c0e4bed01fe6b0d99a412bce777b5af4ce913e"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_x64.tar.gz",
-          "sha256": "9d9ad503cd5d80d18a939352266c3fcca52f10da9b83cd5cfe646989b13940fe"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz",
+          "sha256": "c174b42d7aa60caf58c0c3e555c0e4bed01fe6b0d99a412bce777b5af4ce913e"
         }
       }
     },
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:f2005dfadd0f675408998954500b607217a18e5d9b9ccf90ec75cda5abcc60c9"
+  "digest": "sha256:f821b0af6bd5089a2c7714d5d0518806ab94ad87123735ecac982226bfd48ed6"
 }

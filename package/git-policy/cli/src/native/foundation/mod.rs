@@ -134,6 +134,10 @@ pub mod side_by_side_on_the_runtime;
 /// for the items a drain knows only when it runs and whose work is awaited rather than run as a job.
 pub mod side_by_side_on_the_current_task;
 
+/// One item's work awaited with a panic in it kept as that item's answer,
+/// so one item's failure ends that item and not the task that ran the wave.
+pub mod a_panic_that_ends_one_item;
+
 /// The names this program answers to and keeps on disk,
 ///  each as the current spelling and the one an earlier release used.
 pub mod wrapper_names_old_and_new;
@@ -230,3 +234,7 @@ pub mod standard_error_descriptor;
 /// A stream of a command's notices written by a thread of its own,
 /// so a reader that stopped draining never holds the command.
 pub mod notice_stream_that_does_not_hold_its_writer;
+
+/// A connection to a unix socket that is made within one deadline,
+///  so a socket whose program stopped costs its caller a bounded wait.
+pub mod unix_socket_connect_within_a_deadline;

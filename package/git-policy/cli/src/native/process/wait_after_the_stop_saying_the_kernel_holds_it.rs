@@ -39,6 +39,9 @@ use std::process::ExitStatus;
 use std::sync::mpsc::SyncSender;
 /// Time spans.
 use std::time::Duration;
+/// What one look at the step says about the kernel holding it,
+/// and the look itself.
+use crate::scratch_step_look_below::{WhatTheLookSays, what_the_look_says};
 
 /// What:
 ///  How long after the signal the first look at the step is made,
@@ -106,12 +109,12 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, lines
             // What: The one line that says the kernel has not released the step.
             // Why:  A line the writer could not take is tried again at the next look rather than counted as said,
             //       and one it took is never said a second time: one stop is one sentence, not three.
-            TheLook::Held(held) if seen_held && !said => {
+            WhatTheLookSays::TheKernelHoldsIt(held) if seen_held && !said => {
                 let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(crate::scratch_step_held_by_the_kernel::HeldByTheKernel { step, waited, held });
                 said = queue.try_send(line).is_ok();
                 pause = AFTER_THE_STOP;
             }
-            TheLook::Held(_held) => {
+            WhatTheLookSays::TheKernelHoldsIt(_held) => {
                 seen_held = true;
                 pause = AFTER_THE_STOP;
             }
@@ -119,7 +122,7 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, lines
             // Why:  The step is still unreaped, so the kernel may still be holding it, and a look that failed states
             //       nothing about it: reading one as the kernel having let go took the whole explanation away from a wait
             //       that then lasted (finding 2 of the 2026-11-10 review of the held-step notice).
-            TheLook::NotHeld | TheLook::CouldNotLook => {
+            WhatTheLookSays::NotHeld | WhatTheLookSays::CouldNotLook => {
                 seen_held = false;
                 pause = AFTER_THE_STOP;
             }
@@ -141,31 +144,6 @@ async fn reaped(owned: &mut OwnedChild) -> std::io::Result<ExitStatus> {
 }
 
 /// What:
-///  What one look at the step and the programs below it answered about the kernel holding them.
-/// Why:
-///   A look that found no process in uninterruptible sleep,
-///  and a look that could not be made at all,
-///  are two different facts:
-///  the first is the kernel about to release the step,
-///  and the second is nothing known about it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type TheLook = 'held' | 'not-held' | 'could-not-look';
-/// ```
-enum TheLook {
-    /// The process the kernel is holding,
-    /// which is the step itself or a program it started.
-    Held(crate::scratch_step_held_by_the_kernel::HeldProgram),
-    /// No process below the step is in that state,
-    /// so the step is about to act on its signal.
-    NotHeld,
-    /// `/proc` could not be read,
-    /// so nothing about the step is known.
-    CouldNotLook,
-}
-
-/// What:
 ///  One look at the step and the programs below it,
 ///  and whether the kernel is holding one of them.
 /// Why:
@@ -173,19 +151,15 @@ enum TheLook {
 ///  by the look the notice also makes,
 ///  so this wait asks the kernel the same question the notice asks
 ///  and names no process it did not see.
+///  The three answers are the look's own (`scratch_step_look_below.rs`),
+///  so a step whose state could not be read is never read here as one the kernel let go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const look = lookBelow(step); if (!look) return 'could-not-look'; const held = look.find(blocked); return held ? { held } : 'not-held';
+/// const look = whatTheLookSays(step); // { held } | 'not-held' | 'could-not-look'
 /// ```
-fn the_look(step: i32) -> TheLook {
-    let Some(below) = crate::scratch_step_look_below::look_below(step) else {
-        return TheLook::CouldNotLook;
-    };
-    return match crate::scratch_step_look_below::the_process_the_kernel_holds(below.as_slice()) {
-        Some((number, used)) => TheLook::Held(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *number, name: used.name.clone() }),
-        None => TheLook::NotHeld,
-    };
+fn the_look(step: i32) -> WhatTheLookSays {
+    return what_the_look_says(u32::try_from(step).unwrap_or(u32::MAX));
 }
 
 /// A control's hold on the reap of a step the kernel is said to hold.
