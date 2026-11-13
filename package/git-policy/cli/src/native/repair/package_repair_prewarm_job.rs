@@ -480,7 +480,7 @@ async fn resolve_the_workspace_elsewhere(fill: &Fill, entry: &PrewarmEntry) -> R
     let mirrored: PathBuf = match mirror_the_workspace(fill.worktree.as_path(), entry.root.as_path(), root.as_path()) {
         Ok(mirrored) => mirrored,
         Err(reason) => {
-            let _cleared = std::fs::remove_dir_all(root.as_path());
+            let _abandoned = std::fs::remove_dir_all(root.as_path());
             return Err(reason);
         }
     };
@@ -488,7 +488,7 @@ async fn resolve_the_workspace_elsewhere(fill: &Fill, entry: &PrewarmEntry) -> R
     let command: ToolCommand = ToolCommand { arguments, directory: mirrored.clone(), set: Vec::new() };
     let run: ToolRun = run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
     let resolved: Option<Vec<u8>> = read_lock(mirrored.as_path());
-    let _cleared = std::fs::remove_dir_all(root.as_path());
+    let _mirror_cleared = std::fs::remove_dir_all(root.as_path());
     return match (run.end, resolved) {
         (ToolEnd::Succeeded, Some(bytes)) => Ok(bytes),
         (ToolEnd::Succeeded, None) => Err(format!("Cargo resolved the workspace of {} and wrote no {LOCK_FILE} in the mirror it was given", entry.root.display())),

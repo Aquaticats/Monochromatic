@@ -110,7 +110,7 @@ pub(crate) fn claim_the_names(staging: &Path) -> TheClaim {
     let path: PathBuf = lease_of(staging);
     let opened: std::io::Result<std::fs::File> = {
         use std::os::unix::fs::OpenOptionsExt as _;
-        std::fs::OpenOptions::new().read(true).write(true).create(true).mode(0o600).open(path.as_path())
+        std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).mode(0o600).open(path.as_path())
     };
     let held: std::fs::File = match opened {
         Ok(file) => file,
