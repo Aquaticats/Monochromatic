@@ -685,6 +685,28 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The no-manager branch's author answered the takeover defect; two findings of the review above it go to the same author (2026-11-13T16:55:43-05:00)
+
+Not complete, and written by the coordinating session from the run's own report; nothing here was run again by it.
+
+- The author of the commit service that needs no manager finished its answer at 16:51:32, tip `eeb13b81e1`. By its report:
+  it reproduced the review's finding first, word for word;
+  a socket is now taken over only when the kernel refuses a connection to it, never for silence;
+  a service records the device and inode of its socket and the text of its note and removes each only while the path still matches;
+  a command that finds an address accepting and greeting nothing waits for the service that is there (3.1 s through a service stopped at an instruction, one service, exit 0);
+  the sweep of stopped instances needs both the note's death and the kernel's refusal;
+  and the messages that named units this release never creates name the log folder and `service stop` now.
+  Each has a control quoted failing without its code.
+- That answers two of the five things the review of issue 6293's branch found in this branch's code (its findings 7 and 9).
+  The two that remain went to the same author, queued (`sessionOf` its run of 16:51:32):
+  the connects with no bound in the start, the takeover probe, the client and the status command (finding 1), and the probe's kill and reap with no bound (finding 8).
+  Finding 5 reaches the branch through `main`, where a run of its own has it.
+- The branch's review comes after that answer, over `main...<its tip>`, so one review reads both answers; reviews are what the rate limit makes scarce.
+- Read on the disk at about 16:55, for the build tree result of the section dated 16:48:35:
+  `/var/mnt/encrypted/cargo-build/toolchain/` holds ten toolchain folders, and `nightly-2026-11-12` alone holds 1,284 build folders, one for each workspace of each worktree;
+  the two changed last hold 2,656 MiB and 2,343 MiB, the six before them about 1 MiB each (made, never built).
+  The commit `bf9c397cf2` is two lines in the wrapper's `[profile.dev]` and a document of measurements; its figures are its author's until the review and the walk that follows the probe's hour.
+
 #### Issue 6293's review found nine things, four of them the change's; the build tree of the wrapper goes from 5.9 GiB to 1.6 (2026-11-13T16:48:35-05:00)
 
 Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
