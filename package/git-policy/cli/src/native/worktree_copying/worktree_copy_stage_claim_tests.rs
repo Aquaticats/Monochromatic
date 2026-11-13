@@ -2930,7 +2930,7 @@ fn a_dead_copys_stage_whose_payload_has_no_record_is_kept_and_named() {
     std::fs::write(payload.join("index.js"), b"module.exports = 1;\n").expect("an entry of an earlier release");
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
     assert!(payload.join("index.js").exists(), "nothing of a folder nothing describes is removed: {notices:?}");
-    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("no record of what the copy was writing"); }), "{notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("nothing says what the copy was writing"); }), "{notices:?}");
     make_removable(container.as_path());
     remove(root.as_path());
 }
@@ -3144,4 +3144,99 @@ fn the_whole_sequence_of_issue_6296_killed_after_the_record_keeps_a_persons_file
 fn the_whole_sequence_of_issue_6296_killed_after_the_marker_names_the_persons_entries() {
     let notices: Vec<String> = the_whole_sequence_of_issue_6296("issue-6296-after-marker", KILLED_AFTER_THE_MARKER);
     assert!(notices.iter().any(|notice: &String| { return notice.contains("it holds ignored,"); }), "the line names the person's own subtree: {notices:?}");
+}
+
+/// How many entries the measurement's payload holds,
+/// and how many of them share one directory.
+const MEASURED_PAYLOAD_ENTRIES: usize = 5_000;
+const MEASURED_PAYLOAD_DIRECTORIES: usize = 50;
+
+/// What the proof of a dead copy's payload costs on the command that finds it,
+/// beside the top-level read it replaced and beside the walk that removes the folder once it is proved,
+/// with one arm measured twice as the control for this host's spread.
+/// Run:
+/// `mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture
+/// measure_what_proving_a_payload_costs`.
+#[test]
+#[ignore = "a measurement for the report, not a control"]
+fn measure_what_proving_a_payload_costs() {
+    let (root, common, destination) = scene("claim-payload-cost");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("a claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the stage");
+    let payload: PathBuf = container.join(crate::worktree_copy_stage::PAYLOAD_NAME);
+    create_private_directory(payload.as_path()).expect("the payload");
+    let mut entries: Vec<crate::worktree_copy_manifest::WorktreeCopyEntry> = Vec::with_capacity(MEASURED_PAYLOAD_ENTRIES);
+    for index in 0..MEASURED_PAYLOAD_ENTRIES {
+        let relative: String = format!("ignored/pkg{}/f{index}.js", index % MEASURED_PAYLOAD_DIRECTORIES);
+        let path: PathBuf = payload.join(relative.as_str());
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("the entry's directory");
+        std::fs::write(path.as_path(), b"module.exports = 1;\n").expect("the entry");
+        entries.push(crate::worktree_copy_manifest::WorktreeCopyEntry {
+            kind: crate::worktree_copy_manifest::EntryKind::File,
+            mode: 0o644,
+            relative_path: relative.into_bytes(),
+        });
+    }
+    crate::worktree_copy_stage_intended_entries::record_intended_entries(container.as_path(), entries.as_slice()).expect("the record the copy writes");
+    let mut top: Vec<u128> = Vec::new();
+    let mut proof: Vec<u128> = Vec::new();
+    let mut again: Vec<u128> = Vec::new();
+    for _sample in 0..RELEASE_ARMS {
+        // What the reaping read before this change: the stage's own top level.
+        let top_started: std::time::Instant = std::time::Instant::now();
+        let count: usize = std::fs::read_dir(container.as_path()).expect("the stage").count();
+        top.push(top_started.elapsed().as_micros());
+        assert_eq!(count, 2, "the payload and the record are the only top-level entries");
+        // The proof: the record, then the walk of the payload.
+        let proof_started: std::time::Instant = std::time::Instant::now();
+        let listed = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container.as_path()).expect("the record");
+        let unexplained: Option<String> = crate::worktree_copy_stage_claim_reaping::first_entry_the_payload_may_not_hold(payload.as_path(), listed).expect("the walk");
+        proof.push(proof_started.elapsed().as_micros());
+        assert_eq!(unexplained, None, "every entry is the copy's own");
+        // The same proof again, as the control for the spread.
+        let again_started: std::time::Instant = std::time::Instant::now();
+        let listed_again = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container.as_path()).expect("the record");
+        let _ = crate::worktree_copy_stage_claim_reaping::first_entry_the_payload_may_not_hold(payload.as_path(), listed_again).expect("the walk");
+        again.push(again_started.elapsed().as_micros());
+    }
+    // What a copy pays to write the record: one atomic write of every path it will copy.
+    let mut recorded: Vec<u128> = Vec::new();
+    for _sample in 0..RELEASE_ARMS {
+        let write_started: std::time::Instant = std::time::Instant::now();
+        crate::worktree_copy_stage_intended_entries::record_intended_entries(container.as_path(), entries.as_slice()).expect("the record");
+        recorded.push(write_started.elapsed().as_micros());
+    }
+    for (arm, samples) in [("the top level only", top), ("the record and the walk", proof), ("the walk again", again), ("writing the record", recorded)] {
+        let (middle, p99, largest) = spread_of(samples);
+        println!("{arm} over {MEASURED_PAYLOAD_ENTRIES} entries: median {middle} us, p99 {p99} us, max {largest} us");
+    }
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// A kept stage is examined once and its reason is reused while the payload does not change,
+/// so no command pays the walk of a payload again.
+/// Why the control reads this way:
+///  the second pass is given a payload it cannot list,
+///  so a walk would answer "nothing shows what stands below" instead of the reason,
+///  and the reason can only come from the record.
+#[test]
+fn a_kept_stage_is_examined_once_and_its_reason_reused() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-kept-once", "ignored/pkg/notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let first: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
+    let reason: String = first.iter().find(|notice: &&String| { return notice.contains("was not changed"); }).expect("the line that says why").clone();
+    assert!(reason.contains("payload/ignored/pkg/notes.txt"), "{first:?}");
+    // The payload cannot be listed from here on, so any walk would say so instead of naming the file.
+    std::fs::set_permissions(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path(), std::fs::Permissions::from_mode(0o000)).expect("unlistable payload");
+    let second: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the second pass goes on");
+    std::fs::set_permissions(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path(), std::fs::Permissions::from_mode(0o700)).expect("listable again");
+    assert_eq!(second, vec![reason.clone()], "the same reason, from the record and not from a walk: {second:?}");
+    // A payload whose entries changed is examined again, and the answer is the new one.
+    std::fs::write(container.join("payload/ignored/pkg/second.txt"), b"a person's only copy").expect("another file");
+    let third: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the third pass examines it again");
+    assert!(third.iter().any(|notice: &String| { return notice.contains("was not changed"); }), "{third:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
 }

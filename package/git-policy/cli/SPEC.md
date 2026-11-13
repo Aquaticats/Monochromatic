@@ -4286,11 +4286,41 @@ The command that meets one settles it in the pass that runs before every forward
   because from the moment a copy exists its journal names the folder and settles it,
   which is what a copy's own rung relies on while it stages.
   Once the folder is gone, or a journal names it, the claim, the records and the marker go in that order.
-- A dead claim whose folder no record proves is removed as a copy's own only when that folder holds nothing the
-  wrapper's own stage does not: the payload a copy fills,
-  its registration,
-  or the temporaries of those writes.
-  Anything else may be a person's, so the folder is kept and the line names the entry that kept it.
+- A dead claim whose folder no record proves is removed as a copy's own only when nothing in that folder can be a
+  person's at any depth:
+  its top level holds only the records this wrapper writes (the payload,
+  the registration,
+  and the record of what the copy was writing,
+  with the temporaries of those writes),
+  and every entry below `payload/` is a path that record names,
+  or a directory above one.
+  A copy writes that record (`intended`) into its stage before its first payload byte,
+  so a kill at any later instruction leaves a stage that says what it was writing;
+  a payload whose entries are all listed is the copy's own and goes with the folder,
+  and anything else at any depth may be a person's and is kept,
+  the line naming the outermost entry no record explains.
+  A payload holding something and no such record proves nothing:
+  no copy of this release leaves one,
+  and a folder an earlier release left is kept and named rather than guessed at,
+  while a payload that holds nothing at all is removed,
+  because there is nothing in it to lose.
+  The mode of the folder is no proof either way:
+  the stage name holds the directory Git made after an interrupted exchange,
+  at Git's own mode,
+  and that folder is the wrapper's own leftover.
+  Only a folder this account made is examined at all;
+  another account's directory,
+  a link in the stage's place,
+  and a file at the name are named and never touched.
+- The comparison against that record costs one lookup per payload entry,
+  so a folder it keeps is examined once:
+  the reason and the payload's own change and modification times are written beside the claim
+  (`<identifier>.kept`),
+  the next command prints that reason without reading the payload,
+  and a payload whose times differ is examined again,
+  which is how a person who removes their file lets the next command settle the folder.
+  The record can only ever save a keep and never a removal:
+  every removal is decided by a fresh walk.
 - A destination record whose claim was moved is still read:
   the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
   naming the worktree it describes with the two commands that settle it,

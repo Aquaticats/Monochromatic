@@ -153,3 +153,122 @@ fn ancestors_and_self(path: &[u8]) -> Vec<Vec<u8>> {
         end = separator;
     }
 }
+
+/// What:
+///  The suffix of the record that says a stage was examined and kept,
+/// beside the claim that names it.
+/// Why:
+///   The comparison against the record of what the copy was writing costs one lookup per payload entry,
+/// and a kept stage is named on every command while its claim stands,
+/// so the walk is made once for a folder that does not change and its answer is written down:
+/// the person reads the same reason each time and no command pays the walk again.
+/// The record can only ever save a keep and never a removal:
+/// a removal is decided by a fresh walk every time,
+/// so a record out of date keeps a folder longer and never deletes anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const KEPT_SUFFIX = '.kept';
+/// ```
+pub const KEPT_SUFFIX: &str = ".kept";
+
+/// What:
+///  The line that holds the reason the person reads.
+/// Why:
+///   One field per line, read by its own key, as every record of this package is.
+const REASON_LINE_PREFIX: &str = "reason=";
+
+/// What:
+///  The line that holds the state of the payload the reason was decided in.
+const CHANGED_LINE_PREFIX: &str = "changed=";
+
+/// What:
+///  When the payload was last changed,
+/// as the seconds of its change and modification times,
+/// or nothing when it cannot be examined.
+/// Why:
+///   Any entry added to or removed from the payload changes the directory's change time,
+/// and a person's file is such an entry;
+/// whole seconds are enough because a record that misses a change only saves a keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const changed = (payload) => { const found = statSync(payload); return { ctime: found.ctime, mtime: found.mtime }; };
+/// ```
+fn payload_changed(container: &Path) -> Option<(i64, i64)> {
+    use std::os::unix::fs::MetadataExt;
+    let found: std::fs::Metadata = std::fs::symlink_metadata(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path()).ok()?;
+    return Some((found.ctime(), found.mtime()));
+}
+
+/// What:
+///  The reason a kept stage was kept,
+/// where the payload has not changed since that decision,
+/// or nothing when no such record stands or the folder moved on.
+/// Why:
+///   The answer is the words the person read the first time,
+/// and a payload whose times differ is examined again,
+/// so a person who removes their file lets the next command settle the folder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reason = reasonTheStageWasKept(claim, container); // undefined before the first look, or after a change
+/// ```
+pub fn reason_the_stage_was_kept(claim: &Path, container: &Path) -> Option<String> {
+    let recorded: (i64, i64) = payload_changed(container)?;
+    let text: String = std::fs::read_to_string(kept_record_beside(claim)).ok()?;
+    let mut reason: Option<&str> = None;
+    let mut changed: Option<(i64, i64)> = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix(REASON_LINE_PREFIX) {
+            reason = Some(value);
+            continue;
+        }
+        if let Some(value) = line.strip_prefix(CHANGED_LINE_PREFIX) {
+            let (left, right) = value.split_once('.')?;
+            changed = Some((left.parse().ok()?, right.parse().ok()?));
+            continue;
+        }
+        // A line this release does not write proves nothing about the folder.
+        return None;
+    }
+    if changed != Some(recorded) {
+        return None;
+    }
+    return reason.map(str::to_string).filter(|reason_text: &String| { return !reason_text.is_empty(); });
+}
+
+/// What:
+///  Writes down that this stage was examined and kept,
+/// with the reason and the state of the payload it was decided in,
+/// published whole by one rename and flushed by nobody.
+/// Why:
+///   It saves only the walk, never the decision,
+/// and a write that fails only means the next command walks again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordTheStageWasKept(claim, container, reason);
+/// ```
+pub fn record_the_stage_was_kept(claim: &Path, container: &Path, reason: &str) -> Result<(), WorktreeCopyError> {
+    let Some((changed_seconds, modified_seconds)): Option<(i64, i64)> = payload_changed(container) else {
+        return Ok(());
+    };
+    let recorded: String = format!("{REASON_LINE_PREFIX}{reason}\n{CHANGED_LINE_PREFIX}{changed_seconds}.{modified_seconds}\n");
+    return write_atomic_unsynced(kept_record_beside(claim).as_path(), recorded.as_bytes(), "stage kept record");
+}
+
+/// What:
+///  The path of the record that says a stage was kept,
+/// for the claim that names the stage.
+/// Why:
+///   It keeps the claim's own name and changes only its suffix,
+/// so one reader finds it and one release removes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claim.withExtension(KEPT_SUFFIX)
+/// ```
+pub fn kept_record_beside(claim: &Path) -> PathBuf {
+    return claim.with_extension(&KEPT_SUFFIX[1..]);
+}

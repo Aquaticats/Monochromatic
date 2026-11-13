@@ -22,6 +22,7 @@
 //! const notices = await reapJudgedStages(commonDir, verdicts);
 //! ```
 
+use crate::diagnostic_log::debug;
 use crate::json_record::quote;
 use crate::path_bytes_in_records::path_of_the_two_fields;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
@@ -39,6 +40,9 @@ use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_copy_s
 // The sweeps that remove files rather than stages live beside this file, so this one stays under the line limit.
 pub use crate::worktree_copy_stage_claim_swept_files::remove_dead_temporaries;
 pub(crate) use crate::worktree_copy_stage_claim_swept_files::remove_records_nothing_claims;
+/// The tag every line this module logs carries.
+const TAG: &str = "stageReaping";
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -69,6 +73,36 @@ struct ClaimFields<'a> {
 }
 
 /// What:
+///  Whether this account owns the folder,
+/// it is a directory,
+/// and its canonical path is the path given.
+/// Why:
+///   A removal is recursive,
+/// and only a folder this account made may be examined and removed at all;
+/// another account's folder,
+/// a link to one,
+/// and a file at the name are every one of them somebody else's and are named instead.
+/// The mode is not asked:
+/// a stage name holds the directory Git made after an interrupted exchange,
+/// at Git's own mode,
+/// and what may be removed from it is decided by what it holds (`an_entry_the_wrappers_stage_does_not_explain`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ours = (path) => isDirectory(path) && owner(path) === euid() && canonicalize(path) === path;
+/// ```
+fn is_this_accounts_directory(path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(metadata) = std::fs::symlink_metadata(path) else { return false };
+    // SAFETY: `geteuid` has no preconditions and cannot fail.
+    let effective_user: u32 = unsafe { libc::geteuid() };
+    if !metadata.is_dir() || metadata.uid() != effective_user {
+        return false;
+    }
+    return std::fs::canonicalize(path).is_ok_and(|canonical: PathBuf| { return canonical.as_path() == path; });
+}
+
+/// What:
 ///  Whether any of these files stands,
 /// answering yes when one cannot be looked up for any reason but absence.
 /// Why:
@@ -89,20 +123,70 @@ fn stands_any_of(paths: &[&Path]) -> bool {
 }
 
 /// What:
-///  The first top-level entry of a stage folder that the wrapper's own stage does not hold,
-/// or nothing when every entry is one this wrapper makes there.
+///  Whether the wrapper's own writing explains this top-level name of a stage container.
 /// Why:
-///   A dead claim with no record proves nothing about the folder it names:
-/// a copy's stage holds the payload of the source's ignored state,
-/// the registration of the worktree it fills,
-/// and temporaries of those writes,
-/// so a folder holding anything else may be a person's and is kept and named instead of removed.
-/// Only the top level is read:
-/// what a copy wrote inside its payload is the copy's own.
+///   These are the only names a copy leaves at the top of its stage:
+/// the registration of the directory Git made and the temporaries its write is published through,
+/// the payload,
+/// and the record of the entries the payload will hold with its own temporary.
+/// A name that begins like one of those records and ends with a temporary's suffix is that write itself,
+/// interrupted before its rename.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unexplained = readdir(container).find((name) => !isTheWrappersOwn(name));
+/// const own = (name) => name === PAYLOAD || name === INTENDED || isARecordWrite(name, REGISTRATION) || isARecordWrite(name, INTENDED);
+/// ```
+fn names_a_top_level_entry_the_wrapper_writes(name: &str) -> bool {
+    if name == PAYLOAD_NAME || name == crate::worktree_copy_stage_intended_entries::INTENDED_NAME {
+        return true;
+    }
+    return names_a_record_write(name, crate::worktree_copy_stage_binding::STAGE_BINDING_NAME)
+        || names_a_record_write(name, crate::worktree_copy_stage_intended_entries::INTENDED_NAME);
+}
+
+/// What:
+///  Whether one name is the record of that name, or a write of it.
+/// Why:
+///   A record is published by one rename of a hidden file it was written in,
+/// so a kill leaves either the record or one of those two names,
+/// and a name of another shape is somebody else's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = (name, record) => name === record || (name.startsWith(`${record}.`) && (name.endsWith('.tmp') || name.endsWith('.partial')));
+/// ```
+fn names_a_record_write(name: &str, record: &str) -> bool {
+    let bare: &str = name.strip_prefix('.').unwrap_or(name);
+    let Some(rest): Option<&str> = bare.strip_prefix(record) else {
+        return false;
+    };
+    if rest.is_empty() {
+        return true;
+    }
+    return rest.starts_with('.') && (rest.ends_with(TEMPORARY_SUFFIX) || rest.ends_with(SCRATCH_SUFFIX));
+}
+
+/// What:
+///  The first entry of a stage folder that the wrapper's own writing does not explain,
+/// at any depth,
+/// or nothing when every entry is one this wrapper makes there.
+/// Why:
+///   A dead claim with no record proves nothing about the folder it names,
+/// so the folder is removed only when nothing inside it can be a person's:
+/// the entries of the payload must be the paths the copy wrote down before it wrote them,
+/// with the directories above those paths,
+/// and the top of the stage holds only the records this wrapper writes.
+/// Anything else at any depth keeps the folder and is named,
+/// because a person's file there exists nowhere else and the removal is recursive.
+/// A payload without that record proves nothing:
+/// no copy of this release leaves one,
+/// and a folder an earlier release left is kept and named rather than guessed at.
+/// Only a payload that holds nothing at all is removed without one,
+/// because there is nothing in it to lose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unexplained = firstEntryTheWrappersWritingDoesNotExplain(container);
 /// ```
 fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Option<String>, WorktreeCopyError> {
     let listing = match std::fs::read_dir(container) {
@@ -116,13 +200,78 @@ fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Opti
     }
     names.sort();
     for name in names {
-        let own: bool = name == PAYLOAD_NAME
-            || name == crate::worktree_copy_stage_binding::STAGE_BINDING_NAME
-            || name == crate::worktree_copy_stage_intended_entries::INTENDED_NAME
-            || name.starts_with(format!("{}.", crate::worktree_copy_stage_binding::STAGE_BINDING_NAME).as_str())
-            || name.starts_with(format!("{}.", crate::worktree_copy_stage_intended_entries::INTENDED_NAME).as_str());
-        if !own {
-            return Ok(Some(name));
+        if !names_a_top_level_entry_the_wrapper_writes(name.as_str()) {
+            return Ok(Some(format!("it holds {name}, which the wrapper's writing does not hold there")));
+        }
+    }
+    let payload: PathBuf = container.join(PAYLOAD_NAME);
+    match std::fs::symlink_metadata(payload.as_path()) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(raw_failure(&error)),
+    }
+    let holds_nothing: bool = std::fs::read_dir(payload.as_path()).is_ok_and(|mut found: std::fs::ReadDir| { return found.next().is_none(); });
+    if holds_nothing {
+        return Ok(None);
+    }
+    let Some(allowed) = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container) else {
+        return Ok(Some(format!("it holds {PAYLOAD_NAME}/, and nothing says what the copy was writing into it")));
+    };
+    return first_entry_the_payload_may_not_hold(payload.as_path(), allowed);
+}
+
+/// What:
+///  The first entry below a payload that is not one of the paths the copy recorded,
+/// or a directory above one of them,
+/// as the words the person reads,
+/// or nothing when every entry is one of those.
+/// Why:
+///   The walk reads and never writes,
+/// opens no file and follows no link,
+/// and stops at the first entry that is somebody else's,
+/// so a payload the wrapper filled costs one lookup per entry and a payload holding a person's file usually
+/// costs fewer.
+/// A directory that cannot be listed is answered with its reason,
+/// so a look that failed is never an answer of absence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const foreign = firstEntryThePayloadMayNotHold(payload, allowed); // undefined when every entry is the copy's
+/// ```
+pub(crate) fn first_entry_the_payload_may_not_hold(payload: &Path, allowed: std::collections::HashSet<Vec<u8>>) -> Result<Option<String>, WorktreeCopyError> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let mut pending: Vec<(PathBuf, Vec<u8>)> = vec![(payload.to_path_buf(), Vec::new())];
+    while let Some((directory, relative)) = pending.pop() {
+        let listing: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
+            Ok(listing) => listing,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Ok(Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice())))),
+        };
+        for found in listing {
+            let entry: std::fs::DirEntry = match found {
+                Ok(entry) => entry,
+                Err(error) => return Ok(Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice())))),
+            };
+            let name: std::ffi::OsString = entry.file_name();
+            let mut below: Vec<u8> = relative.clone();
+            if !below.is_empty() {
+                below.push(b'/');
+            }
+            below.extend_from_slice(name.as_os_str().as_bytes());
+            if !allowed.contains(&below) {
+                return Ok(Some(format!(
+                    "it holds {PAYLOAD_NAME}/{}, and nothing in the copy's own record names that path",
+                    crate::worktree_copy_repository_path::shown_repository_path(below.as_slice())
+                )));
+            }
+            let is_directory: bool = match std::fs::symlink_metadata(entry.path().as_path()) {
+                Ok(metadata) => metadata.is_dir(),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Ok(Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(below.as_slice())))),
+            };
+            if is_directory {
+                pending.push((entry.path(), below));
+            }
         }
     }
     return Ok(None);
@@ -600,23 +749,37 @@ pub fn reap_judged_stages(
                         }
                     }
                 } else {
-                    // A copy's stage is a private directory this wrapper made; one another command removed in between is
-                    // nobody's failure. A folder holding an entry the wrapper's own stage does not explain proves
-                    // nothing either way, so it is kept and named rather than removed: it may be a person's, and the
-                    // removal is recursive.
-                    match assert_private_path(container.as_path(), Role::PrivateStage) {
-                        Ok(()) => match an_entry_the_wrappers_stage_does_not_explain(container.as_path())? {
-                            Some(entry) => {
-                                notices.push(kept_copy_stage_words(container.as_path(), format!("it holds {entry}, which the wrapper's own stage does not hold").as_str()));
+                    // A copy's stage is a folder this account made; one another command removed in between is nobody's
+                    // failure. What may be removed from it is decided by what it holds and never by its mode: the stage
+                    // name holds the directory Git made after an interrupted exchange, at Git's own mode, and that
+                    // folder is the wrapper's own leftover. Anything else keeps the folder and is named, because the
+                    // removal is recursive and a person's file there exists nowhere else.
+                    if !is_this_accounts_directory(container.as_path()) {
+                        if !still_there(container.as_path())? {
+                            continue;
+                        }
+                        notices.push(kept_copy_stage_words(container.as_path(), "it is not a folder this account made, so nothing in it was touched"));
+                        stage_stays = true;
+                    } else {
+                        // A folder that was examined and kept says why, and the walk behind that answer is made once
+                        // for a folder that does not change: the person reads the same line and no command pays it again.
+                        if let Some(reason) = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.as_path(), container.as_path()) {
+                            notices.push(kept_copy_stage_words(container.as_path(), reason.as_str()));
+                            continue;
+                        }
+                        match an_entry_the_wrappers_stage_does_not_explain(container.as_path())? {
+                            Some(reason) => {
+                                if let Err(error) = crate::worktree_copy_stage_intended_entries::record_the_stage_was_kept(claim.as_path(), container.as_path(), reason.as_str()) {
+                                    debug(TAG, format!("the reason {} was kept could not be written ({}); the next command examines it again", container.display(), error.0).as_str());
+                                }
+                                notices.push(kept_copy_stage_words(container.as_path(), reason.as_str()));
                                 stage_stays = true;
                             }
                             None => {
                                 remove_stage(container.as_path())?;
                                 notices.push(removed_copy_stage_words(container.as_path()));
                             }
-                        },
-                        Err(_) if !still_there(container.as_path())? => {}
-                        Err(error) => return Err(error),
+                        }
                     }
                 }
             }
