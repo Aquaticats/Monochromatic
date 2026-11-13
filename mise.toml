@@ -964,20 +964,219 @@ usage = """
 arg "[directories]" var=#true help="Package directories to fetch (default: every directory with a tracked Cargo.lock)"
 """
 shell = "node --input-type=module-typescript -e"
-run = """
+run = '''
 {{vars.parse_usage_args}}
 const { execFileSync, spawnSync } = await import('node:child_process')
-const { dirname } = await import('node:path')
-const requested = parseUsageArgs(process.env.usage_directories ?? '')
-const lockFiles = execFileSync('git', ['ls-files', '*Cargo.lock'], { encoding: 'utf8' }).split('\\n').filter((line) => line !== '')
-const directories = requested.length > 0 ? requested : lockFiles.map((lockFile) => dirname(lockFile))
-const failed: string[] = []
-for (const directory of directories) {
-  const result = spawnSync('cargo', ['fetch', '--locked', '--manifest-path', directory + '/Cargo.toml'], { stdio: 'inherit' })
-  if (result.status !== 0) { failed.push(directory) }
+const { readFileSync, readdirSync, statSync } = await import('node:fs')
+const { homedir } = await import('node:os')
+const { dirname, join } = await import('node:path')
+
+//region Judging a lock file against the cargo home without taking Cargo's lock
+// Cargo holds `<cargo home>/.package-cache` exclusively while it resolves, downloads and unpacks, and this task used
+// to take it once per lock file whether or not anything was to download. Everything below reads the cargo home as
+// any other file would, under no lock, and answers one question: does `cargo fetch --locked` have anything to do?
+// The two markers are Cargo's own, read from its source on 2026-11-13 (src/sources/registry/mod.rs, `unpack_package`,
+// and src/sources/git/utils.rs, `CheckoutGuard`): a registry crate's source folder gets `.cargo-ok` holding `{"v":1}`
+// only after its last file is unpacked, and a git checkout's folder gets an empty `.cargo-ok` only after its reset
+// finished. A folder without its marker is absent or half written, and a concurrent Cargo can make a reader see
+// exactly that, so the answer is a fetch.
+const REGISTRY_UNPACK_MARKER = '.cargo-ok'
+const REGISTRY_UNPACK_MARKER_CONTENT = '{"v":1}'
+const GIT_CHECKOUT_MARKER = '.cargo-ok'
+// The length git abbreviates a commit id to, which is also the name of a Cargo git checkout's folder
+// (`GitDatabase::to_short_id`, at least seven characters and longer only when seven are ambiguous).
+const SHORTEST_GIT_CHECKOUT_NAME = 7
+
+/** The `[[package]]` entries of a `Cargo.lock` as `{ name, version, source }`, or undefined when it is not understood. */
+const lockPackages = (text) => {
+  const packages = []
+  let current
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '[[package]]') {
+      if (current !== undefined) { packages.push(current) }
+      current = {}
+      continue
+    }
+    if (line.startsWith('[')) {
+      if (current !== undefined) { packages.push(current) }
+      current = undefined
+      continue
+    }
+    if (current === undefined) { continue }
+    const keyAndValue = /^(name|version|source) = "([^"]*)"$/u.exec(line)
+    if (keyAndValue !== null) { current[keyAndValue[1]] = keyAndValue[2] }
+  }
+  if (current !== undefined) { packages.push(current) }
+  const everyEntryHasIdentity = packages.every((entry) => typeof entry.name === 'string' && typeof entry.version === 'string')
+  return everyEntryHasIdentity ? packages : undefined
 }
+
+/** A path's `stat`, or undefined when it cannot be read. */
+const statOf = (path) => {
+  try {
+    return statSync(path)
+  }
+  catch {
+    return undefined
+  }
+}
+
+/** Every entry of a folder, or an empty list when it cannot be read. */
+const entriesOf = (path) => {
+  try {
+    return readdirSync(path, { withFileTypes: true })
+  }
+  catch {
+    // Nothing to read is the answer this check needs: an unreadable folder holds nothing, and a lock file that
+    // names something in it is fetched.
+    return []
+  }
+}
+
+/** A text file's content, or undefined when it cannot be read. */
+const textOf = (path) => {
+  try {
+    return readFileSync(path, 'utf8')
+  }
+  catch {
+    return undefined
+  }
+}
+
+/**
+ The registry cache folder Cargo would use, or why this reader cannot tell.
+ Cargo names that folder after the registry it cached (`short_name`), so a home holding one registry leaves no doubt
+ about where a lock file's crates belong and a home holding more than one does.
+ */
+const onlyRegistryName = (cargoHome) => {
+  const cacheRoot = join(cargoHome, 'registry', 'cache')
+  const names = entriesOf(cacheRoot).map((entry) => entry.name).filter((name) => statOf(join(cacheRoot, name))?.isDirectory() === true)
+  return names.length === 1 ? names[0] : undefined
+}
+
+
+/** What the cargo home holds, read once for every lock file of this pass. */
+const readCargoHome = (cargoHome) => {
+  const registryName = onlyRegistryName(cargoHome)
+  const tarballSizes = new Map()
+  const unpackedRegistryCrates = new Map()
+  const readyGitCheckouts = new Set()
+  if (registryName !== undefined) {
+    for (const entry of entriesOf(join(cargoHome, 'registry', 'cache', registryName))) {
+      if (entry.name.endsWith('.crate')) { tarballSizes.set(entry.name, statOf(join(cargoHome, 'registry', 'cache', registryName, entry.name))?.size) }
+    }
+    for (const entry of entriesOf(join(cargoHome, 'registry', 'src', registryName))) {
+      if (entry.isDirectory() || entry.isSymbolicLink()) { unpackedRegistryCrates.set(entry.name, join(cargoHome, 'registry', 'src', registryName, entry.name)) }
+    }
+  }
+  for (const checkoutEntry of entriesOf(join(cargoHome, 'git', 'checkouts'))) {
+    const nameAndHash = /^(?<repository>.+)-[0-9a-f]+$/u.exec(checkoutEntry.name)
+    if (nameAndHash === null) { continue }
+    for (const revisionEntry of entriesOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name))) {
+      if (statOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name, revisionEntry.name, GIT_CHECKOUT_MARKER)) !== undefined) {
+        readyGitCheckouts.add(nameAndHash.groups.repository + ' ' + revisionEntry.name)
+      }
+    }
+  }
+  return { registryName, tarballSizes, unpackedRegistryCrates, readyGitCheckouts }
+}
+
+/** Why the registry crate the lock file names is not in the cargo home, or undefined when it is there and unpacked. */
+const registryCrateMissingFrom = ({ home, name, version }) => {
+  const packageName = name + '-' + version
+  const tarballSize = home.tarballSizes.get(packageName + '.crate')
+  if (tarballSize === undefined) { return 'no downloaded ' + packageName + '.crate' }
+  if (tarballSize === 0) { return 'an empty ' + packageName + '.crate' }
+  const sourceFolder = home.unpackedRegistryCrates.get(packageName)
+  if (sourceFolder === undefined) { return undefined }
+  const marker = textOf(join(sourceFolder, REGISTRY_UNPACK_MARKER))
+  if (marker === undefined) { return packageName + ' is unpacking or half unpacked' }
+  if (marker.trim() !== REGISTRY_UNPACK_MARKER_CONTENT) { return packageName + ' has an unpack marker this reader does not know' }
+  return undefined
+}
+
+/** The repository name and locked revision of a git source, or undefined when the source text is not understood. */
+const gitSourceOf = (source) => {
+  const [withoutFragment, revision] = source.slice('git+'.length).split('#')
+  const withoutQuery = withoutFragment.split('?')[0].replace(/\/+$/u, '')
+  const repository = withoutQuery.slice(Math.max(withoutQuery.lastIndexOf('/'), withoutQuery.lastIndexOf(':')) + 1).replace(/\.git$/u, '').toLowerCase()
+  if (repository === '' || revision === undefined || revision === '') { return undefined }
+  return { repository, revision }
+}
+
+/** Why the git checkout the lock file names is not in the cargo home, or undefined when it is there and ready. */
+const gitCheckoutMissingFrom = ({ home, packageName, source }) => {
+  const gitSource = gitSourceOf(source)
+  if (gitSource === undefined) { return packageName + ' names a git source this reader does not understand' }
+  const { repository, revision } = gitSource
+  for (const ready of home.readyGitCheckouts) {
+    const [readyRepository, readyRevision] = ready.split(' ')
+    if (readyRepository !== repository) { continue }
+    if (revision.startsWith(readyRevision) && readyRevision.length >= SHORTEST_GIT_CHECKOUT_NAME) { return undefined }
+  }
+  return packageName + ' has no ready checkout of ' + repository + ' at ' + revision.slice(0, SHORTEST_GIT_CHECKOUT_NAME)
+}
+
+/** Whether `cargo fetch --locked` has anything to download for one lock file, and what decided it. */
+const fetchDecision = ({ cargoHome, home, lockText }) => {
+  const packages = lockPackages(lockText)
+  if (packages === undefined) { return { fetch: true, reason: 'the lock file was not understood' } }
+  const sources = new Map()
+  for (const entry of packages) {
+    if (typeof entry.source === 'string') { sources.set(entry.source, entry) }
+  }
+  const registrySources = [...sources.keys()].filter((source) => source.startsWith('registry+'))
+  const gitSources = [...sources.keys()].filter((source) => source.startsWith('git+'))
+  const otherSources = [...sources.keys()].filter((source) => !source.startsWith('registry+') && !source.startsWith('git+'))
+  if (otherSources.length > 0) { return { fetch: true, reason: String(otherSources.length) + ' sources this reader does not know' } }
+  if (registrySources.length === 0 && gitSources.length === 0) { return { fetch: false, reason: 'it names no crate from a registry or a git repository' } }
+  if (registrySources.length > 0 && home.registryName === undefined) {
+    return { fetch: true, reason: 'its crates are not in one registry folder of the cargo home at ' + cargoHome }
+  }
+  const registryPackages = packages.filter((entry) => typeof entry.source === 'string' && entry.source.startsWith('registry+'))
+  const registryMissing = registryPackages.map((entry) => [entry, registryCrateMissingFrom({ home, name: entry.name, version: entry.version })])
+    .filter(([, why]) => why !== undefined)
+  const gitPackages = packages.filter((entry) => typeof entry.source === 'string' && entry.source.startsWith('git+'))
+  const gitMissing = gitPackages.map((entry) => [entry, gitCheckoutMissingFrom({ home, packageName: entry.name + '-' + entry.version, source: entry.source })])
+    .filter(([, why]) => why !== undefined)
+  if (registryMissing.length > 0) {
+    const [[first, firstWhy]] = registryMissing
+    return { fetch: true, reason: String(registryMissing.length) + ' of ' + String(registryPackages.length) + ' crates not in the cargo home, first ' + first.name + '-' + first.version + ': ' + firstWhy }
+  }
+  if (gitMissing.length > 0) {
+    const [[first, firstWhy]] = gitMissing
+    return { fetch: true, reason: String(gitMissing.length) + ' of ' + String(gitPackages.length) + ' git crates not in the cargo home, first ' + first.name + ': ' + firstWhy }
+  }
+  const crateCount = registryPackages.length + gitPackages.length
+  return { fetch: false, reason: 'all ' + String(crateCount) + ' of its crates are downloaded, unpacked and checked out' }
+}
+//endregion
+
+const requested = parseUsageArgs(process.env.usage_directories ?? '')
+const lockFiles = execFileSync('git', ['ls-files', '*Cargo.lock'], { encoding: 'utf8' }).split('\n').filter((line) => line !== '')
+const directories = requested.length > 0 ? requested : lockFiles.map((lockFile) => dirname(lockFile))
+const cargoHome = process.env.CARGO_HOME ?? join(homedir(), '.cargo')
+const home = readCargoHome(cargoHome)
+const failed = []
+let fetched = 0
+let skipped = 0
+for (const directory of directories) {
+  const lockText = textOf(directory + '/Cargo.lock')
+  const decision = lockText === undefined
+    ? { fetch: true, reason: 'its Cargo.lock was not readable' }
+    : fetchDecision({ cargoHome, home, lockText })
+  if (!decision.fetch) {
+    skipped += 1
+    continue
+  }
+  console.log('fetch:rust-dependencies: ' + directory + ': fetching (' + decision.reason + ')')
+  const result = spawnSync('cargo', ['fetch', '--locked', '--manifest-path', directory + '/Cargo.toml'], { stdio: 'inherit' })
+  if (result.status !== 0) { failed.push(directory) } else { fetched += 1 }
+}
+console.log('fetch:rust-dependencies: fetched ' + String(fetched) + ' lock files and left ' + String(skipped) + ' of ' + String(directories.length) + ' alone, Cargo\'s package cache lock taken only for the fetched ones (cargo home ' + cargoHome + ')')
 if (failed.length > 0) { throw new Error('cargo fetch --locked failed in: ' + failed.join(', ')) }
-"""
+'''
 
 # `depends` runs the fetch first (owner decision of 2026-11-07, "Fetch then warn"): the closure check reads the Cargo
 # cache offline, and a package whose crates are missing is reported as a warning finding naming the fix, so the fetch
