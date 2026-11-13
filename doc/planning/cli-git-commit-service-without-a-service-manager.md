@@ -1,9 +1,9 @@
 # The commit service without a service manager
 
-Status, 2026-11-13: parts 1 to 4 done, part 5 built for the base and open for the
-enhancement, part 6 proven in a container and open for the manager-with-manager half,
-part 7 measured, part 8 done. The closing section says what is built, proven, measured
-and left open.
+Status, 2026-11-13 (second run): parts 1 to 8 done for the base *and* the enhancement,
+each with its controls; the manager half of the proof done in a container; the retire
+storm fixed; the times measured. What of the further items is left, and in which order,
+is the closing section.
 
 The task: the wrapper's commit service stops being a unit of the user's
 service manager and becomes a server the wrapper starts, finds, replaces and
@@ -1250,13 +1250,11 @@ the wrapper or its service failed to build or behave on musl.
 
 ### A manager that received no call
 
-Not run. The branch asks no service manager for anything, so the only way to run this
-half is a container image with systemd in it, and the design's enhancement (part 4) is
-what would make a call at all. `grep` over the release sources for
-`org.freedesktop.systemd1`, `StartUnit`, `ResetFailedUnit` and `ActiveState` finds
-nothing, and `src/native/source_guard/no_start_at_login_tests.rs` fails if that ever
-changes again; that is a source proof where the brief asked for a bus that counts
-calls, and it is weaker.
+Run, in a container, in the run after this one: see "The manager half of the proof, in a
+container". It shows three cases side by side with their counts: the manager of this
+session's own bus is asked twice for one service start and never again; a bus of another
+directory than the runtime directory is asked nothing; and with no bus at all nothing is
+asked. No wrapper command makes a single D-Bus method call.
 
 ## Part 7, the times
 
@@ -1282,39 +1280,97 @@ The installed release ran in this machine's own environment, because it cannot c
 at all without its service manager: that is the defect this branch removes, and it is
 why the two arms cannot share an environment.
 
-## What is left open
+## The enhancement, built
 
-Each of these is a piece of the brief this run did not finish, in the order it should
-be taken.
+`service_server_start_through_the_manager.rs`, wired into
+`service_server_start_by_the_wrapper::start`:
 
-1. **Part 4's enhancement is designed and not written.** A transient scope through
-   `systemd-run`, with Bazel's probe and its plain-exec fallback, so a manager's cgroup
-   is given where a manager is there and taking it away changes nothing else. Its two
-   controls (the manager is there and the cgroup is gained; the manager does not answer
-   in time and the result is exactly the base's) are the whole of what proves it an
-   enhancement.
-2. **Bazel's low-memory idle exit** is designed in part 3 and not written.
-3. **The manager-with-manager half of the container proof.** A container whose image
-   has systemd, a private counting bus, and a wrapper built from this branch run to
-   green with every method call counted as zero. Today the source guards stand in for
-   it.
-4. **A retire from an older client to a newer service.** The audit of 0.6.1-alpha.14
-   found a client of alpha.13 sending `retire` a hundred times to a healthy alpha.14
-   service, and failing after ten seconds. This branch still honours the retire in the
-   version the client announced and still re-sends it until its deadline, so the defect
-   is unchanged: the service should refuse a retire from a client of an older protocol
-   once, remember it, and the older client should use the service that is there.
-5. **`git monochromatic-git-policy-cli service stop`** does not exist, so a person
-   cannot ask a worktree's service to leave by hand; the push deadline advice still
-   names the manager's `set-environment`.
-6. **The unit files of earlier releases stay where they lie.** Nothing reads them, which
-   is why leaving them is harmless, but nothing removes them either, and the inventory's
-   part 1 entry 6 promised a retirement.
-7. **Two source guards and the package's `bin/` tooling** still assume this host's
-   manager for cgroups: `native-gate*`, `native:test:container` and the mutation tasks.
-   They never reach a release, and the inventory says so.
-8. **The seven failures in the library suite that are not this branch's** (see the
-   report): five `worktree` and `worktree_copying` controls, `policy_checks`'s
-   overwriting-forms control, the snapshot-rung source assertion, and the
-   blocking-code guard's `lazy_runtime` lines. They fail in files this branch leaves
-   byte-identical to its base, in isolation as well as in the suite.
+- **The gate.** A manager is asked only when the environment named the runtime directory
+  and the inherited bus resolves to a socket inside it (`bus_is_ours`). A folder this
+  program fell back to (`~/.run`) is no session, and a bus of another directory is
+  another session's manager, so neither is asked: that is issue 6293's rule, held by the
+  same function that keeps a private runtime directory out of the account's manager.
+- **The probe.** Bazel's: `systemd-run --user --scope --quiet -- /bin/true`, a plain child
+  bounded by `PROBE_WAIT` (2 s). A refusal, a missing program, a bus that is not there and
+  a manager still thinking all answer `false`, and the base's start runs.
+- **The start.** `systemd-run --user --scope --quiet -- <the base's own words>`, given
+  `START_WAIT` plus one second; a scope that made nothing answer is ended by its group and
+  the base's start runs once, so a manager that made a scope and then failed costs a second
+  and never a commit.
+- **Controls.** Four of the gate, the probe's bound and the start's words; and the two the
+  decision asks for at the user boundary: with a manager of this session the service is
+  started as its scope (the record holds the probe and the start, with the base's words
+  after `--`), and with a manager that does not answer in time the result is exactly the
+  base's (one server, the same files, no `service run` in the manager's record).
+
+## The retire storm, fixed
+
+The audit of alpha.14 measured a client sending `retire` a hundred times in ten seconds to
+a healthy service of a newer release. Two halves:
+
+- **The client** (`service_release_order.rs`): a service of this protocol is used whatever
+  release it announces, and only a *lesser* one, or one whose release cannot be read, is
+  asked to leave. The protocol is the contract; the release check existed because the
+  manager started the unit's program, which an upgrade could remove. A command served by
+  another release says so in one line.
+- **The service** (`service_server_connection_handling.rs`): one ask per service life.
+  A second ask from any client is refused with a line and queues nothing, where before every
+  ask queued a job of its own. The retire message now reads the version its client
+  announces, which is what the refusal names.
+
+The control is one client, one newer service, three commands: no ask honoured, the same
+service serving all three, each command naming the release that served it.
+
+## The manager half of the proof, in a container
+
+`manager-proof-in-a-container.sh` and `Containerfile.manager-proof`: a Debian image with
+Git, a real `dbus-daemon` on the container's own bus, and a stand-in named `systemd-run`
+that records every word it is given and then does what `--scope` does. Three cases, one
+`podman run --cpus 4 --memory 4g --pids-limit 1024`:
+
+- **A, the bus is this session's own** (`XDG_RUNTIME_DIR` = the bus's directory): **2**
+  manager calls, the probe and one start
+  (`--user --scope --quiet -- /usr/local/bin/git monochromatic-git-policy-cli service run …`),
+  and the later command added none. Both commits landed.
+- **B, a runtime directory of the command's own, the bus inherited from another
+  directory**: **0** manager calls, both commits landed, the service's files in the private
+  directory, and its state under the container's `HOME` (which is what issue 6293 will move).
+- **C, no bus and no runtime directory**: **0** manager calls, both commits landed, sockets
+  in `~/.run`.
+- The bus's own log: 2 method calls for a control call of my own (so the log can show one),
+  and **0** from any wrapper command: the wrapper never speaks D-Bus, its only manager
+  interaction is the manager's own program, as Bazel's is.
+
+## Times, and the CARGO_HOME of the run
+
+The commit times of the previous run stand (a first commit 10 ms slower at the median,
+inside the arms' spread; a later one 10 ms faster). Nothing in these three changes touches
+the fast path: the gate reads two environment values and one `PATH` scan, only on a start.
+
+A `CARGO_HOME` of the run's own, with `registry` and `git` linked to the shared ones, did
+keep every cargo command off the package-cache lock: a clean `cargo check` took 67 s with no
+"Blocking waiting for file lock" line. It needs one thing `~/.cargo/config.toml` also holds:
+the `build-dir` setting. Without it, builds land in the worktree's own `target/`, and a
+fixture made under `target/` is then *inside* this repository, which made
+`push::auto_push_trigger::tests::every_decline_names_its_reason` fail for a reason that has
+nothing to do with the code. With the line copied, the whole set is green.
+
+## What is left, in the order I would take it
+
+1. **`git monochromatic-git-policy-cli service stop`**: a person cannot ask a worktree's
+   service to leave by hand, and the push deadline advice still names the manager's
+   `set-environment`.
+2. **The unit files of earlier releases** stay where they lie. Nothing reads them, but
+   nothing removes them either.
+3. **Bazel's low-memory idle exit** is designed and not written.
+4. **A retire from a client of another *protocol*** is still honoured, which is deliberate:
+   such a service cannot serve that client at all, so replacing it is the only useful answer.
+   Its remaining cost is that the client must start its own service, which it now does
+   rather than failing.
+5. **The package's `bin/` tooling and `native:gate*` tasks** still use this host's manager
+   for cgroups. They never reach a release.
+6. **The six library controls that fail in files this branch leaves byte-identical to its
+   base** (two `worktree_landed_removal`, two `worktree_copying`, `policy_checks`'
+   overwriting forms, the snapshot-rung assertion in `wait_ceilings_tests.rs`, and the
+   blocking-code guard's `lazy_runtime.rs` lines). They are somebody else's to fix; each is
+   named with its file, and `git diff 9d5a7b0ed7..HEAD` prints nothing for those files.
