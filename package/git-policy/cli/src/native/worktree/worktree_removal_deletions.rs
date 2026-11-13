@@ -34,11 +34,34 @@
 //!  A record that cannot be written costs the record and never the removal:
 //!  a removal that stopped because its log could not be appended would be a worse defect than
 //!  the silence the log exists to end.
+//!  The record is two lines, not one,
+//!  because a process can be killed at any instruction:
+//!  the line that names what is about to go is written before the deletion
+//!  (`record_removal_begins`),
+//!  and the line that says it happened after it
+//!  (`record_removal_deleted`).
+//!  A kill in between leaves the first line alone,
+//!  which says the removal set out to delete those entries and never confirmed it,
+//!  and a reader checks the worktree itself for what is still there.
+//!  One line written after the deletion would be lost by such a kill,
+//!  and the files would be gone with nothing saying they were ever there.
+//!  The listing itself is one Git start and cannot be had without one:
+//!  only Git's own ignore rules know what an entry is,
+//!  from a `.gitignore` at any depth,
+//!  `.git/info/exclude` and `core.excludesFile`.
+//!  Measured on this host on 2026-11-13 in a worktree of one tracked file:
+//!  the listing took 2 to 3 ms and a bare Git start in the same directory 1 to 2 ms,
+//!  with one ignored directory in the worktree 2 to 3 ms,
+//!  so what a removal pays for it is a Git start and the reading of the index,
+//!  bounded by the plumbing ceiling,
+//!  and nothing at all when the removal is refused before it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const listed = RemovalDeletions.of(git, commonDir, worktree);
-//! listed.record(commonDir, worktree, ['worktree', 'remove', worktree]); // throws nothing
+//! const begun = recordRemovalBegins(commonDir, worktree, ['worktree', 'remove', worktree], listed); // throws nothing
+//! // ... the files go ...
+//! recordRemovalDeleted(commonDir, begun, worktree);
 //! ```
 
 use crate::diagnostic_log::debug;
@@ -47,6 +70,7 @@ use crate::json_record::{quote, string_array};
 use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
 use crate::log_lines_appended_without_a_lock::append_line;
 use crate::path_bytes_in_records::hex_of_path;
+use crate::push_failure_notice::fnv_hex;
 use crate::service_protocol::RELEASE;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_ladder_target::checkout_environment;
@@ -331,33 +355,138 @@ fn list(git: &GitContext, worktree: &Path, admin: Option<&Path>, words: &[&str],
     return DeletedEntries::from_listing(output.stdout.as_slice());
 }
 
-/// What:
-///  Write one record of what a removal deleted.
+/// What one removal wrote down before it deleted anything,
+/// and the id its confirming line carries.
 /// Why:
-///   The record answers four questions a person asks afterwards:
-///  what was deleted,
-///  from which worktree,
-///  when,
-///  and by which command.
+///   The two lines are one record read together,
+///  so the identity that pairs them travels from the first write to the second
+///  and nothing has to be searched for again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RemovalBegun = { id: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemovalBegun {
+    /// The name both lines carry.
+    pub id: String,
+}
+
+/// What:
+///  Write what a removal is about to delete,
+///  before it deletes anything,
+///  and answer the id that confirms it later.
+/// Why:
+///   The listing is read before the deletion and this line is written before it too,
+///  because a process can be killed at any instruction:
+///  a line written after the deletion is lost by a kill in between,
+///  and then the files are gone with nothing saying they were ever there,
+///  which is the silence this log exists to end.
+///  A `begun` line whose id has no `deleted` line is a removal that was interrupted or refused:
+///  the entries it names may or may not still be in the worktree,
+///  which is exactly what is known, and a reader checks the worktree itself.
 ///  The worktree is written as text and as the bytes it is,
 ///  because a path that is not UTF-8 would otherwise reach a reader changed.
 ///  A command that is not UTF-8 is written the same way.
 ///  Nothing here changes the outcome of the removal:
-///  a failed write is a debug line, and the files are gone either way.
+///  a failed write is a debug line, and the removal goes on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordRemovalDeletions({ commonDir, worktree, command, deletions });
+/// const begun = recordRemovalBegins({ commonDir, worktree, command, deletions }); // undefined when nothing is deleted
 /// ```
-pub fn record_removal_deletions(common_dir: &Path, worktree: &Path, command: &[OsString], deletions: &RemovalDeletions) {
+pub fn record_removal_begins(common_dir: &Path, worktree: &Path, command: &[OsString], deletions: &RemovalDeletions) -> Option<RemovalBegun> {
     if !deletions.anything() {
-        return;
+        return None;
     }
-    let line: String = deletions_line(worktree, command, deletions, now_millis());
+    let begun: RemovalBegun = RemovalBegun { id: removal_id(worktree) };
+    append(common_dir, deletions_line(&begun, worktree, command, deletions, now_millis()).as_str());
+    return Some(begun);
+}
+
+/// What:
+///  Write the line that says one removal deleted what it listed.
+/// Why:
+///   The pair is what a reader needs:
+///  the first line says what the removal set out to delete,
+///  and this one says it happened.
+///  A removal that reports a deletion and then dies before this line leaves a reader with an unconfirmed list,
+///  which is the true statement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordRemovalDeleted(commonDir, begun, worktree);
+/// ```
+pub fn record_removal_deleted(common_dir: &Path, begun: &RemovalBegun, worktree: &Path) {
+    append(common_dir, deleted_line(begun, worktree, now_millis()).as_str());
+}
+
+/// What:
+///  Append one line to the repository's deletion log,
+///  and say nothing when it cannot be written.
+/// Why:
+///   Both lines are appended the same way,
+///  with the rotation and the bound every log of this wrapper shares,
+///  and a write that fails never changes the removal's outcome.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// appendLine(join(commonDir, DELETIONS_LOG), line, UNPINNED_LOG)
+/// ```
+fn append(common_dir: &Path, line: &str) {
     let target: PathBuf = common_dir.join(DELETIONS_LOG);
     if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
-        debug(TAG, format!("the record of the files {} deleted could not be written to {}: {error}", worktree.display(), target.display()).as_str());
+        debug(TAG, format!("a line of the deletion record could not be written to {}: {error}", target.display()).as_str());
     }
+}
+
+/// Environment variable arming the test-only kill between a removal's deletion and its confirming line.
+/// Why:
+///   A control has to show that the line naming what is about to go is written before the deletion,
+///  and the window between the deletion and the confirming line is too short to hit from another process.
+///  The marker is compiled into the release executable and inert unless the variable names it,
+///  as the service's own fault points are (`service_fault.rs`).
+pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_REMOVAL_FAULT";
+
+/// The instant after the files are gone and before the confirming line is written.
+pub const AFTER_DELETION: &str = "after-deletion";
+
+/// What:
+///  End this process if `point` is the armed fault point.
+/// Why:
+///   A kill at a named point is the strongest crash a control can ask for without an injected system call failure,
+///  and it proves what is already on disk at that instant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reachTestFault('after-deletion')
+/// ```
+pub fn reach_test_fault(point: &str) {
+    if !matches!(std::env::var(FAULT_VARIABLE), Ok(armed) if armed == point) {
+        return;
+    }
+    #[cfg(unix)]
+    // SAFETY: `kill` takes no pointers; the process ends itself and nothing reads memory after it.
+    unsafe {
+        libc::kill(libc::getpid(), libc::SIGKILL);
+    }
+    std::process::exit(137);
+}
+
+/// What:
+///  The name one removal's two lines carry.
+/// Why:
+///   A reader pairs them by it,
+///  and it must tell one removal of a worktree from the next removal of the same worktree:
+///  the path's hash is what tells two worktrees apart,
+///  and the millisecond and the process tell two removals of one path apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removalId('/x/y') // '0123abcd-1700000000000-4242'
+/// ```
+fn removal_id(worktree: &Path) -> String {
+    return format!("{}-{}-{}", fnv_hex(worktree.to_string_lossy().as_ref()), now_millis(), std::process::id());
 }
 
 /// What:
@@ -393,12 +522,13 @@ pub fn removal_words(target: &Path, force: bool) -> Vec<OsString> {
 /// ```ts
 /// deletionsLine(worktree, command, deletions, timeMillis) === '{"schemaVersion":1,...}\n'
 /// ```
-pub(crate) fn deletions_line(worktree: &Path, command: &[OsString], deletions: &RemovalDeletions, time_millis: u128) -> String {
+pub(crate) fn deletions_line(begun: &RemovalBegun, worktree: &Path, command: &[OsString], deletions: &RemovalDeletions, time_millis: u128) -> String {
     let mut line: String = String::with_capacity(512);
     line.push_str("{\"schemaVersion\":1");
     let stamp: i64 = i64::try_from(time_millis).unwrap_or(i64::MAX);
     let _ = write!(line, ",\"time\":{},\"release\":{}", quote(format_iso_milliseconds(stamp).as_str()), quote(RELEASE));
-    let _ = write!(line, ",\"kind\":{},\"worktree\":{}", quote("worktree-removal"), quote(worktree.to_string_lossy().as_ref()));
+    let _ = write!(line, ",\"kind\":{},\"outcome\":{},\"id\":{}", quote("worktree-removal"), quote("begun"), quote(begun.id.as_str()));
+    let _ = write!(line, ",\"worktree\":{}", quote(worktree.to_string_lossy().as_ref()));
     let _ = write!(line, ",\"worktreeHex\":{}", quote(hex_of_path(worktree).as_str()));
     let words: Vec<String> = command.iter().map(|one| return one.to_string_lossy().into_owned()).collect();
     let _ = write!(line, ",\"command\":{}", string_array(words.as_slice()));
@@ -407,6 +537,31 @@ pub(crate) fn deletions_line(worktree: &Path, command: &[OsString], deletions: &
     if let Some(reason) = &deletions.ignored.unreadable {
         let _ = write!(line, ",\"unreadable\":{}", quote(reason.as_str()));
     }
+    line.push_str("}\n");
+    return line;
+}
+
+/// What:
+///  The line that confirms one removal deleted what it listed,
+///  with the clock given by its caller.
+/// Why:
+///   It carries the pair's id,
+///  the outcome and the worktree and nothing else:
+///  the list is already in the first line,
+///  and a second copy of a twenty-name list would double the log for nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// deletedLine({ id: '0123abcd-1-2' }, '/x/y', 1700000000000)
+/// ```
+pub(crate) fn deleted_line(begun: &RemovalBegun, worktree: &Path, time_millis: u128) -> String {
+    let mut line: String = String::with_capacity(256);
+    line.push_str("{\"schemaVersion\":1");
+    let stamp: i64 = i64::try_from(time_millis).unwrap_or(i64::MAX);
+    let _ = write!(line, ",\"time\":{},\"release\":{}", quote(format_iso_milliseconds(stamp).as_str()), quote(RELEASE));
+    let _ = write!(line, ",\"kind\":{},\"outcome\":{},\"id\":{}", quote("worktree-removal"), quote("deleted"), quote(begun.id.as_str()));
+    let _ = write!(line, ",\"worktree\":{}", quote(worktree.to_string_lossy().as_ref()));
+    let _ = write!(line, ",\"worktreeHex\":{}", quote(hex_of_path(worktree).as_str()));
     line.push_str("}\n");
     return line;
 }

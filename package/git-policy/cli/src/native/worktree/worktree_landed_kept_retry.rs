@@ -23,10 +23,20 @@
 //!  which leaves the worktree where it is rather than removing another directory.
 //!  The record is private (`0600`) and written before the sweep's line is printed,
 //!  so a command killed in between leaves a statement rather than silence.
+//!  A path names whatever stands there when a later sweep reads it,
+//!  so the record also holds the identity of the two directories it was written for:
+//!  the registration's and the worktree root's device and inode
+//!  (`identity_standing_there`),
+//!  which a removal and a new add at the same path both replace.
+//!  A worktree a person removed and added again at the path the record names is therefore another directory,
+//!  the record no longer answers for it,
+//!  and the sweep that reads it drops it instead of removing a worktree nobody asked it to.
+//!  The branch the record names must be the branch the registration has checked out now,
+//!  for the same reason.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! rememberKept(commonDir, worktree, branch, why); const kept = rememberedKept(commonDir); forgetKept(commonDir, worktree);
+//! rememberKept(commonDir, { worktree, branch, identity, why }); const kept = rememberedKept(commonDir); forgetKept(commonDir, worktree);
 //! ```
 
 use crate::diagnostic_log::debug;
@@ -43,13 +53,17 @@ pub const KEPT_RETRY_FOLDER: &str = "monochromatic-git-policy-cli/kept-landed-wo
 
 /// The first line of every record,
 /// which tells it from anything else written there.
-const MAGIC: &str = "monochromatic-git-policy-cli kept landed worktree 1";
+const MAGIC: &str = "monochromatic-git-policy-cli kept landed worktree 2";
 
 /// The line that names the worktree the record is about.
 const WORKTREE_FIELD: &str = "worktree: ";
 
 /// The line that names the branch it had checked out.
 const BRANCH_FIELD: &str = "branch: ";
+
+/// The line that names the two directories the record was written for:
+/// the registration's device and inode, then the worktree root's.
+const IDENTITY_FIELD: &str = "identity: ";
 
 /// The end of a record's own name.
 const RECORD_SUFFIX: &str = ".txt";
@@ -63,23 +77,29 @@ pub struct RememberedKept {
     /// The branch that worktree had checked out,
     /// as a full ref name.
     pub branch: String,
+    /// The identity of the registration and of the worktree root when the record was written,
+    /// which is what tells that worktree from another one added at the same path.
+    pub identity: String,
 }
 
 /// What:
 ///  Remember one worktree a sweep kept,
+///  its branch,
+///  the identity of the two directories standing there,
 ///  and why.
 /// Why:
 ///  The next sweep needs the worktree and its branch to examine it again,
+///  the identity to know that the worktree it reads is the one that was kept,
 ///  and the reason is what a person reads when the folder is opened.
 ///  A record that cannot be written costs the retry and nothing else:
 ///  the sweep's own line still says the worktree stayed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rememberKept(commonDir, worktree, 'refs/heads/task-z', 'process 4242 is working in it')
+/// rememberKept(commonDir, { worktree, branch: 'refs/heads/task-z', identity, why: 'process 4242 is working in it' })
 /// ```
-pub fn remember_kept(common_dir: &Path, worktree: &Path, branch: &str, why: &str) {
-    if let Err(error) = written(common_dir, worktree, branch, why) {
+pub fn remember_kept(common_dir: &Path, worktree: &Path, branch: &str, identity: &str, why: &str) {
+    if let Err(error) = written(common_dir, worktree, branch, identity, why) {
         debug(TAG, format!("the record of the kept worktree {} could not be written: {error}", worktree.display()).as_str());
     }
 }
@@ -93,15 +113,15 @@ pub fn remember_kept(common_dir: &Path, worktree: &Path, branch: &str, why: &str
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// written(commonDir, worktree, branch, why) // throws the reason
+/// written(commonDir, worktree, branch, identity, why) // throws the reason
 /// ```
-fn written(common_dir: &Path, worktree: &Path, branch: &str, why: &str) -> Result<(), String> {
+fn written(common_dir: &Path, worktree: &Path, branch: &str, identity: &str, why: &str) -> Result<(), String> {
     let directory: PathBuf = kept_retry_directory(common_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the folder failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(worktree));
-    let text: String = format!("{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n\n{why}\n", worktree.display());
+    let text: String = format!("{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n{IDENTITY_FIELD}{identity}\n\n{why}\n", worktree.display());
     let _replaced = std::fs::remove_file(path.as_path());
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
@@ -157,19 +177,20 @@ pub fn remembered_kept(common_dir: &Path) -> Vec<RememberedKept> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parsed('monochromatic-git-policy-cli kept landed worktree 1\nworktree: /x\nbranch: refs/heads/y\n\nwhy\n')
+/// parsed('monochromatic-git-policy-cli kept landed worktree 2\nworktree: /x\nbranch: refs/heads/y\nidentity: 1:2 3:4\n\nwhy\n')
 /// ```
 fn parsed(text: &str) -> Option<RememberedKept> {
-    let mut lines = text.splitn(4, '\n');
+    let mut lines = text.splitn(5, '\n');
     if lines.next()? != MAGIC {
         return None;
     }
     let worktree: &str = lines.next()?.strip_prefix(WORKTREE_FIELD)?;
     let branch: &str = lines.next()?.strip_prefix(BRANCH_FIELD)?;
-    if lines.next()?.trim().is_empty() {
+    let identity: &str = lines.next()?.strip_prefix(IDENTITY_FIELD)?;
+    if identity.trim().is_empty() || lines.next()?.trim().is_empty() {
         return None;
     }
-    return Some(RememberedKept { worktree: PathBuf::from(worktree), branch: branch.to_owned() });
+    return Some(RememberedKept { worktree: PathBuf::from(worktree), branch: branch.to_owned(), identity: identity.to_owned() });
 }
 
 /// What:

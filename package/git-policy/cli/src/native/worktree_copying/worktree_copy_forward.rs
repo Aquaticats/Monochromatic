@@ -32,7 +32,7 @@ use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, sto
 use crate::worktree_identity::WorktreeIdentity;
 /// What a removal deletes of the files Git ignores and of a nested worktree's files,
 /// read before it deletes them and written once they are gone.
-use crate::worktree_removal_deletions::{RemovalDeletions, record_removal_deletions};
+use crate::worktree_removal_deletions::{AFTER_DELETION, RemovalBegun, RemovalDeletions, reach_test_fault, record_removal_begins, record_removal_deleted};
 
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt as _;
@@ -387,13 +387,19 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
     // A removal Git makes itself deletes the files it ignores without a word, so what is there is read before Git runs and
     //  recorded once it has gone (`worktree_removal_deletions.rs`, the owner's decision of 2026-11-12T13:04:14). The record
     //  is made only when Git reported success: a refusal deletes nothing and must not look like a deletion.
-    let about_to_go: Option<(PathBuf, RemovalDeletions)> = match (&facts.remove_plan, common_directory(&facts.identity)) {
-        (Some(plan), Some(common)) => Some((common.to_path_buf(), RemovalDeletions::of(&removal_git_context(real_git, overlay), common, plan.target.as_path()))),
+    let about_to_go: Option<(PathBuf, RemovalBegun)> = match (&facts.remove_plan, common_directory(&facts.identity)) {
+        (Some(plan), Some(common)) => {
+            // The list is read and written before Git runs, because a kill between Git's deletion and its record would leave
+            //  the files gone with nothing saying so (`worktree_removal_deletions.rs`).
+            let deletions: RemovalDeletions = RemovalDeletions::of(&removal_git_context(real_git, overlay), common, plan.target.as_path());
+            record_removal_begins(common, plan.target.as_path(), arguments, &deletions).map(|begun| return (common.to_path_buf(), begun))
+        }
         _ => None,
     };
     let finished: ForwardedRun = run_settled(real_git, arguments, overlay, facts);
-    if let (Some((common, deletions)), ForwardedRun::Ran(0)) = (&about_to_go, &finished) {
-        record_removal_deletions(common.as_path(), facts.remove_plan.as_ref().expect("a removal plan").target.as_path(), arguments, deletions);
+    if let (Some((common, begun)), ForwardedRun::Ran(0)) = (&about_to_go, &finished) {
+        reach_test_fault(AFTER_DELETION);
+        record_removal_deleted(common.as_path(), begun, facts.remove_plan.as_ref().expect("a removal plan").target.as_path());
     }
     return finished;
 }

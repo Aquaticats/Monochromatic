@@ -468,10 +468,17 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if let Err(reason) = record_destroy(request.common_dir, registration.id.as_os_str(), &held.admin_identity, target) {
         warn(TAG, format!("the destroy of {} is not recorded, so a command that dies before its registration is removed leaves it to `git worktree prune`: {reason}", target.display()).as_str());
     }
-    // What the destroy takes beside the files Git keeps is read while it is still there: after the destroy nothing at that path
-    //  can be listed any more, and the owner's decision of 2026-11-12T13:04:14 records every ignored file a removal deletes
-    //  (`worktree_removal_deletions.rs`).
+    // What the destroy takes beside the files Git keeps is read while it is still there, and what it read is written down
+    //  before anything is destroyed: after the destroy nothing at that path can be listed any more, and a process killed
+    //  between the destroy and its record would otherwise leave the files gone with nothing saying they were ever there
+    //  (the owner's decision of 2026-11-12T13:04:14, `worktree_removal_deletions.rs`).
     let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(request.context, request.common_dir, target);
+    let begun: Option<crate::worktree_removal_deletions::RemovalBegun> = crate::worktree_removal_deletions::record_removal_begins(
+        request.common_dir,
+        target,
+        crate::worktree_removal_deletions::removal_words(target, request.plan.force).as_slice(),
+        &deletions,
+    );
     // The subvolume is handed to the service when it can be: it is renamed inside the parent this removal holds, a durable record
     // names it, and the service's own call deletes it later, so the person waits for one rename and no kernel delete.
     match operations.hand_over(request.context, request.common_dir, &held, target) {
@@ -488,13 +495,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // Either the kernel call returned or the directory was renamed away, so the record now proves the files are gone from the
     // path the person named; only that proof lets a later command remove the registration.
     record_destroyed(request.common_dir, registration.id.as_os_str());
-    // The files are gone from the path the person named, so what was read before the destroy is what the removal deleted.
-    crate::worktree_removal_deletions::record_removal_deletions(
-        request.common_dir,
-        target,
-        crate::worktree_removal_deletions::removal_words(target, request.plan.force).as_slice(),
-        &deletions,
-    );
+    // The files are gone from the path the person named, so the list written before the destroy is what the removal
+    //  deleted, and this line says it happened.
+    crate::worktree_removal_deletions::reach_test_fault(crate::worktree_removal_deletions::AFTER_DELETION);
+    if let Some(begun) = &begun {
+        crate::worktree_removal_deletions::record_removal_deleted(request.common_dir, begun, target);
+    }
     let outcome: RemoveOutcome = finish(&held, &registration, request);
     // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
     // record, which is what the next command finishes.

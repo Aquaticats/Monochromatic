@@ -976,9 +976,12 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         arguments.push(OsString::from("--force"));
     }
     arguments.push(target.clone().into_os_string());
-    // What Git is about to delete is read while it is still there: the owner's decision of 2026-11-12T13:04:14 records every
-    //  ignored file and every nested worktree's files a removal takes (`worktree_removal_deletions.rs`).
+    // What Git is about to delete is read while it is still there, and written down before Git runs: the owner's decision of
+    //  2026-11-12T13:04:14 records every ignored file and every nested worktree's files a removal takes, and a kill between
+    //  Git's deletion and its record would leave them gone with nothing saying so (`worktree_removal_deletions.rs`).
     let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(&context, item.git_dir.as_path(), target.as_path());
+    let begun: Option<crate::worktree_removal_deletions::RemovalBegun> =
+        crate::worktree_removal_deletions::record_removal_begins(item.git_dir.as_path(), target.as_path(), arguments.as_slice(), &deletions);
     let output: GitOutput = match run_git(&context, &GitRequest::new(item.repository.as_path(), arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Verdict::Retry(format!("Git could not be started to remove {} ({error})", target.display())),
@@ -990,8 +993,11 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), format!("Git refused to remove it: {words}").as_str(), kept.said.as_slice());
     }
     forget_begun(item.git_dir.as_path(), item.id().as_str());
-    // Git deleted the worktree, so what was read before it ran is what the removal took.
-    crate::worktree_removal_deletions::record_removal_deletions(item.git_dir.as_path(), target.as_path(), arguments.as_slice(), &deletions);
+    // Git deleted the worktree, so the list written before it ran is what the removal took, and this line says it happened.
+    crate::worktree_removal_deletions::reach_test_fault(crate::worktree_removal_deletions::AFTER_DELETION);
+    if let Some(begun) = &begun {
+        crate::worktree_removal_deletions::record_removal_deleted(item.git_dir.as_path(), begun, target.as_path());
+    }
     // A pool names the worktree it serves in every member's config and sits in the common Git directory, which Git's removal
     //  leaves alone, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
     if let Some((common, admin)) = pool {

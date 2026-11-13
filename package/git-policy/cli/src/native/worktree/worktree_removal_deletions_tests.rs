@@ -15,7 +15,10 @@
 //! expect(DeletedEntries.ignoredOf(git, worktree, admin).shown).toEqual(['build/', '.env']);
 //! ```
 
-use super::{DELETIONS_LOG, DeletedEntries, NestedWorktree, RemovalDeletions, SHOWN_ENTRIES, deletions_line, record_removal_deletions, removal_words};
+use super::{
+    DELETIONS_LOG, DeletedEntries, NestedWorktree, RemovalBegun, RemovalDeletions, SHOWN_ENTRIES, deletions_line, deleted_line, record_removal_begins,
+    record_removal_deleted, removal_words,
+};
 use crate::test_support::{age, fixture, git, git_context, repository};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -88,7 +91,8 @@ fn one_record_names_the_worktree_the_command_the_time_and_the_entries() {
         ignored: DeletedEntries::from_listing(listing_of(&["build/", ".env"]).as_slice()),
         nested: Vec::new(),
     };
-    let line: String = deletions_line(worktree.as_path(), command.as_slice(), &deletions, 1_700_000_000_000);
+    let begun: RemovalBegun = RemovalBegun { id: String::from("0123abcd-1-2") };
+    let line: String = deletions_line(&begun, worktree.as_path(), command.as_slice(), &deletions, 1_700_000_000_000);
     assert!(line.starts_with("{\"schemaVersion\":1,"), "{line}");
     assert!(line.contains("\"worktree\":\"/fixtures/outer\""), "the worktree is named: {line}");
     assert!(line.contains("\"worktreeHex\":\"2f66697874757265732f6f75746572\""), "its bytes are kept too: {line}");
@@ -111,7 +115,8 @@ fn a_nested_worktree_is_named_with_its_own_files() {
             entries: DeletedEntries::from_listing(listing_of(&["personal.txt", "build/"]).as_slice()),
         }],
     };
-    let line: String = deletions_line(worktree.as_path(), removal_words(worktree.as_path(), true).as_slice(), &deletions, 1_700_000_000_000);
+    let begun: RemovalBegun = RemovalBegun { id: String::from("0123abcd-1-2") };
+    let line: String = deletions_line(&begun, worktree.as_path(), removal_words(worktree.as_path(), true).as_slice(), &deletions, 1_700_000_000_000);
     assert!(line.contains("\"nested\":[{\"worktree\":\"/fixtures/outer/nested\""), "the nested worktree is named: {line}");
     assert!(line.contains("\"files\":[\"personal.txt\",\"build/\"]"), "its files are named: {line}");
     assert!(line.contains("\"filesShown\":2,\"filesTotal\":2"), "their count is written: {line}");
@@ -128,7 +133,8 @@ fn a_record_of_a_listing_that_cannot_be_read_says_so_rather_than_naming_nothing(
         },
         nested: Vec::new(),
     };
-    let line: String = deletions_line(Path::new("/fixtures/outer"), &[OsString::from("merge")], &deletions, 1_700_000_000_000);
+    let begun: RemovalBegun = RemovalBegun { id: String::from("0123abcd-1-2") };
+    let line: String = deletions_line(&begun, Path::new("/fixtures/outer"), &[OsString::from("merge")], &deletions, 1_700_000_000_000);
     assert!(line.contains("\"unreadable\":\"Git could not list the files it ignores"), "{line}");
     assert!(line.contains("\"ignoredShown\":0,\"ignoredTotal\":0"), "an empty list and an unread one are told apart: {line}");
     assert!(deletions.anything(), "a listing that could not be read is something to record");
@@ -141,7 +147,11 @@ fn a_removal_that_deleted_nothing_a_person_could_miss_writes_no_record() {
     std::fs::create_dir_all(common.as_path()).expect("a common Git directory");
     let worktree: PathBuf = root.join("outer");
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree a removal took");
-    record_removal_deletions(common.as_path(), worktree.as_path(), removal_words(worktree.as_path(), false).as_slice(), &RemovalDeletions::default());
+    assert_eq!(
+        record_removal_begins(common.as_path(), worktree.as_path(), removal_words(worktree.as_path(), false).as_slice(), &RemovalDeletions::default()),
+        None,
+        "nothing to delete, so nothing to write down"
+    );
     assert!(!common.join(DELETIONS_LOG).exists(), "a record of nothing would fill the log with lines nobody needs");
 }
 
@@ -156,14 +166,25 @@ fn the_record_is_appended_to_the_shared_log_and_reads_back() {
         ignored: DeletedEntries::from_listing(listing_of(&["build/"]).as_slice()),
         nested: Vec::new(),
     };
-    record_removal_deletions(common.as_path(), worktree.as_path(), removal_words(worktree.as_path(), false).as_slice(), &deletions);
-    record_removal_deletions(common.as_path(), worktree.as_path(), removal_words(worktree.as_path(), true).as_slice(), &deletions);
+    let first: RemovalBegun = record_removal_begins(common.as_path(), worktree.as_path(), removal_words(worktree.as_path(), false).as_slice(), &deletions)
+        .expect("a removal that deletes writes down what it is about to delete");
+    record_removal_deleted(common.as_path(), &first, worktree.as_path());
+    let second: RemovalBegun = record_removal_begins(common.as_path(), worktree.as_path(), removal_words(worktree.as_path(), true).as_slice(), &deletions)
+        .expect("the second removal writes its own line");
+    record_removal_deleted(common.as_path(), &second, worktree.as_path());
     let written: String = std::fs::read_to_string(common.join(DELETIONS_LOG)).expect("the record of the deletion");
     let lines: Vec<&str> = written.lines().filter(|line: &&str| return !line.is_empty()).collect();
-    assert_eq!(lines.len(), 2, "one line per removal: {written}");
-    for line in lines {
-        assert!(line.contains("\"ignored\":[\"build/\"]"), "{line}");
+    assert_eq!(lines.len(), 4, "two lines for each of two removals: {written}");
+    assert_eq!(lines.iter().filter(|line: &&&str| return line.contains("\"outcome\":\"begun\"")).count(), 2, "{written}");
+    assert_eq!(lines.iter().filter(|line: &&&str| return line.contains("\"outcome\":\"deleted\"")).count(), 2, "{written}");
+    for line in &lines {
         assert!(line.contains(&format!("\"worktree\":{}", crate::json_record::quote(worktree.to_string_lossy().as_ref()))), "{line}");
+    }
+    for line in lines.iter().filter(|line: &&&str| return line.contains("\"begun\"")) {
+        assert!(line.contains("\"ignored\":[\"build/\"]"), "the list is in the line written before the deletion: {line}");
+    }
+    for line in lines.iter().filter(|line: &&&str| return line.contains("\"deleted\"")) {
+        assert!(line.contains(first.id.as_str()) || line.contains(second.id.as_str()), "a confirming line carries its pair's id: {line}");
     }
     assert!(written.contains("--force"), "each command is written as it was run: {written}");
 }
@@ -175,6 +196,24 @@ fn the_record_is_appended_to_the_shared_log_and_reads_back() {
 ///   A removal of the worktree around a nested one takes that worktree's untracked files,
 ///  the ignored ones included,
 ///  and a record that named the ignored ones alone would leave a person's file out of it.
+/// What:
+///  A confirming line names its own removal and nothing else,
+///  so a reader pairs the two lines of one removal and sees the other's separately.
+/// Why:
+///  The pair is what says a removal finished:
+///  a begun line whose id has no confirming line is the one a person has to look at the worktree for.
+#[test]
+fn a_confirming_line_carries_the_id_of_the_line_it_confirms() {
+    let worktree: PathBuf = PathBuf::from("/fixtures/outer");
+    let begun: RemovalBegun = RemovalBegun { id: String::from("0123abcd-1700000000000-4242") };
+    let line: String = deleted_line(&begun, worktree.as_path(), 1_700_000_000_001);
+    assert!(line.contains("\"outcome\":\"deleted\""), "{line}");
+    assert!(line.contains("\"id\":\"0123abcd-1700000000000-4242\""), "{line}");
+    assert!(line.contains("\"worktree\":\"/fixtures/outer\""), "{line}");
+    assert!(!line.contains("\"ignored\""), "the list is the first line's, and a second copy would double the log: {line}");
+    assert!(line.ends_with("}\n"), "one line: {line}");
+}
+
 #[test]
 fn the_two_listings_differ_in_the_files_they_name() {
     let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = a_repository_with_a_worktree("deletions-listings", "build/\nignored.log\n");
