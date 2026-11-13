@@ -670,6 +670,15 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The level of eight is held a second hour: its last reading on the home drive took 5.9 s (2026-11-13T12:57:52-05:00)
+
+The hour's readings are in `doc/handover/agents-at-once-on-this-machine.md` under "Level 8".
+In short: the build volume never slower than 358 ms, the home drive 1 ms at the median and under 100 ms in every reading but the sixtieth, which took 5,901 ms at 12:56:31.
+One reading over the bound is not the criterion (two in a row), and the probe's hour ended on it, so the level is neither failed nor shown to hold.
+The probe was started again at once for a second hour at eight; the step to sixteen waits for an hour without a reading over the bound.
+The pnpm store is on the home drive (`~/.local/share/pnpm/store/v11`, with `virtualStoreType: global`, so a worktree's packages are links into it) and so are Pi's sessions and the caches;
+which of them, or what else, was writing in that minute is not established.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,

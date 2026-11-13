@@ -147,6 +147,30 @@ one line a minute:
   A lock held by another agent's build is a wait on a neighbour,
   not on a drive;
   it is written here because it grows with the count.
+- **Not judged yet; held for a second hour.** Sixty readings from 11:57:29 to 12:56:31,
+  forty-six with eight units going,
+  ten with seven,
+  three with six and one with four.
+  Build volume: median 7 ms,
+  slowest 358 ms.
+  Home drive: median 1 ms,
+  and every reading under 100 ms but the last,
+  **5,901 ms at 12:56:31** with seven units going.
+  The bound is 5,000 ms twice in a row,
+  and the probe's hour ended on that reading,
+  so whether a second would have followed is not known.
+  What was writing to the home drive in that minute is not established;
+  two starts fell in the forty seconds before it
+  (a resume at 12:55:20 that started nothing and a review at 12:56:03).
+  `full avg60`: median 4.13,
+  highest 9.1.
+  One-minute load: median 11.2,
+  highest 38.1.
+  The probe runs on as `disk-ceiling-probe-level-8-second-hour-20261113`;
+  sixteen waits for an hour at eight without a reading over the bound.
+- No run got no answer to its first prompt and none ended on a disk error in that hour.
+  Nine runs ended with their reports
+  (two of them marked `driver-failed` by issue 6295 after their agents had finished).
 - One run ended at this level with `endReason: driver-failed` (12:29:40,
   a run of the other session).
   It is no disk symptom:
