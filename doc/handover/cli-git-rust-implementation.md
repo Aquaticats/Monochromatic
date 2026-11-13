@@ -269,8 +269,14 @@ The level of four is judged when the hour is over and each of the three runs has
   of which 68,194,271,232 bytes (63.5 GiB) are the folder's own and 14,116,433,920 bytes (13.1 GiB) are shared inside it.
   So the folder takes about 77 GiB of the drive, not 232 GiB, and deleting all of it would free about 64 GiB.
   The removal of 1041 folders "37,200 MiB by `du`" freed almost nothing (`df` read 519 GiB before and after): they were copy-on-write copies of data that is still referenced.
-  The figure 65,984 MiB for one run's scratch is a `du` figure too; that folder's own size is being measured,
-  and the 100 GiB floor in the start-gate brief rests on it until then.
+  The figure 65,984 MiB for one run's scratch is a `du` figure too.
+  By `btrfs filesystem du` at 10:49 (bytes of its own, then bytes shared inside it):
+  `pkgrepair-repair-off-the-path` 14,021,046,272 and 3,934,998,528 (16.7 GiB together); `merge-reload-fix` 99,385,344 and 6,557,827,072;
+  `sonnet-audits` 1,638,481,920 and 1,378,471,936; `kimi-trials` 16,384,679,936 and 7,438,336; `module-test-logs` 10,534,576,128 and none;
+  `pkgrepair-verify` 2,043,101,184 and 1,480,302,592; `pi-runs` 2,169,118,720 and 660,860,928.
+  So the real weight is in `kimi-trials`, `pkgrepair-repair-off-the-path` and `module-test-logs` (logs, 9.8 GiB), not in the two checkouts.
+  The floor for the drive of the runs folder is therefore 50 GiB, about three runs like the largest, not 100 GiB;
+  the run building the start gate was sent that correction at 10:53 through its inbox, and the run building the scratch folder was sent the corrected sizes.
   The same `du` figures stand in the question put to the owner, in the body of commit `e4fed3aa62`,
   in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` and in the two launcher briefs.
 - **Five of the removed folders were another session's.** The removal left out two of that session's folders by name and not the rest:
