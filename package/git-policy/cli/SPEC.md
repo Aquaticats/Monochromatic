@@ -17959,6 +17959,11 @@ So an abort that would discard nothing runs there,
 and one that would discard work is refused there naming the files,
 with the same quit form and the same opt-out,
 and a skip is decided the same way.
+What the rule costs that worktree is what it already cost a linked one,
+measured with the built wrapper over nine samples each in the same conflicted state:
+`git merge --abort` took 92 ms at the median there against real Git's 5 ms,
+where the refusal it replaces took 10 ms,
+and the same command in a linked worktree took 84 ms.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no refusal either.
 

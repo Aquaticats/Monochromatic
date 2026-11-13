@@ -5655,7 +5655,7 @@ What the branch does, measured through the built wrapper in fixtures of its own:
   content only the index holds,
   a staged resolution,
   a staged edit,
-  and, where no result is recorded, an edit made since the operation began),
+  and `a conflicted path` where Git recorded no result to compare with),
   at most five paths with the rest counted,
   the quit form that stops the operation and keeps the index and files,
   and `--no-enforce-worktree` directly after the subcommand.
@@ -5666,6 +5666,29 @@ What the branch does, measured through the built wrapper in fixtures of its own:
 - The same question is asked again immediately before the process becomes Git,
   once; a difference found there refuses the command.
   `SPEC.md` states the window that remains between that measurement and Git's own reset.
+- An abort is judged the same in the main worktree, in a linked one and outside a worktree
+  (the owner's decision of 2026-11-13, "Same rule everywhere",
+  in the section above),
+  which ended the older rule that every abort is refused in the main worktree:
+  two controls hold the two outcomes there,
+  and the refusal no longer says "rejected in the main git worktree".
+
+Two review findings of `87cd3d1dfa` are answered, both reproduced before the fix:
+
+- Finding 1, data loss: with no `AUTO_MERGE` recorded the reading subtracted the paths the operation
+  was still stopped at, so a resolution written in the worktree and never staged went with them
+  (`git merge -s resolve`, and `git cherry-pick --strategy=resolve` then `--skip`).
+  Those paths are now kept and named as `a conflicted path`, and the command is refused.
+  No proof was available to do better, and that is measured: `git checkout-index` has no
+  `--conflict` option in Git 2.56.0, and the `resolve` strategy's markers name its own temporary
+  files (`.merge_file_1xHykn`, fresh each run), so the text Git wrote cannot be reproduced.
+- Finding 2 is the owner's decision above.
+
+The fallback costs nothing on the waiting path: it asks the same `--diff-filter=U` question it asked
+before and only keeps the answer.
+An abort in a main worktree now costs what an abort in a linked one always cost:
+92 ms at the median against real Git's 5 ms over nine samples each, where the refusal it replaced
+cost 10 ms (measured through the built wrapper, `~/temp/agent/abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work-scratch/cost-of-a-main-worktree-abort`).
 
 Three readings the earlier rounds had wrong, each fixed with a control that failed first:
 `AUTO_MERGE` is recorded by a rebase, a cherry-pick and an `am` as well as by a merge,
@@ -5678,8 +5701,8 @@ a pipe at `rebase-merge/orig-head` held `git rebase --abort` for good, and now i
 
 Open for the coordinating session:
 
-- Merge the branch. It is 371 commits behind `main` and does not hold `afc0545123`,
-  so a scope that runs a wrapper built from it needs a 4 GiB memory cap.
+- Merge the branch. It now holds `main` through integration pass 19,
+  including `afc0545123`, so the memory-cap workaround no longer applies to it.
 - The package linter reports findings in files this branch does not touch,
   which are `main`'s and older than the linter; nothing it reports is in this branch's files.
 - Audit finding 5 of 0.6.1-alpha.14 (a refusal whose advice the same guard refuses) is answered here

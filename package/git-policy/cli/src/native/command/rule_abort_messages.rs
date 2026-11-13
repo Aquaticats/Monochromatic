@@ -282,12 +282,12 @@ pub fn discard_refusal_text(
     };
     // A refusal that counted a conflicted path says why, because the file may hold exactly what Git wrote there.
     let unexplained: &str = match names_a_conflicted_path(worktree, staged, conflicted) {
-        true => " Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours. ",
+        true => " Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours.",
         false => "",
     };
     return format!(
         "monochromatic-git-policy-cli: {command} is refused: it would discard work that stands nowhere else, and the {word} in progress still waits. \
-         Nothing was changed, and nothing was copied. It would discard {}.{unexplained}To keep that work, stop the operation and keep your index and \
+         Nothing was changed, and nothing was copied. It would discard {}.{unexplained} To keep that work, stop the operation and keep your index and \
          files with {quit} (that command is allowed), then commit or save what you want to keep; {command} {halt}. To discard the work on purpose, run \
          {hatch}: the guard steps aside and Git does exactly what it does on its own.",
         discarded_list(baseline, worktree, staged, conflicted),
