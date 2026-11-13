@@ -6331,15 +6331,6 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   starts included,
   after which it names the state it found (58 times the slowest observed start,
   1.04 s).
-- `SERVICE_GREETING_SILENCE` 3 seconds:
-  how long a commit lets a service that greeted once stay silent before it treats the service as stopped and starts
-  a fresh one.
-  A service greets a connection before it restores anything
-  (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-  so a service that greeted and then says nothing is one whose program stopped inside its own process,
-  and nothing but a new process brings it back.
-  Nearly three times the slowest of the 52 measured cold starts (1.04 s),
-  and under the owner's 5,000 ms bound on what a commit may add to native Git.
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
   the longest a command waits for the greeting of a service it only has to tell about work whose record it has
   already written (a snapshot's trash,
@@ -6933,9 +6924,13 @@ on the commit path:
   and something that took the connection but answered nothing by `START_CEILING`, which is
   `ClientFailure::NothingAnswered` with the address and the time waited,
   because the two states have different next steps.
-  A service that greeted and then went silent for `SERVICE_GREETING_SILENCE` is the service that stopped:
-  the command starts a fresh one and sends its request again,
+  A service that greeted and then went silent for `HEARTBEAT_SILENCE` is the service that stopped,
+  because a working service beats while it works:
+  the command starts a fresh one — the bind takes the address over from a socket that greets nothing — and sends its
+  request again,
   which the journal's record of the request makes safe to repeat.
+  The three-second bound a unit the manager called `active` was given is gone with the manager's restart:
+  what ends that wait now is the silence a working service never keeps.
 - A wait for the service that lasts longer than `START_NOTICE_GRACE` says once on standard error what it waits for,
   at which address,
   and that this command starts it when it is not running

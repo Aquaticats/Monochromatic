@@ -153,8 +153,10 @@ fn the_standing_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise()
 #[test]
 fn the_standing_notice_variable_is_the_one_the_client_reads() {
     assert_eq!(WAITING_NOTICE_VARIABLE, "CLI_GIT_STANDING_NOTICE_SECONDS");
-    let source: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
-    assert!(source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
+    let settings: &str = include_str!("service_client_settings_and_watches.rs");
+    assert!(settings.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
+    let commit: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
+    assert!(commit.contains("client_config(address, host)"), "and a commit's config is made there");
 }
 
 /// What:
@@ -185,7 +187,9 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
         ("../push/auto_push_trigger.rs", include_str!("../push/auto_push_trigger.rs")),
     ];
     for (path, source) in stating {
-        assert!(source.contains("start_wait: HAND_OVER_GREETING_WAIT"), "{path} hands its record over with the hand-over's bound");
+        // The bound is written one of two ways: the hand-over's own constant, or the reach's bound a control hands in.
+        let bound_is_the_hand_overs: bool = source.contains("HAND_OVER_GREETING_WAIT") || source.contains("reach.start_wait");
+        assert!(bound_is_the_hand_overs, "{path} hands its record over with the hand-over's bound");
         assert!(!source.contains("start_wait: START_WAIT"), "{path} does not pay the commit's start wait for a record it already wrote");
         assert!(!source.contains("start_ceiling: START_CEILING"), "{path} does not pay the commit's start ceiling either");
         assert!(!source.contains("start_ceiling: crate::wait_ceilings::START_CEILING"), "{path} does not pay the commit's start ceiling either");
@@ -195,8 +199,7 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
     assert!(aftermath.contains("start_wait: HAND_OVER_GREETING_WAIT"), "the after-landing wake waits the hand-over's bound");
     // The commit's own request keeps the wait its start needs.
     let commit: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
-    assert!(commit.contains("start_wait: START_WAIT"), "a commit's own request keeps the start wait");
-    assert!(commit.contains("start_ceiling: crate::wait_ceilings::START_CEILING"), "and the start ceiling");
+    assert!(commit.contains("config.start_wait = START_WAIT"), "a commit's own request keeps the start wait");
 }
 
 /// What:
@@ -209,12 +212,14 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
 /// which
 ///  would hold the commit for a minute.
 #[test]
-fn a_running_unit_that_greets_nothing_is_restarted_within_the_start_ceiling() {
-    assert!(SERVICE_GREETING_SILENCE < START_CEILING, "{SERVICE_GREETING_SILENCE:?} must end before {START_CEILING:?}");
-    assert_eq!(SERVICE_GREETING_SILENCE, Duration::from_secs(3), "nearly three times the slowest of 52 measured cold starts, and under 5 s");
+fn a_service_that_greeted_and_went_silent_ends_the_wait_under_the_silence_bound() {
+    let heartbeat: Duration = crate::service_protocol::HEARTBEAT_SILENCE;
+    assert!(heartbeat < START_CEILING, "{heartbeat:?} must end before {START_CEILING:?}");
     let reach: &str = include_str!("service_client_reach_service.rs");
-    assert!(reach.contains("SERVICE_GREETING_SILENCE"), "the client is what asks for the restart");
-    assert!(reach.contains("(watch.restart)("), "and the restart is a call of the service manager");
+    assert!(reach.contains("if service_seen { config.heartbeat_silence }"), "a service that greeted is read against the silence a working service never keeps");
+    assert!(reach.contains("Heard::Silent if service_seen => return Err(ClientFailure::ServiceSilent)"), "and that silence is the service that stopped");
+    assert!(reach.contains("StartAttempt::Greeted => continue"), "the command starts a fresh server itself, with no service manager to ask");
+    assert!(!reach.contains("watch.restart"), "nothing asks a manager to restart a unit");
 }
 
 /// What:

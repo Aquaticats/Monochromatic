@@ -14,7 +14,7 @@ fn an_unreachable_git_directory_is_named_as_the_cause() {
     let TransactionStop::Message(text) = refusal_without_route(git_dir.as_path()) else { panic!("a message expected") };
     assert!(text.contains(git_dir.to_string_lossy().as_ref()), "{text}");
     assert!(text.contains("cannot be resolved"), "{text}");
-    assert!(text.contains("XDG_RUNTIME_DIR"), "the message names the setting that is missing: {text}");
+    assert!(!text.contains("service manager") && !text.contains("loginctl"), "the message sends nobody to a service manager: {text}");
     remove(root.as_path());
 }
 
@@ -26,6 +26,7 @@ fn a_reachable_git_directory_keeps_the_platform_message() {
     let git_dir: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
     let TransactionStop::Message(text) = refusal_without_route(git_dir.as_path()) else { panic!("a message expected") };
-    assert!(text.contains("XDG_RUNTIME_DIR"), "{text}");
+    assert!(text.contains("XDG_RUNTIME_DIR"), "the message names the setting that is missing: {text}");
+    assert!(!text.contains("service manager") && !text.contains("loginctl"), "and sends nobody to a service manager: {text}");
     remove(root.as_path());
 }

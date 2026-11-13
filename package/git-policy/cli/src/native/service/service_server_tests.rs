@@ -42,16 +42,49 @@ fn a_path_whose_socket_file_is_stale_is_bound_again() {
     remove_short(root.as_path());
 }
 
-/// A socket some service still listens on is never taken over:
-/// the second bind fails and the first keeps answering.
+/// What:
+///  A socket a service greets on stays with that service,
+///  and one that accepts a connection and greets nothing is taken over.
+/// Why:
+///   A service of this release greets a connection before it restores anything,
+/// so a socket that accepts and says nothing is held by a process that is leaving or stopped inside itself.
+/// Measured 2026-11-12: an instance stopped 287 ms after it started kept its address for 33 s and a commit waited
+/// 37 s on it, so the next server takes the name instead of waiting for a process that is already on its way out.
 #[test]
-fn a_path_whose_socket_a_service_listens_on_is_not_taken_over() {
+fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_over() {
+    use std::io::Write;
     let root = short_directory("live");
     let path = root.join("service.sock");
+    // A service that greets: the second bind fails and the first keeps answering.
     let live: UnixListener = bind(&Bind::Path(path.clone())).expect("first bind");
-    assert!(bind(&Bind::Path(path.clone())).is_err(), "a live socket stays with its service");
-    assert!(UnixStream::connect(&path).is_ok(), "the first service still answers");
-    drop(live);
+    let greeting: String = format!("{}\n", crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from("test")) }));
+    let greeter = std::thread::spawn(move || {
+        let mut greeted: usize = 0;
+        while greeted < 4 {
+            let Ok((mut stream, _)) = live.accept() else { return };
+            let _sent = stream.write_all(greeting.as_bytes());
+            greeted += 1;
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    });
+    assert!(bind(&Bind::Path(path.clone())).is_err(), "a socket a service greets on stays with that service");
+    std::mem::forget(greeter);
+    // A socket that accepts and greets nothing: the next bind takes it over.
+    let silent_path = root.join("silent.sock");
+    let silent: UnixListener = UnixListener::bind(silent_path.as_path()).expect("a socket that says nothing");
+    let holder = std::thread::spawn(move || {
+        let mut held: Vec<UnixStream> = Vec::new();
+        while let Ok((stream, _)) = silent.accept() {
+            held.push(stream);
+            if held.len() > 8 {
+                break;
+            }
+        }
+    });
+    let taken: UnixListener = bind(&Bind::Path(silent_path.clone())).expect("a socket nothing greets on is taken over");
+    assert!(UnixStream::connect(&silent_path).is_ok(), "the address reaches the new server");
+    drop(taken);
+    std::mem::forget(holder);
     remove_short(root.as_path());
 }
 

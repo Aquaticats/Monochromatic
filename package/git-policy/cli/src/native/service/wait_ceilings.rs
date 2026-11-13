@@ -78,27 +78,6 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// so two seconds is twice the slowest start this repository has recorded.
 pub const HAND_OVER_GREETING_WAIT: Duration = Duration::from_secs(2);
 
-/// How long a commit lets a service the manager reports as running stay silent before it asks the manager to restart
-/// it.
-///  Why:
-///  A service greets a connection before it restores anything
-/// (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-/// so a unit the manager calls `active` that has greeted nothing is not starting:
-/// it is stopped inside its own process (a frozen control group,
-/// a debugger,
-/// a suspended machine,
-/// a kernel wait
-/// nothing ends),
-/// and no start brings it back while the manager believes it runs.
-/// Restarting is the one repair of that state,
-/// and the commit is what needs the answer.
-///  Measured:
-/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
-/// so three seconds is nearly three times the slowest start,
-/// and it is under the owner's 5,000 ms bound on what a commit may add to native Git
-/// (`native:perf`,
-/// "commits vs native git should not take 5s longer").
-pub const SERVICE_GREETING_SILENCE: Duration = Duration::from_secs(3);
 
 /// The longest the look at the running processes (`landing/earlier_service_process_look.rs`) takes before the adoption of an
 ///  earlier helper's journal counts the answer as "a service may be running".
