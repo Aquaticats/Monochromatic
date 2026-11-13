@@ -114,7 +114,15 @@ The playground and Browser Run run on Cloudflare's network.
 The rendering checks this repository records run against `file://` paths or loopback servers,
 which a remote engine cannot open without a tunnel exposing them to that host.
 `CLAUDE.md` keeps agent-authored pages on this machine.
-This record did not check whether Browser Run keeps copies of page content.
+For CDP sessions,
+Cloudflare's Browser Run FAQ says it "[does not retain customer-submitted HTML][browser-run-faq-retention]"
+or generated output beyond the rendering operation,
+except opt-in session recordings (kept 30 days) and `/crawl` results (kept 14 days).
+The kitesurf.dev playground is not Browser Run,
+and its page links only Cloudflare's general website terms and privacy policy,
+with no retention statement of its own.
+Either way the page leaves this machine,
+which `CLAUDE.md` rules out.
 
 ### The self-run form is new and has a heavy build
 
@@ -249,10 +257,11 @@ and it also replaces the command-line driver the repository's rules and runbooks
   Only the source paths named in the section "What the source shows" were read,
   and no third-party code ran.
 - Still open,
-  because each needs a run or vendor terms this record did not reach:
+  because each needs a run:
   whether `workerd`'s `fetch` serves `file://`,
-  whether `agent-browser` 0.43.0 drives Kitesurf's partial Chrome DevTools Protocol,
-  and whether Browser Run retains page content.
+  and whether `agent-browser` 0.43.0 drives Kitesurf's partial Chrome DevTools Protocol.
+  What the kitesurf.dev playground keeps is open too,
+  because its page names no terms beyond Cloudflare's general ones.
 
 ## Follow-up vet declined
 
@@ -276,6 +285,7 @@ Sources accessed 2026-11-13.
 [kitesurf-readme-bazel]: https://github.com/cloudflare/kitesurf#:~:text=Bazel%20builds%20everything
 [kitesurf-open-source]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=open%20source%20on%20GitHub%20under%20the%20Apache%202.0%20license
 [kitesurf-heavy-development]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=under%20heavy%20development
+[browser-run-faq-retention]: https://developers.cloudflare.com/browser-run/faq/#:~:text=does%20not%20retain%20customer%2Dsubmitted%20HTML
 [cdp-set-emulated-media]: https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#:~:text=Media%20features%20to%20emulate
 [kitesurf-boa-fallback]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=as%20the%20last%20resort
 [kitesurf-playground-no-account]: https://kitesurf.dev/#:~:text=without%20an%20account
