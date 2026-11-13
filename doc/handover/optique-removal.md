@@ -942,9 +942,10 @@ to settle before a reply:
   the length check misstated in the reply draft,
   and smaller wording and timestamp matters.
   The documents changed after that commit,
-  so a second pass over the changes is owed:
-  its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`,
-  to be run by resuming the first run's session once its report is in.
+  so a second pass over the changes was started on 2026-11-13 by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-2`);
+  its report is to be weighed and folded in when it ends.
+  Its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
   a local file that is not committed.
