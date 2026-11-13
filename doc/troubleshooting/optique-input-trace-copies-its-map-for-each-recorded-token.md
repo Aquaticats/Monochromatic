@@ -20,7 +20,11 @@ and its findings were folded in.
 What changed after that is not reviewed:
 the fix it asked for,
 the timing on Node and Bun,
-and the timing rewritten as ratios.
+and the timing rewritten as ratios,
+first in that section and then,
+on the owner's choice of 2026-11-13,
+through the whole document,
+where absolute times now stand only as scale.
 No person has reviewed any of it.
 
 Status,
@@ -48,20 +52,15 @@ Nothing fails.
 A parse that succeeds takes longer than the token count explains.
 With one option parser and a run of positional tokens,
 on 1.3.6 and Node 26.13.1,
-the median of five parses was:
-
-- 500 tokens:
-   7.7 ms
-- 1,000 tokens:
-   24.5 ms
-- 2,000 tokens:
-   84.2 ms
-- 4,000 tokens:
-   310.6 ms
-- 8,000 tokens:
-   1,331.9 ms
-
+each doubling of the tokens from 500 to 8,000 multiplied the median time of five parses,
+within one run,
+by 3.2,
+3.4,
+3.7 and 4.3,
+where a cost proportional to the tokens would give 2 each time and their square 4.
 Sixteen times the tokens cost 173 times as long.
+For scale only,
+that run took 7.7 ms at 500 tokens and 1.3 s at 8,000.
 A straight-line fit of the logarithms gives an exponent of 1.85,
 where 1 is linear and 2 is quadratic.
 
@@ -160,20 +159,10 @@ With the prototype under "Upstream filing artifact",
 the exponent over 500 to 8,000 tokens falls to between 1.18 and 1.27,
 not to 1,
 and above that it rises again.
-The patched build on Node 26.13.1,
-median of five parses:
-
-- 2,000 tokens:
-   22.5 ms
-- 4,000 tokens:
-   49.2 ms
-- 8,000 tokens:
-   144.3 ms
-- 16,000 tokens:
-   777.8 ms
-- 32,000 tokens:
-   5,702.5 ms,
-   from a second run in which 16,000 tokens took 823.5 ms
+On the patched build on Node 26.13.1,
+each doubling from 2,000 to 16,000 tokens multiplied the median of five parses by 2.2,
+2.9 and 5.4,
+and in a second run the step from 16,000 to 32,000 multiplied it by 6.9.
 
 Two more places copy an array that grows with the token count,
 once per token,
@@ -212,10 +201,8 @@ self time under the parse:
    the function in `primitives.js` that holds the `argument()` excerpt 19.1%,
    the trie 0.9%.
 
-The unpatched build at the same sizes,
-median of three parses:
-16,000 tokens 6,687.4 ms and 32,000 tokens 29,164.0 ms,
-with `set` in `input-trace.js` at 92.7% of the parse.
+In a profile of the unpatched build at the same sizes,
+`set` in `input-trace.js` is 92.7% of the parse.
 So the trace copy is by far the largest of the three at every size measured,
 the prototype removes that one only,
 and what is left at the larger sizes is mostly the other two,
@@ -225,7 +212,11 @@ At 4,000 to 8,000 the same two functions are 14.6% and 13.3% of the patched pars
 and the two files they sit in are 54.7%;
 the profile does not separate the copies from the other work in those functions,
 so it gives no closer figure for the copies' own share at those sizes.
-The patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
+Run against the unpatched build in the same rounds,
+five of them with the order rotated,
+the patched build took 0.12 times as long at 16,000 tokens on Node (0.11 to 0.13)
+and 0.25 times on Bun (0.20 to 0.32);
+on Deno the unpatched one took 6.0 times as long at 16,000 (5.4 to 6.9) and 4.4 times at 32,000 (4.0 to 5.2).
 The prototype's author,
 an AI agent,
 had attributed the remainder to the buffer copy alone;
@@ -337,24 +328,22 @@ Fitted exponent,
 
 The older release lines on Node,
 five rounds with the order rotated,
-lowest and highest fitted exponent,
-then lowest and highest median for 8,000 tokens:
+lowest and highest fitted exponent:
 
 - 1.0.15:
-   1.85 to 1.92;
-   1,319 to 1,358 ms
+   1.85 to 1.92
 - 1.1.13:
-   1.85 to 1.93;
-   1,324 to 1,403 ms
+   1.85 to 1.93
 - 1.2.13:
-   1.82 to 1.92;
-   1,318 to 1,385 ms
+   1.82 to 1.92
 - 1.3.6,
    in the same rounds:
-   1.84 to 1.90;
-   1,298 to 1,395 ms
+   1.84 to 1.90
 
 The four overlap throughout,
+and so do their medians at 8,000 tokens in those rounds
+(for scale only,
+1.3 to 1.4 s each),
 so the cost is the same on every release line from 1.0 to 1.3.
 
 On GitHub's runners,
@@ -372,18 +361,17 @@ so the trace copy was about a quarter of that parse.
 
 ### Inputs that stay fast
 
-Five hundred tokens took 7.7 ms on Node and 1.3.6,
-and fewer take less;
-the cost per token at that size is about a tenth of the cost per token at 8,000.
+Five hundred tokens or fewer.
+On Node and 1.3.6,
+the cost per token at 500 tokens is about a tenth of the cost per token at 8,000 in the same run.
 
 ## Verified workarounds
 
 ### Split a long list of positional tokens across several parses
 
-Eight parses of 1,000 tokens cost about 8 times 24.5 ms,
-196 ms,
-against 1,332 ms for one parse of 8,000,
-by the figures under "Symptom".
+Eight parses of 1,000 tokens cost about 0.15 times as much as one parse of 8,000,
+reckoned from the medians of the run under "Symptom";
+eight separate parses were not timed against one.
 
 Tradeoffs:
 
@@ -691,18 +679,19 @@ five alternating rounds,
 unpatched `1d6e4594` against patched:
 
 - 8,000 positional tokens:
-   1,182.8 ms to 150.7 ms,
    0.12 times as long (0.118 to 0.128).
    Fitted exponent 1.77 to 1.87 before,
    1.18 to 1.27 after.
 - A thousand paths through the `git commit` option set:
-   75.1 ms to 58.7 ms,
    0.78 (0.73 to 0.82).
 - The same after `--`:
-   60.1 ms to 46.4 ms,
    0.76 (0.74 to 0.79).
 
 Every round was faster in all three.
+The same comparison at larger sizes on Node and Bun is under "What is left after the fix".
+For scale only,
+the medians went from 1,182.8 to 150.7 ms,
+from 75.1 to 58.7 ms and from 60.1 to 46.4 ms.
 
 Together with upstream's pull request 1121,
 same day,
@@ -712,26 +701,30 @@ each arm from source on Deno except 1.3.6 from npm:
 `main` at `84f95710`,
 the pull request's head `a175cdb7`,
 and each with the patch applied.
-Median over the rounds:
+It was measured on Deno only.
+Each arm's median over the seven rounds,
+as a ratio to the median of 1.3.6 in the same rounds:
 
 - A thousand paths after `--`:
-   1.3.6 30.8 ms,
-   `main` 56.5 ms,
-   pull request 42.0 ms,
-   `main` with the patch 44.7 ms,
-   pull request with the patch 28.4 ms.
+   `main` 1.83,
+   pull request 1.36,
+   `main` with the patch 1.45,
+   pull request with the patch 0.92.
 - A thousand paths with no separator:
-   1.3.6 133.3 ms,
-   `main` 71.0 ms,
-   pull request 56.7 ms,
-   pull request with the patch 42.9 ms.
+   `main` 0.53,
+   pull request 0.43,
+   pull request with the patch 0.32.
 - 8,000 positional tokens:
-   1.3.6 1,119.8 ms,
-   `main` 1,130.4 ms,
-   pull request 1,132.5 ms,
-   pull request with the patch 134.1 ms.
+   `main` 1.01,
+   pull request 1.01,
+   pull request with the patch 0.12.
+
+For scale only,
+the medians of 1.3.6 were 30.8,
+133.3 and 1,119.8 ms.
 
 Paired by round,
+which is the firmer figure,
 for the paths after `--`:
 
 - `main` against 1.3.6:
@@ -755,10 +748,11 @@ That last figure needs reading with care.
 so the copy is no part of the gap between the pull request and 1.3.6;
 that gap is option-scope work the pull request leaves.
 `main` with the patch against 1.3.6 shows it:
-1.45 by the medians listed here.
+1.45 by the medians of the seven rounds.
 The patch removes from the pull request a cost that 1.3.6 also carries and that is about as large as the gap
-(42.0 less 28.4 is 13.6 ms,
-against a gap of 11.2 ms),
+(by those medians,
+the patch takes 0.44 of the 1.3.6 time off the pull request,
+and the gap is 0.36 of it),
 which is why the two land together.
 An independent review on 2026-11-13 caught an earlier sentence here,
 which called the trace copy what separates the two.
@@ -902,8 +896,8 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    and two breaks inside the view code showed on the long probe only,
    so the long probe does reach the view code.
 - A parse that carries annotations copies them onto states as it goes.
-   At 16,000 tokens such a parse took about 300 ms with the state fix against 940 to 1,360 ms without
-   (three rounds),
+   At 16,000 tokens such a parse took between 0.23 and 0.32 times as long with the state fix as without,
+   in three rounds on Deno with the arms taking turns,
    so annotations do not undo it.
 
 Five changes made after the agent's work,
@@ -1422,11 +1416,9 @@ An AI session wrote every line of it and no person has reviewed it.
 arguments copies N(N + 1) / 2 trace entries. You noted it in #1120 as outside that issue's scope; this is the
 issue for it.
 
-With one option and a run of positional arguments, the median of five parses on 1.3.6 and Node 26:
-
-- 500 arguments: 7.7 ms
-- 2,000 arguments: 84.2 ms
-- 8,000 arguments: 1,331.9 ms
+With one option and a run of positional arguments on 1.3.6 and Node 26, sixteen times the arguments (500 to 8,000)
+took 173 times as long in one run: each doubling multiplied the time by 3.2 to 4.3, where a linear parse would give
+2.
 
 The fitted exponent of time against argument count was 1.85 on Node, 1.92 on Deno and 1.63 on Bun for 1.3.6, and
 1.75, 1.78 and 1.57 for 1.4.0-dev.2971. `recordTrace()` in *primitives.ts* calls `set()` once per recorded input,
@@ -1438,9 +1430,11 @@ A script that fits the exponent, and a workflow that runs it on pinned versions:
 https://github.com/Aquaticat/optique-parse-cost-reproduction (*token-scaling.ts*).
 
 I have a patch that keeps the entries in an immutable hash trie instead, so a write copies only the path to its
-key and earlier traces stay untouched. From source on Deno, 8,000 arguments went from 1,183 ms to 151 ms and the
-exponent from about 1.8 to about 1.2; a thousand paths through a `git commit`-shaped parser took 0.78 times as
-long. The core suite passes on Deno and Node with it, and it applies cleanly to main as of #1121's merge.
+key and earlier traces stay untouched. Run against the unpatched build in the same rounds, 8,000 arguments take
+0.11 times as long with it on Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), and the fitted exponent
+goes from about 1.8 to about 1.2 (that last from source on Deno); a thousand paths through a `git commit`-shaped
+parser took 0.78 times as long. The core suite passes on Deno, Node and Bun with it, and it applies cleanly to main
+as of #1121's merge.
 
 It does not make the parse linear. Two more per-argument copies sit behind this one: `multiple()` rebuilds its
 state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`), and each primitive slices
