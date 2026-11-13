@@ -1278,6 +1278,19 @@ recipes and records the documents cite are in the evidence archive beside the re
 in the folders `two-remaining-copies-recheck-2026-11-13`,
 `pull-request-1121-on-node-and-bun-2026-11-13`,
 `recast-to-ratios-2026-11-13` and `measurements-2026-11-13`.
+That archive is to leave the tree.
+At about 17:27 local time on 2026-11-13 the owner ordered that no archive stays tracked,
+which `doc/handover/cli-git-rust-implementation.md` records under the heading that starts
+"The owner:
+no archive stays tracked";
+the removal is another session's run,
+and by the owner's answers there Git history keeps each whole archive
+and what a document cites is kept beside it as plain text.
+This work adds nothing more to the archive.
+The session that runs the removal was told on 2026-11-13 which files of the archive the Optique documents cite,
+that the agent's third and fourth diffs exist nowhere else in the tree,
+and that the scratch originals were deleted that day on the ground that the archive held them;
+commit `a6783a44ae` is the last that changed the archive.
 Running a check again means building its image again from the recipe there,
 which fetches the current Node,
 Deno and Bun and so will not reproduce the versions named in the documents once those move.
