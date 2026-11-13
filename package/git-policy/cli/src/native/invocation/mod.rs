@@ -100,6 +100,9 @@ pub mod management_service_repository_selection;
 /// and the note `doctor` adds about the batches it would settle.
 pub mod management_service_settle_earlier_batches;
 
+/// `service stop`: ask this worktree's commit service to leave.
+pub mod management_service_stop;
+
 /// `service stop-units-of-removed-worktrees`,
 /// and the note `doctor` adds about the units it would stop.
 pub mod management_service_stop_units_of_removed_worktrees;

@@ -26,6 +26,7 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::service_route::service_status;
 use crate::management_service_settle_earlier_batches::{plan_settle_earlier_batches};
 use crate::management_service_stop_units_of_removed_worktrees::plan_stop_units_of_removed_worktrees;
+use crate::management_service_stop::plan_service_stop;
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,
     parse_management_arguments,
@@ -120,6 +121,35 @@ fn scope_pathspecs(all: bool, pathspecs: Vec<OsString>) -> Vec<OsString> {
         return vec![OsString::from(":/")];
     }
     return pathspecs;
+}
+
+/// What:
+///  Decide the action of `git monochromatic-git-policy-cli service stop`:
+///  the worktree this command runs in is asked about, and its service is asked to leave.
+/// Why:
+///   The worktree names the address,
+/// so the selection is the same one `service status` makes,
+///  and a command outside a repository is refused rather than stopping another worktree's service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planServiceStopOfThisWorktree(globalArguments, environment, inputs): Action;
+/// ```
+fn plan_service_stop_of_this_worktree(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+    let (real_git, _notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
+    return match status_git_dir(global_arguments, environment, real_git.as_deref()) {
+        Selection::Found(git_dir) => plan_service_stop(environment, git_dir.as_path()),
+        Selection::Outside => Action::Exit {
+            code: 1,
+            stdout: String::new(),
+            stderr: String::from("git monochromatic-git-policy-cli service stop runs inside a worktree: there is one commit service for each, and this command was given no repository to name. Nothing was stopped.\n"),
+        },
+        Selection::Unresolved(reason) => Action::Exit {
+            code: 1,
+            stdout: String::new(),
+            stderr: format!("The commit service of this worktree cannot be stopped: {reason}, so it is not known which repository this invocation selects, and nothing was stopped.\n"),
+        },
+    };
 }
 
 /// What:
@@ -473,6 +503,7 @@ pub fn plan_management_with_section(
         }
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
+        ManagementAction::ServiceStop => return plan_service_stop_of_this_worktree(git_global_arguments, environment, inputs),
         ManagementAction::SettleEarlierBatches => return plan_settle(git_global_arguments, environment, inputs),
         ManagementAction::StopUnitsOfRemovedWorktrees => return plan_stop_units_of_removed_worktrees(environment),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),

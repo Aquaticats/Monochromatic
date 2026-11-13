@@ -44,7 +44,7 @@ pub const MANAGEMENT_USAGE: &str = "\
 Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli fix (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli doctor
-       git monochromatic-git-policy-cli service (status | settle-earlier-batches | stop-units-of-removed-worktrees)
+       git monochromatic-git-policy-cli service (status | stop | settle-earlier-batches | stop-units-of-removed-worktrees)
        git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
        git monochromatic-git-policy-cli --help
@@ -61,6 +61,8 @@ Commands:
   check    Check policies over an explicit scope.
   fix      Apply policy fixes over an explicit scope.
   service  status: whether the commit service answers (it sets itself up when a commit needs it).
+           stop: ask this worktree's commit service to finish what it holds and leave; it ends by itself after three
+           hours without work, so a command needs no stop, and the next commit starts it again.
            settle-earlier-batches: finish the batches an earlier release's commit service left open for this worktree (doctor
            says how many). Run it only when no wrapper of the earlier release is in use in this worktree at that moment; it
            refuses while an earlier socket listens or an earlier helper runs, and says what to do.
@@ -154,6 +156,9 @@ pub enum ManagementAction {
     /// when no earlier
     ///  helper runs or can start.
     SettleEarlierBatches,
+    /// `service stop`:
+    /// ask this worktree's commit service to finish what it holds and leave.
+    ServiceStop,
     /// `service stop-units-of-removed-worktrees`:
     /// stop the commit service units of worktrees that no longer exist.
     StopUnitsOfRemovedWorktrees,
@@ -450,6 +455,7 @@ pub fn parse_management_arguments(
     if name == "service" {
         return match rest {
             [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
+            [word] if word == "stop" => Ok(ManagementAction::ServiceStop),
             [word] if word == "settle-earlier-batches" => Ok(ManagementAction::SettleEarlierBatches),
             [word] if word == "stop-units-of-removed-worktrees" => Ok(ManagementAction::StopUnitsOfRemovedWorktrees),
             _ => Err(ManagementRefusal::Usage),

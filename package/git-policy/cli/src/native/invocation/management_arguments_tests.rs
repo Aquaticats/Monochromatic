@@ -315,11 +315,24 @@ fn the_service_command_takes_stop_units_of_removed_worktrees_alone() {
     }
 }
 
-/// `service` takes exactly the word `status` or the word `settle-earlier-batches`,
-/// and anything else (the retired `install` and
-///  `uninstall` included) is a usage error.
+/// What:
+///  `service` takes exactly `status`, `stop`, `settle-earlier-batches` and `stop-units-of-removed-worktrees`,
+///  and anything else (the retired `install` and `uninstall` included) is a usage error.
+/// Why:
+///  Each of the four is named in the usage and the help,
+/// so a person finds the one they need:
+///  `stop` is the worktree's own service, which had no command while a service manager stopped units.
 #[test]
-fn the_service_command_takes_only_status_and_settle_earlier_batches() {
+fn the_service_command_takes_only_its_four_words() {
+    let arguments: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("service"), std::ffi::OsString::from("stop")];
+    assert_eq!(parse_management_arguments(&arguments), Ok(ManagementAction::ServiceStop));
+    for bad in [vec!["service", "stop", "--now"], vec!["service", "stops"]] {
+        let arguments: Vec<std::ffi::OsString> = bad.iter().map(std::ffi::OsString::from).collect();
+        assert_eq!(parse_management_arguments(&arguments), Err(ManagementRefusal::Usage), "{bad:?}");
+    }
+    for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
+        assert!(text.contains("stop"), "{text}");
+    }
     assert_eq!(parse(&["service", "settle-earlier-batches"]), Ok(ManagementAction::SettleEarlierBatches));
     for bad in [vec!["service", "settle-earlier-batches", "--now"], vec!["service", "settle-earlier-batches", "status"], vec!["service", "settle"]] {
         assert_eq!(parse(&bad), Err(ManagementRefusal::Usage), "{bad:?}");
