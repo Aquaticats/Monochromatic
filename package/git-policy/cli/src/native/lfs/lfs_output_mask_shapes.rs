@@ -56,7 +56,8 @@
 //! (<https://cloud.google.com/storage/docs/access-control/signed-urls>),
 //! and Azure's shared access signature is carried by `sig`
 //! (<https://learn.microsoft.com/en-us/rest/api/storageservices/create-service-sas>).
-//!  - `Bearer` and `Basic`, and git-lfs's own `RemoteAuth`
+//!  - `Bearer` and `Basic`,
+//!    and git-lfs's own `RemoteAuth`
 //! (<https://github.com/git-lfs/git-lfs/blob/main/docs/api/authentication.md>),
 //! which a batch response's `header` object carries and an error can echo.
 //!
@@ -326,7 +327,8 @@ pub fn holds_a_secret(part: &[u8]) -> bool {
 
 /// What:
 ///  Whether a part's own bytes name a secret:
-/// the mask, the name or the segment of a token.
+/// the mask,
+/// the name or the segment of a token.
 /// Why:
 ///   A name says what its value is,
 /// and a path segment can say the same thing,
@@ -345,16 +347,25 @@ pub fn names_a_secret(part: &[u8]) -> bool {
 }
 
 /// Whether the letters and digits of a part are a secret name.
-/// `part` is read as it is, then once percent-decoded, by the caller.
+/// `part` is read as it is,
+/// then once percent-decoded,
+/// by the caller.
 fn named_secret(part: &[u8]) -> bool {
     let name: Vec<u8> = letters_and_digits(part);
     if name.is_empty() {
         return false;
     }
-    if SECRET_NAME_WORDS.iter().any(|word| { return name.as_slice() == *word; }) {
-        return true;
+    for word in SECRET_NAME_WORDS {
+        if name.as_slice() == word {
+            return true;
+        }
     }
-    return SECRET_NAME_PARTS.iter().any(|stem| { return holds(name.as_slice(), stem); });
+    for stem in SECRET_NAME_PARTS {
+        if holds(name.as_slice(), stem) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -405,7 +416,9 @@ pub fn holds_an_issued_token(part: &[u8]) -> bool {
         while let Some(offset) = position_of(&part[from..], token.prefix) {
             let body_start: usize = from + offset + token.prefix.len();
             let body_end: usize = body_start.saturating_add(token.shortest_body);
-            if part.get(body_start..body_end).is_some_and(|body| { return written_in(body, token.alphabet); }) {
+            if let Some(body) = part.get(body_start..body_end)
+                && written_in(body, token.alphabet)
+            {
                 return true;
             }
             from += offset + 1;
@@ -497,7 +510,7 @@ pub fn scheme_credential_in(part: &[u8], after_a_word: bool) -> Option<(usize, u
             let word_start: usize = from + offset;
             let word_end: usize = word_start + word.len();
             let before_ends_a_word: bool = if word_start == 0 { !after_a_word } else { !follows_a_word_byte(part[word_start - 1]) };
-            let spaced: bool = part.get(word_end).is_some_and(|byte| { return *byte == b' ' || *byte == b'\t'; });
+            let spaced: bool = part.get(word_end).is_some_and(is_space_or_tab);
             if before_ends_a_word && spaced
                 && let Some(credential) = credential_at(part, word_end + 1)
             {
@@ -514,17 +527,28 @@ pub fn scheme_credential_in(part: &[u8], after_a_word: bool) -> Option<(usize, u
 /// when it is long enough and written in base64.
 fn credential_at(part: &[u8], from: usize) -> Option<(usize, usize)> {
     let mut start: usize = from;
-    while part.get(start).is_some_and(|byte| { return *byte == b' ' || *byte == b'\t'; }) {
+    while part.get(start).is_some_and(is_space_or_tab) {
         start += 1;
     }
     let mut end: usize = start;
-    while part.get(end).is_some_and(|byte| { return is_a_base64_byte(*byte) || *byte == b'='; }) {
+    while part.get(end).is_some_and(is_a_base64_or_padding_byte) {
         end += 1;
     }
     if end - start < SHORTEST_SCHEME_CREDENTIAL {
         return None;
     }
     return Some((start, end));
+}
+
+/// Whether a byte is the space or the tab that separates a scheme word from its credential.
+fn is_space_or_tab(byte: &u8) -> bool {
+    return *byte == b' ' || *byte == b'\t';
+}
+
+/// Whether a byte is written in base64 or base64url,
+/// or is the padding a credential may end with.
+fn is_a_base64_or_padding_byte(byte: &u8) -> bool {
+    return is_a_base64_byte(*byte) || *byte == b'=';
 }
 
 /// Whether a byte is part of a word:
@@ -562,7 +586,7 @@ pub fn percent_decoded(part: &[u8]) -> Vec<u8> {
     while from < part.len() {
         let byte: u8 = part[from];
         if byte == b'%'
-            && let (Some(high), Some(low)) = (part.get(from + 1).and_then(|b| { return hexadecimal_value(*b); }), part.get(from + 2).and_then(|b| { return hexadecimal_value(*b); }))
+            && let (Some(high), Some(low)) = (part.get(from + 1).copied().and_then(hexadecimal_value), part.get(from + 2).copied().and_then(hexadecimal_value))
         {
             decoded.push(high * 16 + low);
             from += 3;
@@ -598,16 +622,23 @@ fn hexadecimal_value(byte: u8) -> Option<u8> {
 /// function lettersAndDigits(part: string): string
 /// ```
 pub fn letters_and_digits(part: &[u8]) -> Vec<u8> {
-    return part
-        .iter()
-        .filter(|byte| { return byte.is_ascii_alphanumeric(); })
-        .map(|byte| { return byte.to_ascii_lowercase(); })
-        .collect();
+    let mut name: Vec<u8> = Vec::with_capacity(part.len());
+    for byte in part {
+        if byte.is_ascii_alphanumeric() {
+            name.push(byte.to_ascii_lowercase());
+        }
+    }
+    return name;
 }
 
 /// Whether every byte of `body` is written in `alphabet`.
 fn written_in(body: &[u8], alphabet: &[u8]) -> bool {
-    return body.iter().all(|byte| { return alphabet.contains(byte); });
+    for byte in body {
+        if !alphabet.contains(byte) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// Where `pattern` first sits in `bytes`,
@@ -616,7 +647,12 @@ fn position_of(bytes: &[u8], pattern: &[u8]) -> Option<usize> {
     if pattern.is_empty() || bytes.len() < pattern.len() {
         return None;
     }
-    return bytes.windows(pattern.len()).position(|window| { return window == pattern; });
+    for from in 0..=bytes.len() - pattern.len() {
+        if &bytes[from..from + pattern.len()] == pattern {
+            return Some(from);
+        }
+    }
+    return None;
 }
 
 /// Where `pattern` first sits in `bytes`,
@@ -626,7 +662,12 @@ fn position_of_ignoring_case(bytes: &[u8], pattern: &[u8]) -> Option<usize> {
     if pattern.is_empty() || bytes.len() < pattern.len() {
         return None;
     }
-    return bytes.windows(pattern.len()).position(|window| { return window.eq_ignore_ascii_case(pattern); });
+    for from in 0..=bytes.len() - pattern.len() {
+        if bytes[from..from + pattern.len()].eq_ignore_ascii_case(pattern) {
+            return Some(from);
+        }
+    }
+    return None;
 }
 
 /// Whether `bytes` holds `pattern` at all.

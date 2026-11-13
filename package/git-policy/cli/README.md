@@ -401,24 +401,36 @@ Read-only commands,
   This is the owner's decision of 2026-11-12T10:32:10-05:00 ("Mask recognised secrets only",
    item 1.9 of `doc/handover/cli-git-rust-implementation.md`).
   What is recognized:
-  the token formats GitHub and GitLab document, by their prefix;
-  the names a signed URL gives its signature (`X-Amz-Signature`, `X-Amz-Credential`,
-   `X-Amz-Security-Token`, `X-Goog-Signature`, `sig`, `signature`, `token`, `access_token`,
+  the token formats GitHub and GitLab document,
+  by their prefix;
+  the names a signed URL gives its signature (`X-Amz-Signature`,
+  `X-Amz-Credential`,
+   `X-Amz-Security-Token`,
+  `X-Goog-Signature`,
+  `sig`,
+  `signature`,
+  `token`,
+  `access_token`,
    `key` and their relatives,
    case-insensitively);
-  the credential after a `Bearer`, `Basic` or `RemoteAuth` word;
+  the credential after a `Bearer`,
+  `Basic` or `RemoteAuth` word;
   and a run of random characters long enough to be a key
-   (32 hexadecimal characters, 32 letters and digits holding a digit,
+   (32 hexadecimal characters,
+  32 letters and digits holding a digit,
    or 24 base64 characters holding both cases and a digit),
   each of them also once percent-encoded.
-  A path segment is read by the same names, which is how a lowercase path token such as `tokenvalue`
+  A path segment is read by the same names,
+  which is how a lowercase path token such as `tokenvalue`
    is hidden without a rule of its own.
   The list,
   with the documentation each shape comes from,
-  is in `src/native/lfs/lfs_output_mask_shapes.rs` and `SPEC.md`, "An LFS upload".
+  is in `src/native/lfs/lfs_output_mask_shapes.rs` and `SPEC.md`,
+  "An LFS upload".
   An LFS object's name (64 lowercase hexadecimal characters) is shown where an LFS server puts one,
    because it is the thing a person needs of a failed upload.
-  The limit of the decision, stated with it:
+  The limit of the decision,
+  stated with it:
   a short secret,
   a secret made of ordinary words,
   a secret in a host name,

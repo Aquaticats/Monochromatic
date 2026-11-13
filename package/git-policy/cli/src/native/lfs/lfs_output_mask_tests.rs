@@ -1,7 +1,8 @@
 //! Controls for what the wrapper shows of a URL in the text it relays:
 //! a table of URLs that carry a secret of each recognized kind in each place a URL can carry one,
 //! a table of URLs that carry none and are printed as they are,
-//! and the delimiters, quotes and control characters that must not let a secret through.
+//! and the delimiters,
+//! quotes and control characters that must not let a secret through.
 
 use super::*;
 
@@ -10,7 +11,8 @@ fn masked(text: &str) -> String {
     return mask_url_secrets_text(text);
 }
 
-/// The head of a longer text, cut at a size cap,
+/// The head of a longer text,
+/// cut at a size cap,
 /// with its secrets hidden.
 fn masked_cut(text: &str) -> String {
     return String::from_utf8_lossy(mask_url_secrets_cut(text.as_bytes()).as_slice()).into_owned();
@@ -23,7 +25,8 @@ const GITHUB_PREFIX: &str = "ghp_";
 const GITLAB_PREFIX: &str = "glpat-";
 
 /// What:
-///  A fake GitHub token: the documented prefix and a body of 36 letters and digits,
+///  A fake GitHub token:
+/// the documented prefix and a body of 36 letters and digits,
 ///  made up for these controls and of no account anywhere.
 /// Why:
 ///   The repository's own scanner refuses a file that holds a whole token of this shape,
@@ -32,18 +35,21 @@ fn fake_github_token() -> String {
     return format!("{GITHUB_PREFIX}{}", "FAKEfake1234FAKEfake1234FAKEfake1234");
 }
 
-/// A fake GitLab token: the documented prefix and a body of 20 letters and digits,
+/// A fake GitLab token:
+/// the documented prefix and a body of 20 letters and digits,
 /// made up and put together the way the GitHub one is.
 fn fake_gitlab_token() -> String {
     return format!("{GITLAB_PREFIX}{}", "FAKEfake1234FAKEfake");
 }
 
-/// A fake 256-bit key written as hexadecimal, in both cases:
+/// A fake 256-bit key written as hexadecimal,
+/// in both cases:
 /// 32 characters.
 const FAKE_HEX_KEY: &str = "aB3f9c2d4e5f60718293a4b5c6d7e8f9";
 
 /// A fake key written in base64:
-/// 24 characters holding a lowercase letter, an uppercase letter and a digit.
+/// 24 characters holding a lowercase letter,
+/// an uppercase letter and a digit.
 const FAKE_BASE64_KEY: &str = "Q2xpZW50U2VjcmV0MTIzNDU2Nzg5MA";
 
 /// A fake credential after a scheme word:
@@ -56,7 +62,8 @@ const FAKE_BASIC_CREDENTIAL: &str = "ZmFrZXVzZXI6ZmFrZXBhc3N3b3Jk";
 const OBJECT_NAME: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 /// What:
-///  A secret of each recognized kind, in each place a URL can carry one,
+///  A secret of each recognized kind,
+/// in each place a URL can carry one,
 /// is replaced by the mask,
 /// and the rest of the URL is printed as it is.
 /// Why:
@@ -190,7 +197,8 @@ fn a_url_that_carries_no_secret_is_printed_unchanged() {
 /// which is also what a 256-bit key written in hexadecimal looks like;
 /// the reading taken is the owner's ("the thing a person needs to see"),
 /// and it holds only for the two places a content-addressed store puts a name:
-/// the whole last segment of the path, and the segment after `objects`.
+/// the whole last segment of the path,
+/// and the segment after `objects`.
 #[test]
 fn an_object_name_is_shown_only_where_an_lfs_server_puts_one() {
     assert_eq!(
@@ -434,7 +442,8 @@ fn an_authority_that_reaches_the_end_of_a_cut_text_is_hidden_whole() {
 ///  A URL whose user information is cut between two reads is masked as a URL,
 /// because the stream holds back the word in progress.
 /// Why:
-///   A relay reads whatever the kernel has, and the `@` that ends user information can fall in the next read.
+///   A relay reads whatever the kernel has,
+/// and the `@` that ends user information can fall in the next read.
 #[test]
 fn a_url_cut_between_two_reads_is_masked_as_a_url() {
     let mut stream: UrlMaskingStream = UrlMaskingStream::new();
@@ -472,7 +481,8 @@ fn a_chunk_that_ends_a_word_is_handed_over_at_once_and_a_last_word_is_hidden() {
 /// the rest of that word is dropped,
 /// and a long word with no scheme is handed over as it stands.
 /// Why:
-///   A word that never ends may be a token the mask must hide, and its middle may not be written unmasked afterwards.
+///   A word that never ends may be a token the mask must hide,
+/// and its middle may not be written unmasked afterwards.
 #[test]
 fn a_word_longer_than_the_stream_holds_is_hidden_and_its_rest_dropped() {
     let mut stream: UrlMaskingStream = UrlMaskingStream::new();

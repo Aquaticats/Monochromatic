@@ -89,6 +89,9 @@ fn every_secret_name_is_recognized_however_it_is_written() {
     for name in names {
         assert!(names_a_secret(name.as_bytes()), "{name}");
     }
+    // The audit's canary is caught here and by no special case of its own: the stem `token` inside the segment's own
+    //  bytes is what recognizes it (audit `alpha-12-lfs`, "Lowercase path credentials survive the URL mask").
+    assert!(names_a_secret(b"tokenvalue"), "the audit's lowercase path secret is a secret name");
     assert!(names_a_secret(b"X-Amz-Signature%3D"), "an encoded name is read as it decodes");
     assert!(names_a_secret(b"to%6Ben"), "a half-encoded name is read as it decodes");
 }
@@ -98,7 +101,9 @@ fn every_secret_name_is_recognized_however_it_is_written() {
 /// and the words this module matches only whole are not looked for inside another word.
 /// Why:
 ///   A path is shown so that a person reads which repository the push went to,
-/// and `objects`, `ref`, `batch` and `info` are what an LFS URL says.
+/// and `objects`,
+/// `ref`,
+/// `batch` and `info` are what an LFS URL says.
 #[test]
 fn a_name_that_says_nothing_about_a_secret_is_kept() {
     let names: [&str; 15] =
@@ -115,7 +120,8 @@ fn a_name_that_says_nothing_about_a_secret_is_kept() {
 /// is not.
 /// Why:
 ///   The lengths are what make the rule useful:
-/// a Git abbreviation and a release name are ordinary, and a key of 128 bits is not.
+/// a Git abbreviation and a release name are ordinary,
+/// and a key of 128 bits is not.
 #[test]
 fn a_run_of_random_characters_is_recognized_at_its_length() {
     assert!(holds_a_random_run("8f14e45fceea167a5a36dedd4bea2543".as_bytes()), "32 lowercase hexadecimal characters");
