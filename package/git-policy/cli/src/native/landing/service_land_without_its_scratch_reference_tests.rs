@@ -27,7 +27,9 @@ use crate::test_support::{git, git_output, git_text, remove, while_test_lives};
 use crate::transaction_git::{EXTRA_WAIT_FOR_THIS_THREAD, STEP_CEILING_FOR_THIS_THREAD};
 use std::cell::RefCell;
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime};
 
 /// What:
@@ -145,6 +147,7 @@ fn a_commit_whose_reference_a_lock_keeps_from_being_written_is_made() {
     assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
     assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
     assert!(said.contains("refs/worktree/cli-git-service/1"), "the line names the reference that was not written: {said}");
+    assert!(said.contains("The branch names the commit now"), "a landed commit says the branch names it: {said}");
     assert!(!said.contains("was not made"), "nothing says the commit was not made: {said}");
 }
 
@@ -364,6 +367,114 @@ fn a_held_commit_whose_reference_was_never_written_is_kept_on_its_kept_name() {
     assert_eq!(kept, commit, "the commit held behind the lock is kept on its kept reference");
     assert!(surviving.status.success(), "the held commit survives a maintenance that drops what no reference names");
     assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
+    assert!(said.contains("The branch has not moved yet"), "the line says the branch has not moved, because this batch is held: {said}");
+    assert!(
+        !said.contains("The branch names the commit now"),
+        "nothing claims that a branch which has not moved names the commit: {said}"
+    );
+}
+
+/// What:
+///  A Git whose second `fast-import` reads its stream to its end and is then ended by a signal,
+///  and whose every other run is the real Git's.
+/// Why:
+///  `fast-import` writes its marks only when it exits,
+///  so a child ended by a signal before that leaves whatever marks file an earlier attempt wrote.
+///  That is the shape of an OOM kill or an external signal in the middle of an import,
+///  and it is the half of the stale-marks defect the child's own answer cannot tell apart from a refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ended = script({ on: 'fast-import', second: () => { readStdin(); killSelf(SIGKILL) }, else: realGit })
+/// ```
+fn a_git_whose_second_import_is_ended_by_a_signal(world: &World) -> PathBuf {
+    let first_import_ran: PathBuf = world.root.join("one-import-has-run");
+    let program: PathBuf = world.root.join("git-ended-in-its-second-import");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" fast-import \"*)\n    if [ -e '{first}' ]; then cat > /dev/null; kill -KILL $$; fi\n    : > '{first}';;\nesac\nexec '{real}' \"$@\"\n",
+        first = first_import_ran.display(),
+        real = crate::test_support::REAL_GIT,
+    );
+    std::fs::write(program.as_path(), script.as_str()).expect("the program");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// What:
+///  Moves the branch the way another command's commit does,
+///  keeping the tree it had,
+///  and answers the commit it made.
+/// Why:
+///  A branch that moved under a batch makes the batch's compare-and-swap lose,
+///  and the commit that moved it must still be on the branch afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = commitTree(tree, '-p', head, '-m', message); updateRef('refs/heads/main', made); return made
+/// ```
+fn another_command_commits(repo: &Path, message: &str) -> String {
+    let tree: String = git_text(repo, &["rev-parse", "HEAD^{tree}"]);
+    let head: String = git_text(repo, &["rev-parse", "HEAD"]);
+    let made: String = git_text(repo, &["commit-tree", tree.as_str(), "-p", head.as_str(), "-m", message]);
+    git(repo, &["update-ref", "refs/heads/main", made.as_str()]);
+    return made;
+}
+
+/// What:
+///  A marks file an earlier attempt wrote does not land that attempt's commits on a later attempt's base.
+/// Why:
+///  `fast-import` exports its marks when it exits, and a refused reference update still exports all of them,
+///  so attempt one leaves a full marks file behind.
+///  A child ended by a signal writes none, so attempt two, killed in its stream, leaves attempt one's file as it was.
+///  Reading it would hand the landing commits built on the first base,
+///  the branch write would move the branch to them because `update-ref` asks only that the branch still names the old value,
+///  and the commit another command landed in between would stop being on the branch:
+///  that is lost user data, and it is the one way this change could lose another command's work.
+///  The batch is not made, the other command's commit stays, and no marks file outlives the attempt that read it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseTheReferenceStore(); seamMovesTheBranchOnce(); git = gitKilledInItsSecondImport(); expect(await landBatch(mine)).toBeAnError(); expect(revParse('HEAD')).toBe(other)
+/// ```
+#[test]
+fn a_marks_file_an_earlier_attempt_wrote_does_not_land_its_commits_on_a_new_base() {
+    let mut world: World = world("service-land-without-its-reference-stale-marks");
+    let mine: CommitRequest = request(&world, "typed", "typed.txt", "the change a person made\n");
+    // The batch's own reference cannot be written, so the first attempt exports its marks and is refused at its reference.
+    let references: PathBuf = world.repo.join(".git/refs/worktree");
+    std::fs::create_dir_all(references.as_path()).expect("the reference's folder");
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
+    // Another command lands its commit between this batch's objects and its branch write, once.
+    let repo: PathBuf = world.repo.clone();
+    let other: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
+    let recorded: Arc<std::sync::Mutex<Option<String>>> = other.clone();
+    let moves: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let counted: Arc<AtomicUsize> = moves.clone();
+    world.context.on_objects_written = Some(Arc::new(move || {
+        if counted.fetch_add(1, Ordering::SeqCst) == 0 {
+            let made: String = another_command_commits(repo.as_path(), "another command's commit");
+            *recorded.lock().expect("the record") = Some(made);
+        }
+    }));
+    world.context.git.real_git = a_git_whose_second_import_is_ended_by_a_signal(&world);
+    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    });
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
+    let named: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let marks: PathBuf = world.context.journal.join("marks-1");
+    let marks_left: bool = marks.exists();
+    let their_commit: String = other.lock().expect("the record").clone().expect("the other command committed");
+    let theirs_kept: bool = git_output(world.repo.as_path(), &["merge-base", "--is-ancestor", their_commit.as_str(), "HEAD"]).status.success();
+    remove(world.root.as_path());
+    assert!(
+        landed.is_err(),
+        "a batch whose own import was ended is not landed from a marks file an earlier attempt wrote: {landed:?}; the branch names {named}, \
+and the commit another command landed ({their_commit}) is still on it: {theirs_kept}"
+    );
+    assert!(theirs_kept, "the commit another command landed is still on the branch");
+    assert_eq!(named, their_commit, "the branch still names the commit another command landed");
+    assert!(!marks_left, "no marks file outlives the attempt that read it");
 }
 
 /// What:
