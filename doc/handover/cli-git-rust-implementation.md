@@ -512,9 +512,12 @@ The place this review freed went to the qwen4 review of `fix/git-policy-cli-comm
 
 A run of the other session ended `driver-failed` 120 seconds after its agent had given its report and settled:
 "SyntaxError: Unterminated string in JSON at position 509".
-Read from the source, not reproduced: `workTheToolReportedIn` in `package/pi-shared/subagent-driver/src/work-the-run-left-running.ts` (line 131)
-parses a `process` tool result out of the feed with nothing around it, and the feed cuts long results short.
-Filed as issue 6295 with the feed's last lines; the other session was told its run's report stands.
+`workTheToolReportedIn` in `package/pi-shared/subagent-driver/src/work-the-run-left-running.ts` (line 131)
+parses a `process` tool result out of the feed with nothing around it, and the feed keeps 500 characters of a result and a cut marker.
+Reproduced at about 12:35: that function, handed the run's real feed, throws the same message character for character;
+24 records of the feed hold such a result of 509 characters, the first at line 289
+(script and output in `~/temp/agent/issue-6295-driver-fails-on-a-cut-short-process-result-2026-11-13/keep/`).
+Filed as issue 6295 with the feed's last lines and the reproduction; the other session was told its run's report stands.
 It can meet any run that used the `process` tool with a long answer, this work's runs included, so each ended run's `endReason` is read beside its last message before it is called failed.
 A fix has no brief yet; it belongs with the two launcher changes now being answered, in the same package, and is briefed when one of them is merged so the three do not edit the same files at once.
 
