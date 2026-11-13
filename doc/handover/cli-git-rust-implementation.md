@@ -767,6 +767,29 @@ Questions kept for the owner's return:
 - The hour that judges the level of agents started at 18:51
   (unit `disk-ceiling-probe-level-32-the-hour-that-judges-20261113T1851`).
 
+##### `0.6.1-alpha.19` is installed (2026-11-13T18:53:05-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait` and `native:install`.
+
+- The release run of pass 21 ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.19` is published
+  with its archives for both Linux targets.
+- `native:install -- 0.6.1-alpha.19` began at 18:52:53 and committed the lock.
+  The sample commit took 1,208 ms and landed at the first attempt;
+  its timing line names `0.6.1-alpha.19` as the release that answered,
+  after seeing `0.6.1-alpha.18` and one update round,
+  with 739 ms waiting for the answer and 218 ms of preparation.
+  The service journal held no line from the sample commit's start onward.
+- So the jam fix is in the installed wrapper:
+  a commit whose service answers nothing ends within its bound and says why,
+  where it waited without end before.
+  Not shown on this machine by the installed release:
+  the jam itself has not come up since,
+  so the bound is shown by the pass's controls and not by a real stall here.
+- The next version is `0.6.1-alpha.20`,
+  for whichever of passes 22,
+  23 and 24 reports fit first.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
