@@ -473,6 +473,9 @@ fn a_branch_checked_out_elsewhere_follows_beside_work_the_merge_does_not_write()
     let said: String = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{said}");
     let published: String = tip(fixture, world.origin.as_path(), "refs/heads/feat/topic");
+    let message: String = message_of(fixture, world.origin.as_path(), published.as_str());
+    assert!(message.contains("Merge origin/feat/topic into feat/topic"), "{message}");
+    assert!(!message.contains("main"), "the merge names the pushed branch: {message}");
     assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/feat/topic"), published);
     assert_eq!(tip(fixture, linked.as_path(), "HEAD"), published);
     assert_eq!(
@@ -518,6 +521,9 @@ fn a_branch_checked_out_elsewhere_is_left_when_its_work_is_in_the_merges_way() {
     let said: String = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{said}");
     let published: String = tip(fixture, world.origin.as_path(), "refs/heads/feat/topic");
+    let message: String = message_of(fixture, world.origin.as_path(), published.as_str());
+    assert!(message.contains("Merge origin/feat/topic into feat/topic"), "{message}");
+    assert!(!message.contains("main"), "the merge names the pushed branch: {message}");
     let line: String = last_line(&observed);
     assert!(
         line.contains("and feat/topic is not at it: the worktree at "),
