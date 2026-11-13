@@ -685,6 +685,60 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
+
+Not final and not approved:
+written by the coordinating session from the pass's report and its own commands' output.
+
+- **Pass 21** reported at 18:39:44 that its branch is fit to be released for what a pass owns
+  (`~/temp/agent/integration-pass-21-for-alpha-19-scratch/keep/report.md`).
+  All three branches merged in the brief's order with nothing left out
+  (the jam fix,
+  the file mode through a merge,
+  the kept references pruned by size and age);
+  build,
+  both test compiles and Clippy pass;
+  the 62 controls the three branches add pass by name at both tips,
+  and the 76 of the area the third merge resolved pass as a whole.
+  Its measurements through the wrapper built from its tip:
+  a commit of one changed file added 27 ms to 54 ms over real Git's 6 ms to 7 ms;
+  a commit whose service was stopped ended after 10.0 s with exit status 1 and words that say the request was never sent,
+  and nothing landed after the service went on;
+  a merge's file and index modes equal real Git's under umask 022 and 077;
+  a pruning pass removed the five references its own listing named.
+  It did not run the container gate,
+  which is the release's own step.
+- Merged into `main` as `d0cf587eac`.
+  `main..82150d9003` held the commits of the three branches and nothing else.
+- `native:release -- 0.6.1-alpha.18 0.6.1-alpha.19` dispatched `crate-release.yml` run 43529356499;
+  `native:release:wait` is going in unit `gpc-release-wait-0-6-1-alpha-19`.
+  Then: `native:install -- 0.6.1-alpha.19` and a sample commit.
+- **The pass's open question, settled by a probe and not by a choice.**
+  Under umask 077 the wrapper's merge left a person's edited executable file at mode 755,
+  where real Git's stash,
+  merge and stash pop left it at 700,
+  and the pass asked whether the wrapper should narrow it.
+  The comparison was with stash and pop;
+  plain `git merge` (Git 2.56.0) with the same edit standing,
+  which Git allows when the merge does not touch that path,
+  exits 0 and leaves the file at mode 755 with the same inode
+  (`keep/probe-what-plain-git-merge-does-to-an-edited-file-the-merge-does-not-touch-under-umask-077.ts` beside the report).
+  So the wrapper does what real Git's merge does,
+  the specification's sentence about a file a carry writes does not reach a file nothing wrote,
+  and nothing changes.
+- **Connects without a bound, read on `main` after the merge**:
+  the status command and the retire request now connect through `connect_within`.
+  Two are left in shipped code:
+  `service_warm_request.rs:107`,
+  whose run is going,
+  and the binding probe at `service_server_socket_binding.rs:151`,
+  which is with the no-manager branch's author among the findings of the 6293 review.
+  No further run is needed for them.
+- **The deletion** had removed the whole folder of 2026-11-10 and 96 shards of 2026-11-11 by 18:45:11,
+  with no slow reading;
+  the build volume had 2,044 GiB free
+  (1,439 GiB when it began).
+
 #### Issue 6300: `mpm-shadow install` takes a tool, with the owner's three answers; two reviews with defects go back to their authors (2026-11-13T18:39:31-05:00)
 
 Not final and not approved:
