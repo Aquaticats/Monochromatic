@@ -17,18 +17,28 @@
 //! by its start arguments (`service run`,
 //! `--instance <instance>`),
 //! among the processes of the same user.
+//!  The connection is made within `WARM_REQUEST_CONNECT_CEILING`,
+//! because the standard library's connect waits in the kernel while the listening socket's queue of unaccepted
+//! connections is full,
+//! and a service stopped inside its own process accepts nothing,
+//! so that wait has no end.
+//! The request is a help and never a part of the command that makes it:
+//! a request that cannot be written is not sent,
+//! and the command compiles the rules itself (`policy/policy_forbidden_strings.rs`,
+//! `cache_access`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (serviceRuns(instanceOf(gitDir))) { connect(socketFor(runtime, gitDir)).write(encode({ type: 'warm', gitDir, repository })); }
+//! if (serviceRuns(instanceOf(gitDir))) { connectWithin(socketFor(runtime, gitDir), WARM_REQUEST_CONNECT_CEILING).write(encode({ type: 'warm', gitDir, repository })); }
 //! ```
 
 use crate::service_route::non_empty_path_variable;
 use crate::service_instance::{instance_of, socket_for};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
+use crate::unix_socket_connect_within_a_deadline::connect_within;
+use crate::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
 use std::io::Write;
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 /// Whether a process of the table is the commit service of `instance`:
@@ -93,6 +103,8 @@ pub fn service_process_runs(instance: &str, proc_root: &Path) -> bool {
 ///   Nothing is waited for:
 /// the line is written and the connection dropped,
 /// and every failure is only a request that was not sent.
+///  The connection is made within `WARM_REQUEST_CONNECT_CEILING`,
+/// so a service whose queue of unaccepted connections is full costs that bound and never the command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,7 +116,28 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
     if !socket.exists() || !service_process_runs(instance_of(git_dir).as_str(), Path::new("/proc")) {
         return false;
     }
-    let Ok(mut connection) = UnixStream::connect(&socket) else { return false };
+    return ask_the_service_at(socket.as_path(), git_dir, repository);
+}
+
+/// What:
+///  Writes the one warm line into the service at `socket`,
+///  and says whether it was written.
+/// Why:
+///   A connect waits in the kernel while the listening socket's queue of unaccepted connections is full,
+///  and a service stopped inside its own process accepts nothing,
+///  so the connection is the wait this request must not make without an end (`CONNECT_CEILING`'s
+///  sibling,
+///  `WARM_REQUEST_CONNECT_CEILING`).
+///  The line that follows waits for nothing either:
+///  it is a few hundred bytes into a socket whose send buffer is 212,992 bytes on this host (2026-11-13),
+///  so it is taken even by a service that reads nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// askTheServiceAt(socket, gitDir, repository) // boolean
+/// ```
+fn ask_the_service_at(socket: &Path, git_dir: &Path, repository: &Path) -> bool {
+    let Ok(mut connection) = connect_within(socket, WARM_REQUEST_CONNECT_CEILING) else { return false };
     let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();
