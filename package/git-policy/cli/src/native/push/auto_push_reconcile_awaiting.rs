@@ -25,7 +25,8 @@ use crate::auto_push_reconcile_basics_and_limits::{
     MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
     unpublished, was_rejected_as_stale,
 };
-use crate::auto_push_reconcile_branch_advance_elsewhere::{Advanced, advance_pushed_branch_awaiting};
+use crate::auto_push_reconcile_branch_advance::{Advanced, advice_to_move};
+use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::auto_push_destination::{Destination, read_destination_awaiting};
@@ -267,8 +268,18 @@ pub async fn integrate_and_push_awaiting(
                 None => String::from("and no local branch follows it"),
                 Some(branch_ref) => {
                     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-                    let advanced: Advanced =
-                        (advance_pushed_branch_awaiting(git, branch_ref, &local, &merge_oid)).await?;
+                    // What: the merge is published, so where the branch is now is a report and never a failure.
+                    // Why: a move that could not even be asked -- a worktree whose folder went while the push ran, a
+                    //      program the system refused -- used to leave the loop as an error, and the push then exited
+                    //      nonzero with "may or may not have taken the merge" about a merge it had published
+                    //      (a review of commit `98de70959d`, finding 1).
+                    let advanced: Advanced = match advance_pushed_branch_awaiting(git, branch_ref, &local, &merge_oid).await {
+                        Ok(answer) => answer,
+                        Err(error) => Advanced::Not {
+                            reason: format!("the move could not be attempted: {error}"),
+                            advice: advice_to_move(&merge_oid, "in the worktree that has it checked out"),
+                        },
+                    };
                     followed_sentence(&advanced, branch)
                 }
             };

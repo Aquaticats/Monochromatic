@@ -488,6 +488,64 @@ pub(crate) async fn advance_local_branch_moving(
     return Ok(Ok(kept));
 }
 
+/// What:
+///  Where the published merge left the branch the push sent,
+/// and what a person may have to do about it.
+/// Why:
+///  The report says which of these happened,
+/// so a person reading one line learns where their branch is now;
+///  a reason and an advice travel together,
+/// because a refusal that names no way forward is a dead end.
+///  Every move of the branch answers with this,
+/// whether it ran in the worktree this command is in,
+///  in another one, or in none,
+/// so the loop words each of them the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Advanced = { kind: 'here'; kept: boolean } | { kind: 'elsewhere'; worktree: string; kept: boolean } | { kind: 'nowhere' } | { kind: 'not'; reason: string; advice: string };
+/// ```
+pub(crate) enum Advanced {
+    /// The branch and this worktree, which had it checked out, moved to the merge;
+    /// `kept` says uncommitted work was left exactly as it was.
+    Here {
+        /// Whether uncommitted work was left in place.
+        kept: bool,
+    },
+    /// The branch and the worktree at this path, which had it checked out, moved to the merge.
+    Elsewhere {
+        /// The worktree that had the branch checked out.
+        worktree: PathBuf,
+        /// Whether that worktree's uncommitted work was left in place.
+        kept: bool,
+    },
+    /// No worktree had the branch checked out, so only the branch moved and no file was written.
+    Nowhere,
+    /// The branch was not moved,
+    /// and the reason and the way forward are here.
+    Not {
+        /// Why the branch is not at the merge.
+        reason: String,
+        /// What moves it there once nothing is in the way.
+        advice: String,
+    },
+}
+
+/// What:
+///  How a person moves a branch that the reconcile left where it was.
+/// Why:
+///   The merge is published,
+/// so the branch follows it by a fast-forward of the merge commit itself,
+/// which needs no remote-tracking ref and cannot carry anything else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const advice = (mergeOid, where) => `move it with \`git merge --ff-only ${mergeOid}\` ${where} once nothing is in the way`;
+/// ```
+pub(crate) fn advice_to_move(merge_oid: &str, where_to: &str) -> String {
+    return format!("move it with `git merge --ff-only {merge_oid}` {where_to} once nothing is in the way");
+}
+
 /// The words a reader of the report gets for one branch the push did not move.
 ///
 /// In TS you'd write (pseudocode):

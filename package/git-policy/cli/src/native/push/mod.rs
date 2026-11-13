@@ -179,12 +179,23 @@ pub mod auto_push_reconcile_basics_and_limits;
 pub mod auto_push_reconcile_merge_commit;
 
 /// The move of the branch a push sent after its merge was pushed,
-/// and the checks that guard it.
+/// the checks that guard it,
+/// and the answers a move gives the report.
 pub mod auto_push_reconcile_branch_advance;
 
 /// Which worktree holds the branch a push sent,
-/// and the move of that branch where the worktree is not the one the command runs in.
+/// whether it is this one,
+/// and a Git context that runs in it.
+pub mod auto_push_reconcile_branch_worktree;
+
+/// The move of that branch where the worktree that has it is another one,
+/// and the entry that chooses among the moves.
 pub mod auto_push_reconcile_branch_advance_elsewhere;
+
+/// The move of that branch where no live worktree has it:
+/// the reference alone, looked at on either side of its write,
+/// and the repair of a checkout that took the branch inside that window.
+pub mod auto_push_reconcile_branch_advance_without_a_checkout;
 
 /// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
 pub mod auto_push_refspec_judging;

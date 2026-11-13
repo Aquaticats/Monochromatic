@@ -2889,7 +2889,7 @@ fn a_merge_published_somewhere_else_names_the_branch_and_the_ref() {
 ///  and the wrong one would be written.
 #[test]
 fn the_worktree_holding_a_branch_is_read_from_gits_listing() {
-    use crate::auto_push_reconcile_branch_advance_elsewhere::worktree_holding;
+    use crate::auto_push_reconcile_branch_worktree::worktree_holding;
     let listing: &[u8] = b"worktree /one\0HEAD 1111\0branch refs/heads/main\0\0worktree /two\0HEAD 2222\0branch refs/heads/feat/topic\0\0worktree /three\0HEAD 3333\0detached\0\0";
     assert_eq!(worktree_holding(listing, "refs/heads/feat/topic"), Some(PathBuf::from("/two")));
     assert_eq!(worktree_holding(listing, "refs/heads/main"), Some(PathBuf::from("/one")));
@@ -2898,4 +2898,198 @@ fn the_worktree_holding_a_branch_is_read_from_gits_listing() {
     let bytes: &[u8] = b"worktree /r\xffpo\0HEAD 1111\0branch refs/heads/main\0\0";
     let found = worktree_holding(bytes, "refs/heads/main").expect("the worktree is listed");
     assert_eq!(found.as_os_str().as_encoded_bytes(), b"/r\xffpo");
+}
+
+/// What:
+///  A fixture in which the pushed branch is checked out in no worktree,
+///  while `main` is checked out here and the remote's branch has moved.
+/// Why:
+///  Every control of the reference-alone move, and of a checkout that races it,
+/// starts from this state;
+///  the merge the reconcile would publish is computed here, so the move is the only thing under test.
+struct Nowhere {
+    /// The repository,
+    /// its bare remote and the clone that moves it.
+    scenario: Scenario,
+    /// The commit the pushed branch names before the merge.
+    local_tip: String,
+    /// The merge commit a reconciled push would publish.
+    merge: String,
+}
+
+/// Build the state of `Nowhere`,
+/// whose pushed branch is `topic`.
+fn nowhere(name: &str) -> Nowhere {
+    let root: PathBuf = fixture(name);
+    let remote: PathBuf = root.join("remote.git");
+    git(&root, &["init", "--bare", "--quiet", "--initial-branch=main", "remote.git"]);
+    git(&root, &["init", "--quiet", "--initial-branch=main", "local"]);
+    let local: PathBuf = root.join("local");
+    std::fs::write(local.join("a.txt"), "base\n").expect("a.txt");
+    git(&local, &["add", "a.txt"]);
+    git(&local, &["commit", "--quiet", "-m", "base"]);
+    git(&local, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(&local, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(&local, &["switch", "--quiet", "-c", "topic"]);
+    git(&local, &["push", "--quiet", "--set-upstream", "origin", "topic"]);
+    let other: PathBuf = root.join("other");
+    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(&other, &["switch", "--quiet", "topic"]);
+    std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote.txt");
+    git(&other, &["add", "remote.txt"]);
+    git(&other, &["commit", "--quiet", "-m", "remote side"]);
+    git(&other, &["push", "--quiet", "origin", "topic"]);
+    // The repository under test commits on the branch and shows `main` again, so no worktree holds `topic`.
+    std::fs::write(local.join("local.txt"), "local side\n").expect("local.txt");
+    git(&local, &["add", "local.txt"]);
+    git(&local, &["commit", "--quiet", "-m", "local side"]);
+    let local_tip: String = text_of(&local, &["rev-parse", "refs/heads/topic"]);
+    git(&local, &["switch", "--quiet", "main"]);
+    let remote_tip: String = text_of(&other, &["rev-parse", "refs/heads/topic"]);
+    let merge: String = text_of(
+        &local,
+        &["commit-tree", "-p", &local_tip, "-p", &remote_tip, "-m", "merge", "origin/topic^{tree}"],
+    );
+    return Nowhere { scenario: Scenario { local, other, remote, root }, local_tip, merge };
+}
+
+/// What:
+///  A worktree that took the pushed branch before its reference moved is moved with the branch,
+///  by that worktree's own move, so its files are the merge's.
+/// Why:
+///  The reference-alone move used to write the reference and never look at the worktree listing again,
+///  so a checkout made at the same moment kept the pushed tip's files while its branch named the merge,
+///  and a commit there would publish a reversal of the merge (a review of `98de70959d`, finding 3).
+#[test]
+fn a_worktree_that_took_the_branch_before_the_reference_moved_moves_with_it() {
+    use crate::auto_push_reconcile_branch_advance::Advanced;
+    use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-nowhere-taken-before");
+    let root: PathBuf = s.scenario.root.clone();
+    let main_before: String = text_of(&s.scenario.local, &["rev-parse", "refs/heads/main"]);
+    let local_tip: String = s.local_tip.clone();
+    let taken: PathBuf = root.join("taken");
+    let placed: PathBuf = taken.clone();
+    let from: PathBuf = root.clone();
+    let _played = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
+        let made = git(&from, &["worktree", "add", "--quiet", "--detach", placed.to_str().expect("utf-8"), local_tip.as_str()]);
+        assert!(made.status.success(), "the control makes the worktree the racing command would have made");
+        let _named = git(&placed, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    });
+    let advanced: Advanced = await_it(advance_pushed_branch_awaiting(
+        &push_git(&s.scenario.local),
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the move runs");
+    let Advanced::Elsewhere { worktree, .. } = advanced else {
+        panic!("the worktree that took the branch is where the branch is moved")
+    };
+    assert_eq!(worktree, taken, "the move names the worktree that took the branch");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.merge, "the branch followed its merge");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/main"]), main_before, "no other branch is touched");
+    assert_eq!(
+        std::fs::read_to_string(taken.join("remote.txt")).expect("the merge's file is in that worktree"),
+        "remote side\n",
+        "the checkout shows the merge's files"
+    );
+    assert_eq!(text_of(&taken, &["status", "--porcelain=v1"]), "", "and nothing there is left pending");
+    assert_eq!(text_of(&taken, &["rev-parse", "HEAD"]), s.merge);
+    remove(&root);
+}
+
+/// What:
+///  A worktree that took the pushed branch after the reference moved has its files brought to the merge.
+/// Why:
+///  The window between the worktree listing and the reference's write is not empty:
+/// a worktree that appeared inside it was written from the pushed tip,
+///  and its branch then named the merge,
+/// which a commit there would publish as a reversal (a review of `98de70959d`, finding 3).
+#[test]
+fn a_worktree_that_took_the_branch_after_the_reference_moved_is_brought_to_the_merge() {
+    use crate::auto_push_reconcile_branch_advance::Advanced;
+    use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-nowhere-taken-after");
+    let root: PathBuf = s.scenario.root.clone();
+    let local_tip: String = s.local_tip.clone();
+    let placed: PathBuf = root.join("taken");
+    let racing: PathBuf = placed.clone();
+    let from: PathBuf = root.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        // The worktree a racing command leaves: written from the pushed tip, its HEAD the branch the reference just moved.
+        let made = git(&from, &["worktree", "add", "--quiet", "--detach", racing.to_str().expect("utf-8"), local_tip.as_str()]);
+        assert!(made.status.success(), "the control makes the worktree the racing command would have made");
+        let _named = git(&racing, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    });
+    let advanced: Advanced = await_it(advance_pushed_branch_awaiting(
+        &push_git(&s.scenario.local),
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the move runs");
+    let Advanced::Elsewhere { worktree, .. } = advanced else {
+        panic!("the racing worktree is repaired and named")
+    };
+    assert_eq!(worktree, placed, "the repair names the worktree that raced the move");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.merge, "the branch is at its merge");
+    assert_eq!(
+        std::fs::read_to_string(placed.join("remote.txt")).expect("the merge's file was written there"),
+        "remote side\n",
+        "the checkout shows the merge's files, not the pushed tip's"
+    );
+    assert_eq!(
+        text_of(&placed, &["status", "--porcelain=v1"]),
+        "",
+        "nothing is left pending, so no commit there would revert the merge"
+    );
+    remove(&root);
+}
+
+/// What:
+///  A move that cannot even be asked is a report, and not a failure,
+///  once the merge is published.
+/// Why:
+///  A worktree that goes while the push runs makes a Git start fail,
+///  and the error left the loop after the merge was published:
+///  the push then exited nonzero with "may or may not have taken the merge" about a merge it had taken
+///  (a review of `98de70959d`, finding 1).
+#[test]
+fn a_move_that_cannot_be_asked_after_the_publication_is_reported_and_not_failed() {
+    let s = nowhere("ar-published-then-move-unaskable");
+    let linked: PathBuf = s.scenario.root.join("linked");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", linked.to_str().expect("utf-8"), "topic"]);
+    let doomed: PathBuf = linked.clone();
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        std::fs::remove_dir_all(doomed.as_path()).expect("the worktree's folder goes in the window");
+    });
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the merge push runs");
+        return Ok(PushAttempt { exit_code: 0, output: String::new() });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s.scenario,
+        s.local_tip.as_str(),
+        Some("refs/heads/topic"),
+        "refs/heads/topic",
+        true,
+        &mut push_merge,
+    ));
+    assert_eq!(attempt.exit_code, 0, "a published merge is not a failed push: {}", attempt.output);
+    let published: String = text_of(&s.scenario.remote, &["rev-parse", "refs/heads/topic"]);
+    assert_ne!(published, s.local_tip, "the merge was published");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.local_tip, "the branch is not moved");
+    assert!(attempt.output.contains("was published to origin/topic"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("topic is not at it: the move could not be attempted:"),
+        "{}",
+        attempt.output
+    );
+    assert!(attempt.output.contains("git merge --ff-only"), "the report names the step that finishes the move: {}", attempt.output);
+    assert!(attempt.output.contains(format!("(merge {published})").as_str()), "{}", attempt.output);
+    remove(&s.scenario.root);
 }

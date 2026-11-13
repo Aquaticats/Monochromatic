@@ -1,12 +1,11 @@
 //! What:
-//!  Which worktree holds the branch a push sent,
-//!  and the move of that branch to the merge published for it
-//!  where that worktree is not the one this command runs in.
+//!  The move of the branch a push sent where the worktree that has it checked out is not this one,
+//!  and the entry that decides which of the three moves the branch gets.
 //! Why:
 //!  A branch is checked out in at most one worktree,
 //! and only the worktree that holds it has files to write when it moves;
-//! a branch no worktree holds moves as a ref and costs no file at all.
-//!  The move here is the one of the worktree the command runs in
+//!  a branch no live worktree holds moves as a ref (`auto_push_reconcile_branch_advance_without_a_checkout.rs`).
+//!  The move here is the one of the worktree this command runs in
 //!  (`auto_push_reconcile_branch_advance.rs`, which this file calls):
 //! the same two-way index and file update,
 //!  the same compare-and-swap of the ref,
@@ -25,201 +24,18 @@ use crate::auto_push_single_flight::{
     PushGit, SingleFlightError, run_query_awaiting,
 };
 use crate::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
-/// The here-path's move and the words both paths share.
+/// The here-path's move, the answers a move gives, and the words of a refusal.
 use crate::auto_push_reconcile_branch_advance::{
-    BRANCH_MOVED, SHIPPED_MOVE, advance_local_branch_awaiting, fast_forward_recorded, refusal_of, status_differs,
+    Advanced, BRANCH_MOVED, SHIPPED_MOVE, advance_local_branch_awaiting, advice_to_move, fast_forward_recorded,
+    status_differs,
 };
+/// Which worktree holds the branch, whether it is this one, and how to run Git in it.
+use crate::auto_push_reconcile_branch_worktree::{git_at, is_this_worktree, live_holder_awaiting};
+/// The move of a branch no live worktree holds.
+use crate::auto_push_reconcile_branch_advance_without_a_checkout::{NowhereMove, move_the_ref_only_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 use crate::diagnostic_log::warn;
-use crate::inner_git_words::record_streams;
-use std::path::{Path, PathBuf};
-
-/// What:
-///  Where the published merge left the branch the push sent,
-/// and what a person may have to do about it.
-/// Why:
-///  The report says which of these happened,
-/// so a person reading one line learns where their branch is now;
-///  a reason and an advice travel together,
-/// because a refusal that names no way forward is a dead end.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Advanced = { kind: 'here'; kept: boolean } | { kind: 'elsewhere'; worktree: string; kept: boolean } | { kind: 'nowhere' } | { kind: 'not'; reason: string; advice: string };
-/// ```
-pub(crate) enum Advanced {
-    /// The branch and this worktree, which had it checked out, moved to the merge;
-    /// `kept` says uncommitted work was left exactly as it was.
-    Here {
-        /// Whether uncommitted work was left in place.
-        kept: bool,
-    },
-    /// The branch and the worktree at this path, which had it checked out, moved to the merge.
-    Elsewhere {
-        /// The worktree that had the branch checked out.
-        worktree: PathBuf,
-        /// Whether that worktree's uncommitted work was left in place.
-        kept: bool,
-    },
-    /// No worktree had the branch checked out, so only the branch moved and no file was written.
-    Nowhere,
-    /// The branch was not moved,
-    /// and the reason and the way forward are here.
-    Not {
-        /// Why the branch is not at the merge.
-        reason: String,
-        /// What moves it there once nothing is in the way.
-        advice: String,
-    },
-}
-
-/// What:
-///  How a person moves a branch that the reconcile left where it was.
-/// Why:
-///   The merge is published,
-/// so the branch follows it by a fast-forward of the merge commit itself,
-/// which needs no remote-tracking ref and cannot carry anything else.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const advice = (mergeOid, where) => `move it with \`git merge --ff-only ${mergeOid}\` ${where} once nothing is in the way`;
-/// ```
-pub(crate) fn advice_to_move(merge_oid: &str, where_to: &str) -> String {
-    return format!("move it with `git merge --ff-only {merge_oid}` {where_to} once nothing is in the way");
-}
-
-/// What:
-///  The worktree that has `branch_ref` checked out,
-/// or nothing when no worktree has it.
-/// Why:
-///   A branch is checked out in at most one worktree,
-/// and only that worktree's checkout has to follow the branch when it moves;
-///  a branch no worktree has needs no file written at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const holder = worktreeHolding((await git(['worktree','list','--porcelain','-z'])).split('\0'), branchRef);
-/// ```
-async fn worktree_holding_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<PathBuf>, SingleFlightError> {
-    let listed = run_query_awaiting(git, &argv(&["worktree", "list", "--porcelain", "-z"])).await?;
-    if listed.code != Some(0) {
-        return Ok(None);
-    }
-    return Ok(worktree_holding(&listed.stdout, branch_ref));
-}
-
-/// What:
-///  The worktree a `worktree list --porcelain -z` listing says has `branch_ref` checked out.
-/// Why:
-///   The listing is the only place Git answers that question for every worktree,
-/// and `-z` keeps a path that holds bytes which are not text whole.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function worktreeHolding(fields, branchRef) { let path; for (const field of fields) { if (field.startsWith('worktree ')) path = field.slice(9); else if (field === `branch ${branchRef}`) return path; } return undefined; }
-/// ```
-pub(crate) fn worktree_holding(listing: &[u8], branch_ref: &str) -> Option<PathBuf> {
-    let mut current: Option<PathBuf> = None;
-    for field in listing.split(|byte| return *byte == 0) {
-        if field.is_empty() {
-            continue;
-        }
-        if let Some(path) = field.strip_prefix(b"worktree ".as_slice()) {
-            current = Some(PathBuf::from(crate::path_bytes::os_from_path_bytes(path)));
-            continue;
-        }
-        let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(field);
-        if let Some(named) = text.strip_prefix("branch ")
-            && named == branch_ref
-        {
-            return current;
-        }
-    }
-    return None;
-}
-
-/// Whether this worktree is the one at `place`,
-/// as far as the file system says.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const sameDirectory = (left, right) => fs.realpathSync(left) === fs.realpathSync(right);
-/// ```
-fn same_directory(left: &Path, right: &Path) -> bool {
-    if left == right {
-        return true;
-    }
-    return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
-        (Ok(here), Ok(there)) => here == there,
-        _ => false,
-    };
-}
-
-/// What:
-///  Whether this command runs in the worktree at `place`.
-/// Why:
-///   The two moves are not the same:
-/// the one here asks this checkout and writes its files,
-///  and the one elsewhere runs every question and every write in the other worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isHere = sameDirectory(await git(['rev-parse','--show-toplevel']), place);
-/// ```
-async fn is_this_worktree(git: &PushGit, place: &Path) -> Result<bool, SingleFlightError> {
-    let top = run_query_awaiting(git, &argv(&["rev-parse", "--show-toplevel"])).await?;
-    if top.code != Some(0) {
-        return Ok(false);
-    }
-    let printed: &[u8] = top.stdout.strip_suffix(b"\n".as_slice()).unwrap_or(top.stdout.as_slice());
-    let here: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(printed));
-    return Ok(same_directory(here.as_path(), place));
-}
-
-/// What:
-///  Whether an environment variable would keep a Git started for another worktree from reading that worktree's
-///  repository, its index or its files.
-/// Why:
-///   The caller's environment may name a Git directory,
-/// a worktree or an index,
-///  and every start of a move in another worktree must read the one it was asked about.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesTheRepository = (name) => ['GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_COMMON_DIR'].includes(name);
-/// ```
-fn names_the_repository(name: &std::ffi::OsStr) -> bool {
-    return matches!(
-        name.to_str(),
-        Some("GIT_DIR" | "GIT_WORK_TREE" | "GIT_INDEX_FILE" | "GIT_COMMON_DIR")
-    );
-}
-
-/// What:
-///  The same Git context, run in another worktree.
-/// Why:
-///   The move of a branch checked out elsewhere writes that worktree's index and files,
-/// so every start of it has to run there,
-///  and the caller's own repository variables would otherwise keep it in the repository this command was started in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const there = (git, directory) => ({ ...git, cwd: directory, environment: git.environment.filter(([name]) => !namesTheRepository(name)) });
-/// ```
-fn git_at(git: &PushGit, directory: &Path) -> PushGit {
-    let environment: Vec<(std::ffi::OsString, std::ffi::OsString)> = git
-        .environment
-        .iter()
-        .filter(|(name, _)| return !names_the_repository(name.as_os_str()))
-        .cloned()
-        .collect();
-    return PushGit {
-        real_git: git.real_git.clone(),
-        cwd: directory.to_path_buf(),
-        environment,
-        lfs: git.lfs,
-    };
-}
+use std::path::Path;
 
 /// What:
 ///  Move the branch and the worktree that has it checked out,
@@ -323,49 +139,6 @@ async fn advance_in_another_worktree(
 }
 
 /// What:
-///  Move a branch no worktree has checked out,
-/// which writes no file,
-/// or say why it was not moved.
-/// Why:
-///   A branch that is checked out nowhere has only its ref to move,
-/// and the compare-and-swap of `update-ref` refuses a branch that
-///  moved since the push without touching it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function moveTheRefOnly(git, branchRef, local, mergeOid): Promise<Advanced>;
-/// ```
-async fn move_the_ref_only_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    local: &str,
-    merge_oid: &str,
-) -> Result<Advanced, SingleFlightError> {
-    let where_to: &str = "in a worktree that has it checked out";
-    let tip = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{branch_ref}^{{commit}}").as_str()])).await?;
-    if tip.code != Some(0) || String::from_utf8_lossy(&tip.stdout).trim() != local {
-        return Ok(Advanced::Not {
-            reason: String::from(BRANCH_MOVED),
-            advice: advice_to_move(merge_oid, where_to),
-        });
-    }
-    let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
-    let moved = run_query_awaiting(
-        git,
-        &argv(&["update-ref", "-m", message.as_str(), branch_ref, merge_oid, local]),
-    )
-    .await?;
-    if moved.code != Some(0) {
-        return Ok(Advanced::Not {
-            reason: refusal_of(&moved.stderr),
-            advice: advice_to_move(merge_oid, where_to),
-        });
-    }
-    record_streams(&["update-ref", branch_ref, merge_oid, local], &moved.stdout, &moved.stderr);
-    return Ok(Advanced::Nowhere);
-}
-
-/// What:
 ///  Bring the branch the push sent to the published merge,
 /// in whichever worktree has it checked out,
 /// and never another branch.
@@ -383,6 +156,9 @@ async fn move_the_ref_only_awaiting(
 ///   A branch checked out in another worktree moves there under that worktree's own rules:
 /// it follows only while it still
 ///  has the branch at the pushed tip and none of its uncommitted work lies in a file the move writes.
+///   A branch no live worktree holds moves as a ref alone,
+/// and that move looks at the listing again on either side of its write,
+/// so a worktree that takes the branch inside that window is not left with the older files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -394,8 +170,15 @@ pub(crate) async fn advance_pushed_branch_awaiting(
     local: &str,
     merge_oid: &str,
 ) -> Result<Advanced, SingleFlightError> {
-    let Some(place) = worktree_holding_awaiting(git, branch_ref).await? else {
-        return move_the_ref_only_awaiting(git, branch_ref, local, merge_oid).await;
+    let Some(place) = live_holder_awaiting(git, branch_ref).await? else {
+        return match move_the_ref_only_awaiting(git, branch_ref, local, merge_oid).await? {
+            NowhereMove::Answered(advanced) => Ok(advanced),
+            // A worktree took the branch between the two looks, so its files are written there and by its own move.
+            NowhereMove::Held(taken) => {
+                let there: PushGit = git_at(git, taken.as_path());
+                advance_in_another_worktree(&there, taken.as_path(), branch_ref, local, merge_oid).await
+            }
+        };
     };
     if is_this_worktree(git, place.as_path()).await? {
         return match advance_local_branch_awaiting(git, branch_ref, local, merge_oid).await? {
