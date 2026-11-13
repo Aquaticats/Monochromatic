@@ -448,6 +448,27 @@ and the qwen4 review of the launcher's scratch-folder change.
 The resume queue holds nineteen entries; issue 6293 is its first and waits for the run on the service that needs no manager, so the next free place goes to the entry after it
 (`reload-fix-brought-onto-main-where-a-program-link-already-is`, issue 6286).
 
+#### The review of the start gate's change: two defects reproduced, to be answered by its author (2026-11-13T12:10:47-05:00)
+
+The review ran from 11:44:30 to 12:10:47 on `qwen4-max-preview` (the model its feed names) on commit `8f9b026bdc`;
+`~/temp/agent/change-reviews/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive/review.md`,
+with two reproduction scripts beside it.
+Its text says it was written on Kimi K3.1 Pro and checked by `gpt-oss-120b`; the run's record supports neither, so its findings stand on what its scripts show.
+Weighed by this session:
+
+- **Fix: two runs that share a name count as one agent**, so the cap lets one more start (reproduced: two launchers named `sol-audit`, a cap of two, the gate answers `start`).
+  The fold by name is right for a launcher and its own unit and wrong as a count of agents.
+- **Fix: a setting of several hundred digits reads as infinity** and switches the cap or a floor off without a word (reproduced: the counts line prints `2/Infinity`).
+  The same reading is in the pool limits, older than this change.
+- **Fix: one sentence of the README** says the two test settings can only loosen the gate; the folder mapping can also tighten it.
+- **Dismissed:** "the handover file the code names does not exist". It is on `main` and was added after the branch left it.
+- Examined by the review and not called a defect: two gates asked in the same moment can both start, landing one above the cap; the change's own words allow a count above the level.
+
+The brief that answers it, `~/temp/agent/pi-runs/start-gate-change-answers-its-review-of-2026-11-13-prompt.md`, resumes the author in its own session,
+adds the two passages outside the package its report named (the skill's "practical limit is 20" and the two sentences of `doc/handover/agents-at-once-on-this-machine.md`),
+and is the first entry of the resume queue.
+The place the review freed went, a moment before the review was read, to the resume of `reload-fix-brought-onto-main-where-a-program-link-already-is` (issue 6286) at 12:10:58; eight units were going at 12:11:41.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
