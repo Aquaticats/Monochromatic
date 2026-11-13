@@ -819,6 +819,15 @@ mod service_provision;
 #[path = "binary_service_no_manager_tests.rs"]
 mod service_no_manager;
 
+/// A commit whose service stopped reading,
+/// stopped answering,
+/// or stopped altogether:
+/// the bound each step ends at,
+/// the words a person reads,
+/// and that nothing is left half done.
+#[path = "binary_commit_when_the_service_stops_tests.rs"]
+mod commit_when_the_service_stops;
+
 /// The upgrade from the 0.5.4 release,
 /// run with that release's own service program.
 #[path = "binary_service_upgrade_tests.rs"]

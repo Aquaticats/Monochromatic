@@ -3827,7 +3827,7 @@ none is waited out or retried on the moved head yet:
   that the commit cannot land twice,
   and that this command goes on by itself,
   so the person reading it is asked to do nothing;
-  a service that does not answer then ends the command with "The commit service stopped answering".
+  a service that greets nothing on the connection made again ends the command with "The commit service stopped answering".
    That silence is measured against a service that beats once a second while it works,
   and the beats never wait for the
    background work the same service does:
@@ -3848,6 +3848,42 @@ none is waited out or retried on the moved head yet:
    waiting command with no word for up to 32 s,
    and a commit that had landed was reported as not known
    (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+- Every step between a commit and that service is bounded:
+  the connection at `CONNECT_CEILING` (5 seconds),
+  the write of the request at `REQUEST_WRITE_SILENCE` (5 seconds without a byte taken,
+  because the wait is on what the service reads and not on a clock) and `REQUEST_WRITE_CEILING` (10 seconds for the whole
+  request),
+  the greeting at the start wait the command was given,
+  and the answer at `HEARTBEAT_SILENCE` and `ANSWER_CEILING`
+  (`service/wait_ceilings.rs` has the measurement beside each).
+  A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived:
+  a line that ends with the connection instead of its newline is refused and never queued.
+  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did, the same give-up is reported as a result that is not known,
+  and the commit's staged work and scratch tree stay where they are.
+  A commit whose whole request did reach the service is never described as one a waking service cannot land:
+  that message says the service may still make it and names `git log -1`.
+- A commit whose service stopped says four things,
+  whether it stopped before it answered,
+  after the request reached it,
+  or while it was reading the request:
+  what did not answer and for how long,
+  whether the commit was made,
+  that your staged changes and working files are as they were,
+  and the three steps that end it.
+  Those steps are, in this order:
+  `git monochromatic-git-policy-cli service status`,
+  which says whether this worktree's service answers and names the unit that serves it;
+  a restart of that one unit (`systemctl --user restart` and the name the status printed),
+  because a service that is running and answers nothing has stopped inside itself and no start brings it back;
+  and the same commit again,
+  which is safe because the request of the failed one is dropped rather than landed.
+  The steps name this worktree's own unit,
+  never the `@*` pattern of every service of the account,
+  because restarting them all stops the commits of every other worktree.
+  A service that wakes after the command ended makes no commit:
+  the request it still holds is dropped, because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
@@ -5035,13 +5071,27 @@ Two requirements bound the latency the wrapper adds,
 and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git
+- Every commit made through the wrapper adds at most the larger of `5,000 ms` and twice native Git's own time for the same
+  commit
   (each commit,
-  not a percentile of them).
+  not a percentile of them):
+  a commit real Git takes 50 ms to make may gain five seconds,
+  and one it takes 30 s to make under disk pressure may gain 60 s.
+  The owner changed the rule on 2026-11-12:
+  "Change the 5s rule to max(5s, double what native git takes)",
+  read as the extra over real Git.
+  A wrapper time alone says nothing under it,
+  so every wrapper commit is measured beside a native Git commit of the same change set,
+  alternating with it,
+  in the same repository and under the same conditions.
+  The `native:perf` judge still fails a commit whose paired delta reaches `5,000 ms`,
+  which is stricter than this requirement for any commit whose real Git time is over 2.5 s;
+  its judge is to be changed to this rule.
 
 No wrapped command is required to finish within a fixed time,
 and there is no 5-second bound on wrapped commands.
-The owner's words (2026-11-01):
+The owner's words (2026-11-01),
+which the rule above replaced as the measure of a commit:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
@@ -7058,8 +7108,12 @@ Guard tests keep it so:
   reaches the current one;
   if it does not exit,
   the commit says so and names `systemctl --user restart cli-git.service`.
-- `git monochromatic-git-policy-cli service status` says whether the service answers;
+- `git monochromatic-git-policy-cli service status` says whether the service of this worktree answers,
+  and names the unit that serves it;
   it is a diagnostic only.
+  It waits `HAND_OVER_GREETING_WAIT` (2 seconds) for that service's greeting,
+  so a service that is running and has stopped inside itself reads as one that took the connection and said nothing,
+  and not as one that answers.
 - When the service cannot be set up (no session bus,
   no user service manager),
   the commit stops with a plain message that

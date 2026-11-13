@@ -177,8 +177,14 @@ pub mod service_client_why_withdrawn;
 
 /// Connecting to the service,
 /// reading one line from it,
+/// writing a request within a bound,
 /// and asking an older service to retire.
 pub mod service_client_listen_and_ask_to_retire;
+
+/// The connect itself,
+/// waited for with a bound because a socket whose queue of unaccepted connections is full takes no connection
+/// until something accepts.
+pub mod service_client_connect_within_a_bound;
 
 /// The settings of one client run and the watch on the service manager's answer.
 pub mod service_client_settings_and_watches;

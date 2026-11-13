@@ -6739,6 +6739,35 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `WITHDRAW_CEILING` 10 minutes:
   the client's wait for the answer to its withdrawal (five times the longest observed
   landing).
+- `CONNECT_CEILING` 5 seconds:
+  one connection to the service's address.
+  A connect to a local socket completes in the kernel,
+  and it waits only for room in the socket's queue of connections nothing has accepted yet:
+  a blocking connect into a queue of one that already held two connections was still waiting after 2,000 ms on
+  2026-11-12,
+  so a queue nothing empties is a wait with no end of its own.
+  80 times the slowest of 2,000 measured connects (15 us at the median,
+  156 us at the 99th percentile,
+  62.6 ms at the slowest),
+  and the silence a service that is working may keep (`HEARTBEAT_SILENCE`).
+- `REQUEST_WRITE_SILENCE` 5 seconds:
+  how long the write of a request may take no byte at all before the service is taken for one that stopped reading.
+  A request line is at most `MAX_LINE_BYTES` (one mebibyte),
+  and the send buffer of a local stream socket holds 212,992 bytes,
+  so a request of one mebibyte can only be written by a service that reads:
+  measured on 2026-11-12,
+  one socket's two buffers took 233,152 bytes with nothing reading,
+  and a commit whose service stopped with `SIGSTOP` waited there with no bound at all before this.
+  It is `HEARTBEAT_SILENCE`,
+  five beats,
+  because a service that reads takes the bytes at once.
+- `REQUEST_WRITE_CEILING` 10 seconds:
+  the longest the whole request of a commit is written,
+  however steadily the service takes it.
+  One mebibyte written into a socket whose reader drains it took 0.4 ms at the median,
+  16.6 ms at the 99th percentile and 18.2 ms at the slowest of 50 runs on 2026-11-12,
+  so ten seconds is 550 times the slowest of them,
+  and it is the wait a command already grants a service's own start (`START_WAIT`).
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
@@ -7626,11 +7655,49 @@ now inside these bounds:
   from the longest
   of 715 measured holds);
   this number awaits the owner's approval.
+- Every step of a commit's exchange with its service is bounded,
+  and each ends at a constant of `service/wait_ceilings.rs` named above:
+  the connect at `CONNECT_CEILING`,
+  the write of the request at `REQUEST_WRITE_SILENCE` and `REQUEST_WRITE_CEILING`,
+  the greeting at the start wait the client was given,
+  and the answer at `HEARTBEAT_SILENCE` and `ANSWER_CEILING`.
+  The write waits on progress and not on a clock:
+  the silence window starts again with every byte the kernel takes,
+  so a service that reads slowly but reads is waited for,
+  and only the whole request has a ceiling.
+  A line is read in chunks under the bound the connection carries,
+  because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
+  so a service that dribbles bytes and never ends its line held a client inside one call for ever.
+- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+  A line that ends with the connection instead of its newline is not decoded,
+  not queued,
+  and refused in the service's log
+  (`service/service_server_connection_handling.rs`).
+  The two ends agree on one meaning of "taken",
+  and neither carries the proof alone:
+  the client's chunked write can leave every byte of the object and only the newline unsent,
+  and the service used to decode that at end of stream and land it
+  (the review of this change, finding 1).
+- The client says the service never took a request only when it never put one whole request line on the wire.
+  A give-up on the write ends with `ClientFailure::ServiceNotReading`,
+  which says the commit was not made and cannot land later
+  (`landing/service_messages_of_a_service_that_stopped.rs`),
+  only when no attempt of this command delivered a whole line;
+  after an attempt that did, a give-up ends with the "not known" failure,
+  whose commit's scratch tree stays with the service's claim on it.
+  The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
+  the landing's client-gone check races the connection writer's heartbeat,
+  so that message says the service may still land it and names `git log -1`.
 - The service sends a heartbeat every second (`HEARTBEAT_EVERY`) to a client whose request is queued or landing;
   a client that
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  The connection made again is what tells a service that stopped from one whose beats were late:
+  a service that still runs greets a new connection at once,
+  however busy its landing is,
+  and a service that stopped greets nothing,
+  which ends the command at that bound.
   The beat is written before the note it carries,
   and a note still unanswered one beat later is left for the next beat
   (`service_reply.rs`),
@@ -7728,6 +7795,24 @@ now inside these bounds:
   A commit the service builds itself from the request is the case the journal answers where the branch alone could not:
   the open batch names the commit it is making,
   and the finished one names the commit it made.
+  The three failures of a stopped service (`ServiceSilent`,
+  `ServiceSilentAfterPreparing`,
+  `NothingAnswered`) and the one of a service that stopped reading say the same four things:
+  what did not answer and for how long,
+  whether the commit was made,
+  that the staged changes and the working files are as they were,
+  and the three steps that end it.
+  The steps name the unit of this worktree's service and no other,
+  which is why the failure text names no `@*` pattern:
+  restarting every service of the account stops the commits of every other worktree.
+  The first step is `git monochromatic-git-policy-cli service status`,
+  which connects to the service of this worktree,
+  waits for its greeting for `HAND_OVER_GREETING_WAIT`,
+  and names its unit;
+  a service that takes the connection and greets nothing is running and stopped inside itself,
+  which the status says rather than reporting it as a service that answers.
+  Tests:
+  `binary_commit_when_the_service_stops_tests.rs`.
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -18757,15 +18842,33 @@ The scanner reads candidate content in process,
 and no scanner file is materialized.
 Wrapper-added latency for every forwarded real Git command must remain strictly less than `2,000 ms`.
 
-Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git;
-the bound holds for each commit,
+What a commit made through the wrapper adds over the same commit made with native Git is at most the larger of
+`5,000 ms` and twice native Git's own time for it,
+so a commit real Git takes 50 ms to make may gain five seconds,
+and one it takes 30 s to make under disk pressure may gain 60 s.
+The bound holds for each commit,
 not for a percentile of them.
-This is the only latency requirement on a commit;
-no wrapped command has to finish within a fixed time.
-The owner's words (2026-11-01):
+It is the owner's change of 2026-11-12,
+"The five-second rule is changed":
+"Change the 5s rule to max(5s, double what native git takes)",
+read as the extra over real Git.
+The requirements it replaces were the flat 5,000 ms,
+which is what the owner set on 2026-11-01:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
+
+A wrapper time alone says nothing under this rule:
+every wrapper commit is measured beside a native Git commit of the same change set,
+in the same repository,
+under the same conditions,
+alternating with it.
+The `native:perf` task still judges a commit by the flat `5,000 ms`,
+which is stricter than this requirement for every commit whose native Git time is over 2.5 s,
+and its judge is to be changed to this rule;
+until then a `native:perf` failure over 5,000 ms must be read with native Git's own time beside it.
+This is the only latency requirement on a commit;
+no wrapped command has to finish within a fixed time.
 
 The 5-second kill in the binary tests (`TIME_BOUND_SECONDS`) is a hang guard of the test harness,
 not this requirement.
