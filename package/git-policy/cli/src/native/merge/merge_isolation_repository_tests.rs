@@ -640,3 +640,443 @@ fn diverged_with_a_hidden_edit(name: &str, mark: &str) -> (PathBuf, PathBuf) {
     std::fs::write(repo.join("a.txt"), b"base\nthe person's own line\n").expect("file");
     return (parent, repo);
 }
+
+/// What:
+///  A named pipe or a socket at a path whose index entry carries `assume-unchanged` or `skip-worktree`,
+///  where the merge changes or deletes that path,
+///  stops the merge and stays in the checkout.
+/// Why:
+///  The marks hide the path from `git status`,
+/// so it reaches the merge through the read of the marks
+///  instead of the paths Git's status lists.
+///  Neither entry holds bytes,
+/// so no layer of the carry can hold it,
+/// and the gate
+///  that stops the merge for such an entry must run whatever mark the entry carries and whatever kind it is
+/// (owner's
+///  rules "never discard user data",
+/// "nothing should ever wait forever or indefinitely").
+///  Git's own aborted merge
+///  restores such a path to the branch's content,
+/// which replaced the pipe with a plain file and reported a clean
+///  status (a cross-vendor review of 0.6.1-alpha.11,
+/// its first finding).
+///  A device is the third such entry and
+///  needs a privileged call to stand at a path,
+/// so it is the one kind no control here plants.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const mark of ['--assume-unchanged', '--skip-worktree']) for (const shape of ['change', 'delete']) expect(finishedWithinAt(PATIENCE, () => attempted(repo, ['merge', ...]))?.code).toBe(1);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_special_file_at_a_marked_path_where_the_merge_changes_a_path_stops_the_merge_and_keeps_it() {
+    let mut entries: Vec<HoldsNoBytes> = vec![HoldsNoBytes::Pipe];
+    // A socket's own name is bounded by the address a program binds, and a fixture's path is longer than that, so no
+    //  socket can stand at a fixture path on the systems this runs on.
+    #[cfg(target_os = "linux")]
+    entries.push(HoldsNoBytes::Socket);
+    for entry in entries {
+        for mark in ["assume-unchanged", "skip-worktree"] {
+            for the_merge_deletes in [false, true] {
+                let (parent, repo): (PathBuf, PathBuf) = with_a_marked_special_file_the_merge_changes(entry, mark, the_merge_deletes);
+                let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+                let wanted: PathBuf = repo.clone();
+                let answered: Option<IsolatedMerge> = crate::parallel_test_support::finished_within_at(
+                    crate::parallel_test_support::PATIENCE,
+                    move || {
+                        return attempted(wanted.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+                    },
+                );
+                let label: String = format!("{:?}, {mark}, merge deletes: {the_merge_deletes}", entry);
+                let Some(outcome) = answered else {
+                    panic!("{label}: the merge waited on the entry at a.txt, which holds no bytes");
+                };
+                let (code, stderr): (i32, String) = match outcome {
+                    IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+                    other => panic!("{label}: the merge is the wrapper's to stop, and it was forwarded: {other:?}"),
+                };
+                assert_eq!(code, 1, "{label}: {stderr}");
+                assert!(stderr.contains("a.txt") && stderr.contains("a named pipe, a socket or a device"), "{label}: {stderr}");
+                assert!(entry.stands_at(repo.join("a.txt").as_path()), "{label}: the entry is untouched");
+                assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{label}: nothing was merged");
+                assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "{label}: no ref keeps anything");
+                remove(parent.as_path());
+            }
+        }
+    }
+}
+
+/// The entries a merge can meet that hold no bytes,
+/// neither of which a capture can carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HoldsNoBytes = 'pipe' | 'socket';
+/// ```
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug)]
+enum HoldsNoBytes {
+    /// A named pipe,
+    /// which a program streams bytes through rather than holding them in.
+    Pipe,
+    /// A socket,
+    /// which a running program answers on.
+    #[cfg(target_os = "linux")]
+    Socket,
+}
+
+#[cfg(unix)]
+impl HoldsNoBytes {
+    /// What:
+    ///  Put this entry at `path`,
+    ///  where a tracked file's worktree copy stood.
+    /// Why:
+    ///   The kind is what the person's program left there,
+    /// and the merge must meet the real one.
+    ///  A socket is bound through a handle of the directory it stands in:
+    /// the name a program binds is bounded
+    ///  by the address's own limit,
+    /// and a fixture's path is longer than that.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const standAt = (kind, path) => kind === 'pipe' ? execFileSync('mkfifo', [path]) : listen(`/proc/self/fd/${dirFd}/${name}`);
+    /// ```
+    fn stand_at(&self, path: &Path) {
+        match self {
+            HoldsNoBytes::Pipe => a_named_pipe(path),
+            #[cfg(target_os = "linux")]
+            // The listener makes the socket's node and goes; the node stays a socket, which is all the merge reads.
+            HoldsNoBytes::Socket => {
+                use std::os::unix::io::AsRawFd;
+                let directory: std::fs::File = std::fs::File::open(path.parent().expect("a socket stands inside a directory"))
+                    .expect("the directory the socket stands in");
+                let name: &std::ffi::OsStr = path.file_name().expect("the socket's own name");
+                let mut through: std::path::PathBuf = std::path::PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
+                through.push(name);
+                std::os::unix::net::UnixListener::bind(through.as_path()).expect("a socket at the path");
+            }
+        }
+    }
+
+    /// What:
+    ///  Whether this entry is still what stands at `path`.
+    /// Why:
+    ///   A merge that wrote the path would leave a file there instead.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const standsAt = (kind, path) => symlinkMetadataSync(path)[kind === 'pipe' ? 'isFIFO' : 'isSocket']();
+    /// ```
+    fn stands_at(&self, path: &Path) -> bool {
+        /// `is_fifo` and `is_socket` read the two entry types.
+        use std::os::unix::fs::FileTypeExt;
+        let Ok(found) = std::fs::symlink_metadata(path) else {
+            return false;
+        };
+        let kind: std::fs::FileType = found.file_type();
+        return match self {
+            HoldsNoBytes::Pipe => kind.is_fifo(),
+            #[cfg(target_os = "linux")]
+            HoldsNoBytes::Socket => kind.is_socket(),
+        };
+    }
+}
+
+/// A repository whose `a.txt` holds `entry` at a path carrying `mark`,
+/// and whose `feature` changes or deletes that path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = base('a.txt'); onBranch('feature', () => writeOrDelete('a.txt')); onMain(() => { mark; standAt(entry, 'a.txt'); });
+/// ```
+#[cfg(unix)]
+fn with_a_marked_special_file_the_merge_changes(entry: HoldsNoBytes, mark: &str, the_merge_deletes: bool) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-marked-{entry:?}-{mark}-{the_merge_deletes}").as_str());
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    if the_merge_deletes {
+        git(repo.as_path(), &["rm", "--quiet", "--", "a.txt"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message=feature-deletes"]);
+    } else {
+        std::fs::write(repo.join("a.txt"), b"base\nthe other branch's line\n").expect("file");
+        git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    }
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    git(repo.as_path(), &["update-index", format!("--{mark}").as_str(), "--", "a.txt"]);
+    std::fs::remove_file(repo.join("a.txt")).expect("the tracked copy makes way for the entry");
+    entry.stand_at(repo.join("a.txt").as_path());
+    let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
+    assert_eq!(status, "", "the mark hides the entry from Git's own status, which is the premise of this control: {status}");
+    return (parent, repo);
+}
+
+/// What:
+///  A named pipe at a marked path the merge writes nothing to,
+///  beside an ordinary edit at a path it does write,
+///  stops nothing:
+///  the merge lands and the person's edit is carried.
+/// Why:
+///  The marks are read over every path the two branches differ in,
+/// which is a wider set than the paths the
+///  merge writes,
+/// so a marked entry the merge never meets must not decide anything about the merge.
+///  A forward
+///  here ran native Git,
+/// which refused the merge for the ordinary edit and restored the marked path to the
+///  branch's content,
+/// replacing the pipe and reporting a clean status (a cross-vendor review of 0.6.1-alpha.11,
+///  its first finding,
+/// measured).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-ff', '--no-edit', 'feature'])).toHaveCode(0); expect(isFifo('a.txt')).toBe(true);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_named_pipe_at_a_marked_path_the_merge_does_not_write_stops_nothing() {
+    /// `is_fifo` reads the type of the entry a named pipe is.
+    use std::os::unix::fs::FileTypeExt;
+    let parent: PathBuf = fixture("merge-marked-pipe-beside-an-edit");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("file");
+    std::fs::write(repo.join("other.txt"), b"base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt", "other.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("other.txt"), b"base\nthe other branch's line\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    // The merge keeps `a.txt` as this branch has it, so it writes nothing there.
+    std::fs::write(repo.join("a.txt"), b"base\nmain's own line\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    std::fs::remove_file(repo.join("a.txt")).expect("the tracked copy makes way for the pipe");
+    a_named_pipe(repo.join("a.txt").as_path());
+    std::fs::write(repo.join("other.txt"), b"base\nthe person's own line\n").expect("the person's edit where the merge writes");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    assert!(is_completed(&outcome), "the merge is completed: {outcome:?}");
+    let kind: std::fs::FileType = std::fs::symlink_metadata(repo.join("a.txt")).expect("the pipe is still in the checkout").file_type();
+    assert!(kind.is_fifo(), "the pipe is untouched");
+    let content: String = std::fs::read_to_string(repo.join("other.txt")).expect("other.txt");
+    assert!(content.contains("the person's own line"), "the person's edit is carried: {content}");
+    assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "the capture's ref went with the merge");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A file the person deleted at an `assume-unchanged` path,
+///  where the merge changes that path,
+///  stays deleted,
+///  as it does at a path no mark hides.
+/// Why:
+///  Git's status hides the deletion,
+/// so the read of the marks is the only place it is seen,
+/// and Git's own
+///  update of the checkout writes the branch's file back,
+/// which undoes the deletion with no word and a clean
+///  status (a cross-vendor review of 0.6.1-alpha.11,
+/// its first finding).
+///  An `assume-unchanged` entry has
+///  no sparse-checkout reading of a missing file,
+/// so the absence is the person's own work to carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-ff', '--no-edit', 'feature'])).toHaveCode(0); expect(existsSync('a.txt')).toBe(false); expect(status()).toBe(' D a.txt');
+/// ```
+#[test]
+fn a_deletion_an_assume_unchanged_mark_hides_stays_a_deletion() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_a_deleted_marked_path("assume-unchanged");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is completed: {other:?}"),
+    };
+    assert_eq!(code, 0, "{stderr}");
+    assert!(!repo.join("a.txt").exists(), "the person's deletion stands: {stderr}");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), " D a.txt", "the deletion is named again");
+    assert!(stderr.contains("a deletion of yours stands"), "the line says the deletion stayed: {stderr}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A file missing at a `skip-worktree` path is a sparse checkout's own state,
+///  so the merge writes the branch's file there and nothing is carried.
+/// Why:
+///  `skip-worktree` is the bit a sparse checkout sets for a path it leaves out of the worktree,
+/// so a missing
+///  file there is not a deletion of the person's,
+/// and Git's own update of the checkout writes the file back
+///  (`SPEC.md`,
+/// "A merge whose paths hold the person's own work carries it forward").
+///  This is the control for
+///  [`a_deletion_an_assume_unchanged_mark_hides_stays_a_deletion`]:
+/// both marks hide the path from status and only one of them is a deletion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', ...])).toHaveCode(0); expect(readFileSync('a.txt', 'utf8')).toContain("the other branch's line"); expect(status()).toBe('');
+/// ```
+#[test]
+fn a_deletion_a_skip_worktree_mark_hides_is_the_sparse_checkouts_own_state() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_a_deleted_marked_path("skip-worktree");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is completed: {other:?}"),
+    };
+    assert_eq!(code, 0, "{stderr}");
+    let content: String = std::fs::read_to_string(repo.join("a.txt")).expect("the merge writes the file a sparse checkout left out");
+    assert!(content.contains("the other branch's line"), "{content}");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "", "the write is the branch's own");
+    remove(parent.as_path());
+}
+
+/// A repository where `feature` changes `a.txt`
+/// and `main` deleted it,
+/// with the given mark hiding the deletion from status.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = base('a.txt'); onBranch('feature', () => write('a.txt')); onMain(() => { mark; rm('a.txt'); });
+/// ```
+fn diverged_with_a_deleted_marked_path(mark: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-deleted-{mark}").as_str());
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("a.txt"), b"base\nthe other branch's line\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    git(repo.as_path(), &["update-index", format!("--{mark}").as_str(), "--", "a.txt"]);
+    std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion");
+    let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
+    assert_eq!(status, "", "the mark hides the deletion from Git's own status, which is the premise of this control: {status}");
+    return (parent, repo);
+}
+
+/// A stand-in for real Git that refuses the first deletion of a capture ref,
+/// as another command's lock on that ref makes Git refuse it,
+/// and answers everything else itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shim = (parent) => executable('locked-capture-deletion-git', `#!/bin/sh ... : > .git/$4.lock; realGit "$@"; rm -f .git/$4.lock ...`);
+/// ```
+fn git_that_locks_the_first_capture_deletion(parent: &Path) -> PathBuf {
+    let shim: PathBuf = parent.join("locked-capture-deletion-git");
+    let marker: PathBuf = parent.join("the-deletion-was-locked");
+    let log: PathBuf = parent.join("shim-invocations.txt");
+    let script: String = format!(
+        "#!/bin/sh\necho \"$*\" >> '{log}'\ndeletes=no\nref=\nlast=\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then deletes=yes; fi\n  if [ \"$last\" = -d ]; then ref=\"$argument\"; fi\n  last=\"$argument\"\ndone\nif [ \"$deletes\" = yes ] && [ -n \"$ref\" ]; then\n  case \"$ref\" in\n    refs/cli-git/carried/*)\n      if [ ! -e '{marker}' ]; then\n        : > '{marker}'\n        lock=\"$({real} rev-parse --absolute-git-dir)/$ref.lock\"\n        : > \"$lock\"\n        {real} \"$@\"\n        status=$?\n        rm -f \"$lock\"\n        exit $status\n      fi\n      ;;\n  esac\nfi\nexec {real} \"$@\"\n",
+        marker = marker.display(),
+        log = log.display(),
+        real = REAL_GIT
+    );
+    crate::test_support::executable(shim.as_path(), script.as_bytes());
+    return shim;
+}
+
+/// What:
+///  A merge that finished keeps the record that names its capture when the ref's deletion met another command's lock,
+///  and says that the next command finishes the cleanup.
+/// Why:
+///  Removing the record first left a capture ref nothing ever retried,
+/// and a person had to clean it up by hand
+///  (a cross-vendor audit of alpha.12,
+/// "Capture-ref cleanup is never retried after a transient failure").
+///  The record
+///  is what the next command's recovery reads,
+/// so the name is removed once the lock is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attemptedWith(shim, repo, ['merge', ...])).toHaveCode(0); expect(listMergeIntents(gitDir)).toHaveLength(1); expect(refs()).not.toBe('');
+/// ```
+#[test]
+fn a_capture_ref_a_lock_blocked_leaves_the_record_that_retries_it() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_a_hidden_edit("blocked-cleanup", "--assume-unchanged");
+    let shim: PathBuf = git_that_locks_the_first_capture_deletion(parent.as_path());
+    let outcome: IsolatedMerge = attempted_with(shim.as_path(), repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is completed beside the blocked cleanup: {other:?}"),
+    };
+    assert_eq!(code, 0, "{stderr}");
+    assert!(parent.join("the-deletion-was-locked").exists(), "the lock was met");
+    let git_dir: PathBuf = repo.join(".git");
+    let records: Vec<PathBuf> = crate::merge_isolation_journal::list_merge_intents(git_dir.as_path()).expect("the records are listed");
+    assert_eq!(records.len(), 1, "the record is kept, and it is what names the ref: {records:?}");
+    let reference: String = git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]);
+    assert!(!reference.trim().is_empty(), "the ref the lock blocked is still there, and the record names it");
+    assert!(stderr.contains("was kept and the next git command in this worktree tries again"), "the line says what happens next: {stderr}");
+    assert!(stderr.contains("a ref its record keeps could not be removed yet"), "{stderr}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A merge that meets another program's live hold on the index saves itself at once,
+///  names the holder and the ref that keeps it,
+///  and leaves the checkout to the next command.
+/// Why:
+///  The owner's rule is that no command waits on another agent's command,
+/// and a merge has an answer that needs no wait:
+///  its commit is made before the lock is needed,
+/// so it is saved on a side ref and exits 0
+/// (owner's
+///  answer for a live foreign `index.lock`,
+/// `SPEC.md`,
+/// "Merges and commits never fail";
+/// a cross-vendor audit of
+///  alpha.12,
+/// "A merge waits for another agent's live index holder").
+///  The bound is read around the merge,
+/// so a merge
+///  that waited the old ceiling is the control's failure rather than a slow host's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdIndex(); const began = performance.now(); expect(attempted(repo, ['merge', ...])).toHaveCode(0); expect(performance.now() - began).toBeLessThan(30000); expect(stderr).toContain('does not wait for it');
+/// ```
+#[test]
+fn a_merge_that_meets_a_live_index_holder_saves_itself_without_waiting() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-held-index-live");
+    let index: PathBuf = repo.join(".git/index");
+    std::fs::write(repo.join(".git/index.lock"), b"").expect("the other program's lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is saved, not forwarded: {other:?}"),
+    };
+    assert_eq!(code, 0, "{stderr}");
+    // The wait's own notices are what a merge that waited writes, and no clock read decides this: a loaded host makes every step
+    //  slow, while the notices appear only when the command waits on the holder.
+    assert!(!stderr.contains("waits for the index lock"), "the merge does not wait for another program's command: {stderr}");
+    assert!(stderr.contains("does not wait for it"), "the line says the merge did not wait: {stderr}");
+    assert!(stderr.contains(format!("PID {}", std::process::id()).as_str()), "the holder is named: {stderr}");
+    assert!(stderr.contains("saved on refs/cli-git/kept/"), "the ref that keeps the merge is named: {stderr}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing of the merge is in the branch yet");
+    let records: Vec<PathBuf> = crate::merge_isolation_journal::list_merge_intents(repo.join(".git").as_path()).expect("the records are listed");
+    // The saved merge writes its own record beside the first, and that one names the side ref and the merge the next command
+    //  finishes.
+    let saved: usize = records
+        .iter()
+        .filter(|record| {
+            let bytes: Vec<u8> = std::fs::read(record.as_path()).expect("a record");
+            return crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice()).is_some_and(|saved| { return saved.side_ref.is_some(); });
+        })
+        .count();
+    assert_eq!(saved, 1, "one record names the side ref the next command finishes: {records:?}");
+    remove(parent.as_path());
+}

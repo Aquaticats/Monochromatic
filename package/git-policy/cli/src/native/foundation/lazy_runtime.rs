@@ -187,6 +187,44 @@ fn error_text(error: std::io::Error) -> String {
 }
 
 /// What:
+///  The one moment in which the build of a runtime hands it over and the caller of that build stops waiting for it.
+/// Why:
+///   `std::sync::mpsc` cannot say whether a value sent a moment before the caller gives up has been read:
+/// a send that lands between the caller's last read and its closing of the channel succeeds into a channel that is then dropped,
+///  and the runtime goes with it.
+/// A runtime lost that way left the process for ever believing a build was still coming,
+///  so every later task spent the whole patience on it,
+///  and the service ended with status 4 (the review of 2026-11-12T09:34-05:00 found this one too).
+/// Held by both,
+/// the send happens either before the caller's read,
+/// which then takes the runtime,
+/// or after the channel is closed,
+/// which makes the build keep it;
+/// the lock covers that pair of statements and nothing else,
+/// and one runtime is built in a process's life,
+/// so nothing else waits on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handOff = new Mutex(); // held around the build's send, and around the caller's last read and close
+/// ```
+static THE_HANDOFF_OF_A_LATE_RUNTIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// What:
+///  A control's own code at the moment between the caller's last read of the channel and its closing of it,
+///  which is the moment the hand-over above closes.
+/// Why:
+///   The two statements cannot be ordered from outside,
+/// so the control that shows a runtime sent into them is kept releases the build from here;
+///  the slot is empty in every process that sets no control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let theCallersMoment: (() => void) | undefined; // run once between the caller's last read and its close
+/// ```
+#[cfg(test)] static THE_CALLER_STOPS_WAITING: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> = std::sync::Mutex::new(None);
+
+/// What:
 ///  Builds the runtime `plan` names.
 /// The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
 ///  for until `deadline`;
@@ -216,12 +254,8 @@ where
 /// What:
 ///  `build_with_deadline` with the stand-in given as `fallback`.
 /// Why:
-///   The window in which a late build can be lost is the caller's own stand-in:
-/// a runtime sent after the deadline but before
-///  the channel is closed is neither received nor kept.
-/// A control can only order a build into that window if the caller can be held inside
-///  the stand-in,
-/// which is what this parameter is for;
+///   A control orders a build that finishes after the deadline by holding the caller in the caller's own stand-in,
+/// and only this parameter lets it hold the caller there;
 /// the process builds its own runtime through `build_with_deadline`,
 ///  whose stand-in is the current-thread runtime.
 ///
@@ -246,6 +280,9 @@ where
             Ok(built) => built,
             Err(_payload) => Err(std::io::Error::other("the build of the multi-thread runtime panicked")),
         };
+        // The caller reads the channel once more and closes it under this same moment, so a runtime sent just before it gives up is
+        //  taken there rather than dropped with the channel.
+        let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Err(unsent) = sender.send(result)
             && let Ok(late) = unsent.0
         {
@@ -265,7 +302,11 @@ where
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // A build that finished between the deadline and here is already in the channel, and one that finishes
                 //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
+                // The read and the close are one moment with the build's send, so a runtime sent as the caller gives up is
+                //  taken here rather than dropped with the channel.
+                let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 let _kept: bool = keep_a_late_build(receiver.try_recv());
+                #[cfg(test)] if let Some(moment) = THE_CALLER_STOPS_WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() { moment(); }
                 drop(receiver);
                 BuiltFlavor::CurrentThreadAfterDeadline
             }
@@ -319,6 +360,28 @@ fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::
 /// const lateRuntime: Runtime | undefined = undefined; // set by the build that missed its deadline
 /// ```
 static LATE_RUNTIME: std::sync::OnceLock<Runtime> = std::sync::OnceLock::new();
+
+/// What:
+///  The runtime a build that outlasted `BUILD_DEADLINE` left for the work it was built for,
+///  once it arrived,
+///  which is how every question about a worker reads it.
+/// Why:
+///   This cell is the only state here that changes under a running process,
+/// and a caller that reads it twice can describe two different moments:
+/// "no worker yet" and then "no build coming" is a build that arrived between the two reads,
+///  and a caller that cannot do its work without a worker then gives up while one is there
+/// (the review of 2026-11-12T09:34-05:00 found that pair ending a commit service with status 4).
+/// A control reads through this function too,
+///  so it can answer as the moment before the arrival.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const late = lateRuntime(); // undefined until the build that missed its deadline arrives
+/// ```
+fn the_late_runtime() -> Option<&'static Runtime> {
+    #[cfg(test)] if tests::this_read_of_the_late_runtime_is_held_back() { return None; }
+    return LATE_RUNTIME.get();
+}
 
 /// The process's runtime,
 /// built by the first call that needs it;
@@ -418,6 +481,54 @@ pub fn flavor_words(flavor: BuiltFlavor) -> String {
 }
 
 /// What:
+///  What a caller can do about a worker here and now:
+///  whether one can run a task,
+///  and whether a build that outlasted its deadline is still on its way.
+/// Why:
+///   One cell in this module changes under a running process,
+/// the build that missed its deadline and arrived late,
+/// and a caller that reads it once per question can describe an arrival it has passed:
+/// "no worker yet" and then "no build coming" is a build that arrived between the two reads,
+///  so a caller that cannot do its work without a worker gives up while one is there
+/// (the review of 2026-11-12T09:34-05:00 found that pair ending a commit service with status 4).
+/// Both answers read at one moment always agree about the arrival.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = workerAnswers(); // { canRun, aBuildIsComing }, read at one moment
+/// ```
+pub(crate) struct WorkerAnswers {
+    /// Whether a task of this process's runtime runs on a worker thread of its own.
+    can_run: bool,
+    /// Whether a build that outlasted its deadline is still on its way,
+    /// which is the one state a caller can usefully wait in.
+    pub(crate) a_build_is_coming: bool,
+}
+
+/// What:
+///  Reads both questions about a worker,
+///  building the process's runtime at the first need as the first caller always did.
+/// Why:
+///   The two answers belong to one reading,
+/// and `spawn_on_runtime_within` decides with both of them,
+/// so the reading lives here and no caller asks the two questions one after the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = workerAnswers();
+/// ```
+pub(crate) fn the_worker_answers() -> WorkerAnswers {
+    // The build is the first need of a runtime, as it always was for `tasks_can_run`.
+    let _built: &Result<BuiltRuntime, String> = RUNTIME.get_or_init(build_for_this_process);
+    // The one cell that can change under this call, read once: an arrival is seen by both answers or by neither.
+    let arrived_late: bool = the_late_runtime().is_some();
+    let flavor: Option<BuiltFlavor> = built_flavor();
+    let a_build_is_coming: bool = !arrived_late && flavor == Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    #[cfg(test)] if REFUSED.load(std::sync::atomic::Ordering::SeqCst) { return WorkerAnswers { can_run: false, a_build_is_coming }; }
+    return WorkerAnswers { can_run: arrived_late || matches!(flavor, Some(BuiltFlavor::MultiThread { .. })), a_build_is_coming };
+}
+
+/// What:
 ///  Whether a task of this process's runtime runs on a worker thread of its own.
 /// Why:
 ///  A watcher runs beside a thread that is blocked in a read or a wait,
@@ -434,14 +545,7 @@ pub fn flavor_words(flavor: BuiltFlavor) -> String {
 /// const tasksRun = runtime.workerCount > 0;
 /// ```
 pub fn tasks_can_run() -> bool {
-    #[cfg(test)]
-    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
-        return false;
-    }
-    return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
-        Err(_no_runtime) => LATE_RUNTIME.get().is_some(),
-    };
+    return the_worker_answers().can_run;
 }
 
 /// What:
@@ -505,7 +609,7 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    let late: &Runtime = LATE_RUNTIME.get()?;
+    let late: &Runtime = the_late_runtime()?;
     return Some(late.spawn(future));
 }
 
@@ -545,27 +649,6 @@ where
     };
 }
 
-/// How long a caller that cannot do its work without a worker waits for a build that outlasted `BUILD_DEADLINE`:
-/// five times that deadline,
-/// the margin every ceiling of `wait_ceilings.rs` uses.
-/// Why:
-///   The commit service's acceptor is such a caller:
-/// its build is held to one second,
-///  a build that misses that deadline is kept for the work it was built for (`LATE_RUNTIME`),
-/// and the service used to end
-///  at the deadline itself,
-/// which failed a commit for a build that arrived a moment later
-/// (the gate of 2026-11-11T10:29-05:00,
-/// `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository`:
-///  the service logged `ready` and then `cannot start the acceptor of connections`
-///  1.76 s later,
-/// so its one-second deadline had passed and the build had not arrived in the 0.7 s the rest of the start took).
-/// A service may wait this long and no longer:
-/// a build the system refused or that hung inside its own unwind never arrives,
-///  and the client's own start wait is `START_CEILING` (60 s),
-/// ten times this patience.
-pub const LATE_BUILD_PATIENCE: Duration = Duration::from_millis(BUILD_DEADLINE.as_millis() as u64 * 5);
-
 /// How often `await_a_worker_within` asks whether the late build arrived:
 /// short enough that a worker that arrives is used at once,
 /// long enough that the wait costs the scheduler nothing.
@@ -600,55 +683,38 @@ pub fn await_a_worker_within(within: Duration) -> bool {
 
 /// What:
 ///  `spawn_on_runtime`,
-/// after waiting up to `within` for a late build,
+/// after waiting up to `within` for a build that outlasted its deadline and is still coming,
 /// so a caller that cannot do its work without a worker does not give up at `BUILD_DEADLINE` itself.
 /// Why:
 ///   A build that outlasted its deadline is kept for the work it was built for,
 /// and that work includes the tasks a service cannot serve without;
 /// ending the service at the deadline
 ///  failed the commits of a person whose machine was slow to give the process its threads.
+/// A runtime nothing will bring is never waited for:
+/// whether a worker runs now and whether a build is still on its way are one reading of the state,
+/// so a build that arrives as the caller asks cannot make the first answer say no worker yet and the second say no build coming.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const task = spawnOnRuntimeWithin(5_000, work); // undefined when no worker arrived in time
+/// const task = spawnOnRuntimeWithin(60_000, work); // undefined when no worker arrived in time
 /// ```
 pub fn spawn_on_runtime_within<F>(within: Duration, future: F) -> Option<tokio::task::JoinHandle<F::Output>>
 where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    if !tasks_can_run() && !await_a_worker_within(within) {
+    let answers: WorkerAnswers = the_worker_answers();
+    if !answers.can_run && !(answers.a_build_is_coming && await_a_worker_within(within)) {
         return None;
     }
     return spawn_on_runtime(future);
-}
-
-/// What:
-///  Whether this process can run a task beside a blocked thread now:
-/// its own runtime came up multi-threaded,
-/// or the build that missed
-///  its deadline has arrived since.
-/// Why:
-///   A caller that needs a worker asks once and gets one,
-/// and a control of what needs a worker can tell a runtime the system refused
-///  from one that was merely late.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ready = builtFlavor()?.kind === 'multi' || lateRuntime !== undefined;
-/// ```
-pub fn has_workers() -> bool {
-    return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
-        Err(_) => LATE_RUNTIME.get().is_some(),
-    };
 }
 
 /// Whether the build that missed its deadline has arrived;
 /// a control of the late build reads it.
 #[cfg(test)]
 pub(crate) fn late_build_arrived() -> bool {
-    return LATE_RUNTIME.get().is_some();
+    return the_late_runtime().is_some();
 }
 
 /// What:

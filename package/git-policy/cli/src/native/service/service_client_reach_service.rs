@@ -16,7 +16,7 @@
 
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
 use crate::commit_timing::ReachTrace;
-use crate::service_messages::{ClientFailure, UPDATING_NOTICE, restarting_notice, starting_notice};
+use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
 use crate::wait_ceilings::SERVICE_GREETING_SILENCE;
 use crate::service_protocol::{
     PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire,
@@ -332,6 +332,8 @@ pub(crate) fn reach_current(config: &ClientConfig, notices: &mut dyn Write, anno
 /// `reach_current` without the clock around it.
 pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
+    // Whether the service of another release that outlasted the bound was already ended, which happens once.
+    let mut restarted: bool = false;
     loop {
         let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
@@ -346,24 +348,40 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             Some(fixed) => fixed,
             None => {
                 let _written = writeln!(notices, "{UPDATING_NOTICE}");
-                // What: The record of the unit texts the manager was told about is dropped the moment another release
-                //       answers.
-                // Why:  That answer alone proves the unit the manager loaded and the files describe are not the same
-                //       (an interrupted downgrade, then an interrupted upgrade), whatever happens next: the service may
-                //       take the retire and leave, and the manager may then try a cached executable an upgrade removed,
-                //       which ends the wait with `DidNotStart` instead of the retirement deadline. Dropping the record
-                //       here makes the next commit write the units and reload instead of taking the fast path into that
-                //       same answer (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-                //       findings 2 of the round-2 review and 3 of the round-3 review).
-                if let Some(directory) = config.units_record_dir.as_ref() {
-                    crate::service_provision_loaded_unit_texts::forget(directory.as_path());
-                }
+                // What: The record of the unit texts the manager was told about is left as it is.
+                // Why:  Another release answering used to be proof that the unit the manager loaded and the files describe
+                //       were not the same, and the record was dropped so the next commit wrote the units and reloaded. A unit
+                //       text no longer names a release: it names a link the wrapper points at its own executable
+                //       (`service_provision_program_pointer.rs`), so the manager's text is the one on disk until a template
+                //       itself changes, and a template that changed is repaired by the missing record alone
+                //       (`service_provision_loaded_unit_texts.rs`). Dropping the record here made every commit after a
+                //       release change, in every worktree, read every unit again: 3,521 to 20,002 ms of provisioning each on
+                //       2026-11-11T20:01-20:12-05:00, and two commits that ended without a commit.
                 let fresh: Instant = Instant::now() + config.start_wait;
                 give_up_at = Some(fresh);
                 fresh
             }
         };
         if Instant::now() >= deadline {
+            // What: A service of another release that is still there at the bound is ended once,
+            //       said once,
+            //       and waited for again.
+            // Why:  The bound is the commit's, and a service that finishes a batch or a push it planned to try again outlasts
+            //       it; the commit that ended here left the person's change uncommitted (five of six changes of release in the
+            //       two-build reproduction of 2026-11-12, 10,032 to 10,052 ms of a wait that then failed, and 1 of 16 on
+            //       another agent's fixture). Ending it lets the manager start the program this release installs, because the
+            //       unit names the program link rather than an executable (`service_provision_program_pointer.rs`). One ending
+            //       only: a unit the manager starts from a text an upgrade left behind comes back as the other release again,
+            //       and the next commit's provisioning is what repairs that.
+            if !restarted
+                && let Some(watch) = config.start_watch.as_ref()
+            {
+                restarted = true;
+                let _written = writeln!(notices, "{}", replacing_notice(watch.unit.as_str(), config.start_wait));
+                let _ended = (watch.restart)(watch.bus.as_path(), watch.unit.as_str());
+                give_up_at = Some(Instant::now() + config.start_ceiling);
+                continue;
+            }
             return Err(ClientFailure::OtherRelease);
         }
         // Written in the version the service announced: a service of an earlier release reads a retire in no other.

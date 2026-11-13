@@ -341,7 +341,9 @@ pub fn read_mount_facts(path: &Path) -> Result<Option<MountFacts>, String> {
         Ok(resolved) => resolved,
         Err(error) => return Err(format!("cannot resolve {}: {error}", path.display())),
     };
-    let text: Vec<u8> = match std::fs::read(MOUNTINFO_PATH) {
+    // The table's length is the system's state: another process's namespace can hold tens of thousands of mounts, and a
+    //  table past the bound is refused rather than read whole (`crate::plain_file::MOUNT_TABLE_LIMIT`).
+    let text: Vec<u8> = match crate::plain_file::read_plain_file(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT) {
         Ok(bytes) => bytes,
         Err(error) => return Err(format!("cannot read {MOUNTINFO_PATH}: {error}")),
     };

@@ -30,6 +30,12 @@ pub mod service_scratch_trees_of_queued_requests;
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
 
+/// The service's stock of finished shadows drawn ahead of the commits that ask for one.
+pub mod service_shadow_draw;
+
+/// The question a commit asks its service for the finished shadow drawn ahead of it.
+pub mod service_client_shadow_hand_out;
+
 /// Whether a socket of an earlier release's unit listens,
 /// read from the table of unix sockets.
 pub mod earlier_unix_sockets_that_listen;
@@ -198,6 +204,13 @@ pub mod service_provision_refusals_before_the_wait;
 /// The record of the unit texts the service manager was last told about,
 /// which tells an installation it runs from files a kill left behind.
 pub mod service_provision_loaded_unit_texts;
+
+/// The link the units start the commit service's program through,
+/// which is the same in every release and every build of one.
+pub mod service_provision_program_pointer;
+
+/// The line a commit prints when the service manager has not answered its provisioning within a moment.
+pub mod service_provision_slow_manager_notice;
 
 /// Checks and writes on the unit files of the commit service.
 pub mod service_provision_unit_file_ownership_and_writes;

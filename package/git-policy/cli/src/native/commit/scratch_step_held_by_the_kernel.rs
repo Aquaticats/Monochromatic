@@ -34,6 +34,9 @@
 /// Time spans,
 /// for the figures each line names.
 use std::time::Duration;
+/// Why a ceiling stood aside for a step,
+/// which the line about a waiting stall says.
+use crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor;
 
 /// What:
 ///  What the line is built from,
@@ -134,20 +137,22 @@ pub fn held_by_the_kernel_line(held: HeldByTheKernel) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AStall = { step: number; waited: number; until: number; held: HeldProgram };
+/// type AStall = { step: number; waited: number; until: number; why: WhyTheStepWasWaitedFor };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AStall {
     /// The process number of the `git commit` the commit runs in its scratch repository.
     pub step: i32,
-    /// How long that step had lasted when its ceiling came and found the kernel holding it.
+    /// How long that step had lasted when its ceiling came and stopped ending it.
     pub waited: Duration,
-    /// The longest that step may last while the kernel holds it,
+    /// The longest that step may last while the ceiling stands aside,
     /// counted from its start.
     pub until: Duration,
-    /// The process the kernel is holding,
-    /// which is the step itself or a program it started.
-    pub held: HeldProgram,
+    /// Why the ceiling stood aside:
+    /// the process the kernel is holding,
+    /// which is the step itself or a program it started,
+    /// or nothing, when nothing could be learned about the step.
+    pub why: WhyTheStepWasWaitedFor,
 }
 
 /// What:
@@ -169,19 +174,29 @@ pub struct AStall {
 /// `monochromatic-git-policy-cli: ... reached its ceiling ... waiting for the disk ... waits ...`
 /// ```
 pub fn a_stall_is_waited_for(stall: AStall) -> String {
-    let AStall { step, waited, until, held: the_held } = stall;
+    let AStall { step, waited, until, why } = stall;
     let seconds: u64 = waited.as_secs();
     let bound: u64 = until.as_secs();
-    let what_the_kernel_holds: String = if the_held.number == step {
-        String::from("it is in uninterruptible sleep (state `D`), which a signal cannot end")
-    } else {
-        format!("the program it started, `{}` (process {}), is in uninterruptible sleep (state `D`), which a signal cannot end", the_held.name, the_held.number)
+    // What the ceiling could not do, said as the fact the look gave:
+    // a process the kernel is holding cannot act on a signal,
+    // and a step whose state could not be read is one no signal can be aimed at either.
+    let what_the_ceiling_could_not_do: String = match why {
+        WhyTheStepWasWaitedFor::TheKernelHeldIt(the_held) if the_held.number == step => {
+            String::from("it is in uninterruptible sleep (state `D`), which a signal cannot end, so the step is waiting for the disk rather than stuck in its own work")
+        }
+        WhyTheStepWasWaitedFor::TheKernelHeldIt(the_held) => format!(
+            "the program it started, `{}` (process {}), is in uninterruptible sleep (state `D`), which a signal cannot end, so the step is waiting for the disk rather than stuck in its own work",
+            the_held.name, the_held.number
+        ),
+        WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead => {
+            String::from("its state could not be read (a look at `/proc` failed), so this commit cannot tell whether the disk is holding it")
+        }
     };
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository (process {step}) reached its ceiling after {seconds} seconds and was not stopped: \
-         {what_the_kernel_holds}, so the step is waiting for the disk rather than stuck in its own work. A step in that wait is slow, not stuck, so this commit \
-         waits for it instead of failing the commit: it is stopped only after {bound} seconds in all, and it lands if it ends before that. Nothing of yours is at risk \
-         while it waits: it runs in a scratch repository on a copy of your index.\n"
+         {what_the_ceiling_could_not_do}. A step in that state is slow, not stuck, so this commit waits for it instead of failing the commit: \
+         it is stopped only after {bound} seconds in all, and it lands if it ends before that. Nothing of yours is at risk while it waits: \
+         it runs in a scratch repository on a copy of your index.\n"
     );
 }
 
