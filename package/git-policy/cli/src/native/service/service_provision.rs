@@ -160,28 +160,30 @@ pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
 /// A link that cannot
 ///  be written never fails the commit:
 /// the unit files are still written,
-/// and a start then runs the release the link named
+/// and a start then runs whatever the link named
 ///  before,
-/// which the client asks to retire in the ordinary way.
+/// which the client asks to retire in the ordinary way;
+/// one line names the link and what a start will run
+///  instead,
+/// and the next commit points it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await pointProgramLink(host) // the link names host.serviceBinary
+/// pointProgramLink(host) // the link names host.serviceBinary, or a line says it does not
 /// ```
-fn point_program_link(host: &ProvisionHost) -> Result<(), ClientFailure> {
+fn point_program_link(host: &ProvisionHost) {
     let link: PathBuf = program_link(host.runtime_dir.as_path());
     if matches!(std::fs::read_link(&link), Ok(current) if current == host.service_binary) {
-        return Ok(());
+        return;
     }
-    return match link_atomically(link.as_path(), host.service_binary.as_path()) {
-        Ok(()) => Ok(()),
-        Err(error) => Err(ClientFailure::CouldNotStart(format!(
-            "{} cannot be pointed at {} ({}), and the commit service is started through it, so set XDG_RUNTIME_DIR to a runtime directory this account can write or make that one writable",
+    if let Err(error) = link_atomically(link.as_path(), host.service_binary.as_path()) {
+        crate::service_warn!(
+            "{} cannot be pointed at {} ({}), so the commit service starts whatever the link names, which is not the release of this commit; the units are still written and this commit goes on, and the next commit points the link again",
             link.display(),
             host.service_binary.display(),
             in_plain_words(&error)
-        ))),
-    };
+        );
+    }
 }
 
 /// What:
@@ -270,7 +272,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       service that can never answer (`service_provision_refusals_before_the_wait.rs`).
     refuse_a_path_no_socket_address_can_carry(host)?;
     // The manager starts whatever the link names, so it names this release before any unit can be started.
-    point_program_link(host)?;
+    point_program_link(host);
     // The earlier single service and the units of the earliest releases are stopped and removed here; neither needs the
     //  manager to re-read anything, because a unit that is gone from memory is read from its file the next time it is
     //  started.
@@ -520,7 +522,7 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     // Why:  The manager starts whatever the link names at the moment a start is needed, which after this commit may be hours
     //       away (the service exits after three idle hours). A commit whose fast path skipped this would let the next start
     //       run another release, and the whole reason the unit text no longer names a release is that this link does.
-    point_program_link(host)?;
+    point_program_link(host);
     if in_place(host) {
         // Units set up before this release have no note of their worktree yet.
         note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());

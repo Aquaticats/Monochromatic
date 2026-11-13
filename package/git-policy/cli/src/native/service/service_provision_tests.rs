@@ -541,7 +541,7 @@ fn a_moved_program_moves_only_the_link() {
     let texts_before: [(&'static str, String); 2] = unit_texts(&machine.host);
     machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
     assert_eq!(unit_texts(&machine.host), texts_before, "an upgrade changes no unit text");
-    point_program_link(&machine.host).expect("the link names the upgraded release");
+    point_program_link(&machine.host);
     assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), machine.host.service_binary);
     assert!(in_place(&machine.host), "and the installation stays one the manager read");
     remove(machine.root.as_path());
@@ -595,7 +595,7 @@ fn a_release_change_of_every_kind_changes_no_unit_text() {
     for program in [&previous_release, &next_release, &a_build_in_a_worktree] {
         machine.host.service_binary = program.clone();
         let installed_text: String = written(&machine, SERVICE_UNIT_NAME);
-        point_program_link(&machine.host).expect("the link names the release that is running");
+        point_program_link(&machine.host);
         assert_eq!(written(&machine, SERVICE_UNIT_NAME), installed_text, "the template is not written again for {}", program.display());
         assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), *program, "and the link names {}", program.display());
     }

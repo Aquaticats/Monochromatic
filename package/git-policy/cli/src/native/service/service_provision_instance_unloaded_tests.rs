@@ -1,10 +1,16 @@
-//! Controls for what the unload of one worktree's units does when the manager, or the service it holds, cannot give
+//! Controls for what the unload of one worktree's units does when the manager,
+//! or the service it holds,
+//! cannot give
 //! it what it asks for within the wait it is given.
 //! Why:
-//!  The unload is a repair, not a precondition of a commit:
-//! a commit whose service is landing a batch, or whose manager stops
-//!  answering, must land through the service that is running and leave the record unwritten so the next commit
-//!  repairs the text, rather than fail with a diagnosis that is not true of the machine.
+//!  The unload is a repair,
+//! not a precondition of a commit:
+//! a commit whose service is landing a batch,
+//! or whose manager stops
+//!  answering,
+//! must land through the service that is running and leave the record unwritten so the next commit
+//!  repairs the text,
+//! rather than fail with a diagnosis that is not true of the machine.
 //! The manager here is a script,
 //! so none of these reach the account's own manager.
 
@@ -18,7 +24,8 @@ use std::time::Duration;
 /// The instance the fixture worktree has.
 const INSTANCE: &str = "fedcba9876543210fedcba9876543210";
 
-/// How many runtime directories this process has made, so two controls never share one.
+/// How many runtime directories this process has made,
+/// so two controls never share one.
 static RUNTIME_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// One answer a scripted manager gives to a question about a unit.
@@ -35,7 +42,8 @@ enum Answer {
 /// What:
 ///  A manager that answers this worktree's two units from a script and takes every stop it is asked for.
 /// Why:
-///   The state that fails a commit is a sequence, not a single answer:
+///   The state that fails a commit is a sequence,
+/// not a single answer:
 /// the questions before the unload are answered,
 /// the stop is
 ///  taken,
@@ -51,17 +59,21 @@ struct Scripted {
     /// How many state questions about each unit were answered.
     service_asked: usize,
     socket_asked: usize,
-    /// Every stop, by unit, in order.
+    /// Every stop,
+    /// by unit,
+    /// in order.
     stops: Vec<String>,
 }
 
 impl Scripted {
-    /// A manager holding a running service and its socket, whatever happens after.
+    /// A manager holding a running service and its socket,
+    /// whatever happens after.
     fn new(service: Vec<Answer>, socket: Vec<Answer>) -> Self {
         return Self { service, socket, service_asked: 0, socket_asked: 0, stops: Vec::new() };
     }
 
-    /// The next answer of one script, the last one repeating so a poll loop runs out inside it.
+    /// The next answer of one script,
+    /// the last one repeating so a poll loop runs out inside it.
     fn next(answers: &[Answer], asked: &mut usize) -> Answer {
         let answer: Answer = answers.get(*asked).or_else(|| { return answers.last(); }).cloned().unwrap_or(Answer::Gone);
         *asked += 1;
@@ -111,7 +123,9 @@ impl Manager for Scripted {
     }
 }
 
-/// What a control keeps alive: the fixture root it removes afterwards, and the host the calls are made for.
+/// What a control keeps alive:
+/// the fixture root it removes afterwards,
+/// and the host the calls are made for.
 struct Machine {
     root: PathBuf,
     host: ProvisionHost,

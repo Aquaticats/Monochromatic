@@ -7489,7 +7489,7 @@ and
 - The record of the unit texts the manager last read is per unit instance
   (`service_provision_loaded_unit_texts.rs`,
   `<instance>.units-the-manager-read` in the notes folder of the runtime unit directory,
-  removed with the note of a stopped instance).
+  removed with the note of a stopped instance by the sweep of a removed worktree).
   Why:
   the manager holds one instance at a time,
   so a digest shared by every worktree would call one worktree's freshly loaded units true for another's stale ones.

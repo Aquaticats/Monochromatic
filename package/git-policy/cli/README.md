@@ -92,6 +92,11 @@ Every earlier name keeps working in this release:
   A `systemctl --user status` of the service shows that link as its program.
   A unit the manager already holds at an older text is dropped and started again rather than reloaded,
    which is this worktree's own unit and nobody else's.
+  That repair never costs a commit:
+  a service still landing a batch,
+  a manager that stops answering and a link that cannot be written are each one line,
+   the units are left as they are,
+  and the commit lands through the service that is running.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -6921,6 +6926,12 @@ and a commit that ends there names the journal command.
   rewrites them,
   and then lets the worktree's own units go and starts them again rather than reloading the manager
   (`src/native/service/service_provision_instance_unloaded.rs`).
+  A service that is landing a batch when that repair asks it to retire is left running and the commit goes on
+  through it,
+  and so is one whose manager stops answering:
+  the repair is repeated by the next commit,
+  and no
+  commit waits for a landing or fails for one.
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
   (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,

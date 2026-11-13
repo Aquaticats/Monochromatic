@@ -44,7 +44,7 @@ use crate::private_storage::create_private_directory_all;
 use crate::service_instance::digest_of_bytes;
 use crate::service_provision_host_and_manager::runtime_unit_dir;
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
-use crate::service_units_of_removed_worktrees::NOTES_FOLDER;
+use crate::service_files_of_a_stopped_instance::NOTES_FOLDER;
 use std::path::{Path, PathBuf};
 
 /// What:

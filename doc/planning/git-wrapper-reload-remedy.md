@@ -465,6 +465,84 @@ against the release from `main`:
   before any arm ran),
   two on `main`.
 
+### The review of the first change, and what it found
+
+A review of `1cb47223f8` reproduced three defects against the real `provision_with`,
+all of one family:
+the unload of one worktree's units turned a manager that was slow,
+or a service that was still landing,
+into a
+ failed commit,
+where the design's own handling elsewhere let the commit go on.
+Its reproduction is a crate that calls `provision_with` with a scripted `Manager`,
+built from the reviewed source;
+run against the fixed build it shows the healthy control passing and none of the three scenarios,
+each one line on the wrapper's log instead.
+
+- **A manager that answered the stop and then stopped answering** failed the commit with
+  "This account has no user service manager ... `loginctl enable-linger`",
+  which is false of a manager that answered a moment before.
+  The same file already let the commit go on when the manager could not be asked for the two state questions,
+  and the start phase already tolerated a timeout;
+  the stop,
+  the wait for the service to leave and the wait for the unit to be dropped did not.
+  Now every one of them does:
+  each answers that nothing was dropped,
+  one line says so,
+  the record stays unwritten so the next commit asks again,
+  and the commit lands through whatever the manager holds.
+- **A service landing a batch** was asked to retire and given the retirement wait (10 s) for it,
+  while a landing may hold the index for `LANDING_LOCK_CEILING` (60 s);
+  at the wait it failed the commit.
+  The first commit of a worktree after an upgrade takes that path.
+  Now a service still there at the wait is left running,
+  the commit goes on through it,
+  and the next commit drops the unit once the service is at rest.
+  Nothing is stopped,
+  so a landing is never cut,
+  and the commit waits nothing extra for the landing:
+  it is the service that lands it.
+- **A program link that cannot be written** failed the commit,
+  which its own doc promised it never would.
+  Now it is one line naming the link,
+  the units are still written,
+  and a start runs whatever the link named before,
+  which is this release's program while the link names it.
+
+The one refusal kept is a manager that answered every question and still holds the unit `UNLOAD_WAIT` (5 s) after it
+was stopped;
+its line now says what is true of it,
+that a start would read the text it loaded rather than the files,
+and no longer that it "would run the release that was replaced":
+the `ExecStart` of any release since `0.6.1-alpha.14` names the program link,
+which every commit points before it touches the bus,
+and the old text names the release that wrote it only when it is older than the link,
+which the client's own repair for a service of another release answers.
+
+The sweep of a removed worktree left the record of the unit texts behind while the record's own doc said the sweep
+removes it;
+it removes it now,
+which is what keeps a worktree that is gone from leaving a file that says what the manager read.
+
+**What the repair costs a commit,**
+measured on the scripted manager with the shipped retirement wait (10 s) and,
+for the
+last row,
+a wait of 1 s so the control reads fast:
+
+- service leaves at once:
+  **0 ms** and the commit goes on,
+  before and after;
+- a landing of 250 ms:
+  **251 ms** and the commit goes on,
+  before and after;
+- a landing longer than the wait:
+  **the wait itself (1,002 ms)**,
+  and the commit failed before and goes on after.
+
+So the fix adds no time to any path;
+it changes what the end of a wait means.
+
 ### What is left
 
 - The tile of `SERVICE_GREETING_SILENCE` that this document was written with is gone:
