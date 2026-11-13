@@ -317,10 +317,10 @@ fn messages_quote_their_constants_and_facts() {
         assert!(words.contains(NOTHING_CHANGED), "{not_made:?} says nothing in the repository changed: {words}");
         assert!(words.contains("was not made"), "{not_made:?} says the commit was not made: {words}");
     }
-    for unsure in [ClientFailure::ServiceSilent, ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread }] {
-        let words: String = render(&unsure);
-        assert!(words.contains(CHECK_COMMANDS[0]), "{unsure:?} names what shows whether the commit was made: {words}");
-        assert!(!words.contains(NOTHING_CHANGED), "{unsure:?} must not claim nothing changed: {words}");
+    for not_known in [ClientFailure::ServiceSilent, ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread }] {
+        let words: String = render(&not_known);
+        assert!(words.contains(CHECK_COMMANDS[0]), "{not_known:?} names what shows whether the commit was made: {words}");
+        assert!(!words.contains(NOTHING_CHANGED), "{not_known:?} must not claim nothing changed: {words}");
     }
     let silent: String = render(&ClientFailure::ServiceSilent);
     assert!(!silent.contains("raise") && !silent.contains("setting"), "the text must not name a setting that does not exist: {silent}");

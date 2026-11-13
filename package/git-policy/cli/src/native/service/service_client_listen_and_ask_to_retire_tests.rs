@@ -156,7 +156,7 @@ fn a_write_a_reader_takes_too_slowly_ends_at_its_ceiling() {
 #[test]
 fn a_line_that_never_ends_is_read_as_silence_at_the_bound() {
     let (client, mut service) = a_pair();
-    let _timeout = client.set_read_timeout(Some(Duration::from_millis(100))).expect("a read timeout");
+    client.set_read_timeout(Some(Duration::from_millis(100))).expect("a read timeout");
     let dribbling = std::thread::spawn(move || {
         let began: Instant = Instant::now();
         while began.elapsed() < PATIENCE {
@@ -192,7 +192,7 @@ fn a_line_that_never_ends_is_read_as_silence_at_the_bound() {
 fn a_line_leaves_the_bound_the_connection_carries_as_it_was() {
     let (client, mut service) = a_pair();
     let given: Duration = Duration::from_millis(400);
-    let _timeout = client.set_read_timeout(Some(given)).expect("a read timeout");
+    client.set_read_timeout(Some(given)).expect("a read timeout");
     let mut reader: BufReader<UnixStream> = BufReader::new(client);
     for _ in 0..8 {
         let mut line: String = encode_service(&ServiceMessage::Heartbeat);

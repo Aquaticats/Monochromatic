@@ -60,10 +60,10 @@ enum Duty {
     /// so the request write has nowhere to go.
     ReadNothing,
     /// Reads the whole request and answers nothing.
-    ReadAndSayNothing,
+    ReadsAndSilent,
     /// Answers nothing at all,
     /// not even a greeting.
-    SayNothing,
+    SilentThroughout,
 }
 
 /// What a control knows about the stand-in service.
@@ -147,13 +147,13 @@ fn stand_in(fixture: &Fixture, repo: &Path, duty: Duty) -> StandIn {
 /// and it keeps the connection open until the control ends:
 /// a connection the wrapper reads is a connection that must answer nothing rather than close.
 fn serve_one(stream: UnixStream, greeting: &str, duty: Duty, greeted: &AtomicUsize, read_all: &AtomicBool, stop: &AtomicBool) {
-    if !matches!(duty, Duty::SayNothing) {
+    if !matches!(duty, Duty::SilentThroughout) {
         let _timeout = stream.set_write_timeout(Some(PATIENCE));
         if stream.try_clone().is_ok_and(|mut welcome| { return welcome.write_all(greeting.as_bytes()).is_ok() }) {
             _ = greeted.fetch_add(1, Ordering::SeqCst);
         }
     }
-    if matches!(duty, Duty::ReadAndSayNothing) {
+    if matches!(duty, Duty::ReadsAndSilent) {
         let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a reader of the connection"));
         let _held = reader.get_ref().set_read_timeout(Some(PATIENCE));
         let mut line: String = String::new();
@@ -375,7 +375,7 @@ fn a_commit_whose_service_reads_and_says_nothing_ends_at_the_silence_bound() {
     let fixture: Fixture = fixture("service-says-nothing");
     let repo: PathBuf = staged_repository(&fixture, "repo", 1);
     let before: String = head_of(&fixture, repo.as_path());
-    let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::ReadAndSayNothing);
+    let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::ReadsAndSilent);
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let began: Instant = Instant::now();
@@ -501,7 +501,7 @@ fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
     let before: String = head_of(&fixture, repo.as_path());
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::SayNothing);
+    let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::SilentThroughout);
     let began: Instant = Instant::now();
     let ran: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
     let took: Duration = began.elapsed();
@@ -535,7 +535,7 @@ fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
 /// ```
 #[test]
 fn a_commit_killed_at_each_step_leaves_nothing_behind() {
-    for (duty, at) in [(Duty::SayNothing, "the greeting"), (Duty::ReadNothing, "the write of the request"), (Duty::ReadAndSayNothing, "the wait for the answer")] {
+    for (duty, at) in [(Duty::SilentThroughout, "the greeting"), (Duty::ReadNothing, "the write of the request"), (Duty::ReadsAndSilent, "the wait for the answer")] {
         let fixture: Fixture = fixture(format!("killed-at-{at}").replace(' ', "-").as_str());
         let changed: usize = if matches!(duty, Duty::ReadNothing) { MANY_FILES } else { 1 };
         let repo: PathBuf = staged_repository(&fixture, "repo", changed);
@@ -550,10 +550,10 @@ fn a_commit_killed_at_each_step_leaves_nothing_behind() {
             .spawn()
             .expect("the commit starts");
         // A stand-in that greets nothing is known by the connection it took; every other one by the greeting it sent.
-        let marker: &Arc<AtomicUsize> = if matches!(duty, Duty::SayNothing) { &stand_in.accepted } else { &stand_in.greeted };
+        let marker: &Arc<AtomicUsize> = if matches!(duty, Duty::SilentThroughout) { &stand_in.accepted } else { &stand_in.greeted };
         let reached: &dyn Fn() -> bool = &|| { return marker.load(Ordering::SeqCst) > 0; };
         wait_for(format!("the stand-in to answer the commit ({at})").as_str(), reached);
-        if matches!(duty, Duty::ReadAndSayNothing) {
+        if matches!(duty, Duty::ReadsAndSilent) {
             // The kill lands while the wrapper waits for an answer to a request the service has read.
             let read: &dyn Fn() -> bool = &|| { return stand_in.read_all.load(Ordering::SeqCst); };
             wait_for("the stand-in to read the whole request", read);

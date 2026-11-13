@@ -187,5 +187,5 @@ fn a_name_the_kernel_holds_takes_the_connection() {
 fn the_connect_bound_is_the_silence_a_working_service_keeps() {
     assert_eq!(CONNECT_CEILING, Duration::from_secs(5));
     assert_eq!(CONNECT_CEILING, crate::service_protocol::HEARTBEAT_SILENCE);
-    assert_eq!(connect_within_for(&Bind::Path(std::path::PathBuf::from("/nonexistent")), PATIENCE).is_err(), true);
+    assert!(connect_within_for(&Bind::Path(std::path::PathBuf::from("/nonexistent")), PATIENCE).is_err(), "a name nothing listens at takes no connection");
 }
