@@ -648,6 +648,26 @@ fn keep_this_and_every_frame_above(stack: &mut [AroundFrame], index: usize) {
 }
 
 /// What:
+///  Remove one entry of a directory the pass that goes around a volume is emptying.
+/// Why:
+///   Every entry that pass removes leaves the tree here,
+/// so a step that records what a removal deletes
+///  has one place to join it:
+/// the log of the ignored files and nested repositories a removal takes
+///  (`removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`).
+/// Keeping the calls in one
+///  place is what makes that one place,
+/// rather than a second pass that reads what is already gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// take(directory, name, folder); // unlink, or rmdir for a folder
+/// ```
+fn take(directory: &File, name: &OsStr, folder: bool) -> std::io::Result<()> {
+    return remove_at(directory, name, folder);
+}
+
+/// What:
 ///  Remove every entry below `top` except each subvolume or mount point the pass meets and the directories that lead
 ///  to one,
 ///  giving each kept directory back the mode it had.
@@ -702,7 +722,7 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
                 continue;
             }
             let parent: &AroundFrame = stack.last().expect("a frame below the top");
-            if let Err(error) = remove_at(&parent.directory, own_name.as_os_str(), true) {
+            if let Err(error) = take(&parent.directory, own_name.as_os_str(), true) {
                 if !refused_as_not_empty(&error) {
                     return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", done.path.display())));
                 }
@@ -734,7 +754,7 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
         };
         let path: PathBuf = stack[index].path.join(&name);
         if !is_directory {
-            if let Err(error) = remove_at(&stack[index].directory, name.as_os_str(), false) {
+            if let Err(error) = take(&stack[index].directory, name.as_os_str(), false) {
                 return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", path.display())));
             }
             continue;

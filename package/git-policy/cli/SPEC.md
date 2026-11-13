@@ -3353,12 +3353,13 @@ and Git's own removal descends into a mount point and deletes what is mounted th
 so neither route may take such a worktree.
 The removal therefore goes around what it did not make:
 it removes every other entry of the worktree,
-keeps each foreign volume and the directories that lead to it exactly as they stand (mode and owner included),
+keeps each volume and the directories that lead to it exactly as they stand (mode and owner included),
 forgets the worktree in Git (the registration and its directory),
 and says what it left.
 The path stays taken until the person moves the volume out.
 This is the project's decision of 2026-11-12 ("Remove around it"),
-and the paragraph that follows states what it does in each case.
+and it holds on both routes alike:
+the removal a person typed and the one a merge's sweep or the commit service performs.
 
 What stands there is found before anything is decided,
 by the walk of `src/native/subvolume/subvolume_remove_walk.rs`:
@@ -3369,11 +3370,14 @@ An entry the kernel refuses to cross (`EXDEV`) is a mount point,
 whatever filesystem is mounted there,
 which is what catches a bind mount of the same filesystem that no device comparison can tell.
 The look widens nothing and deletes nothing,
-so it changes no mode of what it judges.
-It reports every volume it found and says when it could not look everywhere.
+so it changes no mode of what it judges,
+and it reports every volume it found with the reason it could not look everywhere when it could not.
 The same look runs for a worktree that is no subvolume,
 before the removal is handed to Git,
+and again in the commit service immediately before it removes a worktree it was handed,
 because Git's own removal is the route that would delete through a mount point.
+`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
+registration's own proof still uses.
 
 A removal that found such a volume proves what every removal proves before it deletes anything:
 the worktree is registered,
@@ -3381,26 +3385,27 @@ not locked,
 no conversion's copy lies beside it,
 the worktree root and its registration are held open and are still the objects that were proven,
 and it is clean or the person forced it.
-The clean proof is Git's own:
-an unforced removal deletes no untracked file and no modified one.
-A foreign volume that Git lists as untracked (one not covered by an ignore rule) is such a file,
-so it blocks the unforced removal like any other untracked entry,
-and the removal refuses with a report that names the volume,
-says why it blocks,
-and gives both ways on (`--force`, which removes the rest and still leaves the volume, and moving the volume out).
-The look that judges the untracked entries leaves the volume and every entry inside it out of the question
-(`git ls-files --others --exclude-standard` with an exclude pathspec for each volume),
-because nothing the removal deletes is inside one.
-An entry that the removal deletes is judged exactly as Git judges it:
-the directories that lead to a volume are emptied of their other entries,
-and those entries are as much part of the worktree as any other.
+The clean proof stays Git's own, exactly as the decision of 2026-11-12T13:04:14 requires:
+an unforced removal deletes no untracked file and no modified tracked file,
+and a foreign volume that Git lists as untracked (one no ignore rule covers) is such an entry,
+so it keeps a typed unforced removal from happening.
+That removal then refuses with one report that says nothing was removed,
+names each volume,
+gives the reason Git refuses,
+and gives both ways on:
+`git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
+stands, and clearing or moving what Git would delete.
+The tree is never handed to Git to get Git's own sentence,
+because Git's removal is what would delete through the mount;
+the report says so instead of pretending to be Git's words.
+A forced removal is served without the clean proof, as it always was.
 
 With that proof in hand the removal empties the tree around the volumes:
 one pass over the tree,
 where a directory that holds a volume in its subtree is kept together with its mode,
 and every other entry is removed;
 an entry that turns out to be a volume is left where it stands and its chain is kept;
-a file is unlinked;
+a file or a link is unlinked,
 a directory is emptied and then removed with `rmdir`,
 and `rmdir` is where the kernel's refusal is read.
 A directory whose `rmdir` is refused as not empty after it was listed is looked at again through the descriptor the
@@ -3411,24 +3416,31 @@ so the removal deletes nothing it did not list.
 The mode of a kept directory is given back after the pass,
 and the directories the pass widened to empty are those it deletes,
 so what is left stands with the modes and owners it had.
-The remove pass opens each entry twice:
-once as a handle that follows nothing and crosses no mount, to ask what it is,
+The pass opens each entry twice:
+once as a handle that follows nothing, crosses no mount and needs no permission on the entry, to ask what it is,
 and once for reading, only after the entry is known to be no volume,
 so a volume's own mode is never widened to look inside it.
 Nothing in the pass renames, unmounts, moves or deletes a volume;
 the only names it touches are those of the worktree's own entries.
+Every entry the pass removes is removed by `take` in that file,
+which is where the log of what a removal deletes joins it
+(`removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`).
 
-When the pass ends the removal looks again:
+When the pass ends the removal looks again through the descriptor it holds:
 a volume that went away while the pass ran leaves a tree that is now empty,
-and the subvolume is destroyed as any other removal destroys it.
+and the root goes as any other removal takes it,
+which is one `rmdir` under the held parent, or the destroy where the caller takes that route.
 A tree that still holds one is finished without the destroy:
 the registration is emptied and removed through the descriptors the removal holds,
 one of its `worktrees` directory last,
 and the worktree's subvolume (or its plain directory) stays,
 holding nothing but the volumes and the directories that lead to them.
 The outcome is neither `removed` nor `refused`:
-it is `removed, with these left`,
+it is `RemovedAround`, which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
+A removal that stopped halfway is `Incomplete` with its own words:
+files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+
 The person's own `git worktree remove` prints that report on standard error and exits 0,
 because the worktree is gone from Git's records and every file of it except the volumes is gone;
 `git worktree list` no longer names it and its registration directory is gone.
@@ -3437,10 +3449,10 @@ the sweep prints the same thing as one of its own lines,
 records it in `monochromatic-git-policy-cli/left-in-place-notices` under the common Git directory,
 which the next wrapper command in any worktree of that repository shows once,
 and never reports the worktree as removed without that line.
-A removal the service performs for a landed worktree makes the same look,
-and the same pass, in its own process,
-before Git is started,
-so a volume that appears between the sweep and the service is left rather than deleted through.
+A removal the commit service performs makes the same look and the same pass in its own process,
+and records the same line.
+A record a build cannot read is left for the build that wrote it,
+and a file in that directory that is not a record is neither shown nor moved.
 
 What frees the path is said in every one of those reports:
 the person moves each volume out of the directory it stands in;

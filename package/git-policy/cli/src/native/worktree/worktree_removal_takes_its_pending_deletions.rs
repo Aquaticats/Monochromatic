@@ -36,7 +36,7 @@
 //! ```
 
 use crate::fs_kind::is_subvolume_root;
-use crate::subvolume_remove_walk::{Boundary, find_boundary_below};
+use crate::subvolume_remove_walk::{Boundary, BoundaryLook, look_for_boundaries};
 use crate::worktree_removal_holds_the_worktree::Held;
 use crate::worktree_remove_hand_over::{DELETING_PREFIX, leave_a_subvolume_for_the_service};
 use std::path::Path;
@@ -109,10 +109,11 @@ pub(crate) fn is_a_leaving_name(path: &Path) -> bool {
 /// and the person is never told to delete it by hand
 /// (a reported case,
 ///  2026-11-11T22:31:17-05:00).
-///  The walk answers the first boundary it meets,
-/// so this looks again after each move:
-/// a tree with several of
-///  them is a tree whose last one would otherwise stop the removal.
+///  The look that answers the second question widens nothing,
+/// because a volume another process put there stays where it
+///  stands and keeps the mode it had:
+/// a look that chmod'd the directories on the way to it would change state the removal must not
+///  touch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -126,17 +127,31 @@ pub(crate) fn is_a_leaving_name(path: &Path) -> bool {
 ///  nothing of the worktree has changed.
 pub(crate) fn take_the_pending_deletions_below(common_dir: &Path, held: &Held, target: &Path) -> Result<VolumesBelow, String> {
     loop {
-        let found: Boundary = match find_boundary_below(&held.target, target) {
-            Ok(None) => return Ok(VolumesBelow::Clear),
-            Ok(Some(found)) => found,
-            Err(error) => return Ok(VolumesBelow::Unreadable(format!("the tree of {} cannot be walked for a subvolume of its own ({error})", target.display()))),
-        };
-        // What stands at the name is asked of the entry itself: a directory this program renamed is a subvolume,
-        // and anything else at that name is somebody else's.
-        if !is_a_leaving_name(found.path.as_path()) || !is_subvolume_root(found.path.as_path()).unwrap_or(false) {
+        let look: BoundaryLook = look_for_boundaries(&held.target, target);
+        let mut foreign: Vec<Boundary> = Vec::new();
+        let mut moved: bool = false;
+        for found in look.found {
+            // What stands at the name is asked of the entry itself: a directory this program renamed is a subvolume,
+            // and anything else at that name is somebody else's.
+            if is_a_leaving_name(found.path.as_path()) && is_subvolume_root(found.path.as_path()).unwrap_or(false) {
+                leave_a_subvolume_for_the_service(common_dir, found.path.as_path(), held.parent_path.as_path())?;
+                moved = true;
+                continue;
+            }
+            foreign.push(found);
+        }
+        // The rename changed the tree, so what stands below it is looked at again; a leftover that cannot be moved stops the
+        // loop with the reason instead.
+        if moved {
+            continue;
+        }
+        if let Some(found) = foreign.into_iter().next() {
             return Ok(VolumesBelow::Foreign(found));
         }
-        leave_a_subvolume_for_the_service(common_dir, found.path.as_path(), held.parent_path.as_path())?;
+        return match look.unreadable {
+            Some(reason) => Ok(VolumesBelow::Unreadable(format!("the tree of {} cannot be walked for a subvolume of its own ({reason})", target.display()))),
+            None => Ok(VolumesBelow::Clear),
+        };
     }
 }
 

@@ -79,7 +79,7 @@ fn the_refusal_beside_a_volume_names_both_ways_on() {
     assert!(report.contains("notes.txt is untracked and not ignored"), "and the reason Git refuses: {report}");
     assert!(report.contains("git worktree remove --force ../wt"), "and the forced command as the person typed the worktree: {report}");
     assert!(report.contains("leaves what is named above exactly as it is"), "saying what that command keeps: {report}");
-    assert!(report.contains("free for `git worktree add`"), "and what frees the path: {report}");
+    assert!(report.contains("move what is named above out and run it again"), "and that moving the volume out is the other way on: {report}");
     remove(root.as_path());
 }
 

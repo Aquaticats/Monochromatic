@@ -130,6 +130,22 @@ fn a_volume_at(worktree: &Path, inside: &str, what: &str) -> PathBuf {
     return volume;
 }
 
+/// What:
+///  Age the tracked files of a worktree the control added,
+///  and refresh the index,
+///  so the removal's cleanliness proof judges their stat data.
+/// Why:
+///  A worktree the wrapper adds holds files whose times are the moment of the add,
+///  and a file as new as the index
+///  proves nothing by its stat fields.
+fn age_tracked_files(fixture: &Fixture, worktree: &Path) {
+    for name in ["tracked.txt", ".gitignore"] {
+        let Ok(file) = std::fs::OpenOptions::new().write(true).open(worktree.join(name)) else { continue };
+        file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(120)).expect("age the tracked file");
+    }
+    git(fixture, worktree, &["update-index", "--refresh"]);
+}
+
 /// The report of a removal that went around one volume,
 /// as every control checks it.
 fn assert_the_report_of_a_removal_that_went_around(observed: &Observed, target: &Path, left: &[&Path]) {
@@ -209,6 +225,7 @@ fn a_volume_at_the_top_of_a_worktree_is_left_and_the_worktree_is_otherwise_remov
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(target.as_path()).expect("probe"), "the add made a subvolume");
+    age_tracked_files(&fixture, target.as_path());
     let volume: PathBuf = a_volume_at(target.as_path(), "snap", "what I put there");
     let mode_before: u32 = std::fs::metadata(volume.as_path()).expect("the volume").mode() & 0o7777;
     let before: Vec<String> = tree_of(volume.as_path());
@@ -252,6 +269,7 @@ fn a_volume_several_directories_deep_and_a_second_one_are_both_left_with_their_m
     let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
     let deep: PathBuf = a_volume_at(target.as_path(), "a/b/deep", "deep");
     let second: PathBuf = a_volume_at(target.as_path(), "c/two", "two");
     // The directories that lead to them are emptied of everything else, and one of them is read-only to its owner.
@@ -294,6 +312,7 @@ fn a_volume_the_ignore_rules_do_not_cover_refuses_without_force_and_is_left_with
     let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
     let volume: PathBuf = a_volume_at(target.as_path(), "snap", "untracked and mine");
     let before: Vec<String> = tree_of(volume.as_path());
 
@@ -334,6 +353,7 @@ fn a_volume_that_holds_a_worktree_of_this_repository_stays_registered_and_usable
     let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "outer", "../outer"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let outer: PathBuf = fixture.root.join("outer");
+    age_tracked_files(&fixture, outer.as_path());
     let inner: PathBuf = outer.join(".claude/worktrees/inner");
     std::fs::create_dir_all(inner.parent().expect("the directories the worktree stands in")).expect("directories");
     let made: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "inner", inner.to_str().expect("a UTF-8 fixture path")]);
@@ -375,6 +395,7 @@ fn a_mount_point_inside_a_worktree_is_left_and_what_is_mounted_there_is_untouche
     let added: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
     let mounted: PathBuf = fixture.root.join("mounted");
     std::fs::create_dir_all(mounted.as_path()).expect("the directory the mount shows");
     std::fs::write(mounted.join("precious.txt"), b"what is mounted there\n").expect("a file the mount shows");
@@ -412,6 +433,7 @@ fn a_read_only_mount_point_is_left_standingly_untouched() {
     let added: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
     let mounted: PathBuf = fixture.root.join("mounted");
     std::fs::create_dir_all(mounted.as_path()).expect("the directory the mount shows");
     std::fs::write(mounted.join("precious.txt"), b"read only, and mine\n").expect("a file the mount shows");
@@ -450,6 +472,7 @@ fn a_later_add_at_the_path_names_the_volume_a_removal_left() {
     let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
     let volume: PathBuf = a_volume_at(target.as_path(), "snap", "still mine");
     let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
     assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
@@ -480,6 +503,7 @@ fn an_ordinary_worktree_removal_behaves_as_it_did() {
     let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
     let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
     let said: String = stderr_of(&removed);
     assert_eq!(removed.code, Some(0), "the removal finished: {said}");
