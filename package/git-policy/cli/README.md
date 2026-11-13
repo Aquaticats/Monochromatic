@@ -6905,7 +6905,8 @@ Guard tests keep it so:
 A defect of the manager is worked around here rather than passed on:
 every call is bounded,
 a manager that does not answer leaves the units written and the commit going,
-a unit it holds at an old text or in a failed state is dropped, reset or started again,
+a unit it holds at an old text or in a failed state is dropped,
+reset or started again,
 and no command tells a person to run anything by hand for it.
 A service that never greets is restarted once at the whole start ceiling,
 and a commit that ends there names the journal command.

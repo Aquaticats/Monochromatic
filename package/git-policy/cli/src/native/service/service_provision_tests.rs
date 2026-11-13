@@ -548,18 +548,22 @@ fn a_moved_program_moves_only_the_link() {
 }
 
 /// What:
-///  An upgrade, a downgrade, two releases used in turn and a build made in a worktree all write the very same two unit
+///  An upgrade,
+/// a downgrade,
+/// two releases used in turn and a build made in a worktree all write the very same two unit
 ///  texts,
 /// and a commit that meets one of them asks the manager for nothing.
 /// Why:
-///   The text of a unit is the manager's copy of a file, and it reads that file again only when it is asked to reload every
+///   The text of a unit is the manager's copy of a file,
+/// and it reads that file again only when it is asked to reload every
 ///  unit it holds;
 /// on 2026-11-12 one of those reads held a session's manager for 139,770 ms and ended the desktop
 ///  session (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 /// So the one thing a release
 ///  change may write is the link the service unit names,
 /// and this is the control that names each of the four ways a
-///  release changes: the release after this one,
+///  release changes:
+/// the release after this one,
 /// the release before it,
 /// this one again,
 /// and a binary built into a worktree

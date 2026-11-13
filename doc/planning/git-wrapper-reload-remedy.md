@@ -14,7 +14,8 @@ so the question "which of the three directions" is answered by the measurements 
 What was measured,
 what was chosen,
 and what the migration from the units an earlier release left behind costs are recorded under
-"What was built, and what it measured".
+"What was built,
+and what it measured".
 The proposal itself is kept as it was written.
 
 Issue:
@@ -190,20 +191,23 @@ which is how the session's own units are bound to a window manager.
 
 ### The alternation, on the code as it was
 
-Two wrapper executables at two paths (`/opt/release-a/git`, `/opt/release-b/git`) in one machine,
+Two wrapper executables at two paths (`/opt/release-a/git`,
+`/opt/release-b/git`) in one machine,
 each commit of one worktree through one of them in turn,
 then a second worktree,
 then four callers at once,
 with the manager holding 4,059 loaded units.
 
-With the code this branch started from (`main`, release `0.6.1-alpha.13`):
+With the code this branch started from (`main`,
+release `0.6.1-alpha.13`):
 the manager was asked to re-read its units **seven times over those steps**,
 once per commit that ran through the other executable,
 each reload taking 976 to 1,245 ms,
 and the unrelated `Type=dbus` service and its target ended at **the first** of them and stayed ended.
 Every commit still landed.
 
-With the code on this branch, on the same steps:
+With the code on this branch,
+on the same steps:
 **no reload at all**,
 and the service kept its bus name and its target stayed active after every step.
 
@@ -214,21 +218,92 @@ It also runs the arm from this branch on a machine that the release from `main` 
 which is the migration,
 and that arm asks for no reload either.
 
+### What the merge with main kept, and why
+
+Both sides removed the reload from a release change,
+and both answered it with a program link:
+main's is `service_provision_program_pointer.rs`
+(`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`),
+and this branch's is `program_link` in `service_instance.rs`
+(`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`).
+One stays.
+
+The branch's stays,
+for two reasons.
+It is the one the container proof above measured:
+seven reloads over the steps on `main`'s code of that morning and none on this branch's,
+and the arm that keeps the unrelated desktop service alive is that code.
+And it writes the link through `link_atomically`,
+the same temporary-name-and-rename path the unit files are written through,
+so one file of this repository owns how anything the manager reads is replaced.
+Main's module and its controls went;
+the one control they held that the branch's did not
+(a replacement killed between its temporary link and its rename leaves the old link whole)
+was ported to the surviving link.
+
+From main,
+kept because they are better than what the branch had:
+
+- A manager that does not answer within one exchange never fails the commit.
+  The units stay written,
+  one line says what the wait was for,
+  and the next commit asks again.
+- The line a commit prints when the manager has not answered its provisioning within a second.
+- The one ending of a service of another release that outlasts the bound it was given
+  (`RestartUnit` of this worktree's own unit),
+  which is what keeps a change of release from ending uncommitted.
+
+What that port cost,
+and found:
+the record of the unit texts the manager was told about is now written only by a call that proved what the manager holds
+(the new `Unloaded::Dropped` of `service_provision_instance_unloaded.rs`),
+because main's control for a manager that does not answer showed the branch writing it after a question the manager
+never answered.
+A start on its own is no proof either:
+a manager that could not say what it holds may have started the unit from a text an upgrade left behind.
+
+What this means for a machine that installed `0.6.1-alpha.14`:
+its template already names a link,
+but a different one,
+and its record is the older one-file shape (`units-the-manager-was-told`) that this release never reads.
+So its first commit of this release rewrites the text and drops this worktree's unit once,
+exactly as a machine carrying `0.6.1-alpha.13`'s template does;
+neither pays a reload.
+Keeping main's link path would have spared the rewrite but not the drop,
+because the record's shape changed with it.
+
 ### Where a slow reload spends its time
 
 A reload of a disposable user manager,
 three samples per point,
-the manager holding loaded transient services (each one active, no process):
+the manager holding loaded transient services (each one active,
+no process):
 
-- 59 loaded units: 61, 68, 63 ms.
-- 559: 194, 297, 199 ms.
-- 1,059: 355, 346, 358 ms.
-- 2,059: 646, 639, 610 ms.
-- 4,059: 1,142, 1,061, 1,086 ms.
+- 59 loaded units:
+  61,
+  68,
+  63 ms.
+- 559:
+  194,
+  297,
+  199 ms.
+- 1,059:
+  355,
+  346,
+  358 ms.
+- 2,059:
+  646,
+  639,
+  610 ms.
+- 4,059:
+  1,142,
+  1,061,
+  1,086 ms.
 
 That is about **0.26 ms per loaded unit plus 50 ms** of fixed cost,
 and the same manager with a user generator that sleeps 500 ms reloaded in
-1,651, 1,597 and 1,649 ms:
+1,651,
+1,597 and 1,649 ms:
 **the generator's whole running time is spent inside the reload**,
 because the manager waits for it on its own event loop,
 and with the generator removed the same manager took 1,068 to 1,106 ms again.
@@ -240,7 +315,8 @@ which is 3.7 times what the 0.26 ms per unit of a disposable manager predicts,
 so a real manager's reload is not unit count alone.
 The 139,770 ms of the incident would need about 540,000 units at that rate,
 so it came from something else on top of the count,
-and this measurement cannot say what: the journal has no per-phase timings for it.
+and this measurement cannot say what:
+the journal has no per-phase timings for it.
 
 What the count points at for the rest of this repository:
 every agent command that runs in a transient scope of its own makes every later reload of that manager more expensive,
@@ -258,8 +334,10 @@ What option 1 alone does not answer is a machine whose manager already holds the
 which is every machine that has an earlier release installed,
 and that is where the fourth direction was looked at:
 
-- A transient unit (`StartTransientUnit`, what `systemd-run` does) needs no file and no reload.
-  What it would not give, read in systemd's own source and measured in the same container:
+- A transient unit (`StartTransientUnit`,
+  what `systemd-run` does) needs no file and no reload.
+  What it would not give,
+  read in systemd's own source and measured in the same container:
   - `StartTransientUnit` refuses a name the manager already holds or has a fragment for
     (`org.freedesktop.systemd1.UnitExists`),
     so the earlier release's installed unit has to be stopped and dropped before a transient unit of the same name can
@@ -276,7 +354,8 @@ and that is where the fourth direction was looked at:
   and it trades a file the manager reads for a file the manager writes under `systemd/transient/`.
   It was not built.
 - Option 2 (one unit file per worktree) still needs the manager to read a new text for a worktree whose release path
-  changed, and the link makes that unnecessary for every worktree at once.
+  changed,
+  and the link makes that unnecessary for every worktree at once.
 - Option 3 (move only the waits) leaves the manager-wide stall that ended the session.
 
 ### The migration from the units an earlier release left behind
@@ -299,12 +378,98 @@ It happens once per worktree on the first commit after the change,
 and again only for a release that changes the unit text itself,
 which the link exists to prevent.
 
+### What the merged code measured
+
+On 2026-11-13 between 12:18 and 12:23-05:00,
+load average 33,
+in the gate's own containers.
+The gate image of the day before was gone with the machine's restart,
+so the image is the gate's base
+(`mise run //package/git-policy/cli:test:git-image`,
+`localhost/git-policy-native-test-base:bb4ebaceda61-97221c29742b`),
+which carries systemd `262.1`,
+`dbus-daemon`
+and Git.
+
+**The proof,
+twice**
+(`mise run //package/git-policy/cli:test:service-manager -- --units 1000 --probe-deadline 100ms …`,
+each machine holding 1,059 units),
+with the control arm running the release from `main` (`0.6.1-alpha.15`)
+and the other arm this branch's build:
+
+- A machine carrying `0.6.1-alpha.13`'s template
+  (`ExecStart=/opt/release-seed/git …`,
+  the executable of the release that wrote it):
+  the arm from `main` asked for **one reload of 304 ms**,
+  and the unrelated `Type=dbus` service and its target **ended at the first step after it and stayed ended**;
+  this branch's arm asked for **no reload**,
+  the stand-in **never ended**,
+  and every commit landed.
+- A machine carrying `0.6.1-alpha.14`'s template
+  (`ExecStart=/run/user/0/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program …`,
+  main's own link):
+  the same readings,
+  one reload of 308 ms and the stand-in ended on `main`,
+  no reload and no death here.
+
+The seeding of the control arm is the older template,
+because the release from `main` asks the manager to read every unit only when a unit *text* changes:
+that is the first commit after a machine carries an earlier release's template,
+and never a release change on a machine that release provisioned itself
+(the measurement below shows a release change asking for no reload on `main` too).
+A control arm on a fresh machine therefore reproduces nothing,
+and the proof says so instead of calling such a run a pass.
+
+**A service that never greets,**
+on this branch's build (a stand-in program that holds this worktree's socket and says nothing on it):
+the commit took **121,788 ms** and exited 1,
+asked the manager for no reload,
+and printed,
+in order:
+
+```text
+nothing has answered at …/1d64ab6f….sock yet (the service manager says …@1d64ab6f….service is active)
+the commit service of this worktree has answered nothing for 60 seconds, so it is stopped inside its own process; it is asked to restart (…@1d64ab6f….service), and this commit goes on once it answers
+The commit service did not start, so this commit was not made. Its log shows why: `journalctl --user --unit 'monochromatic-git-policy-cli@*.service'`. Run the commit again after fixing that. Nothing in the repository changed.
+```
+
+That is the trade the three-second rule's removal makes:
+two whole start ceilings (120 s) before a commit gives up on a service that is truly wedged,
+where the releases before this one ended such a commit in about three seconds
+and,
+on 2026-11-12,
+asked for the reload that ended a desktop session.
+
+**The first commit after a release change,**
+on a disposable repository in the same containers,
+against the release from `main`:
+
+- A release change on a machine the release provisioned itself
+  (the same build at a second path,
+  which is a build in a worktree):
+  **58 ms** and no reload on this branch,
+  **51 ms** and no reload on `main`.
+  Both print only the commit's own summary line.
+  Main's program link is why this case asks for nothing on both arms.
+- The first commit of a release on a machine an earlier release set up:
+  **162 ms** and **no reload** on this branch,
+  **557 ms** and **one reload (150 ms)** on `main`,
+  which printed `Updating the commit service...` before its summary.
+  This is the incident's own step,
+  and the manager's own record shows the difference:
+  one reload in the machine's whole life here (the fixture's own,
+  before any arm ran),
+  two on `main`.
+
 ### What is left
 
 - The tile of `SERVICE_GREETING_SILENCE` that this document was written with is gone:
   a greeting that has not come is no longer read as a service stopped inside its own process
   before the whole start ceiling.
-  The measurement behind it (52 cold starts, the slowest 1,041 ms, on an unloaded machine) is what the incident showed
+  The measurement behind it (52 cold starts,
+  the slowest 1,041 ms,
+  on an unloaded machine) is what the incident showed
   to be too narrow for a loaded one.
 - Nothing here changes the desktop's own units,
   and no upstream systemd report is proposed.

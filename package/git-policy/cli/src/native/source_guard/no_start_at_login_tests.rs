@@ -254,7 +254,8 @@ fn the_manager_is_called_only_with_the_members_on_the_list() {
 /// Why:
 ///   A reload holds the manager's own event loop for a time that grows with every unit it holds,
 /// and on 2026-11-12 one
-///  of those, 139,770 ms long,
+///  of those,
+/// 139,770 ms long,
 /// expired the desktop's reply to its window manager and ended the session
 /// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 /// The list above refuses the member;

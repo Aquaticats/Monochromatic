@@ -7566,9 +7566,11 @@ and
   and it is never a reason for a command to fail,
   to wait without a bound,
   or to tell a person to do something by hand.
-  The defects on record, and what this code does about each:
+  The defects on record,
+  and what this code does about each:
   - A manager-wide reload holds every start request of every client for as long as it runs.
-    No release code asks for one: the member list the client is checked against holds none
+    No release code asks for one:
+    the member list the client is checked against holds none
     (`source_guard/no_start_at_login_tests.rs`),
     and a control over every release source fails if one comes back
     (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
@@ -7596,7 +7598,8 @@ and
     the program link is pointed at the running executable before anything is started
     (`a_replacement_that_stops_before_its_rename_leaves_the_old_link`),
     a failed unit is reset and started once by the client's wait,
-    and a unit the manager holds at an older text is dropped and started again, not reloaded
+    and a unit the manager holds at an older text is dropped and started again,
+    not reloaded
     (`a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`).
   What this release does not do:
   start the service without a manager.

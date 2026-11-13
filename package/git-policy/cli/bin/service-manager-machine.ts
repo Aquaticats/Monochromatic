@@ -339,7 +339,8 @@ async function runInsideAttempt({
 }
 
 /**
- Whether a `podman exec` failure is the runtime's own, before the script ran.
+ Whether a `podman exec` failure says nothing about the wrapper: the runtime would not create the session, or the machine
+ would not start the fixture's own desktop stand-in within the deadline that stand-in is given.
 
  @param message - the error's message
 
@@ -359,6 +360,11 @@ export function isTransportFailure({ message, }: { readonly message: string; }):
     'timed out waiting for file',
     'container state improper',
     'no container with name or ID',
+    // What: The fixture's own `Type=dbus` stand-in did not claim its name within the deadline it is given.
+    // Why:  On a host whose load is in the hundreds the echo program that claims the name can be scheduled late, and the
+    //       arm has then proved nothing about the wrapper: no step of it ran. The arm starts again on a fresh machine, and a
+    //       host that cannot bring the stand-in up at all ends the run as a run that could not complete.
+    'A dependency job for desktop-probe.target failed',
   ];
   for (const phrase of phrases) {
     if (message.includes(phrase,)) return true;

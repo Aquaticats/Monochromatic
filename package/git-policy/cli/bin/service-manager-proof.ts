@@ -24,9 +24,15 @@
   [--probe-deadline <value>]`
 
   `--seed-wrapper` names the release the migration arm's machine is provisioned by first, and defaults to the release
-  `--main-wrapper` names. A machine here can carry either of the two templates an earlier release left, `0.6.1-alpha.13`'s
-  (the executable of the release that wrote it) or `0.6.1-alpha.14`'s (a link of that release's own), and a proof run
-  names the build of each it wants that arm to meet.
+  `--main-wrapper` names. A machine here can carry any of the templates an earlier release left: `0.6.1-alpha.13`'s (the
+  executable of the release that wrote it) or `0.6.1-alpha.14`'s (a link of that release's own), and a proof run names the
+  build of each it wants that arm to meet.
+
+  `--harm-seed-wrapper` seeds the control arm's machine with an older release as well, and it is what makes the control arm
+  reproduce the harm: the release from `main` asks the manager to read every unit only when a unit *text* changes, which is
+  the first commit after a machine carries an earlier release's template and never a release change on a machine this
+  release provisioned. A control arm on a fresh machine therefore asks for no reload at all, and a proof run that seeds only
+  the migration arm says so and refuses to call itself a pass.
  */
 import { resolve, } from 'node:path';
 
@@ -80,6 +86,10 @@ type Options = {
    unless a run names another build of an earlier release.
    */
   readonly seedWrapper: string;
+  /**
+   The release that provisions the control arm's machine first, or nothing when that arm runs on a fresh machine.
+   */
+  readonly harmSeed: Seed;
   /**
    How many transient units each machine holds.
    */
@@ -135,6 +145,12 @@ function options({ argv, }: { readonly argv: readonly string[]; }): Options {
     image,
     mainWrapper,
     seedWrapper: given.get('--seed-wrapper',) ?? mainWrapper,
+    harmSeed: given.has('--harm-seed-wrapper',)
+      ? {
+        kind: 'release',
+        wrapper: String(given.get('--harm-seed-wrapper',),),
+      }
+      : { kind: 'none', },
     units: Number(given.get('--units',) ?? defaultUnitCount,),
     probeDeadline: given.get('--probe-deadline',) ?? defaultProbeDeadline,
   };
@@ -329,6 +345,7 @@ async function main_(): Promise<void> {
     image,
     mainWrapper,
     seedWrapper,
+    harmSeed,
     units,
     probeDeadline,
   } = options({ argv: process.argv
@@ -356,7 +373,7 @@ async function main_(): Promise<void> {
     wrapper: mainWrapper,
     probeDeadline,
     units,
-    seed: { kind: 'none', },
+    seed: harmSeed,
   });
   printReport({ report: onMain, });
   /**

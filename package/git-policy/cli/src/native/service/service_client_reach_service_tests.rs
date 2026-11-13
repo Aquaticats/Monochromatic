@@ -357,7 +357,8 @@ fn a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_
 /// a commit that
 ///  ended there left the person's change uncommitted (five of six changes of release in the two-build reproduction of
 ///  2026-11-12,
-/// 10,032 to 10,052 ms of a wait that then failed, and 1 of 16 on another agent's fixture).
+/// 10,032 to 10,052 ms of a wait that then failed,
+/// and 1 of 16 on another agent's fixture).
 /// Ending the
 ///  unit is what lets the manager start the program this release installs,
 /// because the unit names the program link and not an
@@ -372,8 +373,9 @@ fn a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_
 /// so nothing here makes the manager read every unit it holds.
 ///
 /// In TS you'd write (pseudocode):
-/// ```
-/// expect(await reachCurrent(anotherReleaseThatOutlastsTheBound)).toBeDefined(); expect(asked()).toEqual(['restart ' + unit]);
+/// ```ts
+/// expect(await reachCurrent(anotherReleaseThatOutlastsTheBound)).toBeDefined();
+/// expect(asked()).toEqual(['restart ' + unit]);
 /// ```
 #[test]
 fn a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_once() {

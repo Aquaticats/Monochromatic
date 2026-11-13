@@ -37,11 +37,13 @@
 //! so its text is the same in every release,
 //! in every build of a release and in a build made in a
 //!  worktree:
-//! an upgrade, a downgrade and two releases used in turn write nothing the manager has to read again.
+//! an upgrade,
+//! a downgrade and two releases used in turn write nothing the manager has to read again.
 //! Every commit that reaches the service compares the two installed templates with what this wrapper would
 //!  write (two small reads) and points the link before it touches the bus,
 //! so a release change costs one read and,
-//!  when the program moved, one rename.
+//!  when the program moved,
+//! one rename.
 //! Why:
 //!  A manager told about a new text re-reads every unit it holds,
 //! which stalls every other client of it for a
