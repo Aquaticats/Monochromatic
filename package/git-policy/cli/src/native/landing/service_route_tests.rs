@@ -54,9 +54,9 @@ fn the_program_and_the_runtime_directory_mean_a_route() {
     let route: Option<Route> = choose_route(&inputs(&machine));
     let Some(Route { address, host }) = route else { panic!("a route expected") };
     assert_eq!(address, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
-    let host = host.expect("what starting needs comes with the route");
-    assert_eq!(host.instance, crate::service_instance::instance_of(machine.git_dir.as_path()));
-    assert_eq!(host.journal(), crate::service_journal_folder_of_an_instance::journal_of(&machine.root.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current), host.instance.as_str()));
+    let named = host.expect("what starting needs comes with the route");
+    assert_eq!(named.instance, crate::service_instance::instance_of(machine.git_dir.as_path()));
+    assert_eq!(named.journal(), crate::service_journal_folder_of_an_instance::journal_of(&machine.root.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current), named.instance.as_str()));
     remove(machine.root.as_path());
 }
 

@@ -4,9 +4,7 @@ use super::*;
 use crate::service_server_pid_note_of_an_instance::read as read_note;
 
 fn folder(name: &str) -> PathBuf {
-    let root: PathBuf = crate::test_support::fixture_root().join(format!("own-files-{name}"));
-    std::fs::create_dir_all(&root).expect("fixture folder");
-    return root;
+    return crate::test_support::short_directory_for_sockets(format!("own-files-{name}").as_str());
 }
 
 /// Taking the files makes the folder private, keeps the socket to this account, names this process, and removing them leaves nothing.

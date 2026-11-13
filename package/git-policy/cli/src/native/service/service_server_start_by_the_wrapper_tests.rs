@@ -3,10 +3,9 @@
 
 use super::*;
 
+/// A folder of this test's own, short enough for a socket address.
 fn folder(name: &str) -> PathBuf {
-    let root: PathBuf = crate::test_support::fixture_root().join(format!("server-start-{name}"));
-    std::fs::create_dir_all(&root).expect("fixture folder");
-    return root;
+    return crate::test_support::short_directory_for_sockets(format!("server-start-{name}").as_str());
 }
 
 /// What: One taker of the marker wins and a second finds it held.
@@ -44,14 +43,21 @@ fn only_a_service_that_greets_answers() {
     assert!(!answered(socket.as_path()), "a connection nothing answers on is not a greeting");
     let greeter = std::thread::spawn(move || {
         use std::io::Write;
-        let (mut stream, _) = listener.accept().expect("a connection");
+        // Every connection is greeted, because the probes before the start left connections nobody read. The loop ends after
+        // a few, so the control's thread ends: a greeter that accepted for ever would hold this test at its join.
         let line: String = format!("{}\n", crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: 1, release: Some(String::from("test")) }));
-        let _sent = stream.write_all(line.as_bytes());
-        // The connection stays open while the greeting is read.
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        let mut greeted: usize = 0;
+        while greeted < 6 {
+            let Ok((mut stream, _)) = listener.accept() else { return };
+            let _sent = stream.write_all(line.as_bytes());
+            greeted += 1;
+            // The connection stays open while the greeting is read.
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
     });
     assert!(waits_for_a_greeting(socket.as_path(), START_WAIT), "a service that greets answers");
-    greeter.join().expect("the greeter ends");
+    // The greeter's thread ends by itself; a control that waited for it would wait on the socket it still holds.
+    std::mem::forget(greeter);
 }
 
 /// A wait with no service ends at its bound and does not hang.

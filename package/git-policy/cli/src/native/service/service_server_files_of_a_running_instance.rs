@@ -75,10 +75,14 @@ impl OwnFiles {
 /// ensurePrivate(dirname(socket)); keepOnlyItsOwner(socket); writePidNote(pidNote); return { socket, pidNote };
 /// ```
 pub fn take(socket: &Path, instance: Option<&str>) -> std::io::Result<OwnFiles> {
-    let directory: &Path = socket.parent().unwrap_or_else(|| Path::new("."));
+    let directory: &Path = socket.parent().unwrap_or_else(|| {
+        return Path::new(".");
+    });
     ensure_private(directory)?;
     keep_only_its_owner(socket)?;
-    let note: Option<PathBuf> = instance.map(|name| pid_note_path(directory, name));
+    let note: Option<PathBuf> = instance.map(|name| {
+        return pid_note_path(directory, name);
+    });
     if let Some(path) = note.as_ref() {
         write_pid_note(path.as_path(), i32::try_from(std::process::id()).unwrap_or(0))?;
     }

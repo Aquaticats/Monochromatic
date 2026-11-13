@@ -3,10 +3,9 @@
 use super::*;
 use std::os::unix::fs::PermissionsExt;
 
+/// A folder of this test's own, short enough to bind a socket in.
 fn folder(name: &str) -> std::path::PathBuf {
-    let root: std::path::PathBuf = crate::test_support::fixture_root().join(format!("socket-modes-{name}"));
-    std::fs::create_dir_all(&root).expect("fixture folder");
-    return root;
+    return crate::test_support::short_directory_for_sockets(format!("socket-modes-{name}").as_str());
 }
 
 /// The folder is made with 0700 and repaired when it is not.

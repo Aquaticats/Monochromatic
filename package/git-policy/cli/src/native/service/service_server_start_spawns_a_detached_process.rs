@@ -72,10 +72,14 @@ pub struct Detached {
 pub fn spawn(detached: &Detached) -> std::io::Result<Option<i32>> {
     let nothing: OwnedFd = std::fs::OpenOptions::new().read(true).open("/dev/null")?.into();
     let log: OwnedFd = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&detached.log)?.into();
-    let program: CString = CString::new(detached.program.as_os_str().as_bytes()).map_err(|_nul| std::io::Error::other("the service program's path holds a zero byte"))?;
+    let program: CString = CString::new(detached.program.as_os_str().as_bytes()).map_err(|_nul| {
+        return std::io::Error::other("the service program's path holds a zero byte");
+    })?;
     let mut arguments: Vec<CString> = Vec::with_capacity(detached.arguments.len());
     for argument in &detached.arguments {
-        arguments.push(CString::new(argument.as_os_str().as_bytes()).map_err(|_nul| std::io::Error::other("an argument of the service holds a zero byte"))?);
+        arguments.push(CString::new(argument.as_os_str().as_bytes()).map_err(|_nul| {
+            return std::io::Error::other("an argument of the service holds a zero byte");
+        })?);
     }
     let mut pointers: Vec<*const libc::c_char> = Vec::with_capacity(arguments.len() + 2);
     pointers.push(program.as_ptr());
@@ -190,8 +194,8 @@ fn read_the_number(reading: libc::c_int) -> Option<i32> {
             if read <= 0 {
                 return None;
             }
-            let text: &str = std::str::from_utf8(&text[..usize::try_from(read).unwrap_or(0)]).ok()?;
-            return text.trim().parse().ok();
+            let digits: &str = std::str::from_utf8(&text[..usize::try_from(read).unwrap_or(0)]).ok()?;
+            return digits.trim().parse().ok();
         }
         if std::time::Instant::now() >= deadline {
             return None;

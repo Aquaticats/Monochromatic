@@ -60,7 +60,6 @@ const QUICK_NOTICE: Duration = Duration::from_millis(250);
 /// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// A start wait the controls would exceed many times over if it still bounded a start the manager can be asked about.
 
 /// An address no other control uses.
 fn address(label: &str) -> String {
@@ -447,14 +446,6 @@ fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent
     assert!(notices.contains("nothing for you to do"), "the notice says that nothing is asked of the reader: {notices:?}");
     assert!(notices.contains(silent_notice(QUICK_SILENCE).as_str()), "{notices:?}");
 }
-
-/// Whether the fake manager says the unit failed.
-
-/// Whether the fake manager says the unit is inactive (it is `activating` otherwise).
-
-/// How many times the fake manager was asked to start the unit.
-
-/// How many times the fake manager was asked to restart the unit.
 
 /// A command that waits on the service keeps its scratch directory from aging out:
 /// the sweep that removes entries older than

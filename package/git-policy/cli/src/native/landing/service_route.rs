@@ -133,7 +133,9 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
         _ => return if socket.exists() { Some(Route { address: Bind::Path(socket), host: None }) } else { None },
     };
-    let state_dir: PathBuf = state_dir_of(inputs.state_home, inputs.home).unwrap_or_else(|| runtime_dir.to_path_buf());
+    let state_dir: PathBuf = state_dir_of(inputs.state_home, inputs.home).unwrap_or_else(|| {
+        return runtime_dir.to_path_buf();
+    });
     let host: ServiceHost = ServiceHost {
         runtime_dir: runtime_dir.to_path_buf(),
         state_dir,

@@ -11,14 +11,14 @@ fn folder(name: &str) -> PathBuf {
     return root;
 }
 
-/// The field of `/proc/<pid>/stat` that names a process's session.
+/// The field of `/proc/<pid>/stat` that names a process's session (field 6, which is index 3 after the command name).
 fn session_of(pid: i32) -> Option<u32> {
     let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let after: &str = stat.get(stat.rfind(')')? + 2..)?;
-    return after.split(' ').nth(4)?.parse().ok();
+    return after.split(' ').nth(3)?.parse().ok();
 }
 
-/// The field of `/proc/<pid>/stat` that names a process's process group.
+/// The field of `/proc/<pid>/stat` that names a process's process group (field 5, index 2).
 fn group_of(pid: i32) -> Option<u32> {
     let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let after: &str = stat.get(stat.rfind(')')? + 2..)?;

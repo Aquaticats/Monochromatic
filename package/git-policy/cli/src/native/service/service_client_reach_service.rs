@@ -107,7 +107,9 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
             }
             Some(_) => {}
             // Without an executable to start, nothing can start the service: what the wait comes to is the truth about the address.
-            None if started.elapsed() >= config.start_wait => return Err(nothing_answered(config, started.elapsed())),
+            None if started.elapsed() >= config.start_wait => {
+                return Err(if connected { nothing_answered(config, started.elapsed()) } else { ClientFailure::DidNotStart });
+            }
             None => {}
         }
         std::thread::sleep(CONNECT_PAUSE);

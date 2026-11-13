@@ -136,10 +136,6 @@ mod resolution;
 #[path = "binary_never_self_start_tests.rs"]
 mod never_self_start;
 
-/// With no real Git after the wrapper on `PATH`,
-/// the wrapper falls back to the Git its commit service was set up with
-///  when that record passes the `PATH` candidate checks,
-/// and otherwise keeps its stop.
 
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
@@ -558,9 +554,6 @@ mod moved_branch_commit;
 #[path = "binary_service_mode_tests.rs"]
 mod service_mode;
 
-/// The upgrade from the release with the service as a second program:
-/// the unit is rewritten,
-/// the old service retires.
 
 /// A commit whose prepared content was pruned before it landed:
 /// prepared again once,
@@ -792,8 +785,6 @@ mod service_starts;
 #[path = "binary_service_no_manager_tests.rs"]
 mod service_no_manager;
 
-/// The upgrade from the 0.5.4 release,
-/// run with that release's own service program.
 
 /// The resident commit service as a real process:
 /// kills at each point of a batch,

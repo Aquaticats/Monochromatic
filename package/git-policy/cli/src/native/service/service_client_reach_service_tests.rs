@@ -107,25 +107,27 @@ fn an_address_that_answers_nothing_is_named_truly() {
     std::mem::forget(holding);
 }
 
-/// What: A service that greeted and then says nothing is the service that stopped.
-/// Why:  Its heartbeats are what tell a working batch from a stopped process; a command that saw a greeting knows the difference.
+/// What: A service that greeted earlier in this command and now says nothing is the service that stopped.
+/// Why:  Its heartbeats are what tell a working batch from a stopped process; a command that saw a greeting knows the difference,
+///       and must not wait out a start ceiling for a process that will never answer.
 #[test]
 fn a_service_that_greeted_and_then_says_nothing_is_the_service_that_stopped() {
-    use std::io::Write;
     let socket: String = address("greeted-then-silent");
     let service = listen_at(socket.as_str()).expect("the service listens");
     let serving = std::thread::spawn(move || {
-        let (mut first, _) = service.accept().expect("the first connection");
-        let _sent = first.write_all(line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
-        let (mut second, _) = service.accept().expect("the second connection");
-        let _also = second.write_all(line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
-        // The second connection says nothing more the command can use.
-        std::thread::sleep(Duration::from_millis(300));
+        // Every connection is accepted and answered with nothing: the process this command greeted is stopped inside itself.
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while let Ok((stream, _)) = service.accept() {
+            held.push(stream);
+            if held.len() > 8 {
+                break;
+            }
+        }
     });
     let mut announced: bool = false;
     let reached = reach(&config(socket.as_str()), &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true);
     assert_eq!(reached.err(), Some(ClientFailure::ServiceSilent));
-    serving.join().expect("the service ends");
+    std::mem::forget(serving);
 }
 
 /// What: A service of another release is asked to leave in the version it announced, and the wait ends when it does not.

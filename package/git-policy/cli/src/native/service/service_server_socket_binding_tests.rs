@@ -42,8 +42,8 @@ fn every_kind_of_address_is_named_in_words_a_person_can_act_on() {
 /// the next server takes the name within one greeting's read, and the old one keeps its own socket until it ends.
 #[test]
 fn a_socket_that_greets_nothing_is_taken_over() {
-    let root: std::path::PathBuf = crate::test_support::fixture_root().join("bind-over-silent");
-    let _made = std::fs::create_dir_all(root.as_path());
+    // A socket path must fit in a socket address, which the fixture tree's depth does not allow.
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("bind-over-silent");
     let path: std::path::PathBuf = root.join("3f9a.sock");
     let dying: UnixListener = UnixListener::bind(path.as_path()).expect("the dying service's address");
     let holding = std::thread::spawn(move || {

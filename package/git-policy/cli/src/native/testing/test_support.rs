@@ -334,6 +334,28 @@ pub(crate) fn track_for_this_thread(root: &Path) {
 }
 
 /// What:
+///  A directory of this test's own,
+///  short enough for a socket path,
+///  removed with the thread's other fixtures.
+/// Why:
+///   A socket path holds about a hundred bytes,
+/// and a fixture root the person points the tests at would not leave room for one,
+/// so every control of a socket names its directory from here instead of building the idiom again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directory = shortDirectoryForSockets('bind-over'); // '~/temp/agent/sock-<pid>-bind-over'
+/// ```
+pub(crate) fn short_directory_for_sockets(name: &str) -> PathBuf {
+    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the short directory"));
+    let directory: PathBuf = home.join("temp/agent").join(format!("sock-{}-{name}", std::process::id()));
+    let _stale = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).expect("short directory");
+    track_for_this_thread(directory.as_path());
+    return directory;
+}
+
+/// What:
 ///  Move a path's modification time two minutes into the past without following a symbolic link.
 /// Why:
 ///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again),

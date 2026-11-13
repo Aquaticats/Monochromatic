@@ -98,8 +98,8 @@ pub fn state_dir_of(state_home: Option<&Path>, home: Option<&Path>) -> Option<Pa
     {
         return Some(named.to_path_buf());
     }
-    let home: &Path = home?;
-    return Some(home.join(".local").join("state"));
+    let named: &Path = home?;
+    return Some(named.join(".local").join("state"));
 }
 
 /// Controls of the derived paths stay out of the release executable.

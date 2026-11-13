@@ -77,7 +77,14 @@ pub struct ServerToStart {
 impl ServerToStart {
     /// The folder the instance's files sit in.
     pub fn directory(&self) -> PathBuf {
-        return self.socket.parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+        return self.socket.parent().map_or_else(
+            || {
+                return PathBuf::from(".");
+            },
+            |folder| {
+                return folder.to_path_buf();
+            },
+        );
     }
 
     /// The file the service's output is appended to.
@@ -251,8 +258,8 @@ impl Drop for StarterMarker {
 /// A marker that cannot be read or parsed names nobody, so it is nobody's.
 fn holder_is_alive(path: &Path) -> bool {
     let Ok(text) = std::fs::read_to_string(path) else { return false };
-    let Some((pid, identity)) = text.trim_end().split_once(' ') else { return false };
-    let Ok(pid) = pid.parse::<i64>() else { return false };
+    let Some((number, identity)) = text.trim_end().split_once(' ') else { return false };
+    let Ok(pid) = number.parse::<i64>() else { return false };
     return matches!(process_birth_identity(pid), Ok(Some(held)) if held == identity);
 }
 

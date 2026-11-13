@@ -7,7 +7,7 @@ use super::*;
 #[test]
 fn a_worktree_with_no_route_starts_nothing() {
     let mut timing = std::time::Duration::ZERO;
-    assert!(ensure_a_server(None, false, &mut timing).expect("no route is not a failure"));
+    assert!(!ensure_a_server(None, false, &mut timing).expect("no route is not a failure"), "nothing was provisioned");
     assert_eq!(timing, std::time::Duration::ZERO, "nothing is timed");
 }
 
