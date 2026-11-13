@@ -299,9 +299,27 @@ The route as the source reads (posted on the issue at about 11:00, read and not 
 prefers that variable's `unix:path=` entry over `$XDG_RUNTIME_DIR/bus`, so a run that changes two variables and inherits the third still speaks to the real manager.
 The troubleshooting doc's sentence is about a run "without a bus" and does not cover this case.
 Unsetting the third variable alone would, by that doc, leave the clone unable to commit at all, so the skill's sentence cannot simply be extended.
-No remedy is decided. The brief `~/temp/agent/pi-runs/issue-6293-throwaway-clone-reaches-the-real-commit-service-route-proven-and-remedies-weighed-prompt.md`
-asks for the route proven in a container, what the wrapper does with the bus address unset, and the remedies weighed as a proposal under `doc/planning/`;
-it changes only sentences its own proof shows to be false. It starts when a place is free, after the first resumes of the jam fixes.
+The owner decided both parts through the question tool on 2026-11-13 at about 11:02:
+
+- How a throwaway clone is kept away from the real manager: "Private runtime dir is the boundary (Recommended)".
+  When `XDG_RUNTIME_DIR` is not the directory the inherited bus belongs to, the wrapper does not use that bus and runs its commit service inside the private directory,
+  in line with the decision of 2026-11-12 that the service needs no service manager.
+  The two alternatives put to the owner and not chosen: an explicit throwaway switch (a setting meaning commit, never push, no unit), and correcting the docs only.
+- What happens to a push whose address cannot be a remote at all: "End the plan at once, say so once (Recommended)".
+  The plan ends on the first refusal with one line; an address that might come back (an unmounted drive, a host that is down) keeps its retries.
+  Not chosen: stop after a few tries, and leave it as it is.
+
+The brief is `~/temp/agent/pi-runs/issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once-prompt.md`
+(it replaces the investigation brief written before the decision, which is deleted).
+The first part rests on the branch `refactor/git-policy-cli-commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`,
+cut off on 2026-11-12 and in the resume queue, so that resume goes before this run, and the brief tells the run to build on it and write no second service starter.
+
+#### What agent work keeps on the home drive (2026-11-13T11:00:57-05:00)
+
+`btrfs filesystem du --summarize --raw`, bytes shared inside each folder (their own bytes are near nothing, which means snapshots or copies elsewhere on the drive hold the same data):
+`~/.cache` 83,783,061,504 (78 GiB); `~/.local/share/pnpm` 44,337,799,168 (41 GiB); `~/.pi` 5,927,972,864; `~/.cargo` 4,525,879,296;
+`~/.local/share/containers` 4,170,035,200 (after the owner's reset; nine images built since by the other session); `~/.local/state` 722,915,328.
+What is in `~/.cache`, and how much of it and of the pnpm store is agents' and how much the owner's, is not separated yet.
 The unit and the clone are the other session's and are left alone while its run works there.
 
 #### Corrections to this section (2026-11-13T10:51:36-05:00)
