@@ -27,6 +27,7 @@ use crate::iso_time::format_iso_milliseconds;
 use crate::kept_reference_limits::KeptReferenceLimits;
 use crate::kept_reference_log::why_words;
 use crate::kept_reference_pass_answers::{ThePass, WhyNotPruned};
+use crate::kept_reference_words::{age_words, span_words};
 
 /// The sentence a listing prints for a reference the next pass prunes,
 /// which a control matches to know what that pass will take.
@@ -34,46 +35,6 @@ pub const PRUNED_NEXT: &str = "the next pass prunes it:";
 
 /// The sentence a listing prints for a reference the next pass keeps.
 pub const KEPT_NEXT: &str = "the next pass keeps it:";
-
-/// What:
-///  Milliseconds as the days and hours a person reads,
-///  as in "6 days 2 hours".
-/// Why:
-///  The exact age is beside it as a timestamp;
-///  this is the figure a person compares with the limit,
-///  and it never rounds a reference past the limit it is judged by.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ageWords = (ms) => `${Math.floor(ms / 86400000)} days ${Math.floor(ms / 3600000) % 24} hours`;
-/// ```
-pub fn age_words(milliseconds: u128) -> String {
-    let days: u128 = milliseconds / (24 * 60 * 60 * 1000);
-    let hours: u128 = (milliseconds / (60 * 60 * 1000)) % 24;
-    let minutes: u128 = (milliseconds / (60 * 1000)) % 60;
-    if days > 0 {
-        return format!("{days} {} {hours} {}", counted(days, "day"), counted(hours, "hour"));
-    }
-    if hours > 0 {
-        return format!("{hours} {} {minutes} {}", counted(hours, "hour"), counted(minutes, "minute"));
-    }
-    return format!("{minutes} {}", counted(minutes, "minute"));
-}
-
-/// What:
-///  The noun for a count,
-///  singular for one and plural for everything else.
-/// Why:
-///   A line that reads "1 minutes" reads as a mistake,
-///  and a person's age comparison is the one figure here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const counted = (count, noun) => `${noun}${count === 1n ? '' : 's'}`;
-/// ```
-pub fn counted(count: u128, noun: &str) -> String {
-    return if count == 1 { String::from(noun) } else { format!("{noun}s") };
-}
 
 /// What:
 ///  Why a reference the pass keeps is still there,
@@ -87,9 +48,8 @@ pub fn counted(count: u128, noun: &str) -> String {
 /// const keptWords = (why, limits) => ({...})[why];
 /// ```
 pub fn kept_words(why: WhyNotPruned, limits: KeptReferenceLimits) -> String {
-    let days: u64 = u64::try_from(limits.max_age.as_secs() / (24 * 60 * 60)).unwrap_or(0);
     return match why {
-        WhyNotPruned::YoungerThanTheLimit => format!("it is younger than the {days}-day age limit"),
+        WhyNotPruned::YoungerThanTheLimit => format!("it is younger than the age limit of {}", span_words(limits.max_age)),
         WhyNotPruned::UnderTheSizeLimit => format!("the objects only kept references reach weigh less than the {} bytes the size limit allows", limits.max_bytes),
         WhyNotPruned::ThisPassReachedItsCap => String::from("the pass that read it had reached the most removals one pass makes, so a later pass takes it"),
     };
@@ -152,12 +112,12 @@ fn lines_of_one(reference: &str, commit: &str, rescued: bool, kept_at_ms: u128, 
 pub fn summary_of(pass: &ThePass, limits: KeptReferenceLimits) -> String {
     let count: usize = pass.kept.len() + pass.pruned.len();
     let references: String = if count == 1 { String::from("1 kept reference") } else { format!("{count} kept references") };
-    let age_seconds: u64 = u64::try_from(limits.max_age.as_secs()).unwrap_or(0);
-    let floor_seconds: u64 = u64::try_from(limits.floor.as_secs()).unwrap_or(0);
     return format!(
-        "{references} hold objects only they reach, {bytes} bytes on disk.\nThe limits are {age_seconds} seconds of age and {max_bytes} bytes, and a reference younger than {floor_seconds} seconds is never pruned for its size.\n",
+        "{references} hold objects only they reach, {bytes} bytes on disk.\nThe limits are {age} of age and {max_bytes} bytes, and a reference younger than {floor} is never pruned for its size.\n",
         bytes = pass.bytes_before,
-        max_bytes = limits.max_bytes
+        age = span_words(limits.max_age),
+        max_bytes = limits.max_bytes,
+        floor = span_words(limits.floor)
     );
 }
 

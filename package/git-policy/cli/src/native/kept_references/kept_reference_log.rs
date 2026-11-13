@@ -68,10 +68,9 @@ pub fn log_path(common_dir: &Path) -> PathBuf {
 /// const whyWords = (why) => ({ 'reached-a-branch': 'a branch reaches its commit, so the reference held nothing', 'too-old': ..., 'too-much-kept': ... })[why];
 /// ```
 pub fn why_words(why: WhyPruned, limits: crate::kept_reference_limits::KeptReferenceLimits) -> String {
-    let days: u64 = u64::try_from(limits.max_age.as_secs() / (24 * 60 * 60)).unwrap_or(0);
     return match why {
         WhyPruned::ReachedABranch => String::from("a branch, a remote-tracking reference or a tag reaches its commit, so nothing was lost"),
-        WhyPruned::TooOld => format!("it reached no branch and was older than the {days}-day age limit"),
+        WhyPruned::TooOld => format!("it reached no branch and was older than the age limit of {}", crate::kept_reference_words::span_words(limits.max_age)),
         WhyPruned::TooMuchKept => format!(
             "it reached no branch, and the objects only kept references reached weighed more than the {} bytes the size limit allows, so the oldest went first",
             limits.max_bytes

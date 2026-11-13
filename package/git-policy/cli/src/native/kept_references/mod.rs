@@ -64,6 +64,10 @@ pub mod kept_reference_pass_answers;
 /// The line one pruned kept reference leaves in the repository's log.
 pub mod kept_reference_log;
 
+/// The words a span of time is printed in,
+/// which the listing and the log line both use.
+pub mod kept_reference_words;
+
 /// The text `git monochromatic-git-policy-cli kept-references` prints.
 pub mod kept_reference_listing;
 

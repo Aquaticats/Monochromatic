@@ -3718,22 +3718,19 @@ so what it says the next pass takes is what that pass takes:
 
 ```console
 $ git monochromatic-git-policy-cli kept-references
-2 kept references hold objects only they reach, 7573 bytes on disk.
-The limits are 2592000 seconds of age and 67108864 bytes, and a reference younger than 3600 seconds is never pruned for its size.
-
-refs/cli-git/kept/1794071191963903
-  commit 4abc7d6a39b8f76b741705ae772910419412a60e
-  kept 2026-11-07T13:26:31.963Z (5 days 22 hours ago), batch 1794071191963903
-  worktree /home/a person/worktrees/task
-  the next pass keeps it: it is younger than the 30-day age limit
-
-refs/cli-git/kept/1794071191963902
-  commit deb10b333be2e7c350d4d5cce35b8d474161fbbc
-  kept 2026-11-07T13:26:31.963Z (5 days 22 hours ago), batch 1794071191963902
+2 kept references hold objects only they reach, 269 bytes on disk.
+The limits are 30 days of age and 67108864 bytes, and a reference younger than 1 hour is never pruned for its size.
+refs/cli-git/kept/1794071191963906
+  commit bdd6fb5ee5a069fef60341f71964d749214889e7
+  kept 2026-11-13T18:37:31.628Z (0 minutes ago), batch 1794071191963906
   worktree not recorded
-  the next pass keeps it: it is younger than the 30-day age limit
-
-The next pass prunes nothing, so the objects only kept references reach stay at 7573 bytes.
+  the next pass keeps it: it is younger than the age limit of 30 days
+refs/cli-git/kept/1794071191963907
+  commit 7d860c1a0db74eb012793f1c12983f2142578e69
+  kept 2026-11-13T18:37:31.628Z (0 minutes ago), batch 1794071191963907
+  worktree not recorded
+  the next pass keeps it: it is younger than the age limit of 30 days
+The next pass prunes nothing, so the objects only kept references reach stay at 269 bytes.
 ```
 
 On this repository on 2026-11-12 the five kept references it held

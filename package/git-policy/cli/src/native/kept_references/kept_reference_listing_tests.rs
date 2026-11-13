@@ -13,7 +13,7 @@
 //! expect(theListing(pass, limits)).toContain(`${PRUNED_NEXT} it is older than the 30-day age limit`);
 //! ```
 
-use super::{KEPT_NEXT, PRUNED_NEXT, age_words, the_listing, the_pruning_report};
+use super::{KEPT_NEXT, PRUNED_NEXT, the_listing, the_pruning_report};
 use crate::kept_reference_limits::{KEPT_REFERENCE_FLOOR, KEPT_REFERENCE_MAX_AGE, KEPT_REFERENCE_MAX_BYTES, KeptReferenceLimits};
 use crate::kept_reference_pass::{Kept, Pruned, WhyNotPruned, WhyPruned};
 use crate::kept_reference_pass_answers::ThePass;
@@ -68,7 +68,7 @@ fn a_listing_names_what_is_kept_and_what_the_next_pass_takes() {
     assert!(text.contains("worktree /a worktree/with a space"), "{text}");
     assert!(text.contains("batch 1794071191963902\n"), "{text}");
     assert!(text.contains(PRUNED_NEXT), "{text}");
-    assert!(text.contains("it reached no branch and was older than the 30-day age limit"), "{text}");
+    assert!(text.contains("it reached no branch and was older than the age limit of 30 days"), "{text}");
     assert!(text.contains("refs/cli-git/kept/1794071191963903-rescue"), "{text}");
     assert!(text.contains(", the name beside the batch's own"), "{text}");
     assert!(text.contains("worktree not recorded"), "{text}");
@@ -95,13 +95,4 @@ fn a_pruning_report_names_where_the_line_is() {
     assert!(text.contains("pruned refs/cli-git/kept/1794071191963902"), "{text}");
     assert!(text.contains("commit deb10b333be2e7c350d4d5cce35b8d474161fbbc"), "{text}");
     assert!(text.contains("/a repository/.git/monochromatic-git-policy-cli-kept-references.jsonl"), "{text}");
-}
-
-/// An age reads as the days and hours a person compares with the limit.
-#[test]
-fn an_age_reads_in_days_and_hours() {
-    assert_eq!(age_words(0), "0 minutes");
-    assert_eq!(age_words(90 * 1000), "1 minute");
-    assert_eq!(age_words(2 * 60 * 60 * 1000), "2 hours 0 minutes");
-    assert_eq!(age_words(6 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000), "6 days 5 hours");
 }
