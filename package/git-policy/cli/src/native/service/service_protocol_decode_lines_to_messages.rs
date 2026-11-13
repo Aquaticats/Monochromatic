@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
+use crate::service_protocol_messages_and_name_checks::{MIN_SERVED_PROTOCOL, PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
 
 /// What:
 ///  Reads and checks one client line.
@@ -46,7 +46,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         };
         return Ok(ClientMessage::Retire { version: announced });
     }
-    if value.get("version").and_then(Value::as_u64) != Some(u64::from(PROTOCOL_VERSION)) {
+    // What: A request of any protocol this build still serves is read, and one of another version is refused.
+    // Why:  A client of an earlier protocol cannot be changed after it is installed, and the hours after an upgrade are full of
+    //       them: their requests carry their own version number, and protocol 12 only added an optional field and a message
+    //       they never send (`MIN_SERVED_PROTOCOL`). A version this build does not serve is still refused here, which is what
+    //       keeps a message from a later release from being misread.
+    let announced: u64 = value.get("version").and_then(Value::as_u64).unwrap_or(0);
+    if !(u64::from(MIN_SERVED_PROTOCOL)..=u64::from(PROTOCOL_VERSION)).contains(&announced) {
         return Err(String::from("unsupported version"));
     }
     match field(&value, "type")? {

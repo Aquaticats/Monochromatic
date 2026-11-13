@@ -26,7 +26,7 @@ use crate::service_busy::{EarlyAnswer, LandingBoard};
 use crate::blocking_job::run_blocking_job;
 use crate::service_reply::{NoteSource, Reply, write_until_answered_noting};
 use crate::service_protocol::{
-    ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client,
+    ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, ServiceMessage, decode_client,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
