@@ -6,7 +6,9 @@ and the owner has not approved it.
 Done and checked by that session:
 the measurements and the source reading reported here.
 Open:
-a review by a model from another vendor was still running when this was written,
+a model from another vendor reviewed the text as of commit `5a4e07d2e3`,
+and its findings were folded in;
+what changed after that commit is not yet reviewed,
 and the two further copies named under "What is left after the fix" are profiled and not fixed.
 
 Status,
@@ -337,7 +339,7 @@ and its job that asserts an exponent below 1.5 failed on that step in each of th
 Putting `--` before the tokens does not avoid it:
 the trace records tokens after the separator too.
 The prototype made a thousand paths after `--` 0.76 times as long (0.74 to 0.79 over five alternating rounds),
-which is the trace's share of that parse.
+so the trace copy was about a quarter of that parse.
 
 ### Inputs that stay fast
 
@@ -461,7 +463,9 @@ The six constraints:
     The prototype changes one class and adds one internal module.
 3.  Supported use case:
     yes.
-    Upstream issue 989 set out to reduce "parsing time for commands with many positional arguments",
+    Upstream issue 989 says
+    "a successful parse with many paths should not require a full typo diagnostic for each option non-match",
+    which takes a parse of many paths as a case to serve,
     and issue 1120 grants that this copy "contributes to large-input costs".
 4.  Contribution welcome:
     conditionally.
@@ -481,7 +485,7 @@ The six constraints:
 
 Risk to the poster:
 a report would go out under the owner's account.
-Upstream's policy ends:
+The last of the policy's numbered rules reads:
 "Violations of this policy may result in being banned from contributing."
 The draft and the patch were made with AI assistance,
 so posting either unreviewed,
@@ -518,6 +522,10 @@ because upstream's pull request 1121 describes its own tests as written
 and upstream has three open issues about tests that fail under load (1116,
 1117,
 1118).
+With it gone,
+no test in the patch would fail if the whole-map copy came back:
+the tests guard what the trace returns,
+and the growth is guarded only by the measurement.
 
 Correctness,
 run in a container with upstream's toolchain on 2026-11-13:
@@ -525,7 +533,9 @@ run in a container with upstream's toolchain on 2026-11-13:
 - `deno fmt --check`,
    `deno lint` and `deno check` on the four touched source files:
    clean.
-- The two new test files on Deno:
+- The two test files the patch touches,
+   one new and one extended,
+   on Deno:
    2 passed (32 steps),
    0 failed.
    On Bun 1.3.0:
@@ -549,6 +559,8 @@ run in a container with upstream's toolchain on 2026-11-13:
 - `sacho sync --force`,
    `sacho fmt` and `sacho check`:
    exit 0.
+   The exit status of the check is in the records;
+   those of the other two were printed to the session and not saved.
 - `git apply` of the patch onto `main` at `84f95710` and onto pull request 1121's head `a175cdb7`:
    clean on both.
 
@@ -644,7 +656,18 @@ for the paths after `--`:
    five rounds faster and two slower,
    which seven rounds cannot tell from no difference.
 
-So on this input the trace copy is about what still separates the pull request from 1.3.6.
+That last figure needs reading with care.
+1.3.6 pays for the trace copy too,
+so the copy is no part of the gap between the pull request and 1.3.6;
+that gap is option-scope work the pull request leaves.
+`main` with the patch against 1.3.6 shows it:
+1.45 by the medians listed here.
+The patch removes from the pull request a cost that 1.3.6 also carries and that is about as large as the gap
+(42.0 less 28.4 is 13.6 ms,
+against a gap of 11.2 ms),
+which is why the two land together.
+An independent review on 2026-11-13 caught an earlier sentence here,
+which called the trace copy what separates the two.
 The pull request does not change the 8,000-token figure (1.00 against `main`,
 0.82 to 1.04),
 and the patch does not depend on it.
@@ -678,7 +701,8 @@ and the container recipes and runners that produced them.
     with the patch linked from it.
 4.  Automation on a new filing:
     upstream's `main.yaml` runs on pull requests,
-    tags and manual dispatch,
+    pushes to branches and to tags,
+    and manual dispatch,
     not on issues.
 5.  Duplicate,
     work-in-progress and trust-list searches:

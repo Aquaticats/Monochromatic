@@ -7,7 +7,9 @@ Done and checked by that session:
 the measurements and the source reading reported here,
 and one review by a model from another vendor of the text as it stood on 2026-11-12.
 Open:
-a second such review was still running on 2026-11-13,
+a second such review read the text as of commit `5a4e07d2e3`,
+and its findings were folded in;
+what changed after that commit is not yet reviewed,
 and the reply draft waits for the owner.
 
 Status,
@@ -597,7 +599,7 @@ The six constraints:
 
 Risk to the poster:
 the reply would go out under the owner's account.
-Upstream's policy ends:
+The last of the policy's numbered rules reads:
 "Violations of this policy may result in being banned from contributing."
 The draft and its numbers were produced with AI assistance,
 so posting it unreviewed,
@@ -704,7 +706,7 @@ in answer to questions put that morning:
 
 ~~~md
 Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
-had written back.
+had sent you any of it.
 
 [Owner: your answer to "would you consider reassessing". What the record here shows: performance was the reason for
 one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
@@ -730,7 +732,8 @@ paths after `--`:
 That is 0.75 times main (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42), which agrees with your own figures.
 On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
 
-What #1121 leaves looks like the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
+What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
+both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
 input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
@@ -743,8 +746,8 @@ The patch was written by an AI agent, so per AI_POLICY.md there is no pull reque
 
 One thing that is still true of 1.3.6: the default path collects the option names and searches them on every
 mismatch, and a profile puts about three quarters of the parse there. The length check skips a name only when its
-length differs from the token's by more than three, so a token about as long as the option names pays in full. A
-literal `errors.noMatch` on every option avoids all of it.
+length differs from the token's by more than three or by more than half the token's length, so a token about as
+long as the option names pays in full. A literal `errors.noMatch` on every option avoids all of it.
 
 The reproducer you asked for: three scripts that run unchanged on Node, Deno and Bun, against an npm version or a
 checkout, and a workflow that runs them on pinned versions:
@@ -763,7 +766,7 @@ want to say about the cost not having been reported upstream in July.]
 without your approval, was still changing that day, and now says so.]
 ~~~
 
-The repository the draft links was created private on 2026-11-12T21:02:23Z
+The repository the draft links was created private on 2026-11-12T21:02:14Z
 and made public at 2026-11-13T14:41:43Z,
 on the owner's answer "Make public as it is".
 "As it is" refers to its first commit,

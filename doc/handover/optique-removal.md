@@ -873,10 +873,21 @@ to settle before a reply:
 - The independent review of the three documents and the patch:
   qwen4-max-preview through Pi,
   run name `optique-input-trace-and-reply-claim-check`,
-  started 2026-11-13;
-  its findings are to be weighed and folded in.
-  It reads the documents as of commit `5a4e07d2e3`.
-  They changed after that,
+  started 2026-11-13.
+  Its first pass ended after 71 turns and 35 minutes,
+  reading the documents as of commit `5a4e07d2e3`;
+  its report is `${HOME}/temp/agent/optique-2026-11-13/review-report.md`.
+  It recomputed every figure from the raw records and found them to match,
+  found the code excerpts verbatim and no defect in the patch,
+  and found errors in the prose,
+  which were corrected the same day:
+  a sentence quoted from upstream issue 989 that is not in it,
+  a claim that the trace copy is what separates pull request 1121 from 1.3.6
+  (1.3.6 pays for that copy too,
+  so the gap is option-scope work),
+  the length check misstated in the reply draft,
+  and smaller wording and timestamp matters.
+  The documents changed after that commit,
   so a second pass over the changes is owed:
   its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`,
   to be run by resuming the first run's session once its report is in.

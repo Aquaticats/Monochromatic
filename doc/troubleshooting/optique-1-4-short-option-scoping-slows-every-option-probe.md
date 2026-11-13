@@ -6,7 +6,9 @@ and the owner has not approved it.
 Done and checked by that session:
 the measurements and the source reading reported here.
 Open:
-a review by a model from another vendor was still running on 2026-11-13,
+a model from another vendor reviewed the text as of commit `5a4e07d2e3`,
+and its findings were folded in;
+what changed after that commit is not yet reviewed,
 and upstream's pull request 1121 was not merged at this writing.
 
 Status,
@@ -170,8 +172,9 @@ from `node --cpu-prof` on the input with paths after `--`:
 
 Of the 30.8 ms that 1.3.6 to `1.4.0-dev.2664` adds,
 `short-option.js` is 25.9 ms.
-Profiler overhead makes these absolute figures higher than untimed runs;
-the differences are what the comparison rests on.
+These totals are not the untimed medians,
+from which they differ by a few milliseconds either way;
+the differences between versions are what the comparison rests on.
 
 In a sweep over the number of options,
 the cost on `1.4.0-dev.2971` grew in a straight line,
@@ -300,7 +303,9 @@ The two measurements agree on the direction and roughly on the size.
 
 With no separator the pull request took 0.80 times as long as `main` (0.79 to 0.81).
 
-What remains after it is mostly a different cost:
+What remains after it is still option-scope work,
+since 1.3.6 carries every other cost of this parse too.
+A separate cost that both carry happens to be about as large:
 with the input-trace patch of
 `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md` on top of the pull request,
 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07,
@@ -387,7 +392,8 @@ The six constraints:
     The work is in three small functions.
 3.  Supported use case:
     yes.
-    Upstream issue 989 set out to reduce "parsing time for commands with many positional arguments".
+    Upstream issue 989 says
+    "a successful parse with many paths should not require a full typo diagnostic for each option non-match".
 4.  Contribution welcome:
     the maintainer asked this project to assess
     "against main for the upcoming change".
@@ -408,7 +414,7 @@ The six constraints:
 
 Risk to the poster:
 a report would go out under the owner's account.
-Upstream's policy ends:
+The last of the policy's numbered rules reads:
 "Violations of this policy may result in being banned from contributing."
 The draft was written with AI assistance,
 so posting it unreviewed,
