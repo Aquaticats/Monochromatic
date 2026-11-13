@@ -54,8 +54,12 @@ pub fn plan_service_stop(environment: &[(std::ffi::OsString, std::ffi::OsString)
             };
         }
     };
-    let named: Option<PathBuf> = crate::child_environment::environment_value(environment, "XDG_RUNTIME_DIR").filter(|value| !value.is_empty()).map(PathBuf::from);
-    let home: Option<PathBuf> = crate::child_environment::environment_value(environment, "HOME").filter(|value| !value.is_empty()).map(PathBuf::from);
+    let named: Option<PathBuf> = crate::child_environment::environment_value(environment, "XDG_RUNTIME_DIR").filter(|value| {
+        return !value.is_empty();
+    }).map(PathBuf::from);
+    let home: Option<PathBuf> = crate::child_environment::environment_value(environment, "HOME").filter(|value| {
+        return !value.is_empty();
+    }).map(PathBuf::from);
     let _unused: Option<PathBuf> = non_empty_path_variable("XDG_STATE_HOME");
     let Some(runtime_dir) = runtime_directory(named.as_deref(), home.as_deref()) else {
         return Action::Exit {

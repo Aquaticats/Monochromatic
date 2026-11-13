@@ -327,8 +327,8 @@ fn the_service_command_takes_only_its_four_words() {
     let arguments: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("service"), std::ffi::OsString::from("stop")];
     assert_eq!(parse_management_arguments(&arguments), Ok(ManagementAction::ServiceStop));
     for bad in [vec!["service", "stop", "--now"], vec!["service", "stops"]] {
-        let arguments: Vec<std::ffi::OsString> = bad.iter().map(std::ffi::OsString::from).collect();
-        assert_eq!(parse_management_arguments(&arguments), Err(ManagementRefusal::Usage), "{bad:?}");
+        let refused: Vec<std::ffi::OsString> = bad.iter().map(std::ffi::OsString::from).collect();
+        assert_eq!(parse_management_arguments(&refused), Err(ManagementRefusal::Usage), "{bad:?}");
     }
     for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
         assert!(text.contains("stop"), "{text}");
@@ -343,7 +343,7 @@ fn the_service_command_takes_only_its_four_words() {
     assert!(MANAGEMENT_HELP.contains("no wrapper of the earlier release"), "the help states the condition: {MANAGEMENT_HELP}");
     assert_eq!(parse_management_arguments(&[OsString::from("service"), OsString::from("status")]), Ok(ManagementAction::ServiceStatus));
     for bad in [vec!["service"], vec!["service", "install"], vec!["service", "uninstall"], vec!["service", "status", "--now"]] {
-        let arguments: Vec<OsString> = bad.iter().map(OsString::from).collect();
-        assert_eq!(parse_management_arguments(&arguments), Err(ManagementRefusal::Usage), "{bad:?}");
+        let words: Vec<OsString> = bad.iter().map(OsString::from).collect();
+        assert_eq!(parse_management_arguments(&words), Err(ManagementRefusal::Usage), "{bad:?}");
     }
 }
