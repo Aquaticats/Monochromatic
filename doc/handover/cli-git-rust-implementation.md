@@ -685,6 +685,160 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Sixteen agents held their hour and the level is thirty-two; the commit that does not list every reference passed its third review and has a pass of its own (2026-11-13T17:15:58-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own readings.
+
+- The probe hour of level sixteen,
+  16:11:15 to 17:10:33,
+  showed no symptom by the criterion
+  (`doc/handover/agents-at-once-on-this-machine.md`,
+  the item "The hour that judges this level" under "Level 16"),
+  so the level was raised to thirty-two at 17:12.
+  The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`.
+  The count climbs only as fast as the queue holds runs that are not reviews,
+  because reviews are held to five at once.
+- The third review of
+  `perf/git-policy-cli-commit-does-not-list-every-reference-on-the-path-it-waits-on`,
+  at `974f681c98`,
+  ended at 17:07:26 with no defect found:
+  it ran the fifty-six tests the change adds or touches (all passed)
+  and its own probes of Git 2.56.0 on what a listing prints for a chain of symbolic references
+  (`~/temp/agent/change-reviews/git-policy-cli-commit-does-not-list-answers-after-its-second-review/review.md`).
+  Its run ended `driver-failed` with Pi's exit code zero,
+  the tenth such ending of the day (issue 6299).
+- The branch is integration pass 23
+  (`integrate/git-policy-cli-pass-23-for-alpha-21`,
+  brief `~/temp/agent/pi-runs/integration-pass-23-for-alpha-21-prompt.md`),
+  pinned to that commit and put at the head of the queue at 17:14.
+  Passes 20, 21 and 22 are going;
+  each is merged into `main`,
+  released and installed when its report says fit,
+  in the order they finish,
+  the release numbers following that order and not the names of the branches.
+- A walk that reads the blocks each folder of the shared cargo build folder holds alone
+  (`btrfs filesystem du --summarize`)
+  was started at 17:13;
+  the probe hour of level thirty-two starts when it ends.
+  Its output goes to `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/`.
+
+- The review of the build-tree branch
+  (`perf/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller`,
+  `bf9c397cf2`)
+  was never started.
+  Asked for it at 16:53:18,
+  `start-reviews-of-finished-branches` printed
+  "nothing to review under package/git-policy/cli in main...perf/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller"
+  and exited with status zero:
+  the branch changes `Cargo.toml` and one Markdown file,
+  and `codeFilesAmong` in `package/pi-shared/subagent-driver/src/material-of-a-review.ts` keeps only `.rs` and `.ts`.
+  The scratch script that fills free places had taken the entry off the queue before the command answered,
+  so nothing showed the review was missing until the queue was read by kind at 17:16.
+  Two things follow,
+  both in the queue since 17:20:
+  - a review of that branch from a brief written by hand in the launcher's form
+    (`~/temp/agent/change-reviews/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller/brief.md`:
+    the manifest,
+    the measurements document and the package's task file to read whole,
+    and what counts as a defect of a profile change);
+  - a fix run for the launcher
+    (`fix/pi-shared-subagent-driver-a-change-to-a-build-manifest-or-task-file-is-reviewed`,
+    brief `~/temp/agent/pi-runs/change-to-a-build-manifest-or-task-file-is-reviewed-and-not-answered-as-nothing-to-review-prompt.md`):
+    a change to a build manifest or a task file is given to the reviewer,
+    a change of notes and tests alone is still answered as nothing to review.
+  The branch of the cargo fetch lock
+  (`perf/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch`,
+  one file changed so far)
+  will meet the same answer if its file is a task file and the fix is not in `main` by then;
+  its review is then written by hand the same way.
+- Thirty-five branches of 2026-11-11 and 2026-11-12 are not merged into `main`
+  (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/whether-merging-each-unmerged-branch-would-change-main-2026-11-13T1718.txt`:
+  a trial merge of each would change `main` or conflicts with it).
+  A reading-only Sonnet subagent sorts them into brought to `main` by another route,
+  superseded,
+  held on purpose,
+  and stranded
+  (`~/temp/agent/classification-of-unmerged-wrapper-branches-of-2026-11-11-and-12/keep/classification.md` when it ends);
+  each stranded one gets a run.
+
+Next:
+read each pass's report as it ends and release;
+read the walk's output and remove the build folders no worktree owns,
+listed first;
+start the fourth review of the start gate and the reviews of the answers that wait
+(the queue holds them).
+
+#### Two more authors answered their reviews: the push of a branch not checked out, and the removal that refuses a busy worktree (2026-11-13T17:00:22-05:00)
+
+Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it. Both branches wait for their second review, queued.
+
+- **Push of a branch that is not checked out**, tip `b0c133f42b` (ended 16:55:51). By its report:
+  a worktree whose folder is gone is no longer a holder, so the branch moves as a reference, and an error after a published merge is reported and never fails the push
+  (the review's script now prints exit 0 and the local branch following the merge);
+  the record of a failed push is cut inside its budget; and the move of a reference looks at the worktree listing again at the moment of the move, with two controls for the window.
+  Each fix has a control quoted failing without it. Review queued over `main...b0c133f42b`.
+- **Removal refuses a worktree a process works in, and logs each ignored file it deletes**, tip `01d26607ce` (ended 16:56:01). By its report:
+  a kept record now holds the branch and the identity of the registration and the root, and answers only for that worktree, through the one loop the first pass uses
+  (the review's sequence, a worktree made again at the same path for other work, no longer loses it);
+  and the list of what will be deleted is written before the deletion and confirmed after it, on all three routes.
+  Review queued over `main...01d26607ce`.
+- At 17:00:29 sixteen agents were going and thirteen entries waited in the queue, seven of them reviews.
+
+#### The no-manager branch's author answered the takeover defect; two findings of the review above it go to the same author (2026-11-13T16:55:43-05:00)
+
+Not complete, and written by the coordinating session from the run's own report; nothing here was run again by it.
+
+- The author of the commit service that needs no manager finished its answer at 16:51:32, tip `eeb13b81e1`. By its report:
+  it reproduced the review's finding first, word for word;
+  a socket is now taken over only when the kernel refuses a connection to it, never for silence;
+  a service records the device and inode of its socket and the text of its note and removes each only while the path still matches;
+  a command that finds an address accepting and greeting nothing waits for the service that is there (3.1 s through a service stopped at an instruction, one service, exit 0);
+  the sweep of stopped instances needs both the note's death and the kernel's refusal;
+  and the messages that named units this release never creates name the log folder and `service stop` now.
+  Each has a control quoted failing without its code.
+- That answers two of the five things the review of issue 6293's branch found in this branch's code (its findings 7 and 9).
+  The two that remain went to the same author, queued (`sessionOf` its run of 16:51:32):
+  the connects with no bound in the start, the takeover probe, the client and the status command (finding 1), and the probe's kill and reap with no bound (finding 8).
+  Finding 5 reaches the branch through `main`, where a run of its own has it.
+- The branch's review comes after that answer, over `main...<its tip>`, so one review reads both answers; reviews are what the rate limit makes scarce.
+- Read on the disk at about 16:55, for the build tree result of the section dated 16:48:35:
+  `/var/mnt/encrypted/cargo-build/toolchain/` holds ten toolchain folders, and `nightly-2026-11-12` alone holds 1,284 build folders, one for each workspace of each worktree;
+  the two changed last hold 2,656 MiB and 2,343 MiB, the six before them about 1 MiB each (made, never built).
+  The commit `bf9c397cf2` is two lines in the wrapper's `[profile.dev]` and a document of measurements; its figures are its author's until the review and the walk that follows the probe's hour.
+
+#### Issue 6293's review found nine things, four of them the change's; the build tree of the wrapper goes from 5.9 GiB to 1.6 (2026-11-13T16:48:35-05:00)
+
+Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
+
+- **The review of issue 6293's branch** (`2fb2e61d90...3d5c1a0d8c`), finished 16:44:10: it rebuilt the wrapper and ran five reproduction scripts.
+  The boundary itself is sound by it (a run with a runtime directory of its own keeps everything inside it and asks no manager). Nine findings, seven reproduced; in the review's own numbering:
+  - the change's own, sent to its author (run queued):
+    finding 2, a push that was delivered to one address is reported as not pushed when a second address is `DISABLED`, and a merge published by the reconcile never reaches the local branch;
+    finding 3, the verdict blames `DISABLED` although Git failed at an earlier address and never tried it;
+    finding 4, an address `DISABLED ` with a trailing space, a legal remote, is trimmed into the reserved word;
+    finding 6, a session with an abstract bus address is taken for a private run, so its journal and retry plans move where a logout clears them.
+  - in code the branch stands on, which is the no-manager branch (its author is at work on another finding, so these wait for that run to end and are then one answer of their own):
+    finding 1 as far as it names that branch's files (the start by the wrapper and the takeover probe connect without a bound);
+    finding 5 there (the refusal that names a long runtime directory was removed with unit provisioning, so the commit waits ten seconds and fails with words that cannot help);
+    finding 7, the takeover orphans a live service (the branch's own review found the same);
+    finding 8, the manager probe's kill and reap have no bound (by reading);
+    finding 9, ten message sites tell a person to restart a unit that release never creates.
+  - on `main` too:
+    finding 5 in the form `main` has it: a commit is refused, with a message that names the cause, when the runtime directory's path is too long for a socket address. Real Git commits there.
+    A run of its own is queued: `fix/git-policy-cli-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket`.
+    finding 1 on `main`: `rg 'UnixStream::connect'` in `main`'s sources shows blocking connects in the status command (`service_route.rs`), the retire request, the binding probe and the warm request,
+    beside a helper that connects within a deadline. The warm request has a run (going); which of the others the jam fix bounds is read when pass 21 is in `main`, and what is left gets a run then.
+  - Its run's end reason reads `driver-failed` (issue 6299, the ninth today); the review is final and stands.
+- **The build tree of the wrapper package**, author finished 16:47:38, tip `bf9c397cf2` on `perf/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller`. By its report, all measured again on 2026-11-13:
+  - one agent's tree is two places (the worktree's `target/` and a folder under `/var/mnt/encrypted/cargo-build/toolchain/<toolchain>/`), 5,885 MiB together with Cargo's defaults,
+    6,668 MiB with a Clippy pass: incremental data 48%, executables 27%, and debug information 1,278 MiB of the 1,627 MiB the four largest executables weigh;
+  - nine candidates measured on clean trees; chosen: `debug = "line-tables-only"` with incremental compilation off in `[profile.dev]`:
+    1,562 MiB (73% less), the build 83.2 s against 124.8 s, the library test compile 50.3 s against 105.1 s, and a backtrace still prints file and line;
+  - the release profile and the keys file-enforcer owns are untouched.
+  This is the first measured answer to what takes the build volume: every worktree that builds the wrapper holds about six gibibytes of it.
+  Its review is queued first. Trees already built keep their size until they are built again or removed.
+
 #### The reload fix passed a review that ran it in a container; it is pass 22; commit-does-not-list's author answered (2026-11-13T16:43:50-05:00)
 
 Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
