@@ -5,7 +5,7 @@ use super::*;
 use crate::shadow_refs::{SnapshotSources, list_real_refs};
 use crate::transaction_journal::RefFormat;
 use crate::private_storage::take_file_syncs;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 #[cfg(unix)]
@@ -579,5 +579,502 @@ fn a_linked_worktree_keeps_its_own_namespaces_without_a_git_child() {
     assert_no_start(log.as_path());
     assert_eq!(listed_refs(shadow.as_path()), listed_refs(linked.as_path()));
     assert!(listed_refs(shadow.as_path()).contains("refs/bisect/bad\n"), "{}", listed_refs(shadow.as_path()));
+    remove(root.as_path());
+}
+
+/// The listing both sides are asked for:
+/// the snapshot's own three fields,
+/// which is the format the Git child is given.
+const LISTING_FORMAT: &str = "--format=%(refname)%00%(objectname)%00%(symref)";
+
+/// What real Git prints for a repository,
+/// one line per ref,
+/// in the snapshot's own three fields.
+///
+/// Git is the oracle of every control here:
+/// the module's contract is that the snapshot is what Git would print,
+/// or a decline that starts Git.
+fn git_listing(directory: &Path) -> Vec<u8> {
+    let output: std::process::Output = git_output(directory, &["for-each-ref", LISTING_FORMAT]);
+    assert!(output.status.success(), "real Git refused the listing: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    // The bytes as Git printed them: a ref name that is not text is compared as the bytes it is.
+    return output.stdout;
+}
+
+/// What:
+///  A listing as a person reads it,
+///  one ref to a line,
+///  for a failure's message.
+/// Why:
+///   The comparison is over bytes and stays exact;
+/// a message of byte numbers would say nothing about which ref differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rendered = (bytes) => bytes.toString('utf8').replace(/\0/g, ' | ')
+/// ```
+fn rendered(bytes: &[u8]) -> String {
+    return String::from_utf8_lossy(bytes).replace('\0', " | ");
+}
+
+/// The snapshot's entries as the same kind of lines,
+/// so the two answers are compared byte for byte.
+fn snapshot_listing(entries: &[RefSnapshotEntry]) -> Vec<u8> {
+    let mut text: Vec<u8> = Vec::new();
+    for entry in entries {
+        text.extend_from_slice(entry.name.as_slice());
+        text.push(0);
+        text.extend_from_slice(entry.oid.as_bytes());
+        text.push(0);
+        text.extend_from_slice(entry.symref.as_slice());
+        text.push(b'\n');
+    }
+    return text;
+}
+
+/// What:
+///  The Git directory a linked worktree keeps for itself,
+///  read from the `gitdir:` file its worktree root holds.
+/// Why:
+///   That directory is where Git keeps the per-worktree namespaces,
+/// and the snapshot has to read exactly the ones Git resolves there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ownGitDir = (worktree) => readFileSync(join(worktree, '.git'), 'utf8').trim().replace('gitdir: ', '')
+/// ```
+fn own_git_dir_of(worktree: &Path) -> PathBuf {
+    let text: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's gitdir file");
+    return PathBuf::from(text.trim().trim_start_matches("gitdir: "));
+}
+
+/// What:
+///  A reusable repository of the sweep,
+///  with one commit so every ref has an object to point at.
+/// Why:
+///   Each kind differs only in how its refs are stored,
+/// so the commit is made once per kind and never again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const storeRoot = (root, kind) => { const repo = repository(join(root, kind), 'repo'); return repo }
+/// ```
+fn store_of_kind(root: &Path, kind: &str) -> PathBuf {
+    let directory: PathBuf = root.join(kind);
+    std::fs::create_dir_all(directory.as_path()).expect("a fixture directory");
+    return repository(directory.as_path(), "repo");
+}
+
+/// What:
+///  Writes one loose ref file into a repository's own Git directory,
+///  which is how a broken or unusual ref is made.
+/// Why:
+///   `git update-ref` refuses the very spellings these controls read:
+/// a value without a newline,
+/// a value with CRLF,
+/// a symbolic ref to a name that does not exist.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeLoose(repo, 'refs/heads/x', 'ref: refs/heads/nope\n')
+/// ```
+fn write_loose(repo: &Path, name: &str, value: &str) {
+    let path: PathBuf = repo.join(".git").join(name);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("the ref's directories");
+    }
+    std::fs::write(path.as_path(), value.as_bytes()).expect("a loose ref file");
+}
+
+/// The head commit of a repository of the sweep.
+fn head_of(repo: &Path) -> String {
+    return git_text(repo, &["rev-parse", "HEAD"]);
+}
+
+/// What the reader has to do with one kind of store,
+/// which is the whole of this reader's contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Reading {
+    /// The reader answers in process, and its answer is exactly Git's.
+    InProcess,
+    /// The reader declines, Git answers, and the snapshot is Git's answer.
+    ByGit,
+    /// The reader declines and Git refuses to list the store at all, so the commit is refused with Git's own words.
+    Refused,
+}
+
+/// What one kind of store is,
+/// and what the reader must do with it.
+struct StoreKind {
+    /// The name the fixture directory and the failure's clause carry.
+    name: &'static str,
+    /// Whether the reader has to answer in process,
+    /// or has to decline and let Git answer.
+    reading: Reading,
+}
+
+/// Every kind of ref store the sweep builds.
+///
+/// The list is the point of the control:
+/// the two findings of the review were both
+/// "the reader is not Git on input the fixtures never held",
+/// so every kind of store a repository can hold is named here,
+/// and the ones no fixture can build on this machine are named in the report instead.
+const STORE_KINDS: [StoreKind; 17] = [
+    StoreKind { name: "packed", reading: Reading::InProcess },
+    StoreKind { name: "loose-over-packed", reading: Reading::InProcess },
+    StoreKind { name: "peeled-annotated-tag", reading: Reading::InProcess },
+    StoreKind { name: "symbolic-ref", reading: Reading::InProcess },
+    StoreKind { name: "symbolic-chain", reading: Reading::InProcess },
+    StoreKind { name: "symbolic-to-a-missing-object", reading: Reading::InProcess },
+    StoreKind { name: "symbolic-ending-nowhere", reading: Reading::InProcess },
+    StoreKind { name: "worktree-namespaces-of-the-main-worktree", reading: Reading::InProcess },
+    StoreKind { name: "stale-lock-beside-a-ref", reading: Reading::InProcess },
+    StoreKind { name: "empty-repository", reading: Reading::InProcess },
+    StoreKind { name: "direct-ref-with-a-missing-object", reading: Reading::InProcess },
+    StoreKind { name: "name-with-at-and-braces", reading: Reading::InProcess },
+    StoreKind { name: "name-that-is-not-text", reading: Reading::ByGit },
+    StoreKind { name: "value-without-a-newline", reading: Reading::ByGit },
+    StoreKind { name: "value-with-a-carriage-return", reading: Reading::ByGit },
+    StoreKind { name: "damaged-packed-refs", reading: Reading::Refused },
+    StoreKind { name: "reftable", reading: Reading::ByGit },
+];
+
+/// What:
+///  Builds one kind of store and gives the directory Git is asked from,
+///  the sources the snapshot is read with,
+///  and whether the reader has to answer in process or decline.
+/// Why:
+///   One match names every kind once,
+/// so the sweep's list and its builders cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const build = (root, kind) => ({ cwd, sources, readInProcess })
+/// ```
+fn build_store(root: &Path, kind: &StoreKind) -> (PathBuf, SnapshotSources, Reading) {
+    let repo: PathBuf = store_of_kind(root, kind.name);
+    let head: String = head_of(repo.as_path());
+    let mut ref_format: RefFormat = RefFormat::Files;
+    match kind.name {
+        "packed" => {
+            git(repo.as_path(), &["branch", "packed-one"]);
+            git(repo.as_path(), &["pack-refs", "--all"]);
+        }
+        "loose-over-packed" => {
+            // The packed entry names the first commit and the loose file names another, so the two spellings differ.
+            git(repo.as_path(), &["update-ref", "refs/heads/twice", head.as_str()]);
+            git(repo.as_path(), &["pack-refs", "--all"]);
+            write_loose(repo.as_path(), "refs/heads/twice", format!("{head}\n").as_str());
+            git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=second"]);
+            let second: String = head_of(repo.as_path());
+            write_loose(repo.as_path(), "refs/heads/twice", format!("{second}\n").as_str());
+        }
+        "peeled-annotated-tag" => {
+            git(repo.as_path(), &["tag", "--annotate", "--message=tagged", "v1"]);
+            git(repo.as_path(), &["pack-refs", "--all"]);
+        }
+        "symbolic-ref" => {
+            git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+        }
+        "symbolic-chain" => {
+            git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+            git(repo.as_path(), &["symbolic-ref", "refs/heads/alias-again", "refs/heads/alias"]);
+        }
+        "symbolic-to-a-missing-object" => {
+            write_loose(repo.as_path(), "refs/heads/ghost", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n");
+            write_loose(repo.as_path(), "refs/heads/alias-to-ghost", "ref: refs/heads/ghost\n");
+        }
+        "symbolic-ending-nowhere" => {
+            // A dangling target and a two-name loop: Git prints neither, and a snapshot that holds them is not Git's answer.
+            write_loose(repo.as_path(), "refs/heads/dangling", "ref: refs/heads/nope\n");
+            write_loose(repo.as_path(), "refs/heads/cycle-a", "ref: refs/heads/cycle-b\n");
+            write_loose(repo.as_path(), "refs/heads/cycle-b", "ref: refs/heads/cycle-a\n");
+            write_loose(repo.as_path(), "refs/heads/self", "ref: refs/heads/self\n");
+            git(repo.as_path(), &["symbolic-ref", "refs/heads/sound", "refs/heads/main"]);
+        }
+        "worktree-namespaces-of-the-main-worktree" => {
+            for name in ["refs/bisect/start", "refs/rewritten/r1", "refs/worktree/w1"] {
+                git(repo.as_path(), &["update-ref", name, head.as_str()]);
+            }
+        }
+        "stale-lock-beside-a-ref" => {
+            write_loose(repo.as_path(), "refs/heads/main.lock", "");
+        }
+        "empty-repository" => {
+            // A repository with no commit at all: no ref is written, and `HEAD` names an unborn branch.
+            let empty: PathBuf = root.join("empty-repository-empty");
+            std::fs::create_dir_all(empty.as_path()).expect("a fixture directory");
+            git(empty.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+            let git_dir: PathBuf = empty.join(".git");
+            return (empty, SnapshotSources::of(git_dir.clone(), git_dir, RefFormat::Files, "sha1"), kind.reading);
+        }
+        "direct-ref-with-a-missing-object" => {
+            write_loose(repo.as_path(), "refs/heads/ghost", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n");
+        }
+        "name-with-at-and-braces" => {
+            // `@`, `+`, `{` and `}` are bytes Git accepts in a name, and the reader accepts them too.
+            git(repo.as_path(), &["update-ref", "refs/heads/a@b", head.as_str()]);
+            git(repo.as_path(), &["update-ref", "refs/tags/x{y}", head.as_str()]);
+        }
+        "name-that-is-not-text" => {
+            let name: OsString = crate::path_bytes::os_from_path_bytes(b"refs/heads/nonutf-\xff");
+            git(repo.as_path(), &[OsStr::new("update-ref"), name.as_os_str(), OsStr::new(head.as_str())]);
+        }
+        "value-without-a-newline" => {
+            write_loose(repo.as_path(), "refs/heads/torn", head.as_str());
+        }
+        "value-with-a-carriage-return" => {
+            write_loose(repo.as_path(), "refs/heads/crlf", format!("{head}\r\n").as_str());
+        }
+        "damaged-packed-refs" => {
+            // A line with no space names no ref: Git words it and prints the rest, and this reader declines the file.
+            git(repo.as_path(), &["branch", "sound"]);
+            git(repo.as_path(), &["pack-refs", "--all"]);
+            let packed: PathBuf = repo.join(".git").join("packed-refs");
+            let text: String = std::fs::read_to_string(packed.as_path()).expect("packed-refs");
+            std::fs::write(packed.as_path(), format!("{text}this line names no ref\n").as_str()).expect("a damaged packed-refs");
+        }
+        "reftable" => {
+            let own: PathBuf = root.join("reftable-repository");
+            std::fs::create_dir_all(own.as_path()).expect("a fixture directory");
+            git(own.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+            std::fs::write(own.join("a.txt"), "a\n").expect("a file");
+            git(own.as_path(), &["add", "a.txt"]);
+            git(own.as_path(), &["commit", "--quiet", "--message=one"]);
+            ref_format = RefFormat::Reftable;
+            let git_dir: PathBuf = own.join(".git");
+            return (own, SnapshotSources::of(git_dir.clone(), git_dir, ref_format, "sha1"), kind.reading);
+        }
+        other => panic!("the sweep names a kind it does not build: {other}"),
+    }
+    let git_dir: PathBuf = repo.join(".git");
+    return (repo, SnapshotSources::of(git_dir.clone(), git_dir, ref_format, "sha1"), kind.reading);
+}
+
+/// What:
+///  Every kind of store the fixtures can build is answered by the reader or declined,
+///  and either way the snapshot is exactly what Git prints.
+/// Why:
+///  The review's two findings were both a store the fixtures never held,
+/// so one control that builds every kind and asks both sides is what keeps the reader honest.
+///  A kind the reader answers must start no Git child,
+/// and a kind it declines must start exactly one `for-each-ref`;
+/// both answers are compared byte for byte with real Git's listing of the same store.
+#[cfg(unix)]
+#[test]
+fn the_reader_answers_every_kind_of_store_as_git_does_or_declines() {
+    let root: PathBuf = fixture("shadow-refs-every-kind-of-store");
+    let mut answered: usize = 0;
+    let mut declined: usize = 0;
+    let mut refused_by_git: usize = 0;
+    for kind in STORE_KINDS {
+        let (cwd, sources, reading) = build_store(root.as_path(), &kind);
+        let recording: PathBuf = root.join(format!("recording-of-{}", kind.name));
+        std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
+        let (context, log) = recording_context(recording.as_path());
+        let asked: Result<Vec<RefSnapshotEntry>, GitFailure> = list_real_refs_from(&context, cwd.as_path(), &sources);
+        let starts: Vec<String> = recorded_starts(log.as_path());
+        if reading == Reading::Refused {
+            // Git refuses the whole store, so the snapshot refuses with it and nothing is listed by either side.
+            assert_eq!(starts.len(), 1, "{}: the reader must decline and let Git refuse, and it started {starts:?}", kind.name);
+            assert!(asked.is_err(), "{}: Git refuses this store and the snapshot answered it", kind.name);
+            let refused: std::process::Output = git_output(cwd.as_path(), &["for-each-ref", LISTING_FORMAT]);
+            assert!(!refused.status.success(), "{}: this kind is in the sweep as refused, and Git listed it", kind.name);
+            refused_by_git = refused_by_git.saturating_add(1);
+            continue;
+        }
+        let entries: Vec<RefSnapshotEntry> = asked.unwrap_or_else(|failure| panic!("{}: {failure}", kind.name));
+        if reading == Reading::InProcess {
+            assert!(starts.is_empty(), "{}: the reader must answer without a child, and it started {starts:?}", kind.name);
+            answered = answered.saturating_add(1);
+        } else {
+            assert_eq!(starts.len(), 1, "{}: the reader must decline and let Git answer, and it started {starts:?}", kind.name);
+            assert!(starts[0].starts_with("for-each-ref "), "{}: {starts:?}", kind.name);
+            declined = declined.saturating_add(1);
+        }
+        let snapshot: Vec<u8> = snapshot_listing(entries.as_slice());
+        let printed: Vec<u8> = git_listing(cwd.as_path());
+        assert!(
+            snapshot == printed,
+            "{}: the snapshot is not what Git prints\n  snapshot: {}\n  Git:      {}",
+            kind.name,
+            rendered(snapshot.as_slice()),
+            rendered(printed.as_slice())
+        );
+    }
+    // Every kind in the list was built and taken through one of the contract's arms, and each arm was exercised.
+    assert_eq!(answered.saturating_add(declined).saturating_add(refused_by_git), STORE_KINDS.len());
+    assert!(answered > 0 && declined > 0 && refused_by_git > 0, "{answered} answered, {declined} declined, {refused_by_git} refused");
+    remove(root.as_path());
+}
+
+/// What:
+///  The per-worktree namespaces of the *shared* directory are not this worktree's refs,
+///  so the snapshot of a linked worktree is exactly what Git prints from it.
+/// Why:
+///  Git resolves `refs/bisect`,
+/// `refs/worktree` and `refs/rewritten` to the worktree's own Git directory,
+///  so a linked worktree never sees the main worktree's copies.
+/// The snapshot read the shared directory's whole `refs` tree and then overlaid the worktree's
+/// own three namespaces,  which kept the shared copies: a hook in the shadow then saw refs this
+/// worktree does not have,  and could take the main worktree's state for its own.
+#[cfg(unix)]
+#[test]
+fn a_linked_worktree_does_not_snapshot_the_shared_per_worktree_refs() {
+    let root: PathBuf = fixture("shadow-refs-linked-shared-namespaces");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let head: String = head_of(repo.as_path());
+    // The main worktree's per-worktree refs live in the shared Git directory.
+    for name in ["refs/bisect/start", "refs/rewritten/r1", "refs/worktree/w1"] {
+        git(repo.as_path(), &["update-ref", name, head.as_str()]);
+    }
+    let linked: PathBuf = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("fixture"), "-b", "side"]);
+    // The linked worktree has one of its own, so both sides hold something and the two cannot be confused.
+    git(linked.as_path(), &["update-ref", "refs/bisect/own", head.as_str()]);
+    let sources: SnapshotSources = SnapshotSources::of(own_git_dir_of(linked.as_path()), repo.join(".git"), RefFormat::Files, "sha1");
+    let recording: PathBuf = root.join("recording");
+    std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
+    let (context, log) = recording_context(recording.as_path());
+    let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, linked.as_path(), &sources).expect("the snapshot");
+    assert_no_start(log.as_path());
+    let snapshot: Vec<u8> = snapshot_listing(entries.as_slice());
+    let printed: Vec<u8> = git_listing(linked.as_path());
+    assert!(
+        snapshot == printed,
+        "the snapshot of a linked worktree is not what Git prints there\n  snapshot: {}\n  Git:      {}",
+        rendered(snapshot.as_slice()),
+        rendered(printed.as_slice())
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A symbolic ref whose chain ends at no ref, or in a loop, is not in the snapshot,
+///  because Git does not print it either.
+/// Why:
+///   Git prints a symbolic ref only when its chain ends at a ref that exists;
+/// a dangling or looping one is dropped by `for-each-ref`,
+///  and the shadow's Git would drop it too,
+/// so a snapshot that holds it answers a name Git refuses.
+/// A symbolic ref whose target is a *direct* ref with a missing object IS printed by both,
+/// and that case is in the same control, so the rule cannot be "drop every symbolic ref".
+#[cfg(unix)]
+#[test]
+fn a_symbolic_ref_that_ends_nowhere_is_not_in_the_snapshot() {
+    let root: PathBuf = fixture("shadow-refs-symbolic-ending-nowhere");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let head: String = head_of(repo.as_path());
+    write_loose(repo.as_path(), "refs/heads/dangling", "ref: refs/heads/nope\n");
+    write_loose(repo.as_path(), "refs/heads/cycle-a", "ref: refs/heads/cycle-b\n");
+    write_loose(repo.as_path(), "refs/heads/cycle-b", "ref: refs/heads/cycle-a\n");
+    write_loose(repo.as_path(), "refs/heads/ghost", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n");
+    write_loose(repo.as_path(), "refs/heads/alias-to-ghost", "ref: refs/heads/ghost\n");
+    git(repo.as_path(), &["symbolic-ref", "refs/heads/sound", "refs/heads/main"]);
+    let sources: SnapshotSources = sources_of(repo.as_path(), RefFormat::Files);
+    let recording: PathBuf = root.join("recording");
+    std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
+    let (context, log) = recording_context(recording.as_path());
+    let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, repo.as_path(), &sources).expect("the snapshot");
+    assert_no_start(log.as_path());
+    let listing: Vec<u8> = snapshot_listing(entries.as_slice());
+    let printed: Vec<u8> = git_listing(repo.as_path());
+    let shown: String = rendered(listing.as_slice());
+    assert!(
+        listing == printed,
+        "the snapshot holds a symbolic ref Git does not print, or drops one it does\n  snapshot: {shown}\n  Git:      {}",
+        rendered(printed.as_slice())
+    );
+    // The two spellings of the same rule: the unresolvable ones are gone, the resolvable one is there with its object.
+    assert!(!shown.contains("refs/heads/dangling"), "{shown}");
+    assert!(!shown.contains("refs/heads/cycle-a"), "{shown}");
+    assert!(shown.contains("refs/heads/alias-to-ghost | deadbeefdeadbeefdeadbeefdeadbeefdeadbeef | refs/heads/ghost"), "{shown}");
+    assert!(shown.contains(format!("refs/heads/sound | {head} | refs/heads/main").as_str()), "{shown}");
+    remove(root.as_path());
+}
+
+/// How many refs the cost control's store holds.
+///
+/// The number is this repository's own ref count at the time of the measurement (2026-11-13:
+/// 2,282 records of commits over 1,982 packed and 40 loose refs),
+/// written as one number so the two arms are timed on the store the commit path meets here.
+const COST_STORE_REFS: usize = 2000;
+
+/// How many rounds each arm of the cost control runs.
+///
+/// The arms alternate, so both see the same page cache and the same host,
+/// and twenty rounds are enough to see the spread of each:
+/// the numbers are printed, never asserted, because a machine's speed is not this package's contract.
+const COST_ROUNDS: usize = 20;
+
+/// What:
+///  The median of a list of spans,
+///  for a printed measurement.
+/// Why:
+///   One round is a machine's luck;
+/// the median with its range is what a reader of the report can compare.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const median = (spans) => spans.sort((a, b) => a - b)[Math.floor(spans.length / 2)]
+/// ```
+fn median_of(spans: &mut [std::time::Duration]) -> std::time::Duration {
+    spans.sort();
+    return spans[spans.len() / 2];
+}
+
+/// What:
+///  The reader costs less than the one Git child it replaced,
+///  and the numbers of both are printed.
+/// Why:
+///  The whole reason for reading the ref files is that a commit should not start a process over
+/// the repository's refs,  and the claim is worthless unless it is measured on a store of the size the commit path meets.
+/// The control asserts only that both arms answer the same listing;
+/// what each cost is printed for the report,
+///  because a wall-clock assertion would fail on a busy host and pass on an idle one.
+#[cfg(unix)]
+#[test]
+fn the_reader_costs_less_than_the_git_child_it_replaces() {
+    let root: PathBuf = fixture("shadow-refs-cost-of-both-arms");
+    let repo: PathBuf = store_of_kind(root.as_path(), "cost");
+    let head: String = head_of(repo.as_path());
+    // A packed store of the measured size, written whole: one file read is what the reader does, and what Git does too.
+    let mut packed: String = String::from("# pack-refs with: sorted \n");
+    for index in 0..COST_STORE_REFS {
+        packed.push_str(format!("{head} refs/heads/counted-{index:05}\n").as_str());
+    }
+    std::fs::write(repo.join(".git").join("packed-refs"), packed.as_bytes()).expect("a packed store");
+    let sources: SnapshotSources = sources_of(repo.as_path(), RefFormat::Files);
+    let context: crate::transaction_git::GitContext = git_context();
+    let mut reader_spans: Vec<std::time::Duration> = Vec::with_capacity(COST_ROUNDS);
+    let mut child_spans: Vec<std::time::Duration> = Vec::with_capacity(COST_ROUNDS);
+    for _round in 0..COST_ROUNDS {
+        let began: std::time::Instant = std::time::Instant::now();
+        let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, repo.as_path(), &sources).expect("the reader's answer");
+        reader_spans.push(began.elapsed());
+        let began: std::time::Instant = std::time::Instant::now();
+        let printed: std::process::Output = git_output(repo.as_path(), &["for-each-ref", LISTING_FORMAT]);
+        child_spans.push(began.elapsed());
+        assert!(printed.status.success(), "real Git refused the listing");
+        assert_eq!(snapshot_listing(entries.as_slice()), printed.stdout, "the two arms answer the same store differently");
+    }
+    let reader_median: std::time::Duration = median_of(reader_spans.as_mut_slice());
+    let child_median: std::time::Duration = median_of(child_spans.as_mut_slice());
+    let reader_least: std::time::Duration = *reader_spans.first().expect("rounds");
+    let reader_most: std::time::Duration = *reader_spans.last().expect("rounds");
+    let child_least: std::time::Duration = *child_spans.first().expect("rounds");
+    let child_most: std::time::Duration = *child_spans.last().expect("rounds");
+    println!(
+        "{} refs, {} rounds each, alternating: the reader took {} µs at the median ({} to {} µs), one `git for-each-ref` child took {} µs at the median ({} to {} µs)",
+        COST_STORE_REFS,
+        COST_ROUNDS,
+        reader_median.as_micros(),
+        reader_least.as_micros(),
+        reader_most.as_micros(),
+        child_median.as_micros(),
+        child_least.as_micros(),
+        child_most.as_micros()
+    );
     remove(root.as_path());
 }
