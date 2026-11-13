@@ -884,6 +884,12 @@ each in answer to a question that gave the options:
   That is an old version,
   the failures are no finding about upstream,
   and nothing about them is to be reported.
+  The comparison was run again on Bun 1.4.4 the same day,
+  where the patched tree passes the whole suite,
+  and the document now reports that.
+  Rule `PIN` in `AGENTS.md` was amended on the owner's choice:
+  test on current releases only,
+  and an older one's failures are no defect.
 
 Nothing in this section has been approved by the owner as complete or final;
 it is one AI session's record of what it did,
@@ -906,7 +912,9 @@ Where each piece stands:
   the patch removes the largest of three per-token copies and leaves two,
   in `multiple()` and `argument()`,
   which were profiled and not prototyped;
-  upstream's Bun suite fails the same tests with and without the patch;
+  the patched tree passes upstream's whole suite on Bun 1.4.4,
+  the current release,
+  with no failure;
   and the 1.0,
   1.1 and 1.2 lines grow as 1.3.6 does.
 - The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is public,

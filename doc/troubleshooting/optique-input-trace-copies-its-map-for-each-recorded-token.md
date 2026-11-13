@@ -538,9 +538,8 @@ run in a container with upstream's toolchain on 2026-11-13:
    on Deno:
    2 passed (32 steps),
    0 failed.
-   On Bun 1.3.0:
-   32 pass,
-   0 fail.
+   On Bun they ran as part of the whole suite,
+   reported in this list.
 - Four deliberate breaks of the trie,
    each restored after its run
    (an overwrite that edits a shared leaf,
@@ -564,32 +563,42 @@ run in a container with upstream's toolchain on 2026-11-13:
 - `git apply` of the patch onto `main` at `84f95710` and onto pull request 1121's head `a175cdb7`:
    clean on both.
 
-Upstream's core suite on Bun 1.3.0,
+Upstream's core suite on Bun 1.4.4,
+the current release and the one this repository's toolchain lock records,
 run on 2026-11-13 on an unpatched worktree of `1d6e4594`,
 then on the patched tree,
 then on the unpatched one again:
 
+- Patched:
+   8,075 pass,
+   529 skipped,
+   0 fail,
+   every file loaded.
 - Unpatched,
    both runs:
-   7,668 pass,
-   157 fail,
-   and two test files that did not load
+   7,286 pass,
+   529 skipped,
+   no test failed,
+   and two test files did not load
    (`facade.test.ts` and `short-options.test.ts`,
    "Cannot find module '@optique/env'",
-   a workspace package that was not built in that fresh worktree).
-- Patched:
-   8,457 pass,
-   155 fail,
-   every file loaded.
-- By test name,
-   the same 154 tests fail in all three runs.
-   No test fails only with the patch.
-   Every failure with the patch is in the suites "completion module" and "joined Bash option completion".
+   a workspace package that was not built in that fresh worktree),
+   which Bun counts as two failures.
 
-So the patch adds no Bun failure among the tests that ran both ways.
-The tests of the two files that did not load without the patch ran only with it,
-and none of them failed there.
-Why the shell-completion tests fail in this container was not looked into.
+So the patched tree passes upstream's suite on the current Bun.
+The tests of the two files that did not load without the patch ran only with it.
+
+An earlier version of this paragraph reported the same comparison on Bun 1.3.0,
+with 154 failing shell-completion tests on both sides.
+That Bun was old:
+the prototype's container image pinned it with no reason given.
+Those failures are not there on the current release,
+they are no finding about upstream,
+and nothing about them was or is to be reported.
+The owner,
+2026-11-13:
+"we don't care about support for older versions,
+just like Bun itself doesn't care."
 
 Effect,
 on Deno 2.9.8 from source,
