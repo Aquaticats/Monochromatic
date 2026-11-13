@@ -142,7 +142,7 @@ fn two_starts_at_once_leave_one_service() {
     assert!(!server.starter_marker().exists(), "the start's marker is gone once a start is over");
     let log: PathBuf = instance_folder(runtime.as_path()).join(format!("{instance}.log"));
     let lines: String = std::fs::read_to_string(log).unwrap_or_default();
-    assert_eq!(lines.matches("service started").count(), 1, "one server's lines are in the log, not two: {lines}");
+    assert_eq!(lines.matches("started release=").count(), 1, "one server's lines are in the log, not two: {lines}");
     finish(&fixture, runtime.as_path());
 }
 

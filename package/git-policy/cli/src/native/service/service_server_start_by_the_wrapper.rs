@@ -140,9 +140,18 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     if answered(server.socket.as_path()) {
         return StartAttempt::Greeted;
     }
-    let Some(_starter) = StarterMarker::take(server.starter_marker().as_path()) else {
-        return StartAttempt::AnotherCommandStartsIt;
+    // What: The folder the address and the marker live in is made before a marker is taken.
+    // Why:  A marker cannot be created in a folder that is not there, and a start that could not even take its marker must
+    //       not be reported as another command's start.
+    if crate::service_socket_directory_only_this_account_may_open::ensure_private(server.directory().as_path()).is_err() {
+        return StartAttempt::DidNotGreet(server.log());
+    }
+    let starter: StarterMarker = match StarterMarker::take(server.starter_marker().as_path()) {
+        Ok(Some(taken)) => taken,
+        Ok(None) => return StartAttempt::AnotherCommandStartsIt,
+        Err(_refused) => return StartAttempt::DidNotGreet(server.log()),
     };
+    let _held = starter;
     // The command that held the marker before this one may have finished between the two looks.
     if answered(server.socket.as_path()) {
         return StartAttempt::Greeted;
@@ -205,6 +214,8 @@ pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
 /// ```ts
 /// const marker = createExclusive(`${instance}.starting`, `${pid} ${identity}`) ?? takeOverIfOwnerIsGone(path);
 /// ```
+///
+/// `take` gives nothing when another live command holds the marker, and an error when the marker could not be created at all.
 struct StarterMarker {
     /// The file to remove when this command's start is over.
     path: PathBuf,
@@ -223,8 +234,11 @@ impl StarterMarker {
     /// ```ts
     /// take(path) // { path } | undefined
     /// ```
-    fn take(path: &Path) -> Option<Self> {
-        let identity: String = current_birth_identity().ok()?;
+    fn take(path: &Path) -> std::io::Result<Option<Self>> {
+        // A platform that cannot name a process's birth cannot hold a marker another command may trust.
+        let Ok(identity) = current_birth_identity() else {
+            return Err(std::io::Error::other("this platform cannot name a process's birth, so no starter marker can be trusted"));
+        };
         let content: String = format!("{} {identity}\n", std::process::id());
         for _round in 0..2 {
             match std::fs::OpenOptions::new().write(true).create_new(true).open(path) {
@@ -232,19 +246,21 @@ impl StarterMarker {
                     use std::io::Write;
                     // The content is written before the marker is believed, so a reader always sees an owner.
                     let _written = created.write_all(content.as_bytes());
-                    return Some(Self { path: path.to_path_buf() });
+                    return Ok(Some(Self { path: path.to_path_buf() }));
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                     if holder_is_alive(path) {
-                        return None;
+                        return Ok(None);
                     }
                     // A killed command's marker is nobody's; the removal races another command's, and the retry decides.
                     let _removed = std::fs::remove_file(path);
                 }
-                Err(_refused) => return None,
+                // A folder that is not there, or one this account may not write, is a start that cannot happen, never another
+                // command's start.
+                Err(refused) => return Err(refused),
             }
         }
-        return None;
+        return Ok(None);
     }
 }
 

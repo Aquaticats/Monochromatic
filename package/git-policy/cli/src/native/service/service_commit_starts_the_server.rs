@@ -79,6 +79,12 @@ pub fn make_sure_a_server_exists(host: &ServiceHost) -> Result<(), ClientFailure
             error
         )));
     }
+    // What: The real Git this service runs is recorded beside the sockets before the service is started.
+    // Why:  The unit file used to be that record; with no unit, a wrapper that finds no real Git on `PATH` has nothing else to
+    //       fall back to. It is written here, on the one path that starts a server, so every command that starts one leaves it.
+    if let Err(error) = crate::real_git_record::remember(host.runtime_dir.as_path(), host.git.as_path()) {
+        crate::service_warn!("the real Git this commit service runs cannot be recorded beside its address ({error}), so a command that finds no Git on PATH has no fallback");
+    }
     let server = host.server();
     return match start(&server) {
         StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => Ok(()),
