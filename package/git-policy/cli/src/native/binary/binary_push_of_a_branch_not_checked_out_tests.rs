@@ -155,8 +155,8 @@ fn a_typed_push_of_a_branch_that_is_not_checked_out_is_named_after_that_branch()
     // The published commit is a merge of the two tips.
     assert_eq!(
         message_of(fixture, world.origin.as_path(), published.as_str()).lines().next(),
-        Some(format!("{published} {} {}", world.local_tip, world.remote_tip).as_str()),
-        "the merge joins the pushed tip and the remote tip"
+        Some(format!("{} {}", world.local_tip, world.remote_tip).as_str()),
+        "the merge's only parents are the pushed tip and the remote tip"
     );
     let message: String = message_of(fixture, world.origin.as_path(), published.as_str());
     // What: every name in the message is the branch that was pushed, and never the checked-out branch.
@@ -184,7 +184,7 @@ fn a_typed_push_of_a_branch_that_is_not_checked_out_is_named_after_that_branch()
         "a reader a year later finds the two tips: {message}"
     );
     assert!(
-        message.contains(format!("git revert -m 1 {published}").as_str()),
+        message.contains("git revert -m 1 <this commit>"),
         "the message says how to undo the merge: {message}"
     );
     assert!(!message.contains("Published to"), "the subject already names the ref it landed on: {message}");
@@ -280,7 +280,7 @@ fn a_push_from_a_linked_worktree_names_the_branch_it_sends() {
     let published: String = tip(fixture, world.origin.as_path(), "refs/heads/feat/topic");
     let message: String = message_of(fixture, world.origin.as_path(), published.as_str());
     assert!(message.contains("Merge origin/feat/topic into feat/topic"), "{message}");
-    assert!(!message.contains("side"), "{message}");
+    assert!(!message.contains("into side"), "the branch the worktree shows is not named: {message}");
     assert!(last_line(&observed).contains("and feat/topic is now at it"), "{}", last_line(&observed));
     assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/feat/topic"), published);
     assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/main"), main_before);
@@ -505,7 +505,11 @@ fn a_branch_checked_out_elsewhere_is_left_when_its_work_is_in_the_merges_way() {
         world.repo.as_path(),
         &["worktree", "add", "--quiet", linked.to_str().expect("utf-8"), "feat/topic"],
     );
-    std::fs::write(linked.join("rival.txt"), "an edit the merge would overwrite\n").expect("edit");
+    // The rival's next commit changes a tracked file, so the merge changes one the person can have edited here.
+    std::fs::write(world.rival.join("base.txt"), "base\nrival line\n").expect("rival edit");
+    git(fixture, world.rival.as_path(), &["commit", "--quiet", "--all", "--message=rival base"]);
+    git(fixture, world.rival.as_path(), &["push", "--quiet", "origin", "feat/topic"]);
+    std::fs::write(linked.join("base.txt"), "base\nan edit the merge would overwrite\n").expect("edit");
     let observed: Observed = run_wrapped(
         fixture,
         world.repo.as_path(),
@@ -520,18 +524,19 @@ fn a_branch_checked_out_elsewhere_is_left_when_its_work_is_in_the_merges_way() {
         "the line names the worktree and the reason: {line}"
     );
     assert!(
-        line.contains("has uncommitted changes to files the merge changes: rival.txt"),
+        line.contains("has uncommitted changes to files the merge changes: base.txt"),
         "{line}"
     );
     assert!(line.contains(format!("git merge --ff-only {published}").as_str()), "the line names the step that finishes it: {line}");
     assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/feat/topic"), world.local_tip, "the branch is where it was");
     assert_eq!(tip(fixture, linked.as_path(), "HEAD"), world.local_tip);
     assert_eq!(
-        std::fs::read_to_string(linked.join("rival.txt")).expect("the edit"),
-        "an edit the merge would overwrite\n",
+        std::fs::read_to_string(linked.join("base.txt")).expect("the edit"),
+        "base\nan edit the merge would overwrite\n",
         "the person's edit is intact"
     );
-    assert!(!linked.join("local.txt").exists() || changes(fixture, linked.as_path()) == "M rival.txt");
+    assert_eq!(changes(fixture, linked.as_path()), "M base.txt");
+    assert!(!linked.join("rival.txt").exists(), "nothing of the merge was written there");
     assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/main"), main_before);
     assert_eq!(changes(fixture, world.repo.as_path()), "");
     remove(fixture);

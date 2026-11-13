@@ -1348,7 +1348,7 @@ fn the_report_says_the_uncommitted_work_was_left_as_it_is() {
     let published = text_of(&s.remote, &["rev-parse", "main"]);
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published);
     assert!(
-        err.contains("and this worktree are now at it; your uncommitted changes were left as they are."),
+        err.contains("and this worktree are now at it; your uncommitted changes were left as they are"),
         "{err}"
     );
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "M b.txt");
@@ -2826,7 +2826,7 @@ fn the_merge_message_names_the_pushed_branch_and_the_reason_of_its_path() {
         message.contains(&format!("The first parent is feat/topic at {local} and the second origin/feat/topic at {remote_tip}; nothing was forced.")),
         "{message}"
     );
-    assert!(message.contains("`git revert -m 1 <commit>` on feat/topic keeps both sides' commits"), "{message}");
+    assert!(message.contains("`git revert -m 1 <this commit>` on feat/topic keeps both sides' commits"), "{message}");
     assert!(!message.contains("Published to"), "the subject already names where it landed: {message}");
     let wording = wording_of(&typed);
     assert_eq!(wording.source, "feat/topic");

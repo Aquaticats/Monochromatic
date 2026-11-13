@@ -264,7 +264,7 @@ pub async fn integrate_and_push_awaiting(
         let pushed: PushAttempt = (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
         if pushed.exit_code == 0 {
             let followed: String = match plan.pushed.branch() {
-                None => String::from("no local branch follows it"),
+                None => String::from("and no local branch follows it"),
                 Some(branch_ref) => {
                     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
                     let advanced: Advanced =

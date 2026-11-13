@@ -125,7 +125,7 @@ fn a_new_branch_is_one_update_with_no_remote_object() {
         updates,
         vec![PushUpdate {
             local_oid: Some(tip.clone()),
-            from: String::from("feature"),
+            from: String::from("refs/heads/feature"),
             remote_oid: None,
             remote_name: "origin".to_owned(),
             remote_ref: "refs/heads/feature".to_owned(),

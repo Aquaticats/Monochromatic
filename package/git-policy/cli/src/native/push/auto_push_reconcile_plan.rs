@@ -251,11 +251,11 @@ pub(crate) fn merge_message(plan: &Reconcile<'_>, remote_tip: &str) -> String {
     };
     let undo: String = match plan.pushed.branch() {
         Some(_) => format!(
-            "To undo it, `git revert -m 1 <commit>` on {merged_into} keeps both sides' commits in the history and removes \
+            "To undo it, `git revert -m 1 <this commit>` on {merged_into} keeps both sides' commits in the history and removes \
              its effect; `git reset --hard {local}` on {merged_into} drops it from the local branch alone."
         ),
         None => String::from(
-            "To undo it, `git revert -m 1 <commit>` on it keeps both sides' commits in the history and removes its effect.",
+            "To undo it, `git revert -m 1 <this commit>` on it keeps both sides' commits in the history and removes its effect.",
         ),
     };
     let published: String = if merged_into == short {

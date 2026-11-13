@@ -197,7 +197,7 @@ fn a_detached_head_stays_where_it_is_and_the_report_says_so() {
     let (code, err) = stack(&race, &region(&race));
     assert_eq!(code, Some(0), "{err}");
     assert_eq!(oid(&race.local, "HEAD"), landed, "HEAD is not moved");
-    assert!(err.contains("HEAD is detached"), "{err}");
+    assert!(err.contains("and no local branch follows it"), "{err}");
     assert!(reachable(&race, &landed, &oid(&race.remote, &race.default)));
     remove(&race.root);
 }
