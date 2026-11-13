@@ -953,7 +953,7 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     //  2026-11-12T13:04:14 records every ignored file and every nested worktree's files a removal takes, and a kill between
     //  Git's deletion and its record would leave them gone with nothing saying so (`worktree_removal_deletions.rs`).
     let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(&context, item.git_dir.as_path(), target.as_path());
-    let begun: Option<crate::worktree_removal_deletions::RemovalBegun> =
+    let deletions_begun: Option<crate::worktree_removal_deletions::RemovalBegun> =
         crate::worktree_removal_deletions::record_removal_begins(item.git_dir.as_path(), target.as_path(), arguments.as_slice(), &deletions);
     let output: GitOutput = match run_git(&context, &GitRequest::new(item.repository.as_path(), arguments.as_slice())) {
         Ok(finished) => finished,
@@ -968,8 +968,8 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     forget_begun(item.git_dir.as_path(), item.id().as_str());
     // Git deleted the worktree, so the list written before it ran is what the removal took, and this line says it happened.
     crate::worktree_removal_deletions::reach_test_fault(crate::worktree_removal_deletions::AFTER_DELETION);
-    if let Some(begun) = &begun {
-        crate::worktree_removal_deletions::record_removal_deleted(item.git_dir.as_path(), begun, target.as_path());
+    if let Some(pair) = &deletions_begun {
+        crate::worktree_removal_deletions::record_removal_deleted(item.git_dir.as_path(), pair, target.as_path());
     }
     // A pool names the worktree it serves in every member's config and sits in the common Git directory, which Git's removal
     //  leaves alone, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).

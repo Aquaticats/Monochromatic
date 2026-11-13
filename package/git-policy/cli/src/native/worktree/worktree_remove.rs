@@ -516,7 +516,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     //  between the destroy and its record would otherwise leave the files gone with nothing saying they were ever there
     //  (the owner's decision of 2026-11-12T13:04:14, `worktree_removal_deletions.rs`).
     let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(request.context, request.common_dir, target);
-    let begun: Option<crate::worktree_removal_deletions::RemovalBegun> = crate::worktree_removal_deletions::record_removal_begins(
+    let deletions_begun: Option<crate::worktree_removal_deletions::RemovalBegun> = crate::worktree_removal_deletions::record_removal_begins(
         request.common_dir,
         target,
         crate::worktree_removal_deletions::removal_words(target, request.plan.force).as_slice(),
@@ -556,8 +556,8 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // The files are gone from the path the person named, so the list written before the destroy is what the removal
     //  deleted, and this line says it happened.
     crate::worktree_removal_deletions::reach_test_fault(crate::worktree_removal_deletions::AFTER_DELETION);
-    if let Some(begun) = &begun {
-        crate::worktree_removal_deletions::record_removal_deleted(request.common_dir, begun, target);
+    if let Some(pair) = &deletions_begun {
+        crate::worktree_removal_deletions::record_removal_deleted(request.common_dir, pair, target);
     }
     let outcome: RemoveOutcome = finish(&held, &registration, request);
     // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
