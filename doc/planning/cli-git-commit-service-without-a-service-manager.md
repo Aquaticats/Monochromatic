@@ -1,9 +1,9 @@
 # The commit service without a service manager
 
-Status, 2026-11-13 (second run): parts 1 to 8 done for the base *and* the enhancement,
-each with its controls; the manager half of the proof done in a container; the retire
-storm fixed; the times measured. What of the further items is left, and in which order,
-is the closing section.
+Status, 2026-11-13 (third run): `main` is merged in, and the three things the last report
+named as missing are done: the two-release control (which found and fixed a real defect of
+the upgrade), `service stop`, and the earlier releases' units. The times and the cost on a
+commit's path are measured. What remains is the closing list.
 
 The task: the wrapper's commit service stops being a unit of the user's
 service manager and becomes a server the wrapper starts, finds, replaces and
@@ -1374,3 +1374,92 @@ nothing to do with the code. With the line copied, the whole set is green.
    overwriting forms, the snapshot-rung assertion in `wait_ceilings_tests.rs`, and the
    blocking-code guard's `lazy_runtime.rs` lines). They are somebody else's to fix; each is
    named with its file, and `git diff 9d5a7b0ed7..HEAD` prints nothing for those files.
+
+## The third run: the two-release control, its defect, `service stop`, and the earlier units
+
+### The two-release control, and the defect it found
+
+Two release builds of this branch across the merge: `0.6.1-alpha.13` (commit `2fb2e61d90`)
+and `0.6.1-alpha.16` (the tip). The script alternates them over three commands each way, in
+one worktree whose service is the *other* release's, which is the state in the hours after
+an upgrade.
+
+What it showed first was a **defect, not a limit**: an older client meeting a newer service
+made **0 of 3** commits, each ending "The commit service refused this commit because it
+names a path or a value that cannot be committed". Protocol 12 (`eb27b494c7`, main) added a
+message (`Shadow`/`Drawn`) and an optional field, so the newer service serves the older wire
+unchanged; what blocked the old client was the *numbers*: the greeting named 12, and an
+installed client refuses a version above its own, and the decoder demanded exactly 12 of a
+request.
+
+Both are fixed in the release that is installed last:
+
+- `MIN_SERVED_PROTOCOL` (11) is what the service announces, and what the decoder accepts in a
+  request, with the rule for raising it beside it. A message this build does not know is
+  still refused, which is how the older client's `Shadow` question already arrives as no
+  answer.
+- The client accepts any version in `MIN_SERVED_PROTOCOL..=PROTOCOL_VERSION`.
+
+After the fix, the same script:
+
+- older client, newer service: **3 of 3** commits, **0** asks to leave, and every command
+  saying which release served it;
+- newer client, older service: **3 of 3** commits, **1** ask, and the older service
+  replaced.
+
+So a machine in the hours after an upgrade commits through whichever release's service is
+running, and the newer release's service is asked to leave only when it is the older one.
+
+### `service stop`
+
+`git monochromatic-git-policy-cli service stop` asks this worktree's service to finish what
+it holds and leave, over its own address, and waits `START_WAIT` for the address to be free.
+Four controls: a service that answers is asked and leaves; an address nothing answers on is
+nothing to stop (exit 0); a Git directory that cannot be resolved stops nothing and names
+the cause; an account with neither a runtime directory nor a home is told so.
+
+### The earlier releases' units
+
+An earlier release started the service from a unit, and the manager's socket unit keeps
+`<instance>.sock` bound for as long as that unit is loaded. Two things answer it:
+
+- **The bind takes the address over** from a socket that accepts and greets nothing, which
+  the manager's socket is until it has a service to hand the connection to. That is why the
+  upgrade works on a machine with no manager at all.
+- **`service_server_earlier_release_units.rs`** removes the earlier release's unit files and
+  notes folder (only files carrying this program's marker), and stops this worktree's socket
+  unit, the earlier per-worktree one and the earlier single service's, with the manager's own
+  client, bounded by `PROBE_WAIT`, and only when the runtime directory is the one the
+  environment named and the bus is that session's own. It runs once, at the first service of
+  another release a command meets.
+
+Shown in a container with no manager of any kind (`earlier-release-units-proof.sh`): with a
+manager's client answering, the files go, `--user stop monochromatic-git-policy-cli@<instance>.socket
+cli-git@<instance>.socket cli-git.socket` is asked once, and this release's service owns the
+address; with no client at all, nothing is asked, the files still go, and the commit is still
+served by this release.
+
+### The cost on a commit's path
+
+Five rounds an arm, alternating, a fresh worktree each round:
+
+- first commit of a worktree (a service must start): 120, 80, 80, 90, 90 ms before;
+  120, 90, 90, 90, 80 ms after. Median 90 both.
+- later commits: 40, 40, 40, 30, 30 and a second arm 50, 40, 40, 50, 40 before;
+  40, 30, 40, 40, 30 and 40, 30, 50, 60, 30 after. Median 30 to 40 before, 40 after.
+
+Nothing of this run's changes is measurable above the 20 to 30 ms spread: the gate reads two
+environment values and one `PATH` scan, the earlier-units sweep does one read of a directory
+that is usually empty, and the release order is one comparison of two short texts.
+
+### What is left, in the order I would take it
+
+1. **`git monochromatic-git-policy-cli service stop` for another worktree.** It stops the
+   one it runs in.
+2. **Bazel's low-memory idle exit** is designed and not written.
+3. **The package's `bin/` tooling and `native:gate*` tasks** still use this host's manager for
+   cgroups; they never reach a release.
+4. **Controls of main's that fail in this tree and are not this branch's**: the heartbeat one
+   in `service_server_greets_before_the_journal_is_restored_tests.rs` (it fails identically
+   with this branch's greeting change put back) and `service_round`'s panic lane (its files
+   are byte-identical to main). Both want their owners.
