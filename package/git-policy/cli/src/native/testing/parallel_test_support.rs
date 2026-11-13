@@ -247,7 +247,7 @@ pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::Atomic
     //  deadline still takes the work (`lazy_runtime`), so the wait is for that arrival, and it ends when the run shows no
     //  sign of work rather than on a clock.
     assert!(
-        crate::lazy_runtime::has_workers() || crate::test_support::wait_until(&|| { return crate::lazy_runtime::has_workers(); }),
+        crate::lazy_runtime::tasks_can_run() || crate::test_support::wait_until(&|| { return crate::lazy_runtime::tasks_can_run(); }),
         "this process's runtime came up {:?}, so it has no worker to hold a place of its blocking pool, and a build that arrived late never did: the system left no room for one",
         crate::lazy_runtime::built_flavor()
     );

@@ -66,6 +66,14 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// How much of a commit's time its timing record names,
+/// and how much no phase covers.
+pub mod commit_accounting;
+
+/// What reaching the commit service cost,
+/// as the timing record states it.
+pub mod commit_reach_trace;
+
 /// Why one commit did not land,
 /// as the timing record states it.
 pub mod commit_stop_reason;
@@ -186,6 +194,14 @@ pub mod scratch_step_ceiling_stop;
 
 /// The words a stopped scratch `git commit` prints.
 pub mod scratch_step_stop_words;
+
+/// The record of one stop of the scratch `git commit`,
+/// taken whole from the enforcer of its ceiling that ended the step.
+pub mod scratch_step_stop_record;
+
+/// The one decision two enforcers of a step's ceiling make together:
+/// whether the ceiling stands aside for a step the kernel holds in a disk wait.
+pub mod scratch_step_stall_decided_once;
 
 /// The line a commit prints while it waits for the `git commit` of its scratch repository.
 pub mod scratch_step_notice_line;

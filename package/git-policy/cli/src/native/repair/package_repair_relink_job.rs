@@ -10,7 +10,12 @@
 //! Both runs keep every guarantee the add gave them:
 //! each tool's own command,
 //! the same quiet window and the same ceiling,
-//! and a run that fails leaves the record failed and names the tool.
+//! and a run that fails names the tool and the command that finishes it by hand.
+//! A failure is answered with a retry rather than given up on after one try:
+//! two installers can meet in one worktree's `node_modules`,
+//! and pnpm answers that with a failure that passes when it runs alone.
+//! The record's own count of tries bounds the retries,
+//! and the last one leaves a notice in the worktree with the commands that finish the job.
 //! A tool the service cannot find is a failure that says so,
 //! as a missing tool was a line of the add and never its failure.
 //!
@@ -113,13 +118,16 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
             // The worktree no longer needs this tool, which a person's own command may have seen to.
             None => debug(TAG, format!("{}: {} had nothing to relink", entry.root.display(), tool.name()).as_str()),
             Some(Finding { outcome: Outcome::Repaired { .. }, .. }) => repaired += 1,
-            Some(Finding { outcome: Outcome::Failed { reason, .. }, .. }) => failures.push(format!("{}: {reason}", tool.name())),
+            Some(Finding { outcome: Outcome::Failed { reason, run_instead }, .. }) => failures.push(format!("{}: {reason} Run `{run_instead}` to finish it now.", tool.name())),
         }
     }
     debug(TAG, format!("{}: {repaired} relinked, {} failed", entry.root.display(), failures.len()).as_str());
     return match failures.first() {
         None => Verdict::Done,
-        Some(first_failure) => Verdict::Failed(first_failure.clone()),
+        // A tool that failed under the conditions this machine calls ordinary is not given up on after one try: another
+        //  installer can hold the worktree's `node_modules` at this instant, and pnpm answers that with `File exists` rather
+        //  than by waiting. The record keeps its claim, and its own count of tries bounds the retries (`MAX_TRIES`).
+        Some(first_failure) => Verdict::Retry(first_failure.clone()),
     };
 }
 

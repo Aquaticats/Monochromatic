@@ -68,6 +68,11 @@ fn table_with_mount(root: &Path, mount: Option<u64>, kind: Option<&str>) -> Path
     let process: PathBuf = root.join("proc").join("4242");
     std::fs::create_dir_all(process.join("fdinfo")).expect("the record directory");
     std::fs::create_dir_all(process.join("fd")).expect("the descriptor directory");
+    // A control's `/proc` names a descriptor by a link to its file, as the kernel's does: the text of that link is what
+    //  says the descriptor can be a file at all, before any record of it is opened (`descriptor_record.rs`).
+    let held: PathBuf = root.join("held");
+    std::fs::write(&held, b"held\n").expect("the file the descriptor names");
+    std::os::unix::fs::symlink(&held, process.join("fd").join("3")).expect("a descriptor of the control's own");
     match mount {
         Some(number) => std::fs::write(process.join("fdinfo").join("3"), format!("pos:\t0\nflags:\t0100000\nmnt_id:\t{number}\nino:\t1\n")).expect("a record naming a mount"),
         None => std::fs::write(process.join("fdinfo").join("3"), "pos:\t0\nflags:\t0100000\nino:\t1\n").expect("a record naming no mount"),
@@ -138,10 +143,8 @@ fn a_descriptor_whose_record_names_no_mount_is_refused() {
 #[test]
 fn a_descriptor_on_an_overlay_mount_is_read_by_a_child() {
     let root: PathBuf = fixture("open-file-overlay");
-    let held: PathBuf = root.join("held");
-    std::fs::write(&held, b"held\n").expect("the file the descriptor names");
     let process: PathBuf = table_with_mount(root.as_path(), Some(7), Some("overlay"));
-    std::os::unix::fs::symlink(&held, process.join("fd").join("3")).expect("a descriptor of the control's own");
+    let held: PathBuf = root.join("held");
     let opened: OpenedFile = opened_file_of(process.as_path(), std::ffi::OsStr::new("3")).expect("the overlay mount is read");
     assert_eq!(opened, identity_of_file(held.as_path()), "the child names the file the descriptor names");
     remove(root.as_path());

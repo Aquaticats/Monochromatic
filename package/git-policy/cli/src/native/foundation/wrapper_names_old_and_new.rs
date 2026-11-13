@@ -134,6 +134,17 @@ pub const REPOSITORY_SCRATCH: RenamedName = RenamedName {
 ///  so it has no earlier spelling.
 pub const SHADOW_POOL_FOLDER: &str = "monochromatic-git-policy-cli-shadow-pool";
 
+/// The folder inside a Git common directory that holds the finished shadows the resident service drew
+/// out of the pool ahead of the commits that ask for one.
+///  It sits beside the pool's folder and never inside it:
+///  a claim takes a member by renaming it out of the pool,
+///  and the removal of a removed worktree takes the pool's folder out of its name with one rename before anything
+///  of it is deleted,
+///  while a drawn tree is used where it stands and must be left alone while a commit holds it.
+///  This release is the first to keep one,
+///  so it has no earlier spelling.
+pub const SHADOW_DRAWN_FOLDER: &str = "monochromatic-git-policy-cli-shadow-drawn";
+
 /// The prefix of a commit's scratch directory:
 ///  the private indexes Git's scratch repository is built from,
 ///  kept inside the repository scratch directory.

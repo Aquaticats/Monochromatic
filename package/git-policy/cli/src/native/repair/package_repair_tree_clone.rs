@@ -22,13 +22,56 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::{run_a_job_or_in_turn, run_a_slow_job_or_in_turn};
 use crate::lazy_runtime::run_on_runtime;
 use crate::worktree_copy_stage::copy_file_exclusive;
 use std::fs::{FileTimes, Metadata, Permissions};
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+/// Which of the process's places a tree clone's steps take.
+/// Why:
+///  The clone is the heaviest step of a new worktree's prewarm,
+/// which is work nobody waits for,
+/// and the same function clones a build directory for a command a person waits for.
+/// The two may not be covered by the same bound:
+/// work nobody waits for leaves one place of the process's bound free of itself
+/// (`SLOW_WORK_RESERVE` in `blocking_jobs_within_the_budget.rs`),
+/// and work a person waits for takes its place beside everything else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PlacesOfAClone = 'everyJob' | 'slowWork';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PlacesOfAClone {
+    /// The process's general places,
+    /// which every other job of the process shares.
+    EveryJob,
+    /// The places slow work may take,
+    /// which leave one place of the process's bound free of it.
+    SlowWork,
+}
+
+/// What:
+///  Run one step of a clone as a job of the blocking pool,
+///  with the places `places` names held for as long as it runs.
+/// Why:
+///   The walk,
+/// each slice of files and the modes are the same shape of job,
+/// and only the places they take differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runACloneStep(places, state, work);
+/// ```
+async fn run_a_clone_step<S: Clone + Send + 'static, T: Send + 'static>(places: PlacesOfAClone, state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    return match places {
+        PlacesOfAClone::EveryJob => run_a_job_or_in_turn(state, work).await,
+        PlacesOfAClone::SlowWork => run_a_slow_job_or_in_turn(state, work).await,
+    };
+}
 
 /// What a walk of the source finds at one path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -350,7 +393,7 @@ fn empty_answer() -> Option<Result<Vec<PathBuf>, String>> {
 /// ```ts
 /// const answers = await Promise.all(slices.map((slice) => runBlockingJobWithinTheBudget(() => placeSlice(entries, slice, source, destination))));
 /// ```
-async fn place_slices_awaiting(placing: ThePlacing, slices: Vec<Vec<usize>>) -> Vec<Result<Vec<PathBuf>, String>> {
+async fn place_slices_awaiting(placing: ThePlacing, slices: Vec<Vec<usize>>, places: PlacesOfAClone) -> Vec<Result<Vec<PathBuf>, String>> {
     let count: usize = slices.len();
     let entries: Arc<[Entry]> = placing.entries;
     let mut started: tokio::task::JoinSet<(usize, Result<Vec<PathBuf>, String>)> = tokio::task::JoinSet::new();
@@ -358,7 +401,7 @@ async fn place_slices_awaiting(placing: ThePlacing, slices: Vec<Vec<usize>>) -> 
         let theirs: Arc<[Entry]> = Arc::clone(&entries);
         let (source, destination): (PathBuf, PathBuf) = (placing.source.clone(), placing.destination.clone());
         started.spawn(async move {
-            let placed = run_a_job_or_in_turn((theirs, positions, source, destination), place_a_slice_of).await;
+            let placed = run_a_clone_step(places, (theirs, positions, source, destination), place_a_slice_of).await;
             let answer: Result<Vec<PathBuf>, String> = match placed {
                 Ok(outcome) => outcome,
                 // The entries of a slice that did not run are not in the destination, and the words say only that.
@@ -468,20 +511,42 @@ fn set_the_modes(source: &Path, destination: &Path, entries: &[Entry], directori
 }
 
 /// What:
-///  Clone `source` into the new directory `destination` with every wait awaited on the runtime.
+///  Clone `source` into the new directory `destination` with every wait awaited on the runtime,
+///  as the service's prewarm of a new worktree runs it,
+///  with the places slow work may take.
 /// Why:
 ///  `clone_tree` enters the runtime,
 /// which a caller that is itself a task cannot do
 /// (`RuntimeError::Nested`),
 /// and the clone of a build directory is one
 ///  of the waits a task of the Cargo workspace repair makes.
+/// The prewarm is the one caller of this face and it is slow work nobody waits for,
+///  so the clone leaves one place of the process's bound free of itself:
+/// prewarm waves run four wide and the service's pool has four places,
+/// and a wave of clones that took every place held the round's own storage steps for as long as it ran
+///  (`landing/service_work_slow_lane.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function cloneTreeAwaiting(source: string, destination: string, workers: number): Promise<Cloned>;
 /// ```
 pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
-    let walked = run_a_job_or_in_turn((source.to_path_buf(), destination.to_path_buf()), walk_and_make_of).await;
+    return clone_tree_within(source, destination, workers, PlacesOfAClone::SlowWork).await;
+}
+
+/// What:
+///  `clone_tree_awaiting`'s work,
+///  with the places its steps take given.
+/// Why:
+///   The two faces of a clone differ only in whose work they are,
+/// so the walk, the slices and the modes are one account.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function cloneTreeWithin(source, destination, workers, places): Promise<Cloned>;
+/// ```
+async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, places: PlacesOfAClone) -> Result<Cloned, String> {
+    let walked = run_a_clone_step(places, (source.to_path_buf(), destination.to_path_buf()), walk_and_make_of).await;
     let TheWalk { entries, mut left_out, directories, root_mode }: TheWalk = match walked {
         Ok(Ok(found)) => found,
         // The walk itself failed and named the entry it could not read; nothing of the clone was made.
@@ -500,13 +565,13 @@ pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, worke
     let slices: Vec<Vec<usize>> = leaves.chunks(slice_length).map(<[usize]>::to_vec).collect();
     let shared: Arc<[Entry]> = Arc::from(entries);
     let placing: ThePlacing = ThePlacing { entries: Arc::clone(&shared), source: source.to_path_buf(), destination: destination.to_path_buf() };
-    let outcomes: Vec<Result<Vec<PathBuf>, String>> = place_slices_awaiting(placing, slices).await;
+    let outcomes: Vec<Result<Vec<PathBuf>, String>> = place_slices_awaiting(placing, slices, places).await;
     for outcome in outcomes {
         left_out.extend(outcome?);
     }
     left_out.sort();
     // Modes last, so a read-only directory does not stop its own contents from being placed.
-    let modes = run_a_job_or_in_turn((source.to_path_buf(), destination.to_path_buf(), Arc::clone(&shared), directories, root_mode), set_the_modes_of).await;
+    let modes = run_a_clone_step(places, (source.to_path_buf(), destination.to_path_buf(), Arc::clone(&shared), directories, root_mode), set_the_modes_of).await;
     match modes {
         Ok(Ok(())) => {}
         // A directory or the destination could not take its mode, and the message names which.
@@ -530,19 +595,24 @@ pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, worke
 /// a failure names the entry that could not be made,
 /// and leaves what was
 ///  made in place for the person to remove with the destination.
-/// The callers of this face are synchronous (the Cargo repair of a worktree inside the repair the add runs),
+///  The callers of this face are synchronous (the Cargo repair of a worktree inside the repair the add runs),
 /// so it
 ///  enters the process's runtime once and waits there;
 /// from inside the runtime it refuses,
 /// and the Cargo repair's own
 ///  items await `clone_tree_awaiting` instead.
+/// A synchronous caller is a command a person waits for,
+/// so its clone takes the process's general places and no place is kept for it:
+/// only the prewarm's own clone,
+/// which nobody waits for,
+/// leaves a place free.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function cloneTree(args: { source: string; destination: string; workers: number }): Cloned;
 /// ```
 pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
-    return match run_on_runtime(clone_tree_awaiting(source, destination, workers)) {
+    return match run_on_runtime(clone_tree_within(source, destination, workers, PlacesOfAClone::EveryJob)) {
         Ok(cloned) => cloned,
         // Nothing of the clone was made, and the runtime's own reason is why.
         Err(refusal) => Err(format!("{} could not be cloned ({refusal})", source.display())),

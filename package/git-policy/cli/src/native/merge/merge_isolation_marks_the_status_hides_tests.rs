@@ -63,6 +63,10 @@ fn the_tags_git_prints_for_each_mark_are_read_and_no_other() {
     let marked: Vec<Marked> = marked_entries(output.as_slice());
     let names: Vec<String> = marked.iter().map(|entry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }).collect();
     assert_eq!(names, vec!["skip.txt", "both.txt", "assumed.txt", "a\tpath\twith\ttabs.txt"], "every hidden mark is read, unmerged and plain entries are not");
+    // A `skip-worktree` entry that also carries the assume-unchanged bit prints as a lower-case `s`, and stays the sparse
+    //  checkout's mark: neither is a deletion of the person's.
+    let marks: Vec<bool> = marked.iter().map(|entry| { return entry.mark.absence_is_the_marks_own(); }).collect();
+    assert_eq!(marks, vec![true, true, false, true], "a lower-case `s` still says skip-worktree, and `h` alone is assume-unchanged");
     assert_eq!(marked[0].mode, "100644");
     assert_eq!(marked[0].object, "1111111111111111111111111111111111111111");
 }

@@ -161,6 +161,11 @@ pub mod worktree_copy_stage_binding;
 #[cfg(unix)]
 pub mod worktree_copy_unfilled_record;
 
+/// The target a copied symbolic link must hold at its new place,
+/// and the rule that tells two links naming one place.
+/// It is path arithmetic only, so every system that copies links compiles it.
+pub mod worktree_copy_symlink_target;
+
 /// The append-only install log of one stage:
 /// per-batch intents and creations,
 /// with resumption.
@@ -220,6 +225,25 @@ pub mod worktree_copy_owed_copy;
 /// and the reason a copy is given up on when it cannot.
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy_source;
+
+/// Where a record of an interrupted copy that cannot be read is kept,
+/// and the one rename that puts it there.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_record_aside;
+
+/// The one line each such record is settled with:
+/// what it was,
+/// where it went,
+/// and what may still stand on disk.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_record_words;
+
+/// The records of an interrupted copy that cannot be read:
+/// each is moved aside with one line,
+/// what it named is found again from the records beside it where it can be,
+/// and the command that met it runs.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_records;
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,

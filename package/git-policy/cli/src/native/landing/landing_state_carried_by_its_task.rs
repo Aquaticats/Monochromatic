@@ -51,6 +51,12 @@ pub struct LandingState {
     pub(crate) detail: RefCell<Option<String>>,
     /// The sentence of the last Git step this landing ended at its ceiling (`service_land_git_steps_and_import_stream.rs`).
     pub(crate) ceiling_step: RefCell<Option<String>>,
+    /// The tip a batch built whose own side reference did not keep it,
+    /// and why,
+    /// so the landing that answers the batch keeps it and tells the person where
+    /// (`service_land_git_steps_and_import_stream.rs`,
+    /// `keep_what_a_side_reference_write_left`).
+    pub(crate) unproven_side_ref_tip: RefCell<Option<(String, String)>>,
     /// The claims this landing placed that could not be read back,
     /// with the marker text each was written from
     /// (`service_index_claim.rs`).
@@ -88,6 +94,7 @@ impl LandingState {
             board: RefCell::new(None),
             detail: RefCell::new(None),
             ceiling_step: RefCell::new(None),
+            unproven_side_ref_tip: RefCell::new(None),
             abandoned_claims: RefCell::new(Vec::new()),
             refused_lock: RefCell::new(None),
             unsettled_locks: Cell::new(0),
