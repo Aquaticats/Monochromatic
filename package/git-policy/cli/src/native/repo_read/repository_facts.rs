@@ -520,7 +520,7 @@ impl RepositoryFacts for GitFacts {
                 renames_the_previous_entry = false;
                 continue;
             }
-            renames_the_previous_entry = matches!(status.get(0), Some(b'R' | b'C'));
+            renames_the_previous_entry = matches!(status.first(), Some(b'R' | b'C'));
             if !paths.contains(&path) {
                 paths.push(path);
             }

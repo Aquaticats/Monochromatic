@@ -156,14 +156,14 @@ fn entries_the_form_would_lose(kept: Vec<Vec<u8>>, asked: &[Vec<u8>], root: &Pat
     //  is itself named is that directory's content.
     named.sort();
     named.dedup();
-    let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    let mut outermost: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in named {
-        if kept.iter().any(|outer| return holds(outer.as_slice(), path.as_slice())) {
+        if outermost.iter().any(|outer| return holds(outer.as_slice(), path.as_slice())) {
             continue;
         }
-        kept.push(path);
+        outermost.push(path);
     }
-    return kept.into_iter().map(|path| return String::from_utf8_lossy(path.as_slice()).into_owned()).collect();
+    return outermost.into_iter().map(|path| return String::from_utf8_lossy(path.as_slice()).into_owned()).collect();
 }
 
 /// What:

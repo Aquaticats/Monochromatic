@@ -62,10 +62,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
         WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref()),
         WrittenPaths::PathspecFile { target, file, nul_separated, directory } => {
             let at: Option<&Path> = directory.as_ref().map(|named| return Path::new(named));
-            let pathspecs: Vec<OsString> = match pathspecs_in_the_file(file, *nul_separated, at) {
-                Ok(found) => found,
-                Err(message) => return Err(message),
-            };
+            let pathspecs: Vec<OsString> = pathspecs_in_the_file(file, *nul_separated, at)?;
             if pathspecs.is_empty() {
                 Ok(Vec::<Vec<u8>>::new())
             } else {

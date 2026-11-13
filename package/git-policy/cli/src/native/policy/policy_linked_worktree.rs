@@ -456,11 +456,15 @@ pub(crate) fn check_linked_worktree(
                 DirtyQuestion::Worktree(scope) => facts.uncommitted_paths(scope).unwrap_or_default(),
                 DirtyQuestion::CleanDryRun | DirtyQuestion::RepositoryStash => Vec::<String>::new(),
             };
+            // A question that names no path keeps its own sentence: a stash entry is the repository's,
+            //  and a clean's own exclusions name what only they call ignored.
+            let message: String = if listed.is_empty() {
+                rejection
+            } else {
+                dirty_worktree_message_naming(command, listed.as_slice())
+            };
             record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
-            return rejected(
-                LINKED_WORKTREE_REQUIRED_CODE,
-                format!("{}{conflict_note}", dirty_worktree_message_naming(command, listed.as_slice())),
-            );
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
         }
         Ok(false) => {
             // The tracked state being clean says nothing about a file Git did not put there: a form that writes a tree

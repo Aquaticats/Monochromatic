@@ -284,9 +284,7 @@ fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         }
         words.push(token);
     }
-    let Some(destination) = words.last() else {
-        return None;
-    };
+    let destination: &OsString = words.last()?;
     let mut paths: Vec<OsString> = vec![(*destination).clone()];
     for source in words.iter().take(words.len().saturating_sub(1)) {
         let bytes: &[u8] = source.as_encoded_bytes();
@@ -690,9 +688,9 @@ fn pathspec_file_written_paths(
     shell_directory: Option<&Path>,
 ) -> WrittenPaths {
     // The tree-ish is the last word that is neither an option nor the file's name.
-    let parsed: Option<ParsedOptions> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok();
+    let read: Option<ParsedOptions> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok();
     let mut revision: Option<OsString> = None;
-    if let Some(parsed) = parsed {
+    if let Some(parsed) = read {
         for index in positional_tokens(&parsed, region.len()) {
             if let Some(token) = region.get(index)
                 && token.as_encoded_bytes() != file.as_encoded_bytes()
