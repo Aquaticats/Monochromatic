@@ -360,7 +360,10 @@ and that is where the fourth direction was looked at:
 
 ### The migration from the units an earlier release left behind
 
-A machine with the earlier template installed has a service unit whose text names the earlier release's absolute path,
+A machine with an earlier release's template installed has a service unit whose text is that release's own:
+the executable of the release that wrote it (`0.6.1-alpha.13`),
+or a link of that release
+(`0.6.1-alpha.14`),
 and the manager may hold it.
 The first commit of this release rewrites the template,
 asks a running service to retire (so its batch is finished),
