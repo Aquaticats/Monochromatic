@@ -2044,6 +2044,31 @@ fn a_push_to_a_path_that_is_not_there_keeps_its_plan() {
     remove(stage.root.as_path());
 }
 
+/// What:
+///  A push to a directory that exists and is no repository keeps its plan.
+/// Why:
+///  Git answers exactly what it answered for the reserved word
+/// (`fatal: '…' does not appear to be a git repository`),
+/// and that directory may become a repository,
+/// so the address is the second kind and nothing may give up on it.
+/// This is the "a path that exists but is no repository" case of the requirement, made real rather than quoted.
+#[test]
+fn a_push_to_a_directory_that_is_no_repository_keeps_its_plan() {
+    let stage: Stage = stage_without_a_hook("push-address-not-a-repository");
+    // A directory beside the repository that holds no repository.
+    let directory: PathBuf = stage.root.join("plain-dir");
+    std::fs::create_dir(directory.as_path()).expect("a directory that is no repository");
+    git(stage.repo.as_path(), &["remote", "set-url", "--push", "origin", directory.to_str().expect("a UTF-8 path")]);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered: the directory is no repository");
+    let due_after_a_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert_eq!(due_after_a_pause.len(), 1, "the push waits for a new try, as it always has");
+    remove(stage.root.as_path());
+}
+
 /// Run the work loop on a thread from the plan list a start was given,
 /// so a control states what that start had read:
 /// nothing wakes this service.
