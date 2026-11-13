@@ -314,6 +314,19 @@ The brief is `~/temp/agent/pi-runs/issue-6293-private-runtime-directory-is-the-b
 The first part rests on the branch `refactor/git-policy-cli-commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`,
 cut off on 2026-11-12 and in the resume queue, so that resume goes before this run, and the brief tells the run to build on it and write no second service starter.
 
+#### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
+
+The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
+each ended on the same error:
+`push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window-1` (16:06:12),
+`commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so-1` (16:06:15),
+`commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-1` (16:29:59, at 335 turns, in the middle of its report:
+its branch `8c5161ada2` compiles, and its own words are that the whole library's tests and Clippy were not run at the tip,
+and that the enhancement with its two controls, `service stop`, the two-release control, the container proof and the process-group kill are still to do),
+and `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone-1` (16:31:45, a restart that had only begun).
+All four are in the resume queue, which now holds twenty-four entries:
+the jam fix first, then the service that needs no manager, then issue 6293 (which builds on it), then the rest.
+
 #### What agent work keeps on the home drive (2026-11-13T11:00:57-05:00)
 
 `btrfs filesystem du --summarize --raw`, bytes shared inside each folder (their own bytes are near nothing, which means snapshots or copies elsewhere on the drive hold the same data):
