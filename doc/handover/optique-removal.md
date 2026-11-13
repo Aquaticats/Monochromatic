@@ -1163,13 +1163,30 @@ to settle before a reply:
   `main` is still the merge `d26f1a24`,
   and the commit thread has no comment after the owner's of 14:27:49Z.
   A read earlier that evening found no open pull request and no issue newer than 1120.
-- Put to the owner on 2026-11-13 and not yet answered:
-  whether the reply draft keeps its paragraph on the input-trace patch closing what pull request 1121 leaves,
-  now that the Node and Bun timing shows it does so on Node and not on Bun.
-  The reply draft and the draft issue otherwise wait for the owner's edit,
-  the owner's own lines where the drafts mark them,
-  and the owner's posting;
+- Asked on 2026-11-13 whether the drafts keep their passage on the input-trace patch closing what pull request 1121 leaves,
+  now that the Node and Bun timing shows it does so on Node and not on Bun,
+  the owner chose "Reply cut,
+  issue keeps":
+  the passage is out of the reply draft and stays in the draft issue.
+  Asked what to do next with the reply draft,
+  which ran to 66 lines,
+  the owner chose "Tighten the reply first".
+  It was tightened at 2026-11-13T17:04:45-05:00 to 44 lines;
+  the note before the draft in the typo-suggestion document lists what left it and where each part lives.
+  Every figure in it stood in the longer draft.
+  Next:
+  a review of the tightened form by a fresh session of the reviewing model,
+  its findings folded in,
+  and then the draft goes to the owner,
+  who edits it,
+  writes the lines the draft marks as the owner's,
+  and posts it;
   the time the owner gave the maintainer runs to 2026-11-16T14:27:49Z.
+  The owner's earlier choice that the reply carry the second patch with its costs and the buffer finding still holds in substance:
+  the tightened draft names the second patch,
+  its gain and that it makes a large state a `Proxy`,
+  says the buffer attempt did not work,
+  and leaves the detail of both to the write-up it links.
 - Asked the same day which of the recheck's results the reply draft should carry,
   the owner chose the second patch with its costs and the buffer finding,
   and not the note about `concat`.
