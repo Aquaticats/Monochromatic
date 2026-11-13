@@ -199,11 +199,12 @@ pub fn conflicted_files_message(command: GuardedCommand, operation: Operation, i
         "monochromatic-git-policy-cli: {name} is rejected {place}: {risk}. The {} in progress left {listed} with an \
          unmerged index entry, and {subject} the resolution you have written so far, which exists nowhere else: this \
          command replaces {pronoun} content, and it keeps no copy of {them}. To settle the conflict and keep what you \
-         wrote, edit the file and commit the result (git commit --message <message> -- <paths>); `git show :1:<path>`, \
-         `:2:<path>` and `:3:<path>` print the base and the two sides, and git diff prints the file as it stands. If you \
-         have decided to replace {them} on purpose, save a copy yourself (git diff -- <path> > backup.patch) and pass \
-         --no-enforce-worktree directly after the subcommand: the command then runs exactly as real Git runs it, and no \
-         copy is kept.",
+         wrote, edit the file, stage it (`git add -- <paths>`) and commit the result with no paths (`git commit --message \
+         <message>`); `git show :1:<path>`, `git show :2:<path>` and `git show :3:<path>` print the base \
+         and the two sides, and `git diff -- <path>` prints the file as it stands. If you have decided to replace {them} on purpose, copy the file first \
+         (`cp -- <path> <path>.before-the-opt-out`) and pass `--no-enforce-worktree` directly after the subcommand: the \
+         command then runs exactly as real Git runs it, and no copy is kept; `cp -- <path>.before-the-opt-out <path>` puts \
+         your file back afterwards, and you can delete the copy then.",
         operation_name(operation)
     );
 }
