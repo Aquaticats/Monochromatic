@@ -957,7 +957,28 @@ run = "dprint check --list-different"
 # readers of the lock find them: the closure check of `lint:monochromatic-lint` runs `cargo metadata --offline --locked`
 # per package and skips a package whose crates are not cached (for example the Windows-only crates the music player's
 # lock names). Post-`--` arguments are package directories (default: every directory with a tracked `Cargo.lock`).
-# Needs the network; `cargo fetch --locked` never changes a lock file, and a package that fails is named at the end.
+# Needs the network for whatever it does fetch; `cargo fetch --locked` never changes a lock file, and a package that
+# fails is named at the end.
+#
+# It fetches only a lock file that has something to download, which is what keeps a lint off Cargo's package cache
+# lock. Cargo holds `<cargo home>/.package-cache` exclusively while it resolves, downloads and unpacks, and every other
+# Cargo waits behind it (`src/util/cache_lock.rs`); running `cargo fetch --locked` for all thirty-five lock files took
+# that lock whether or not anything was to fetch, and that is what made agents on this machine wait on each other.
+# Measured on 2026-11-13 (`strace -e trace=flock` over one pass, and a second Cargo run beside a pass): one pass took
+# 70 exclusive acquisitions of the lock and 5.6 s to 5.9 s in a warm worktree, 27.2 s in a fresh one whose cargo
+# shadow still had to verify every workspace, and a Cargo started beside a pass waited 26 times of 42 tries and 27 of
+# 46, up to 349 ms, for that pass alone. After: 1.0 s to 1.1 s, zero acquisitions, and no wait that a pass causes
+# (9 tries, none waited; in one reading of 6 tries, 5 waited on other agents' Cargo). Readings and controls:
+# `~/temp/agent/cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch-scratch/keep/`.
+#
+# The judgment reads Cargo's own markers and never decides that a fetch must not happen. A lock file it cannot read,
+# a package from a source that is neither a registry nor a git repository, a cargo home holding more than one
+# registry, a crate without its downloaded `.crate`, and a crate folder without the `{"v":1}` marker Cargo writes only
+# after the crate's last file lands (or, for a git source, without a ready checkout of the locked revision) all fetch
+# as before; a crate another Cargo is unpacking right now has no marker yet, so that one fetches too. What it does not
+# judge is whether a lock file is current, which is `--locked`'s own check: the cargo shadow's install step runs it
+# before every resolving command, and the closure check reports a stale lock file as a finding. The order the owner
+# fixed on 2026-11-07 ("Fetch then warn") is unchanged: this only decides which lock files need the fetch.
 [tasks."fetch:rust-dependencies"]
 description = "Download every locked Cargo dependency of each package (default: all with a Cargo.lock) so the offline closure check can read them"
 usage = """
@@ -1086,8 +1107,8 @@ const readCargoHome = (cargoHome) => {
 const registryCrateMissingFrom = ({ home, name, version }) => {
   const packageName = name + '-' + version
   const tarballSize = home.tarballSizes.get(packageName + '.crate')
-  if (tarballSize === undefined) { return 'no downloaded ' + packageName + '.crate' }
-  if (tarballSize === 0) { return 'an empty ' + packageName + '.crate' }
+  if (tarballSize === undefined) { return 'no ' + packageName + '.crate in the cargo home' }
+  if (tarballSize === 0) { return 'an empty ' + packageName + '.crate in the cargo home' }
   const sourceFolder = home.unpackedRegistryCrates.get(packageName)
   if (sourceFolder === undefined) { return undefined }
   const marker = textOf(join(sourceFolder, REGISTRY_UNPACK_MARKER))
@@ -1129,7 +1150,7 @@ const fetchDecision = ({ cargoHome, home, lockText }) => {
   const registrySources = [...sources.keys()].filter((source) => source.startsWith('registry+'))
   const gitSources = [...sources.keys()].filter((source) => source.startsWith('git+'))
   const otherSources = [...sources.keys()].filter((source) => !source.startsWith('registry+') && !source.startsWith('git+'))
-  if (otherSources.length > 0) { return { fetch: true, reason: String(otherSources.length) + ' sources this reader does not know' } }
+  if (otherSources.length > 0) { return { fetch: true, reason: 'the lock file names a source this reader does not know (' + otherSources[0] + ')' } }
   if (registrySources.length === 0 && gitSources.length === 0) { return { fetch: false, reason: 'it names no crate from a registry or a git repository' } }
   if (registrySources.length > 0 && home.registryName === undefined) {
     return { fetch: true, reason: 'its crates are not in one registry folder of the cargo home at ' + cargoHome }
