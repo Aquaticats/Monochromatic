@@ -784,7 +784,7 @@ paired by round:
    all seven faster;
    Bun 1.07 (0.95 to 1.22),
    five of seven slower,
-   which is no further from 1 than the control.
+   a median inside the control's range.
 - The pull request with the patch against 1.3.6:
    Node 0.92 (0.84 to 1.05),
    one of seven slower;
@@ -798,8 +798,12 @@ three of seven slower.
 
 So at a thousand tokens the patch is a gain on Node and Deno and nothing measurable on Bun.
 On Bun its gain shows with more tokens:
-in the rounds under "What is left after the fix" the patched build over `main` was 0.74 at 2,000 positional tokens,
-0.55 at 4,000 and 0.30 at 8,000.
+in the recheck's rounds on Bun,
+a run of positional tokens and one option,
+the patched build over `main` was 0.74 at 2,000 tokens,
+0.55 at 4,000 and 0.30 at 8,000
+(step `bun-sweep-with-main` of `keep/timing-summary.txt`,
+in the folder `two-remaining-copies-recheck-2026-11-13` of the evidence archive).
 The sentence that the patch brings the pull request level with 1.3.6 after `--` therefore holds on Node and Deno
 and not on Bun,
 where the pull request with the patch still takes about twice as long as 1.3.6.
@@ -1503,10 +1507,10 @@ https://github.com/Aquaticat/optique-parse-cost-reproduction (*token-scaling.ts*
 I have a patch that keeps the entries in an immutable hash trie instead, so a write copies only the path to its
 key and earlier traces stay untouched. Run against the unpatched build in the same rounds, 8,000 arguments take
 0.11 times as long with it on Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), and the fitted exponent
-goes from about 1.8 to about 1.2 (that last from source on Deno). The gain grows with the count: a thousand paths
-through a `git commit`-shaped parser took 0.73 times as long on Node (0.70 to 0.78) and showed no difference on Bun
-(0.96, 0.72 to 1.15). The core suite passes on Deno, Node and Bun with it, and it applies cleanly to main as of
-#1121's merge.
+goes from about 1.8 to about 1.2 (that last from source on Deno). The gain grows with the count. In a separate
+measurement, a thousand paths with no `--` through a `git commit`-shaped parser took 0.73 times as long on Node
+(0.70 to 0.78) and showed no difference on Bun (0.96, 0.72 to 1.15). The core suite passes on Deno, Node and Bun
+with it, and it applies cleanly to main as of #1121's merge.
 
 It does not make the parse linear. Two more per-argument copies sit behind this one: `multiple()` rebuilds its
 state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`), and each primitive slices

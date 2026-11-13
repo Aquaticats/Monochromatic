@@ -1097,9 +1097,9 @@ to settle before a reply:
   run folder `optique-input-trace-and-reply-claim-check-6`,
   20 turns,
   report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-6.md`).
-  It traced every ratio,
+  It reported that every ratio,
   growth factor,
-  share and exponent of the recast to the archive and found them to match,
+  share and exponent it traced reproduced from the archive,
   found every remaining absolute time labelled,
   and found the fifth pass's two wording findings resolved.
   It raised three things,
@@ -1109,6 +1109,11 @@ to settle before a reply:
   and "about 2,600 times" in the research record divides two separate measurements and carried no scale label.
   It could not confirm that the two sides of the agent's 323 shared a process,
   and the research record now says that its report does not say.
+  It did not flag the two times the research record gave for the sweep over token length,
+  which at that commit were the lowest of the rounds,
+  as that section says of its milliseconds;
+  they were restated by round afterwards,
+  and the later pass checked the restated ones.
 - One timing was still on Deno alone after that:
   upstream's pull request 1121,
   which both drafts report.
@@ -1123,17 +1128,33 @@ to settle before a reply:
   The figures are in the short-option and input-trace documents,
   the records in the evidence archive,
   folder `pull-request-1121-on-node-and-bun-2026-11-13`.
-  Not reviewed by anyone:
-  that measurement,
+  A fresh session of the same reviewing model,
+  in a worktree of its own,
+  read that measurement,
   what is written from it,
-  and the corrections made to the recast after commit `ce2cc36df5`
-  (two unlabelled times in the research record,
-  its figures for the sweep over token length recomputed from the fit record,
-  Deno's row and the arms' provenance added beside the buffer view's ratios,
-  the note on Deno's state in the research record,
-  and the corrections from the sixth pass).
-  A review pass of its own is to read them,
-  by a fresh reviewer session.
+  and every correction made to the recast after commit `ce2cc36df5`,
+  as of commit `2907e3a444`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-pull-request-1121-on-node-and-bun-claim-check-prompt.md`,
+  run folder `optique-pull-request-1121-on-node-and-bun-claim-check-1`,
+  82 turns,
+  report `${HOME}/temp/agent/optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/keep/review-report.md`).
+  It recomputed every added ratio,
+  range and count from the raw rounds with its own code and found them correct,
+  confirmed against GitHub that `84f95710` is the merge's first parent,
+  and found the three sentences drawn from the measurement supported.
+  It raised five things,
+  all folded in:
+  a status note in the typo-suggestion document said its timings ran on Node where its reply draft carries Bun figures;
+  two status accounts said the sixth pass "found them to match" where that pass had not flagged the length-sweep times;
+  "no further from 1 than the control" overstated a median that lies inside the control's range;
+  the draft issue gave a figure for a thousand paths without saying it was the input with no `--`;
+  and a pointer named the wrong section for the patch's ratio by size on Bun.
+  It also noticed that the reply draft said the core suite passes with the first patch "on Deno and Node"
+  where the draft issue said Bun as well;
+  the suite record has all three,
+  and the reply draft now says so.
+  Not reviewed by anyone:
+  those last corrections.
 - Asked the same day which of the recheck's results the reply draft should carry,
   the owner chose the second patch with its costs and the buffer finding,
   and not the note about `concat`.
