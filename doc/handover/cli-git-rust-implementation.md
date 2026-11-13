@@ -670,6 +670,27 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The start gate's author answered its second review; the removal that goes around a foreign volume finished (2026-11-13T13:36:42-05:00)
+
+Not complete: both wait for a review.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **The start gate's author**, ended before 13:35:51, tip `4bffbba7c6` (`main` merged in), fix `d8169d8c0c`.
+  It ran the review's scripts on the reviewed commit and saw the wrong count.
+  The fix: a unit is joined to a launcher only by proof, a live `systemd-run` client whose command line names that unit and whose parent is that launcher;
+  a unit no launcher is shown waiting on counts as another agent, so the doubtful case refuses one start for a moment and never passes the cap.
+  It measured the premise on this machine (three such clients, each with a launcher as parent).
+  A review of the one fix, over `5643dde10d...4bffbba7c6`, is first in the queue; then the merge.
+- **`removal-goes-around-a-subvolume-or-mount-it-did-not-make`**, ended before 13:35:51, tip `6fabdc8690`.
+  By its report a removal empties the tree around a nested subvolume or a mount, keeps the volume and the directories that lead to it with their modes,
+  drops the registration, and says in one message what is left and what frees the path;
+  an unforced removal over an untracked volume is refused; a tree holding a volume is never handed to Git; the service route makes the same look.
+  Every control compares the volume before and after by listing, mode, owner and digest.
+  Untested by its own account: mounts that need privileges, FUSE, overlay and network filesystems.
+  It calls itself fit to merge; one red unit control is `main`'s own.
+  Its review is second in the queue.
+- Started at 13:35:51 and 13:36:12: the no-manager service's continuation and the author of `commit-does-not-list`.
+
 #### The commit service that needs no manager: three things done, one control missing; issue 6293 no longer waits for it (2026-11-13T13:33:48-05:00)
 
 Not complete: the branch is "not yet" fit to merge by its own report, and goes on.
