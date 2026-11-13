@@ -624,6 +624,30 @@ The brief that answers it (`~/temp/agent/pi-runs/commit-made-without-a-proven-sc
 the marks an attempt reads are that attempt's own, an import ended by a signal is no batch, no batch reaches the branch move unless its first commit stands on the attempt's base,
 and the whole sequence is reproduced in the landing itself by a control that fails before the fix.
 
+#### The start gate's author answered its review, and the stale index lock fix is finished (2026-11-13T12:45:48-05:00)
+
+**The start gate's change**, resumed 12:16:51, ended `idle` after 158 turns and 27 minutes. By its own report:
+both of the review's scripts reproduced before its fixes and neither does after; two same-named runs count as two agents; a setting that cannot be held exactly is refused, not only one that reads as infinity;
+the README's sentence is corrected; the skill's "practical limit is 20" and the handover file's two sentences are changed on its branch.
+Its real `--counts-only` printed "every agent on the machine 8/4": eight going against the gate's own default of four.
+Left open by it: the default is 4 while the level is 8, so a session passes the level as `PI_RUNS_MACHINE_CAP=<n>` and one that passes nothing is held to 4
+(it kept the level a variable so that a change of level is no code edit);
+and the numbered steps of "How to count before a start" in `doc/handover/agents-at-once-on-this-machine.md` still describe the hand count.
+Its second review is the first entry of the queue. When that is back clean it is merged, and the queue is then handed to the batch command with the level as the cap, which ends the hand count.
+
+**`index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`**, resumed 11:57, ended `idle` after 111 turns and 46 minutes;
+branch `fix/git-policy-cli-` with that name on the remote. Not reviewed. By its own report:
+
+- A lock a killed wrapper left is cleared by the next command when, and only when, the wrapper's own record proves its holder gone
+  (a PID file born with the lock, a record naming that number, that birth identity judged gone on the same boot and namespace, a local file system, a complete scan finding no holder, the name still the judged inode).
+  No clock decides anything, and only the holder of an exclusive `flock` reaches the unlink.
+- Eight binary tests; with the pass taken out, six fail; the two that pass both ways assert keeping. 355 unit tests pass; Clippy clean.
+- Found beyond its brief and fixed: the forwarded-writer retry ran Git up to 50 times behind a hold that never ends, printing its notice each time; now one attempt and one notice.
+- **Its stated limit, which needs the owner:** a lock left by a real Git that was killed (a closed terminal, an IDE) is still reported and not repaired, because it carries no record of the wrapper's.
+- It calls the branch fit to merge. Its review is the second entry of the queue.
+
+The two places went to the author of the commit made without a proven scratch reference (12:45:48) and the review of the cargo repair fix (12:45:59).
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
