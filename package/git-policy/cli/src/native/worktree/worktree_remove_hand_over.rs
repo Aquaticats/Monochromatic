@@ -458,7 +458,7 @@ fn recorded_subvolume(oid: &str) -> Option<u64> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await handOverWorktreeRemoval({ context, gitDir, target, registration, comparedWith, told }); // record, then wake; a wake that fails leaves the record
+/// await handOverWorktreeRemoval({ context, gitDir, target, registration, told }); // record, then wake; a wake that fails leaves the record
 /// ```
 /// # Errors
 ///
@@ -469,7 +469,6 @@ pub fn hand_over_worktree_removal(
     git_dir: &Path,
     target: &Path,
     registration: &Path,
-    compared_with: Option<&Path>,
     told: &dyn Fn(&GitContext, &Path) -> Result<(), String>,
 ) -> Result<WorkItem, String> {
     if !target.is_absolute() {
@@ -479,7 +478,7 @@ pub fn hand_over_worktree_removal(
     if target.to_str().is_none() {
         return Err(format!("the path of {} is not valid UTF-8, so no work record can name the worktree to remove", target.display()));
     }
-    record_what_the_service_compares(registration, target, compared_with)?;
+    record_what_the_service_compares(registration, target)?;
     let item: WorkItem = worktree_removal_item(git_dir, target, registration);
     enqueue(work_directory(git_dir).as_path(), &item)?;
     debug(TAG, format!("the removal of {} waits for the commit service's own Git at {}", target.display(), pending_record_path(git_dir, &item).display()).as_str());
@@ -592,13 +591,10 @@ pub(crate) fn identity_standing_there(target: &Path, registration: &Path) -> Str
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recordWhatTheServiceCompares(registration, target, comparedWith);
+/// await recordWhatTheServiceCompares(registration, target);
 /// ```
-fn record_what_the_service_compares(registration: &Path, target: &Path, compared_with: Option<&Path>) -> Result<(), String> {
+fn record_what_the_service_compares(registration: &Path, target: &Path) -> Result<(), String> {
     write_beside_the_registration(registration, IDENTITY_RECORD_NAME, format!("{}\n", identity_standing_there(target, registration)).as_bytes())?;
-    if let Some(source) = compared_with {
-        write_beside_the_registration(registration, COMPARED_WITH_RECORD_NAME, format!("{}\n", source.display()).as_bytes())?;
-    }
     return Ok(());
 }
 
@@ -641,27 +637,6 @@ fn identity_recorded(registration: &Path) -> Option<String> {
     let bytes: Vec<u8> = read_record_here(registration.join(IDENTITY_RECORD_NAME).as_path(), "the identity a removal recorded for this worktree").ok()?;
     let text: String = String::from_utf8(bytes).ok()?.trim_end().to_owned();
     return (!text.is_empty()).then_some(text);
-}
-
-/// What:
-///  The worktree a landed sweep compared this one's ignored files with,
-///  as the sweep wrote it beside the registration.
-/// Why:
-///   A registration that holds no such record is one no sweep handed over with this release's shape,
-///  and then nothing proves the ignored files are safe to delete.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const source = comparedWithOf(registration); // Path | undefined
-/// ```
-fn compared_with_of(registration: &Path) -> Option<PathBuf> {
-    let bytes: Vec<u8> = read_record_here(registration.join(COMPARED_WITH_RECORD_NAME).as_path(), "the worktree a removal compared this one's ignored files with").ok()?;
-    let named: &[u8] = bytes.trim_ascii_end();
-    if named.is_empty() {
-        return None;
-    }
-    let path: PathBuf = PathBuf::from(OsStr::from_bytes(named));
-    return path.is_absolute().then_some(path);
 }
 
 /// What:
@@ -976,13 +951,7 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
             kept.said.as_slice(),
         );
     }
-    let source: Option<PathBuf> = compared_with_of(registration.admin.as_path());
-    let look: SecondLook<'_> = SecondLook {
-        context: &context,
-        common_dir: item.git_dir.as_path(),
-        proc_root: Path::new(PROCESS_TABLE),
-        source: source.as_deref(),
-    };
+    let look: SecondLook<'_> = SecondLook { common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE) };
     if let Some(why) = why_the_worktree_stays(&look, target.as_path(), registration.admin.as_path()) {
         return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
     }
@@ -1013,6 +982,9 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         arguments.push(OsString::from("--force"));
     }
     arguments.push(target.clone().into_os_string());
+    // What Git is about to delete is read while it is still there: the owner's decision of 2026-11-12T13:04:14 records every
+    //  ignored file and every nested worktree's files a removal takes (`worktree_removal_deletions.rs`).
+    let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(&context, item.git_dir.as_path(), target.as_path());
     let output: GitOutput = match run_git(&context, &GitRequest::new(item.repository.as_path(), arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Verdict::Retry(format!("Git could not be started to remove {} ({error})", target.display())),
@@ -1024,6 +996,8 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), format!("Git refused to remove it: {words}").as_str(), kept.said.as_slice());
     }
     forget_begun(item.git_dir.as_path(), item.id().as_str());
+    // Git deleted the worktree, so what was read before it ran is what the removal took.
+    crate::worktree_removal_deletions::record_removal_deletions(item.git_dir.as_path(), target.as_path(), arguments.as_slice(), &deletions);
     // A pool names the worktree it serves in every member's config and sits in the common Git directory, which Git's removal
     //  leaves alone, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
     if let Some((common, admin)) = pool {

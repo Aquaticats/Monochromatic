@@ -1,15 +1,21 @@
 //! What:
 //!  Whether any process on this machine is working in a folder,
 //!  named by its process id,
-//!  and what the read of its working folder showed.
+//  and what the read of its working folder showed.
 //! Why:
-//!   A worktree whose branch has landed is removed only when nothing is working inside it:
+//!   A worktree whose branch has landed is removed only when nothing is working inside it,
+//!  and a person's own `git worktree remove` is refused while something is:
 //!  a process whose working folder is in the worktree is a person's shell,
 //!  an agent's session,
 //!  or a build that would fail the moment the folder went.
-//!  This is a read of each process's working folder (`/proc/<pid>/cwd`)
+//!  This is a read of each process's working folder (`/proc/<pid>/cwd`),
+//!  of the file it runs (`/proc/<pid>/exe`),
 //!  and of the files it holds open (`/proc/<pid>/fd`),
-//!  never of its environment.
+//!  never of its command line or its environment:
+//!  a command line holds arguments a person would not want copied into a message,
+//!  and this program's messages are read, logged and sent to whatever started it.
+//!  The program's name comes from `/proc/<pid>/comm`,
+//!  which the kernel writes from the name of the running image and nothing else.
 //!  A process whose working folder is elsewhere can still be working in a worktree:
 //!  an editor,
 //! a pager,
@@ -21,19 +27,23 @@
 //! `574063773d`,
 //! finding 2,
 //! reproduced with a `tail -f` of a file in the worktree whose working folder was the fixture root).
+//!  A program that runs from the worktree is working in it too:
+//!  a build writes its output there and reads it back,
+//!  and deleting the image under a running program ends that program.
 //!  A descriptor into the worktree's own Git directory does not count:
 //!  the wrapper's commit service holds its marker there for as long as it lives
 //!  (measured on this host:
 //! `.../<worktree>/.git/index.lock.cli-git-marker-<pid>...`),
 //!  and counting it would keep every landed worktree whose service is up,
 //!  which is most of them.
-//!  The descriptor read costs one listing and one link read per descriptor of every process:
+//!  The read costs one listing,
+//!  one link read per process and one per descriptor:
 //!  measured on this host with 1 567 processes,
 //!  five rounds took 137.7,
 //! 113.4,
 //! 108.0,
 //! 97.7 and 95.5 ms,
-//!  so it is paid once per worktree a merge considers removing and nowhere else.
+//!  so it is paid once per worktree a removal considers and nowhere else.
 //!  A kernel gives no reverse lookup from a directory to the processes holding it open,
 //!  so a scan is what the truth costs.
 //!  A process that ended while it was being read is skipped:
@@ -71,14 +81,25 @@
 //!  The worktree then stays,
 //! the notice says this command was started in it,
 //!  and a person removes it when nothing there is theirs.
+//!  The scan carries a bound (`PROCESS_SCAN_CEILING`),
+//!  and a scan that reaches it says so instead of answering:
+//!  nothing a bound cut short proves the worktree empty,
+//!  so every caller refuses or keeps the worktree rather than guess.
+//!  The descriptor record of another process is never read
+//!  (`/proc/<pid>/fdinfo/<n>`),
+//!  because the kernel builds one whole record before the reader gets a byte and an IDE's file watcher
+//!  makes that hundreds of megabytes and minutes
+//!  (issue 6287);
+//!  the links this scan reads are links, and the ones it may not read are skipped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const working = processWorkingInside(worktree, '/proc'); // undefined: nothing works there
+//! const working = processWorkingInside(worktree, gitDir, '/proc', age); // { kind: 'nobody' }
 //! ```
 
+use crate::process_use::PROCESS_SCAN_CEILING;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// What a read of a process's working folder showed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -88,6 +109,9 @@ pub enum WorkingFolder {
     /// Its working folder is elsewhere,
     /// and it holds a file open inside the worktree.
     OpenFile,
+    /// Its working folder is elsewhere,
+    /// and the program it runs is inside the worktree.
+    Executable,
     /// It could not be read,
     /// and the process is this account's,
     /// so nothing proves it is outside the worktree.
@@ -95,10 +119,14 @@ pub enum WorkingFolder {
 }
 
 /// One process that keeps a worktree.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkingProcess {
     /// Its process id.
     pub pid: u32,
+    /// The name of the program it runs,
+    /// as the kernel records it,
+    /// or nothing when that record could not be read.
+    pub program: Option<String>,
     /// What the read of its working folder showed.
     pub folder: WorkingFolder,
 }
@@ -111,29 +139,100 @@ impl WorkingProcess {
     ///  so it names the process and says whether its folder was seen there or could not be read at all,
     ///  and this command's own process is named as itself:
     ///  "process 4242 is working in it" about the command a person just ran says nothing to them.
+    ///  The program's name says which of a person's programs to stop,
+    ///  and it is the kernel's own record of the running image, never a command line.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// working.why() // 'process 4242 is working in it'
+    /// working.why() // 'process 4242 (`sleep`) is working in it'
     /// ```
     pub fn why(&self) -> String {
         if self.folder == WorkingFolder::Inside && self.pid == std::process::id() {
             return String::from("this command is working in it, because it was started in that folder");
         }
+        let named: String = match &self.program {
+            Some(program) => format!("process {} (`{program}`)", self.pid),
+            None => format!("process {}", self.pid),
+        };
         return match self.folder {
-            WorkingFolder::Inside => format!("process {} is working in it", self.pid),
-            WorkingFolder::OpenFile => format!("process {} has a file open in it, though its working folder is elsewhere", self.pid),
+            WorkingFolder::Inside => format!("{named} is working in it"),
+            WorkingFolder::OpenFile => format!("{named} has a file open in it, though its working folder is elsewhere"),
+            WorkingFolder::Executable => format!("{named} runs a program from it, though its working folder is elsewhere"),
             WorkingFolder::Unreadable => format!(
-                "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
-                self.pid
+                "{named} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it"
             ),
         };
     }
 }
 
 /// What:
-///  The first process id whose working folder is `root` or below it,
-///  or whose working folder this account cannot read and could lead into it.
+///  What a scan of the process table found:
+///  nobody,
+///  one process that keeps the worktree,
+///  or the reason the scan could not finish.
+/// Why:
+///   Three answers need three endings.
+///  A scan that reached its bound saw only part of the table,
+///  so it must never read as "nobody", and a caller that removed on it would take the folder an unreached
+///  process is working in.
+///  The reason says what the bound was and how far the scan got, so the reader knows why it refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProcessWorking = { kind: 'nobody' } | { kind: 'someone'; process: WorkingProcess } | { kind: 'unfinished'; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProcessWorking {
+    /// Nothing on this machine is working in the folder.
+    Nobody,
+    /// One process is.
+    Someone(WorkingProcess),
+    /// The scan did not finish within its bound,
+    /// so nothing proves the folder is empty.
+    Unfinished(String),
+}
+
+impl ProcessWorking {
+    /// What:
+    ///  The reason the folder is kept,
+    ///  or nothing when it is empty.
+    /// Why:
+    ///   Every caller words the same refusal for every ending,
+    ///  so the ending and its words are answered together.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// working.reason() // 'process 4242 is working in it' | undefined
+    /// ```
+    pub fn reason(&self) -> Option<String> {
+        return match self {
+            ProcessWorking::Nobody => None,
+            ProcessWorking::Someone(working) => Some(working.why()),
+            ProcessWorking::Unfinished(why) => Some(why.clone()),
+        };
+    }
+}
+
+/// What:
+///  What one process table entry contributed to the scan.
+/// Why:
+///   A process that keeps the worktree ends the scan,
+///  and a process that did not contribute leaves the scan as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Entry = { kind: 'nobody' } | { kind: 'someone'; process: WorkingProcess };
+/// ```
+enum Entry {
+    /// This process is not working in the folder.
+    Nobody,
+    /// This process is.
+    Someone(WorkingProcess),
+}
+
+/// What:
+///  The first process that keeps the worktree,
+///  or nothing when the scan read every process and none did.
 /// Why:
 ///   The removal needs only one reason to keep a worktree,
 ///  and the question is the same for every process,
@@ -144,41 +243,151 @@ impl WorkingProcess {
 ///  `worktree_age` is how long `root` has existed,
 ///  which is what a hidden folder is judged by:
 ///  a process older than the folder cannot have its working folder inside it.
+///  The scan carries `PROCESS_SCAN_CEILING`, and a walk that reached it says so rather than answering.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// processWorkingInside(root, procRoot, worktreeAge) // WorkingProcess | undefined
+/// processWorkingInside(root, procRoot, worktreeAge) // ProcessWorking
 /// ```
-pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
-    let listing = std::fs::read_dir(proc_root).ok()?;
+pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> ProcessWorking {
+    return process_working_inside_until(root, git_dir, proc_root, worktree_age, Instant::now() + PROCESS_SCAN_CEILING);
+}
+
+/// What:
+///  `process_working_inside` with the moment the scan ends given by its caller.
+/// Why:
+///   A control writes a process table by hand and reads it in a moment,
+///  and a table of two entries proves nothing about a bound.
+///  The moment is checked before each entry,
+///  so everything one process costs is bounded by the checks inside its own reads,
+///  and the table as a whole is what carries the bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// processWorkingInsideUntil(root, procRoot, worktreeAge, deadline)
+/// ```
+pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>, deadline: Instant) -> ProcessWorking {
+    let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
+        Ok(listed) => listed,
+        Err(error) => return ProcessWorking::Unfinished(format!("the process table {proc_root:?} cannot be read ({error}), so nothing proves no process works there")),
+    };
     let uptime: Option<Duration> = uptime_of(proc_root);
+    let mut reached: usize = 0;
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Ok(pid) = name.parse::<u32>() else {
             continue;
         };
-        match std::fs::read_link(entry.path().join("cwd")) {
-            Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
-            Ok(_elsewhere) => {
-                // A folder outside the worktree can still hold a file open in it, and that process is working there.
-                if holds_a_file_inside(entry.path().as_path(), root, git_dir) {
-                    return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile });
-                }
-            }
-            // The process went while it was being read, so it cannot be working in the worktree any more.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_refused) => {
-                if !owned_by_this_account(entry.path().as_path()) {
-                    continue;
-                }
-                if started_before(started_ago(proc_root, pid, uptime), worktree_age) {
-                    continue;
-                }
-                return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
-            }
+        if Instant::now() >= deadline {
+            return ProcessWorking::Unfinished(stopped_at_the_bound(reached, proc_root));
+        }
+        reached += 1;
+        match one_process(entry.path().as_path(), pid, root, git_dir, proc_root, uptime, worktree_age) {
+            Entry::Nobody => {}
+            Entry::Someone(working) => return ProcessWorking::Someone(working),
         }
     }
-    return None;
+    return ProcessWorking::Nobody;
+}
+
+/// What:
+///  What one process entry contributes:
+///  its working folder,
+///  a file it holds open inside the worktree,
+///  the program it runs,
+///  or a hidden folder this account cannot read.
+/// Why:
+///   The three answers are read in the order that costs least and says most:
+///  the working folder names the process as one working *in* the folder,
+///  the descriptor and the executable say it is working there from elsewhere,
+///  and a folder this account may not read is judged by its start time alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// oneProcess(entry, pid, root, gitDir, procRoot, uptime, worktreeAge) // Entry
+/// ```
+fn one_process(entry: &Path, pid: u32, root: &Path, git_dir: &Path, proc_root: &Path, uptime: Option<Duration>, worktree_age: Option<Duration>) -> Entry {
+    match std::fs::read_link(entry.join("cwd")) {
+        Ok(working) if working.starts_with(root) => return Entry::Someone(WorkingProcess { pid, program: program_of(entry), folder: WorkingFolder::Inside }),
+        Ok(_elsewhere) => {
+            // A folder outside the worktree can still hold a file open in it, and the program it runs can be there, and
+            //  either one is a process working there.
+            if holds_a_file_inside(entry, root, git_dir) {
+                return Entry::Someone(WorkingProcess { pid, program: program_of(entry), folder: WorkingFolder::OpenFile });
+            }
+            if runs_a_program_inside(entry, root) {
+                return Entry::Someone(WorkingProcess { pid, program: program_of(entry), folder: WorkingFolder::Executable });
+            }
+            return Entry::Nobody;
+        }
+        // The process went while it was being read, so it cannot be working in the worktree any more.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Entry::Nobody,
+        Err(_refused) => {
+            if !owned_by_this_account(entry) {
+                return Entry::Nobody;
+            }
+            if started_before(started_ago(proc_root, pid, uptime), worktree_age) {
+                return Entry::Nobody;
+            }
+            return Entry::Someone(WorkingProcess { pid, program: program_of(entry), folder: WorkingFolder::Unreadable });
+        }
+    }
+}
+
+/// What:
+///  Why a scan of the process table ended at its moment rather than at the end of the table.
+/// Why:
+///   The processes past the stop were not looked at,
+///  so the scan proves nothing about a folder they may be working in,
+///  and a caller that would remove the folder refuses instead of guessing.
+///  The reason names the bound, so a person reading it learns that the wait was this program's and not the disk's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stoppedAtTheBound(reached) // 'the scan of the process table stopped ...'
+/// ```
+fn stopped_at_the_bound(reached: usize, proc_root: &Path) -> String {
+    return format!(
+        "the scan of the process table {proc_root:?} stopped at its bound of {} seconds after {reached} processes, so a process it did not reach may be working there",
+        PROCESS_SCAN_CEILING.as_secs()
+    );
+}
+
+/// What:
+///  The name of the program a process runs,
+///  or nothing when the kernel's record of it cannot be read.
+/// Why:
+///   The name is what a person needs to know which of their programs to stop,
+///  and the kernel writes it from the name of the running image,
+///  never from a command line or an environment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// programOf('/proc/4242') // 'sleep' | undefined
+/// ```
+fn program_of(entry: &Path) -> Option<String> {
+    let text: String = std::fs::read_to_string(entry.join("comm")).ok()?;
+    let name: &str = text.trim();
+    return (!name.is_empty()).then(|| return name.to_owned());
+}
+
+/// What:
+///  Whether the program the process runs is the worktree or a file below it.
+/// Why:
+///  A build that writes its output into the worktree and runs from it keeps reading what a removal would delete,
+///  and deleting the image of a running program ends that program.
+///  A link the kernel refuses to read says nothing,
+///  and the process's own working folder has already answered when it could.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runsAProgramInside('/proc/4242', worktree) // boolean
+/// ```
+fn runs_a_program_inside(entry: &Path, worktree: &Path) -> bool {
+    return match std::fs::read_link(entry.join("exe")) {
+        Ok(running) => running.starts_with(worktree),
+        Err(_unreadable) => false,
+    };
 }
 
 /// What:

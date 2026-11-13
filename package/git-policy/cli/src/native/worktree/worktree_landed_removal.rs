@@ -632,7 +632,7 @@ fn remove_here_or_hand_over(
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
         RemoveOutcome::LeftToGit => {}
     }
-    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
+    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), told) {
         Ok(record) => record,
         Err(reason) => return Attempt::Kept(reason),
     };
@@ -714,12 +714,7 @@ fn examine_and_remove(
     if let Err(reason) = nothing_new_would_go_with_it(place.common_dir, one) {
         return Examined::Kept(reason);
     }
-    let look: SecondLook<'_> = SecondLook {
-        context: place.context,
-        common_dir: place.common_dir,
-        proc_root: place.proc_root,
-        source: place.current_root,
-    };
+    let look: SecondLook<'_> = SecondLook { common_dir: place.common_dir, proc_root: place.proc_root };
     if let Some(why) = why_the_worktree_stays(&look, one.worktree.as_path(), one.admin.as_path()) {
         return Examined::Kept(why);
     }

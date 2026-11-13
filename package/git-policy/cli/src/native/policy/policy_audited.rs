@@ -103,7 +103,7 @@ pub fn record_audited(
 /// ```ts
 /// const { target, force } = worktreeRemoval(regionOf(args)) ?? {};
 /// ```
-fn removal_of(arguments: &[OsString]) -> Option<WorktreeRemoval> {
+pub(crate) fn removal_of(arguments: &[OsString]) -> Option<WorktreeRemoval> {
     return worktree_removal(region_of(arguments));
 }
 
