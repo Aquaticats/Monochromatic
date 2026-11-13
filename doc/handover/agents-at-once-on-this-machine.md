@@ -275,6 +275,37 @@ one line a minute:
   (unit `disk-ceiling-probe-level-16-after-the-walks-20261113`).
   From 14:12:41 the queue was empty and the count fell to nine by 14:38:24,
   so its first readings are below the level.
+- Seen at this level and no symptom by the criterion:
+  the user service manager (PID 5289) wrote no log line from about 14:48:10 to 14:49:00,
+  where it wrote two to three every ten seconds before and eighteen in the ten seconds after;
+  in that time two callers got no listing from it within twenty seconds
+  (the probe's own count at 14:48:24, logged as -1,
+  and a watcher of the session doing the search, which ended at 14:49:07).
+  At 14:49:30 the same listing took 8 ms.
+  **What it waited on is not established, and nothing measured points at a drive**:
+  - the probe's two writes at 14:48:24, the start of that time, took 65 ms on the home drive and 9 ms on the build volume;
+  - the one-minute load went from 13.0 to 60.7 in that minute on 28 processors,
+    and the kernel's I/O figure `full avg10` read 23.75;
+  - memory at 14:49:30: 968 MiB free,
+    11.3 GiB in compressed swap,
+    and the memory figure `full avg10` at 2.00;
+  - the manager's whole wait for a processor since it started at 08:57:19 is 45.5 s
+    (`/proc/5289/schedstat`),
+    less than that one silence,
+    so the silence was not spent waiting for a processor;
+  - it has had 244 major page faults in that time and holds 3,108 kB in swap;
+  - the kernel's accounting of block-I/O delay per process is off (`kernel.task_delayacct` is 0),
+    and the manager's current system call cannot be read by this account,
+    so what it slept in cannot be told afterwards.
+  Three reviews ended at 14:49:16 to 14:49:18,
+  each on the provider's answer "429 … Allocated quota exceeded",
+  in the seconds after the silence ended,
+  while seven other reviews on the same provider went on.
+  A recorder now samples the manager while an answer is slow:
+  its state, its time on and waiting for a processor, its page faults, the journal's state and the kernel's pressure figures
+  (unit `record-what-the-user-service-manager-waits-on-20261113`,
+  log `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`).
+  A manager that stops answering for a time is what `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` is about.
 - Free room at 14:37:39: `/var/home` 514 GiB,
   the build volume 1,555 GiB:
   61 GiB less than at 13:15:18,
