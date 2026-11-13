@@ -80,8 +80,7 @@ fn the_socket_units_are_stopped_in_the_managers_own_words() {
     let held: Option<std::ffi::OsString> = std::env::var_os("PATH");
     // SAFETY: this control is the only one in this process that changes PATH, and it restores it before it ends.
     unsafe { std::env::set_var("PATH", folder.as_os_str()) };
-    let manager: ManagerStart = ManagerStart { program: folder.join("systemd-run") };
-    let asked: bool = stop_earlier_socket_units(&manager, "3f9a");
+    let asked: bool = stop_with_the_managers_client("3f9a");
     let words: String = std::fs::read_to_string(folder.join("calls.txt")).unwrap_or_default();
     match held {
         Some(path) => unsafe { std::env::set_var("PATH", path) },
@@ -101,6 +100,34 @@ fn the_socket_units_are_stopped_in_the_managers_own_words() {
 #[test]
 fn a_runtime_directory_without_an_earlier_release_does_nothing() {
     let root: PathBuf = runtime("empty");
-    let removed: Vec<PathBuf> = retire_earlier_units(root.as_path(), None, "3f9a");
+    let removed: Vec<PathBuf> = retire_earlier_units(root.as_path(), None, None, "3f9a");
     assert!(removed.is_empty(), "{removed:?}");
+}
+
+/// What:
+///  The manager is asked only when the runtime directory is the one the environment named and its bus is that session's.
+/// Why:
+///  A command given a runtime directory of its own must leave the account's manager alone (issue 6293),
+///  and a folder this program fell back to is no session.
+#[test]
+fn the_stop_is_asked_only_for_this_sessions_own_bus() {
+    let folder: PathBuf = crate::test_support::fixture("earlier-units-gate");
+    let _stand_in: PathBuf = stand_in_systemctl(folder.as_path());
+    let runtime_dir: PathBuf = folder.join("runtime");
+    std::fs::create_dir_all(runtime_dir.as_path()).expect("the runtime directory");
+    let held: Option<std::ffi::OsString> = std::env::var_os("PATH");
+    // SAFETY: this control is the only one in this process that changes PATH, and it restores it before it ends.
+    unsafe { std::env::set_var("PATH", folder.as_os_str()) };
+    // When: the named runtime directory is this one, and the bus's socket is inside it.
+    let _removed: Vec<PathBuf> = retire_earlier_units(runtime_dir.as_path(), Some(runtime_dir.as_path()), Some(format!("unix:path={}", runtime_dir.join("bus").display()).as_str()), "3f9a");
+    // When not: a bus of another directory, and a folder the program fell back to.
+    let _unasked: Vec<PathBuf> = retire_earlier_units(runtime_dir.as_path(), Some(runtime_dir.as_path()), Some("unix:path=/run/user/9999/bus"), "3f9a");
+    let _fell_back: Vec<PathBuf> = retire_earlier_units(runtime_dir.as_path(), None, Some(format!("unix:path={}", runtime_dir.join("bus").display()).as_str()), "3f9a");
+    let words: String = std::fs::read_to_string(folder.join("calls.txt")).unwrap_or_default();
+    match held {
+        Some(path) => unsafe { std::env::set_var("PATH", path) },
+        None => unsafe { std::env::remove_var("PATH") },
+    }
+    assert_eq!(words.lines().count(), 1, "one ask, for the session whose bus it is: {words}");
+    crate::test_support::remove(folder.as_path());
 }

@@ -138,6 +138,8 @@ fn the_start_through_the_manager_wraps_the_bases_own_words() {
         git: PathBuf::from("/usr/bin/git"),
         program: PathBuf::from("/bin/git"),
         manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
     };
     let started: Option<i32> = manager.start(&server).expect("the stand-in runs");
     assert!(started.is_some_and(|process| { return process > 0; }), "the leader's number is reported");

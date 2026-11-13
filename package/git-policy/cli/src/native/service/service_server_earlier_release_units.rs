@@ -27,7 +27,7 @@
 //! await bounded(() => systemctl('--user', 'stop', `monochromatic-git-policy-cli@${instance}.socket`));
 //! ```
 
-use crate::service_server_start_through_the_manager::{ManagerStart, PROBE_WAIT};
+use crate::service_server_start_through_the_manager::{PROBE_WAIT, bus_is_ours};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -114,7 +114,7 @@ pub fn remove_earlier_unit_files(runtime_dir: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// systemctl('--user', 'stop', `monochromatic-git-policy-cli@${instance}.socket`, 'cli-git.socket')
 /// ```
-pub fn stop_earlier_socket_units(_manager: &ManagerStart, instance: &str) -> bool {
+pub fn stop_with_the_managers_client(instance: &str) -> bool {
     // What: The manager's own client is looked for on `PATH`, as the starter looks for its own.
     // Why:  A manager that is this session's own answers it, and one that is not never hears from this command; a machine
     //       without the client has no unit loaded either.
@@ -164,10 +164,14 @@ pub fn stop_earlier_socket_units(_manager: &ManagerStart, instance: &str) -> boo
 /// if (manager) stopEarlierSocketUnits(manager, instance);
 /// return removed;
 /// ```
-pub fn retire_earlier_units(runtime_dir: &Path, manager: Option<&ManagerStart>, instance: &str) -> Vec<PathBuf> {
+pub fn retire_earlier_units(runtime_dir: &Path, named_runtime_dir: Option<&Path>, bus_address: Option<&str>, instance: &str) -> Vec<PathBuf> {
     let removed: Vec<PathBuf> = remove_earlier_unit_files(runtime_dir);
-    if let Some(found) = manager {
-        let _asked: bool = stop_earlier_socket_units(found, instance);
+    // What: The manager is asked only when this command's runtime directory is the one the environment named and its bus is
+    //       that session's own.
+    // Why:  A command given a runtime directory of its own must leave the account's manager alone (issue 6293), and a folder
+    //       this program fell back to is no session at all.
+    if named_runtime_dir == Some(runtime_dir) && bus_is_ours(runtime_dir, bus_address) {
+        let _asked: bool = stop_with_the_managers_client(instance);
     }
     return removed;
 }

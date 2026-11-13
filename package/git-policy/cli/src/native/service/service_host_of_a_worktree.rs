@@ -107,6 +107,8 @@ impl ServiceHost {
             git: self.git.clone(),
             program: self.service_binary.clone(),
             manager: self.manager(),
+            named_runtime_dir: self.named_runtime_dir.clone(),
+            bus_address: self.bus_address.clone(),
         };
     }
 }

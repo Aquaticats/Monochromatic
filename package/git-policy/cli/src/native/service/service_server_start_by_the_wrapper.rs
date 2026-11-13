@@ -81,6 +81,17 @@ pub struct ServerToStart {
     /// and a start here must not read it again:
     /// a control hands in the answer it pins.
     pub manager: Option<ManagerStart>,
+    /// What:
+    ///  The runtime directory the environment named,
+    ///  and nothing when this program fell back to a folder of its own.
+    /// Why:
+    ///  Whether a manager may be asked at all is one question (`bus_is_ours` and this name),
+    /// and whether a service can be *started* through it is another (its program being there):
+    /// retiring an earlier release's units needs the first alone (`service_server_earlier_release_units.rs`).
+    pub named_runtime_dir: Option<PathBuf>,
+    /// The session bus address the environment gave this command,
+    /// which tells whether that bus is this session's.
+    pub bus_address: Option<String>,
 }
 
 impl ServerToStart {

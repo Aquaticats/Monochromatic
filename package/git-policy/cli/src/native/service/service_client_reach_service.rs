@@ -287,7 +287,12 @@ fn retire_earlier_units_once(config: &ClientConfig) -> Vec<std::path::PathBuf> {
     // The socket sits one folder below the runtime directory the units live in, and the manager is the gate's own answer:
     //  a command that may not ask a manager passes none.
     let Some(runtime_dir) = server.directory().parent().map(std::path::Path::to_path_buf) else { return Vec::new() };
-    return crate::service_server_earlier_release_units::retire_earlier_units(runtime_dir.as_path(), server.manager.as_ref(), server.instance.as_str());
+    return crate::service_server_earlier_release_units::retire_earlier_units(
+        runtime_dir.as_path(),
+        server.named_runtime_dir.as_deref(),
+        server.bus_address.as_deref(),
+        server.instance.as_str(),
+    );
 }
 
 /// What:

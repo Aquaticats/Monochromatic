@@ -88,6 +88,8 @@ fn the_start_names_the_service_mode_words_and_the_worktrees_files() {
         git: std::path::PathBuf::from("/usr/bin/git"),
         program: std::path::PathBuf::from("/bin/git"),
         manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
     };
     let arguments: Vec<String> = server.arguments().iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
     let first: Vec<String> = arguments.iter().take(SERVICE_WORDS.len()).cloned().collect();

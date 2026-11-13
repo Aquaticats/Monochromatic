@@ -130,6 +130,8 @@ fn two_starts_at_once_leave_one_service() {
         git: PathBuf::from("/usr/bin/git"),
         program: PathBuf::from(service_executable()),
         manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
     };
     let one: ServerToStart = server.clone();
     let two: ServerToStart = server.clone();
