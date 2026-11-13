@@ -14154,7 +14154,13 @@ these private entries:
   a reftable store,
   an object format it does not know,
   a ref name it declines,
-  or a damaged `packed-refs`;
+  or a damaged `packed-refs`);
+  the reader lists a symbolic ref at the end of its chain,
+  never at the name it points at directly,
+  and lists none at all for a chain that ends at no ref or that passes more than four links,
+  which is Git's own `SYMREF_MAXDEPTH` counted as Git counts it;
+  every chain is resolved from the targets as they are stored before any of them is rewritten,
+  so one name's answer never depends on which other name was answered first;
   symbolic refs recreated with `git symbolic-ref`),
   and a private copy of the target branch ref at the preparation base
   that replaces the snapshot's entry for that ref.
