@@ -35,7 +35,8 @@ use crate::push_failure_notice::fnv_hex;
 use crate::push_failure_notice_claimed_by_one_command::{ClaimToken, claim, claimed_by_a_live_command, record_of_claim, take_over};
 use crate::push_failure_notice_shown_then_removed::Notice;
 use crate::shell_quote::shell_quote;
-use crate::subvolume_remove_walk::{A_MOUNT_POINT, ANOTHER_FILESYSTEM, Boundary, BoundaryLook, look_for_boundaries};
+use crate::subvolume_remove_around::{BoundaryLook, look_for_boundaries};
+use crate::subvolume_remove_walk::{A_MOUNT_POINT, ANOTHER_FILESYSTEM, Boundary};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use std::path::{Path, PathBuf};
 

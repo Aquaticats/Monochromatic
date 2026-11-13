@@ -107,6 +107,10 @@ pub mod worktree_removal_holds_the_worktree;
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+
+/// The half of a removal that goes around a volume it did not make:
+/// the record a killed pass leaves, the continuation that record proves, and the pass.
+pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 
 pub mod worktree_remove_registry;

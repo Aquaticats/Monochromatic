@@ -36,7 +36,8 @@
 //! ```
 
 use crate::fs_kind::is_subvolume_root;
-use crate::subvolume_remove_walk::{Boundary, BoundaryLook, look_for_boundaries};
+use crate::subvolume_remove_around::{BoundaryLook, look_for_boundaries};
+use crate::subvolume_remove_walk::Boundary;
 use crate::worktree_removal_holds_the_worktree::Held;
 use crate::worktree_remove_hand_over::{DELETING_PREFIX, leave_a_subvolume_for_the_service};
 use std::path::Path;

@@ -52,13 +52,13 @@ use crate::fs_beneath::{handle_path, identity_at, remove_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
-use crate::subvolume_remove_walk::{Boundary, empty_directory, empty_directory_around, find_boundary_below_except, look_for_boundaries, verify_below};
+use crate::subvolume_remove_walk::{Boundary, empty_directory, find_boundary_below_except, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::{clear_the_pools_ahead_of_a_worktree, data_folders};
-use crate::worktree_removal_goes_around_a_foreign_volume::{BesideAVolume, refused_beside_a_volume_report, stopped_around_report, volumes_below};
+use crate::worktree_removal_goes_around_a_foreign_volume::volumes_below;
 use crate::worktree_removal_takes_its_pending_deletions::{VolumesBelow, take_the_pending_deletions_below};
 use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, pending_deletion_report, registration_volume_report, snapshots_ahead_report, stage_state, unwalkable_registration_report};
 pub use crate::worktree_removal_holds_the_worktree::Held;
@@ -69,7 +69,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeRemove";
+pub(crate) const TAG: &str = "worktreeRemove";
 
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
@@ -296,7 +296,7 @@ fn incomplete(registration: &Registration, request: &RemoveRequest<'_>, reason: 
     return RemoveOutcome::Incomplete(report);
 }
 
-fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>) -> RemoveOutcome {
+pub(crate) fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>) -> RemoveOutcome {
     let target: &Path = request.plan.target.as_path();
     match identity_at(&held.worktrees, registration.id.as_os_str()) {
         Ok(found) if found == held.admin_identity => {}
@@ -331,170 +331,6 @@ fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>)
     let _kept = std::fs::remove_dir(registration.worktrees.as_path());
     debug(TAG, format!("destroyed the subvolume {} and its administrative directory", target.display()).as_str());
     return RemoveOutcome::Removed;
-}
-
-/// What:
-///  Whether an unforced command may finish a removal an earlier one began,
-///  and whether the worktree Git describes holds nothing but what that pass removed.
-/// Why:
-///  A pass that was cut short leaves the worktree's own entries deleted and the volumes standing,
-/// and the ignore
-///  rule that hid a volume is often one of the entries it deleted,
-/// so Git reports the volume itself as
-///  untracked.
-///  The question is therefore asked of everything outside the volumes,
-/// and it is asked at all only when a record
-///  of this very worktree's own pass exists:
-/// an ordinary removal pays one failed read of that record and no Git start.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { resuming, onlyDeletions } = continuationOf({ request, target, registration, foreign, begun });
-/// ```
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-struct Continuation {
-    /// Whether this command finishes the removal an earlier one began.
-    resuming: bool,
-    /// Whether nothing but the entries that pass removed stands between the tree and Git's own clean view,
-    /// which the refusal's words need.
-    only_deletions: bool,
-}
-
-/// What:
-///  The continuation an earlier pass left,
-///  when a record of this worktree's own pass says there is one.
-/// Why:
-///   Both answers come from the one Git start,
-///  so the refusal cannot be worded from a different reading than the
-///  decision that preceded it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const answer = continuationOf(request, target, registration, foreign, begun);
-/// ```
-fn continuation_of(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary], begun: bool) -> Continuation {
-    if !begun {
-        return Continuation::default();
-    }
-    let only_deletions: bool = only_deletions_beside(request, target, registration, foreign);
-    return Continuation { resuming: only_deletions, only_deletions };
-}
-
-/// What:
-///  Whether nothing but the entries an earlier pass removed stands between this tree and Git's own clean view.
-/// Why:
-///   The volumes a removal leaves are left out of the question,
-/// because the pass deletes the ignore rule that often hid one
-///  and Git then reports the volume itself as untracked;
-/// a tree whose volumes were not looked at in this command is looked at
-///  here, which happens only in a state a record of this program's own pass names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const onlyDeletions = onlyDeletionsBeside({ request, target, registration, foreign });
-/// ```
-fn only_deletions_beside(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary]) -> bool {
-    let seen: Vec<Boundary> = match foreign.is_empty() {
-        true => volumes_below(target),
-        false => foreign.to_vec(),
-    };
-    let volumes: Vec<&Path> = seen.iter().map(|one| return one.path.as_path()).collect();
-    return crate::worktree_removal_only_deletions::only_deletions_outside(request.context, target, registration.admin.as_path(), volumes.as_slice());
-}
-
-/// What:
-///  Remove everything from the worktree except the volumes it did not make and the directories that lead to them,
-///  then forget the worktree in Git.
-/// Why:
-///   The kernel cannot destroy a subvolume that contains another one,
-/// and Git's own removal would delete what is mounted at
-///  a mount point,
-/// so a tree holding one is emptied here and given up to the kernel nowhere:
-/// every other entry goes,
-///  what was not the removal's stays with the directories that lead to it,
-/// and the registration goes as it does
-///  after a destroy.
-/// A tree that is empty when the pass ends is removed as any other tree is:
-/// the volume went away while the
-///  pass ran,
-///  and nothing is left to keep.
-/// A pass that stops halfway leaves files gone and the registration standing,
-/// which is neither of the two
-///  answers a person can act on and is said in its own words.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const outcome = goAround({ request, held, registration }); // RemovedAround | Removed | Incomplete
-/// ```
-fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: &Registration) -> RemoveOutcome {
-    let target: &Path = request.plan.target.as_path();
-    // The pass deletes the worktree's own entries before the registration goes, so a command killed in it leaves a tree Git
-    // reports as changed and a state only `--force` clears. What is written here is the proof that those deletions are this
-    // program's own, and it is written before the first entry goes. A record that cannot be written costs that proof and
-    // nothing else: the removal goes on, and the words of a refusal name what then finishes the state.
-    if let Err(reason) = crate::worktree_removal_around_begun::record_around_begun(
-        request.common_dir,
-        crate::worktree_removal_around_begun::WhichRemoval { id: registration.id.as_os_str(), admin: held.admin_identity, worktree: held.identity, target },
-    ) {
-        warn(TAG, format!("the pass that goes around the volume of {} is not recorded, so a command killed in it leaves a worktree only `--force` finishes: {reason}", target.display()).as_str());
-    }
-    if let Err(error) = empty_directory_around(&held.target, target) {
-        let report: String = stopped_around_report(target, error.to_string().as_str());
-        warn(TAG, report.as_str());
-        return RemoveOutcome::Incomplete(report);
-    }
-    // What is left is looked at again through the descriptor this removal holds: a volume that went away while the pass ran
-    // leaves a tree that is now empty, and the root then goes with it.
-    let left: Vec<Boundary> = look_for_boundaries(&held.target, target).found;
-    if left.is_empty() {
-        if let Err(error) = remove_at(&held.parent, held.name.as_os_str(), true) {
-            let report: String = stopped_around_report(target, format!("{} cannot be removed ({error})", target.display()).as_str());
-            warn(TAG, report.as_str());
-            return RemoveOutcome::Incomplete(report);
-        }
-        let outcome: RemoveOutcome = finish(held, registration, request);
-        if outcome == RemoveOutcome::Removed {
-            forget_destroy(request.common_dir, registration.id.as_os_str());
-            crate::worktree_removal_around_begun::forget_around_begun(request.common_dir, registration.id.as_os_str());
-        }
-        return finished_around(outcome, target, registration, &[], request);
-    }
-    let outcome: RemoveOutcome = finish(held, registration, request);
-    if outcome != RemoveOutcome::Removed {
-        return finished_around(outcome, target, registration, left.as_slice(), request);
-    }
-    forget_destroy(request.common_dir, registration.id.as_os_str());
-    crate::worktree_removal_around_begun::forget_around_begun(request.common_dir, registration.id.as_os_str());
-    debug(TAG, format!("removed the worktree {} around {} volume(s) it did not make", target.display(), left.len()).as_str());
-    return RemoveOutcome::RemovedAround(left);
-}
-
-/// What:
-///  What a removal that went around its volumes ended as,
-///  with a registration failure worded for the route that emptied the tree instead of destroyed it.
-/// Why:
-///  The report for a registration that could not be removed after a destroy says the subvolume was destroyed and the
-///  directory is already gone,
-/// and a tree that was emptied around what was left has neither:
-/// its path still stands with the
-///  volumes in it.
-/// A person reading the wrong one of those would look for a path that is not there, or give up on a
-///  removal that one more command finishes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const outcome = finishedAround(ended, target, registration, left, request);
-/// ```
-fn finished_around(outcome: RemoveOutcome, target: &Path, registration: &Registration, left: &[Boundary], request: &RemoveRequest<'_>) -> RemoveOutcome {
-    return match outcome {
-        RemoveOutcome::Incomplete(said) => {
-            let reason: &str = said.lines().next().unwrap_or(said.as_str());
-            let around: String = crate::worktree_removal_goes_around_a_foreign_volume::around_incomplete_report(target, registration.admin.as_path(), request.common_dir, left, reason);
-            warn(TAG, around.as_str());
-            RemoveOutcome::Incomplete(around)
-        }
-        other => other,
-    };
 }
 
 /// What:
@@ -574,50 +410,22 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             return RemoveOutcome::LeftToGit;
         }
     };
-    // A removal of this very worktree that was cut short inside its pass is finished by the same unforced command: the record
-    // the pass wrote names this registration and this worktree, and Git reports nothing about the tree but the entries that
-    // pass removed. Nothing else is a continuation, and nothing of a person's is read as this program's work.
-    let which: crate::worktree_removal_around_begun::WhichRemoval<'_> = crate::worktree_removal_around_begun::WhichRemoval {
-        id: registration.id.as_os_str(),
-        admin: held.admin_identity,
-        worktree: held.identity,
-        target,
-    };
-    crate::worktree_removal_around_begun::prune_around_begun(request.common_dir);
-    let begun: bool = crate::worktree_removal_around_begun::around_begun_by(request.common_dir, which);
-    let continuation: Continuation = continuation_of(request, target, &registration, foreign.as_slice(), begun);
-    let resuming: bool = continuation.resuming;
-    if resuming {
-        debug(TAG, format!("a removal of {} began in an earlier command and was cut short; this one finishes it", target.display()).as_str());
-    }
-    // Git's own removal makes this proof only when the person did not force it (`remove_worktree` in
+    // A removal of this very worktree that was cut short inside its pass is finished by the same unforced command, and a tree
+    // a pass left is refused in words that match it: both answers come from the record an earlier pass wrote and from what Git
+    // reports about the tree.
+    let continuation: crate::worktree_remove_around::Continuation = crate::worktree_remove_around::continuation_of(request, target, &registration, &held, foreign.as_slice());
+    // Git's own removal makes the cleanliness proof only when the person did not force it (`remove_worktree` in
     // `builtin/worktree.c`: `if (!force) check_clean_worktree(wt, av[0])`), and a forced removal deletes the worktree
     // it was given whatever it holds, so the destroy answers for the same set of files.
     if !request.plan.force
-        && !resuming
+        && !continuation.resuming
         && let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir)
     {
         if foreign.is_empty() {
             debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
             return RemoveOutcome::LeftToGit;
         }
-        // Git's own refusal cannot be the answer here: handing the tree to Git would let it delete what is mounted at one of
-        // these. The report names each of them, and words the way on by what the tree in front of it is: a state this program
-        // made and can finish, or one only `--force` opens.
-        // The words depend on what Git reports about this tree: a tree whose entries are only missing is the shape a pass
-        // this program ran leaves, and a remedy that moves a volume out cannot finish it.
-        let only_deletions: bool = match begun {
-            true => continuation.only_deletions,
-            false => only_deletions_beside(request, target, &registration, foreign.as_slice()),
-        };
-        let report: String = refused_beside_a_volume_report(
-            target,
-            request.plan.operand.to_string_lossy().as_ref(),
-            foreign.as_slice(),
-            BesideAVolume { reason: reason.as_str(), begun, only_deletions },
-        );
-        warn(TAG, report.as_str());
-        return RemoveOutcome::Refused(report);
+        return crate::worktree_remove_around::refusal_beside_a_volume(request, target, &registration, foreign.as_slice(), continuation, reason.as_str());
     }
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
@@ -692,7 +500,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         return RemoveOutcome::Refused(reason);
     }
     if goes_around {
-        return go_around(request, &held, &registration);
+        return crate::worktree_remove_around::go_around(request, &held, &registration);
     }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`
@@ -720,7 +528,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
                 // worktree's files. A volume the tree holds now is gone around, and anything else is Git's, which is what
                 // it was before this proof existed.
                 match take_the_pending_deletions_below(request.common_dir, &held, target) {
-                    Ok(VolumesBelow::Foreign(_found)) => return go_around(request, &held, &registration),
+                    Ok(VolumesBelow::Foreign(_found)) => return crate::worktree_remove_around::go_around(request, &held, &registration),
                     Err(reason) => {
                         let report: String = pending_deletion_report(target, reason.as_str());
                         warn(TAG, report.as_str());
