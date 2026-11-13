@@ -776,8 +776,9 @@ await describe({
       name: 'a run whose tool answered with more than a feed line keeps of it ends idle, with the answer whole on the feed',
       fn: async () => {
         const run = await runDriver({ scenario: 'process-answer-longer-than-a-line', },);
-        expect(run.status,).toBe(CLEAN_STATUS,);
+        // The end reason is the subject: the tool's answer was longer than a feed line keeps, and the run still did its work.
         expect(run.summary.endReason,).toBe('idle',);
+        expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.piExit?.code,).toBe(0,);
         // Nothing was read badly: the whole answer sits on the feed as a record of its own, which is what the driver reads to
         // tell whether work of the run's still runs.
@@ -800,8 +801,8 @@ await describe({
           scenario: 'normal',
           environment: { PI_RUNS_PROCESS_FOLDER: '/dev/null', },
         },);
-        expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
+        expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.piExit?.code,).toBe(0,);
         expect(run.summary.settled,).toBe(1,);
         // The summary says what could not be read, and never that the driver failed.
