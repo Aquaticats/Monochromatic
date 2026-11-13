@@ -670,6 +670,23 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Integration pass 19 started; the discarding-commands resume finished (2026-11-13T13:53:09-05:00)
+
+Not complete: the pass is going; the branch waits for its review.
+Read from the run's own report by the coordinating session; nothing here was run again by it.
+
+- **Pass 19** (`integration-pass-19-for-alpha-17`) started at 13:52:38 with commit-is-made and push-stops.
+- **`discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file`** ended before 13:52:36, tip `26834c0f32`.
+  By its report a form that would write over or delete a file nothing else holds
+  (`reset --hard`, `checkout --force`, `switch --force` and `--discard-changes`, `checkout <tree> -- <path>`, `restore --source`, three `read-tree` forms, `mv --force`, `checkout-index --force`, both pathspec-file forms)
+  is refused before Git runs, names the file, and runs exactly as real Git with `--no-enforce-worktree`;
+  each such claim is asserted as an equality with a direct Git run in the same state.
+  The check costs about 45 ms by its measurement, against 145 for its base and 195 to 200 for the installed release.
+  Limits it states: no submodule form; `git merge` itself unguarded; a shell alias whose value names a global option goes unjudged;
+  and the refusal over an **ignored** file is a choice of its brief that the owner has not restated.
+  Two binary tests outside its paths did not pass in its run and were not run at `main`.
+  Fit to merge by its report; its review is first in the queue.
+
 #### The push-stops branch passed its review; integration pass 19 for `0.6.1-alpha.17` is queued with two branches (2026-11-13T13:50:07-05:00)
 
 Not complete: the pass has not started; nothing is released.
