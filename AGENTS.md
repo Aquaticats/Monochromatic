@@ -844,6 +844,12 @@ RBT:
  scratch,
  or caches surviving one.
 
+MXA:
+ Before starting a Pi run or subagent,
+ count every agent going on the machine,
+ all sessions;
+ start none past the cap in `doc/handover/agents-at-once-on-this-machine.md`.
+
 FHU:
  Real jobs may use almost the whole host:
  size `CPUQuota` near `nproc` minus a few threads,
