@@ -832,6 +832,26 @@ which is in the list of owner choices still to ask.
   The review of that answer,
   over `main...675771e759`,
   is queued.
+- **The cargo fetch lock** (`26a02ec36c`),
+  read at 18:21:
+  its review ran the task's own judgment against a cargo home of its own and reproduced two defects,
+  both in how a git dependency is judged present.
+  Two URLs that share a repository name and a locked revision (a fork) are taken for one,
+  and a git database counts as present when its folder exists,
+  whether or not it holds the revision;
+  in both the task leaves the lock file alone and the closure check then fails offline,
+  where the old fetch fetched.
+  Neither is met by this repository's three git dependencies today.
+  Both go back to the author with the owner's decision on a stale lock file
+  (`~/temp/agent/pi-runs/cargo-fetch-answers-its-review-of-2026-11-13-prompt.md`),
+  queued.
+- **Discarding commands**:
+  its author answered its review at 18:14:48
+  (tip `0da808e1e0`,
+  `main` of pass 19 merged in).
+  The review of that answer,
+  over `main...0da808e1e0`,
+  is queued.
 
 #### Pass 20 is in `main` and `0.6.1-alpha.18` is dispatched; abort-and-skip passed its second review; the owner: a stale lock file fails the lint through the closure check (2026-11-13T17:44:06-05:00)
 
