@@ -11,7 +11,8 @@
 //!  because a boot that ended ended every process in it;
 //!  an identity of another PID namespace or another machine answers unknown,
 //!  and nothing is ever cleared on an unknown.
-//!  The spelling, the parts and the judgement are the commit service's own
+//!  The spelling,
+//! the parts and the judgement are the commit service's own
 //!  (`service_index_identity.rs`),
 //!  so one rule decides both a service's marked lock and a record the wrapper wrote.
 //!  The writing side is `lock_holder_records.rs`.
@@ -52,17 +53,21 @@ const RECORD_LIMIT: u64 = SMALL_FILE_LIMIT;
 fn holders_of(text: &str) -> Vec<(i64, String)> {
     let mut holders: Vec<(i64, String)> = Vec::new();
     for line in text.lines().skip(1) {
-        let Some(rest) = line.strip_prefix(SELF_LINE).or_else(|| { return line.strip_prefix(CHILD_LINE); }) else {
-            continue;
+        let rest: &str = match line.strip_prefix(SELF_LINE) {
+            Some(found) => found,
+            None => line.strip_prefix(CHILD_LINE).unwrap_or(""),
         };
+        if rest.is_empty() {
+            continue;
+        }
         let mut parts = rest.splitn(2, ' ');
         let (Some(pid), Some(identity)) = (parts.next(), parts.next()) else {
             continue;
         };
-        let (Ok(pid), false) = (pid.parse::<i64>(), identity.is_empty()) else {
+        let (Ok(number), false) = (pid.parse::<i64>(), identity.is_empty()) else {
             continue;
         };
-        holders.push((pid, identity.to_owned()));
+        holders.push((number, identity.to_owned()));
     }
     return holders;
 }
@@ -86,7 +91,8 @@ fn every_holder(common_dir: &Path) -> Vec<(PathBuf, Vec<(i64, String)>)> {
     };
     let mut names: Vec<std::ffi::OsString> = Vec::new();
     for entry in entries.flatten() {
-        if entry.file_type().is_ok_and(|kind| { return kind.is_file(); }) {
+        let kind: Option<std::fs::FileType> = entry.file_type().ok();
+        if matches!(kind, Some(found) if found.is_file()) {
             names.push(entry.file_name());
         }
     }

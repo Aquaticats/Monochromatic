@@ -59,7 +59,8 @@ fn quiet(program: &str) -> Command {
 ///  read while it still ran.
 /// Why:
 ///  A record naming such an identity is exactly what a killed command leaves:
-///  the birth is one this boot had, and no process has it now.
+///  the birth is one this boot had,
+/// and no process has it now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +75,8 @@ fn a_dead_holder() -> (i64, String) {
 }
 
 /// What:
-///  The PID file beside a lock, as Git writes it.
+///  The PID file beside a lock,
+/// as Git writes it.
 /// Why:
 ///  The proof begins with the number Git recorded in it.
 ///
@@ -92,7 +94,9 @@ fn pid_file_of(lock: &Path) -> PathBuf {
 ///  `holders` in one file of the repository's record folder.
 /// Why:
 ///  A control plants the state a kill leaves,
-///  so it can name a holder that is gone, alive, or a number now used by another process,
+///  so it can name a holder that is gone,
+/// alive,
+/// or a number now used by another process,
 ///  which no real kill can be made to produce on demand.
 ///
 /// In TS you'd write (pseudocode):
@@ -106,7 +110,8 @@ fn plant_record(repo: &Path, holders: &[(&str, i64, String)], name: &str) {
 }
 
 /// What:
-///  Plant one lock file, the PID file Git writes beside it,
+///  Plant one lock file,
+/// the PID file Git writes beside it,
 ///  and the record a killed command leaves.
 /// Why:
 ///  One helper plants every lock this control judges,
@@ -123,8 +128,8 @@ fn plant_lock(repo: &Path, name: &str, pid: i64, identity: Option<&String>, reco
     //  holds bytes rather than nothing.
     std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
     std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
-    if let Some(identity) = identity {
-        plant_record(repo, &[("child", pid, identity.clone())], record_name);
+    if let Some(recorded) = identity {
+        plant_record(repo, &[("child", pid, recorded.clone())], record_name);
     }
 }
 
@@ -150,7 +155,8 @@ struct After {
 ///  Run a wrapped command and report what became of `name`'s lock.
 /// Why:
 ///  Every control of this file asks the same question,
-///  and the elapsed time is the claim that matters: a command that goes on spends a moment,
+///  and the elapsed time is the claim that matters:
+/// a command that goes on spends a moment,
 ///  and one that waits spends the sixty seconds nobody asked for.
 ///
 /// In TS you'd write (pseudocode):
@@ -273,12 +279,15 @@ fn a_merge_killed_while_its_checkout_stalled(fixture: &Fixture, repo: &Path) -> 
 
 /// What:
 ///  The lock a killed wrapper command left is cleared by the next command,
-///  which goes on, and the commit the audit saw withdrawn lands.
+///  which goes on,
+/// and the commit the audit saw withdrawn lands.
 /// Why:
 ///  This is the whole requirement,
 ///  on the state a real kill leaves:
-///  one line says what was cleared and why, the command spends a moment rather than a minute,
-///  nothing of the person's is lost, and no file of the repository is left half-written.
+///  one line says what was cleared and why,
+/// the command spends a moment rather than a minute,
+///  nothing of the person's is lost,
+/// and no file of the repository is left half-written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -313,7 +322,10 @@ fn an_index_lock_a_killed_merge_left_is_cleared_and_the_next_commit_lands() {
 ///  is cleared by the next command.
 /// Why:
 ///  The index lock is not the only one:
-///  `HEAD`, the shallow file, the packed references, a reference and the reftable backend's list
+///  `HEAD`,
+/// the shallow file,
+/// the packed references,
+/// a reference and the reftable backend's list
 ///  are all filled and renamed the same way,
 ///  so the same proof and the same removal apply to every one.
 ///
@@ -367,7 +379,8 @@ fn a_lock_whose_record_names_a_live_process_is_kept() {
 /// What:
 ///  A record whose number now belongs to another live process is not a record of that process,
 ///  so the lock is cleared:
-///  the birth identity the record names has no process, and the number does not make it the holder.
+///  the birth identity the record names has no process,
+/// and the number does not make it the holder.
 /// Why:
 ///  A process number is reused,
 ///  and the wrapper records the birth for exactly this:
@@ -399,7 +412,8 @@ fn a_lock_whose_number_now_belongs_to_another_process_is_cleared() {
 ///  so nothing proves its holder gone and it is kept,
 ///  with the words naming what is known and what a person can do.
 /// Why:
-///  Real Git run directly, an editor and an IDE write no record of the wrapper's,
+///  Real Git run directly,
+/// an editor and an IDE write no record of the wrapper's,
 ///  and a number in a PID file is not a proof:
 ///  a Git of another PID namespace writes one this table has never had.
 ///
@@ -423,7 +437,8 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
 
 /// What:
 ///  Two commands that meet one abandoned lock at the same instant end correctly,
-///  and the lock is cleared once: the second finds it gone.
+///  and the lock is cleared once:
+/// the second finds it gone.
 /// Why:
 ///  Each of them takes the exclusive `flock` of the lock file before its last look,
 ///  so one removal is the only one that happens,
@@ -433,9 +448,14 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
 /// ```ts
 /// const [reader, writer] = await Promise.all([status(), add('a.txt')]); expect([reader.code, writer.code]).toEqual([0, 0]);
 /// ```
-/// A writer and a reader, not two writers: Git itself lets one index writer at a time hold `index.lock`, so two simultaneous
+/// A writer and a reader,
+/// not two writers:
+/// Git itself lets one index writer at a time hold `index.lock`,
+/// so two simultaneous
 ///  `git add`s die with Git's own `File exists` whatever the wrapper does (`binary_tests.rs`,
-///  `the_second_of_two_adds_at_once_...`). The lock this control is about is the *dead* one, and the reader meets it too.
+///  `the_second_of_two_adds_at_once_...`).
+/// The lock this control is about is the *dead* one,
+/// and the reader meets it too.
 #[test]
 fn two_commands_meeting_one_dead_lock_clear_it_once_and_both_end_correctly() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("two-commands-one-lock");
@@ -475,7 +495,8 @@ fn two_commands_meeting_one_dead_lock_clear_it_once_and_both_end_correctly() {
 /// Why:
 ///  A second audit of alpha.14 found a `git add` printing the same notice fifty times in 110 ms,
 ///  because the retry loop ran Git again for each attempt without asking what the wait proved.
-///  The service's own marker proves its holder gone, so its own reclaimer removes the lock,
+///  The service's own marker proves its holder gone,
+/// so its own reclaimer removes the lock,
 ///  and the command goes on at once.
 ///
 /// In TS you'd write (pseudocode):

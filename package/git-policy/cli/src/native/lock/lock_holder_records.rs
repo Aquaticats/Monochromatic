@@ -6,7 +6,8 @@
 //!  the PID namespace and the machine.
 //! Why:
 //!  A Git lock file names its holder only by a process number
-//!  (`index~pid.lock`, written because the wrapper turns `core.lockfilePid` on),
+//!  (`index~pid.lock`,
+//! written because the wrapper turns `core.lockfilePid` on),
 //!  and a number proves nothing:
 //!  it means a process only inside the namespace that wrote it,
 //!  it is reused,
@@ -18,7 +19,8 @@
 //!  so one rule judges every holder the wrapper knows:
 //!  a process of another boot is gone,
 //!  a process of another PID namespace or another machine is unknown and is never cleared,
-//!  and only the same boot, namespace and machine lets the birth identity decide.
+//!  and only the same boot,
+//! namespace and machine lets the birth identity decide.
 //!  The file is written before the child can take any lock,
 //!  so a kill the wrapper cannot catch leaves it behind;
 //!  it is removed by the pass that finds every holder it names gone and no lock of the repository standing in
@@ -37,7 +39,8 @@
 use crate::claim_time::{current_boot_id, current_machine_id, is_machine_id};
 /// The birth identity the platform reports for a process.
 use crate::process_identity::process_birth_identity;
-/// The one identity spelling the commit service's marker uses, so one reader judges both.
+/// The one identity spelling the commit service's marker uses,
+/// so one reader judges both.
 use crate::service_index_identity::{BOOT_SEPARATOR, current_pid_scope, own_identity};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
@@ -74,7 +77,8 @@ static REPOSITORY: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 /// What:
 ///  Make `common_dir` the repository whose records this process adds to.
 /// Why:
-///   Called once, before the first Git of the command starts;
+///   Called once,
+/// before the first Git of the command starts;
 ///  a second call with another repository changes nothing,
 ///  because one process never works in two.
 ///
@@ -113,7 +117,8 @@ pub fn note_child_started(pid: u32) {
 ///  Whether this process is the one that wrote its own record,
 ///  claimed once per process.
 /// Why:
-///   A command may pass the lock pass twice (the client, then a forward that resolved its own Git directory),
+///   A command may pass the lock pass twice (the client,
+/// then a forward that resolved its own Git directory),
 ///  and the second pass must neither add a second line nor read the record again.
 ///
 /// In TS you'd write (pseudocode):
@@ -189,9 +194,23 @@ pub fn identity_of_process(pid: i64) -> Option<String> {
 pub fn identity_of_birth(birth: &str) -> String {
     let mut identity: String = String::from(birth);
     let scope: Option<&str> = current_pid_scope();
-    let machine: Option<&str> = Some(current_machine_id()).filter(|text| { return is_machine_id(text); });
+    let machine_text: &str = current_machine_id();
+    let known_machine: Option<&str> = match is_machine_id(machine_text) {
+        true => Some(machine_text),
+        false => None,
+    };
+    // The machine comes only after the namespace: a reader of a release before machine IDs then sees a namespace it does not
+    //  know, which keeps the lock.
+    let machine: Option<&str> = match scope {
+        Some(_) => known_machine,
+        None => None,
+    };
     let boot: &str = current_boot_id();
-    for part in [Some(boot).filter(|text| { return !text.is_empty(); }), scope, machine.filter(|_| { return scope.is_some(); })] {
+    let boot_part: Option<&str> = match boot.is_empty() {
+        true => None,
+        false => Some(boot),
+    };
+    for part in [boot_part, scope, machine] {
         if let Some(text) = part {
             identity.push(BOOT_SEPARATOR);
             identity.push_str(text);

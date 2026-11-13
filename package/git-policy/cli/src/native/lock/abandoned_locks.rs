@@ -12,11 +12,13 @@
 //!  a reference or the list of the reftable backend's tables.
 //!  The command that meets one of them must not wait a minute for a process that will never let go,
 //!  and must not fail for something the wrapper can prove.
-//!  So the pass is one walk and one proof, and it names every lock it removed;
+//!  So the pass is one walk and one proof,
+//! and it names every lock it removed;
 //!  a lock it cannot prove keeps the bounded wait and the report it always had.
 //!  The walk reads directory entries by their own file type,
 //!  so a symbolic link is never followed,
-//!  and it skips the object store, whose files are a pack writer's own.
+//!  and it skips the object store,
+//! whose files are a pack writer's own.
 //!  The pass runs from the wrapper's own process before the command reaches Git,
 //!  and from the commit service before its landing waits for an index lock,
 //!  so the next command of any kind meets a clear repository.
@@ -32,9 +34,12 @@ use crate::abandoned_lock_proving as proving;
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
 use crate::git_directory_roots::{common_dir_for, git_directory_of};
-/// The records themselves: the repository this command works in, and the account of this process.
+/// The records themselves:
+/// the repository this command works in,
+/// and the account of this process.
 use crate::lock_holder_records::{record_this_process, remember_repository, the_self_record_is_this_processs};
-/// The read of the records, for the sweep that keeps only the ones that explain a lock.
+/// The read of the records,
+/// for the sweep that keeps only the ones that explain a lock.
 use crate::lock_holder_record_reads::sweep;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
@@ -48,8 +53,10 @@ const MOST_DEPTH: usize = 8;
 const MOST_ENTRIES: usize = 8192;
 
 /// The folders of a Git directory that hold no lock of the worktree's state:
-/// the object store, whose `*.lock` files are a pack writer's own temporary names,
-/// and the logs, which hold no lock at all.
+/// the object store,
+/// whose `*.lock` files are a pack writer's own temporary names,
+/// and the logs,
+/// which hold no lock at all.
 const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
 /// What:
@@ -168,7 +175,8 @@ fn is_a_lock_name(name: &str) -> bool {
 ///  and say what was removed.
 /// Why:
 ///  Every command that may meet a lock calls this once,
-///  so the proof, the sequence and the words are one rule everywhere.
+///  so the proof,
+/// the sequence and the words are one rule everywhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,7 +284,8 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 ///  This is the one place a client command passes,
 ///  so every command of any kind meets a clear repository,
 ///  and a `git status` after a kill is enough to repair what the killed command left.
-///  The Git directory is found by reading a few small files, never by starting Git,
+///  The Git directory is found by reading a few small files,
+/// never by starting Git,
 ///  and a directory outside any repository costs one failed look.
 ///
 /// In TS you'd write (pseudocode):
@@ -285,12 +294,18 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 /// ```
 pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsString, std::ffi::OsString)]) {
     let working: PathBuf = std::env::current_dir().unwrap_or_default();
-    let named: Option<PathBuf> = environment
-        .iter()
-        .rev()
-        .find(|(name, _)| { return name == std::ffi::OsStr::new("GIT_DIR"); })
-        .map(|(_, value)| { return working.join(value); });
-    let Some(git_dir) = named.or_else(|| { return git_directory_of(working.as_path()); }) else {
+    let mut named: Option<PathBuf> = None;
+    for (name, value) in environment.iter().rev() {
+        if name == std::ffi::OsStr::new("GIT_DIR") {
+            named = Some(working.join(value));
+            break;
+        }
+    }
+    let found: Option<PathBuf> = match named {
+        Some(directory) => Some(directory),
+        None => git_directory_of(working.as_path()),
+    };
+    let Some(git_dir) = found else {
         return;
     };
     let common: PathBuf = common_dir_for(git_dir.as_path());

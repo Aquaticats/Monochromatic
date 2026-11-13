@@ -3370,12 +3370,71 @@ and no process a complete scan finds holding it)
 and goes on;
 a lock that proof does not cover stays where it is,
 and so does one whose content is not empty.
+A lock whose holder the wrapper's own record proves gone is cleared before the merge looks at it,
+by the pass the next section describes,
+so a merge does not wait for a process that a kill ended.
 Native Git,
 measured in a fixture,
 never waits:
 a held lock fails the merge in a few milliseconds.
 A merge that native Git runs (a conflict,
 an editor) waits for the lock first in the same way.
+
+#### The lock files a killed command left
+
+A process can be killed at any instruction.
+When a wrapper command or a Git it started ends between creating a lock and renaming it over its target,
+the lock stands and its PID file names a process that no longer exists.
+Before this change the next commit waited a minute for that process and withdrew the person's change;
+the audit of 0.6.1-alpha.14 met exactly that after a merge's process group was killed during a stalled download.
+
+The wrapper now keeps its own account of what it starts,
+in `<common-git-dir>/cli-git-lock-holders/`:
+one file per process,
+naming the wrapper and every Git it started,
+each with the birth identity,
+boot ID,
+PID namespace and machine ID that the commit service's index lock marker already uses.
+A lock is cleared when its PID file names a number from that record,
+nothing this boot,
+this PID namespace or this machine has that birth,
+the file sits on a local file system,
+and no readable process has it open.
+It is removed under an exclusive `flock` of the lock file itself,
+so two commands that meet it at the same instant cannot both remove it and both take it,
+and one line says which lock went and what proved its holder gone.
+Nothing of the repository is lost:
+Git fills a lock and renames it over its target,
+so an `index.lock` that never reached its rename holds only the dead holder's unfinished index,
+and the index that is there is the one the repository had.
+
+Nothing is cleared on a lock the wrapper did not take:
+real Git run directly,
+an editor and an IDE write no record,
+and a process number alone is not a proof,
+because numbers are reused and a Git in another PID namespace writes one this table has never had.
+A record of another namespace or another machine is unknown and is never acted on,
+a lock on a network file system is kept,
+and a lock carrying the commit service's marker goes to the service's own reclaimer.
+A lock that stands,
+whose number no process of this table has and that no record explains,
+gets one line naming the file,
+the number,
+and the `rm` that clears it,
+because that lock cannot release itself and nothing here may remove it.
+
+The pass runs before every wrapped command reaches Git,
+and again in the commit service before its landing waits for the index,
+so a commit is not withdrawn over a lock the wrapper can prove dead.
+It reads the Git directories by their own entries,
+skips the object store and the logs,
+starts no Git,
+and costs one walk of a Git directory's entries on a repository that holds no lock.
+`SPEC.md`,
+"The lock files a killed command left,
+and the record that proves its holder gone",
+has the sequence,
+the proof and its limits.
 
 #### A merge saved for a later command
 
@@ -3746,7 +3805,8 @@ none is waited out or retried on the moved head yet:
   The commit service remains the only writer of a commit,
   so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
-  heartbeats or not):
+  heartbeats or not)
+  after the lock pass has cleared any lock of a holder the wrapper's record proves gone:
   the client withdraws the request,
   so it
    never lands later by itself,

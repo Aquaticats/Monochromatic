@@ -7,7 +7,8 @@
 //!  The proof is the wrapper's own record of what it started (`lock_holder_record_reads.rs`):
 //!  the lock's PID file names a number,
 //!  a record of this repository names that number with a birth identity,
-//!  and this boot, this process table and this machine have no process with that identity.
+//!  and this boot,
+//! this process table and this machine have no process with that identity.
 //!  No time decides anything,
 //!  so a correction of the clock moves no verdict.
 //!  Four further facts must hold before the file goes,
@@ -26,13 +27,15 @@
 //!  A lock carrying the commit service's marker is not judged by that proof:
 //!  it is handed to the service's own reclaimer,
 //!  which reads the marker's holder and takes its claim on the file
-//!  (`service_index_reclaim.rs`, `StaleMark::HolderIsGone`),
+//!  (`service_index_reclaim.rs`,
+//! `StaleMark::HolderIsGone`),
 //!  so a live service's lock is waited for and a killed one's is removed by its owner.
 //!  Nothing is restored after the removal,
 //!  because there is nothing of the repository's to restore:
 //!  every Git lock is a new file that Git fills and renames over its target,
 //!  so a lock that never reached its rename holds only the dead holder's unfinished copy of the index,
-//!  the reference list, `HEAD` or the shallow file,
+//!  the reference list,
+//! `HEAD` or the shallow file,
 //!  and the file that is really there is the one the repository had before.
 //!
 //! In TS you'd write (pseudocode):
@@ -42,22 +45,29 @@
 
 /// The lock's metadata and its identity without following a link.
 use crate::index_lock_evidence::read_lock_metadata;
-/// The scan of the processes that hold one file open, and what it could not read.
+/// The scan of the processes that hold one file open,
+/// and what it could not read.
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
 /// The proof a record of this repository gives.
 use crate::lock_holder_record_reads::{gone_holder_words, proven_gone};
-/// How a lock's PID file is read and judged, and the file systems a lock of this machine sits on.
+/// How a lock's PID file is read and judged,
+/// and the file systems a lock of this machine sits on.
 use crate::stale_ref_lock_judge::{Judge, LOCAL_FILE_SYSTEMS};
 /// The name a lock's PID file has.
 use crate::stale_ref_lock_walk::pid_file_beside;
 /// How the file system holding a lock is looked at.
 use crate::fs_mount_options::read_mount_facts;
-/// The commit service's marker, whose locks belong to the landing's own reclaimer.
+/// The commit service's marker,
+/// whose locks belong to the landing's own reclaimer.
 use crate::service_index_marker::marker_of_file;
-/// The open that never waits, the comparison of one file with the name it was reached by, and the reason a scan could
+/// The open that never waits,
+/// the comparison of one file with the name it was reached by,
+/// and the reason a scan could
 ///  not read a process of this account.
 use crate::service_index_reclaim::{open_to_judge, reclaim_if, same_file, Reclaimed, StaleMark};
-/// Counts of the descriptors of this process, the words a scan's partial reasons begin with, and the placement platform.
+/// Counts of the descriptors of this process,
+/// the words a scan's partial reasons begin with,
+/// and the placement platform.
 use crate::service_index_unheld_removal::{UNREADABLE_PROCESS_REASON, own_descriptors_of};
 /// The platform whose scans and placements this process uses.
 use crate::service_index_placement::SYSTEM;
@@ -80,7 +90,8 @@ pub struct Clearance {
     /// The lock file that was removed.
     pub lock: PathBuf,
     /// The number the removal acted on:
-    /// the PID file's, or the number the service's marker named.
+    /// the PID file's,
+    /// or the number the service's marker named.
     pub pid: i64,
 }
 
@@ -107,11 +118,17 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
         // The service's own reclaimer judges its marker, holds its claim on the file, and removes it only once the holder the
         //  marker names is gone.
         return match reclaim_if(&SYSTEM, lock, StaleMark::HolderIsGone) {
-            Reclaimed::Removed => Some(Clearance { lock: lock.to_path_buf(), pid: marked.holder.map_or(0, |holder| { return holder.0; }) }),
+            Reclaimed::Removed => {
+                let pid: i64 = match marked.holder {
+                    Some((number, _identity)) => number,
+                    None => 0,
+                };
+                Some(Clearance { lock: lock.to_path_buf(), pid })
+            }
             _ => None,
         };
     }
-    let born: Option<std::time::SystemTime> = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
+    let born: Option<std::time::SystemTime> = born_of(lock);
     // Only a PID file Git wrote for this very lock names its holder: one born before the lock belongs to an earlier holder.
     let crate::stale_ref_lock_found::PidFile::Names(pid) = Judge::pid_file_state(lock, born) else {
         return None;
@@ -161,6 +178,22 @@ fn marker_of(lock: &Path) -> Option<crate::service_index_marker::Marked> {
 }
 
 /// What:
+///  When the file at `path` was created,
+///  where this file system records that.
+/// Why:
+///  Git creates a lock's PID file after the lock itself,
+///  so the two times are what tells this lock's holder from an earlier one's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// statSync(path).birthtimeMs
+/// ```
+fn born_of(path: &Path) -> Option<std::time::SystemTime> {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
+    return metadata.created().ok();
+}
+
+/// What:
 ///  Whether the file system holding `lock` is one of this machine's.
 /// Why:
 ///  A lock on a network or user-space file system can be written by a Git on another machine,
@@ -179,7 +212,8 @@ fn sits_on_this_machine(lock: &Path) -> bool {
 }
 
 /// How long a command that met another command's removal of the same lock waits for it to finish.
-/// Exempt from a citation under `LQM` (class: pacing of a removal):
+/// Exempt from a citation under `LQM` (class:
+/// pacing of a removal):
 /// the holder works for the microseconds between its last look and its unlink,
 /// and nothing else in the repository ever takes this advisory lock.
 const REMOVAL_CLAIM_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
@@ -191,11 +225,15 @@ const REMOVAL_CLAIM_PAUSE: std::time::Duration = std::time::Duration::from_milli
 ///  Whether this process now holds the exclusive `flock` of the lock file,
 ///  which is what keeps two commands from removing the same lock.
 /// Why:
-///  An advisory lock covers the smallest unit that matters here, the one lock file,
+///  An advisory lock covers the smallest unit that matters here,
+/// the one lock file,
 ///  and it is held for the moment between the last look and the removal.
 ///  The kernel gives it to one holder;
-///  a second command waits for that holder, bounded, instead of running Git into the refusal it was about to remove.
-///  When the holder is done the name is gone, so the second command's own last look refuses the removal and it goes on with a
+///  a second command waits for that holder,
+/// bounded,
+/// instead of running Git into the refusal it was about to remove.
+///  When the holder is done the name is gone,
+/// so the second command's own last look refuses the removal and it goes on with a
 ///  clear repository.
 ///  A file system that has no `flock` gives an answer that is not a lock,
 ///  which leaves the file alone.
@@ -280,7 +318,9 @@ pub fn clearance_line(clearance: &Clearance) -> String {
 ///  so the person meets a lock that cannot release itself and needs the lock's name,
 ///  what is known about its holder,
 ///  and the one action that clears it.
-///  A live holder, whose number a process has, is not told about:
+///  A live holder,
+/// whose number a process has,
+/// is not told about:
 ///  its own command will report what it does.
 ///
 /// In TS you'd write (pseudocode):
@@ -288,7 +328,7 @@ pub fn clearance_line(clearance: &Clearance) -> String {
 /// unexplainedDeadHolderLine(lock, commonDir) // '...names PID 42, which no process...' | undefined
 /// ```
 pub fn unexplained_dead_holder_line(lock: &Path, common_dir: &Path) -> Option<String> {
-    let born: Option<std::time::SystemTime> = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
+    let born: Option<std::time::SystemTime> = born_of(lock);
     let crate::stale_ref_lock_found::PidFile::Names(pid) = Judge::pid_file_state(lock, born) else {
         return None;
     };
