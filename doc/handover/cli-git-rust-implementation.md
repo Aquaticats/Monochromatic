@@ -685,6 +685,28 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The reload fix passed a review that ran it in a container; it is pass 22; commit-does-not-list's author answered (2026-11-13T16:43:50-05:00)
+
+Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
+
+- **The reload fix** (issue 6286, `575c585373`): the review started again with a brief that had it run the code finished at 16:39:16, the rate limit having ended it twice on the way.
+  It built the wrapper and ran it in a disposable container with a manager, a session bus and a user manager of its own:
+  - the manager silent after a stop: the commit failed after a bounded 21.4 s with "Nothing in the repository changed", the staged content intact, and went through once the manager answered;
+    killed after the unit write, the next commit repaired the interrupted provision and landed once;
+  - a service still landing another commit: both landed once; killed after its request was queued, the request landed once;
+  - a link that cannot be written: the warning was printed and the commit landed through the running service; killed after the unit write, recovery landed it;
+  - six pairs of commits at once: the unload's failure path did not come up.
+  No defect reproduced. Its run's end reason reads `driver-failed` (issue 6299, the eighth today); the review stands.
+  - It is **integration pass 22** (`integrate/git-policy-cli-pass-22-for-alpha-20`), queued at the head, pinned to `575c585373` and nothing after it.
+  - Two things it found by reading and did not reproduce went to the branch's author, whose run is queued:
+    `wait_until_dropped` can still end a commit with `CouldNotStart` if another command holds a unit for the whole five seconds,
+    and the sentence that a link which cannot be written never fails the commit holds only when the old link names a release that can still serve.
+    What the author commits is reviewed again before it lands; that is why the pass is pinned.
+- **Commit-does-not-list**, answer to its second review, tip `974f681c98`: the finding reproduced first (seven names against Git's six), fixed by finding every chain's end before any entry is rewritten,
+  with two controls that fail without the fix (every order of a five-link chain's names; stores drawn from a seed, compared with Git each time).
+  Reader time on 2,000 references before and after overlaps. Fit to merge by its report. Its third review is queued over `main...974f681c98`.
+- At 16:23:21 seventeen agent units were going, one above the level; nothing was stopped, and the probe that started at 16:11 records the count with each reading.
+
 #### The index-lock fix's second review: no defect reachable here, two things sent back all the same (2026-11-13T16:17:04-05:00)
 
 Not complete, and written by the coordinating session from the review's own report.
