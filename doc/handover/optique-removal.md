@@ -839,7 +839,15 @@ to settle before a reply:
   run name `optique-input-trace-and-reply-claim-check`,
   started 2026-11-13;
   its findings are to be weighed and folded in.
-- The private advisory draft for the `passThrough()` findings is not written.
+- The private advisory draft for the `passThrough()` findings is written and waits for the owner:
+  `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
+  a local file that is not committed.
+  Its five cases were run again on 2026-11-13 on 1.3.6,
+  `1.4.0-dev.2971`,
+  `main` at `84f95710` and pull request 1121's head,
+  with the same outcome on each
+  (`passthrough-cases.jsonl` beside it).
+  Nothing about it is to be mentioned in public.
 - What is left of the token-count growth after the patch (a fitted exponent near 1.2) is attributed only by the
   patch's author and was not checked.
 - Upstream's full suite on Bun was not run against the patch with a baseline.
