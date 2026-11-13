@@ -18,7 +18,7 @@
 //! ```
 
 use super::CREDENTIALS_MASK;
-use super::lfs_output_mask_reading_a_url::{authority_end_of, ends_scheme, is_at_sign, next_separator};
+use super::lfs_output_mask_reading_a_url::{SCHEME_SEPARATOR, authority_end_of, ends_scheme, is_at_sign, next_separator};
 
 /// What:
 ///  The part of a destination that names the server a person must recognize:
@@ -43,7 +43,7 @@ pub fn host_of(destination: &str) -> Option<String> {
     if separator == 0 || !ends_scheme(bytes[separator - 1]) {
         return None;
     }
-    let authority_start: usize = separator + super::lfs_output_mask_reading_a_url::SCHEME_SEPARATOR.len();
+    let authority_start: usize = separator + SCHEME_SEPARATOR.len();
     let authority_end: usize = authority_end_of(bytes, authority_start);
     let authority: &[u8] = &bytes[authority_start..authority_end];
     // The host begins after the last `@`, so a user and a token are never part of it.
@@ -80,10 +80,10 @@ pub fn hosts_in(text: &str) -> Vec<String> {
     while let Some(separator) = next_separator(bytes, from) {
         // A separator that follows no scheme character starts no URL, and the scan goes on after it.
         if separator == 0 || !ends_scheme(bytes[separator - 1]) {
-            from = separator + super::lfs_output_mask_reading_a_url::SCHEME_SEPARATOR.len();
+            from = separator + SCHEME_SEPARATOR.len();
             continue;
         }
-        let authority_start: usize = separator + super::lfs_output_mask_reading_a_url::SCHEME_SEPARATOR.len();
+        let authority_start: usize = separator + SCHEME_SEPARATOR.len();
         let authority_end: usize = authority_end_of(bytes, authority_start);
         // The next search starts where this authority ended, so each byte is read a constant number of times.
         from = authority_end;

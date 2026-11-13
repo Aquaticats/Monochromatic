@@ -803,9 +803,10 @@ fn tail(text: &str) -> String {
 /// hidden whole,
 /// so a credential the cap split before its `@` is hidden.
 /// Why:
-///   The file is cut at `MAX_RELAYED_BYTES`, and masking after the cut cannot repair a userinfo whose `@` the cut
-/// dropped:
-/// the review reproduced a relayed head that ended in `https://user:<token>` whole (2026-11-11T16:01:40-05:00,
+///   The file is cut at `MAX_RELAYED_BYTES`,
+/// and masking after the cut cannot repair a user information whose `@` the cut dropped:
+/// the review reproduced a relayed head that ended in `https://user:<token>` whole
+/// (2026-11-11T16:01:40-05:00,
 /// finding 2).
 #[test]
 fn an_upload_whose_output_is_cut_at_its_cap_hides_the_credential_the_cut_split() {
