@@ -8608,6 +8608,170 @@ in-process reader can) gives every value of the multi-valued keys.
   not have taken the commit,
   and the retry is what settles it.
 
+#### The least traffic that counts as progress
+
+The owner's answer of 2026-11-12
+(`doc/handover/cli-git-rust-implementation.md`,
+"A slow server and a typed push") is "Minimum rate":
+progress means at least a stated number of bytes within a stated window,
+and under that the run stops with a message.
+It joins "Stop only on no progress" to "nothing should ever wait forever or indefinitely",
+because a server that keeps a connection open and moves a byte every few seconds
+was progress to every window the wrapper had.
+Before this rule such a server held a push for ever:
+the audit of `0.6.1-alpha.12` recorded it as F14 for a server that drips its answer,
+and the audit of `0.6.1-alpha.14` recorded it as F3 for a server whose `pre-receive` hook never
+returns while its keepalive moves five bytes every five seconds
+(`/home/user/temp/agent/sonnet-audits/alpha-14-commit-landing-service-push-and-changeover/report.md`,
+`src/native/push/push_minimum_rate.rs`).
+
+What is counted:
+the bytes the transport itself carried,
+in both directions,
+which the kernel reports as `tcpi_bytes_acked` plus `tcpi_bytes_received` of the connected sockets
+a process of the run holds (`src/native/push/tcp_sockets.rs`).
+Two things are therefore not counted.
+Git's own progress lines, and the account a program prints of its own waiting, are not:
+those are the holder's own bytes, which `push_progress.rs` already refuses to call work,
+and `git-lfs` writes fourteen of them about every ten seconds.
+And the bytes of a process that holds no connection are not transport bytes,
+so they stay what they were:
+work, in the meter,
+but never traffic against the floor,
+which is why the pack a push is making and the delta search it runs are not mistaken for traffic.
+
+What the floor is:
+`DEFAULT_PUSH_MINIMUM_RATE_BYTES`,
+1024 bytes,
+which a person sets with `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`
+(a positive whole number of bytes;
+zero,
+negative,
+fractional,
+empty or non-numeric is no setting at all,
+so a typo cannot remove the rule,
+as with every value of this kind).
+What the window is:
+the connected window,
+`CONNECTED_PUSH_QUIET_WINDOW`,
+150 seconds,
+which is fixed for every shipped run and is the window a control shortens with
+`CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`.
+The two are one rule and not two bounds, and the window is the silence window on purpose:
+see "A window that carries no bytes" below.
+
+What a window below the floor means:
+not progress.
+A run whose connection carried fewer bytes than the floor in a window is judged as a run that showed
+nothing,
+so the rule that already bounds silence ends it,
+with the words of the window that fired:
+the connected window while a connection is open,
+and the stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 seconds by default) for a run that holds
+no connection.
+That is the whole mechanism:
+the floor does not add a bound of its own,
+it decides which bytes count as progress,
+and the two rules together leave no state that lasts for ever.
+Every window of a connected run either carries the floor,
+which is progress and resets the connected window,
+or carries less,
+in which case the connected window runs out at the latest one window after the last window that met
+the floor.
+A run with no connection carries no transport bytes at all,
+so the stall window bounds it exactly as before.
+The one cost that is unchanged is the one the signs always had:
+a process that sits in state `D` for good shows a sign of work for ever,
+and nothing the code can observe tells that from work.
+
+A window that carries no bytes:
+a server that resolves the deltas of a large push,
+or runs a hook after the upload,
+moves nothing at all for a while,
+and so does a client that compresses the pack before it sends it.
+Such a phase carried zero bytes,
+so the floor never touches it,
+and it is bounded by the connected window exactly as it was before this rule
+(the audit's control:
+with `receive.keepAlive` at 0 the same hung hook ended at 30.5 seconds of the 150 second window).
+Telling a phase of no bytes from a trickle is therefore the number of bytes and nothing else:
+zero bytes is a silent phase and is bounded by the silence window;
+more than zero but fewer than the floor is a trickle,
+and it is bounded by the same window,
+with a stop that says how many bytes it carried.
+Git's keepalive is what a real server sends in that phase,
+so the floor is above it:
+`receive.keepAlive` defaults to 5 seconds and sends five bytes (`builtin/receive-pack.c`,
+`copy_to_sideband`),
+which is one byte per second and 750 bytes in a 150 second window at the chattiest setting the
+option allows (one second).
+A server that keeps the connection alive and does nothing else is thus ended at the connected window,
+which is what a server that sends nothing at all gets,
+and that is the F3 defect closed.
+
+The measurement the two values rest on
+(read-only records, and loopback servers this package's tests can build):
+the timing records of this repository's Git directory carry durations and no byte counts,
+so the bytes were measured with real pushes of this repository's own sizes to a loopback server
+offering Git's own `git http-backend`,
+and the durations were read from the commit service's journal,
+which records `push_ms` per landed push:
+p50 3.5 s,
+p99 26.4 s and 72.4 s at most over the 794 pushes that landed between 2026-10-20 and 2026-11-03.
+One push of this repository's own commits packs to 0.35 MB for one commit,
+0.72 MB for ten and 5.5 MB for a hundred (`git pack-objects` on this checkout),
+and shaped to 66 KB/s such a push lands.
+The slowest honest line the floor still lets through is therefore 1024 bytes per 150 seconds,
+about 7 bytes per second,
+and the 5.5 MB push would take about nine days on it and still land:
+no line a person has is that slow,
+the floor sits seven times above the chattiest keepalive a server can be configured to send,
+and eight orders of magnitude below a transfer measured here.
+Those two records are why the value is 1024 and not a larger number:
+a floor judged over the connected window needs nothing more,
+because the window itself is what bounds the phase a floor would otherwise have to.
+
+What a stop says:
+`limit=connected`,
+which is the window that fired,
+with `carried_bytes=<n>` and `minimum_bytes_per_window=<n>`,
+the rate those stand for in bytes per second,
+the sentence that a server's own keepalive packets are that kind of traffic,
+`CLI_GIT_PUSH_DEADLINE_SECONDS` named as the setting that does not move this window,
+and `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` named as the one that does,
+with the direction (a smaller number lets a slower line through).
+A connection that carried nothing keeps the older wording,
+which is the true one there:
+nothing moved.
+A stop ended as before:
+the push is asked to end,
+killed after the grace,
+reported with exit code 124,
+its locks swept,
+nothing local changed,
+and the commit stays saved
+(`src/native/push/stop_cause_and_words.rs`,
+`src/native/lfs/lfs_upload_explanations.rs`).
+
+Where the rule applies:
+the push,
+the reconcile fetch that a refused push runs,
+and the Git LFS upload,
+which are the run's three network faces
+(`src/native/push/bounded_push.rs`,
+`run_bounded_push_awaiting`,
+`src/native/lfs/lfs_upload.rs`,
+`await_upload`).
+Each takes the floor from the environment the run was given,
+so the commit service's pushes are judged by the floor of the environment the service was started
+with,
+as every other push limit is.
+The wrapper's other waits keep the floor at zero and are unchanged:
+a Git step of a commit,
+a read-only query,
+and a repair tool read the same meter through `Clock::start`,
+which counts every transport byte unless a wait sets a floor.
+
 ### Manual push
 
 Resolve actual local and remote updates with Git-native information.

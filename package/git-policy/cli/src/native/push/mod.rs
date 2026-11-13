@@ -27,6 +27,11 @@ mod push_wait_tests;
 #[cfg(test)]
 mod push_slow_server_tests;
 
+/// Controls for the least traffic that counts as progress,
+/// on real sockets and through the push's own clock.
+#[cfg(test)]
+mod push_minimum_rate_socket_tests;
+
 /// The push of a merge that integrated a lost race,
 /// planned and run inside the running wrapper.
 pub mod stacked_merge_push;
@@ -113,6 +118,10 @@ pub mod push_limit_held_for_an_ordering;
 /// sampled,
 /// and the clock that stops it on a stall.
 pub mod push_progress;
+
+/// The least traffic a push's connection must carry in one window and still count as progress,
+/// the variable that sets it and its measured default.
+pub mod push_minimum_rate;
 
 /// The connected TCP sockets of the machine with their byte counts,
 /// and the sockets a process holds.

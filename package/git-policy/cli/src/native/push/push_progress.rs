@@ -279,6 +279,15 @@ pub struct Meter {
     sockets: HashMap<u64, u64>,
     /// Every byte the tree's connected sockets have carried since the first sample.
     socket_moved: u64,
+    /// The bytes the tree's connected sockets carried in the sample just taken,
+    /// which is the traffic the remote itself moved,
+    /// both directions.
+    carried_last: u64,
+    /// Whether the sample just taken found a sign of work that is not those bytes:
+    /// bytes of a process that holds no connection,
+    /// processor time,
+    /// or a task able to run or waiting for the disk.
+    other_last: bool,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
     /// Every process of the tree that has been seen to hold a connected socket,
@@ -327,6 +336,23 @@ impl Meter {
     /// Every byte the tree's connected sockets have sent (acknowledged) or received since the first sample.
     pub fn socket_bytes(&self) -> u64 {
         return self.socket_moved;
+    }
+
+    /// The bytes the tree's connected sockets carried in the sample just taken,
+    /// both directions.
+    /// What a push's minimum rate is judged on (`push_minimum_rate.rs`):
+    /// the traffic the remote moved,
+    /// never the account a program prints of its own waiting.
+    pub fn carried_last_sample(&self) -> u64 {
+        return self.carried_last;
+    }
+
+    /// Whether the sample just taken found a sign of work other than those bytes:
+    /// what a process that holds no connection read or wrote,
+    /// processor time,
+    /// or a task able to run or waiting for the disk.
+    pub fn other_work_last_sample(&self) -> bool {
+        return self.other_last;
     }
 
     /// Whether the last sample found the connection to a remote open:
@@ -395,6 +421,7 @@ impl Meter {
                 None => 0,
             };
             self.socket_moved = self.socket_moved.saturating_add(carried);
+            self.carried_last = self.carried_last.saturating_add(carried);
             if carried > 0 {
                 progressed = true;
             }
@@ -467,6 +494,9 @@ impl Meter {
             self.scans += 1;
             members.extend(descendants_of(root));
         }
+        // The markers of this look are its own: a sample that says nothing answers nothing about the last one.
+        self.carried_last = 0;
+        self.other_last = false;
         // The connected sockets count too: `libcurl` moves the bytes of an HTTP push with `send` and `recv`, which `rchar` and
         //  `wchar` do not see.
         let mut progressed: bool = self.observe_sockets(members.as_slice());
@@ -482,6 +512,7 @@ impl Meter {
             //  work the remote sees; everything it really sends shows on the socket's own counters, which are counted above.
             if (signs.moved || signs.busy) && !self.holders.contains(&(member.pid, member.started)) {
                 progressed = true;
+                self.other_last = true;
             }
         }
         return progressed;
@@ -540,6 +571,15 @@ pub struct Clock {
     wall_fallback: bool,
     /// How long a tree with an open connection may show no sign of work before it is stopped (`wait_ceilings.rs`).
     connected_window: Duration,
+    /// The least traffic the connection may carry in one connected window and still count as progress (`push_minimum_rate.rs`):
+    /// zero while bytes of the transport are progress by themselves,
+    /// which every run but a push and its upload is.
+    minimum_rate: u64,
+    /// The bytes the connection has carried since the run last counted as working,
+    /// which is what the minimum rate is judged on;
+    /// nothing while no connection is open,
+    /// because a stretch without one is judged by silence alone.
+    carried: u64,
 }
 
 impl Clock {
@@ -561,7 +601,16 @@ impl Clock {
             longest_quiet: Duration::ZERO,
             wall_fallback: true,
             connected_window: CONNECTED_PUSH_QUIET_WINDOW,
+            minimum_rate: 0,
+            carried: 0,
         };
+    }
+
+    /// The same clock for a run whose transport bytes count as progress only once they add up to a floor within a window
+    /// (`push_minimum_rate.rs`).
+    pub fn with_minimum_rate(mut self, bytes: u64) -> Self {
+        self.minimum_rate = bytes;
+        return self;
     }
 
     /// The same clock for a run that must never end by wall time:
@@ -620,12 +669,17 @@ impl Clock {
 
     /// The report of a stop now,
     /// for the window that was hit and the limit it carries.
+    /// The bytes are those the connection carried in the stretch that was judged,
+    /// which is what a stop under the minimum rate is read against,
+    /// and the floor it was judged on.
     fn report(&self, window: StopWindow, limit: Duration, now: Instant) -> StopReport {
         return StopReport {
             window,
             limit,
             moved: self.meter.as_ref().map_or(0, Meter::moved),
             elapsed: now.duration_since(self.started),
+            carried: self.carried,
+            minimum: self.minimum_rate,
         };
     }
 
@@ -643,13 +697,23 @@ impl Clock {
             return (self.wall_fallback && limit_has_passed(elapsed, stall)).then_some(StopCause::Deadline);
         };
         if now >= self.next_sample {
-            let progressed: bool = if self.looked { meter.sample(self.root) } else { meter.sample_root(self.root) };
+            let worked: bool = if self.looked { meter.sample(self.root) } else { meter.sample_root(self.root) };
+            let carried: u64 = meter.carried_last_sample();
+            let other: bool = meter.other_work_last_sample();
+            let connected: bool = meter.connected();
             self.looked = true;
+            // What the connection carried is judged over one connected window (`push_minimum_rate.rs`): while it adds up to less
+            //  than the floor the transport has moved nothing this clock counts, and the window that bounds silence bounds it.
+            //  A stretch with no connection is judged by silence alone, so the tally starts again when one opens.
+            self.carried = if connected { self.carried.saturating_add(carried) } else { 0 };
+            let met: bool = self.minimum_rate == 0 || self.carried >= self.minimum_rate;
+            let progressed: bool = worked && (other || met);
             if progressed {
                 self.longest_quiet = self.longest_quiet.max(now.saturating_duration_since(self.last_progress));
                 self.last_progress = now;
                 self.waiting_since = None;
-            } else if meter.connected() {
+                self.carried = 0;
+            } else if connected {
                 // The connection to the remote is open: the remote has not answered yet, which shows nothing here. The silence of
                 //  a wait is not counted against the window, so a connection that closes gets a whole window.
                 let since: Instant = *self.waiting_since.get_or_insert(now);
