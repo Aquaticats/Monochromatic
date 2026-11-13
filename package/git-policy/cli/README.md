@@ -3867,9 +3867,11 @@ none is waited out or retried on the moved head yet:
   no reference moves and the commit service is not reached,
   and a commit that is fine costs one comparison of the parsed options and no process
   (measured:
-  20 paired plain commits,
-  a median of 0.7 ms apart,
-  with the run-to-run spread itself of 12 ms either way).
+  25 paired plain commits on one repository,
+  medians of 52.3 ms before the change and 50.9 ms after it,
+  a paired median 2.1 ms apart,
+  and single pairs from 31 ms faster to 59 ms slower,
+  because the run-to-run spread is that wide).
   A machine whose real Git will not start still refuses the form,
   in one sentence that names it and says the words are the wrapper's.
 - A policy finding at error severity,
