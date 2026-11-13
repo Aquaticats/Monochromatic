@@ -37,7 +37,7 @@
 //! ```
 
 use crate::subvolume_remove_walk::Boundary;
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredWorktree, registration_naming};
 use std::path::Path;
 
 /// The prefix every line of this program carries.
@@ -56,7 +56,7 @@ const PREFIX: &str = "monochromatic-git-policy-cli: ";
 /// const report = refusalForNestedVolume({ target, commonDir, found }); // string
 /// ```
 pub(crate) fn refusal_for_nested_volume(target: &Path, common_dir: &Path, found: &Boundary) -> String {
-    let inner: Option<Registration> = registration_at(common_dir, found.path.as_path());
+    let inner: Option<RegisteredWorktree> = registration_naming(common_dir, found.path.as_path()).ok().flatten();
     return match inner {
         Some(worktree) => named_worktree_report(target, &worktree),
         None => unnamed_volume_report(target, found),
@@ -64,55 +64,46 @@ pub(crate) fn refusal_for_nested_volume(target: &Path, common_dir: &Path, found:
 }
 
 /// What:
-///  The registration of this repository whose worktree is exactly `path`,
-/// when there is one.
-/// Why:
-///   A nested linked worktree is the shape a person makes,
-/// and its branch is what the refusal keeps:
-/// naming `git worktree
-///  remove` for it sends the person to a command that keeps the branch and the commits it holds,
-/// while a
-///  subvolume that is no worktree has no branch to name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const worktree = registrationAt(commonDir, path); // Registration | undefined
-/// ```
-fn registration_at(common_dir: &Path, path: &Path) -> Option<Registration> {
-    for one in registrations_of(common_dir).ok()? {
-        if one.worktree == path {
-            return Some(one);
-        }
-    }
-    return None;
-}
-
-/// What:
 ///  The refusal for a worktree that holds a linked worktree of this repository,
 /// naming it,
-/// its branch,
-/// and the
-///  command that removes it.
+/// the branch or detached `HEAD` it
+///  is on,
+/// and the command that removes it.
 /// Why:
 ///   The inner worktree's own files are the reason nothing is removed,
 /// and the person is the one who reads them and
 ///  decides,
-/// so the way forward keeps every one of them.
+///  so the way forward keeps every one of them.
+///  A detached `HEAD` is a worktree state the repository registers like any other,
+/// and the command named here
+///  keeps the commits it names as it keeps a branch:
+/// the report says which of the two the worktree is,
+/// because the two
+///  are what the person loses sight of if they follow an instruction to delete the directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const report = namedWorktreeReport(target, worktree);
 /// ```
-fn named_worktree_report(target: &Path, worktree: &Registration) -> String {
+fn named_worktree_report(target: &Path, worktree: &RegisteredWorktree) -> String {
+    let position: String = match worktree.branch.as_ref() {
+        Some(branch) => format!("which is on branch {branch}"),
+        None => String::from("which is on a detached HEAD"),
+    };
+    let keeps: &str = match worktree.branch.as_ref() {
+        Some(_branch) => "keeps its branch and the commits on it",
+        None => "keeps the commits its detached HEAD names",
+    };
     return format!(
-        "{PREFIX}the worktree {target} holds the linked worktree {inner}, which is on branch {branch}, and the kernel \
+        "{PREFIX}the worktree {target} holds the linked worktree {inner}, {position}, and the kernel \
          cannot destroy a subvolume that contains another one. Nothing was removed, and nothing of {inner} was deleted.\n\
-         Remove {inner} first, with `git worktree remove {inner}`, which keeps its branch and the commits on it and \
+         Remove {inner} first, with `git worktree remove {inner}`, which {keeps} and \
          refuses while anything there is uncommitted; then run this removal again. To keep both, leave them as they \
          are: {target} can only be removed by hand, one file at a time, once {inner} is gone.",
         target = target.display(),
         inner = worktree.worktree.display(),
-        branch = worktree.branch
+        position = position,
+        keeps = keeps
     );
 }
 
@@ -124,6 +115,13 @@ fn named_worktree_report(target: &Path, worktree: &Registration) -> String {
 ///  deletion too,
 /// so the report names it and every way to move,
 /// unmount or delete it.
+///  Nothing here is a command the wrapper would refuse to run itself,
+/// and the two commands that destroy
+///  are named last and for what they are:
+/// a subvolume may be another repository's worktree with
+///  commits only its own removal keeps,
+/// and its files are the reason the inner removal was written to keep
+///  every one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,8 +131,13 @@ fn unnamed_volume_report(target: &Path, found: &Boundary) -> String {
     return format!(
         "{PREFIX}the worktree {target} holds {inner}, which is {what}, and the kernel cannot destroy a subvolume that \
          contains one. Nothing was removed, and nothing of {inner} was deleted.\n\
-         Move {inner} out of {target}, or delete it yourself (`btrfs subvolume delete {inner}`, or `umount {inner}` for \
-         a mount point), and then run this removal again. To keep it, remove the worktree by hand, one file at a time.",
+         Move {inner} out of {target} and run this removal again: a move keeps every file of it, and the removal then \
+         finishes. A subvolume that is a worktree of another repository goes with `git worktree remove {inner}`, run in \
+         that repository, which keeps its branch and refuses while anything there is uncommitted.\n\
+         What is still there is kept by no command of this one: `btrfs subvolume delete {inner}` destroys everything \
+         inside it, which this wrapper cannot see, so use it only when you know {inner} holds nothing of yours, and \
+         `umount {inner}` (which keeps its contents) for a mount point. To keep it without moving it, remove the \
+         worktree by hand, one file at a time.",
         target = target.display(),
         inner = found.path.display(),
         what = found.what

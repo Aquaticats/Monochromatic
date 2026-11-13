@@ -117,6 +117,7 @@ fn a_request(id: &str) -> CommitRequest {
         cleanup: None,
         index: std::path::PathBuf::from("/nowhere/.git/index"),
         scratch: std::path::PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-a-0"),
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };

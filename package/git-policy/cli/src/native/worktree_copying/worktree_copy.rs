@@ -39,7 +39,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as finish_timing};
+use crate::add_timing::{begin_on_route as begin_timing_on_route, begin_step, end_step, finish as finish_timing};
 use crate::diagnostic_log::warn;
 use crate::forwarding::{ChildStarted, NoChildRecorded};
 use crate::json_record::quote;
@@ -125,6 +125,11 @@ pub struct Invocation {
     /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves,
     /// when it is one.
     pub add_plan: Option<AddPlan>,
+    /// Whether the person asked the add for `--quiet`,
+    /// whether or not the ladder serves its form;
+    /// an add the ladder does not serve still prints
+    ///  no line a quiet add would suppress.
+    pub quiet: bool,
     /// The person's `--quiet` and `--no-checkout`,
     /// read from the arguments,
     /// which decide what the package-manager repair of
@@ -556,10 +561,19 @@ fn settle_invocation(
     else {
         return forward_only(run_git);
     };
-    // The record of an add's steps covers a creating command the ladder serves; every other command is forwarded unrecorded.
-    let recorded: bool = invocation.creates && invocation.add_plan.is_some();
+    // The record of an add's steps covers every add this wrapper runs,
+    // the one the ladder serves and the one it hands to
+    //  plain Git: an add the ladder refuses is still an add a person waits through, so it says it is
+    // running and it records where its time went.
+    let recorded: bool = invocation.creates;
     if recorded {
-        begin_timing(observation.common_dir.clone(), matches!(&invocation.add_plan, Some(plan) if plan.quiet));
+        // A form the ladder does not serve says which fact put it on the plain route; the ladder's own
+        // rung names its steps as it enters them.
+        let plain: Option<String> = match &invocation.add_plan {
+            Some(_served) => None,
+            None => Some(crate::worktree_add_plan::why_a_plain_add(invocation.destination.as_deref())),
+        };
+        begin_timing_on_route(observation.common_dir.clone(), invocation.quiet, plain);
     }
     let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
     if recorded {

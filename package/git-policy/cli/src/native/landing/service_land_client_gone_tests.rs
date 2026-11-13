@@ -188,7 +188,7 @@ fn a_batch_whose_client_is_gone_makes_no_commit() {
     let mut landed: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut captures: CaptureMemory = CaptureMemory::default();
     let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-    land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures, crate::wait_ceilings::WAITING_NOTICE_AFTER, &mut handed_back);
+    land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures, crate::wait_ceilings::WAITING_NOTICE_AFTER, &mut handed_back, &crate::service_shadow_draw::DrawnShadows::none_yet());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch did not move");
     assert_eq!(seq, 0, "no batch number is taken for a request nobody waits for");
     assert!(landed.is_empty(), "no commit of a client that is gone is remembered as landed: {landed:?}");

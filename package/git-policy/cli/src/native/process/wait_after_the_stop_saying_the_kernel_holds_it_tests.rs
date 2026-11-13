@@ -17,7 +17,7 @@
 
 use super::*;
 use crate::child_awaited_through_a_pidfd::adopt;
-use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::{Ceilings, wait_until_it_exits_the_stop_or_the_ceiling};
+use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::{Ceilings, WhatTheCeilingIsTold, wait_until_it_exits_the_stop_or_the_ceiling};
 use crate::forwarding::ChildOutcome;
 use crate::lazy_runtime::run_on_runtime;
 use crate::native_commit_waiting_notice::{NativeCommitNotice, NoticeStart, refuse_the_next_notice_thread};
@@ -89,7 +89,7 @@ fn says_while_the_wait_lasts(lines: Option<&SyncSender<String>>, step: std::proc
     //  is short, so a control never waits the five minutes the shipped bound allows.
     let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(300), while_the_kernel_holds_it: Duration::from_millis(600) };
     let (outcome, a_stop): (ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) =
-        run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", Some(the_lines)))
+        run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold { stall: None, lines: Some(the_lines) }))
             .expect("the runtime")
             .expect("the wait answers");
     assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL), "the ceiling ended the step the wait owns");
