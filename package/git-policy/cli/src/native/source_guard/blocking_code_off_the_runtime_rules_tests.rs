@@ -426,6 +426,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
     },
     Allowed {
         file: "service/service_server_start_through_the_manager.rs",
+        rule: "thread-start",
+        why: "the one thread that ends and reaps a probe child the bound ended: a child inside an uninterruptible call cannot be ended by a signal, so waiting for it on the command's own path waited for as long as that call took (the review of 3d5c1a0d8c, finding 8); the thread waits for that child and nothing else, holds no lock and no descriptor of the command's, and dies with the process",
+    },
+    Allowed {
+        file: "service/service_server_start_through_the_manager.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at a probe of the service manager, on the synchronous commit and hand-over commands, which build no runtime",
     },

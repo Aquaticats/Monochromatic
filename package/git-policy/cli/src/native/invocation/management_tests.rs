@@ -891,7 +891,28 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join(format!("temp/agent/ms-{}", std::process::id()));
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("runtime directory");
     let second_git_dir: PathBuf = std::fs::canonicalize(second.join(".git")).expect("git directory");
-    let listener = std::os::unix::net::UnixListener::bind(socket_for(runtime.as_path(), second_git_dir.as_path())).expect("the second worktree's service");
+    let address: PathBuf = socket_for(runtime.as_path(), second_git_dir.as_path());
+    let listener = std::os::unix::net::UnixListener::bind(address.as_path()).expect("the second worktree's service");
+    // What: A stand-in service that greets, because a greeting is what an answer is (`service_route.rs::service_answers`).
+    // Why:  A socket that only takes a connection is a service stopped at an instruction, and the status says it does not
+    //       answer; this control is about the global options reaching the status, not about a silent address.
+    let greeting: String = format!(
+        "{}\n",
+        crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome {
+            version: crate::service_protocol::PROTOCOL_VERSION,
+            release: Some(String::from("test")),
+        })
+    );
+    let greeting_thread = std::thread::spawn(move || {
+        use std::io::Write;
+        let mut greeted: usize = 0;
+        while greeted < 16 {
+            let Ok((mut stream, _)) = listener.accept() else { return };
+            let _sent = stream.write_all(greeting.as_bytes());
+            greeted += 1;
+        }
+    });
+    std::mem::forget(greeting_thread);
     let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
     environment.push((OsString::from("XDG_RUNTIME_DIR"), runtime.as_os_str().to_os_string()));
     let inputs: ResolutionInputs = with_git(root.as_path());
@@ -940,7 +961,6 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
         panic!("the status exits");
     };
     assert_eq!((unresolved_code, unresolved_out.is_empty(), unresolved_err.contains("no service was counted")), (1, true, true), "{unresolved_err}");
-    drop(listener);
     std::fs::remove_dir_all(runtime).expect("runtime directory");
     remove(root.as_path());
 }
