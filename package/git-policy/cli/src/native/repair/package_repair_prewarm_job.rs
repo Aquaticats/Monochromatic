@@ -214,7 +214,7 @@ fn names_for(destination: &Path, git_dir: Option<&Path>) -> Result<TheNames, Str
     let usual: PathBuf = staging_of(destination);
     let usual_target: PathBuf = target_of(usual.as_path());
     let marker: PathBuf = marker_of(usual.as_path());
-    // The exclude file names the lease before the lease file exists, so a person's  never shows it.
+    // The exclude file names the lease before the lease file exists, so a person's `git status` never shows it.
     if let Some(directory) = git_dir
         && let Err(reason) = exclude_the_staging_names(directory)
     {
@@ -843,45 +843,151 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
 pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 4] =
     ["*.monochromatic-prewarm/", "*.monochromatic-prewarm.target/", "*.monochromatic-prewarm.owner", "*.monochromatic-prewarm.claim"];
 
+/// The most bytes of the repository's exclude file this job reads.
+/// Why:
+///   The file is the person's own and may hold any number of their lines,
+/// and a file far larger than an exclude list ever is could not be one:
+/// reading it into memory whole would be a read whose size somebody else decides.
+const EXCLUDE_LIMIT: u64 = 1 << 20;
+
+/// What:
+///  Why a repository's exclude file could not be read for naming this job's patterns,
+/// in the words a person reads.
+/// Why:
+///   Each refusal is a different thing to fix,
+/// and the caller formats the same reason into the add's line and the filling's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusalWords = (refusal) => refusal.kind === 'not-regular' ? 'is not a regular file' : ...;
+/// ```
+fn exclusion_refusal_words(refusal: &crate::private_storage::ReadRefusal) -> String {
+    use crate::private_storage::ReadRefusal;
+    return match refusal {
+        ReadRefusal::Missing => String::from("is not there"),
+        ReadRefusal::NotRegular => String::from("is not a regular file (a link, a directory or a named pipe)"),
+        ReadRefusal::TooLarge => format!("holds more than {EXCLUDE_LIMIT} bytes"),
+        ReadRefusal::Io(error) => format!("could not be read ({error})"),
+    };
+}
+
+/// What:
+///  The lines of one exclude file,
+/// as the bytes the file holds split at each line end.
+/// Why:
+///   The file is the person's own and need not be UTF-8,
+/// so whether a pattern stands there is decided on the bytes and never on a lossy text:
+/// the only bytes this job ever writes are its own pattern lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesOf = (bytes) => bytes.split(0x0a).map((line) => trimEnd(line));
+/// ```
+fn lines_of_excluding(bytes: &[u8]) -> Vec<&[u8]> {
+    return bytes
+        .split(|byte| return *byte == b'\n')
+        // A line Git would read as the pattern ends at the line end; trailing spaces and a carriage return are not part of it.
+        .map(|line| {
+            let mut end: usize = line.len();
+            while end > 0 && (line[end - 1] == b' ' || line[end - 1] == b'\r' || line[end - 1] == b'\t') {
+                end -= 1;
+            }
+            return &line[..end];
+        })
+        .collect();
+}
+
 /// What:
 ///  Name this job's staging patterns in the repository's exclude file,
-/// once.
+/// every pattern of them that is not named there yet.
 /// Why:
 ///   The staging name sits inside the worktree beside the build directory it takes,
 /// because btrfs refuses a rename of a directory out of a worktree that is a subvolume,
 /// so without this the person's `git status` would show it and a `git add -A` would commit a copy of `target/`.
+/// Each pattern is looked for as a line of its own,
+/// so a file an older release wrote with fewer patterns,
+/// an append a kill cut short,
+/// and a list a person edited by hand all get the patterns they lack,
+/// and one already there is never written twice.
+///   The file is read without following a link and without waiting for a writer:
+/// a named pipe at that path would hold a plain read for ever,
+/// and the filling calls this before the future's first await,
+/// where no ceiling could expire
+/// (`SPEC.md`,
+/// "Every wait has a bound";
+/// the marker beside it is read the same way).
+/// A read that is not a regular file,
+/// too large,
+/// or refused for another reason is this job's refusal and not somebody's empty file:
+/// the add then cleans the copied state where it stands, as it does when the file cannot be written,
+/// and the filling fails that record with this reason,
+/// so neither of them ever stages under names a person's `git status` would show without having said so.
+///   The write is one append of the patterns that were missing,
+/// opened without following a link and without waiting,
+/// so the person's own lines are never rewritten and a named pipe cannot hold the write either.
+///
+/// # Errors
+///
+/// An exclude file that is not a regular file, cannot be read or cannot be appended to,
+/// and a line end that has to be written before the patterns when the file does not end with one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const excludeTheStagingNames = (gitDir) => { const path = join(gitDir, 'info/exclude'); if (!read(path, '').includes(PATTERNS[0])) appendFileSync(path, PATTERNS.join('\n') + '\n'); };
+/// const excludeTheStagingNames = (gitDir) => { const path = join(gitDir, 'info/exclude'); const bytes = readRegularFile(path, LIMIT) ?? empty; const missing = PATTERNS.filter((p) => !linesOf(bytes).includes(p)); if (missing.length === 0) return ok; const text = (bytes.length && bytes.at(-1) !== 0x0a ? '\n' : '') + missing.map((p) => p + '\n').join(''); appendNoWait(path, text); };
 /// ```
 pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
     let info: PathBuf = git_dir.join("info");
     let exclude: PathBuf = info.join("exclude");
-    let already: String = std::fs::read_to_string(exclude.as_path()).unwrap_or_default();
-    if already.contains(EXCLUDED_STAGING_PATTERNS[0]) {
+    // The read the marker beside it gets: a regular file only, opened without following a link and without waiting for a writer.
+    let already: Vec<u8> = match crate::private_storage::read_regular_file(exclude.as_path(), EXCLUDE_LIMIT) {
+        Ok(bytes) => bytes,
+        // A repository that never named an exclusion has none, and an empty list lacks every pattern.
+        Err(crate::private_storage::ReadRefusal::Missing) => Vec::new(),
+        Err(refusal) => {
+            return Err(format!(
+                "{} {} and no staging name of this job's could be named in it without waiting for whatever it is",
+                exclude.display(),
+                exclusion_refusal_words(&refusal)
+            ));
+        }
+    };
+    let lines: Vec<&[u8]> = lines_of_excluding(already.as_slice());
+    let missing: Vec<&str> = EXCLUDED_STAGING_PATTERNS
+        .iter()
+        .copied()
+        .filter(|pattern| !lines.iter().any(|line| *line == pattern.as_bytes()))
+        .collect();
+    if missing.is_empty() {
         return Ok(());
     }
     if let Err(error) = std::fs::create_dir_all(info.as_path()) {
         return Err(format!("{} could not be made ({error})", info.display()));
     }
-    let named_before: usize = already.len();
-    let mut text: String = already;
-    if !text.is_empty() && !text.ends_with('\n') {
-        text.push('\n');
+    // A last line the file does not end with would otherwise carry the first pattern this job writes, so a line end comes first.
+    let mut text: Vec<u8> = Vec::with_capacity(missing.iter().map(|pattern| pattern.len() + 1).sum::<usize>() + 1);
+    if !already.is_empty() && !already.ends_with(b"\n") {
+        text.push(b'\n');
     }
-    for pattern in EXCLUDED_STAGING_PATTERNS {
-        text.push_str(pattern);
-        text.push('\n');
+    for pattern in missing {
+        text.extend_from_slice(pattern.as_bytes());
+        text.push(b'\n');
     }
     // The file is the person's own and Git made it when the repository was, so this appends to it and never rewrites it:
-    // a kill in the middle leaves their lines whole and at most adds this job's patterns twice.
-    let opened = std::fs::OpenOptions::new().create(true).append(true).open(exclude.as_path());
+    // a kill in the middle leaves their lines whole and at most cuts this job's last line short, which the next call writes again.
+    let opened = {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            // A link is not this job's to write through, and a named pipe must refuse or answer rather than wait for a reader.
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(exclude.as_path())
+    };
     let mut file = match opened {
         Ok(file) => file,
-        Err(error) => return Err(format!("{} could not be opened ({error})", exclude.display())),
+        Err(error) => return Err(format!("{} could not be opened without waiting ({error})", exclude.display())),
     };
-    return match std::io::Write::write_all(&mut file, &text.as_bytes()[named_before..]) {
+    return match std::io::Write::write_all(&mut file, text.as_slice()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("{} could not be appended to ({error})", exclude.display())),
     };

@@ -1312,3 +1312,166 @@ fn an_add_never_takes_the_names_of_a_filling_that_is_alive() {
     drop(live);
     remove(root.as_path());
 }
+
+
+/// What:
+///  A line of an exclude file as this job reads it,
+///  so a control compares the file with the patterns the way the helper does.
+/// Why:
+///   The controls below state exactly what stands in the file afterwards,
+/// and a comparison through the same trimming keeps the control about the helper and not about a second reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesIn = (path) => readFileSync(path, "utf8").split("\n").map((line) => line.trimEnd());
+/// ```
+fn lines_in(path: &Path) -> Vec<String> {
+    let bytes: Vec<u8> = std::fs::read(path).unwrap_or_default();
+    return String::from_utf8_lossy(bytes.as_slice()).split('\n').map(|line| return String::from(line.trim_end())).collect();
+}
+
+/// What:
+///  Every pattern the exclude file lacks is named in it, and none it already has is written twice,
+///  whichever subset of them an older release, a cut-short append or a person's hand left there.
+/// Why:
+///   The check that once looked for the first pattern alone took a file that named it as complete for good,
+/// so the lease pattern never reached a repository an older release had named the others in:
+/// the lease file then showed in the person's `git status` and could be added by name.
+/// The empty subset is the left edge and the full set the right one,
+/// and the person's own line must survive every one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const subset of subsets(PATTERNS)) { write(subset.join("\n") + "\n"); excludeTheStagingNames(gitDir); expect(eachPatternOnce(read())).toBe(true) }
+/// ```
+#[test]
+fn every_pattern_the_exclude_file_lacks_is_named_and_none_is_written_twice() {
+    let root: PathBuf = fixture("prewarm-exclude-subsets");
+    let git_dir: PathBuf = root.join("git-directory");
+    std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+    let exclude: PathBuf = git_dir.join("info/exclude");
+    let subsets: usize = 1 << super::EXCLUDED_STAGING_PATTERNS.len();
+    for subset in 0..subsets {
+        let mut present: Vec<&str> = Vec::new();
+        for (index, pattern) in super::EXCLUDED_STAGING_PATTERNS.iter().enumerate() {
+            if subset & (1 << index) != 0 {
+                present.push(pattern);
+            }
+        }
+        let mut text: String = String::from("# a person's own line\n");
+        for pattern in &present {
+            text.push_str(pattern);
+            text.push('\n');
+        }
+        std::fs::write(exclude.as_path(), text.as_bytes()).expect("the exclude file an earlier release or a person left");
+        super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
+        let lines: Vec<String> = lines_in(exclude.as_path());
+        assert!(lines.iter().any(|line| return line == "# a person's own line"), "subset {subset:04b}: the person's own line stays: {lines:?}");
+        for pattern in super::EXCLUDED_STAGING_PATTERNS {
+            let count: usize = lines.iter().filter(|line| return line.as_str() == pattern).count();
+            assert_eq!(count, 1, "subset {subset:04b}: {pattern} stands on a line of its own exactly once: {lines:?}");
+        }
+        // Naming them again writes nothing more, whatever the subset left behind.
+        super::exclude_the_staging_names(git_dir.as_path()).expect("naming them again is nothing");
+        let after: Vec<String> = lines_in(exclude.as_path());
+        assert_eq!(after, lines, "subset {subset:04b}: a second call appends nothing");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  An exclude file whose last line has no line end gains one before the patterns this job writes,
+///  so a line a kill cut short never carries the next pattern.
+/// Why:
+///   Appending "…target/\n" to a file that ends with "*.monochromatic-prewarm" would make one line of both,
+/// and neither pattern would stand on a line of its own:
+/// the ignored names would then show, and the file would hold a line Git reads as neither.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write("*.monochromatic-prewarm.owner"); excludeTheStagingNames(gitDir); expect(lines).toEqual(["*.monochromatic-prewarm.owner", ...theOtherThree])
+/// ```
+#[test]
+fn a_last_line_without_a_line_end_never_carries_the_next_pattern() {
+    // Two states of a file a kill cut short: its last line is one of this job's patterns, and it is a person's.
+    for last_line in [super::EXCLUDED_STAGING_PATTERNS[2], "# a person's cut-short line"] {
+        let root: PathBuf = fixture("prewarm-exclude-no-line-end");
+        let git_dir: PathBuf = root.join("git-directory");
+        std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+        let exclude: PathBuf = git_dir.join("info/exclude");
+        std::fs::write(exclude.as_path(), last_line.as_bytes()).expect("a file whose last line has no line end");
+        super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
+        let lines: Vec<String> = lines_in(exclude.as_path());
+        assert_eq!(lines[0], last_line, "the cut-short line is a line of its own afterwards: {lines:?}");
+        for pattern in super::EXCLUDED_STAGING_PATTERNS {
+            let count: usize = lines.iter().filter(|line| return line.as_str() == pattern).count();
+            assert_eq!(count, 1, "{pattern} stands on a line of its own exactly once after {last_line:?}: {lines:?}");
+        }
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  A named pipe at the repository's exclude file refuses the naming at once,
+///  and names the file and what stands there.
+/// Why:
+///   The filling calls this before the future's first await,
+/// and a plain read of a pipe with no writer never returns:
+/// no ceiling could expire on the thread, so the record would never settle
+/// (`SPEC.md`,
+/// "Every wait has a bound").
+/// The marker beside it is read through the same non-waiting reader,
+/// and this control is what says the exclude file is too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(join(gitDir, "info/exclude")); expect(within(10_000, () => excludeTheStagingNames(gitDir))).toContain("is not a regular file")
+/// ```
+#[test]
+fn a_named_pipe_at_the_exclude_file_never_holds_the_naming() {
+    let root: PathBuf = fixture("prewarm-exclude-pipe");
+    let git_dir: PathBuf = root.join("git-directory");
+    std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+    let exclude: PathBuf = git_dir.join("info/exclude");
+    named_pipe_at(exclude.as_path());
+    let covered: PathBuf = root.clone();
+    let naming: Option<Result<(), String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || return super::exclude_the_staging_names(git_dir.as_path()));
+    let named: Result<(), String> = naming.expect("naming the patterns must not wait on a named pipe at the exclude file");
+    let Err(reason) = named else { panic!("a named pipe at the exclude file is refused: {named:?}") };
+    assert!(reason.contains("exclude") && reason.contains("not a regular file"), "the refusal names the file and what stands there: {reason}");
+    remove(covered.as_path());
+}
+
+/// What:
+///  A link at the exclude file is refused rather than written through,
+///  and a file larger than any exclude list is refused rather than read whole.
+/// Why:
+///   The person's file is written where Git wrote it and nowhere a link points,
+/// and a read whose size somebody else decides is the hazard the limit exists for;
+/// both refusals happen before anything of this job's is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(target, exclude); expect(excludeTheStagingNames(gitDir)).toBeRefused(); expect(read(target)).toBe("")
+/// ```
+#[test]
+fn a_link_or_an_oversized_exclude_file_is_refused_before_anything_is_written() {
+    let root: PathBuf = fixture("prewarm-exclude-refused-shapes");
+    let git_dir: PathBuf = root.join("git-directory");
+    std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+    let elsewhere: PathBuf = root.join("a-persons-file-elsewhere");
+    std::fs::write(elsewhere.as_path(), b"# not Git's exclude file\n").expect("a file a link points at");
+    let exclude: PathBuf = git_dir.join("info/exclude");
+    std::os::unix::fs::symlink(elsewhere.as_path(), exclude.as_path()).expect("a link at the exclude name");
+    let linked: Result<(), String> = super::exclude_the_staging_names(git_dir.as_path());
+    assert!(linked.is_err(), "a link at the exclude file is refused: {linked:?}");
+    assert_eq!(std::fs::read(elsewhere.as_path()).expect("the file the link points at"), b"# not Git's exclude file\n", "nothing was written through the link");
+    std::fs::remove_file(exclude.as_path()).expect("the link goes");
+    let oversized: Vec<u8> = vec![b'#'; (super::EXCLUDE_LIMIT as usize) + 1];
+    std::fs::write(exclude.as_path(), oversized.as_slice()).expect("a file past the limit");
+    let refused: Result<(), String> = super::exclude_the_staging_names(git_dir.as_path());
+    let Err(reason) = refused else { panic!("a file past the limit is refused: {refused:?}") };
+    assert!(reason.contains("more than"), "the refusal says the file is too large: {reason}");
+    assert_eq!(std::fs::read(exclude.as_path()).expect("the oversized file"), oversized, "and nothing was appended to it");
+    remove(root.as_path());
+}
