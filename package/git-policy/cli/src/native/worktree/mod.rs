@@ -51,6 +51,9 @@ pub mod worktree_removal_deletions;
 /// in words a person reads and acts on.
 pub mod worktree_removal_refusal;
 
+/// The landed worktrees a sweep kept, which the next sweep examines again with nobody asking.
+pub mod worktree_landed_kept_retry;
+
 /// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
 pub mod worktree_removal_held_commits;
 

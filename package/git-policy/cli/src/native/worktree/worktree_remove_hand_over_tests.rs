@@ -683,30 +683,26 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
 }
 
 /// What:
-///  An ignored file written into the handed-over worktree after the hand-over keeps it,
-///  and the person reads which file.
+///  An ignored file written into the handed-over worktree after the hand-over goes with it,
+///  and the removal's record names it.
 /// Why:
-///  The sweep compared the worktree's ignored files with the one the merge ran in,
-///  and that reading was spent before the record was written.
-///  Git deletes what it ignores without a word,
-///  so the service removed a file the person wrote in the window between the two steps
-///  (a review of the hand-over,
-///  finding 3.2).
+///   The owner's decision of 2026-11-12T13:04:14 is "Keep Git work only":
+///  a removal takes every ignored file, also one written in the window between the hand-over and the service's
+///  work, and each thing it takes is logged.
+///   The record is the only thing left of the file, so the words the person once read here are now a line in it.
 #[test]
-fn the_service_keeps_a_worktree_whose_ignored_file_was_written_after_the_hand_over() {
+fn the_service_removes_a_worktree_whose_ignored_file_was_written_after_the_hand_over_and_records_it() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-ignored", "*.log\n");
     let item: WorkItem = handed_over(&linked);
     let written: PathBuf = linked.worktree.join("person.log");
     std::fs::write(written.as_path(), b"what the person wrote after the hand over\n").expect("an ignored file the person wrote");
     let verdict: Verdict = delete_subvolume_of(&item);
-    assert!(
-        matches!(&verdict, Verdict::Failed(words) if words.contains("person.log")),
-        "the worktree stays and the reason names the ignored file: {verdict:?}"
-    );
-    assert_eq!(std::fs::read(written.as_path()).expect("the ignored file is still there"), b"what the person wrote after the hand over\n");
+    assert!(matches!(verdict, Verdict::Done), "the removal goes ahead and the file is recorded: {verdict:?}");
+    assert!(!linked.worktree.exists(), "the worktree is gone");
+    let record: String = std::fs::read_to_string(linked.common.join(crate::worktree_removal_deletions::DELETIONS_LOG)).expect("the record of the deletion");
+    assert!(record.contains("person.log"), "the record names the file that went: {record}");
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
-    assert_eq!(texts.len(), 1, "the person is told once: {texts:?}");
-    assert!(texts[0].contains("person.log"), "the notice names the file: {texts:?}");
+    assert!(texts.is_empty(), "nothing was kept, so nothing is said about a kept worktree: {texts:?}");
     remove(linked.root.as_path());
 }
 
@@ -917,14 +913,13 @@ fn a_removal_an_earlier_service_refused_is_queued_once_more() {
     let again: WorkItem = WorkItem::decode(std::fs::read_to_string(queued.as_path()).expect("the queued record").as_str()).expect("a record this release reads");
     assert_eq!(again.tries, 1, "the record says it has had the one attempt it was owed");
     assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a removal is queued once more once");
-    // What this release's service makes of it: the record of that release carries no identity and no worktree its ignored
-    // files were compared with, so nothing proves them again, and the worktree is kept and named rather than removed in
-    // silence.
-    assert!(matches!(delete_subvolume_of(&again), Verdict::Failed(_)), "a record an earlier release wrote is not re-proven, so it is kept");
-    assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
+    // What this release's service makes of it: the record of that release carries no identity beside the registration,
+    // so the removal names the worktree by the path the record was keyed by, and the removal goes ahead. The files Git
+    // ignores go with it and are recorded (`worktree_removal_deletions.rs`), which is the decision of 2026-11-12T13:04:14.
+    assert!(matches!(delete_subvolume_of(&again), Verdict::Done), "the record an earlier release wrote is carried out");
+    assert!(!linked.worktree.exists(), "the worktree the merge landed is gone");
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
-    assert_eq!(texts.len(), 1, "and the person reads why: {texts:?}");
-    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
+    assert!(texts.is_empty(), "nothing was kept, so nothing is said about a kept worktree: {texts:?}");
     remove(linked.root.as_path());
 }
 
