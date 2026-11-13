@@ -32,9 +32,11 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// The deadline,
 /// the grace and the push runner,
 /// the wait a stalled child is ended by,
+/// the least traffic the upload's connection must carry,
 /// and the line that says how a longer one is allowed.
 use crate::bounded_push::{
-    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_patience, wait_until_done_noting, run_bounded_push,
+    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_minimum_rate_bytes, push_patience, wait_until_done_noting,
+    run_bounded_push,
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
@@ -262,6 +264,7 @@ async fn await_upload(
         &mut waits,
         None,
         connected_window(environment),
+        push_minimum_rate_bytes(environment),
     )
     .await
     {

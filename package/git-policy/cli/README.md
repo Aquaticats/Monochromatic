@@ -416,9 +416,13 @@ Read-only commands,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
   a program whose connection to the server is open is waited for while it works,
-  and one that keeps it open with nothing moving for the connected window (150 seconds)
-   is stopped,
-  with `git lfs push --all <remote>` named as its way forward.
+  and one that keeps it open for the connected window (150 seconds) while the connection carries fewer
+   bytes than the minimum rate (`CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+  1024 bytes in that window,
+  about 7 bytes per second) is stopped,
+  with `git lfs push --all <remote>` and a smaller floor as its ways forward.
+  A connection that only moves a byte now and then is what the floor exists for:
+  it is judged as a connection that moved nothing (see "The least traffic that counts as progress" in the SPEC).
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -4460,10 +4464,17 @@ fractional or non-numeric value is ignored.
   A run whose connection to the remote is open (the push,
   the fetch that follows a refused push,
   and the Git LFS upload)
-   is waiting for the remote and is ended only when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
+   is waiting for the remote and is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
    seconds,
-   unmeasured);
+   unmeasured),
+   or when the connection carried fewer than `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` in that window,
+   which is what a server that keeps the connection alive with keepalive packets alone does
+   (over a URL those bytes are the socket's,
+  and over a path they are the pipe's);
   the service's retry plan keeps the push and tries it again.
+  A connection that carries a byte now and then therefore no longer holds a push for ever,
+  and the stop says how many bytes it carried,
+  because "nothing moved" would not be true there.
   The owner's answer of 2026-11-03,
   "Bound it,
   keep retrying (Recommended)",
@@ -4502,6 +4513,28 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push are ended by the same stall window when they show no sign of work;
    a query that works is never ended for being slow.
+- `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+   default `1024`.
+  The least traffic the push's connection to the remote must carry in one window and still count as progress:
+  the connected window (150 seconds) while a connection is open,
+   which is about 7 bytes per second,
+   and the stall window (30 seconds) for a remote that is a path,
+   where the keepalive arrives on the pipe,
+   which is about 34 bytes per second.
+  Bytes below it are not progress,
+  so a connection that only sends keepalive packets,
+   or a server that drips its answer a byte at a time,
+   is judged as a silent one and ended at the connected window rather than kept alive for ever.
+  The window is the connected one and is not a setting;
+  this number is,
+  and a smaller one lets a slower line through
+   (Git's own keepalive is at most five bytes per second,
+   and the slowest line this default lets through moves 1024 bytes in the window).
+  A zero,
+  negative,
+  fractional or non-numeric value is no setting at all,
+  so a typo cannot remove the rule.
+  See "The least traffic that counts as progress" in the SPEC for the measurement.
 - `CLI_GIT_PUSH_RETRY_SECONDS`,
    default `10`.
   The pause before the commit service tries a stopped or failed auto-push again on its own.
