@@ -322,13 +322,30 @@ The measured before and after for the rule itself is the two counts above:
   and `rm -rf` of the repository:
   none of them asks the manager,
   so the units stay until a service or the sweep ends them.
-- Giving a proof run its own `XDG_RUNTIME_DIR` without a bus:
+- Giving a proof run its own `XDG_RUNTIME_DIR`
+  while `DBUS_SESSION_BUS_ADDRESS` is inherited from the session:
+  on a release before the one carrying issue 6293's fix (0.6.1-alpha.16 and earlier)
+  the wrapper follows that address whatever the runtime directory is,
+  so the account's manager gets a commit-service unit for the clone and its journal lands under the real
+  `~/.local/state`.
+  That is what a Pi agent did on 2026-11-13 with its own `HOME` and `XDG_RUNTIME_DIR`,
+  and `systemctl --user list-units 'monochromatic-git-policy-cli@*'` then held a unit for a clone under
+  `~/temp/agent/` whose push address was `DISABLED` (issue 6293).
+- Giving a proof run its own `XDG_RUNTIME_DIR` and no bus at all,
+  on a release before that fix:
   the wrapper then has no route to a service and refuses every commit
   (`src/native/landing/service_route.rs`,
   `choose_route`),
   which is why the proof needed the account's own session in the first place.
-  A proof that must commit needs either the real session (and then its repositories leave units
+  A proof that must commit needed either the real session (and then its repositories leave units
   this release now ends by itself) or a manager of its own (banned on this host).
+- On the release that carries the fix, none of that applies any more:
+  a runtime directory of the run's own is the boundary.
+  The wrapper asks a manager only when that runtime directory is the one the inherited bus lives in,
+  so such a run asks nothing of the account's manager and keeps its journal, its retry plans and its
+  scratch files inside that runtime directory,
+  and a commit still lands.
+  The proof of the three cases is `keep/repro-in-a-container.sh` beside the report for issue 6293.
 
 ## Upstream filing
 

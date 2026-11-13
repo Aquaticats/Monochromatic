@@ -57,10 +57,24 @@ one agent ran its builds in the main checkout,
 so they did not test its worktree's code,
 and the uncommitted edits it left there blocked merges of other branches.
 Tell every agent that runs plain `git` in a throwaway repository to give that run
-its own `HOME` and `XDG_RUNTIME_DIR` under its run folder:
-the installed wrapper hands a repository's pushes to the commit service of the session it runs in,
-and an agent's proof repositories under `/tmp/lfs-login-proof-ikmLJW/` reached the owner's real service,
-which kept retrying their pushes every 600 seconds for hours after the agent deleted them.
+its own `HOME` and `XDG_RUNTIME_DIR` under its run folder.
+Three variables decide where such a run leaves things, not two:
+`XDG_RUNTIME_DIR` is the boundary of a session,
+`DBUS_SESSION_BUS_ADDRESS` says which manager is that session's,
+and `HOME` decides the state directory when the runtime directory is the session's own.
+The installed wrapper still follows an inherited bus address:
+an agent's proof repositories under `/tmp/lfs-login-proof-ikmLJW/` reached the owner's real service,
+which kept retrying their pushes every 600 seconds for hours after the agent deleted them,
+and so did a clone whose run exported `HOME` and `XDG_RUNTIME_DIR` only,
+whose commit-service unit landed in the owner's manager with its journal under the real
+`~/.local/state` (issue 6293, 2026-11-13).
+From the release that carries issue 6293's fix, a runtime directory of the run's own is enough:
+the wrapper asks no manager it does not belong to,
+and the service's journal, retry plans and scratch files stay inside that runtime directory.
+Until then, expect one commit-service unit of the owner's manager per throwaway clone,
+which the removal sweep ends after the clone is deleted,
+and give the run a push address that cannot be a remote only on such a release as well;
+from the fix on, a push to `DISABLED` ends its plan at once with one line.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
