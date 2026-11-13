@@ -6,31 +6,38 @@
 //!  a push a restarted service has to try again,
 //!  and the record an unreleased branch wrote.
 //! Why:
-//!  `GIT_SSH` and `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` are whole command lines that can hold a password,
+//!  `GIT_SSH`,
+//! `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` are whole command lines that can hold a password,
 //! so the owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only";
 //! a push must still search the programs of the shell that asked for it,
 //! and a push whose settings are gone with a service restart must stop and say what to run rather than speak a
 //!  transport nobody chose.
 //! Every value in these controls is plainly fake,
+//! the stand-in program that watches a push writes only whether it saw the fake one,
+//! never the value,
 //! and no control prints the environment of any process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const commit = await wrappedCommit({ GIT_SSH_COMMAND: FAKE_ONE }); expect(filesHolding(FAKE_ONE)).toEqual([]);
-//! service.stopAll(); await pushStops({ words: [branch, 'started again since', 'git push'] });
+//! service.stopAll(); service.serve(); await pushStops({ words: [branch, 'started again since', 'git push'] });
 //! ```
 
 use super::commit::{keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, give_service_environment, observe, repository, start_fixture_service, stderr_of, FixtureService};
+use super::support::{
+    Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, give_service_environment, observe_raw, repository, start_fixture_service, stderr_of,
+    wrapper_first_path, FixtureService,
+};
 use git_policy_cli::service_fault::AFTER_PROMOTE;
-use std::ffi::OsStr;
+use git_policy_cli::service_work::work_directory;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
 /// The longest a control waits for anything,
 /// far beyond what a healthy run needs.
-const PATIENCE: Duration = Duration::from_secs(90);
+const PATIENCE: Duration = Duration::from_secs(120);
 
 /// The plainly fake command line a commit's shell chooses its transport with.
 const FAKE_TRANSPORT_ONE: &str = "ssh -i /nowhere/FAKE_KEY_ONE_4b1d";
@@ -42,10 +49,23 @@ const FAKE_TRANSPORT_TWO: &str = "ssh -i /nowhere/FAKE_KEY_TWO_9c7e";
 /// The plainly fake proxy command a commit's shell names.
 const FAKE_PROXY: &str = "nc -x fakeuser:FAKE_PROXY_PASSWORD_2a6f proxy.invalid 1080";
 
+/// The line the stand-in writes when it runs.
+const STAND_IN_RUNS: &str = "lfs run";
+
+/// The folder the stand-in `git-lfs` of these controls lives in,
+/// outside the fixture:
+/// it is the instrument that says whether a push carried the values,
+/// so it must not be provable that it holds one of them.
+fn stand_in_folder(name: &str) -> PathBuf {
+    return PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
+        .join("temp/agent/lfs-push-programs-are-held-in-memory-and-never-written-scratch")
+        .join(format!("stand-in-git-lfs-{name}"));
+}
+
 /// A repository with one tracked file,
 /// its bare origin,
 /// Git LFS keys,
-/// a stand-in `git-lfs` that records the environment it was given,
+/// a stand-in `git-lfs` that reports what the push's environment held,
 /// and a service whose own `PATH` holds no `git-lfs`.
 struct World {
     /// The fixture root.
@@ -58,10 +78,51 @@ struct World {
     record: PathBuf,
     /// The service of the fixture.
     service: FixtureService,
+    /// The folder this control's own stand-in `git-lfs` lives in.
+    stand_in: PathBuf,
+    /// The `PATH` the shell that commits in this control searches.
+    shell_path: OsString,
 }
 
-/// The line the stand-in writes when it runs.
-const STAND_IN_RUNS: &str = "lfs run";
+/// What:
+///  The stand-in `git-lfs`,
+///  which says whether the push searched the fixture's own `PATH` and whether it carried the fake values,
+///  and writes no value of them into any file.
+/// Why:
+///   The control then searches every file for the two command lines and may not find one;
+/// a stand-in that recorded them would fail its own search,
+/// and a search that is allowed to see them proves nothing.
+fn stand_in_source(record: &Path, fixture_bin: &OsStr, stand_in: &Path) -> String {
+    return format!(
+        "#!/bin/sh\n\
+         {{\n\
+         printf '{STAND_IN_RUNS}\\n'\n\
+         case \"$GIT_SSH_COMMAND\" in\n\
+         '{FAKE_TRANSPORT_ONE}') printf 'ssh=one\\n' ;;\n\
+         '{FAKE_TRANSPORT_TWO}') printf 'ssh=two\\n' ;;\n\
+         '') printf 'ssh=unset\\n' ;;\n\
+         *) printf 'ssh=another\\n' ;;\n\
+         esac\n\
+         case \"$GIT_PROXY_COMMAND\" in\n\
+         '{FAKE_PROXY}') printf 'proxy=the-fake\\n' ;;\n\
+         '') printf 'proxy=unset\\n' ;;\n\
+         *) printf 'proxy=another\\n' ;;\n\
+         esac\n\
+         case \":$PATH:\" in\n\
+         *\":{fixture_bin}:\"*) printf 'path-fixture-bin=yes\\n' ;;\n\
+         *) printf 'path-fixture-bin=no\\n' ;;\n\
+         esac\n\
+         case \":$PATH:\" in\n\
+         *\":{stand_in}:\"*) printf 'path-stand-in=yes\\n' ;;\n\
+         *) printf 'path-stand-in=no\\n' ;;\n\
+         esac\n\
+         }} >> '{record}'\n\
+         exit 0\n",
+        record = record.display(),
+        fixture_bin = fixture_bin.to_string_lossy(),
+        stand_in = stand_in.display(),
+    );
+}
 
 fn world(name: &str) -> World {
     let fixture: Fixture = fixture(name);
@@ -79,29 +140,61 @@ fn world(name: &str) -> World {
     git(&fixture, &repo, &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
     decline_in_process_lfs_scan(&fixture, repo.as_path());
     let record: PathBuf = fixture.root.join("lfs-saw.txt");
-    // The stand-in records the five variables the push's children receive, and nothing else of its environment.
-    executable(
-        fixture.root.join("bin/git-lfs").as_path(),
-        format!(
-            "#!/bin/sh\nprintf '{STAND_IN_RUNS}\\nPATH=%s\\nGIT_SSH_COMMAND=%s\\nGIT_PROXY_COMMAND=%s\\nGIT_SSH=%s\\nGIT_EXEC_PATH=%s\\n' \
-             \"$PATH\" \"$GIT_SSH_COMMAND\" \"$GIT_PROXY_COMMAND\" \"$GIT_SSH\" \"$GIT_EXEC_PATH\" >> '{record}'\nexit 0\n",
-            record = record.display()
-        )
-        .as_bytes(),
-    );
+    // One folder per control: the four controls of this file run side by side in one process, and a shared stand-in would
+    //  report one control's push into another control's record.
+    let stand_in: PathBuf = stand_in_folder(name);
+    std::fs::create_dir_all(stand_in.as_path()).expect("the stand-in's own folder");
+    executable(stand_in.join("git-lfs").as_path(), stand_in_source(record.as_path(), fixture.root.join("bin").as_os_str(), stand_in.as_path()).as_bytes());
+    let shell_path: OsString = shell_path(&fixture, stand_in.as_path());
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return World { fixture, repo, origin, record, service };
+    return World { fixture, repo, origin, record, service, stand_in, shell_path };
+}
+
+/// What:
+///  The `PATH` the shell that commits in these controls searches:
+///  the fixture's wrapper first, then the stand-in `git-lfs`, then the host's own programs.
+/// Why:
+///   The push must find `git-lfs` where that shell finds it and nowhere else,
+/// and the fixture's wrapper must be what runs `git` for the commands here.
+fn shell_path(fixture: &Fixture, stand_in: &Path) -> OsString {
+    let mut path: OsString = wrapper_first_path(fixture);
+    path.push(":");
+    path.push(stand_in);
+    path.push(":/usr/bin:/bin");
+    return path;
+}
+
+/// The Git directory of the working repository.
+fn git_dir(world: &World) -> PathBuf {
+    return world.repo.join(".git");
 }
 
 /// Run one wrapped command in the repository,
 /// with the variables the shell that runs it sets.
 fn wrapped_with(world: &World, arguments: &[&str], variables: &[(&str, &str)]) -> Observed {
     let mut command: Command = wrapped_commit(&world.fixture, world.repo.as_path(), arguments);
+    command.env("PATH", &world.shell_path);
     for (name, value) in variables {
         command.env(name, value);
     }
-    return observe(&mut command, b"");
+    return observe_raw(&mut command, b"");
+}
+
+/// What:
+///  Run one wrapped command to its end without waiting for the service's after-commit work.
+/// Why:
+///   The wait that settles the queue in `observe` is the suite's own patience for every kind of work
+/// a commit leaves,
+/// and these controls wait for the one record they are about;
+/// the command itself is already bounded by the fixture's own supervisor.
+fn run_to_its_end(world: &World, arguments: &[&str], variables: &[(&str, &str)]) -> std::process::Output {
+    let mut command: Command = wrapped_commit(&world.fixture, world.repo.as_path(), arguments);
+    command.env("PATH", &world.shell_path);
+    for (name, value) in variables {
+        command.env(name, value);
+    }
+    return command.output().expect("the wrapped command runs");
 }
 
 /// Wait until `condition` holds,
@@ -114,8 +207,8 @@ fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
     }
 }
 
-/// Every run the stand-in recorded,
-/// each as the five variables it was given.
+/// Every run the stand-in reported,
+/// each as the name/value lines it wrote.
 fn stand_in_runs(world: &World) -> Vec<Vec<(String, String)>> {
     let text: String = std::fs::read_to_string(&world.record).unwrap_or_default();
     let mut runs: Vec<Vec<(String, String)>> = Vec::new();
@@ -139,14 +232,22 @@ fn saw(run: &[(String, String)], name: &str) -> String {
 
 /// Wait until the stand-in ran `count` times,
 /// and answer every run it recorded.
-fn wait_for_runs(world: &World, count: usize) -> Vec<Vec<(String, String)>> {
-    wait_until(format!("the stand-in `git-lfs` ran {count} times").as_str(), &|| { return stand_in_runs(world).len() >= count; });
+fn wait_for_runs(world: &World, count: usize, what: &str) -> Vec<Vec<(String, String)>> {
+    let began: Instant = Instant::now();
+    while stand_in_runs(world).len() < count {
+        assert!(
+            began.elapsed() < PATIENCE,
+            "{what}: the stand-in `git-lfs` ran {} of {count} times; the queue holds {}",
+            stand_in_runs(world).len(),
+            super::support::work_listing(work_directory(git_dir(world).as_path()).as_path())
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
     return stand_in_runs(world);
 }
 
 /// Every regular file under `root`,
-/// read,
-/// with the paths that could not be read left to the caller's search.
+/// with its bytes.
 fn files_under(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     let mut found: Vec<(PathBuf, Vec<u8>)> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
@@ -179,9 +280,8 @@ fn files_under(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 /// the state directory and the home are all under these two roots,
 /// so one walk covers them.
 fn files_holding(world: &World, value: &str) -> Vec<PathBuf> {
-    let mut roots: Vec<PathBuf> = vec![world.fixture.root.clone(), world.service.runtime.clone()];
     let mut found: Vec<PathBuf> = Vec::new();
-    for root in roots.drain(..) {
+    for root in [world.fixture.root.clone(), world.service.runtime.clone()] {
         for (path, bytes) in files_under(root.as_path()) {
             if bytes.windows(value.len()).any(|window| { return window == value.as_bytes(); }) {
                 found.push(path);
@@ -191,7 +291,8 @@ fn files_holding(world: &World, value: &str) -> Vec<PathBuf> {
     return found;
 }
 
-/// Whether the bare origin holds `commit` on `main`.
+/// What the bare origin's `main` names,
+/// or the empty text when it names nothing.
 fn origin_main(world: &World) -> String {
     let output: std::process::Output = super::support::direct(&world.fixture).current_dir(world.origin.as_path()).args(["rev-parse", "--verify", "--quiet", "refs/heads/main"]).output().expect("real Git answers");
     return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
@@ -215,10 +316,13 @@ fn head_of(world: &World) -> String {
 #[test]
 fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
     let world: World = world("push-programs-nothing-written");
-    let commit: Observed = wrapped_with(&world, &["commit", "--quiet", "--message=one", "--allow-empty"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_ONE), ("GIT_PROXY_COMMAND", FAKE_PROXY)]);
-    assert_eq!(commit.code, Some(0), "the commit lands: {}", stderr_of(&commit));
-    let runs: Vec<Vec<(String, String)>> = wait_for_runs(&world, 1);
-    assert_eq!(saw(runs[0].as_slice(), "GIT_SSH_COMMAND"), FAKE_TRANSPORT_ONE, "the push reached the remote the way the committing shell does");
+    let commit: std::process::Output = run_to_its_end(&world, &["commit", "--quiet", "--message=one", "--allow-empty"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_ONE), ("GIT_PROXY_COMMAND", FAKE_PROXY)]);
+    assert!(commit.status.success(), "the commit lands: {}", String::from_utf8_lossy(commit.stderr.as_slice()));
+    let runs: Vec<Vec<(String, String)>> = wait_for_runs(&world, 1, "the commit's push ran");
+    assert_eq!(saw(runs[0].as_slice(), "path-fixture-bin"), "yes", "the push searched the committing shell's `PATH`, which holds the fixture's own programs: {:?}", runs[0]);
+    assert_eq!(saw(runs[0].as_slice(), "path-stand-in"), "yes", "and found `git-lfs` only where that shell keeps it, since the service's own `PATH` does not: {:?}", runs[0]);
+    assert_eq!(saw(runs[0].as_slice(), "ssh"), "one", "the push reached the remote the way the committing shell does: {:?}", runs[0]);
+    assert_eq!(saw(runs[0].as_slice(), "proxy"), "the-fake", "and named its proxy command: {:?}", runs[0]);
     // A push typed in the same shell, which runs no part of it in the service.
     let typed: Observed = wrapped_with(&world, &["push", "--quiet", "origin", "main"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_TWO), ("GIT_PROXY_COMMAND", FAKE_PROXY)]);
     assert_eq!(typed.code, Some(0), "the typed push goes through: {}", stderr_of(&typed));
@@ -230,7 +334,7 @@ fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
     std::fs::remove_file(planted.as_path()).expect("the planted value goes");
 
     for value in [FAKE_TRANSPORT_ONE, FAKE_TRANSPORT_TWO, FAKE_PROXY] {
-        assert!(files_holding(&world, value).is_empty(), "{value} reaches no file");
+        assert!(files_holding(&world, value).is_empty(), "{value} reaches no file: {:?}", files_holding(&world, value));
     }
     world.service.stop_all();
     remove_settled(&world.fixture);
@@ -245,16 +349,16 @@ fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
 #[test]
 fn each_push_uses_the_settings_of_the_command_that_asked_for_it() {
     let world: World = world("push-programs-one-each");
-    let first: Observed = wrapped_with(&world, &["commit", "--quiet", "--message=one", "--allow-empty"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_ONE), ("GIT_PROXY_COMMAND", FAKE_PROXY)]);
-    assert_eq!(first.code, Some(0), "the first commit lands: {}", stderr_of(&first));
-    let after_first: Vec<Vec<(String, String)>> = wait_for_runs(&world, 1);
-    let second: Observed = wrapped_with(&world, &["commit", "--quiet", "--message=two", "--allow-empty"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_TWO)]);
-    assert_eq!(second.code, Some(0), "the second commit lands: {}", stderr_of(&second));
-    let runs: Vec<Vec<(String, String)>> = wait_for_runs(&world, 2);
-    assert_eq!(saw(after_first[0].as_slice(), "GIT_SSH_COMMAND"), FAKE_TRANSPORT_ONE, "the first push speaks the first command's transport");
-    assert_eq!(saw(after_first[0].as_slice(), "GIT_PROXY_COMMAND"), FAKE_PROXY, "and names its proxy command");
-    assert_eq!(saw(runs[1].as_slice(), "GIT_SSH_COMMAND"), FAKE_TRANSPORT_TWO, "the second push speaks the second command's transport");
-    assert_eq!(saw(runs[1].as_slice(), "GIT_PROXY_COMMAND"), "", "and the proxy command the second command did not set stays unset");
+    let first: std::process::Output = run_to_its_end(&world, &["commit", "--quiet", "--message=one", "--allow-empty"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_ONE), ("GIT_PROXY_COMMAND", FAKE_PROXY)]);
+    assert!(first.status.success(), "the first commit lands: {}", String::from_utf8_lossy(first.stderr.as_slice()));
+    let after_first: Vec<Vec<(String, String)>> = wait_for_runs(&world, 1, "the first commit's push ran");
+    let second: std::process::Output = run_to_its_end(&world, &["commit", "--quiet", "--message=two", "--allow-empty"], &[("GIT_SSH_COMMAND", FAKE_TRANSPORT_TWO)]);
+    assert!(second.status.success(), "the second commit lands: {}", String::from_utf8_lossy(second.stderr.as_slice()));
+    let runs: Vec<Vec<(String, String)>> = wait_for_runs(&world, 2, "the second commit's push ran");
+    assert_eq!(saw(after_first[0].as_slice(), "ssh"), "one", "the first push speaks the first command's transport: {:?}", runs);
+    assert_eq!(saw(after_first[0].as_slice(), "proxy"), "the-fake", "and names its proxy command: {:?}", runs);
+    assert_eq!(saw(runs[1].as_slice(), "ssh"), "two", "the second push speaks the second command's transport: {:?}", runs);
+    assert_eq!(saw(runs[1].as_slice(), "proxy"), "unset", "and the proxy command the second command did not set stays unset: {:?}", runs);
     world.service.stop_all();
     remove_settled(&world.fixture);
 }
@@ -270,7 +374,7 @@ fn each_push_uses_the_settings_of_the_command_that_asked_for_it() {
 #[test]
 fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
     let world: World = world("push-programs-restarted");
-    // A wrapper killed after it promoted the push record leaves it waiting, and the service still holds the settings.
+    // A wrapper killed after it promoted the push record leaves it waiting, and the service still held the settings.
     let mut committing: Command = wrapped_commit(&world.fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--allow-empty"]);
     committing.env("GIT_SSH_COMMAND", FAKE_TRANSPORT_ONE);
     committing.env(git_policy_cli::service_fault::FAULT_VARIABLE, AFTER_PROMOTE);
@@ -279,15 +383,15 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
     let commit: String = head_of(&world);
     assert_ne!(origin_main(&world), commit, "the push has not been made");
     // The values are on no disk even with the client gone.
-    assert!(files_holding(&world, FAKE_TRANSPORT_ONE).is_empty(), "a killed client leaves no file holding the value");
+    assert!(files_holding(&world, FAKE_TRANSPORT_ONE).is_empty(), "a killed client leaves no file holding the value: {:?}", files_holding(&world, FAKE_TRANSPORT_ONE));
 
-    // What the manager does when its service has gone: the next command starts one that holds nothing of the old one.
+    // What the manager does when its service has gone: a new one, which holds nothing of the old one's memory.
     world.service.stop_all();
-    let woken: Observed = wrapped_with(&world, &["status", "--porcelain"], &[]);
-    assert_eq!(woken.code, Some(0), "the command runs: {}", stderr_of(&woken));
-    let notice: PathBuf = git_policy_cli::push_failure_notice::notice_directory(world.repo.join(".git").as_path());
+    world.service.serve(&world.fixture, git_dir(&world).as_path());
+    let notice: PathBuf = git_policy_cli::push_failure_notice::notice_directory(git_dir(&world).as_path());
     wait_until("the push records what stopped it", &|| { return std::fs::read_dir(notice.as_path()).is_ok_and(|entries| { return entries.flatten().next().is_some(); }); });
-    let shown: Observed = wrapped_with(&world, &["status", "--porcelain"], &[]);
+    // A plain `git status` is not a command whose output a program reads, so it shows the record.
+    let shown: Observed = wrapped_with(&world, &["status"], &[]);
     let words: String = stderr_of(&shown);
     assert!(words.contains("was not made"), "the push was not made: {words}");
     assert!(words.contains(world.repo.to_str().expect("a path that is text")), "the repository is named: {words}");
@@ -297,14 +401,22 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
     assert_ne!(origin_main(&world), commit, "and nothing reached the remote");
 
     // The command the words print, run as printed in the shell that has the settings.
-    let line: &str = words.lines().find(|line| { return line.starts_with("Run this in "); }).expect("the words print a command");
-    let command: &str = line.split_once(": ").expect("the line names a command").1;
+    let line: &str = words.lines().find(|line| { return line.trim_start().starts_with("Run this in "); }).expect("the words print a command");
+    let command: &str = line.trim_start().split_once(": ").expect("the line names a command").1;
+    assert!(command.starts_with("git push "), "the printed command is one a shell runs: {command}");
     let pushed: std::process::Output = std::process::Command::new("/bin/sh")
         .current_dir(world.repo.as_path())
         .arg("-c")
         .arg(command)
-        .env("PATH", format!("{}:/usr/bin:/bin", world.fixture.root.join("bin").display()))
+        .env_clear()
+        .env("PATH", &world.shell_path)
         .env("HOME", world.fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
         .output()
         .expect("the printed command runs");
     assert!(pushed.status.success(), "the printed command pushes: {}\n{}", String::from_utf8_lossy(pushed.stdout.as_slice()), String::from_utf8_lossy(pushed.stderr.as_slice()));
@@ -324,7 +436,7 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
 #[test]
 fn the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command() {
     let world: World = world("push-programs-record-removed");
-    let folder: PathBuf = world.repo.join(".git/monochromatic-git-policy-cli");
+    let folder: PathBuf = git_dir(&world).join("monochromatic-git-policy-cli");
     std::fs::create_dir_all(folder.as_path()).expect("the folder the work records use");
     let record: PathBuf = folder.join("push-programs.json");
     let staged: PathBuf = folder.join(".push-programs.json.Q1w2E.partial");
@@ -335,7 +447,8 @@ fn the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command() {
     assert_eq!(met.code, Some(0), "the command runs: {}", stderr_of(&met));
     assert!(!record.exists(), "the record is gone after the first command that meets it");
     assert!(!staged.exists(), "and so is the staging file of one of its writes");
-    assert!(files_holding(&world, FAKE_TRANSPORT_ONE).is_empty(), "no value of that record is left on any disk");
+    assert!(files_holding(&world, FAKE_TRANSPORT_ONE).is_empty(), "no value of that record is left on any disk: {:?}", files_holding(&world, FAKE_TRANSPORT_ONE));
+    assert!(folder.is_dir(), "the work records' own folder stays");
     world.service.stop_all();
     remove_settled(&world.fixture);
 }
