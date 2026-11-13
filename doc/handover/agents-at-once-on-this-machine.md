@@ -7,10 +7,16 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **16** agents run on this machine at once,
+At most **32** agents run on this machine at once,
 counted across every session
-(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:58:50,
+(raised from 4 to 8 on 2026-11-13 at 11:57,
+from 8 to 16 at 12:58:50
+and from 16 to 32 at 17:12,
 each time when the level before had held its hour).
+The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
+not in `main`,
+carries the number in a file of its own that still reads sixteen;
+the number is brought to this one when that branch is merged.
 
 The owner,
 2026-11-13,
@@ -351,3 +357,67 @@ one line a minute:
   one of them waiting for the branch it builds on.
   Whether thirty-two can be reached with real work is not settled by that count:
   reviews of the branches that finish add entries.
+- **The hour that judges this level**:
+  probe readings from 16:11:15 to 17:10:33,
+  sixty of them,
+  one a minute,
+  with the queue holding enough author runs to keep the places filled.
+  Agents going at each reading:
+  thirteen once,
+  fourteen at five readings,
+  fifteen at eleven,
+  sixteen at twenty-four
+  and seventeen at nineteen.
+  - Home drive: median 1 ms;
+    one reading over one second and over the bound,
+    **7,819 ms at 16:57:24**,
+    the reading after it under the bound.
+  - Build volume: median 7 ms;
+    over one second twice
+    (4,464 ms at 16:13:15 and 2,020 ms at 16:38:21),
+    none over the bound.
+  - Never two readings in a row over the bound on either drive.
+  - Thirteen Pi runs were started in the hour
+    (by the creation time of each run's feed),
+    and each gave its first answer within the bound of 120 s:
+    slowest 76,930 ms,
+    four of them over 60 s
+    (`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/time-to-first-answer-of-each-pi-run-started-in-the-hour-of-level-16-2026-11-13T1611.txt`).
+  - Thirteen runs ended in the hour
+    (`list-runs-that-ended-since`),
+    none on a disk error:
+    eight settled,
+    four ended `driver-failed` with Pi's exit code zero on the parse error of issue 6299,
+    and one review ended on the provider's rate limit.
+  - So the criterion is not met:
+    sixteen held its hour.
+  - No sizing walk ran during the hour.
+  - Free room at 17:11:42: `/var/home` 507 GiB,
+    the build volume 1,488 GiB
+    (41 GiB less than at 15:24:13,
+    in one hour and forty-seven minutes).
+
+### Level 32, started 2026-11-13T17:12:00-05:00
+
+- The unit that fills free places was stopped between two of its rounds and started again at the new level
+  (`fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`):
+  at most two starts every 150 s,
+  and no more than five runs on the reviewer's model at once,
+  which bounds how fast the count climbs and how far it gets with a queue that is mostly reviews.
+- Going at 17:14:28: seventeen Pi runs,
+  one of them another session's.
+- A sizing walk of the shared cargo build folder
+  (`btrfs filesystem du --summarize`,
+  disk weight 1,
+  unit `blocks-each-build-folder-holds-alone-20261113T1713`)
+  was started at 17:13,
+  after the hour of level sixteen and before this level's probe;
+  the probe of this level
+  (unit `disk-ceiling-probe-level-32-20261113`,
+  the same readings file)
+  starts when the walk ends,
+  so no reading of this level's hour falls in the walk.
+- The hour counts from the first reading with the count above sixteen for good,
+  and is read by the counts it holds:
+  a count that stays near twenty is a reading at twenty,
+  not thirty-two held.

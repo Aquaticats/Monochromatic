@@ -685,6 +685,51 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Sixteen agents held their hour and the level is thirty-two; the commit that does not list every reference passed its third review and has a pass of its own (2026-11-13T17:15:58-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own readings.
+
+- The probe hour of level sixteen,
+  16:11:15 to 17:10:33,
+  showed no symptom by the criterion
+  (`doc/handover/agents-at-once-on-this-machine.md`,
+  the item "The hour that judges this level" under "Level 16"),
+  so the level was raised to thirty-two at 17:12.
+  The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`.
+  The count climbs only as fast as the queue holds runs that are not reviews,
+  because reviews are held to five at once.
+- The third review of
+  `perf/git-policy-cli-commit-does-not-list-every-reference-on-the-path-it-waits-on`,
+  at `974f681c98`,
+  ended at 17:07:26 with no defect found:
+  it ran the fifty-six tests the change adds or touches (all passed)
+  and its own probes of Git 2.56.0 on what a listing prints for a chain of symbolic references
+  (`~/temp/agent/change-reviews/git-policy-cli-commit-does-not-list-answers-after-its-second-review/review.md`).
+  Its run ended `driver-failed` with Pi's exit code zero,
+  the tenth such ending of the day (issue 6299).
+- The branch is integration pass 23
+  (`integrate/git-policy-cli-pass-23-for-alpha-21`,
+  brief `~/temp/agent/pi-runs/integration-pass-23-for-alpha-21-prompt.md`),
+  pinned to that commit and put at the head of the queue at 17:14.
+  Passes 20, 21 and 22 are going;
+  each is merged into `main`,
+  released and installed when its report says fit,
+  in the order they finish,
+  the release numbers following that order and not the names of the branches.
+- A walk that reads the blocks each folder of the shared cargo build folder holds alone
+  (`btrfs filesystem du --summarize`)
+  was started at 17:13;
+  the probe hour of level thirty-two starts when it ends.
+  Its output goes to `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/`.
+
+Next:
+read each pass's report as it ends and release;
+read the walk's output and remove the build folders no worktree owns,
+listed first;
+start the fourth review of the start gate and the reviews of the answers that wait
+(the queue holds them).
+
 #### Two more authors answered their reviews: the push of a branch not checked out, and the removal that refuses a busy worktree (2026-11-13T17:00:22-05:00)
 
 Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it. Both branches wait for their second review, queued.
