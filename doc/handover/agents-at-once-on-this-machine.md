@@ -222,6 +222,14 @@ one line a minute:
   `module-test-logs` 9.8 GiB,
   `cli-git-btrfs-fixtures` 5.6 GiB),
   with some fixture files it could not read left out.
+- A reading above the level: seventeen agents at 13:19:20.
+  The starter of the session doing the search read fifteen three times in a row,
+  because a run just started has no unit for some seconds,
+  and started three reviews into one free place (13:17:49 to 13:18:35).
+  Nothing was stopped;
+  the starter now counts the free places once before its first start.
+- A second sizing walk, of every worktree, was started at 13:16:06 at disk weight 1,
+  and one of the shared cargo build folder shortly after.
 - Free room at 13:15:18: `/var/home` 517 GiB,
   the build volume 1,616 GiB
   (519 GiB and 1,640 GiB at 10:27:50,

@@ -670,6 +670,24 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The push-stops resume finished; three second reviews and the reload fix's author are going (2026-11-13T13:19:20-05:00)
+
+Not complete: the branch waits for its review.
+Read from the run's own report by the coordinating session; nothing here was run again by it.
+
+- **`push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window`** ended before 13:17:46, branch tip `f56257b9e1`.
+  Its report: before the change any byte in a 500 ms sample reset both windows, so a server's keepalive (5 bytes every 5 s) kept a push going without end;
+  it reproduced that through a wrapper built from `main` (still running at 255 s behind a hook that never answers).
+  The rule it adds: fewer than 1,024 transport bytes in the window that already bounds silence (150 s connected, 30 s for a path) counts as silence;
+  the floor is settable by `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`, and a zero or mistyped value is no setting.
+  The slowest line the floor lets through carries about 6.8 bytes a second over a connection.
+  Four controls are shown failing with the floor taken out; three more guard against a false stop; each stop control asserts no process of the push is left.
+  Its review is in the queue.
+- Started since 13:14: the reload fix's author with its brief (13:14:36),
+  and the second reviews of the commit-is-made branch (13:17:49), the launcher's scratch-folder change (13:18:12)
+  and `add-never-skips` (13:18:35).
+  The last was sent a note in its inbox at 13:20 that a verdict counts only with what was built and run behind it.
+
 #### Four more runs ended by 13:11:05: two reviews and two authors' answers; a cargo home of its own took one run's compiles from minutes to seconds (2026-11-13T13:14:14-05:00)
 
 Not complete: nothing here is merged; each bullet names what it waits for.
