@@ -830,8 +830,10 @@ each in answer to a question that gave the options:
   and a new rule,
   `SGO`,
   reserves "complete",
-  "final" and "approved" for the owner and has agents mark their documents,
-  statuses and reports otherwise.
+  "final" and "approved" for the owner and has agents mark their documents and reports otherwise,
+  saying what was done and checked,
+  by whom,
+  and what is open.
   The Optique and Deno documents of this work carry that mark.
   The other documents under `doc/` whose status reads "complete" are listed in #6292,
   filed on the owner's answer "Open one issue (Recommended)";
