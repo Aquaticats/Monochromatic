@@ -1042,7 +1042,18 @@ to settle before a reply:
   the changes made after that pass,
   which are that fix,
   the timing on Node and Bun,
-  and the timing parts rewritten as ratios.
+  and the timing parts rewritten as ratios,
+  committed as `f398643c8b`.
+  A fifth pass over exactly those is prepared
+  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fifth-pass-prompt.md`).
+  The machine held sixteen agents against a cap of sixteen when it was to start,
+  so the unit `optique-review-fifth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
+  and starts it when a place is free;
+  its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-5.log`,
+  the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-5`,
+  and its report goes to `keep/review-report-5.md` beside that log.
+  If the unit gave up,
+  start the pass by hand with the same prompt.
 - The owner's two corrections of 2026-11-13 on the timing,
   both acted on the same day:
   "Why did you time a thing only on deno and why did you time a thing on deno (to be discontinued software) at all?",
