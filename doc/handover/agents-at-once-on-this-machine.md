@@ -97,5 +97,11 @@ one line a minute:
 - Of the runs going,
   only `integration-pass-18-for-alpha-16` compiles Rust;
   the level is not judged before the places hold runs that each built.
-- First readings (10:45:25 and 10:46:25, five units): write-and-sync 2 to 3 ms on both drives,
+- First readings (10:45:25 and 10:46:25, five units): write-and-sync 2 to 3 ms,
   `full avg60` 15.24 and 10.43.
+  Both probe files of that first probe were on the build volume
+  (`~/temp` is a link to `/var/mnt/encrypted/temp`),
+  so the readings in the log from 10:44 to 10:56 labelled `homeMilliseconds` are build-volume readings.
+- The probe was started again at 10:57 with its home file under `~/.cache`,
+  which is on `/var/home`.
+  The hour of the level counts from 10:57.

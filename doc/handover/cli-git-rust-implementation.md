@@ -262,6 +262,43 @@ The level of four is judged when the hour is over and each of the three runs has
 - Still there and next: the two checkouts under `merge-reload-fix`, the fixture copies under `pkgrepair-repair-off-the-path` and `pkgrepair-verify`,
   `sonnet-audits` and `kimi-trials`. Each is read first for a report or measurement that lives nowhere else, and for commits a clone holds that the remote does not.
 
+#### The scratch folder is on the build volume and always was (2026-11-13T10:56:16-05:00)
+
+`~/temp` is a symbolic link to `/var/mnt/encrypted/temp`, made on 2026-10-11 (`stat`).
+So `~/temp/agent`, every run folder under `~/temp/agent/pi-runs` and every scratch folder are on the build volume,
+and none of it was ever on the home drive `/var/home`.
+This session wrote the opposite on 2026-11-12 and again on 2026-11-13 without resolving the path once. What that undoes:
+
+- In the wind-down section, "Run folders, Pi sessions and the journal all live on that drive" and
+  "All of `~/temp/agent` (run folders, digests, notes, scratch scripts) is on the drive that filled" are wrong for the run folders and for scratch.
+  On `/var/home` are Pi's session files (`~/.pi/agent/sessions`), the container storage (`~/.local/share/containers`) and `~/.cache`;
+  the error every run ended on was Pi's write of its session file.
+- The scratch folder did not fill the home drive. What it took was room on the build volume,
+  which read 560 GiB free on 2026-11-12 and 1640 GiB after the owner's deletion of everything there older than 2026-11-12.
+  What of this work is on the home drive is being measured (Pi sessions, caches, wrapper state, containers, cargo and pnpm stores).
+- "`df` read 519 GiB free before and straight after" the removal of 1041 folders was a reading of the wrong drive,
+  so "freed almost nothing, they were shared copies" is not established. The `btrfs filesystem du` figures stand: they were taken on the folder itself.
+- The first probe of the ceiling wrote both of its files to the build volume: every "home" reading from 10:44 to 10:56 is a build-volume reading.
+  It was stopped and started again at 10:57 with its home file under `~/.cache`, which is on `/var/home`
+  (unit `disk-ceiling-probe-level-4-on-the-real-home-drive-20261113`). The hour of the level counts from there.
+- The start-gate brief asked for a floor on "the drive of the runs folder", which is the build volume the gate already reads.
+  The run was sent the corrected requirement at 10:58: a floor on every distinct volume a run needs, found by resolving real paths,
+  one of them the volume of Pi's session files, at 50 GiB
+  (one session's container images took about 20 GB of that drive in an hour on 2026-11-13; twenty runs ended once it read 1 GiB free).
+  This replaces the reasoning from one run's scratch size given under "Corrections to this section".
+- The rules `1SF`, `SFN` and `SZR` stand as written; they concern the scratch folder wherever it is.
+  A rule for what agent work leaves on the home drive (container images above all) waits for the measurement.
+
+#### Issue 6293, filed by the other session at 10:55:20
+
+A throwaway clone run with its own `HOME` and `XDG_RUNTIME_DIR` still got a commit-service unit in the account's real manager,
+with its journal under the real `~/.local/state`, and that unit retries a push to the address `DISABLED` with growing pauses.
+`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md` says such a run "has no route to a service and refuses every commit"; here the commit was made.
+By which route is not established. It is wrapper work and is queued behind the resumes of the jam fixes:
+find the route from the source and a fixture, then end a push plan on an address that cannot be a remote,
+and correct the skill's sentence on what the two variables isolate.
+The unit and the clone are the other session's and are left alone while its run works there.
+
 #### Corrections to this section (2026-11-13T10:51:36-05:00)
 
 - **The sizes were counted with `du`, which counts data shared between copy-on-write copies once for each copy.**
