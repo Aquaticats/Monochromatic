@@ -126,11 +126,14 @@ pub struct Route {
 /// whoever made it;
 /// with neither the socket nor the executable there is no route.
 /// The journal's home comes from `XDG_STATE_HOME` or the home directory,
-/// except for a command given a runtime directory of its own:
+/// except for a command whose runtime directory is provably its own,
+/// because the bus it inherited lives outside it:
 /// such a run's service belongs to no session of the account,
 /// so its journal lives inside that runtime directory and nothing of it touches the account's real state directory
 /// (`state_dir_of_the_command`,
 /// and issue 6293).
+/// A bus address that proves neither session keeps the account's state directory,
+/// so a real session's records never move into a directory a logout clears.
 /// An account that names neither keeps its journal in the runtime folder,
 /// which lasts the login session:
 /// a commit still lands,

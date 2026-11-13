@@ -60,13 +60,14 @@ fn the_program_and_the_runtime_directory_mean_a_route() {
     assert_eq!(address, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
     let named = host.expect("what starting needs comes with the route");
     assert_eq!(named.instance, crate::service_instance::instance_of(machine.git_dir.as_path()));
-    // What: This run inherited no bus, so its runtime directory is its own, and the journal lives inside it.
-    // Why:  A run given a runtime directory of its own leaves nothing under the account's state directory
-    //       (issue 6293, and `state_dir_of_the_command`).
+    // What: This run inherited no bus, so nothing proves which session it is, and its records stay where a logout
+    //       does not clear them.
+    // Why:  An unproven bus is never read as another session's: that moved a real session's plans into a directory
+    //       a logout clears (the review of issue 6293, finding 6).
     assert_eq!(
         named.journal(),
-        journal_of(&machine.runtime.join(SERVICE_UNIT.current), named.instance.as_str()),
-        "a runtime directory of the run's own holds the service's journal"
+        journal_of(&machine.root.join(SERVICE_UNIT.current), named.instance.as_str()),
+        "an unproven bus keeps the journal under the account's state directory"
     );
     remove(machine.root.as_path());
 }
@@ -91,6 +92,27 @@ fn the_sessions_own_runtime_directory_keeps_the_journal_under_the_accounts_state
         named.journal(),
         journal_of(&machine.root.join(SERVICE_UNIT.current), named.instance.as_str()),
         "the session whose bus this is keeps the account's state directory"
+    );
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A run whose bus is provably another session's keeps the journal inside its own runtime directory.
+/// Why:
+///  That is issue 6293's boundary: the wrapper does not use a bus that lives elsewhere,
+///  and nothing of such a run is written under the account's real state directory.
+#[test]
+fn a_bus_proven_another_sessions_keeps_the_journal_in_the_runtime_directory() {
+    let machine: Machine = machine("route-other-session");
+    add_program(&machine);
+    let mut session: RouteInputs<'_> = inputs(&machine);
+    session.bus_address = Some("unix:path=/run/user/1001/bus");
+    let Some(Route { host, .. }) = choose_route(&session) else { panic!("a route expected") };
+    let named = host.expect("what starting needs comes with the route");
+    assert_eq!(
+        named.journal(),
+        journal_of(&machine.runtime.join(SERVICE_UNIT.current), named.instance.as_str()),
+        "a runtime directory of the run's own holds the service's journal"
     );
     remove(machine.root.as_path());
 }

@@ -137,11 +137,11 @@ fn the_state_directory_follows_the_xdg_rules() {
 /// What:
 ///  A run given a runtime directory of its own keeps its scratch files inside that directory.
 /// Why:
-///  Issue 6293's decision ("Private runtime dir is the boundary") is that nothing of such a run is written under the
-///  account's real state directory,
+///  Issue 6293's decision ("Private runtime dir is the boundary") is that a run whose bus is provably another
+///  session's writes nothing under the account's real state directory,
 ///  and the scratch files of every command are part of that.
 ///  A session whose own bus lives in its runtime directory is unaffected,
-///  and so is an account that named no runtime directory at all.
+///  and an account that named no runtime directory at all keeps the account's state directory.
 #[test]
 fn a_run_given_a_runtime_directory_of_its_own_keeps_its_scratch_inside_it() {
     let account: &[(&str, &Path)] = &[("XDG_STATE_HOME", Path::new("/state")), ("HOME", Path::new("/home/u"))];
@@ -161,12 +161,13 @@ fn a_run_given_a_runtime_directory_of_its_own_keeps_its_scratch_inside_it() {
         Some(PathBuf::from("/state/monochromatic-git-policy-cli")),
         "the session whose own bus this is keeps the account's state directory"
     );
-    let mut inherited_bus_only: Vec<(&str, &Path)> = account.to_vec();
-    inherited_bus_only.push(("XDG_RUNTIME_DIR", Path::new("/run/private")));
+    let mut abstract_bus: Vec<(&str, &Path)> = account.to_vec();
+    abstract_bus.push(("XDG_RUNTIME_DIR", Path::new("/run/private")));
+    abstract_bus.push(("DBUS_SESSION_BUS_ADDRESS", Path::new("unix:abstract=/tmp/dbus-repro-6293")));
     assert_eq!(
-        state_directory(&environment(inherited_bus_only.as_slice())),
-        Some(PathBuf::from("/run/private/monochromatic-git-policy-cli")),
-        "a runtime directory of the run's own with no bus inherited is still the run's own"
+        state_directory(&environment(abstract_bus.as_slice())),
+        Some(PathBuf::from("/state/monochromatic-git-policy-cli")),
+        "an abstract bus proves no session, so a real session's records stay where a logout does not clear them"
     );
     let mut fell_back: Vec<(&str, &Path)> = account.to_vec();
     fell_back.push(("DBUS_SESSION_BUS_ADDRESS", Path::new("unix:path=/run/user/1000/bus")));

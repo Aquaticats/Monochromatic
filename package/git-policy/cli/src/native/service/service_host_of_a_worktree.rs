@@ -33,7 +33,7 @@
 use crate::service_instance::{socket_path, SOCKET_DIRECTORY};
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_server_start_by_the_wrapper::ServerToStart;
-use crate::service_session_of_the_runtime_directory::is_the_session_of;
+use crate::service_session_of_the_runtime_directory::is_another_session;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 
@@ -123,7 +123,7 @@ impl ServiceHost {
 ///  The state folder this command's commit service keeps its records in:
 ///  the account's (`XDG_STATE_HOME`,
 /// else `~/.local/state`),
-///  or the runtime directory itself when that directory is the command's own.
+///  or the runtime directory itself when that directory is provably the command's own.
 /// Why:
 ///   A run given a runtime directory of its own is a boundary of its own
 /// (issue 6293,
@@ -137,13 +137,20 @@ impl ServiceHost {
 /// An account that named no runtime directory (`~/.run`) keeps the account's state folder too:
 /// no session was named,
 /// so nothing here belongs to another session.
+/// What is not proven stays where a logout does not clear it:
+/// an abstract bus address,
+/// a bus that is not a Unix socket,
+/// and no address at all prove neither this session nor another,
+/// so such a command keeps the account's state folder and reads the earlier records there,
+/// because the alternative is a real session whose retry plans vanish with its logout
+/// (the review of issue 6293, finding 6).
 /// The trade is the private directory's own:
 /// its records do not outlive a logout or a reboot,
 /// and an earlier release's journal under the account's state directory is not adopted by such a run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// stateDirOfTheCommand(env) // isTheSessionOf(env) ? accountStateDir : runtimeDir
+/// stateDirOfTheCommand(env) // isAnotherSession(env) ? runtimeDir : accountStateDir
 /// ```
 pub fn state_dir_of_the_command(
     named_runtime_directory: Option<&Path>,
@@ -152,7 +159,7 @@ pub fn state_dir_of_the_command(
     state_home: Option<&Path>,
     home: Option<&Path>,
 ) -> Option<PathBuf> {
-    if named_runtime_directory.is_some() && !is_the_session_of(named_runtime_directory, runtime_dir, bus_address) {
+    if is_another_session(named_runtime_directory, runtime_dir, bus_address) {
         return Some(runtime_dir.to_path_buf());
     }
     return state_dir_of(state_home, home);
