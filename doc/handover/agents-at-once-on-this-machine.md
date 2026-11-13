@@ -306,6 +306,33 @@ one line a minute:
   (unit `record-what-the-user-service-manager-waits-on-20261113`,
   log `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`).
   A manager that stops answering for a time is what `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` is about.
+- Readings of the probe started at 14:37,
+  14:37:21 to 15:13:14,
+  thirty-six of them with eight to sixteen units going
+  (sixteen once, at 14:57:08, and twelve to fourteen for most of it):
+  home drive over the bound once,
+  **5,756 ms at 15:00:08**,
+  with 65 ms the next slowest;
+  build volume over one second twice
+  (1,240 ms at 14:42:22 and 1,321 at 14:44:23)
+  and under 500 ms otherwise.
+  One reading over the bound and the one after it 2 ms,
+  so the criterion is not met.
+  This is no symptom at the counts there were,
+  and it is not sixteen held for an hour:
+  the count stood at sixteen for one reading.
+- From 15:18:02 the count is bounded by something other than the drives.
+  Eighteen reviews ended that afternoon on the reviewer's provider answering "429 … Allocated quota exceeded",
+  each with six to nine runs on the reviewer's model going,
+  and the script that fills free places now starts no run on that model while five are going
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section dated 2026-11-13T15:24:13-05:00).
+  So how many agents go now follows how many author runs the queue holds,
+  and a reading at sixteen or above needs that many runs that are not reviews.
+- Free room at 15:24:13: `/var/home` 513 GiB,
+  the build volume 1,529 GiB:
+  26 GiB less than at 14:37:39,
+  in forty-seven minutes.
 - Free room at 14:37:39: `/var/home` 514 GiB,
   the build volume 1,555 GiB:
   61 GiB less than at 13:15:18,

@@ -670,6 +670,95 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Why the reviewer's rate limit ends a run, what is done about it, and the runs that ended between 14:58 and 15:21 (2026-11-13T15:24:13-05:00)
+
+Not complete, and written by the coordinating session: three choices in it are the owner's and were asked at 15:25;
+the fix it names is being written on a branch and is merged nowhere.
+
+**Why a run ends on the first such answer.**
+Pi 1.5.2 decides what its own retry takes in `isRetryableAssistantError`
+(`@earendil-works/pi-ai/dist/utils/retry.js`, read in the installed package).
+It tests a list of answers it never retries before the list it retries,
+and the first list holds `insufficient_quota` and `quota exceeded`,
+with a comment that they stand for a spent budget.
+The qwen plan's answer is `429: {"message":"Allocated quota exceeded, please increase your quota limit. …","type":"insufficient_quota","code":"insufficient_quota"}`,
+which the provider's own page gives as a limit on tokens a second or a minute.
+So Pi settles on the first answer although the limit passes:
+other runs on the same model went through every burst and ended `idle`.
+The owner's Pi settings would bound a retry at eight attempts from one second (`~/.pi/agent/settings.json`, `retry`),
+about three minutes in all.
+`package/pi-shared/subagent-driver/README.md` ("Which layer retries what") already says a quota sent as a 429 is not retried by Pi and stands;
+what was not known is that this provider words its passing limit as one.
+
+**How many runs were going each time.**
+`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/runs-on-the-qwen-plan-going-at-each-rate-limit-answer-of-2026-11-13.txt`,
+made by the script beside that folder from every run's feed and summary since 09:00:
+
+- eighteen runs on `qwen4-max-preview` ended on that answer between 13:56:41 and 15:15:53,
+  each with six to nine runs on that model going and six to nine of the plan's DeepSeek runs beside them;
+- by minute: no ending in the 278 minutes with five or fewer runs on the model going (24 of them at five),
+  one in the 40 minutes at six, five in the 21 at seven, one in the 5 at eight, one in the single minute at nine.
+
+What this does not show: whether the plan counts the DeepSeek runs against the same limit
+(five of them are still going and take no new run),
+and what the limit is in tokens, which no message states.
+
+**What is done, each open to the owner's word.**
+
+- The script that fills free places starts no run on the reviewer's model while five are going,
+  from its round of 15:18:02
+  (`start-the-next-entry-of-the-resume-queue.ts`, with the failure it prevents written beside the number).
+  It is this session's script only: the package's pool for the model still reads 18, the owner's number of 2026-11-11.
+  The script's count lags a start by some seconds, as the level count did, so six can go for a time.
+- A run to make Pi itself retry this answer is first in the queue:
+  `fix/pi-plugin-qwen-token-plan-individual-token-rate-limit-answer-is-retried-by-pi-itself`,
+  brief `~/temp/agent/pi-runs/qwen-plan-token-rate-limit-answer-is-retried-by-pi-itself-prompt.md`.
+  The provider's Pi plugin (`package/pi-plugin/qwen-token-plan-individual/src/provider.ts`) hands `stream` and `streamSimple` on unchanged,
+  and it is the place that knows this provider's wording.
+  The brief gives as the requirement only the owner's decision of 2026-11-11, "It's Pi's native retry's responsibility to deal with 429s.",
+  and gives the rest as suggestions; it asks for proof with a real Pi against a stand-in endpoint, never the provider.
+  Nothing of it is merged without the owner's answer.
+- Issue 6297 carries the source finding.
+
+**Asked of the owner at 15:25, not answered when this was written:**
+whether the plugin may make Pi retry this answer (which reverses, for this provider, the README's sentence that a quota sent as a 429 stands);
+what the pool for the reviewer's model reads (18 now, five by this measurement);
+and whether the classification is reported to Pi's upstream project.
+
+**Runs that ended between 14:58 and 15:21, and where each went.**
+
+- Reviews delivered:
+  - commit-does-not-list, review of its answer (final although its run ended on the rate limit a turn later):
+    one defect reproduced against the real crate, a symbolic reference kept that Git drops
+    when its chain passes through a shorter chain sorting before it;
+    it says this breaks the snapshot's own contract and none of the three requirements. Author queued.
+  - LFS push programs: two defects found by reading, nothing run
+    (a commit near the line ceiling refused because the fit check measures the request before the programs are attached;
+    a credential kept in memory after a retried push settles).
+    Sent to its author, who can test inside the crate, to show each with a control first;
+    the review that follows the answer is the one that must run what it reviews.
+  - the launcher's scratch folder, third review: a later attempt's entries deleted, reproduced three ways
+    (the race between the proof of ownership and the walk, still open), and a narrower finding by reading.
+    Author queued, with a suggestion to rename the folder aside in one step before anything is deleted.
+  - the commit service that needs no manager, first review: one defect reproduced with the built binary:
+    a live service that greets nothing for a second loses its address to a second server,
+    and its own exit then deletes the second server's socket and pid note.
+    Its run ended `driver-failed` after the review was written and settled
+    (`SyntaxError: Unterminated string in JSON at position 509`, two minutes after the last turn); the review stands.
+    The author's brief is not yet written.
+- Authors finished:
+  - commit forms Git refuses, tip `a757ab0894`: 140 rows against real Git, rows that differ down from 48 to 27 by its report. Review queued.
+  - the start gate, answer to its third review, tip `a75145b0b1`:
+    the cap is read at every start from `src/machine-agent-cap.json` (sixteen, set 2026-11-13T12:58:50-05:00),
+    and a missing or malformed file refuses the start. Its fourth review is queued over `main...a75145b0b1`.
+- Ended on the rate limit and queued to go on from their sessions:
+  the jam fix's review (26 turns; going again since 15:20:35), the snapshot's (79; going again since 15:20:59),
+  file mode (31), the reload fix (9 more), index-lock (1 more),
+  finished-records (13 more, its five new controls passed), kept-references (20 more) and review-briefs.
+
+**Level sixteen** is recorded in `doc/handover/agents-at-once-on-this-machine.md`:
+the probe of 14:37 to 15:13 shows no symptom at the counts there were, which is not sixteen held for an hour.
+
 #### Nine reviews ended on the reviewer's rate limit; they are gone on with from their sessions (2026-11-13T15:04:12-05:00)
 
 Not complete: whether a review gone on with from its session finishes is not yet seen; the first was started at 15:04.
