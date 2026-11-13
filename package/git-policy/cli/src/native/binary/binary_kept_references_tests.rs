@@ -419,12 +419,12 @@ fn the_listing_says_what_the_next_pass_does() {
     git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", reached.as_str()]);
     std::thread::sleep(A_MOMENT);
     reference(&world, "refs/cli-git/kept/1794071191963952", young.as_str());
-    let text: String = listing(&world, &[(MAX_AGE_VARIABLE, "2"), (MAX_BYTES_VARIABLE, "1000000")]);
+    let text: String = listing(&world, &[(MAX_AGE_VARIABLE, "1"), (MAX_BYTES_VARIABLE, "1000000")]);
     let said: Vec<String> = names_the_listing_prunes(text.as_str());
     assert_eq!(said, vec![String::from("refs/cli-git/kept/1794071191963950"), String::from("refs/cli-git/kept/1794071191963951")], "the listing says what goes: {text}");
     assert!(text.contains("The next pass prunes 2 of them"), "{text}");
     assert!(text.contains("refs/cli-git/kept/1794071191963952\n"), "the young reference is listed: {text}");
-    let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "2"), (MAX_BYTES_VARIABLE, "1000000")]);
+    let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "1"), (MAX_BYTES_VARIABLE, "1000000")]);
     assert_eq!(names_the_report_prunes(report.as_str()), said, "the pass removes what the listing said: {report}");
     assert_eq!(references(&world), vec![String::from("refs/cli-git/kept/1794071191963952")], "the young reference stays: {report}");
     remove(&world.fixture);
