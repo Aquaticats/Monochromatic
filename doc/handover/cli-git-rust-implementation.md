@@ -685,6 +685,22 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The owner: one pass carries every reviewed branch; pass 21 has the jam fix, file mode and kept-references (2026-11-13T16:14:18-05:00)
+
+Not complete, and written by the coordinating session: passes 20 and 21 are going and have reported nothing.
+
+- Asked at about 16:11 whether one integration pass may carry several reviewed branches, with one pass per branch as the other reading of "one agent, one thing",
+  the owner chose **"One pass, all reviewed"** (answered by 16:12:49).
+  A pass's one thing is the next release branch, made from the branches that passed review and built and tested together before `main`.
+- **Pass 21** (`integrate/git-policy-cli-pass-21-for-alpha-19`, going since 16:13:21) carries three, in this order:
+  the jam fix (`3382d69ea0`), file mode through a merge (`f89786b089`), kept references pruned by size and age (`e5e75025ed`).
+  Its brief was rewritten nine seconds before its run began, and its session holds the new brief (the owner's words are in it).
+- **Pass 20** (finished-records alone) was already going and stays as it is.
+- Passes 22 and 23, queued with one branch each before the answer, are gone:
+  23 was taken off the queue; 22 had been started by the filling unit while the question was open, forty seconds before it was stopped at 16:14:03,
+  with nothing committed (`git log main..` empty, the worktree clean). Its units were stopped, its worktree removed through the wrapper, its branch deleted, and both briefs deleted.
+  This is the one run stopped today, and not to get under the level: its whole task had moved into pass 21.
+
 #### Sixteen agents are going and three passes wait for a place; the level's hour is being probed; kept-references passed its review (2026-11-13T16:11:09-05:00)
 
 Not complete, and written by the coordinating session: the passes that carry the jam fix, the file-mode fix and the kept-references change have not started.
