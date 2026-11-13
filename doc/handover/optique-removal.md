@@ -833,6 +833,9 @@ each in answer to a question that gave the options:
   "final" and "approved" for the owner and has agents mark their documents,
   statuses and reports otherwise.
   The Optique and Deno documents of this work carry that mark.
+  The other documents under `doc/` whose status reads "complete" are listed in #6292,
+  filed on the owner's answer "Open one issue (Recommended)";
+  none of them was changed.
 
 Nothing in this section has been approved by the owner as complete or final;
 it is one AI session's record of what it did,
