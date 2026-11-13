@@ -68,6 +68,14 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 /// ```
 #[derive(Debug, Default)]
 pub struct DrawnShadows {
+    /// Lock kept:
+    ///  the trees the landing loop drew and the trees a commit's own connection takes,
+    ///  which are one vector read and changed from both threads:
+    ///  the landing loop adds at its end and a connection takes from the front,
+    ///  so the order a tree was drawn in is only preserved if the two never interleave inside the vector.
+    ///  The section is one push or one pop of a vector, so it covers the smallest unit there is,
+    ///  and nothing that waits on storage or on a socket is inside it.
+    ///
     /// The trees nobody has asked for yet,
     /// in the order they were drawn.
     ready: Mutex<Vec<PathBuf>>,

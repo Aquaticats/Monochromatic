@@ -212,7 +212,11 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
     let mut give_up_at: Option<Instant> = None;
     loop {
         let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
-        if version == PROTOCOL_VERSION {
+        // What: A service that announces any protocol this build still serves is served by this command.
+        // Why:  The greeting names the oldest protocol the service speaks (`MIN_SERVED_PROTOCOL`), so a service of this build
+        //       and a service of an earlier build both greet 11; a question the older one does not know is refused by it and read
+        //       here as no answer, which is the path that exists for that.
+        if (crate::service_protocol::MIN_SERVED_PROTOCOL..=PROTOCOL_VERSION).contains(&version) {
             // What: A service of this protocol serves this command, whatever release it announces; one of an older release is
             //       asked to leave so this release's own program replaces it.
             // Why:  The protocol is the contract between the two programs, and the release check existed because the service

@@ -103,6 +103,11 @@ const INVENTORY: &[&str] = &[
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
     "landing/service_index_prestage.rs",
+    // What: the stock of shadow trees one service drew and has not handed out.
+    // Why:  the landing loop adds a tree and a commit's own connection takes one, on threads of their own,
+    //       so the order the trees were drawn in and the set still stocked are one value read and changed from both;
+    //       the lock covers that vector and nothing else.
+    "service/service_shadow_draw.rs",
 ];
 
 /// Every `.rs` file below `root`,

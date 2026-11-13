@@ -223,7 +223,10 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
     let accepted: Instant = Instant::now();
     let sender_user: Option<u32> = stream.peer_cred().ok().map(user_of);
     let (first_half, mut write_half): (OwnedReadHalf, OwnedWriteHalf) = stream.into_split();
-    send(&mut write_half, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(shared.release.clone()) }).await;
+    // What: The greeting names the oldest protocol this build serves, not this build's own.
+    // Why:  A client of an earlier protocol refuses a higher version, and it cannot be changed after it is installed; a service
+    //       of this build serves the earlier wire unchanged (`MIN_SERVED_PROTOCOL`).
+    send(&mut write_half, &ServiceMessage::Welcome { version: crate::service_protocol::MIN_SERVED_PROTOCOL, release: Some(shared.release.clone()) }).await;
     if sender_user != Some(rustix::process::geteuid().as_raw()) {
         return;
     }

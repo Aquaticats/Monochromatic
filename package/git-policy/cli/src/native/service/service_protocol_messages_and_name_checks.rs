@@ -47,6 +47,24 @@ use std::path::{Path, PathBuf};
 /// (`service_client_reach_service.rs`).
 pub const PROTOCOL_VERSION: u32 = 12;
 
+/// What:
+///  The oldest protocol this build still serves,
+///  which is what its service announces in its greeting.
+/// Why:
+///   A client of an earlier protocol refuses a greeting whose version is above the one it knows
+/// (`service_client_reach_service.rs`),
+///  and an installed client cannot be changed:
+///  so in the hours after an upgrade, every command still running the earlier release would fail to commit against a
+///  service that announced this build's version.
+/// Protocol 12 only *adds* messages and an optional field
+///  (a service refuses a question it does not know, which the client reads as no tree),
+/// so this build's service serves a client of 11 unchanged, and announces 11 to be reachable by one.
+/// A client of this build accepts any version in `MIN_SERVED_PROTOCOL..=PROTOCOL_VERSION`,
+/// and treats a service that announces less as one that answers fewer questions.
+///  Raise this only when a message an earlier protocol sends would be *misread* by this build;
+///  a new message alone does not make that so.
+pub const MIN_SERVED_PROTOCOL: u32 = 11;
+
 /// The release of this build:
 /// the crate version,
 /// which the wrapper and the service program share because they are built
