@@ -430,6 +430,12 @@ QNB:
  measure run-to-run spread on unchanged input first;
  smaller differences are noise.
 
+TVC:
+ Report a timing only as a ratio to a control arm run interleaved in the same round,
+ with its range;
+ an absolute time is context,
+ never a finding.
+
 ASK:
  Non-measurable facts:
  ask.
@@ -683,6 +689,12 @@ NHX:
  a release waiting on it);
  any sense of hurry lowers its work.
 Briefs ask for the best result.
+
+A1T:
+ One agent gets one thing:
+ a brief holds a single task,
+ and a different task goes to a fresh agent,
+ never into a running or resumed one.
 
 ## Before running a command
 
