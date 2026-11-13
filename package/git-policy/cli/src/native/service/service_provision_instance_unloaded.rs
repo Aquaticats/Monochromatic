@@ -246,3 +246,9 @@ fn wait_until_dropped(manager: &mut dyn Manager, units: &[&str]) -> Result<(), C
         std::thread::sleep(UNLOAD_POLL);
     }
 }
+
+/// Controls of what the unload does when the manager, or the service, cannot give it what it asks for stay out of the
+/// release executable.
+#[cfg(test)]
+#[path = "service_provision_instance_unloaded_tests.rs"]
+mod tests;
