@@ -70,12 +70,6 @@ pub const DELETING_PREFIX: &str = "cli-git-deleting-";
 /// The process table a removal reads to see whether anything works in the worktree.
 const PROCESS_TABLE: &str = "/proc";
 
-/// The file beside a worktree's registration that names the worktree a landed sweep compared its ignored files with.
-///
-/// It lives in the registration, so a removal of the worktree takes it with the directory,
-/// and a worktree that is kept keeps it for the next reading.
-pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-compared-with";
-
 /// The file beside a worktree's registration that names the worktree and the registration the record was written for.
 ///
 /// It holds the device and the inode of each, which is what tells the worktree the proof was made for from one a person

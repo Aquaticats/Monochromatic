@@ -189,6 +189,13 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
     marked.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
     marked.extend_from_slice(read.target.as_os_str().as_bytes());
     if let Err(error) = write_beside_then_rename(path.as_path(), marked.as_slice()) {
+        // A record that went with its folder between the read above and this write is a removal another command finished:
+        //  nothing is left for a later command to finish, and warning about it told a person that a removal they had just
+        //  made could not be recorded (an audit of 0.6.1-alpha.14 saw the warning during one `git worktree remove`).
+        if error.kind() == std::io::ErrorKind::NotFound {
+            debug(TAG, format!("{} went before it could be marked, so the removal of {id:?} was finished by another command", path.display()).as_str());
+            return;
+        }
         warn(TAG, format!("{} cannot be marked ({error}), so a later command cannot finish the removal of {id:?}", path.display()).as_str());
     }
 }
