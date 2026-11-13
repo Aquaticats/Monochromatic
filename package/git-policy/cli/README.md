@@ -2447,6 +2447,12 @@ The rule is:
   `read-tree --reset -u` writes over an untracked file as well and asks about both,
   while `read-tree -m -u` and `read-tree --prefix=<directory>/ -u` refuse an untracked one themselves.
   A worktree that holds untracked files elsewhere, off the paths the form writes, is untouched by this.
+  An edit to a path you marked with `git update-index --skip-worktree` counts for the forms that write named
+  paths (`git checkout <revision> -- <path>`, `git restore --source=<revision> <path>`),
+  because Git replaces that file,
+  and does not count for the forms Git keeps it for (`git reset --hard`, `git checkout --force`,
+  `git read-tree --reset -u`),
+  so the wrapper does not refuse a command over a file Git leaves alone.
   The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:

@@ -16584,6 +16584,16 @@ which reads no worktree,
 and the record's `dirty` field says whether that query found an entry.
 A `drop` or `clear` runs where the repository holds no entry,
 because then it deletes nothing.
+A `skip-worktree` edit is read as uncommitted work for the forms that write over it,
+measured on this host with native Git 2.56.0:
+`checkout <tree> -- <path>` and `restore --source <tree> -- <path>` replace the file the mark names,
+while `reset --hard`,
+`checkout --force`,
+`read-tree --reset -u` and a bare `checkout -- <path>` keep it (the last refuses the path itself).
+The scope `DirtyScope::TrackedAndSkipWorktreeEdits` is asked by exactly those two readings,
+and a form that answers the question itself keeps the mark out of it:
+`--ignore-skip-worktree-bits` tells Git to ignore the mark,
+so Git writes that file by the person's own instruction and the guard does not refuse it.
 A `checkout` or `switch` that changes any file is also forwarded with `--no-overwrite-ignore`,
 directly after the subcommand,
 so Git itself refuses a switch that would replace an ignored file the target tree tracks,
@@ -16592,9 +16602,14 @@ Git decides that inside the process that changes the files,
 so no measurement window exists for it.
 The token is not added where the region changes no file,
 where the caller already answered with `--overwrite-ignore` or `--no-overwrite-ignore`,
+where the invocation carries the worktree opt-out,
 or where Git refuses the region;
 a caller's own `--overwrite-ignore` after it still wins,
 because Git applies the last spelling.
+The opt-out is left out of it because a person who asked to run the command as real Git runs it
+gets the `checkout` or `switch` real Git runs:
+without that, `git checkout --no-enforce-worktree <branch>` stopped where real Git switches,
+and the refusal's own advice pointed at a command that did not do what it said.
 A forced `checkout -f` or `reset --hard` overrides the token,
 so the ignored file it would replace inside the process is decided before the command runs.
 The reading is the paths this command writes,
@@ -16661,20 +16676,25 @@ with each answer intersected against the written paths in the wrapper's own proc
 which is the entry a refusal must name,
 and bounds a listing to one entry per such directory instead of one per file inside it.
 Asking Git about the written paths alone was measured and lost.
-In a worktree holding 23,683 tracked files,
-native Git took 62 to 64 ms for `reset --hard HEAD` and 31 to 35 ms for `checkout --force HEAD`;
-the guard of release 0.6.1-alpha.13,
-which asked about the written paths one argument list at a time,
-took 359 to 378 ms and 333 to 351 ms;
-and the guard's two listings asked once each,
-with a second arm of the same binary as the control for run-to-run spread,
-took 142 to 146 ms and 109 to 118 ms,
-against 142 to 151 ms and 111 to 119 ms for the control.
-Every arm ran nine times, interleaved round by round,
-in two measurement rounds,
-with a load average of 31 to 40 on eight CPUs
-(`native:build:release`,
-`pi-discard-guard-cont/cost.ts`).
+A linked worktree of 20,000 tracked files, three runs per arm interleaved round by round,
+a fourth arm of the same binary as the control for run-to-run spread,
+on eight CPUs with a load average of 58 to 83:
+native Git took 61 to 74 ms for `reset --hard HEAD`,
+18 to 21 ms for `checkout --force HEAD` and 8 to 9 ms for `clean -fd`;
+release 0.6.1-alpha.13 took 273 to 297, 228 to 1136 (one run of the second arm of that release
+reached 1136) and 27 to 31 ms;
+this reading took 109 to 111, 59 to 65 and 31 to 38 ms,
+against 111 to 113, 59 to 69 and 35 to 668 ms for the control.
+So the check adds about 45 ms to `reset --hard` and to `checkout --force` over this reading's own control,
+where the installed release adds about 215 to 270 ms.
+The same worktree with 5,000 untracked files added beside those 20,000:
+native Git 59 to 70, 30 to 36 and 123 to 179 ms;
+the installed release 504 to 578, 550 to 594 and 21 to 35 ms;
+this reading 110 to 117, 88 to 94 and 21 to 27 ms,
+against 107 to 125, 84 to 132 and 23 to 27 ms for the control.
+A `clean -fd` there is refused before Git runs, which is why its wrapper arms are cheaper than Git
+(`pi-discard-refuse/cost.ts`, and the earlier reading,
+`pi-discard-guard-cont/cost.ts`, measured 23,683 files at a load average of 31 to 40 and found the same order).
 An entry stands where the form writes when it is a written path,
 below one,
 or above one;
@@ -16682,8 +16702,15 @@ the entry above is a directory the form needs a file inside of,
 and the trailing separator Git prints on such an entry names the directory rather than one
 more byte of its name,
 so the comparison treats it that way.
-An entry no other entry holds is saved,
-so a directory kept whole is never also named below itself.
+An entry no other entry holds is named once,
+so a directory kept whole is never also named below itself,
+and a directory the listing collapsed is named by the first entry inside it the form replaces:
+a file where a directory must go,
+a directory where a file must go,
+or the written file itself.
+The entries are found by two searches over the written paths sorted once,
+not by comparing each worktree entry against each written path,
+which is what made a worktree holding 5,000 untracked entries cost 700 ms before it.
 Both listings answer from the top of the worktree with `--full-name` and `-z`,
 so a command started below the top compares the same bytes Git printed;
 the readings that name paths instead write each with `:(top,literal)` magic
@@ -16788,6 +16815,17 @@ The rejection names the form,
 what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
+It also names the paths at stake:
+the overwrite refusal names each entry a form would lose,
+and the dirty-worktree refusal asks `git status --porcelain=v1 -z` once, on the refusal path only,
+for the paths the worktree holds (five of them, then a count),
+so a person sees which of their files the command would take.
+A reading that does not answer leaves the kind-only sentence rather than claiming the worktree holds nothing.
+No refusal asks for a copy `git diff` makes:
+that patch holds no untracked file,
+no ignored file and no edit the index marks `assume-unchanged`,
+so the advice a refusal prints runs as printed for the state it was printed in,
+and a control runs the printed command itself.
 
 #### The abort forms while their operation waits
 

@@ -98,6 +98,12 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 /// function pathspecsInTheFile(file, nulSeparated, directory): string[]; // throws
 /// ```
 fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&Path>) -> Result<Vec<OsString>, String> {
+    // `-` is standard input to Git, which this guard cannot read without consuming what Git needs.
+    if file.as_encoded_bytes() == b"-" {
+        return Err(String::from(
+            "Git could not read the pathspecs `--pathspec-from-file` names, because `-` means standard input, which the guard cannot read before Git does",
+        ));
+    }
     let named: PathBuf = PathBuf::from(file);
     let absolute: PathBuf = if named.is_absolute() {
         named
