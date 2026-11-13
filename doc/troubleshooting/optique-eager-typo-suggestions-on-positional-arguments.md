@@ -1,5 +1,15 @@
 # `@optique/core` 0.7.0 to 1.3.1: each positional token builds a typo suggestion in every option parser that rejects it, so a successful parse of many paths takes seconds
 
+Unapproved and not final.
+An AI session wrote this document on 2026-11-12 and rewrote its reply draft on 2026-11-13,
+and the owner has not approved it.
+Done and checked by that session:
+the measurements and the source reading reported here,
+and one review by a model from another vendor of the text as it stood on 2026-11-12.
+Open:
+a second such review was still running on 2026-11-13,
+and the reply draft waits for the owner.
+
 Status,
 2026-11-12:
 upstream fixed this in two steps.
@@ -748,6 +758,9 @@ deleted, so our old 4.24 s and 0.89 s compared two different things.
 
 [Owner: add, in your own words, the disclosure of AI assistance that upstream's policy asks for, and anything you
 want to say about the cost not having been reported upstream in July.]
+
+[Owner: whether to tell dahlia that the research record #1120 cites was marked "Status: complete" by an AI session
+without your approval, was still changing that day, and now says so.]
 ~~~
 
 The repository the draft links was created private on 2026-11-12T21:02:23Z

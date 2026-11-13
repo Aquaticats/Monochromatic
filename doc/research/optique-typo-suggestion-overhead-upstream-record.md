@@ -16,6 +16,17 @@
    What is known to be open:
    the questions under "Questions" that only upstream can answer,
    and the further measurements in the two troubleshooting documents this one points to.
+   What the word may have cost:
+   upstream's issue 1120 cites this document at commit `249bbf19ea`,
+   where this line read "complete".
+   The owner,
+   2026-11-13:
+   "You marking it Status:
+   complete probably caused dahlia to pre-emptively work more than what the information at that time called for.
+   And it might have also created extra work for dahlia."
+   Whether it did is not known here;
+   the findings were still moving that day,
+   as the two notes of 2026-11-13 in this document show.
 - Source reading recorded:
    2026-11-12T09:11:13-05:00
 - Measurement recorded:

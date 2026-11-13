@@ -1,5 +1,14 @@
 # `@optique/core` 1.4 pre-releases: short-option scoping adds work to every option probe, so a thousand paths after `--` parse about 1.8 times slower than on 1.3.6
 
+Unapproved and not final.
+An AI session wrote this document on 2026-11-12 and extended it on 2026-11-13,
+and the owner has not approved it.
+Done and checked by that session:
+the measurements and the source reading reported here.
+Open:
+a review by a model from another vendor was still running on 2026-11-13,
+and upstream's pull request 1121 was not merged at this writing.
+
 Status,
 2026-11-12:
 unreleased upstream.

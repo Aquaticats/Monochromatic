@@ -1,5 +1,14 @@
 # `@optique/core` 1.0.0 to `main`: the input trace copies its whole map for each token it records, so a successful parse takes time close to the square of the positional token count
 
+Unapproved and not final.
+An AI session wrote this document on 2026-11-13,
+and the owner has not approved it.
+Done and checked by that session:
+the measurements and the source reading reported here.
+Open:
+a review by a model from another vendor was still running when this was written,
+and the two further copies named under "What is left after the fix" are profiled and not fixed.
+
 Status,
 2026-11-13:
 present in every release from 1.0.0 and on upstream `main`.

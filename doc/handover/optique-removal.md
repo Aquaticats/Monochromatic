@@ -813,6 +813,30 @@ each in answer to a question that gave the options:
 - The five `passThrough()` findings held back from this repository:
   "Draft a private advisory (Recommended)",
   meaning a local draft for the owner to review and submit through GitHub's private reporting.
+- The research record's status line,
+  which read "complete" on the word of the session that wrote it:
+  "No.
+  It was not complete.
+  At the very least it should have said I haven't approved it as complete."
+  and
+  "You marking it Status:
+  complete probably caused dahlia to pre-emptively work more than what the information at that time called for.
+  And it might have also created extra work for dahlia."
+  The line now says the owner has not approved it,
+  and the reply draft holds a placeholder for whether to tell the maintainer.
+- Two rule changes that came of this session's missteps,
+  both chosen by the owner from proposals:
+  rule `VR2` in `AGENTS.md` now covers answers as well as requests,
+  and a new rule,
+  `SGO`,
+  reserves "complete",
+  "final" and "approved" for the owner and has agents mark their documents,
+  statuses and reports otherwise.
+  The Optique and Deno documents of this work carry that mark.
+
+Nothing in this section has been approved by the owner as complete or final;
+it is one AI session's record of what it did,
+checked and left open.
 
 Where each piece stands:
 

@@ -1,5 +1,13 @@
 # Deno 2.9.8: `deno run --import-map` with an `npm:` target stops with "Could not find a matching package" when a `package.json` sits beside the script
 
+Unapproved and not final.
+An AI session wrote this document on 2026-11-13,
+and the owner has not approved it.
+Done and checked by that session:
+the invocations and the source reading reported here.
+Open:
+no one else has reviewed it.
+
 Found on 2026-11-13 while checking that the scripts of a reproduction repository run on Deno.
 The repository holds a `package.json` so that Node treats its scripts as ES modules,
 and an import map so that Deno can run them with nothing installed.
