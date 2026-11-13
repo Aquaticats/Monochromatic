@@ -261,13 +261,31 @@ where `keep_on_a_side_ref(git, repository, name, tip)` replaces
 `keep_on_a_side_ref_only_if_free(git, repository, name, tip)`.
 The pruning names the two forms of a kept reference itself
 (`kept_reference_name.rs`),
-so it answers for both a merge produces,
-and the only work a merge of the two leaves is the record of the worktree:
-the removal keeper writes it
-(`worktree_removal_held_commits.rs`,
-`remember_the_worktree`),
-and a merge adds the same one call after the write in
-`service_land_side_reference_write.rs`,
-so that a commit a landing kept also names the worktree it was built in.
-Without it the reference is dated by the first pass that lists it,
+so it answers for both a merge produces.
+
+`git merge-tree --write-tree --name-only` between this branch and that one reports two conflicts,
+both of them the one name that moved:
+
+- `src/native/worktree/worktree_removal_held_commits.rs`,
+  where this branch adds `remember_the_worktree` and its two call sites beside the import that branch
+  renames.
+  The merge keeps that branch's import
+  (`crate::service_land_side_reference_write::keep_on_a_side_ref`)
+  and this branch's helper and calls.
+- `src/native/worktree/worktree_removal_held_commits_tests.rs`,
+  where the same rename reaches one call.
+
+Everything else merges cleanly.
+
+One line belongs after the merge rather than before it:
+`service_land_side_reference_write.rs` is where a landing's side-reference write lives after that
+branch,
+and the same `kept_reference_record::record_a_removals_kept_reference` call belongs after a
+successful write there,
+so a commit a landing kept also names the worktree it was built in.
+This branch records the worktree only where a removal keeps a held commit
+(`worktree_removal_held_commits.rs`).
+Without that call,
+a reference a landing kept is dated by the first pass that lists it and its line says the worktree
+was not recorded,
 which loses no commit.
