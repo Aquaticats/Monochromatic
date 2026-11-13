@@ -1021,10 +1021,9 @@ const CRATES_IO_SOURCES = new Set(['registry+https://github.com/rust-lang/crates
 // The starts of the folder Cargo caches crates.io under, `short_name` being the index host and a hash of its URL.
 const CRATES_IO_FOLDER_PREFIXES = ['index.crates.io-', 'github.com-']
 // The length git abbreviates a commit id to, which is also the name of a Cargo git checkout's folder
-// (`GitDatabase::to_short_id`, at least seven characters and longer only when seven are ambiguous).
+// (`GitDatabase::to_short_id`, at least seven characters and longer only when seven are ambiguous). A revision's
+// own text is hex of that length up to a SHA-256 repository's 64 (`git2::Oid`).
 const SHORTEST_GIT_CHECKOUT_NAME = 7
-const LONGEST_GIT_REVISION = 64
-const SHORTEST_GIT_REVISION = 7
 const GIT_REVISION_SHAPE = /^[0-9a-f]{7,64}$/u
 
 /** The `[[package]]` entries of a `Cargo.lock` as `{ name, version, source }`, or undefined when it is not understood. */
