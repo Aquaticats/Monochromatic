@@ -79,11 +79,15 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
     };
     let recorded: bool = !identities_recorded(common_dir, pid).is_empty();
     let live: bool = matches!(crate::process_identity::process_birth_identity(pid), Ok(Some(_running)));
-    let why: &str = match (live, recorded) {
+    let held: bool = crate::abandoned_lock_proving::a_writer_holds_it_open(lock);
+    let why: &str = match (live, recorded, held) {
         // Nothing is claimed about a live number: the lock may be that program's, and its own command ends by itself.
-        (true, _) => "which a live process has now, so nothing here proves the lock is not its own write",
-        (false, false) => "which no process in this process table has, and no record of the processes this repository's own commands started names that number",
-        (false, true) => "which no process in this process table has, and whose records this repository holds name a process of another boot, another PID namespace or another machine, so nothing here proves it gone",
+        (true, _, _) => "which a live process has now, so nothing here proves the lock is not its own write",
+        (false, false, _) => "which no process in this process table has, and no record of the processes this repository's own commands started names that number",
+        // The records may be dead and the writer may still be at work: a program holding the lock open for writing keeps its
+        //  name, because it can still write into the file.
+        (false, true, true) => "which no process in this process table has, and a program holds it open for writing now, so its name may not go",
+        (false, true, false) => "which no process in this process table has, and whose records this repository holds name a process of another boot, another PID namespace or another machine, so nothing here proves it gone",
     };
     return Some(format!(
         "monochromatic-git-policy-cli: {}, whose PID file names {pid}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a number this table has never had. If no program is using this repository, the lock was left by a program that was killed or has ended, and removing the file {} lets the command run.\n",

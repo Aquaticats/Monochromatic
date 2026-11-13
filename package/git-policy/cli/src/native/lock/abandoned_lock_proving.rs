@@ -5,25 +5,44 @@
 //!  A lock whose holder is proven gone protects nothing,
 //!  and the command that meets it must go on instead of waiting a minute and giving up.
 //!  The proof is about the writer of the lock's PID file,
-//!  never about the number alone (`lock_holder_record_reads.rs`, `proved_gone_writer`):
+//!  never about the number alone (`lock_holder_record_reads.rs`,
+//! `proved_gone_writer`):
 //!  no live process may have the number the PID file names,
 //!  and every record of this repository naming that number must be a process of this boot,
 //!  this PID namespace and this machine that has ended.
 //!  What each way the three facts can disagree does here:
 //!
-//!  - a number used again: a live process has it, so the lock stays.
+//!  - a number used again:
+//!    a live process has it,
+//!    so the lock stays.
 //!    Nothing tells the live Git that wrote the PID file from a later program that only has its number.
-//!  - two records for one number: all of them must be gone.
-//!    One record of another boot, namespace or machine keeps the lock.
-//!  - a record written after the lock: it names a later process's birth, so the number is live or the record is another
-//!    machine's, and the lock stays either way.
-//!  - a lock made by a process that then became another program: the same number and the same birth, alive, so it stays.
-//!  - a holder in another PID namespace or on another machine: its record judges unknown, so the lock stays.
-//!  - the wrapper's own forwarded command: its `self` record carries the birth the exec'd Git keeps, so it stays.
-//!  - a zombie, or a process that ended: it has no birth to compare, and it cannot have written anything since,
+//!  - two records for one number:
+//!    all of them must be gone.
+//!    One record of another boot,
+//!    namespace or machine keeps the lock.
+//!  - a record written after the lock:
+//!    it names a later process's birth,
+//!    so the number is live or the record is another
+//!    machine's,
+//!    and the lock stays either way.
+//!  - a lock made by a process that then became another program:
+//!    the same number and the same birth,
+//!    alive,
+//!    so it stays.
+//!  - a holder in another PID namespace or on another machine:
+//!    its record judges unknown,
+//!    so the lock stays.
+//!  - the wrapper's own forwarded command:
+//!    its `self` record carries the birth the exec'd Git keeps,
+//!    so it stays.
+//!  - a zombie,
+//!    or a process that ended:
+//!    it has no birth to compare,
+//!    and it cannot have written anything since,
 //!    so the record's judgement decides.
 //!
-//!  No time decides anything, so a correction of the clock moves no verdict.
+//!  No time decides anything,
+//!  so a correction of the clock moves no verdict.
 //!  Four further facts must hold before the file goes,
 //!  and each one is a way a live writer could still be inside it:
 //!  no readable process has it open (a complete scan of this account),
@@ -40,12 +59,14 @@
 //!  A lock carrying the commit service's marker is not judged by that proof:
 //!  it is handed to the service's own reclaimer,
 //!  which reads the marker's holder and takes its claim on the file
-//!  (`service_index_reclaim.rs`, `StaleMark::HolderIsGone`).
+//!  (`service_index_reclaim.rs`,
+//!  `StaleMark::HolderIsGone`).
 //!  Nothing is restored after the removal,
 //!  because there is nothing of the repository's to restore:
 //!  every Git lock is a new file that Git fills and renames over its target,
 //!  so a lock that never reached its rename holds only the dead holder's unfinished copy of the index,
-//!  the reference list, `HEAD` or the shallow file,
+//!  the reference list,
+//!  `HEAD` or the shallow file,
 //!  and the file that is really there is the one the repository had before.
 //!
 //! In TS you'd write (pseudocode):
@@ -55,25 +76,32 @@
 
 /// The lock's metadata and its identity without following a link.
 use crate::index_lock_evidence::read_lock_metadata;
-/// The proof that no program can write into a file, from the kernel where it offers leases and from the scan elsewhere.
+/// The proof that no program can write into a file,
+/// from the kernel where it offers leases and from the scan elsewhere.
 use crate::merge_isolation_take_asides_proof::{ProofNothingCanWrite, the_proof_that_nothing_can_write_into};
-/// The scan of the processes that hold one file open, for the platforms that offer no lease.
+/// The scan of the processes that hold one file open,
+/// for the platforms that offer no lease.
 #[cfg(not(target_os = "linux"))]
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
-/// The one reason a removal may act through: another account owns the process whose descriptors the kernel refused.
+/// The one reason a removal may act through:
+/// another account owns the process whose descriptors the kernel refused.
 #[cfg(not(target_os = "linux"))]
 use crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON;
 /// The proof a record of this repository gives about the writer of a PID file.
 use crate::lock_holder_record_reads::proved_gone_writer;
-/// How a lock's PID file is read and judged, and the file systems a lock of this machine sits on.
+/// How a lock's PID file is read and judged,
+/// and the file systems a lock of this machine sits on.
 use crate::stale_ref_lock_judge::{Judge, LOCAL_FILE_SYSTEMS};
 /// The name a lock's PID file has.
 use crate::stale_ref_lock_walk::pid_file_beside;
 /// How the file system holding a lock is looked at.
 use crate::fs_mount_options::read_mount_facts;
-/// The commit service's marker, whose locks belong to the landing's own reclaimer.
+/// The commit service's marker,
+/// whose locks belong to the landing's own reclaimer.
 use crate::service_index_marker::marker_of_file;
-/// The open that never waits, the comparison of one file with the name it was reached by, and the service's reclaimer.
+/// The open that never waits,
+/// the comparison of one file with the name it was reached by,
+/// and the service's reclaimer.
 use crate::service_index_reclaim::{Reclaimed, StaleMark, open_to_judge, reclaim_if, same_file};
 /// The platform whose scans and placements this process uses.
 use crate::service_index_placement::SYSTEM;
@@ -309,6 +337,25 @@ fn claim_the_removal(file: &std::fs::File) -> bool {
 }
 
 /// What:
+///  Whether a program holds the lock open for writing now,
+///  which is what keeps a lock whose records prove its writer gone from being removed.
+/// Why:
+///  The person's line must say what actually stands in the way:
+///  a writer the kernel refuses this command's lease is a live program at work,
+///  and its own command ends by itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aWriterHoldsItOpen(lock) // the lease was refused
+/// ```
+pub(crate) fn a_writer_holds_it_open(lock: &Path) -> bool {
+    let Ok(Some(judged)) = read_lock_metadata(lock) else {
+        return false;
+    };
+    return nothing_can_write_into(lock, judged.device, judged.inode).is_none();
+}
+
+/// What:
 ///  The proof that nothing can write into the lock while its name is removed:
 ///  the kernel's own answer where it offers leases,
 ///  and the scan of every readable process where it does not.
@@ -320,7 +367,8 @@ fn claim_the_removal(file: &std::fs::File) -> bool {
 ///  A read lease is refused while any program has the file open for writing,
 ///  whatever account owns it and whether or not it is dumpable,
 ///  and holding it keeps a later writer out until the name is gone
-///  (`merge_isolation_take_asides_proof.rs`, the same proof the merge's asides are removed under).
+///  (`merge_isolation_take_asides_proof.rs`,
+/// the same proof the merge's asides are removed under).
 ///  A platform without leases has only the scan:
 ///  a file whose scan found a holder,
 ///  was cut at its bound,

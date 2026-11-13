@@ -1,10 +1,12 @@
 //! What:
 //!  Controls for the proof that a lock's PID file writer is gone:
-//!  every way a number, a record and a lock file can disagree,
+//!  every way a number,
+//! a record and a lock file can disagree,
 //!  and the removal's own last step,
 //!  where a Git takes the freed name and must keep its own PID file.
 //! Why:
-//!  The proof is about the writer of the PID file, and the ways it can be wrong are finite:
+//!  The proof is about the writer of the PID file,
+//! and the ways it can be wrong are finite:
 //!  a number used again,
 //!  two records for one number,
 //!  a record written after the lock,
@@ -26,7 +28,8 @@ use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-/// A process of this control that holds nothing, ended when it is dropped.
+/// A process of this control that holds nothing,
+/// ended when it is dropped.
 struct Helper(Child);
 
 impl Drop for Helper {
@@ -54,7 +57,8 @@ fn a_git_directory(name: &str) -> PathBuf {
 }
 
 /// What:
-///  Plant one lock, the PID file Git writes beside it,
+///  Plant one lock,
+/// the PID file Git writes beside it,
 ///  and the record that names `pid` with `identity`.
 /// Why:
 ///   The three files are the whole state the proof reads,
@@ -187,7 +191,8 @@ fn a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared() {
 ///  and a record of that earlier process proves nothing about the program that has the number now:
 ///  it may be the Git that wrote this very PID file.
 ///  Removing its lock made a real `git commit --all` fail with the index recovery message
-///  (the review of `d4a0803231`, finding 1).
+///  (the review of `d4a0803231`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -250,7 +255,8 @@ fn two_records_for_one_number_clear_only_when_every_one_is_gone() {
 }
 
 /// What:
-///  A record of an earlier boot is gone, and a record of another machine or another namespace is unknown.
+///  A record of an earlier boot is gone,
+/// and a record of another machine or another namespace is unknown.
 /// Why:
 ///   A boot that ended ends every process in it,
 ///  so a record of it cannot name a live writer;
@@ -275,7 +281,9 @@ fn a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown() {
 }
 
 /// What:
-///  A lock with no record, and a lock with no PID file, are kept.
+///  A lock with no record,
+/// and a lock with no PID file,
+/// are kept.
 /// Why:
 ///   A lock the wrapper did not take carries no record,
 ///  and a number nothing names is no proof at all.
@@ -297,6 +305,43 @@ fn a_lock_with_no_record_or_no_pid_file_is_kept() {
     remove(common_dir.as_path());
 }
 
+/// The variable that makes this test binary hold a lock open,
+/// non-dumpably,
+/// for the control below.
+const HOLD_NON_DUMPABLY: &str = "CLI_GIT_TEST_NON_DUMPABLE_LOCK";
+
+/// What:
+///  The child body:
+/// hold the lock open for writing,
+/// become non-dumpable,
+/// and wait to be killed.
+/// Why:
+///   `PR_SET_DUMPABLE` is reset by `execve`,
+///  so a shell that is made non-dumpable before its own start is dumpable again after it:
+///  the holder must be a process this binary ran,
+///  with no exec after the call.
+///  Inert unless the control set the variable,
+///  so the suite's own run of this test does nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!process.env.HOLD) return; const fd = open(lock, 'r+'); prctl(0); writeFileSync(ready); park();
+/// ```
+#[test]
+fn a_non_dumpable_writer_holds_the_lock_for_the_control() {
+    let Ok(lock) = std::env::var(HOLD_NON_DUMPABLY) else {
+        return;
+    };
+    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(lock.as_str()).expect("open the lock for writing");
+    // SAFETY: `prctl` takes integers and touches no memory of this process.
+    let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) };
+    assert_eq!(refused, 0, "the holder must become non-dumpable");
+    std::fs::write(format!("{lock}.ready"), b"ready\n").expect("the ready file");
+    // The descriptor stays open for as long as this process lives, and parking costs the host nothing.
+    let _held = file;
+    std::thread::park();
+}
+
 /// What:
 ///  A lock a live writer of this account holds open is kept,
 ///  even when this account may not read that process's descriptors.
@@ -306,36 +351,70 @@ fn a_lock_with_no_record_or_no_pid_file_is_kept() {
 ///  The kernel's read lease is refused while any program has the lock open for writing,
 ///  whatever account owns it and whether or not it is dumpable,
 ///  so the removal is refused without reading any descriptor
-///  (`index_lock_holders_accounts.rs`, the Kimi K3.1 Pro audit finding;
+///  (`index_lock_holders_accounts.rs`,
+/// the Kimi K3.1 Pro audit finding;
 ///  `merge_isolation_take_asides_proof.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holder = spawnNonDumpable('exec 9<>lock; sleep 60'); expect(kept).toBe(true);
+/// const holder = nonDumpableWriter(lock); expect(kept).toBe(true);
 /// ```
 #[test]
 fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
-    let common_dir: PathBuf = a_git_directory("non-dumpable-holder");
+    let common_dir: PathBuf = a_git_directory("non-dumpable-writer");
     let (pid, identity) = dead_holder();
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
     let lock: PathBuf = common_dir.join("index.lock");
-    use std::os::unix::process::CommandExt as _;
-    let mut starting: Command = Command::new("sh");
-    starting.args(["-c", "exec 9<>\"$1\"; exec sleep 120", "sh"]).arg(lock.as_path()).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    // SAFETY: the closure runs between fork and exec and calls only `prctl`, which is async-signal-safe.
-    unsafe {
-        starting.pre_exec(|| {
-            libc::prctl(libc::PR_SET_DUMPABLE, 0);
-            return Ok(());
-        });
-    }
-    let mut holder: Child = starting.spawn().expect("a non-dumpable holder starts");
-    let opened: bool = wait_until_open(lock.as_path(), i64::from(holder.id()));
-    assert!(opened, "the holder must hold the lock open before the proof is asked");
+    let mut holder: Child = start_non_dumpable_holder(lock.as_path());
+    assert!(unreadable_holder(lock.as_path(), i64::from(holder.id())), "the holder must be non-dumpable and hold the lock open");
     assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a writer nobody can look into keeps the lock");
     let _killed = holder.kill();
     let _waited = holder.wait();
     remove(common_dir.as_path());
+}
+
+/// What:
+///  This test binary running the child body on `lock`,
+///  which holds the file open for writing and is not dumpable.
+/// Why:
+///  Only a process that does both in one life can be the writer this control is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawn(process.execPath, ['--exact', name], { env: { [HOLD]: lock } })
+/// ```
+fn start_non_dumpable_holder(lock: &Path) -> Child {
+    let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
+    return Command::new(binary)
+        .args(["--exact", "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control", "--nocapture", "--test-threads=1"])
+        .env(HOLD_NON_DUMPABLY, lock)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the non-dumpable holder starts");
+}
+
+/// What:
+///  Whether the process holding `lock` is there and this account cannot read its descriptor directory,
+///  which is what makes it the case the lease exists for.
+/// Why:
+///   A control whose holder turned out to be dumpable would pass for the wrong reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(fs.readdirSync(`/proc/${pid}/fd`)).toThrow(/EACCES/);
+/// ```
+fn unreadable_holder(lock: &Path, pid: i64) -> bool {
+    let ready: PathBuf = PathBuf::from(format!("{}.ready", lock.display()));
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < std::time::Duration::from_secs(10) {
+        if ready.exists() {
+            return std::fs::read_dir(format!("/proc/{pid}/fd")).is_err();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    return false;
 }
 
 /// What:

@@ -146,20 +146,27 @@ pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
 ///  when the writer of a lock whose PID file names `pid` is proved gone.
 /// Why:
 ///  This is the whole proof of `abandoned_lock_proving.rs`,
-///  and it is a proof about the writer of the PID file, not about the number:
+///  and it is a proof about the writer of the PID file,
+/// not about the number:
 ///
-///  - a live process with that number keeps the lock, whatever the records say.
-///    Its birth either is a recorded one (then it is the recorded process, and it runs),
-///    or it is not (then the number was reused, and nothing tells the live Git that wrote the PID file from a later
+///  - a live process with that number keeps the lock,
+///    whatever the records say.
+///    Its birth either is a recorded one (then it is the recorded process,
+///    and it runs),
+///    or it is not (then the number was reused,
+///    and nothing tells the live Git that wrote the PID file from a later
 ///    program that merely has the number).
-///    A process table read that fails answers the same way: keep.
+///    A process table read that fails answers the same way:
+///    keep.
 ///  - with the number free,
 ///    every record naming it must judge `gone`:
-///    a record of another boot is gone, because a boot that ended ends every process in it;
+///    a record of another boot is gone,
+///    because a boot that ended ends every process in it;
 ///    a record of another PID namespace or another machine is unknown,
 ///    and one unknown record keeps the lock,
 ///    because a Git of that namespace or machine may be the writer.
-///  - no record at all is unknown, and keeps it.
+///  - no record at all is unknown,
+///    and keeps it.
 ///
 ///  A zombie holds no number here:
 ///  `process_birth_identity` answers nothing for a process in an exited state,

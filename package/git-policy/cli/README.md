@@ -3429,11 +3429,22 @@ naming the wrapper and every Git it started,
 each with the birth identity,
 boot ID,
 PID namespace and machine ID that the commit service's index lock marker already uses.
-A lock is cleared when its PID file names a number from that record,
-nothing this boot,
-this PID namespace or this machine has that birth,
+A lock is cleared when its PID file names a number no live process has,
+every record of this repository naming that number is a process of this boot,
+this PID namespace and this machine that has ended,
 the file sits on a local file system,
-and no readable process has it open.
+and the kernel's own read lease says nothing can write into it.
+A number a live process has is never proved gone,
+because the number may have been used before and the live program may be the one that wrote the PID file;
+removing such a lock made a real `git commit --all`,
+held in its editor,
+fail with Git's index-recovery
+message,
+and that is what the proof refuses now.
+A program holding the lock open for writing keeps the lock,
+whatever account owns it,
+and a reader alone does not,
+because a reader cannot write into the file.
 It is removed under an exclusive `flock` of the lock file itself,
 so two commands that meet it at the same instant cannot both remove it and both take it,
 and one line says which lock went and what proved its holder gone.

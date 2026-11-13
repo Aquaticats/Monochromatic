@@ -477,6 +477,41 @@ fn a_live_commits_editor_phase_lock_is_kept_when_a_dead_record_names_its_number(
     super::commit::remove_settled(&fixture);
 }
 
+/// The variable that makes this test binary hold a lock open,
+/// non-dumpably,
+/// for the control below.
+const HOLD_NON_DUMPABLY: &str = "CLI_GIT_TEST_NON_DUMPABLE_LOCK";
+
+/// What:
+///  The child body:
+/// hold the lock open for writing,
+/// become non-dumpable,
+/// and wait to be killed.
+/// Why:
+///   `PR_SET_DUMPABLE` is reset by `execve`,
+///  so the holder must be a process this binary ran,
+///  with no exec after the call:
+///  a shell made non-dumpable before its own start is dumpable again after it.
+///  Inert unless the control set the variable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!process.env.HOLD) return; const fd = open(lock, 'r+'); prctl(0); writeFileSync(ready); park();
+/// ```
+#[test]
+fn a_non_dumpable_writer_holds_the_lock_for_the_control() {
+    let Ok(lock) = std::env::var(HOLD_NON_DUMPABLY) else {
+        return;
+    };
+    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(lock.as_str()).expect("open the lock for writing");
+    // SAFETY: `prctl` takes integers and touches no memory of this process.
+    let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) };
+    assert_eq!(refused, 0, "the holder must become non-dumpable");
+    std::fs::write(format!("{lock}.ready"), b"ready\n").expect("the ready file");
+    let _held = file;
+    std::thread::park();
+}
+
 /// What:
 ///  A lock a non-dumpable writer of this account holds open is kept.
 /// Why:
@@ -488,7 +523,7 @@ fn a_live_commits_editor_phase_lock_is_kept_when_a_dead_record_names_its_number(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holder = nonDumpableWriter(lock); expect(runWrapped(['status']).code).toBe(0); expect(lockStands).toBe(true);
+/// const holder = nonDumpableWriter(lock); expect(lockStands).toBe(true);
 /// ```
 #[test]
 fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
@@ -496,8 +531,8 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     let (pid, identity) = a_dead_holder();
     plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-dead-writer");
     let lock: PathBuf = repo.join(".git/index.lock");
-    let mut holder: Child = non_dumpable_writer(lock.as_path());
-    assert!(holds_open(lock.as_path(), i64::from(holder.id())), "the writer must hold the lock open before the wrapper runs");
+    let mut holder: Child = start_non_dumpable_holder(lock.as_path());
+    assert!(unreadable_holder(lock.as_path(), i64::from(holder.id())), "the holder must be non-dumpable and hold the lock open");
     let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
     assert!(after.lock_stands, "a writer this account cannot look into keeps the lock: {}", after.said);
@@ -507,34 +542,26 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     super::commit::remove_settled(&fixture);
 }
 
-/// A shell holding `lock` open for reading and writing,
-/// which then makes itself non-dumpable,
-/// so this account cannot read its descriptor directory.
-fn non_dumpable_writer(lock: &Path) -> Child {
-    use std::os::unix::process::CommandExt as _;
-    let mut starting: Command = Command::new("sh");
-    starting.args(["-c", "exec 9<>\"$1\"; exec sleep 120", "sh"]).arg(lock).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    // SAFETY: the closure runs between fork and exec and calls only `prctl`, which is async-signal-safe.
-    unsafe {
-        starting.pre_exec(|| {
-            libc::prctl(libc::PR_SET_DUMPABLE, 0);
-            return Ok(());
-        });
-    }
-    return starting.spawn().expect("a non-dumpable writer starts");
+/// This test binary running the child body on `lock`.
+fn start_non_dumpable_holder(lock: &Path) -> Child {
+    let binary: PathBuf = std::env::current_exe().expect("this test binary");
+    return Command::new(binary)
+        .args(["--exact", "killed_holder_lock::a_non_dumpable_writer_holds_the_lock_for_the_control", "--nocapture", "--test-threads=1"])
+        .env(HOLD_NON_DUMPABLY, lock)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the non-dumpable holder starts");
 }
 
-/// Whether `pid` holds `lock` open,
-/// read from its descriptor directory while this account may still read it.
-fn holds_open(lock: &Path, pid: i64) -> bool {
+/// Whether the holder is there and this account cannot read its descriptor directory.
+fn unreadable_holder(lock: &Path, pid: i64) -> bool {
+    let ready: PathBuf = PathBuf::from(format!("{}.ready", lock.display()));
     let began: Instant = Instant::now();
     while began.elapsed() < Duration::from_secs(10) {
-        if let Ok(entries) = std::fs::read_dir(format!("/proc/{pid}/fd")) {
-            for entry in entries.flatten() {
-                if std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock; }) {
-                    return true;
-                }
-            }
+        if ready.exists() {
+            return std::fs::read_dir(format!("/proc/{pid}/fd")).is_err();
         }
         std::thread::sleep(Duration::from_millis(10));
     }
