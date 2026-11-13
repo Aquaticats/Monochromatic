@@ -9,9 +9,13 @@ Open:
 a model from another vendor reviewed the text as of commits `5a4e07d2e3` and `426d33d638`,
 and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
-the corrections made after that last pass are not reviewed,
-and the two further copies named under "What is left after the fix" are profiled and not fixed:
-fixes for them are being prototyped and nothing about that is settled.
+the corrections made after that last pass are not reviewed.
+Fixes for the two further copies named under "What is left after the fix" were prototyped by an AI agent
+and rechecked by this session on 2026-11-13,
+as recorded under "Prototypes for the two further copies":
+the one for `multiple()`'s state holds up and is kept as a second patch,
+and the one for the token buffer slows other input and is not kept.
+No person and no model from another vendor has reviewed that section or the second patch.
 
 Status,
 2026-11-13:
@@ -221,14 +225,22 @@ an AI agent,
 had attributed the remainder to the buffer copy alone;
 the profile puts more of it in `multiple()`.
 
-Neither of the two has a fix here.
-On 2026-11-13 the owner chose to have fixes prototyped before any reply to upstream,
-and that work was started the same day;
-this document says nothing about its result until the result has been checked.
+The buffer copy is not `argument()`'s alone.
+On `main` at `d26f1a24`,
+sixteen places in `primitives.ts` build the next buffer with `context.buffer.slice(...)`,
+[the option parser's among them][option buffer],
+so every primitive that consumes a token pays it;
+`argument()` is the one a run of positional tokens goes through.
+
+On 2026-11-13 the owner chose to have fixes for both prototyped before any reply to upstream.
+The result is under "Prototypes for the two further copies":
+the fix for the state of `multiple()` holds up,
+and the one tried for the buffer does not.
 Each changes a value that other code reads as a plain array
 (the state of `multiple()`,
 and the context's token buffer),
-so a fix reaches further than the trace's did.
+so a fix reaches further than the trace's did,
+and for the buffer that reach is what defeated the attempt.
 
 ### A figure that turned out too narrow
 
@@ -386,6 +398,29 @@ so using it means building `@optique/core` from source.
 Tradeoff:
 it is unreviewed by upstream and adds about 350 lines to maintain.
 
+The second patch,
+[`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
+goes on top of it and removes the state copy of `multiple()`.
+With both,
+8,000 positional tokens took 84 ms against 217 ms with the first patch alone and 1,401 ms on `main`,
+and 32,000 took 1.4 s against 7.3 s and 30.6 s
+(Deno 2.9.8,
+medians of five rounds).
+
+Tradeoffs of the second:
+
+- A state of more than 1,024 items is a `Proxy`.
+   Printing it shows an empty array,
+   `structuredClone()` and `Object.freeze()` on it throw,
+   and so does editing it in place,
+   as listed under "What a caller can notice".
+- Just past that size it can cost about a tenth,
+   measured on a line that alternates options and arguments.
+- It is unreviewed by upstream and by any person,
+   and adds about 600 lines of source and 700 of tests to maintain.
+- The buffer copy stays,
+   and from about 32,000 positional tokens it is most of the parse.
+
 ## What does not work
 
 - Putting `--` before the positional tokens,
@@ -397,6 +432,14 @@ it is unreviewed by upstream and adds about 350 lines to maintain.
 - Upstream pull request 1121,
    merged on 2026-11-13.
    It changes the option-scope work and does not touch `input-trace.ts`.
+- Making the token buffer a view in `argument()` only,
+   the second of the two prototypes.
+   The other primitives then slice that view through its proxy,
+   and a line that alternates options and arguments took 8.8 times as long at 24,000 tokens and 12.0 times at 48,000.
+   The figures are under "Prototypes for the two further copies".
+- Copying the state of `multiple()` with `slice` and `push` in place of the spread.
+   It measured the same as the spread.
+   Copying it with `concat` took about a third of the time at 16,000 tokens and left the growth as it was.
 
 ## Upstream filing artifact
 
@@ -716,6 +759,427 @@ folder `measurements-2026-11-13`:
 `upstream-arms-results.jsonl` for the comparison with the pull request,
 and the container recipes and runners that produced them.
 
+### Prototypes for the two further copies
+
+Unapproved and not final.
+On 2026-11-13 the owner chose to have fixes for the two copies named under
+"What is left after the fix" prototyped before any reply to upstream.
+An AI agent (DeepSeek through Pi) wrote two diffs that day in a disposable clone,
+on upstream `main` at `d26f1a24` with the trace patch applied.
+An AI session from another vendor rechecked them the same day:
+it applied the agent's diff files itself to a clean checkout of that commit,
+ran probes and timings of its own,
+and took nothing from the agent's build trees.
+No person has read the diffs or this section,
+and no third model has reviewed either.
+
+The result:
+
+- The diff for `multiple()`'s state holds up,
+   with three changes made in the recheck.
+   It is kept as
+   [`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
+   1,342 lines added across seven files.
+- The diff for the token buffer does not.
+   It makes a command line that alternates options and arguments about ten times slower once it takes effect,
+   and it is not kept as a patch;
+   it is in the evidence archive for anyone who wants to repeat the measurement.
+- With both copies gone,
+   a run of positional arguments parses in time proportional to its length up to 128,000 tokens.
+   That is measured for a run of positional arguments and for nothing else.
+
+#### What the two diffs do
+
+Both keep the types as they are
+(`readonly TState[]` for the state,
+`readonly string[]` for the buffer)
+by handing out a view:
+a `Proxy` over an empty array that answers index reads,
+`length` and the `Array.prototype` methods from storage it does not own.
+
+- State:
+   above 1,024 items the state of `multiple()` becomes a view of an immutable vector,
+   a 32-way tree in which an append or a drop of the last item copies only the nodes on one path.
+   Up to 1,024 items the code keeps the plain arrays and the expression it had.
+- Buffer:
+   while 16,384 tokens or more are left,
+   `argument()` cuts the buffer as a view that remembers the array it was cut from and how far;
+   with fewer left it slices as before.
+
+The thresholds are the agent's,
+from its own measurement that a view costs more than a copy on short inputs.
+The recheck's timings agree that a threshold is needed:
+with every state and buffer made a view,
+a parse of a thousand paths through a parser with twenty-eight options took 1.59 times as long as without
+(1.47 to 1.68 over five rounds).
+
+#### Behaviour
+
+- All four diff files apply to `main` at `d26f1a24` with no fuzz,
+   the combined one gives the same tree as the three it combines,
+   and no diff removes a line from a test file upstream already had.
+   The agent's working tree was identical to the tree made from its diff files.
+- Upstream's `packages/core` suite,
+   on Deno 2.9.8,
+   Node 26.13.1 and Bun 1.4.4,
+   in a container with no network:
+   - `main` with the trace patch:
+      778 passed on Deno (8,301 steps),
+      8,086 on Node,
+      8,086 on Bun,
+      none failing.
+   - With the agent's diffs as written:
+      784 (8,340 steps),
+      8,125 and 8,125,
+      none failing.
+   - With the kept patch:
+      782 (8,330 steps),
+      8,115 and 8,115,
+      none failing,
+      and `deno fmt --check`,
+      `deno lint` and `deno check` clean on the six source files it adds or changes.
+- "Every existing test passes" says little at those thresholds:
+   a test runs the new code only if it builds a state of 1,024 items or leaves 16,384 tokens in a buffer,
+   and how many of upstream's tests do was not counted.
+   With both thresholds set to two,
+   so that nearly every state and buffer is a view,
+   the suite still passes whole:
+   784,
+   8,125 and 8,125.
+   With both set to zero,
+   five of the agent's new tests fail and no test upstream had before does;
+   each of the five sizes itself as the threshold less one and reads index -1 or a token that is not there.
+- Two probes written for the recheck print what the library returns and how states and buffers read to a caller
+   (`Array.isArray`,
+   `length`,
+   index,
+   spread,
+   `slice`,
+   `map`,
+   `concat`,
+   JSON,
+   earlier contexts after later ones were made).
+   One stays under 300 tokens;
+   the other passes both thresholds,
+   takes 1,067 parse steps one at a time,
+   and replaces the last item of a state of 1,031 items in two different ways from one earlier state.
+   Every arm gave output identical to the base on both.
+   Three deliberately broken copies were run beside them:
+   a break of the plain-array path showed on both probes,
+   and two breaks inside the view code showed on the long probe only,
+   so the long probe does reach the view code.
+- A parse that carries annotations copies them onto states as it goes.
+   At 16,000 tokens such a parse took about 300 ms with the state fix against 940 to 1,360 ms without
+   (three rounds),
+   so annotations do not undo it.
+
+Three changes made in the recheck,
+all in the kept patch:
+
+- The agent's parser-level tests only append to a long state.
+   A view that failed to drop the item being replaced was caught by one unit test and by no test of `multiple()`.
+   A test now fills a state past the threshold with two-option items,
+   replaces the last one in two ways,
+   and reads all three states back;
+   it fails under that break.
+- `Object.freeze()` on a view threw only after it had made the view's empty target array non-extensible,
+   and from then on `Object.keys()` of that view threw as well,
+   on all three runtimes.
+   The view now refuses to be made non-extensible,
+   so a freeze still throws and the view stays readable;
+   a test guards it and fails when the refusal is removed.
+- A source comment cited two of the agent's measurement scripts by name,
+   which upstream does not have,
+   and another said a view is built with no closures while each caller passes a function made per view.
+
+One of the nine full Bun runs made in the recheck failed one test,
+"Bash Readline file completion quoting > keeps backticks literal in a quoted tilde pattern",
+whose interactive `bash` ended on `SIGPIPE`.
+It is in a file the patch does not touch,
+it passed alone five times of five on the base and on the state fix,
+and the three later full runs of that arm passed.
+What made it fail once was not found.
+
+#### What a caller can notice
+
+A state above the threshold is a `Proxy`,
+and a caller that only reads it as an array sees no difference.
+One that does more can
+(measured on the three runtimes,
+with every state made a view):
+
+- Printing it shows the empty target:
+   `[]` from `console.log` on Deno and Bun,
+   `Proxy([])` on Node.
+   `JSON.stringify` and a spread show the items.
+- `structuredClone()` throws `DataCloneError`.
+- Writing an element or `length`,
+   and `push`,
+   `sort` and `reverse`,
+   throw a `TypeError`,
+   where they changed that parse's own copy before.
+- `Object.freeze()` throws,
+   and `Object.isFrozen()` is false.
+
+A search of every upstream package's source for `Object.freeze`,
+`structuredClone`,
+`Object.seal` and `preventExtensions` finds none applied to a `multiple()` state or a token buffer.
+What third-party parsers do with a state they are handed was not looked at.
+
+#### Timing
+
+Deno 2.9.8,
+every arm a source checkout read through an import map,
+in a two-CPU container with nothing mounted and no network,
+five rounds with the order of the arms rotated.
+The arms:
+`main`;
+base,
+which is `main` with the trace patch;
+the state fix;
+the buffer fix;
+both;
+and both with the thresholds at zero.
+
+How much two runs of the same code differ sets what can be claimed.
+A later check ran the base twice per round for ten rounds:
+the second run over the first had a median between 0.97 and 1.03 at every size,
+and single rounds from 0.75 to 1.25.
+Rounds two to five of the main run also overlapped other containers of the same session.
+So a median within a few hundredths of 1,
+or a range that straddles 1,
+is no finding in either direction.
+
+A run of positional arguments and one unused option (`token-scaling.ts`),
+median in milliseconds:
+
+- 2,000 tokens:
+   `main` 96.4,
+   base 37.1,
+   state fix 30.4,
+   both 28.3,
+   thresholds at zero 27.4
+- 4,000:
+   343.1,
+   70.8,
+   43.4,
+   42.0,
+   53.0
+- 8,000:
+   1,400.9,
+   216.8,
+   84.0,
+   85.9,
+   74.7
+- 16,000:
+   6,184.3,
+   1,029.5,
+   198.1,
+   197.5,
+   168.1
+- 32,000:
+   30,603.5,
+   7,303.4,
+   1,365.3,
+   694.9,
+   320.4
+
+The state fix against the base,
+paired by round:
+0.49 at 8,000 tokens (0.33 to 0.59),
+0.21 at 16,000 (0.17 to 0.32)
+and 0.18 at 32,000 (0.12 to 0.22),
+slower in none of those fifteen pairs.
+At 2,000 and 4,000 it reads 0.82 and 0.78,
+which is near the spread of identical code.
+
+Larger sizes were run in a step of their own,
+one parse per size in a fresh process,
+so its figures are not a continuation of that list:
+
+- State fix:
+   3,711 ms at 64,000 tokens and 24,262 ms at 128,000.
+- Both:
+   784 ms and 2,038 ms.
+- Thresholds at zero:
+   802 ms and 1,672 ms.
+- Base:
+   25,912 ms at 64,000.
+
+Growth per doubling,
+within a step
+(1 is proportional,
+2 is the square):
+
+- Base:
+   0.93,
+   1.61,
+   2.25 and 2.83 from 2,000 to 32,000.
+- State fix:
+   0.51,
+   0.95,
+   1.24 and 2.78,
+   then 2.71 from 64,000 to 128,000.
+- Both:
+   0.57,
+   1.03,
+   1.20 and 1.82,
+   then 1.38.
+- Thresholds at zero:
+   0.95,
+   0.50,
+   1.17 and 0.93,
+   then 1.06.
+
+So on this input no further cost that grows with the square shows up to 128,000 tokens once both copies are gone.
+The state fix alone leaves the buffer copy,
+which takes over from about 32,000 tokens:
+both fixes took 0.24 times as long as the state fix alone at 64,000 (0.17 to 0.27)
+and 0.084 times at 128,000 (0.078 to 0.109).
+The copy that is left does not cost a fixed amount per slot.
+The arm with both fixes and the arm with the thresholds at zero differ in the buffer copies of the last 16,384 tokens
+(and in the views the second makes on short states and buffers);
+that difference is 30 ms in a parse of 16,000 tokens and 375 ms in one of 32,000.
+The recheck did not find out why.
+
+Options and arguments alternating for the whole line
+(`-v v0 p0 -v v1 p1`,
+a script written for the recheck),
+median in milliseconds at 6,000,
+12,000,
+24,000 and 48,000 tokens:
+
+- Base:
+   48.8,
+   127.7,
+   489.9,
+   2,651.1
+- State fix:
+   55.0,
+   90.1,
+   310.6,
+   2,657.9
+- Buffer fix:
+   47.5,
+   124.4,
+   4,411.8,
+   30,310.6
+- Both:
+   58.0,
+   89.3,
+   4,638.3,
+   28,734.2
+
+The buffer fix took 8.8 times as long as the base at 24,000 tokens (8.5 to 11.2)
+and 12.0 times at 48,000 (9.8 to 13.8),
+slower in every round,
+and both fixes together 10.5 and 11.2 times.
+The cause is in the source.
+On `main`,
+`buffer.slice(` is called at 41 places outside the tests,
+and sixteen of them in `primitives.ts` build the next buffer that way,
+[the option parser's among them][option buffer].
+The diff changes the two in `argument()`.
+Once `argument()` has made the buffer a view,
+the next option parser calls `Array.prototype.slice` on it,
+which reads every remaining token through the proxy.
+With the thresholds at zero the same input took 5.1,
+10.1 and 12.9 times as long as the base at 3,000,
+6,000 and 12,000 tokens.
+The agent did not measure this shape:
+its scripts were the positional run and a thousand paths.
+
+The state fix on the same input,
+from the ten-round check:
+0.98 and 0.99 times the base at 1,500 and 3,000 tokens,
+1.11 at 4,500 (0.91 to 1.45,
+slower in eight of ten rounds,
+where the same-code control reads 1.03),
+0.94 at 6,000,
+then 0.87,
+0.78 and 0.76 at 7,500,
+9,000 and 12,000,
+slower in none of thirty pairs.
+This input fills two states,
+which pass 1,024 items at about 3,100 tokens.
+So just past its threshold the fix costs about a tenth here,
+and the threshold that suits a positional run is somewhat low for this shape.
+At 24,000 tokens it reads 0.70 (0.62 to 0.72),
+and at 48,000 it gains nothing (0.99).
+What takes the time in the base at 48,000 alternating tokens was not profiled.
+
+A parser shaped like `git commit`,
+twenty-eight options and the paths (`commit-paths.ts`):
+
+- A thousand paths:
+   no arm differs from the base by more than the spread,
+   with or without `--`,
+   except thresholds-at-zero.
+- 20,000 paths:
+   the state fix took 0.43 times as long as the base (0.41 to 0.45),
+   and 0.41 after `--` (0.31 to 0.74).
+   The buffer fix reads 0.97 and 1.08,
+   inside the spread.
+
+One smaller thing was tried on the side.
+Writing the same copy as
+`(added ? context.state : context.state.slice(0, -1)).concat([nextItemState])`,
+with no spread,
+took 0.33 times as long as the base at 16,000 positional tokens (0.28 to 0.44),
+0.38 at 32,000 (0.27 to 0.66)
+and 0.60 at 20,000 paths (0.49 to 0.62).
+It changes nothing a caller can see and upstream's suite passes with it on the three runtimes
+(778,
+8,086 and 8,086).
+It does not change the growth:
+2.82 per doubling from 16,000 to 32,000 and 2.29 from 64,000 to 128,000.
+It was timed on Deno only,
+and below 16,000 tokens its gain is inside the spread.
+Copying with `slice` and then `push` gained nothing measurable.
+
+#### Where the agent's report and the recheck differ
+
+- The report gives one fitted exponent for both fixes,
+   1.14.
+   Per doubling it is the four figures listed under "Timing",
+   and 1.82 from 16,000 to 32,000.
+- It calls the buffer fix marginal,
+   "nothing below its threshold" and 1.25 times at 32,000.
+   On a positional run it is worth far more at larger sizes,
+   and on alternating input it is a tenfold loss.
+- It prices a copy at "a third of a nanosecond per token".
+   The price is not constant.
+- It says Node,
+   Deno and Bun "all run V8".
+   Bun runs JavaScriptCore,
+   so the suite on Bun did exercise the proxy on a second engine.
+- It blames this machine's Git wrapper for emptying `node_modules` in its throwaway worktrees.
+   The feed of its run shows the failed imports and no cause.
+
+#### What is not established
+
+- What dominates the alternating input at 48,000 tokens.
+- Any timing on Node or Bun for these arms,
+   and any timing of the kept patch without the trace patch under it
+   (it applies to `main` alone,
+   and was timed only on top of the trace patch).
+- `multiple()` inside `multiple()`,
+   a `min` or `max` bound at these sizes,
+   and timing through an asynchronous value parser,
+   whose results the probes did compare.
+- A good threshold for inputs other than a positional run.
+- A way to remove the buffer copy that does not slow other parsers.
+   Changing all sixteen places that build the next buffer,
+   or giving the context an offset into one array,
+   was not tried;
+   the second changes what `buffer[0]` means to every parser a user has written.
+
+The records are in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
+folder `two-remaining-copies-recheck-2026-11-13`:
+the agent's four diff files and its report,
+the scripts that staged the arms and ran each check,
+and every result quoted here.
+
 ### Readiness check
 
 2026-11-13:
@@ -796,11 +1260,20 @@ key and earlier traces stay untouched. From source on Deno, 8,000 arguments went
 exponent from about 1.8 to about 1.2; a thousand paths through a `git commit`-shaped parser took 0.78 times as
 long. The core suite passes on Deno and Node with it, and it applies cleanly to main as of #1121's merge.
 
-It does not make the parse linear. A profile of the patched build shows two more per-argument copies behind this
-one: `multiple()` rebuilds its state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`)
-and `argument()` slices the rest of the buffer for each token (`context.buffer.slice(i + 1)`). They are most of
-what is left, nine tenths of the patched parse at these sizes: 16,000 arguments take 6.7 s unpatched and 0.8 s
-patched, 32,000 take 29.2 s and 5.7 s. I have not tried to change either.
+It does not make the parse linear. Two more per-argument copies sit behind this one: `multiple()` rebuilds its
+state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`), and each primitive slices
+the rest of the buffer for each token it consumes (`context.buffer.slice(i + 1)` in `argument()`, and fourteen more
+places in *primitives.ts*). On Deno, 16,000 arguments take 6.2 s on main and 1.0 s with this patch, 32,000 take
+30.6 s and 7.3 s.
+
+I tried both. For the state I have a second patch: above 1,024 items the state becomes an array-shaped view (a
+`Proxy`) over an immutable vector, and below that nothing changes. On top of this patch, 16,000 arguments go from
+1.0 s to 0.2 s and 32,000 from 7.3 s to 1.4 s, and the core suite passes on Deno, Node and Bun, also with the
+threshold lowered to two so that nearly every state is a view. Its cost is that such a state is a proxy: it prints
+as an empty array, `structuredClone()` and `Object.freeze()` throw on it, and in-place edits throw. For the buffer
+I have nothing to offer: a view cut in `argument()` alone made a line that alternates options and arguments about
+ten times slower, because the other primitives then slice the view through the proxy. With the state fixed, the
+buffer copy is most of what is left from about 32,000 arguments.
 
 It also bears on what #1121 leaves. Measured the same way, seven rounds with the arms rotated, a thousand paths
 after `--` took 1.37 times as long on #1121's branch as on 1.3.6 (1.34 to 1.42), and 0.94 times with this patch
@@ -819,6 +1292,7 @@ written by an AI agent and rechecked by another.]
 [trace set]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/input-trace.ts#L140-L144
 [multiple state]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/modifiers.ts#L2743-L2746
 [argument buffer]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/primitives.ts#L2725
+[option buffer]: https://github.com/dahlia/optique/blob/d26f1a244d4434f9dbfeb0317f6db32533cb8c32/packages/core/src/primitives.ts#L1251
 [policy pull requests]: https://github.com/dahlia/optique/blob/84f9571069584d8e36a3a4cfbaebf8a9a61fc645/AI_POLICY.md?plain=1#L14-L18
 [policy issues]: https://github.com/dahlia/optique/blob/84f9571069584d8e36a3a4cfbaebf8a9a61fc645/AI_POLICY.md?plain=1#L25-L27
 [no timing]: https://github.com/dahlia/optique/pull/1121#:~:text=without%20timing%20thresholds

@@ -907,25 +907,27 @@ each in answer to a question that gave the options:
   describe them in the reply as profiled and not fixed,
   or leave them out:
   "Prototype now (Recommended)".
-  A Pi run was started for it on 2026-11-13,
+  A Pi run did it on 2026-11-13,
   named `optique-two-remaining-copies-prototype`,
   on DeepSeek through Neuralwatt,
   with the brief `${HOME}/temp/agent/pi-runs/optique-two-remaining-copies-prototype-prompt.md`.
-  It works in a fresh disposable clone of its own under `${HOME}/temp/agent`,
-  on top of the trace patch,
-  on the current Node,
-  Deno and Bun,
-  and sends nothing anywhere.
-  Its result is to be checked again by the coordinating session,
-  as the trace patch was,
-  before anything about it is written into a document.
-  Its clone is `${HOME}/temp/agent/upstream-prototype.3lsGY9v7/optique`,
-  based on `main` at the merge commit `d26f1a24` with the trace patch committed on top,
-  and what must outlive the run goes in the `keep/` folder beside the clone.
-  The owner's commit service holds a push plan for that clone and retries it against the disabled push address,
-  although the agent ran `git` with a `HOME` and `XDG_RUNTIME_DIR` of its own;
-  nothing leaves the machine,
-  and the behaviour is filed as #6293.
+  It ended after 362 turns with its report given;
+  its driver then recorded `driver-failed` on a parse error of its own,
+  which another session filed as issue 6295.
+  Its feed holds seven commands that reach a network,
+  all of them reads,
+  and it left no process or container.
+  The coordinating session rechecked the two diffs the same day and wrote the result into
+  `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
+  section "Prototypes for the two further copies":
+  the diff for `multiple()`'s state holds up and is kept as a second patch beside that document,
+  with a test and a fix added in the recheck;
+  the diff for the token buffer makes alternating option-and-argument input about ten times slower and is not kept.
+  The run's clone is deleted;
+  its `keep/` folder remains at `${HOME}/temp/agent/upstream-prototype.3lsGY9v7/keep`.
+  The agent said this machine's Git wrapper emptied `node_modules` in its throwaway worktrees;
+  its feed shows the failed imports and no cause,
+  and that was not looked into further.
 - Agents at once:
   rule `MXA` in `AGENTS.md` and `doc/handover/agents-at-once-on-this-machine.md` set a cap for the whole machine.
   Count before starting any further Pi run for this work,
@@ -950,9 +952,11 @@ Where each piece stands:
   and a draft issue that is not to be filed for now.
   Settled on 2026-11-13 and recorded there:
   the patch removes the largest of three per-token copies and leaves two,
-  in `multiple()` and `argument()`,
-  which were profiled,
-  and whose fixes are being prototyped on the owner's decision of 2026-11-13;
+  the state array of `multiple()` and the buffer slice every primitive makes;
+  a second patch beside the document removes the first of those,
+  rechecked by the coordinating session and reviewed by nobody else,
+  and nothing that works was found for the second;
+  whether the second patch is offered to upstream is the owner's choice and is not made;
   the patched tree passes upstream's core suite on Bun 1.4.4,
   the current release,
   with no failure;
@@ -1012,7 +1016,10 @@ to settle before a reply:
   given as the share of the two copies
   (the document now gives both the functions' and the files' figures and says the profile cannot do better);
   and a count of scratch files in this handover.
-  The corrections made after that third pass are not reviewed.
+  The corrections made after that third pass are not reviewed,
+  and neither is the section "Prototypes for the two further copies",
+  the second patch,
+  or the revised reply draft and draft issue.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
   a local file that is not committed.
@@ -1044,9 +1051,20 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
 - `upstream-prototype.O1iPjcqr/`:
   the disposable clone that holds the patch's working tree,
   with its logs.
+- `upstream-prototype.3lsGY9v7/keep/`:
+  what the prototype agent left for the two further copies:
+  its diffs,
+  report,
+  scripts,
+  logs and measurements.
+- `optique-two-remaining-copies-recheck-2026-11-13/keep/`:
+  the records of the recheck of those diffs.
+  The scripts that made them are in the evidence archive beside the research document,
+  folder `two-remaining-copies-recheck-2026-11-13`.
 
 Container images `localhost/optique-cross-runtime:2026-11-13`,
-`localhost/optique-upstream-arms:2026-11-13` and `localhost/optique-prototype-work:2026-11-13`
+`localhost/optique-upstream-arms:2026-11-13`,
+`localhost/optique-prototype-work:2026-11-13` and `localhost/optique-prototype-work-current-bun:2026-11-13`
 were built on 2026-11-13,
 after `podman system reset` removed the earlier ones.
 
