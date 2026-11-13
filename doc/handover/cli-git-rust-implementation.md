@@ -670,6 +670,32 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The commit service that needs no manager: three things done, one control missing; issue 6293 no longer waits for it (2026-11-13T13:33:48-05:00)
+
+Not complete: the branch is "not yet" fit to merge by its own report, and goes on.
+Read from the run's own report by the coordinating session; nothing here was run again by it.
+
+- **`commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`** ended before 13:32:49, tip `2fb2e61d90`.
+  Done by its report, each with controls shown failing without their code:
+  the manager used as an enhancement only when the environment named the runtime directory and the inherited bus is a socket inside it
+  (the probe bounded at 2 s);
+  the retire storm (a client keeps a service of a newer release; a service honours one ask to leave per life);
+  and the proof with a manager, in a container with a bus of its own:
+  two calls to the manager's program for a session's first commit, none for a private runtime directory, none without a bus, and no D-Bus method call from any wrapper command.
+  Missing: a control for the retire fix from two builds with different release numbers.
+  It notes that an unmodified older binary can never be served by a service of another release.
+  It goes on with that control, then `service stop`, then earlier releases' unit files:
+  brief `~/temp/agent/pi-runs/commit-service-that-needs-no-service-manager-does-the-two-release-control-and-what-it-named-next-prompt.md`, first in the queue.
+- **Issue 6293's case on that branch, measured by the run**: nothing reaches the manager and commits are made;
+  the service's state still goes to the account's real state directory when `HOME` is the account's.
+  That second half is what issue 6293's fix changes.
+- **Issue 6293's run no longer waits for that branch to be finished.**
+  The wait was the coordinating session's own, with no failure behind it of two runs working from one tip in different places (rule `HLD`);
+  the entry now starts from `2fb2e61d90`, and the other run is told which places are left to it.
+- **A cargo home of its own, a second run's reading**: a clean `cargo check` took 67 s with no wait on the lock.
+  It needs the `[build] build-dir` line copied from `~/.cargo/config.toml`, or builds land in the worktree's own `target/`,
+  and a fixture made there is inside this repository, which fails one control for a reason of its own.
+
 #### The index-lock fix's review removed a live Git's lock with the built wrapper (2026-11-13T13:24:49-05:00)
 
 Not complete: the branch goes back to its author.

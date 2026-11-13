@@ -230,6 +230,30 @@ one line a minute:
   the starter now counts the free places once before its first start.
 - A second sizing walk, of every worktree, was started at 13:16:06 at disk weight 1,
   and one of the shared cargo build folder shortly after.
+- Readings to 13:33:18,
+  thirty-five at this level:
+  home drive slowest 144 ms;
+  build volume over one second eight times
+  (4,436 ms at 13:06:54,
+  1,613 at 13:12:59,
+  **5,676 at 13:15:01**,
+  1,894 at 13:18:09,
+  2,828 at 13:20:11,
+  1,824 at 13:21:14,
+  1,121 at 13:22:16,
+  3,059 at 13:33:18),
+  where the hour at eight had 358 ms as its slowest.
+  One reading is over the bound and the one after it is not.
+- **These readings cannot be put down to the agents alone**:
+  every one of them falls while a sizing walk of the session doing the search ran on the build volume
+  (the scratch walk to 13:15:18,
+  the worktree walk from 13:16:06,
+  and a `du` of the shared cargo build folder).
+  Both walks still going were stopped at 13:33:48,
+  the worktree walk having read 57 worktrees and the other nothing.
+  The level is judged on readings taken after that,
+  for an hour from there,
+  and no sizing walk is run during a level's hour again.
 - Free room at 13:15:18: `/var/home` 517 GiB,
   the build volume 1,616 GiB
   (519 GiB and 1,640 GiB at 10:27:50,
