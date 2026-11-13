@@ -670,6 +670,34 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Two resumes finished and the start gate's second review found one defect (2026-11-13T13:12:00-05:00)
+
+Not complete: none of the three is merged; each waits for what its bullet names.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **`snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`** ended before 13:06:45, branch tip `568365a2b0`.
+  Its report: the old proof (a transaction compared) deleted a person's snapshot in its own control on every run once the fixture commits the filesystem;
+  the new proof records the snapshot's parent and an instant read before the snapshot exists, and compares no transaction.
+  It calls itself fit to merge on two conditions: `main` moved 191 commits since its merge, so the merge and its gate are done again;
+  and one binary control of `main` (the copy line must be the first line of stderr) fails beside `main`'s standing notice.
+  Report and logs: `~/temp/agent/snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own-scratch/keep/`.
+  Its review was asked for at 13:10.
+- **`guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`** ended between 13:06:45 and 13:09:29, branch tip `c3d3dec271`
+  (`refactor/git-policy-cli-guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`).
+  It converted one case (taking a side of a conflict with `checkout` or `restore` is refused, with the opt-out) and listed the others with their owners
+  in `doc/planning/cli-git-save-and-go-on-behaviours-and-their-refusals.md` on its branch.
+  It names documents that still state the old reading, and the two owner answers of 2026-11-02 that the carry's conversion would need amended.
+  Left undone by its own account: the repository-wide lint, whose fetch step waited on the cargo lock for ten minutes and again past twenty-five on 2026-11-12.
+  Its review is in the queue.
+- **The start gate's second review** (`~/temp/agent/change-reviews/pi-shared-subagent-driver-start-gate-fixes-after-its-first-review/review.md`)
+  reports the whole-number boundary and the waits clean, with what it ran, and one defect it reproduced:
+  when a first audit run has become a unit and its launcher is gone, and a second run of the same name is still a launcher,
+  the two count as one agent and the cap lets one more start.
+  Weighed: a narrow window and one start, but the count is what the cap rests on and the package's README states the opposite, so the author fixes it.
+  The author's resume is in the queue with
+  `~/temp/agent/pi-runs/start-gate-change-answers-its-second-review-of-2026-11-13-prompt.md`;
+  a review of that one fix follows, then the merge.
+
 #### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies`; builds do not wait on each other (2026-11-13T13:10:00-05:00)
 
 Not complete: the cause of the one long wait is not found and no remedy is chosen.
