@@ -415,6 +415,16 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause while a start's middle process is waited for, and while the number it wrote is read, on the synchronous commit and hand-over commands, which build no runtime",
     },
     Allowed {
+        file: "invocation/management_service_stop.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks for a stopped service's address to be free, on the synchronous command a person runs, which builds no runtime",
+    },
+    Allowed {
+        file: "service/service_server_earlier_release_units.rs",
+        rule: "blocking-sleep",
+        why: "the pause while the manager's own client is asked to stop a socket unit, on the synchronous commit and hand-over commands, which build no runtime",
+    },
+    Allowed {
         file: "service/service_server_start_through_the_manager.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at a probe of the service manager, on the synchronous commit and hand-over commands, which build no runtime",
