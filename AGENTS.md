@@ -981,9 +981,10 @@ NMJ:
  and autofix runs have corrupted it.
 
 PIN:
- Pin tool versions only with a comment explaining why;
- never pin tools this repository publishes,
- since `toolchain.lock.json` records them.
+ Pin tool versions only with a comment explaining why,
+ never tools this repository publishes;
+ test on current releases only:
+ an older one's failures are no defect.
 
 SPG:
  Automation that spawns agent sessions needs explicit recursion guards (env var flag,
