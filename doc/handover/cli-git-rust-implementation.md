@@ -685,6 +685,38 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Issue 6293's review found nine things, four of them the change's; the build tree of the wrapper goes from 5.9 GiB to 1.6 (2026-11-13T16:48:35-05:00)
+
+Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
+
+- **The review of issue 6293's branch** (`2fb2e61d90...3d5c1a0d8c`), finished 16:44:10: it rebuilt the wrapper and ran five reproduction scripts.
+  The boundary itself is sound by it (a run with a runtime directory of its own keeps everything inside it and asks no manager). Nine findings, seven reproduced; in the review's own numbering:
+  - the change's own, sent to its author (run queued):
+    finding 2, a push that was delivered to one address is reported as not pushed when a second address is `DISABLED`, and a merge published by the reconcile never reaches the local branch;
+    finding 3, the verdict blames `DISABLED` although Git failed at an earlier address and never tried it;
+    finding 4, an address `DISABLED ` with a trailing space, a legal remote, is trimmed into the reserved word;
+    finding 6, a session with an abstract bus address is taken for a private run, so its journal and retry plans move where a logout clears them.
+  - in code the branch stands on, which is the no-manager branch (its author is at work on another finding, so these wait for that run to end and are then one answer of their own):
+    finding 1 as far as it names that branch's files (the start by the wrapper and the takeover probe connect without a bound);
+    finding 5 there (the refusal that names a long runtime directory was removed with unit provisioning, so the commit waits ten seconds and fails with words that cannot help);
+    finding 7, the takeover orphans a live service (the branch's own review found the same);
+    finding 8, the manager probe's kill and reap have no bound (by reading);
+    finding 9, ten message sites tell a person to restart a unit that release never creates.
+  - on `main` too:
+    finding 5 in the form `main` has it: a commit is refused, with a message that names the cause, when the runtime directory's path is too long for a socket address. Real Git commits there.
+    A run of its own is queued: `fix/git-policy-cli-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket`.
+    finding 1 on `main`: `rg 'UnixStream::connect'` in `main`'s sources shows blocking connects in the status command (`service_route.rs`), the retire request, the binding probe and the warm request,
+    beside a helper that connects within a deadline. The warm request has a run (going); which of the others the jam fix bounds is read when pass 21 is in `main`, and what is left gets a run then.
+  - Its run's end reason reads `driver-failed` (issue 6299, the ninth today); the review is final and stands.
+- **The build tree of the wrapper package**, author finished 16:47:38, tip `bf9c397cf2` on `perf/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller`. By its report, all measured again on 2026-11-13:
+  - one agent's tree is two places (the worktree's `target/` and a folder under `/var/mnt/encrypted/cargo-build/toolchain/<toolchain>/`), 5,885 MiB together with Cargo's defaults,
+    6,668 MiB with a Clippy pass: incremental data 48%, executables 27%, and debug information 1,278 MiB of the 1,627 MiB the four largest executables weigh;
+  - nine candidates measured on clean trees; chosen: `debug = "line-tables-only"` with incremental compilation off in `[profile.dev]`:
+    1,562 MiB (73% less), the build 83.2 s against 124.8 s, the library test compile 50.3 s against 105.1 s, and a backtrace still prints file and line;
+  - the release profile and the keys file-enforcer owns are untouched.
+  This is the first measured answer to what takes the build volume: every worktree that builds the wrapper holds about six gibibytes of it.
+  Its review is queued first. Trees already built keep their size until they are built again or removed.
+
 #### The reload fix passed a review that ran it in a container; it is pass 22; commit-does-not-list's author answered (2026-11-13T16:43:50-05:00)
 
 Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
