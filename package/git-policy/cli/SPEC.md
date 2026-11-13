@@ -17065,6 +17065,12 @@ decided before the worktree's status is asked,
 so the main worktree,
 a linked worktree that holds uncommitted work and an exempt repository all refuse the line,
 and so would a linked worktree that held an unmerged entry while its status read as clean.
+That holds when the index can be read:
+a reading that declines names no file,
+and the line then falls back to what was there before,
+which still refuses in the main worktree and in a dirty linked worktree but runs under the exemption.
+So an exempt repository whose index this reader cannot read still runs a conflict-side line with no refusal and
+no copy.
 `--no-enforce-worktree` skips it as it skips every other guarded form,
 and the record then says `hatch`.
 

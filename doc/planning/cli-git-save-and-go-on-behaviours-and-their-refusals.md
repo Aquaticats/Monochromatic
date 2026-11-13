@@ -704,6 +704,28 @@ both its Git directory and its worktree. Nothing was measured and nothing was sa
 no copy was made.
 There is no save here to convert:
 the guard does not run.
+
+The conflict-side refusal of case 2 reaches such a repository only when the in-process index reader can read the
+index.
+With a split index the reader declines,
+and the exemption then runs the command with no refusal and no copy (**run**,
+this branch's build:
+a merge stopped with `a.rs` conflicted,
+`git update-index --split-index` run,
+`git status --porcelain=v1` still printing `UU a.rs`,
+and `git checkout --theirs -- a.rs` exiting `0` with `a.rs` holding `topic\n` and no folder under the Git
+directory;
+the wrapper printed the exemption notice,
+"Nothing was measured and nothing was saved").
+That is older than this change,
+as the review of it says:
+before it,
+a reader that declined fell through to the same exemption.
+Nothing here changes it,
+and this page lists it rather than converting it:
+it is the exempt repository's hole (the case another branch owns),
+not the conflict-side save's.
+
 Turning the exemption into a refusal is the exempt-repository case,
 held by
 `fix/git-policy-cli-exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards`
