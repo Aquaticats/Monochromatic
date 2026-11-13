@@ -855,7 +855,8 @@ FDL:
  which turns `-prune` into a no-op.
 
 RLW:
- `rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`):
+ `rm` commands as issued never contain environment variables (`$HOME`,
+ `${DIR}`):
  write every path literally,
  because an unset or empty variable widens what gets deleted.
 
@@ -939,7 +940,7 @@ AUT:
  never expanding scope or acting on adjacent undecided choices.
 
 VR2:
- Request with one clear reading:
+ Request or answer with one clear reading:
  act.
 Readings differing in what to do:
  confirm first.
@@ -1445,6 +1446,17 @@ SBS:
  and consumers together.
 
 ## Before declaring work complete
+
+### Who declares completion
+
+SGO:
+ Only the owner declares work complete,
+ final or approved.
+An agent must mark its docs,
+ statuses and reports incomplete,
+ unapproved or non-final,
+ stating what was done,
+ checked and open.
 
 ### Package completeness
 
