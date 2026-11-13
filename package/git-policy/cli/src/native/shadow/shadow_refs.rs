@@ -293,12 +293,13 @@ pub const SYMBOLIC_REF_DEPTH_IN_A_LISTING: usize = 4;
 ///  `for-each-ref` prints neither a ref that points at a name that does not exist nor one that points back into its own chain,
 /// and the name it prints beside a symbolic ref is the end of the chain,
 ///  so a two-step chain is printed with the ref it finally names.
-///  The depth is Git's own, counted as Git counts it (`SYMBOLIC_REF_DEPTH_IN_A_LISTING`),
+///  The depth is Git's own,
+///  counted as Git counts it (`SYMBOLIC_REF_DEPTH_IN_A_LISTING`),
 /// so a chain Git refuses to follow is dropped here too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const endOfChain = (chains, target) => { let name = target; for (let step = 0; step < 5; step++) { const entry = chains.get(name); if (!entry) return undefined; if (entry.symref === '') return [name, entry.oid]; name = entry.symref } return undefined }
+/// const endOfChain = (entries, target) => { let name = target; for (let step = 0; step < 4; step++) { const found = findByName(entries, name); if (found === undefined) return undefined; if (entries[found].symref === '') return [name, entries[found].oid]; name = entries[found].symref } return undefined }
 /// ```
 /// What:
 ///  Where a ref name sits in the snapshot's own byte order,
