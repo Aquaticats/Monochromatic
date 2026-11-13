@@ -37,7 +37,7 @@ use crate::repo_read_layout::{RepoLayout, read_layout_in};
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
-use crate::service_host_of_a_worktree::{ServiceHost, state_dir_of};
+use crate::service_host_of_a_worktree::{ServiceHost, state_dir_of_the_command};
 use crate::service_server::Bind;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_git_awaiting::run_git_awaiting;
@@ -122,7 +122,11 @@ pub struct Route {
 /// whoever made it;
 /// with neither the socket nor the executable there is no route.
 /// The journal's home comes from `XDG_STATE_HOME` or the home directory,
-/// and an account that names neither keeps its journal in the runtime folder,
+/// except for a command given a runtime directory of its own:
+/// such a run's service belongs to no session of the account,
+/// so its journal lives inside that runtime directory and nothing of it touches the account's real state directory
+/// (`state_dir_of_the_command`, and issue 6293).
+/// An account that names neither keeps its journal in the runtime folder,
 /// which lasts the login session:
 /// a commit still lands,
 /// and the cost is that a record does not outlive a logout.
@@ -143,7 +147,16 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
         _ => return if socket.exists() { Some(Route { address: Bind::Path(socket), host: None }) } else { None },
     };
-    let state_dir: PathBuf = state_dir_of(inputs.state_home, inputs.home).unwrap_or_else(|| {
+    let state_dir: PathBuf = state_dir_of_the_command(
+        inputs.named_runtime_dir.filter(|named| {
+            return *named == runtime_dir;
+        }),
+        runtime_dir,
+        inputs.bus_address,
+        inputs.state_home,
+        inputs.home,
+    )
+    .unwrap_or_else(|| {
         return runtime_dir.to_path_buf();
     });
     let host: ServiceHost = ServiceHost {

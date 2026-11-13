@@ -48,23 +48,6 @@ fn host(runtime: &Path, bus_address: Option<String>) -> ServiceHost {
 }
 
 /// What:
-///  The bus belongs to the runtime directory only when its socket's directory is that directory.
-/// Why:
-///  `systemd-run --user` finds the manager by this bus, so a bus elsewhere is another session's manager, and asking it is
-///  what issue 6293 forbids.
-#[test]
-fn the_bus_is_ours_only_when_its_socket_sits_in_our_runtime_directory() {
-    let ours: &Path = Path::new("/run/user/1000");
-    assert!(bus_is_ours(ours, Some("unix:path=/run/user/1000/bus")));
-    assert!(!bus_is_ours(ours, Some("unix:path=/run/user/1001/bus")), "a bus of another account");
-    assert!(!bus_is_ours(ours, Some("unix:path=/run/user/1000/x/bus")), "a bus below our directory is not our session's socket");
-    assert!(!bus_is_ours(ours, Some("unix:abstract=/tmp/dbus-abc")), "an abstract address has no directory to check");
-    assert!(!bus_is_ours(ours, None), "no address names no bus");
-    // A list is read in order, and the first path decides.
-    assert!(bus_is_ours(ours, Some("unix:abstract=/tmp/x;unix:path=/run/user/1000/bus")));
-}
-
-/// What:
 ///  A manager is asked only for a session this command belongs to.
 /// Why:
 ///  A folder the program fell back to (`~/.run`) is no session, a bus elsewhere is another session's manager, and without

@@ -114,6 +114,10 @@ pub mod service_release_order;
 /// and the base's start whenever it is absent, slow or failing.
 pub mod service_server_start_through_the_manager;
 
+/// Whether the runtime directory a command uses is the session its inherited bus belongs to,
+/// which decides both whether a manager may be asked and where the service keeps its state.
+pub mod service_session_of_the_runtime_directory;
+
 /// Starts the service's program as a process that outlives the command and the terminal.
 pub mod service_server_start_spawns_a_detached_process;
 

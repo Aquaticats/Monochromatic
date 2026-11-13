@@ -14,6 +14,9 @@
 //! (`journal_of`),
 //! which is where the unit's `StateDirectory=` used to put it,
 //! so an upgrade keeps every record it had.
+//! A runtime directory of the command's own is a boundary of its own:
+//! nothing of such a run is written under the account's real state directory
+//! (`state_dir_of_the_command`, and issue 6293).
 //! This file replaces the provisioning host, which carried the user's unit folder,
 //! the session bus and the manager's wait;
 //! nothing here names a manager.
@@ -27,6 +30,7 @@
 use crate::service_instance::{socket_path, SOCKET_DIRECTORY};
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_server_start_by_the_wrapper::ServerToStart;
+use crate::service_session_of_the_runtime_directory::is_the_session_of;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 
@@ -109,6 +113,41 @@ impl ServiceHost {
             manager: self.manager(),
         };
     }
+}
+
+/// What:
+///  The state folder this command's commit service keeps its records in:
+///  the account's (`XDG_STATE_HOME`, else `~/.local/state`),
+///  or the runtime directory itself when that directory is the command's own.
+/// Why:
+///   A run given a runtime directory of its own is a boundary of its own
+/// (issue 6293, the owner's decision of 2026-11-13):
+/// its service is not the account's session's service,
+/// so nothing of it may be written under the account's real state directory,
+/// and its journal, its retry plans and its scratch files live under that runtime directory instead.
+/// A session whose own bus lives in its runtime directory is unaffected:
+/// its service state stays exactly where earlier releases kept it.
+/// An account that named no runtime directory (`~/.run`) keeps the account's state folder too:
+/// no session was named, so nothing here belongs to another session.
+/// The trade is the private directory's own:
+/// its records do not outlive a logout or a reboot,
+/// and an earlier release's journal under the account's state directory is not adopted by such a run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stateDirOfTheCommand(env) // isTheSessionOf(env) ? accountStateDir : runtimeDir
+/// ```
+pub fn state_dir_of_the_command(
+    named_runtime_directory: Option<&Path>,
+    runtime_dir: &Path,
+    bus_address: Option<&str>,
+    state_home: Option<&Path>,
+    home: Option<&Path>,
+) -> Option<PathBuf> {
+    if named_runtime_directory.is_some() && !is_the_session_of(named_runtime_directory, runtime_dir, bus_address) {
+        return Some(runtime_dir.to_path_buf());
+    }
+    return state_dir_of(state_home, home);
 }
 
 /// What:

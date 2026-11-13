@@ -114,6 +114,17 @@ pub struct AutoPushResult {
     /// empty on a silent skip or a quiet clean push,
     /// the note on a skip with one.
     pub shown: String,
+    /// What:
+    ///  The addresses a failed push was sent to,
+    ///  read from the remote's configuration when the push failed,
+    ///  and empty for a push that did not fail.
+    /// Why:
+    ///  An address that no machine state can make a remote ends the retry plan at once
+    /// (`push_address_that_cannot_be_a_remote.rs`),
+    /// and the words of a push never say which address answered:
+    /// `fatal: 'X' does not appear to be a git repository` is what Git says for the reserved word, a relative path that
+    ///  is not there, a drive that is not mounted and a directory that is no repository alike.
+    pub push_addresses: Vec<String>,
 }
 
 /// What:
@@ -377,7 +388,57 @@ pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoP
     debug(TAG, line.as_str());
     // Terminal output error: the line is the only diagnostic of a push that sent nothing.
     let _written = writeln!(err, "{line}");
-    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line };
+    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line, push_addresses: Vec::new() };
+}
+
+/// What:
+///  The addresses a push of `remote` goes to, read from the remote's own configuration.
+/// Why:
+///   A remote name is not an address:
+/// `git remote set-url --push origin DISABLED` keeps the push address where Git keeps it,
+/// and the words of a failed push name it only inside Git's own sentence,
+/// so the address a plan's fate depends on is asked for
+/// (`push_address_that_cannot_be_a_remote.rs`).
+/// A remote with several push addresses has each of them;
+/// a destination that is no remote name at all is its own address.
+/// Nothing here fails the push:
+/// a query that cannot run leaves the destination as the one address to judge,
+/// and the judgement it feeds keeps its retries when the answer names nothing
+/// ("where you cannot tell the two apart, it is the second kind").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pushAddressesOf(git, 'origin') // ['DISABLED']
+/// ```
+pub(crate) fn push_addresses_of(git: &PushGit, remote: &str) -> Vec<String> {
+    let arguments: Vec<OsString> = ["remote", "get-url", "--push", "--all", remote].iter().map(OsString::from).collect();
+    return push_addresses_from(run_query(git, &arguments).ok().as_ref(), remote);
+}
+
+/// The same reading as a caller that is itself a task of the runtime.
+pub(crate) async fn push_addresses_of_awaiting(git: &PushGit, remote: &str) -> Vec<String> {
+    let arguments: Vec<OsString> = ["remote", "get-url", "--push", "--all", remote].iter().map(OsString::from).collect();
+    return push_addresses_from(
+        crate::auto_push_single_flight::run_query_awaiting(git, &arguments).await.ok().as_ref(),
+        remote,
+    );
+}
+
+/// The addresses one answer of `git remote get-url --push --all` names,
+/// or the destination itself when the answer names none.
+fn push_addresses_from(answer: Option<&crate::bounded_query::QueryOutput>, remote: &str) -> Vec<String> {
+    let Some(output) = answer else { return vec![remote.to_owned()] };
+    if output.code != Some(0) {
+        return vec![remote.to_owned()];
+    }
+    let mut addresses: Vec<String> = Vec::new();
+    for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
+        let trimmed: &str = line.trim();
+        if !trimmed.is_empty() {
+            addresses.push(trimmed.to_owned());
+        }
+    }
+    return if addresses.is_empty() { vec![remote.to_owned()] } else { addresses };
 }
 
 /// What:
@@ -396,7 +457,7 @@ pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoP
 pub(crate) fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
     // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
     let _written = writeln!(err, "{note}");
-    return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note });
+    return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note, push_addresses: Vec::new() });
 }
 
 /// What:
@@ -425,7 +486,7 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
     };
     if upstream.is_none() && !query_succeeds(git, &["remote", "get-url", "origin"])? {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new() }));
+        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new(), push_addresses: Vec::new() }));
     }
     return Ok(match &upstream {
         Some(_upstream_ref) => match named_push(git, branch_ref)? {
@@ -499,7 +560,7 @@ pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: 
     debug(TAG, format!("nothing is pushed of {branch_ref}: {line}").as_str());
     // Terminal output error: the line is the only diagnostic of a push that sent nothing.
     let _written = writeln!(err, "{line}");
-    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line };
+    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line, push_addresses: Vec::new() };
 }
 
 /// What:
@@ -604,7 +665,13 @@ pub fn push_once(
             landed_oid: sent_up_to,
         },
     )?;
-    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), err);
+    // Only a failed push needs its addresses: a push that landed or was held back has nothing to classify, and a query per
+    //  push would be paid by every commit.
+    let push_addresses: Vec<String> = match attempt.exit_code {
+        0 => Vec::new(),
+        _ => push_addresses_of(git, sent.remote.as_str()),
+    };
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), push_addresses, err);
 }
 
 /// What:
@@ -658,7 +725,7 @@ pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, br
 /// ```ts
 /// const reported = (attempt, delivered, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, note: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, note: &str, push_addresses: Vec<String>, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
     let failed: bool = attempt.exit_code != 0 && !delivered;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
@@ -697,6 +764,7 @@ pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePus
             false => attempt.exit_code,
         },
         shown,
+        push_addresses,
     });
 }
 

@@ -46,6 +46,10 @@ pub mod push_retry;
 /// and the words the person reads.
 pub mod push_retry_failure;
 
+/// Whether a push address can never be a remote at all,
+/// which ends the retry plan at once with one line (issue 6293).
+pub mod push_address_that_cannot_be_a_remote;
+
 /// The two signs one look at a process of a push finds,
 /// and the identities a holder is remembered by.
 pub mod push_progress_signs;

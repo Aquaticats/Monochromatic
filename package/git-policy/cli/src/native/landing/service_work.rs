@@ -506,24 +506,37 @@ impl WorkHandlers for GitHandlers {
             Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
                 Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
             }
+            // What: A push whose address can never be a remote ends its plan at once, with one line that says so
+            //       (issue 6293, the owner's decision of 2026-11-13).
+            // Why:  Git's words cannot tell such an address from one that may come back, so the address decides
+            //       (`push_address_that_cannot_be_a_remote.rs`), and no retry can make it work.
             // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
             //  (a stall, the network, an LFS server error, a held lock).
-            Ok(result) => match final_failure(result.shown.as_str()) {
-                Some(cause) => Verdict::Failed(match plain_words(cause) {
-                    Some(words) => format!("{words}\n{}", result.shown),
-                    None => result.shown,
-                }),
-                None => {
-                    // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
-                    if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
-                        crate::service_warn!(
-                            "the server rejected the push {} for a reason this release does not know, so it is tried again: {line}",
-                            crate::service_timing::in_the_repository_at(newest.repository.as_path())
-                        );
-                    }
-                    Verdict::Retry(result.shown)
+            Ok(result) => {
+                if let Some((address, why)) = crate::push_address_that_cannot_be_a_remote::first_that_cannot_be_remote(result.push_addresses.as_slice()) {
+                    return Verdict::Failed(format!(
+                        "{}\n{}",
+                        crate::push_address_that_cannot_be_a_remote::words(address, why),
+                        result.shown
+                    ));
                 }
-            },
+                match final_failure(result.shown.as_str()) {
+                    Some(cause) => Verdict::Failed(match plain_words(cause) {
+                        Some(words) => format!("{words}\n{}", result.shown),
+                        None => result.shown,
+                    }),
+                    None => {
+                        // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
+                        if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
+                            crate::service_warn!(
+                                "the server rejected the push {} for a reason this release does not know, so it is tried again: {line}",
+                                crate::service_timing::in_the_repository_at(newest.repository.as_path())
+                            );
+                        }
+                        Verdict::Retry(result.shown)
+                    }
+                }
+            }
             Err(error) => Verdict::Retry(format!("{error}")),
         };
         });

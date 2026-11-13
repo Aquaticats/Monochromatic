@@ -78,7 +78,7 @@ pub(crate) async fn plan_named_push_awaiting(
     };
     if upstream.is_none() && !query_succeeds_awaiting(git, &["remote", "get-url", "origin"]).await? {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new() }));
+        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new(), push_addresses: Vec::new() }));
     }
     return Ok(match &upstream {
         Some(_upstream_ref) => match named_push_awaiting(git, branch_ref).await? {
@@ -257,7 +257,13 @@ pub async fn push_once_awaiting(
         },
     )
     .await?;
-    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), err);
+    // Only a failed push needs its addresses: a push that landed or was held back has nothing to classify, and a query per
+    //  push would be paid by every commit.
+    let push_addresses: Vec<String> = match attempt.exit_code {
+        0 => Vec::new(),
+        _ => crate::auto_push::push_addresses_of_awaiting(git, sent.remote.as_str()).await,
+    };
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), push_addresses, err);
 }
 
 

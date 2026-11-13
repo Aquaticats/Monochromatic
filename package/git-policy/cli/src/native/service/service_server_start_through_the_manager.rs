@@ -86,10 +86,7 @@ impl ManagerStart {
     /// ```
     pub fn in_this_session(host: &ServiceHost) -> Option<Self> {
         let named: &Path = host.named_runtime_dir.as_deref()?;
-        if named != host.runtime_dir.as_path() {
-            return None;
-        }
-        if !bus_is_ours(named, host.bus_address.as_deref()) {
+        if !crate::service_session_of_the_runtime_directory::is_the_session_of(Some(named), host.runtime_dir.as_path(), host.bus_address.as_deref()) {
             return None;
         }
         let program: PathBuf = find_on_path(PROGRAM)?;
@@ -155,30 +152,6 @@ impl ManagerStart {
         let detached: Detached = Detached { program: self.program.clone(), arguments, log: server.log() };
         return spawn(&detached);
     }
-}
-
-/// What:
-///  Whether the session bus this command inherited is the one inside `runtime_dir`.
-/// Why:
-///   The address is the fact,
-/// and its socket's directory is the runtime directory its session uses:
-/// `/run/user/1000/bus` is the bus of the session whose runtime directory is `/run/user/1000`.
-/// An abstract address has no directory, so it cannot be proven ours;
-/// a list of addresses is read in order and the first that names a path decides.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// busAddresses(env.DBUS_SESSION_BUS_ADDRESS).some((a) => path.dirname(a.path) === runtimeDir)
-/// ```
-pub fn bus_is_ours(runtime_dir: &Path, address: Option<&str>) -> bool {
-    let Some(spelled) = address else { return false };
-    for one in spelled.split(';') {
-        let Some(path) = one.strip_prefix("unix:path=") else { continue };
-        let socket: &Path = Path::new(path);
-        let Some(directory) = socket.parent() else { continue };
-        return directory == runtime_dir;
-    }
-    return false;
 }
 
 /// Whether a program of this name is on `PATH`,

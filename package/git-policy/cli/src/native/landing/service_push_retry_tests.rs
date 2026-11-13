@@ -1979,6 +1979,71 @@ fn a_plan_the_start_could_not_list_is_listed_again_and_its_push_is_made() {
     remove(stage.root.as_path());
 }
 
+/// What:
+///  The stage with its remote's push address changed to `address`,
+///  so the plan meets an address instead of a real repository.
+/// Why:
+///  The setup pushes once, and changing the push address afterwards keeps the upstream and the recorded push while the
+///  address is the one under test.
+fn stage_with_the_push_address(name: &str, address: &str) -> Stage {
+    let stage: Stage = stage_without_a_hook(name);
+    git(stage.repo.as_path(), &["remote", "set-url", "--push", "origin", address]);
+    return stage;
+}
+
+/// What:
+///  A push to the reserved word ends its plan at once, with one line for the person.
+/// Why:
+///  This is the owner's decision of 2026-11-13 for issue 6293 ("End the plan at once, say so once") measured on the
+///  service's own round:
+/// Git answers the reserved word exactly as it answers a path that is not there
+/// (`fatal: 'DISABLED' does not appear to be a git repository`), so the address decides
+/// (`push_address_that_cannot_be_a_remote.rs`),
+/// and no later round is planned, so no later command meets another notice.
+#[test]
+fn a_push_to_the_reserved_address_ends_its_plan_at_once_and_leaves_one_notice() {
+    let stage: Stage = stage_with_the_push_address("push-address-reserved", crate::push_address_that_cannot_be_a_remote::DISABLED_ADDRESS);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered: the address is the reserved word");
+    assert_eq!(notices(&stage), 1, "the person is told once");
+    let due_after_any_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert!(due_after_any_pause.is_empty(), "the plan ended at once, so no later try is due");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the person: {shown:?}");
+    let notice: &str = shown[0].as_str();
+    assert!(
+        notice.contains(crate::push_address_that_cannot_be_a_remote::DISABLED_ADDRESS),
+        "the notice names the address that can never be a remote: {notice}"
+    );
+    assert!(notice.contains("stopped trying at once"), "the notice says the plan ended: {notice}");
+    assert!(!notice.contains("tries this push again"), "the notice promises no retry: {notice}");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push to a path that is not there now keeps its plan, whatever Git answered.
+/// Why:
+///  Git answered the same fatal line as it did for the reserved word, and that path may be mounted or cloned later, so the
+///  line cannot be what ends a plan: where the two cannot be told apart, the second kind keeps its retries.
+#[test]
+fn a_push_to_a_path_that_is_not_there_keeps_its_plan() {
+    let stage: Stage = stage_with_the_push_address("push-address-missing-path", "/mnt/not-mounted/repo.git");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered: the drive is not mounted");
+    let due_after_a_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert_eq!(due_after_a_pause.len(), 1, "the push waits for a new try, as it always has");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    let notice: String = shown.join("\n");
+    assert!(notice.contains("tries this push again"), "the notice promises the retry the service keeps: {notice}");
+    remove(stage.root.as_path());
+}
+
 /// Run the work loop on a thread from the plan list a start was given,
 /// so a control states what that start had read:
 /// nothing wakes this service.

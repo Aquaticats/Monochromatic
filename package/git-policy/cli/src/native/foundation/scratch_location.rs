@@ -38,6 +38,9 @@ use crate::private_storage::{create_private_directory, create_private_directory_
 /// Removing one scratch entry within its ceiling,
 /// and which commit scratch trees a later command takes for abandoned.
 use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
+/// Where this command's state directory is,
+/// which the service's journal and this program's scratch files share.
+use crate::service_host_of_a_worktree::{runtime_directory, state_dir_of_the_command};
 /// The mode a private directory ends with,
 /// and the call that sets it,
 /// which only Unix has.
@@ -119,29 +122,55 @@ pub fn renew(path: &Path) {
 /// What:
 ///  The per-user state directory of the wrapper:
 ///  `monochromatic-git-policy-cli` under an absolute `XDG_STATE_HOME`,
-///  or under `.local/state` in the home directory.
+///  or under `.local/state` in the home directory,
+///  and under the runtime directory for a command that was given one of its own.
 /// Why:
 ///   The injected environment decides the location,
 ///  never a fixed path;
 ///  a relative `XDG_STATE_HOME` is ignored as the XDG rules say.
 ///  It mirrors the cache directory of the version cache.
+///   A run given a runtime directory of its own leaves nothing under the account's real state directory
+/// (issue 6293, `state_dir_of_the_command`):
+/// its scratch files go where its service's journal goes,
+/// which is inside that runtime directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const base = isAbsolute(env.XDG_STATE_HOME ?? '') ? env.XDG_STATE_HOME : env.HOME && join(env.HOME, '.local/state');
+/// const base = stateDirOfTheCommand(env); // the account's state directory, else the runtime directory
 /// ```
 pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> {
-    if let Some(state_home) = environment_value(environment, "XDG_STATE_HOME") {
-        let state_path: PathBuf = PathBuf::from(state_home);
-        if state_path.is_absolute() {
-            return Some(state_path.join("monochromatic-git-policy-cli"));
-        }
-    }
-    let home: OsString = environment_value(environment, "HOME")?;
-    if home.is_empty() {
-        return None;
-    }
-    return Some(PathBuf::from(home).join(".local").join("state").join("monochromatic-git-policy-cli"));
+    let named_runtime_directory: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR")
+        .filter(|named| {
+            return !named.is_empty();
+        })
+        .map(PathBuf::from);
+    let home: Option<PathBuf> = environment_value(environment, "HOME")
+        .filter(|home| {
+            return !home.is_empty();
+        })
+        .map(PathBuf::from);
+    let state_home: Option<PathBuf> = environment_value(environment, "XDG_STATE_HOME").map(PathBuf::from).filter(|state| {
+        return state.is_absolute();
+    });
+    let bus_address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS").filter(|address| {
+        return !address.is_empty();
+    });
+    let runtime_dir: Option<PathBuf> = runtime_directory(named_runtime_directory.as_deref(), home.as_deref());
+    let placed: Option<PathBuf> = runtime_dir.as_deref().and_then(|runtime| {
+        return state_dir_of_the_command(
+            named_runtime_directory.as_deref(),
+            runtime,
+            bus_address.as_deref().and_then(std::ffi::OsStr::to_str),
+            state_home.as_deref(),
+            home.as_deref(),
+        );
+    });
+    let base: PathBuf = placed.or(state_home).or_else(|| {
+        return home.map(|home| {
+            return home.join(".local").join("state");
+        });
+    })?;
+    return Some(base.join("monochromatic-git-policy-cli"));
 }
 
 /// What:
