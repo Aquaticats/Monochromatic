@@ -763,8 +763,10 @@ Open:
   So each drafted question is first answered here by analysis,
   measurement or source reading where that is possible,
   and only what is left is offered for sending.
-  The drafted questions are in `${HOME}/temp/agent/optique-questions-for-maintainer-2026-11-12.md`,
-  which is scratch and not committed.
+  The drafted questions are in
+  `/var/mnt/encrypted/temp/agent/optique-session-2026-11-12/optique-questions-for-maintainer-2026-11-12.md`,
+  which is scratch and not committed
+  (its first copy under `${HOME}/temp/agent` was gone after the reboot of 2026-11-13).
 
 ### State when this work wound down, 2026-11-12T16:10:00-05:00
 
@@ -833,18 +835,12 @@ the coordinator's check scripts and their records,
 and the prototype's logs and commit message.
 The prototype's patch itself is only in its clone.
 
-Two defects in this repository's own tools showed during the work and are not yet written up:
-
-- Pi refused to start with
-  "Cannot restore the openai-codex model catalog: Error: Lock file is already being held"
-  while `~/.pi/agent/.models-store.json.lock` was an empty folder left by a process that had gone;
-  removing the folder let Pi start.
-- With `/var/home` full,
-  `git commit` printed the new commit's summary line and then
-  "The commit service could not finish this commit, so it was not made.",
-  leaving the commit object in the store,
-  the branch unmoved
-  and a newly added file staged.
+The defects in this repository's own tools that showed during the work are filed,
+on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
+#6288,
+#6289,
+#6290
+and #6291.
 
 ## Next action
 
