@@ -19,6 +19,7 @@ import {
   readdir,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -261,6 +262,87 @@ async function launch({
   }
 }
 
+/**
+ Runs the launcher for a run of one name, under a `HOME` a test owns, and answers what it ended with whether it answered or refused.
+
+ @param request - the stand-in folders the launcher's own search finds, the folders of the run, the run's name and its home
+
+ @returns the status and both streams, as a refusal carries them
+
+ @example
+ ```ts
+ const ended = await refusedLaunch({ launcherBin, runs, checkout, prompt, runName: 'a-start-with-a-link', home: folder.path, });
+ ```
+ */
+async function refusedLaunch({
+  launcherBin,
+  runs,
+  checkout,
+  prompt,
+  runName,
+  home,
+}: {
+  readonly launcherBin: string;
+  readonly runs: string;
+  readonly checkout: string;
+  readonly prompt: string;
+  readonly runName: string;
+  readonly home: string;
+}): Promise<{
+  readonly code: number;
+  readonly stdout: string;
+  readonly stderr: string
+}> {
+  try {
+    /**
+     What a launcher that answered printed.
+     */
+    const answered = await execFileAsync(process.execPath, [
+      LAUNCHER,
+      `--name=${runName}`,
+      `--branch=feat/${runName}`,
+      `--prompt=${prompt}`,
+      '--cpu=100',
+      '--memory=1G',
+      '--tasks=100',
+      '--wall=60',
+      '--turn-cap=10',
+      `--runs-folder=${runs}`,
+      `--checkout-folder=${checkout}`,
+    ], {
+      env: {
+        PATH: [
+          launcherBin,
+          dirname(process.execPath,),
+          '/usr/bin',
+        ].join(delimiter,),
+        HOME: home,
+      },
+      encoding: 'utf8',
+    },);
+    return {
+      code: 0,
+      stdout: answered.stdout,
+      stderr: answered.stderr,
+    };
+  }
+  catch (error) {
+    /**
+     What the launcher's own failure reported, read field by field because a refusal carries the status it exited with.
+     */
+    const failure = error as {
+      readonly code?: unknown;
+      readonly stdout?: unknown;
+      readonly stderr?: unknown;
+    };
+    return {
+      code: ((typeof failure.code) === 'number') ? failure.code : (-1),
+      stdout: ((typeof failure.stdout) === 'string') ? failure.stdout : '',
+      stderr: ((typeof failure.stderr) === 'string') ? failure.stderr : '',
+    };
+  }
+}
+
 await describe({
   name: 'start-pi-run-in-a-worktree',
   children: [
@@ -398,7 +480,9 @@ await describe({
         expect(ended.stdout,).not.toContain('dependencies:',);
         expect((await logIn(miseLog,)).trim(),).toBe('exec -- printenv PATH',);
         await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
-        await expect(readdir(runs,),).resolves.toEqual([],);
+        expect((await readdir(runs,)).filter(function isTheRunsFolder(entry,) {
+          return entry.startsWith('a-start-with-a-link',);
+        },),).toEqual([],);
       },
     },),
     it({
@@ -538,13 +622,180 @@ await describe({
         expect(await logIn(sessionGitLog,),).toContain(`${WRAPPER_COMMAND} --help`,);
         expect(await logIn(launcherGitLog,),).toContain('rev-parse --verify --quiet main^{commit}',);
         await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
-        await expect(readdir(runs,),).resolves.toEqual([],);
+        expect((await readdir(runs,)).filter(function isTheRunsFolder(entry,) {
+          return entry.startsWith('a-start-with-a-link',);
+        },),).toEqual([],);
         // A start that was refused makes no scratch folder either: nothing of a run that could not work is left behind.
         await expect(
           readdir(join(
             folder.path,
             'temp',
             'agent',
+          ),),
+        ).rejects.toThrow('ENOENT',);
+      },
+    },),
+    it({
+      name: 'refuses a start whose scratch path is a symbolic link, before it makes a worktree, a run folder or a unit',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run would work in.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         The marker a unit would leave, which must never appear.
+         */
+        const unitMarker = join(
+          folder.path,
+          'unit-started',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         A folder outside the scratch root, which a link at the run's scratch path points at.
+         */
+        const outside = join(
+          folder.path,
+          'a-user-directory',
+        );
+        await mkdir(outside, { recursive: true, },);
+        await writeFile(join(
+          outside,
+          'precious.txt',
+        ), 'do not touch\n',);
+        await mkdir(join(
+          folder.path,
+          'temp',
+          'agent',
+        ), { recursive: true, },);
+        await symlink(
+          outside,
+          join(
+            folder.path,
+            'temp',
+            'agent',
+            'a-start-with-a-link-scratch',
+          ),
+        );
+        /**
+         The git the launcher itself uses, which resolves the base and the checkout's root.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The unit manager, which must never be reached.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `printf '%s\\n' "$*" > '${unitMarker}'\nexit 0\n`,
+        },);
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which loads its extensions and prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with, which is started under the run's own name so its scratch path is the link's.
+         */
+        const ended = await refusedLaunch({
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          runName: 'a-start-with-a-link',
+          home: folder.path,
+        },);
+        expect((ended as { readonly code?: number }).code,).toBe(1,);
+        expect((ended as { readonly stderr?: string }).stderr,).toContain('refusing to start',);
+        expect((ended as { readonly stderr?: string }).stderr,).toContain('is a symbolic link to',);
+        expect((ended as { readonly stderr?: string }).stderr,).toContain('nothing of this start was made',);
+        // The start refused before it made anything: no worktree, no run folder, no unit, and the folder the link points at is
+        // untouched.
+        expect((await readdir(runs,)).filter(function isTheRunsFolder(entry,) {
+          return entry.startsWith('a-start-with-a-link',);
+        },),).toEqual([],);
+        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+        await expect(
+          readdir(join(
+            checkout,
+            '.claude',
+          ),),
+        ).rejects.toThrow('ENOENT',);
+        expect(await readFile(join(
+          outside,
+          'precious.txt',
+        ), 'utf8',),).toBe('do not touch\n',);
+        await expect(
+          readdir(join(
+            outside,
+            'keep',
           ),),
         ).rejects.toThrow('ENOENT',);
       },

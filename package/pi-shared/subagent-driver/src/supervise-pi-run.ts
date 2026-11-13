@@ -310,6 +310,7 @@ export async function supervisePiRun(
         processFolder: process.env
           .PI_RUNS_PROCESS_FOLDER
           ?? '/proc',
+        ...((options.scratchFolder === undefined) ? {} : { scratchFolder: options.scratchFolder, }),
         run: runCommandWithChildProcess,
       },);
     },

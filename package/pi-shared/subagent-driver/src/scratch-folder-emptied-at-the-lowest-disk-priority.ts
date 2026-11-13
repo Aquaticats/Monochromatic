@@ -16,6 +16,7 @@ import {
   runCommandWithChildProcess,
 } from './run-command.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
+import { entriesLeftIn, } from './deleting-what-a-run-left-in-its-scratch-folder.ts';
 import { scratchFolderOf, } from './scratch-folder-of-a-run.ts';
 
 /**
@@ -29,6 +30,12 @@ import { scratchFolderOf, } from './scratch-folder-of-a-run.ts';
  own line rather than left silent.
  */
 export const SCRATCH_EMPTYING_BOUND_SECONDS = 1_800;
+
+/**
+ The code a failure carries when the program a command names is not on this machine at all, which is the one failure the fallback
+ below exists for.
+ */
+const NO_SUCH_PROGRAM_CODE = 'ENOENT';
 
 /**
  The program that puts this step's own process at the lowest disk priority, which is util-linux's `ionice`.
@@ -93,11 +100,12 @@ function linesIn({ shown, }: { readonly shown: string },): readonly string[] {
  ```
  */
 function reasonOfSilence({ output, }: { readonly output: CommandOutput },): string {
+  // A bound kill is named as what it is rather than as the message the program that ran it gives, which is the whole command line.
+  if (output.killedByItsOwnBound === true) {
+    return `it ran past the ${String(SCRATCH_EMPTYING_BOUND_SECONDS,)} second bound this step gives one deletion`;
+  }
   if (output.problem !== undefined) {
     return output.problem;
-  }
-  if (output.killedByItsOwnBound === true) {
-    return `it ran past the ${String(SCRATCH_EMPTYING_BOUND_SECONDS,)} second bound this step gives one deletion, so what it had not deleted yet is still there`;
   }
   /**
    What the command complained about, which names what it could not do.
@@ -177,7 +185,11 @@ export async function emptyTheScratchFolderAtTheLowestDiskPriority({
   }
   // A machine without `ionice` is not a machine where a folder goes unemptied: the emptying is made without the disk class, and
   // the line it answers with is the same line, because the deletion is what the run's end reports.
-  if ((output.status === (-1)) && (output.problem !== undefined)) {
+  //
+  // Only a machine without the program is answered that way. A deletion this step's own bound killed is no missing program: it is
+  // named with what it left, and the rest is left for the next end of a run of this name or for the command a person runs. Trying
+  // it again at full disk priority would take twice the bound this step documents, against every other process on the disk.
+  if ((output.status === (-1)) && (output.problemCode === NO_SUCH_PROGRAM_CODE)) {
     /**
      What the emptying printed when it ran without the disk class.
      */
@@ -195,10 +207,24 @@ export async function emptyTheScratchFolderAtTheLowestDiskPriority({
     }
     return [`scratch: ${runName}: the folder could not be emptied: ${reasonOfSilence({ output: plain, },)}`,];
   }
-  return [
-    `scratch: ${runName}: the folder at ${scratchFolderOf({
-      scratchRoot,
-      runName,
-    },)} could not be emptied: ${reasonOfSilence({ output, },)}`,
-  ];
+  /**
+   The folder the command was asked to empty, which a bound kill leaves part of.
+   */
+  const folder = scratchFolderOf({
+    scratchRoot,
+    runName,
+  },);
+  if (output.killedByItsOwnBound === true) {
+    /**
+     What the folder still holds, which is how far the deletion got.
+     */
+    const left = await entriesLeftIn(folder,);
+    return [
+      `scratch: ${runName}: ${reasonOfSilence({ output, },)}; ${String(left.files,)} `
+        + `file${(left.files === 1) ? '' : 's'} and ${String(left.folders,)} `
+        + `folder${(left.folders === 1) ? '' : 's'} are still in ${folder}, and the next end of a run of this name, or `
+        + `empty-the-scratch-folder-of-a-run, takes them`,
+    ];
+  }
+  return [`scratch: ${runName}: the folder at ${folder} could not be emptied: ${reasonOfSilence({ output, },)}`,];
 }

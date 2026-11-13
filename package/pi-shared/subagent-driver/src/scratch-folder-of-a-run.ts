@@ -18,6 +18,7 @@ import {
   chmod,
   lstat,
   mkdir,
+  readlink,
 } from 'node:fs/promises';
 import {
   basename,
@@ -279,6 +280,120 @@ export type MadeScratchFolder = {
 };
 
 /**
+ Says what is at one run's scratch folder's path that is not that run's folder, so a start refuses it rather than following it.
+
+ Making a folder is the other half of emptying one: the emptying refuses a path that is a symbolic link, a file or anything else
+ that is not a folder, and a maker that followed such a path would change the mode of a directory outside the scratch root and put a
+ `keep/` inside it, if it is a link to a directory, and would fail with a raw `ENOENT` if the link points nowhere.
+
+ @param scratchRoot - the root every run's scratch folder lives directly under
+
+ @param runName - the run's name
+
+ @returns what is there instead of the folder, with what to do about it, or nothing when the path may be made into the folder
+
+ @example
+ ```ts
+ const obstacle = await scratchFolderObstacleIn({ scratchRoot: '/home/a/temp/agent', runName: 'copy-route', },);
+ ```
+ */
+export async function scratchFolderObstacleIn({
+  scratchRoot,
+  runName,
+}: {
+  readonly scratchRoot: string;
+  readonly runName: string;
+},): Promise<{ readonly problem?: string }> {
+  /**
+   Why the run's name cannot name a folder, when it cannot.
+   */
+  const nameProblem = nameProblemOf(runName,);
+  if (nameProblem.problem !== undefined) {
+    return nameProblem;
+  }
+  /**
+   The run's scratch folder.
+   */
+  const folder = scratchFolderOf({
+    scratchRoot,
+    runName,
+  },);
+  /**
+   What is at that path, without following a symbolic link.
+   */
+  const atThePath = await lstatOrNothing(folder,);
+  if (atThePath.shown === undefined) {
+    return {};
+  }
+  /**
+   What is at the path, which is there once the read above answered.
+   */
+  const { shown, } = atThePath;
+  if (shown.isDirectory()) {
+    return {};
+  }
+  /**
+   Where the link points, when it is one that can be read, which a reader needs to know what to remove.
+   */
+  const target = shown.isSymbolicLink() ? await readlinkOrNothing(folder,) : '';
+  return {
+    problem: `${folder} is ${shown.isSymbolicLink() ? `a symbolic link${((target === '') ? '' : ` to ${target}`)}` : `not a folder (${shown.isFile() ? 'a file' : 'something else'})`}, so it is not the scratch folder this run would write in. Remove it, or empty it with empty-the-scratch-folder-of-a-run if it is an earlier run's, and start the run again; nothing of this start was made.`,
+  };
+}
+
+/**
+ Reads what is at one path, or answers nothing when nothing is there.
+
+ @param path - the path to look at
+
+ @returns what is there, without following a symbolic link, or nothing when nothing is
+
+ @throws the error a read gave, other than a path that is not there
+
+ @example
+ ```ts
+ const shown = await lstatOrNothing('/home/a/temp/agent/a-scratch');
+ ```
+ */
+async function lstatOrNothing(path: string,): Promise<{ readonly shown?: Awaited<ReturnType<typeof lstat>> }> {
+  try {
+    return { shown: await lstat(path,), };
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return {};
+    }
+    throw error;
+  }
+}
+
+/**
+ Reads where one symbolic link points, or answers empty text when it cannot be read.
+
+ @param path - the link
+
+ @returns the path it names, or empty text
+
+ @example
+ ```ts
+ const target = await readlinkOrNothing('/home/a/temp/agent/a-scratch');
+ ```
+ */
+async function readlinkOrNothing(path: string,): Promise<string> {
+  try {
+    return await readlink(path,);
+  }
+  catch (error) {
+    // A link whose target cannot be read is still a link, and the refusal above says so without naming where it points: what a
+    // reader has to do is remove the link, which needs no target.
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return '';
+    }
+    throw error;
+  }
+}
+
+/**
  Makes one run's scratch folder, with its `keep/` subfolder inside it, before the agent's first prompt names it.
 
  A folder an earlier run of the same name left is kept as it is: a resumed run gets the same folder again, with `keep/` as that
@@ -290,7 +405,8 @@ export type MadeScratchFolder = {
 
  @returns the folder, its `keep/` subfolder, and whether this start made the folder
 
- @throws ScratchFolderError when the run's name cannot name a folder
+ @throws ScratchFolderError when the run's name cannot name a folder, or when something that is not a folder is at the folder's
+ path: a start refused that way has made nothing
 
  @example
  ```ts
@@ -305,11 +421,14 @@ export async function makeScratchFolder({
   readonly runName: string;
 },): Promise<MadeScratchFolder> {
   /**
-   Why the run's name cannot name a folder, when it cannot.
+   What is at the folder's path instead of a folder, when something is: a link, a file, or a path the name cannot reach.
    */
-  const nameProblem = nameProblemOf(runName,);
-  if (nameProblem.problem !== undefined) {
-    throw new ScratchFolderError(nameProblem.problem,);
+  const obstacle = await scratchFolderObstacleIn({
+    scratchRoot,
+    runName,
+  },);
+  if (obstacle.problem !== undefined) {
+    throw new ScratchFolderError(obstacle.problem,);
   }
   /**
    The run's scratch folder.

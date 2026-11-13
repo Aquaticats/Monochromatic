@@ -34,10 +34,15 @@ and the tests use one per wait inside a polling loop.
   and the folders come out after everything inside them is gone so a folder that still holds an entry is named rather than
   its parent being reported for it.
   The count of a kept folder takes the same shape for the same reason.
+- Counting what a bound-ended deletion left (`src/deleting-what-a-run-left-in-its-scratch-folder.ts`): one folder at a time, for
+  the same reason as the deletion it reports on.
 - The same deletion in a test (`src/emptying-a-scratch-folder.unit.test.ts`):
   one run name at a time,
   each folder made, filled, emptied and read before the next one,
   so a failure names the name it belongs to.
+- The end step's own cases (`src/finish-a-run.unit.test.ts`):
+  one run at a time, each made, ended, emptied and read before the next, so a failure names the case it belongs to,
+  and one process entry at a time while a process table is written.
 - The test polling helpers (`src/drive-pi-subagent.unit.test.ts`,
   `src/connection-to-pi.unit.test.ts`,
   `src/record-of-pi-run.unit.test.ts`):

@@ -38,6 +38,31 @@ await describe({
       },
     },),
     it({
+      name: 'says which code a command that never ran carries, so a program this machine lacks is told from one its own bound killed',
+      fn: async () => {
+        /**
+         What asking for a program this machine does not have answered.
+         */
+        const missing = await runCommandWithChildProcess({
+          command: 'no-such-program-for-this-test',
+          words: [],
+        },);
+        expect(missing.status,).toBe(-1,);
+        expect(missing.problemCode,).toBe('ENOENT',);
+        expect(missing.killedByItsOwnBound,).toBeUndefined();
+        /**
+         What a command its own bound killed answered, which carries no code: no program was missing there.
+         */
+        const killed = await runCommandWithChildProcess({
+          command: 'sleep',
+          words: [String(LONG_SLEEP_SECONDS,),],
+          timeoutMilliseconds: SHORT_BOUND_MILLISECONDS,
+        },);
+        expect(killed.killedByItsOwnBound,).toBe(true,);
+        expect(killed.problemCode,).toBeUndefined();
+      },
+    },),
+    it({
       name: 'kills a command that runs past its bound instead of waiting for it',
       fn: async () => {
         /**

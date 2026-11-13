@@ -35,6 +35,9 @@ import {
   ENTRIES_NAMED_IN_A_LINE,
   KEEP_FOLDER,
   type ScratchFolderEmptiness,
+  emptyTheFolderItsRunStillOwns,
+  emptyTheScratchFolderAtTheLowestDiskPriority,
+  ownershipProblemOf,
   bytesTextOf,
   emptyTheFolderIn,
   leftWhereItIsIn,
@@ -246,6 +249,86 @@ async function restoredMode({
       await chmod(path, mode,);
     },
   };
+}
+
+/**
+ A process table in which one process works in one folder, which is how the proof reads the machine.
+
+ @param request - the folder this test's process folders live in, and one process's working folder
+
+ @returns the process folder
+
+ @example
+ ```ts
+ const processFolder = await processTableWorkingIn({ base: folder.path, working: scratch.folder, });
+ ```
+ */
+async function processTableWorkingIn({
+  base,
+  working,
+}: {
+  readonly base: string;
+  readonly working: string;
+}): Promise<string> {
+  /**
+   The folder a Linux machine keeps one entry per process in.
+   */
+  const processFolder = join(
+    base,
+    'proc',
+  );
+  await mkdir(processFolder, { recursive: true, },);
+  await mkdir(join(
+    processFolder,
+    '7777',
+  ), { recursive: true, },);
+  await symlink(
+    working,
+    join(
+      processFolder,
+      '7777',
+      'cwd',
+    ),
+  );
+  return processFolder;
+}
+
+/**
+ A folder holding a stand-in `systemctl`, so a test decides what the manager says about one unit without one being started.
+
+ @param request - the folder the stand-in goes in, and the state it answers
+
+ @returns the folder to put first on a `PATH`
+
+ @example
+ ```ts
+ const bin = await managerSaying({ base: folder.path, state: 'active', });
+ ```
+ */
+async function managerSaying({
+  base,
+  state,
+}: {
+  readonly base: string;
+  readonly state: string;
+}): Promise<string> {
+  /**
+   The folder the stand-in lives in.
+   */
+  const bin = join(
+    base,
+    'bin',
+  );
+  await mkdir(bin, { recursive: true, },);
+  await writeFile(join(
+    bin,
+    'systemctl',
+  ), `#!/bin/sh\nprintf '%s\\n' '${state}'\nexit 0\n`,);
+  await chmod(join(
+    bin,
+    'systemctl',
+  ), 0o700,);
+  return bin;
 }
 
 await describe({
@@ -908,6 +991,169 @@ await describe({
       ],
     },),
     describe({
+      name: ownershipProblemOf.name,
+      children: [
+        it({
+          name: 'says nothing only when the manager says the unit has gone and no process works in the folder',
+          fn: async () => {
+            expect(ownershipProblemOf({
+              runName: 'copy-route',
+              unitState: 'inactive',
+              processes: [],
+              folder: '/home/a/temp/agent/copy-route-scratch',
+              excludingPid: 1,
+            },),).toEqual({},);
+          },
+        },),
+        it({
+          name: 'refuses while a run of that name is going, and refuses the same way when the manager answered nothing at all',
+          fn: async () => {
+            for (const unitState of ['active', 'activating', 'deactivating', 'reloading', 'refreshing',]) {
+              expect(ownershipProblemOf({
+                runName: 'copy-route',
+                unitState,
+                processes: [],
+                folder: '/home/a/temp/agent/copy-route-scratch',
+                excludingPid: 1,
+              },).problem,).toContain('a run of that name is going now',);
+            }
+            expect(ownershipProblemOf({
+              runName: 'copy-route',
+              unitState: '',
+              processes: [],
+              folder: '/home/a/temp/agent/copy-route-scratch',
+              excludingPid: 1,
+            },).problem,).toContain('is in no state anybody could read',);
+          },
+        },),
+        it({
+          name: 'refuses while a process of the account works in the folder, and counts no process of the emptying itself',
+          fn: async () => {
+            expect(ownershipProblemOf({
+              runName: 'copy-route',
+              unitState: 'inactive',
+              processes: [
+                { pid: 9_001, folder: '/home/a/temp/agent/copy-route-scratch/build', command: 'bash', },
+                { pid: 9_002, folder: '/elsewhere', command: 'node', },
+              ],
+              folder: '/home/a/temp/agent/copy-route-scratch',
+              excludingPid: 1,
+            },).problem,).toContain('a process still works in /home/a/temp/agent/copy-route-scratch/build (9001 bash)',);
+            // The process doing the emptying is not the run's work, wherever it was started.
+            expect(ownershipProblemOf({
+              runName: 'copy-route',
+              unitState: 'inactive',
+              processes: [{ pid: 9_003, folder: '/home/a/temp/agent/copy-route-scratch', command: 'node', },],
+              folder: '/home/a/temp/agent/copy-route-scratch',
+              excludingPid: 9_003,
+            },),).toEqual({},);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: emptyTheFolderItsRunStillOwns.name,
+      children: [
+        it({
+          name: 'empties the folder when the run that ended is proven to still own it, and deletes nothing while a run of that name is going',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's scratch folder, with a file a new attempt would lose.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            /**
+             The file in it.
+             */
+            const sentinel = join(
+              scratch.folder,
+              'a-new-attempts-output.txt',
+            );
+            await writeFile(sentinel, 'the new attempt is writing this\n',);
+            /**
+             What the emptying answered while the manager said a run of that name was going.
+             */
+            const going = await emptyTheFolderItsRunStillOwns({
+              folder: scratch.folder,
+              scratchRoot: scratch.scratchRoot,
+              runName: 'a',
+              run: async function theManager(words: { readonly words: readonly string[] },) {
+                return (words.words.includes('pi-a.service',))
+                  ? { status: 0, stdout: 'activating\n', stderr: '', }
+                  : { status: 0, stdout: 'inactive\n', stderr: '', };
+              },
+              processFolder: await processTableWorkingIn({
+                base: folder.path,
+                working: folder.path,
+              },),
+              mountsOf: async function mounts() {
+                return [];
+              },
+              freeBytesOf: async function room() {
+                return 0;
+              },
+            },);
+            expect(going.emptied,).toBe('refused',);
+            expect((going as { readonly reason: string }).reason,).toContain('a run of that name is going now',);
+            expect(await namesInFolder(scratch.folder,),).toContain('a-new-attempts-output.txt',);
+            /**
+             What the emptying answered while a process worked in the folder instead.
+             */
+            const worked = await emptyTheFolderItsRunStillOwns({
+              folder: scratch.folder,
+              scratchRoot: scratch.scratchRoot,
+              runName: 'a',
+              run: async function theManager() {
+                return { status: 0, stdout: 'inactive\n', stderr: '', };
+              },
+              processFolder: await processTableWorkingIn({
+                base: join(folder.path, 'second',),
+                working: join(
+                  scratch.folder,
+                  'build',
+                ),
+              },),
+              mountsOf: async function mounts() {
+                return [];
+              },
+              freeBytesOf: async function room() {
+                return 0;
+              },
+            },);
+            expect(worked.emptied,).toBe('refused',);
+            expect((worked as { readonly reason: string }).reason,).toContain('a process still works in',);
+            expect(await namesInFolder(scratch.folder,),).toContain('a-new-attempts-output.txt',);
+            /**
+             What the emptying answered with the unit gone and nothing working in the folder.
+             */
+            const emptied = await emptyTheFolderItsRunStillOwns({
+              folder: scratch.folder,
+              scratchRoot: scratch.scratchRoot,
+              runName: 'a',
+              run: async function theManager() {
+                return { status: 0, stdout: 'inactive\n', stderr: '', };
+              },
+              processFolder: await processTableWorkingIn({
+                base: join(folder.path, 'third',),
+                working: folder.path,
+              },),
+              mountsOf: async function mounts() {
+                return [];
+              },
+              freeBytesOf: async function room() {
+                return 0;
+              },
+            },);
+            expect(emptied.emptied,).toBe('done',);
+            expect(await namesInFolder(scratch.folder,),).toEqual([KEEP_FOLDER,],);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: leftWhereItIsIn.name,
       children: [
         it({
@@ -1066,6 +1312,105 @@ await describe({
       ],
     },),
     describe({
+      name: emptyTheScratchFolderAtTheLowestDiskPriority.name,
+      children: [
+        it({
+          name: 'names a deletion its own bound ended, with what it left, and never tries it again at full disk priority',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's scratch folder, holding what the bound left undone.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            await mkdir(join(
+              scratch.folder,
+              'a-build-tree',
+            ), { recursive: true, },);
+            await writeFile(join(
+              scratch.folder,
+              'a-log.txt',
+            ), 'a log\n',);
+            await writeFile(join(
+              scratch.folder,
+              'a-build-tree',
+              'an-object.bin',
+            ), 'an object\n',);
+            /**
+             Every command the step asked for, so a second attempt is a second attempt.
+             */
+            const asked: string[] = [];
+            /**
+             What the step answered.
+             */
+            const lines = await emptyTheScratchFolderAtTheLowestDiskPriority({
+              scratchRoot: scratch.scratchRoot,
+              runName: 'a',
+              run: async function boundKilled(request,) {
+                asked.push(request.command,);
+                return {
+                  status: -1,
+                  stdout: '',
+                  stderr: '',
+                  problem: `Command failed: ${request.command} --class idle -- ...`,
+                  killedByItsOwnBound: true,
+                };
+              },
+            },);
+            expect(asked,).toEqual(['ionice',],);
+            expect(lines.join('\n',),).toContain('it ran past the 1800 second bound this step gives one deletion',);
+            expect(lines.join('\n',),).toContain('2 files and 2 folders are still in',);
+            expect(lines.join('\n',),).toContain('the next end of a run of this name, or empty-the-scratch-folder-of-a-run, takes them',);
+          },
+        },),
+        it({
+          name: 'makes the deletion again without the disk class only when this machine has no program for it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's scratch folder, which the second attempt empties.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            /**
+             Every command the step asked for.
+             */
+            const asked: string[] = [];
+            /**
+             What the step answered when the machine had no `ionice` at all.
+             */
+            const lines = await emptyTheScratchFolderAtTheLowestDiskPriority({
+              scratchRoot: scratch.scratchRoot,
+              runName: 'a',
+              run: async function withoutTheProgram(request,) {
+                asked.push(request.command,);
+                if (request.command === 'ionice') {
+                  return {
+                    status: -1,
+                    stdout: '',
+                    stderr: '',
+                    problem: 'spawn ionice ENOENT',
+                    problemCode: 'ENOENT',
+                  };
+                }
+                return {
+                  status: 0,
+                  stdout: `scratch: a: emptied ${scratch.folder} except keep/: 0 files and 0 folders removed\n`,
+                  stderr: '',
+                };
+              },
+            },);
+            expect(asked,).toHaveLength(2,);
+            expect(lines,).toEqual([`scratch: a: emptied ${scratch.folder} except keep/: 0 files and 0 folders removed`,],);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'the command empty-the-scratch-folder-of-a-run',
       children: [
         it({
@@ -1093,6 +1438,60 @@ await describe({
             ], { encoding: 'utf8', },);
             expect(ended.stdout,).toContain(`scratch: a name with spaces: emptied ${scratch.folder} except keep/:`,);
             expect(await namesInFolder(scratch.folder,),).toEqual([KEEP_FOLDER,],);
+          },
+        },),
+        it({
+          name: 'proves the run that ended still owns the folder inside its own process, so a run of that name going is caught as late as the deletion itself',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's scratch folder, with the file a new attempt wrote.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            await writeFile(join(
+              scratch.folder,
+              'a-new-attempts-output.txt',
+            ), 'the new attempt is writing this\n',);
+            /**
+             The manager the emptying asks, which says a run of that name is going.
+             */
+            const bin = await managerSaying({
+              base: folder.path,
+              state: 'activating',
+            },);
+            /**
+             What the command printed and how it ended.
+             */
+            let ended: { readonly code?: number; readonly stdout?: string } = {};
+            try {
+              /**
+               What the command printed when it refused.
+               */
+              const refused = await execFileAsync(process.execPath, [
+                EMPTIER,
+                `--scratch-root=${scratch.scratchRoot}`,
+                '--run-name=a',
+              ], {
+                encoding: 'utf8',
+                env: {
+                  ...process.env,
+                  PATH: `${bin}:${process.env.PATH ?? ''}`,
+                },
+              },);
+              ended = {
+                code: 0,
+                stdout: refused.stdout,
+              };
+            }
+            catch (error) {
+              ended = error as { readonly code?: number; readonly stdout?: string };
+            }
+            expect(ended.code,).toBe(1,);
+            expect(ended.stdout,).toContain('a run of that name is going now',);
+            expect(await namesInFolder(scratch.folder,),).toContain('a-new-attempts-output.txt',);
           },
         },),
         it({

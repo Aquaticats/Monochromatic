@@ -12,6 +12,8 @@
 import type { Stats, } from 'node:fs';
 import { statfs, } from 'node:fs/promises';
 import { mountPointsNow, } from './mounts-of-this-machine.ts';
+import { ownershipProblemNow, } from './owner-of-a-scratch-folder.ts';
+import type { RunCommand, } from './run-command.ts';
 import {
   type UnremovedEntry,
   emptyTally,
@@ -360,4 +362,57 @@ export async function emptyTheFolderOfRun({
     scratchRoot,
     runName,
   },);
+}
+
+/**
+ What emptying one folder as the run that ended needs: the folder, and how to prove that run still owns it.
+ */
+export type OwnedScratchEmptyingRequest = ScratchEmptyingRequest & {
+  /**
+   How a command is run, which the proof asks the manager with.
+   */
+  readonly run: RunCommand;
+
+  /**
+   The folder holding one entry per process, `/proc` here.
+   */
+  readonly processFolder: string;
+};
+
+/**
+ Empties a run's scratch folder only once the run that ended is proven still to own it, and the proof is taken here, at the moment
+ of the deletion.
+
+ A folder is named by the run's name, and a name is free as soon as the old unit is collected, so a newer attempt of the same name can
+ own the folder while the attempt before it is still ending. Proving it immediately before the walk is as late as this can be done:
+ the readings the end step took on its way are old by then, and one taken here is not.
+
+ @param request - the folder, the root it must sit under, the run it belongs to, how the manager is asked, and the seams a test
+ replaces
+
+ @returns what it removed, or why it refused the folder
+
+ @example
+ ```ts
+ const emptied = await emptyTheFolderItsRunStillOwns({ folder: '/home/a/temp/agent/a-scratch', scratchRoot: '/home/a/temp/agent', runName: 'a', run: runCommandWithChildProcess, processFolder: '/proc', },);
+ ```
+ */
+export async function emptyTheFolderItsRunStillOwns(request: OwnedScratchEmptyingRequest,): Promise<ScratchFolderEmptiness> {
+  /**
+   Why this folder is not provably the ended run's own, when it is not.
+   */
+  const ownership = await ownershipProblemNow({
+    run: request.run,
+    runName: request.runName,
+    folder: request.folder,
+    processFolder: request.processFolder,
+    excludingPid: process.pid,
+  },);
+  if (ownership.problem !== undefined) {
+    return {
+      emptied: 'refused',
+      reason: ownership.problem,
+    };
+  }
+  return await emptyTheFolderIn(request,);
 }

@@ -172,6 +172,56 @@ async function processTableOf({
 }
 
 /**
+ A process table in which one process works in each folder named, which is how the run's own work is read.
+
+ @param request - the folder this test's process folders live in, and the folder each process works in
+
+ @returns the process folder, made of one process per folder
+
+ @example
+ ```ts
+ const processFolder = await processTableOfMany({ base: folder.path, working: [runFolder], });
+ ```
+ */
+async function processTableOfMany({
+  base,
+  working,
+}: {
+  readonly base: string;
+  readonly working: readonly string[];
+}): Promise<string> {
+  /**
+   The folder a Linux machine keeps one entry per process in.
+   */
+  const processFolder = join(
+    base,
+    'proc',
+  );
+  await mkdir(processFolder, { recursive: true, },);
+  /* oxlint-disable eslint/no-await-in-loop -- one process entry at a time, each made before the next, so a failure names the
+     folder it belongs to; see doc/lint/sequential-awaits.md. */
+  for (const [index, folder,] of working.entries()) {
+    /**
+     This process's entry.
+     */
+    const process = join(
+      processFolder,
+      String(5_000 + index,),
+    );
+    await mkdir(process, { recursive: true, },);
+    await symlink(
+      folder,
+      join(
+        process,
+        'cwd',
+      ),
+    );
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return processFolder;
+}
+
+/**
  A command runner that answers every question with a status and no output, which is what a git question answers here.
 
  @param status - the status every answer carries
@@ -196,6 +246,121 @@ function answering(status: number,): RunCommand {
 await describe({
   name: finishTheRun.name,
   children: [
+    it({
+      name: 'keeps the scratch folder while the run own work still runs, whatever reason the run ended with, and empties it when nothing of the run is left',
+      fn: async () => {
+        /**
+         One case: the reason the run ended, the folder its own work works in, and whether the emptying may run.
+         */
+        const cases = [
+          // A reproduction the agent started in a scope of its own keeps running though the run met its wall clock.
+          { endReason: 'wall-clock', worksIn: 'worktree', emptied: false, },
+          // The same work started from the scratch folder, which is where the briefs tell an agent to run a command.
+          { endReason: 'wall-clock', worksIn: 'scratch', emptied: false, },
+          // And a run whose work is over is emptied as it always was.
+          { endReason: 'wall-clock', worksIn: 'none', emptied: true, },
+        ] as const;
+        /* oxlint-disable eslint/no-await-in-loop -- one run at a time, each made, ended, emptied and read before the next one, so a
+           failure names the case it belongs to; see doc/lint/sequential-awaits.md. */
+        for (const one of cases) {
+          await using folder = await makeFolder();
+          /**
+           The run that ended.
+           */
+          const run = await makeFinishedRun({
+            base: folder.path,
+            runName: 'copy-route',
+          },);
+          /**
+           The one scratch folder this run got.
+           */
+          const scratch = await makeScratchFolder({
+            scratchRoot: run.scratchRoot,
+            runName: 'copy-route',
+          },);
+          /**
+           What a reproduction left in the scratch folder.
+           */
+          const sentinel = join(
+            scratch.folder,
+            'repro-output.txt',
+          );
+          await writeFile(sentinel, 'the reproduction is still writing this\n',);
+          /**
+           The folder the run's own process works in, which is its worktree, its scratch folder, or nothing.
+           */
+          const workingFolder = (one.worksIn === 'worktree')
+            ? run.runFolder
+            : ((one.worksIn === 'scratch') ? scratch.folder : join(folder.path, 'elsewhere',));
+          /**
+           Every command the end step asked for, so a deletion that did not run is a deletion that was never asked for.
+           */
+          const asked: string[] = [];
+          /**
+           Every line the launcher reported.
+           */
+          const reported: string[] = [];
+          await finishTheRun({
+            runName: 'copy-route',
+            runFolder: run.runFolder,
+            runsFolder: run.runsFolder,
+            unitStatus: 0,
+            wallSeconds: 60,
+            readOnlyInMain: true,
+            worktree: run.runFolder,
+            checkoutFolder: folder.path,
+            processFolder: await processTableOfMany({
+              base: folder.path,
+              working: [workingFolder,],
+            },),
+            commandLine: [],
+            launcherEntry: process.execPath,
+            wakesSoFar: 0,
+            environment: process.env,
+            scratchRoot: run.scratchRoot,
+            git: async function noGitQuestion() {
+              throw new Error('a run in the checkout itself asks git nothing about a worktree',);
+            },
+            // The case with nothing left of the run runs the emptying for real, so the deletion is a deletion; the two that keep the
+            // folder record what they were asked and never reach a command.
+            run: (one.emptied)
+              ? runCommandWithChildProcess
+              : async function recorded(request,) {
+                asked.push(`${request.command} ${request.words.join(' ',)}`,);
+                return {
+                  status: 1,
+                  stdout: '',
+                  stderr: '',
+                };
+              },
+            report: function keep(line,) {
+              reported.push(line,);
+            },
+            wait: async function noWait() {
+              // The run's work is read once, and nothing here waits for it.
+            },
+            now: Date.now,
+          },);
+          if (one.emptied) {
+            // Nothing of the run is left, so the folder is emptied and the file the reproduction wrote is gone.
+            expect(reported.join('\n',),).toContain(`scratch: copy-route: emptied ${scratch.folder} except keep/:`,);
+            expect(await namesInFolder(scratch.folder,),).not.toContain('repro-output.txt',);
+            continue;
+          }
+          /**
+           Whether the end step asked for the emptying at all.
+           */
+          const emptied = asked.some(function namesTheEmptying(command,) {
+            return command.includes('empty-the-scratch-folder-of-a-run',);
+          },);
+          expect(emptied,).toBe(false,);
+          expect(reported.join('\n',),).toContain('scratch: copy-route: the folder was kept, the run\'s own work still runs in it',);
+          expect(await namesInFolder(scratch.folder,),).toContain('repro-output.txt',);
+        }
+        /* oxlint-enable eslint/no-await-in-loop */
+      },
+      timeout: 60_000,
+    },),
     it({
       name: 'empties the run one scratch folder when its work is done, and reports what was removed and what keep holds',
       fn: async () => {

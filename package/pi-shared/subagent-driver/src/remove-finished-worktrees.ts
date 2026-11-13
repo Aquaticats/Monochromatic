@@ -265,14 +265,6 @@ if (listed.status !== 0) {
 }
 
 /**
- The folder every process of the machine works in, read once.
- */
-const workingFolders = (await processesAtTheirFolders({ processFolder: options.processFolder, },))
-  .map(function folderOf(process,) {
-    return process.folder;
-  },);
-
-/**
  The lines to print, one per run's worktree.
  */
 const printed: string[] = [];
@@ -358,18 +350,28 @@ for (const worktree of runWorktreesIn({
     },),
   },);
   /**
-   The folder a process still works in, if one does.
-   */
-  const inUse = folderSomeProcessWorksIn({
-    folders: ownFolders,
-    workingFolders,
-  },);
-  /**
    The state systemd answered for the unit, which both decisions below read.
    */
   const unitState = await unitStateOf({
     run: runCommandWithChildProcess,
     unitName: `pi-${name}.service`,
+  },);
+  // The process table is read for each worktree, here, and not once for the whole loop: a new attempt of a name can start while an
+  // earlier one is being put away, and a reading taken before a deletion that may take half an hour says nothing about a process
+  // that started during it. A reading that old is how a worktree comes to be removed under the run working in it.
+  /**
+   Every folder a process of the machine works in, read now.
+   */
+  const workingFolders = (await processesAtTheirFolders({ processFolder: options.processFolder, },))
+    .map(function folderOf(process,) {
+      return process.folder;
+    },);
+  /**
+   The folder a process still works in, if one does.
+   */
+  const inUse = folderSomeProcessWorksIn({
+    folders: ownFolders,
+    workingFolders,
   },);
   // The scratch folder is emptied whatever reason the run ended with, because a folder nothing owns is what left two days of
   // scratch on this machine on 2026-11-13. Emptying it before the worktree decision is what a launcher gone before its own end

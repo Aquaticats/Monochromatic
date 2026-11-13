@@ -4,8 +4,13 @@
  much it removed, how much room the volume gained, how much `keep/` holds, and what it had to leave where it is. See `README.md`.
 
  The folder is computed from the run's name and the scratch root, so this command cannot be pointed at a folder that is not a run's
- own: a folder it is asked for under a name that is not the launcher's is refused with the reason. It is what a run's end runs, and
- a person can run it to empty one folder by hand.
+ own: a folder it is asked for under a name that is not the launcher's is refused with the reason.
+
+ It is what a run's end runs, and a person can run it to empty one folder by hand. Before anything is deleted it proves, there and
+ then, that the run which ended still owns the folder: no unit of that name is going and no process of the account works in it. A
+ run's scratch folder is named by the run's name, and a name is free as soon as the old unit is collected, so a newer attempt of the
+ same name may own the folder while the attempt before it is still ending. A reading that cannot be taken is no proof, and the folder
+ stays with the reason said plainly.
 
  @module
  */
@@ -20,9 +25,10 @@ import {
 } from 'node:process';
 import {
   type ScratchFolderEmptiness,
-  emptyTheFolderIn,
+  emptyTheFolderItsRunStillOwns,
 } from './emptying-a-scratch-folder.ts';
 import { optionIn, } from './option-in.ts';
+import { runCommandWithChildProcess, } from './run-command.ts';
 import { requiredText, } from './required-option-values.ts';
 import {
   defaultScratchRoot,
@@ -131,12 +137,14 @@ const folder = scratchFolderOf({
 },);
 
 /**
- What emptying the folder answered.
+ What emptying the folder answered, which is refused unless the run that ended is proven still to own it at this moment.
  */
-const emptying: ScratchFolderEmptiness = await emptyTheFolderIn({
+const emptying: ScratchFolderEmptiness = await emptyTheFolderItsRunStillOwns({
   folder,
   scratchRoot,
   runName,
+  run: runCommandWithChildProcess,
+  processFolder: env.PI_RUNS_PROCESS_FOLDER ?? '/proc',
 },);
 
 stdout.write(`${scratchEmptyingLinesOf({

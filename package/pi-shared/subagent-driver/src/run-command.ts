@@ -12,6 +12,7 @@ import {
 import { once, } from 'node:events';
 import { promisify, } from 'node:util';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  Bytes in one mebibyte.
@@ -75,6 +76,12 @@ export type CommandOutput = {
    Why it never ran to an exit, when it never did.
    */
   readonly problem?: string;
+
+  /**
+   The code the failure carries, when it carries one, so a caller can tell a program this machine lacks (`ENOENT`) from a command
+   its own bound killed, which carries none.
+   */
+  readonly problemCode?: string;
 
   /**
    Whether the bound this module was given is what ended the command.
@@ -238,10 +245,15 @@ function failureOf(caught: unknown,): CommandOutput {
       caught: failure,
       key: 'stderr',
     },),),
-    ...(status === (-1) ? { problem: textFieldOf(fieldOf({
-      caught: failure,
-      key: 'message',
-    },),), } : {}),
+    ...(status === (-1)
+      ? {
+        problem: textFieldOf(fieldOf({
+          caught: failure,
+          key: 'message',
+        },),),
+        ...((errorCodeOf(failure,) === '') ? {} : { problemCode: errorCodeOf(failure,), }),
+      }
+      : {}),
     // A command that a signal ended is a command with no status, whether the signal was this module's own bound or somebody
     // else's, and the two are told apart by `killed` alone: Node sets it when the bound is what it signalled.
     ...((signal === '') ? {} : { signal, }),

@@ -8,10 +8,14 @@
  */
 
 import {
+  chmod,
+  lstat,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -30,6 +34,7 @@ import {
   makeScratchFolder,
   nameProblemOf,
   scratchFolderNameOf,
+  scratchFolderObstacleIn,
   scratchFolderOf,
   scratchFolderProblemIn,
   scratchNoteOf,
@@ -290,6 +295,149 @@ await describe({
           },
         },),
         it({
+          name: 'refuses a symbolic link at the folder path, leaves what it points at untouched, and puts no keep inside it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The root this test's run lives under.
+             */
+            const root = join(
+              folder.path,
+              'agent',
+            );
+            /**
+             The folder outside the root the link points at, holding a file and a mode of its own.
+             */
+            const target = join(
+              folder.path,
+              'a-user-directory',
+            );
+            await mkdir(target, { recursive: true, },);
+            await writeFile(join(
+              target,
+              'precious.txt',
+            ), 'do not touch\n',);
+            await chmod(target, 0o755,);
+            await mkdir(root, { recursive: true, },);
+            await symlink(
+              target,
+              join(
+                root,
+                'a-scratch',
+              ),
+            );
+            /**
+             Why making the folder failed.
+             */
+            let caught: unknown;
+            try {
+              await makeScratchFolder({
+                scratchRoot: root,
+                runName: 'a',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(ScratchFolderError,);
+            expect((caught as Error).message,).toContain(`is a symbolic link to ${target}`,);
+            expect((caught as Error).message,).toContain('Remove it, or empty it with empty-the-scratch-folder-of-a-run',);
+            // The target keeps its own mode, its own file, and no keep/ of a run that is not its own.
+            expect(await modeOf(target,),).toBe(0o755,);
+            expect(await readFile(join(
+              target,
+              'precious.txt',
+            ), 'utf8',),).toBe('do not touch\n',);
+            await expect(
+              lstat(join(
+                target,
+                'keep',
+              ),),
+            ).rejects.toThrow('ENOENT',);
+            // And the path is still the link it was, rather than a folder this start made.
+            expect((await lstat(join(
+              root,
+              'a-scratch',
+            ))).isSymbolicLink(),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a link that points nowhere with the same refusal, not with a raw error from making the folder',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The root this test's run lives under.
+             */
+            const root = join(
+              folder.path,
+              'agent',
+            );
+            await mkdir(root, { recursive: true, },);
+            await symlink(
+              join(
+                folder.path,
+                'no-such-folder',
+              ),
+              join(
+                root,
+                'a-scratch',
+              ),
+            );
+            /**
+             Why making the folder failed.
+             */
+            let caught: unknown;
+            try {
+              await makeScratchFolder({
+                scratchRoot: root,
+                runName: 'a',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(ScratchFolderError,);
+            expect((caught as { readonly code?: string }).code,).toBeUndefined();
+            expect((caught as Error).message,).toContain('is a symbolic link to',);
+          },
+        },),
+        it({
+          name: 'refuses a file where the folder would be, and says what is there',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The root this test's run lives under, with a file where the run's folder would be.
+             */
+            const root = join(
+              folder.path,
+              'agent',
+            );
+            await mkdir(root, { recursive: true, },);
+            await writeFile(join(
+              root,
+              'a-scratch',
+            ), 'not a folder\n',);
+            /**
+             Why making the folder failed.
+             */
+            let caught: unknown;
+            try {
+              await makeScratchFolder({
+                scratchRoot: root,
+                runName: 'a',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).message,).toContain('is not a folder (a file)',);
+            expect(await readFile(join(
+              root,
+              'a-scratch',
+            ), 'utf8',),).toBe('not a folder\n',);
+          },
+        },),
+        it({
           name: 'refuses a run name that would put the folder outside the root, before it makes anything',
           fn: async () => {
             await using folder = await makeFolder();
@@ -308,6 +456,83 @@ await describe({
             }
             expect(caught,).toBeInstanceOf(ScratchFolderError,);
             expect((caught as Error).message,).toContain('cannot name a folder of its own',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: scratchFolderObstacleIn.name,
+      children: [
+        it({
+          name: 'answers nothing for a path a run may be given, and for a folder an earlier run of that name left',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The root this test's runs live under.
+             */
+            const root = join(
+              folder.path,
+              'agent',
+            );
+            expect(await scratchFolderObstacleIn({
+              scratchRoot: root,
+              runName: 'a',
+            },),).toEqual({},);
+            await makeScratchFolder({
+              scratchRoot: root,
+              runName: 'a',
+            },);
+            expect(await scratchFolderObstacleIn({
+              scratchRoot: root,
+              runName: 'a',
+            },),).toEqual({},);
+          },
+        },),
+        it({
+          name: 'names a symbolic link, and where it points, as what is at the path instead of the folder',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The root this test's runs live under.
+             */
+            const root = join(
+              folder.path,
+              'agent',
+            );
+            /**
+             A folder outside the root, which the link points at.
+             */
+            const target = join(
+              folder.path,
+              'a-user-directory',
+            );
+            await mkdir(target, { recursive: true, },);
+            await mkdir(root, { recursive: true, },);
+            await symlink(
+              target,
+              join(
+                root,
+                'a-scratch',
+              ),
+            );
+            /**
+             What the check answered about the link.
+             */
+            const obstacle = await scratchFolderObstacleIn({
+              scratchRoot: root,
+              runName: 'a',
+            },);
+            expect(obstacle.problem,).toContain(`is a symbolic link to ${target}, so it is not the scratch folder this run would write in`,);
+          },
+        },),
+        it({
+          name: 'names a path a run name cannot reach, which is refused before the disk is read',
+          fn: async () => {
+            await using folder = await makeFolder();
+            expect((await scratchFolderObstacleIn({
+              scratchRoot: folder.path,
+              runName: '../a',
+            },)).problem,).toContain('cannot name a folder of its own',);
           },
         },),
       ],

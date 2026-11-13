@@ -414,3 +414,76 @@ export async function removeInto({
   }
   /* oxlint-enable eslint/no-await-in-loop */
 }
+
+/**
+ Counts what one folder still holds, without deleting anything, so a deletion its own bound ended can say how much it left.
+
+ @param folder - the folder to count
+
+ @returns how many files and how many folders are still there
+
+ @example
+ ```ts
+ const left = await entriesLeftIn('/home/a/temp/agent/a-scratch');
+ ```
+ */
+export async function entriesLeftIn(folder: string,): Promise<{
+  readonly files: number;
+  readonly folders: number
+}> {
+  /**
+   The files and folders counted so far.
+   */
+  const counted = {
+    files: 0,
+    folders: 0,
+  };
+  /**
+   The folders still to count.
+   */
+  const pending: string[] = [folder,];
+  /* oxlint-disable eslint/no-await-in-loop -- one folder at a time, so a folder of many entries holds one descriptor at a time;
+     see doc/lint/sequential-awaits.md. */
+  for (let next = 0; next < pending.length;) {
+    /**
+     The folder this pass counts.
+     */
+    const current = pending[next];
+    next += 1;
+    if (current === undefined) {
+      continue;
+    }
+    /**
+     What reading that folder answered.
+     */
+    const read = await namesIn(current,);
+    if (read.names === undefined) {
+      continue;
+    }
+    for (const name of read.names) {
+      /**
+       The entry's path.
+       */
+      const path = join(
+        current,
+        name,
+      );
+      /**
+       What that entry is.
+       */
+      const entry = await entryIn(path,);
+      if (entry.info === undefined) {
+        continue;
+      }
+      if (entry.info
+        .isDirectory()) {
+        counted.folders += 1;
+        pending.push(path,);
+        continue;
+      }
+      counted.files += 1;
+    }
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return counted;
+}

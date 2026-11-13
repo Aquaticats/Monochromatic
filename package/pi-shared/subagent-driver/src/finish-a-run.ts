@@ -22,6 +22,7 @@ import {
 } from './run-command.ts';
 import { lastOfPiStandardError, } from './last-of-pi-standard-error.ts';
 import { emptyTheScratchFolderAtTheLowestDiskPriority, } from './scratch-folder-emptied-at-the-lowest-disk-priority.ts';
+import { scratchFolderOf, } from './scratch-folder-of-a-run.ts';
 import {
   SessionFileUnreadableError,
   sessionFileOfRun,
@@ -169,6 +170,10 @@ async function ownWorkStillRunning(request: FinishRequest,): Promise<readonly st
     runName: request.runName,
     worktree: request.worktree,
     runFolder: request.runFolder,
+    scratchFolder: scratchFolderOf({
+      scratchRoot: request.scratchRoot,
+      runName: request.runName,
+    },),
     processes: await processesAtTheirFolders({ processFolder: request.processFolder, },),
     excludingPid: process.pid,
   },);
@@ -345,12 +350,16 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
     request.report(`${request.runName}: resumed run ended with status ${String(wake.status,)}`,);
     return { status: (wake.status === 0) ? 0 : (wake.status ?? 1), };
   }
+  // The run's own work keeps its worktree and its scratch folder whatever reason the run ended with: a reproduction the agent
+  // started in a scope of its own outlives the unit, so an end by the wall clock or by its stop file is no statement that the
+  // work is over. The wake above only resumes an agent whose turn ended, so this reads the process table again for every other
+  // end, at the last moment before anything is decided.
   /**
-   What the run's own work still runs, which keeps the worktree as it is while it does.
+   What the run's own work still runs, which keeps the worktree and the scratch folder as they are while it does.
    */
   const ownWorkLeftRunning = ((wake.step === 'could-not-resume') || (wake.step === 'work-still-runs'))
     ? wake.ownWork
-    : [];
+    : await ownWorkStillRunning(request,);
 
   /**
    Whether the worktree's HEAD is a branch.

@@ -42,7 +42,10 @@ import {
 } from './required-output-of-a-command.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
-import { makeScratchFolder, } from './scratch-folder-of-a-run.ts';
+import {
+  makeScratchFolder,
+  scratchFolderObstacleIn,
+} from './scratch-folder-of-a-run.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 import {
   UNIT_WAIT_GRACE_SECONDS,
@@ -232,6 +235,20 @@ if (refusals.length > 0) {
 // session's extensions were never checked.
 for (const warning of warnings) {
   console.error(`${options.name}: ${warning}`,);
+}
+
+// A path that is not the run's scratch folder is refused here, before a worktree or a run folder is made: making the folder would
+// otherwise follow a link out of the scratch root, or fail with a raw error a reader cannot act on.
+/**
+ What is at the run's scratch folder's path instead of a folder, when something is.
+ */
+const scratchObstacle = await scratchFolderObstacleIn({
+  scratchRoot: options.scratchRoot,
+  runName: options.name,
+},);
+if (scratchObstacle.problem !== undefined) {
+  console.error(`${options.name}: refusing to start: ${scratchObstacle.problem}`,);
+  process.exit(1,);
 }
 
 if (!readOnlyInMain) {

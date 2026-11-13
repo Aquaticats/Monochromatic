@@ -146,6 +146,46 @@ export function isOwnFolder({
 }
 
 /**
+ The folders a run's own work works in: its worktree, its run folder, and its one scratch folder.
+
+ This is the one definition of them. The launcher's end step reads the process table with it, the driver reads the same folders
+ before it lets a turn end `idle`, and the command that removes finished worktrees adds every attempt's run folder and a review's
+ folder to the same list through `ownFoldersOf`. A folder left out of one of them is a folder whose work a run's end deletes
+ under: on 2026-11-13 the scratch folder was left out of the launcher's and the driver's, so a reproduction working there was
+ invisible and its outputs were emptied.
+
+ @param worktree - the worktree the run worked in
+
+ @param runFolder - the run's own folder
+
+ @param scratchFolder - the run's one scratch folder, when the caller knows it
+
+ @returns the folders that are the run's own, without an empty one
+
+ @example
+ ```ts
+ const folders = ownWorkFoldersOf({ worktree: '/repo/.claude/worktrees/pi-a', runFolder: '/runs/a-1', scratchFolder: '/home/a/temp/agent/a-scratch', },);
+ ```
+ */
+export function ownWorkFoldersOf({
+  worktree,
+  runFolder,
+  scratchFolder,
+}: {
+  readonly worktree: string;
+  readonly runFolder: string;
+  readonly scratchFolder?: string;
+},): readonly string[] {
+  return [
+    worktree,
+    runFolder,
+    ...((scratchFolder === undefined) ? [] : [scratchFolder,]),
+  ].filter(function isAFolder(folder,) {
+    return folder !== '';
+  },);
+}
+
+/**
  Reads the folder every process of this user works in, and the program each runs.
 
  The process folder is the seam: a test writes its own entries and never reads this machine's process table.
@@ -285,22 +325,25 @@ export function processesStillWorkingFor({
   runName,
   worktree,
   runFolder,
+  scratchFolder,
   processes,
   excludingPid,
 }: {
   readonly runName: string;
   readonly worktree: string;
   readonly runFolder: string;
+  readonly scratchFolder?: string;
   readonly processes: readonly ProcessAtAFolder[];
   readonly excludingPid: number;
 },): readonly string[] {
   /**
-   The run's own folders, which are its own however they are named.
+   The run's own folders, which are its own however they are named, the scratch folder among them.
    */
-  const ownFolders = [
+  const ownFolders = ownWorkFoldersOf({
     worktree,
     runFolder,
-  ];
+    ...((scratchFolder === undefined) ? {} : { scratchFolder, }),
+  },);
   /**
    The component a folder of the run's own work carries.
    */

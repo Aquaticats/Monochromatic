@@ -24,20 +24,28 @@ export {
   makeScratchFolder,
   nameProblemOf,
   scratchFolderNameOf,
+  scratchFolderObstacleIn,
   scratchFolderOf,
   scratchFolderProblemIn,
   scratchNoteOf,
 } from './scratch-folder-of-a-run.ts';
 export {
+  type OwnedScratchEmptyingRequest,
   type ScratchEmptyingRequest,
   type ScratchFolderEmptiness,
   emptyTheFolderIn,
+  emptyTheFolderItsRunStillOwns,
   emptyTheFolderOfRun,
 } from './emptying-a-scratch-folder.ts';
+export {
+  ownershipProblemNow,
+  ownershipProblemOf,
+} from './owner-of-a-scratch-folder.ts';
 export {
   type ScratchRemovalTally,
   type UnremovedEntry,
   emptyTally,
+  entriesLeftIn,
   leftWhereItIsIn,
   removeInto,
 } from './deleting-what-a-run-left-in-its-scratch-folder.ts';
