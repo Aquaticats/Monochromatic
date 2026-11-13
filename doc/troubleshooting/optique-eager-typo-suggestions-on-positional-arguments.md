@@ -16,8 +16,17 @@ On 2026-11-13 the owner pointed out that this machine is shared and no timing st
 and the timing figures here,
 the reply draft's among them,
 were rewritten as ratios between versions run in the same round,
-with absolute times kept only as scale;
-that rewrite is not reviewed either.
+with absolute times kept only as scale.
+A model from another vendor reviewed that rewrite as of commit `ce2cc36df5`,
+and its one finding on this document,
+a comparison described as one run each that was seven rounds,
+is corrected.
+The figures on pull request 1121 in the reply draft were measured again on Node and Bun after that,
+and that change has had no review.
+The timings in this document ran on Node.
+Deno appears only as one of the runtimes the reproduction scripts were run on;
+its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
+with no new feature work.
 
 Status,
 2026-11-12:
@@ -272,7 +281,8 @@ and the profile of `1.4.0-dev.2971` shows what that costs with the suggestion wo
    "Short-path default/callback runs showed no improvement."
    On this repository's parser,
    a thousand tokens of one to three characters took 0.62 times as long on 1.3.2 as on 1.3.1,
-   in one comparison of one run each.
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
    The length check in step 4 rejects this parser's long option names against a short token;
    that explanation was read from the code and not tested on its own.
 
@@ -556,7 +566,8 @@ Tradeoffs:
    This was read from the source and not timed.
 - Shorter paths on 1.3.1 or earlier.
    A thousand tokens of one to three characters still took 1.6 times as long on 1.3.1 as on 1.3.2,
-   in one comparison of one run each.
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
 
 ## Upstream filing artifact
 
@@ -766,16 +777,18 @@ between versions run in the same round, seven rounds, with the range of the sing
 So #992 removed about 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
 `errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
 
-On #1121: I measured its branch at a175cdb7, the same tree as its merge, from source on Deno only, seven rounds with
-the arms rotated, a thousand paths after `--`. It took 0.75 times as long as main before the merge (0.71 to 0.77)
-and 1.37 times as long as 1.3.6 (1.34 to 1.42), which agrees with your own figures. On the published builds,
-1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
+On #1121: I measured its merge against main just before it and against 1.3.6, as built packages on Node 26 and Bun
+1.4, seven rounds with the arms rotated, a thousand paths after `--`. Against main before the merge it took 0.72
+times as long on Node (0.62 to 0.77) and 0.73 on Bun (0.66 to 0.79); against 1.3.6, 1.37 on Node (1.27 to 1.63)
+and 1.95 on Bun (1.62 to 1.99). On Node that agrees with your own figures. Main before the merge against 1.3.6 was
+1.89 on Node and 2.53 on Bun.
 
-What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
-both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
-of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
-input, 8,000 positional arguments and one option, the patched build takes 0.11 times as long as main on Node (0.10
-to 0.12) and 0.30 times on Bun (0.15 to 0.33). It keeps the entries in
+What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. On
+Node a cost both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for
+that on top of #1121 the same parse took 0.92 times as long as 1.3.6 on Node (0.84 to 1.05, one of seven rounds
+slower); on Bun the patch changed nothing at a thousand paths (1.92, 1.84 to 2.28). On its own input, 8,000
+positional arguments and one option, the patched build takes 0.11 times as long as main on Node (0.10 to 0.12) and
+0.30 times on Bun (0.15 to 0.33). It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
 to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
 `multiple()` (the state array) and in every primitive that consumes a token (the buffer slice). I tried both. A
@@ -783,9 +796,9 @@ second patch removes the state copy by making a state of more than 1,024 items a
 immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
 (built packages, five rounds with the arms taking turns), and the core suite passes on Deno, Node and Bun. Its cost
 is that such a state is a `Proxy`, which prints as an empty array and throws on `structuredClone()`,
-`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: with the second patch in place, also
-cutting a view in `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and
-48 to 105 times slower on Bun.
+`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: with the state copy already removed,
+also cutting a view in `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node
+and 48 to 105 times slower on Bun.
 The write-up and both patches: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
@@ -836,3 +849,4 @@ put a commit permalink there on the day of posting.
 [no-match 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/primitives.ts#L1302-L1347
 [search 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/suggestion.ts#L184-L192
 [deferred failure]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/internal/failure.ts#L16-L39
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027

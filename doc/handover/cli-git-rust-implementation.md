@@ -685,6 +685,80 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The index-lock fix's second review: no defect reachable here, two things sent back all the same (2026-11-13T16:17:04-05:00)
+
+Not complete, and written by the coordinating session from the review's own report.
+
+- The review of the index-lock fix's answer (`d189162e3e`) finished at 16:12:27, at its sixth start, the rate limit having ended five.
+  It read every listed file, built the code, ran the branch's controls and its own end-to-end reproductions, and calls the answer right where the first review found defects.
+  Its run's end reason reads `driver-failed` (issue 6299, the seventh today); the review is final and stands.
+- Sent back to the author, weighed by this session:
+  - a control of the branch fails by itself, two times in ten in the review's runs
+    (its helper starts `git --version` and reads its identity while it runs, and the program is often gone first). A control like that fails a pass and a release.
+  - the review removed a live Git's lock and failed its commit in a state it made by hand:
+    a stale PID file and the lock born in one tick of the filesystem's clock.
+    It weighs that as unreachable, because this btrfs volume dates births to about a millisecond.
+    That rests on this one volume, and the project's rules name unusual filesystems as normal,
+    so the author is asked to show what the pass does where birth times are coarse or absent and to keep the lock wherever the order of the two births cannot be proven.
+- The branch is therefore not in a pass. Its author's run is queued; the review of its answer follows.
+
+#### The owner: one pass carries every reviewed branch; pass 21 has the jam fix, file mode and kept-references (2026-11-13T16:14:18-05:00)
+
+Not complete, and written by the coordinating session: passes 20 and 21 are going and have reported nothing.
+
+- Asked at about 16:11 whether one integration pass may carry several reviewed branches, with one pass per branch as the other reading of "one agent, one thing",
+  the owner chose **"One pass, all reviewed"** (answered by 16:12:49).
+  A pass's one thing is the next release branch, made from the branches that passed review and built and tested together before `main`.
+- **Pass 21** (`integrate/git-policy-cli-pass-21-for-alpha-19`, going since 16:13:21) carries three, in this order:
+  the jam fix (`3382d69ea0`), file mode through a merge (`f89786b089`), kept references pruned by size and age (`e5e75025ed`).
+  Its brief was rewritten nine seconds before its run began, and its session holds the new brief (the owner's words are in it).
+- **Pass 20** (finished-records alone) was already going and stays as it is.
+- Passes 22 and 23, queued with one branch each before the answer, are gone:
+  23 was taken off the queue; 22 had been started by the filling unit while the question was open, forty seconds before it was stopped at 16:14:03,
+  with nothing committed (`git log main..` empty, the worktree clean). Its units were stopped, its worktree removed through the wrapper, its branch deleted, and both briefs deleted.
+  This is the one run stopped today, and not to get under the level: its whole task had moved into pass 21.
+
+#### Sixteen agents are going and three passes wait for a place; the level's hour is being probed; kept-references passed its review (2026-11-13T16:11:09-05:00)
+
+Not complete, and written by the coordinating session: the passes that carry the jam fix, the file-mode fix and the kept-references change have not started.
+
+- **The level binds.** At 16:10:34 sixteen agents were going, the level, and the queue held fifteen entries with passes 21 and 22 at its head, waiting since 16:04.
+  One place freed at 16:05:37 and went, at 16:07:34, to a review that the rate limit had ended and the filling unit put back ahead of the passes.
+  The put-back now goes behind any integration pass at the head of the queue. No run was stopped to make room: the level only says when not to start one more.
+- **The level's hour.** A probe of both drives every minute for an hour started at 16:11 with sixteen going
+  (unit `disk-ceiling-probe-level-16-with-sixteen-going-20261113T1611`); the readings on record at this level were taken with eight to sixteen going.
+  If the hour shows no symptom by the criterion in `doc/handover/agents-at-once-on-this-machine.md`, the level goes to thirty-two, and the queue holds the work to fill it.
+- **Kept references pruned by size and age** (tip `e5e75025ed`): its review went on from its session after the rate limit ended it three times and finished at 16:05:37.
+  It built the branch and ran three probes on disposable repositories (the rules, two passes at once, a kill at the listing), all passing, and found no defect;
+  it did not run the container gate or the control of the path through the service, and says so. It is **integration pass 23**, alone, queued behind 21 and 22;
+  its brief asks the pass to run the service-path control the review left out.
+- **The waiter was replaced.** The script that waited on units listed only units going at its first look, so a run that started and ended after that look was never listed
+  (the jam fix's review, read fifteen minutes late). `wait-until-a-pi-run-has-ended-by-its-summary-file.ts` waits on summaries written since a stated time, and its first use listed both endings of 16:05 to 16:07.
+- **What takes the build volume is still not known.** A walk of `/var/mnt/encrypted/cargo-build` with `du` (15:30 to before 16:11, disk weight 1) read 260 entries,
+  231 of them changed today, and a sum of 8,849,675 MiB, which is several times what the volume holds:
+  `du` counts a block once for every file that shares it, and the build folders share blocks by copy-on-write
+  (the entry `toolchain` alone reads 2,692,869 MiB). So that walk cannot say what takes room.
+  The measure that can is `btrfs filesystem du --summarize`, which gives the blocks an entry holds alone; it is a heavy walk and waits for the probe's hour to end, about 17:11.
+  The listing is kept: `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/`.
+
+#### The jam fix and the file-mode fix passed their reviews; passes 21 and 22 are queued, one branch each (2026-11-13T16:04:15-05:00)
+
+Not complete, and written by the coordinating session from the reviews' own reports: no pass has merged anything yet, and nothing is released.
+
+- **The jam fix** (`commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`, tip `3382d69ea0`), review of its answer, ended 15:47:53 after going on from its session three times:
+  the changed code is sound by it (a send counts only when the whole line went in, a give-up after a whole send keeps the scratch tree, the service refuses a line without its newline;
+  connect, write, read and log writes are bounded), and the change's own controls passed, sixty-eight of sixty-eight, on this machine.
+  This session read of that ending only at 16:03: the watcher that was waiting when it ended did not list it.
+  - It is **integration pass 21** (`integrate/git-policy-cli-pass-21-for-alpha-19`, brief `~/temp/agent/pi-runs/integration-pass-21-for-alpha-19-prompt.md`), alone, first in the queue.
+  - Its one finding is in a file the change does not touch and `main` has too: `service_warm_request.rs` connects without a bound,
+    so a commit with a cold forbidden-strings cache waits without end on a service that accepts nothing with a full queue (the mechanism reproduced with the same call).
+    A run of its own has it: `fix/git-policy-cli-warm-request-of-a-commit-connects-to-its-service-within-a-bound`.
+- **File mode through a merge** (tip `f89786b089`), first review, ended by 16:02:26: built, three end-to-end reproductions and a probe of real Git run, no defect.
+  It is **integration pass 22** (`integrate/git-policy-cli-pass-22-for-alpha-20`), alone.
+- **Pass 20** (finished-records) has been going since 15:40:32.
+- Each pass holds one branch, by the owner's word of 15:36 that an agent gets one thing; the three reach `main` one after another, and the version each brief names is the order they were written in, not a promise of the order they finish in.
+- The index-lock and kept-references reviews were ended by the rate limit again at 15:58 (the index-lock review for the fifth time) and put back by the filling unit in the same round.
+
 #### Issue 6293's author finished; the reload fix's review found nothing and ran nothing, so it is started again (2026-11-13T15:55:55-05:00)
 
 Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
