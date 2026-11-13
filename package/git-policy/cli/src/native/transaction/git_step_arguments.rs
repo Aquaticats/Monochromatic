@@ -29,8 +29,6 @@
 //! namedArguments(['commit', '--message', 'secret', 'a.txt']) // 'commit --message an argument an argument'
 //! ```
 
-/// Escaping of the text inside the record's JSON string.
-use crate::json_record::quote;
 /// The options before the subcommand that take a value,
 /// shared with the step's own name.
 use crate::add_timing::option_takes_value;
@@ -99,7 +97,13 @@ fn carries_the_person_s_text(word: &str) -> bool {
 /// Whether `word` is an object name,
 /// which is the repository's own name for a thing.
 fn is_an_object_name(word: &str) -> bool {
-    return (4..=64).contains(&word.len()) && word.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); });
+    return (4..=64).contains(&word.len()) && word.bytes().all(is_lower_hex_digit);
+}
+
+/// Whether `byte` is a digit or a lower-case hexadecimal letter,
+/// which is every byte an object name holds.
+fn is_lower_hex_digit(byte: u8) -> bool {
+    return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte);
 }
 
 /// Whether `word` is a ref name,
@@ -172,8 +176,12 @@ pub fn named_arguments(arguments: &[OsString]) -> String {
             continue;
         }
         if carries_the_person_s_text(word) {
-            // The option is named and its value is not, whether the value came on this word or the next.
+            // The option is named,
+            // and a placeholder says a value stood here without saying what it was.
             keep(&mut named, &mut left_out, option_name(word));
+            keep(&mut named,
+            &mut left_out,
+            AN_ARGUMENT);
             index = if word.contains('=') { index.saturating_add(1) } else { index.saturating_add(2) };
             continue;
         }
@@ -199,25 +207,6 @@ pub fn named_arguments(arguments: &[OsString]) -> String {
         named.push(format!("and {left_out} more"));
     }
     return named.join(" ");
-}
-
-/// What:
-///  The arguments as the member of the record's JSON object,
-///  or nothing when they name no word.
-/// Why:
-///   The member is written beside the step's name,
-/// and a step with nothing kept adds no member at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const member = named ? `"arguments":${JSON.stringify(named)}` : '';
-/// ```
-pub fn arguments_member(arguments: &[OsString]) -> Option<String> {
-    let named: String = named_arguments(arguments);
-    if named.is_empty() {
-        return None;
-    }
-    return Some(format!("\"arguments\":{}", quote(named.as_str())));
 }
 
 /// What the arguments namer decided is a control in the test module.

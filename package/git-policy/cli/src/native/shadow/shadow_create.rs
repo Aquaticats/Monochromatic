@@ -30,7 +30,8 @@ use crate::shadow_config::{RepositoryFormat, format_shadow_config, read_reposito
 use crate::shadow_links::link_shadow_entries;
 /// Conclusion copy and ref snapshot.
 use crate::conclusion_copy::copy_conclusion_state;
-use crate::shadow_refs::{SnapshotSources, write_shadow_refs};
+use crate::shadow_refs::SnapshotSources;
+use crate::shadow_ref_write::write_shadow_refs;
 /// Private directory creation and file writes.
 use crate::private_storage::create_private_directory;
 /// Where Git's words go now that the `init` carries no `--quiet`.

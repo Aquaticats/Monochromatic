@@ -377,7 +377,8 @@ impl Refs {
     /// `refs/worktree` and `refs/rewritten`,
     /// `refs.c` `parse_worktree_ref`),
     ///  and a listing that has to be what Git prints from that worktree must include them.
-    ///  They are never packed: `git pack-refs` leaves them out,
+    ///  They are never packed:
+    ///  `git pack-refs` leaves them out,
     /// so no `packed-refs` is read here.
     ///
     /// In TS you'd write (pseudocode):

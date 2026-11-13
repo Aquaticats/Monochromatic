@@ -4943,7 +4943,8 @@ and `native:perf` enforces both:
   the wrapper's time minus native Git's time is at most `max(5,000 ms, 2 x native time)`,
   for each commit,
   not a percentile of them.
-  The owner changed this rule on 2026-11-12 ("Change the 5s rule to max(5s, double what native git takes)"),
+  The owner changed this rule on 2026-11-12 ("Change the 5s rule to max(5s,
+  double what native git takes)"),
   so a commit that native Git needs 30 seconds for under disk pressure may take the wrapper 60 seconds more,
   while one native Git makes in 50 milliseconds may take the wrapper five seconds more.
   Every measurement of it pairs the wrapper's commit with native Git's commit of the same state,

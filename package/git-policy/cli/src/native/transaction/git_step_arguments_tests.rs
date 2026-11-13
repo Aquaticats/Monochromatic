@@ -46,7 +46,14 @@ fn object_names_and_ref_names_are_kept() {
 /// and a path becomes the same placeholder as any other word the person typed.
 #[test]
 fn a_message_and_a_path_are_never_written() {
-    assert_eq!(named(&["commit", "--message=the person's words", "a.txt"]), "commit --message an argument");
+    assert_eq!(
+        named(&["commit",
+        "--message=the person's words",
+        "a.txt"]),
+        "commit --message an argument an argument",
+        "the message and the path are each a placeholder,
+        and neither is written"
+    );
     assert_eq!(named(&["commit", "-m", "the person's words", "--no-only"]), "commit -m an argument --no-only");
     assert_eq!(named(&["commit", "--file", "/somewhere/MESSAGE"]), "commit --file an argument");
     assert!(!named(&["commit", "--message=secret"]).contains("secret"));
@@ -60,13 +67,12 @@ fn a_global_option_s_value_is_left_out() {
     assert_eq!(named(&["-c", "core.hooksPath=/dev/null", "commit"]), "commit");
 }
 
-/// A step whose arguments name nothing writes no member at all,
-/// so a record of one such step reads as it did before this field existed.
+/// A step whose arguments name nothing has no words at all,
+/// so the record of one such step reads as it did before this field existed.
 #[test]
-fn a_step_with_nothing_to_name_has_no_member() {
+fn a_step_with_nothing_to_name_has_no_words() {
     assert_eq!(named_arguments(&[]), "");
     assert_eq!(named_arguments(&[OsString::from("-C"), OsString::from("/var/home/person/work")]), "");
-    assert_eq!(arguments_member(&[]), None);
 }
 
 /// The words are bounded and the rest are counted,
@@ -87,11 +93,25 @@ fn the_words_are_bounded_and_the_rest_counted() {
     assert!(text.len() < 200, "the record carries a bounded number of words: {text}");
 }
 
-/// The member the record writes is a JSON string of the named words,
-/// so a word holding a quote or a backslash cannot break the record.
+/// A word holding a quote or a backslash never breaks the record,
+/// because the figure writes the words as a JSON string.
 #[test]
-fn the_member_is_a_json_string() {
+fn a_word_with_a_quote_cannot_break_the_record() {
     let arguments: Vec<OsString> = vec![OsString::from("log"), OsString::from("--format=%H\"%n\\")];
-    let member: String = arguments_member(arguments.as_slice()).expect("a named step");
-    assert_eq!(member, "\"arguments\":\"log --format=%H\\\"%n\\\\\"");
+    let words:
+    String = named_arguments(arguments.as_slice());
+    let figure:
+    crate::transaction_step_durations::StepFigure =
+        crate::transaction_step_durations::StepFigure { name:
+        String::from("git log"),
+        arguments:
+        Some(words),
+        offset_ms:
+        1,
+        duration_ms:
+        1500 };
+    assert_eq!(
+        crate::transaction_step_durations::steps_json(&[figure]),
+        "[{\"name\":\"git log\",\"arguments\":\"log --format=%H\\\"%n\\\\\",\"offsetMs\":1,\"durationMs\":1500}]"
+    );
 }

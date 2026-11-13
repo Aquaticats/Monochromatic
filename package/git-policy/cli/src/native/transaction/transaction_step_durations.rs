@@ -126,7 +126,15 @@ pub fn note_step(name: &str, began: Instant, took: Duration) {
 /// noteStepAsked('git commit', request.arguments, began, elapsed);
 /// ```
 pub fn note_step_asked(name: &str, arguments: &[OsString], began: Instant, took: Duration) {
-    let named: Option<String> = if took >= NAMED_STEP { crate::git_step_arguments::arguments_member(arguments) } else { None };
+    let named:
+    Option<String> = if took >= NAMED_STEP {
+        let words:
+        String = crate::git_step_arguments::named_arguments(arguments);
+        // A step whose every word is left out carries no arguments member rather than an empty one.
+        if words.is_empty() { None } else { Some(words) }
+    } else {
+        None
+    };
     record(StepRun { name: plain_name(name), arguments: named, began, took });
 }
 
@@ -271,11 +279,16 @@ fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
 /// JSON.stringify({ name, ...(arguments ? { arguments } : {}), offsetMs, durationMs })
 /// ```
 fn figure_json(figure: &StepFigure) -> String {
-    // The arguments are already written as the record's member, so a step without them adds nothing.
-    let asked: &str = figure.arguments.as_deref().unwrap_or("");
-    let separator: &str = if asked.is_empty() { "" } else { "," };
+    // A step that ran less than `NAMED_STEP` carries no `arguments` member at all,
+    // so its object is the one it always was.
+    let asked:
+    String = match figure.arguments.as_deref() {
+        Some(words) => format!("\"arguments\":{},",
+        quote(words)),
+        None => String::new(),
+    };
     return format!(
-        "{{\"name\":{}{separator}{asked}\"offsetMs\":{},\"durationMs\":{}}}",
+        "{{\"name\":{},{asked}\"offsetMs\":{},\"durationMs\":{}}}",
         quote(figure.name.as_str()),
         figure.offset_ms,
         figure.duration_ms

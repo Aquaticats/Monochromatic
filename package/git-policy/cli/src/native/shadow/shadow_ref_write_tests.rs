@@ -2,6 +2,8 @@
 //! on both ref backends.
 
 use super::*;
+use crate::shadow_refs::{SnapshotSources, list_real_refs};
+use crate::transaction_journal::RefFormat;
 use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::ffi::{OsStr, OsString};
@@ -43,7 +45,8 @@ fn decorated_repository(root: &Path) -> (PathBuf, String) {
 
 /// The sources of a fixture repository whose worktree owns its own Git directory.
 ///
-/// A fixture's `HEAD`, refs and `packed-refs` all live in `<repo>/.git`,
+/// A fixture's `HEAD`,
+/// refs and `packed-refs` all live in `<repo>/.git`,
 /// so the shared directory and the worktree's own are one path.
 fn sources_of(repo: &Path, ref_format: RefFormat) -> SnapshotSources {
     let git_dir: PathBuf = repo.join(".git");
@@ -507,7 +510,8 @@ fn a_snapshot_of_many_refs_starts_no_git_child() {
     assert_eq!(starts_per_size, vec![0, 0]);
 }
 
-/// A ref name the reader declines sends the snapshot to Git, which then answers every ref.
+/// A ref name the reader declines sends the snapshot to Git,
+/// which then answers every ref.
 ///
 /// The fallback is what keeps a repository this reader cannot prove from changing what a commit does:
 /// a start is added,
@@ -537,9 +541,11 @@ fn a_ref_name_the_reader_declines_asks_git_for_the_whole_listing() {
     remove(root.as_path());
 }
 
-/// A linked worktree's own namespaces are in the snapshot, and reading them starts no child either.
+/// A linked worktree's own namespaces are in the snapshot,
+/// and reading them starts no child either.
 ///
-/// Git keeps `refs/bisect`, `refs/worktree` and `refs/rewritten` in the worktree's own Git directory,
+/// Git keeps `refs/bisect`,
+/// `refs/worktree` and `refs/rewritten` in the worktree's own Git directory,
 ///  and `git for-each-ref` in that worktree prints them;
 /// a snapshot read from the shared directory alone would leave them out and change what a hook sees.
 #[cfg(unix)]

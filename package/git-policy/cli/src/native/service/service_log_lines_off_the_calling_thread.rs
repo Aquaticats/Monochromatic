@@ -8,7 +8,8 @@
 //!  for as long as the reader does not read.
 //! With the service's standard error connected to a FIFO that was full,
 //! a landing was held 7.35 seconds
-//!  longer than real Git took, until the FIFO was drained
+//!  longer than real Git took,
+//!  until the FIFO was drained
 //! (the audit of `0.6.1-alpha.14`,
 //! `pi-runs/kimi-audit-alpha-14-commit-path-1`).
 //! When the service runs as a unit its standard error is the journal,
@@ -78,7 +79,22 @@ static QUEUE: OnceLock<&'static (Mutex<Queue>, Condvar)> = OnceLock::new();
 /// The queue,
 /// started on the first line.
 fn queue() -> &'static (Mutex<Queue>, Condvar) {
-    return QUEUE.get_or_init(|| {
+    return QUEUE.get_or_init(start_the_queue);
+}
+
+/// What:
+///  The queue of this process,
+///  made once and given its thread.
+/// Why:
+///   The thread waits on the same queue for as long as the process runs,
+/// so the value has to outlive the call that made it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const startTheQueue = () => { const queue = { lines: [], dropped: 0, writer: null }; spawn(() => writeEveryLine(queue)); return queue }
+/// ```
+fn start_the_queue() -> &'static (Mutex<Queue>, Condvar) {
+    {
         let started: &'static (Mutex<Queue>, Condvar) = Box::leak(Box::new((
             Mutex::new(Queue { lines: VecDeque::new(), dropped: 0, writer: None }),
             Condvar::new(),
@@ -92,7 +108,7 @@ fn queue() -> &'static (Mutex<Queue>, Condvar) {
             crate::diagnostic_log::warn("serviceLog", "the thread that writes the service's log lines could not be started");
         }
         return started;
-    });
+    }
 }
 
 /// What:
@@ -118,7 +134,7 @@ fn write_every_line(started: &'static (Mutex<Queue>, Condvar)) {
                 // The queue is empty, and this thread waits for the next line rather than ending: a second line after a pause
                 // is the ordinary case for a service that runs for hours.
                 held = match ready.wait(held) {
-                    Ok(held) => held,
+                    Ok(ready_now) => ready_now,
                     Err(poisoned) => poisoned.into_inner(),
                 };
             }

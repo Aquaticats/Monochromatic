@@ -200,7 +200,8 @@ fn one_pipe_s_holding() -> usize {
 ///  A step that writes more than a pipe holds is read while it writes,
 ///  so it is never left blocked on a full pipe.
 /// Why:
-///   A pipe holds one fixed amount, and a step that writes more waits at its next write until something reads.
+///  A pipe holds one fixed amount,
+///  and a step that writes more waits at its next write until something reads.
 /// A wait that took the step's end before reading
 ///  its output would never see that end,
 /// and the command would stand still for as long as the step's own ceiling allows:
