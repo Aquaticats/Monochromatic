@@ -434,3 +434,106 @@ fn a_reap_in_another_process_keeps_the_stage_of_an_add_whose_destination_record_
     crate::subvolume_remove::remove_tree(container.as_path()).expect("the control's snapshot");
     std::fs::remove_dir_all(root.as_path()).expect("the fixture");
 }
+
+/// The variable that marks the child which keeps a claim aside and is then killed.
+const KEEP_CHILD_VARIABLE: &str = "CLI_GIT_KEEP_ASIDE_CHILD";
+
+/// The variable that names the common directory the child works in.
+const KEEP_CHILD_COMMON_VARIABLE: &str = "CLI_GIT_KEEP_ASIDE_COMMON";
+
+/// The variable that names the claim the child keeps aside.
+const KEEP_CHILD_CLAIM_VARIABLE: &str = "CLI_GIT_KEEP_ASIDE_CLAIM";
+
+/// The body the parent starts in a child process for the kill between keeping a claim aside and writing it again:
+/// it keeps the claim the environment names,
+/// and the signal comes at the instruction after that,
+/// which no handler can catch.
+/// Run without the child's variable it returns at once and checks nothing.
+#[test]
+fn child_keeps_a_claim_aside_and_is_killed() {
+    if std::env::var_os(KEEP_CHILD_VARIABLE).is_none() {
+        return;
+    }
+    let common: PathBuf = PathBuf::from(std::env::var_os(KEEP_CHILD_COMMON_VARIABLE).expect("the child is given a common directory"));
+    let claim: PathBuf = PathBuf::from(std::env::var_os(KEEP_CHILD_CLAIM_VARIABLE).expect("the child is given a claim"));
+    let name: std::ffi::OsString = claim.file_name().expect("a claim has a name").to_os_string();
+    crate::worktree_copy_unreadable_records::keep_aside(common.as_path(), claim.as_path(), name.as_os_str()).expect("kept");
+    // SAFETY: `raise` has no preconditions, and `SIGKILL` ends this process before it can be caught or ignored.
+    unsafe { libc::raise(libc::SIGKILL) };
+    unreachable!("SIGKILL ends the child");
+}
+
+/// What:
+///  Run the child that keeps the claim aside and is killed at the instruction after that,
+/// and answer what the parent saw of it.
+/// Why:
+///   A kill between the two steps is what the state is,
+/// so the child must be a process the kernel ends rather than one that returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const killed = keepAsideThenKill(common, claim); expect(killed.signal).toBe('SIGKILL');
+/// ```
+fn keep_aside_then_kill(common: &Path, claim: &Path) -> std::process::Output {
+    use std::os::unix::process::ExitStatusExt;
+    let module: &str = module_path!();
+    let path: String = format!("{}::child_keeps_a_claim_aside_and_is_killed", module.split_once("::").map_or(module, |(_, rest)| { return rest; }));
+    let output: std::process::Output = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
+        .args(["--exact", path.as_str(), "--nocapture", "--test-threads=1"])
+        .env(KEEP_CHILD_VARIABLE, "1")
+        .env(KEEP_CHILD_COMMON_VARIABLE, common)
+        .env(KEEP_CHILD_CLAIM_VARIABLE, claim)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child process runs");
+    assert_eq!(output.status.signal(), Some(libc::SIGKILL), "the child was killed where the control says: {:?}", output.status);
+    return output;
+}
+
+/// Keeping a claim that cannot be read leaves it one name,
+/// because every recovery refuses a journal file with two,
+/// and every command in a linked worktree reads every claim before it runs.
+#[test]
+fn keeping_a_claim_that_cannot_be_read_leaves_it_one_name() {
+    use std::os::unix::fs::MetadataExt;
+    let base: PathBuf = scratch("claim-kept-one-name");
+    let common: PathBuf = base.join("common");
+    let destination: PathBuf = base.join("worktrees/six");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let claim: crate::worktree_copy_stage_claim::StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_owner()).expect("an add's claim");
+    let claim_path: PathBuf = claim_path_of(common.as_path(), &claim);
+    std::fs::write(claim_path.as_path(), b"").expect("the claim loses what it said");
+    std::fs::set_permissions(claim_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("private claim");
+    let kept: Option<PathBuf> = crate::worktree_copy_unreadable_records::keep_aside(common.as_path(), claim_path.as_path(), std::ffi::OsStr::new(claim_path.file_name().expect("a name"))).expect("kept");
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(claim_path.as_path()).expect("the claim stands at its own name");
+    assert_eq!(metadata.nlink(), 1, "a claim has one name, and every recovery refuses one with two");
+    assert_eq!(std::fs::read(kept.expect("the bytes are kept")).expect("the copy reads"), b"", "the bytes that could not be read are kept beside the records");
+    crate::worktree_copy_stage_claim_reaping::judge_stage_owners(common.as_path()).expect("every recovery reads the claim and goes on");
+    std::fs::remove_dir_all(base.as_path()).expect("the fixture");
+}
+
+/// A kill between keeping a claim aside and writing it again leaves a claim every recovery reads and goes on with,
+/// and the next pass finishes what the kill interrupted.
+/// Why the control reads this way:
+///  the claim's bytes were kept by a second name for them,
+///  and a journal file with two names stops every command of the repository until a person deletes it.
+#[test]
+fn a_kill_between_keeping_a_claim_aside_and_writing_it_again_leaves_a_command_that_goes_on() {
+    let base: PathBuf = scratch("claim-kept-then-killed");
+    let common: PathBuf = base.join("common");
+    let destination: PathBuf = base.join("worktrees/seven");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    let claim: crate::worktree_copy_stage_claim::StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_owner()).expect("an add's claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    let claim_path: PathBuf = claim_path_of(common.as_path(), &claim);
+    std::fs::write(claim_path.as_path(), b"").expect("the claim loses what it said");
+    std::fs::set_permissions(claim_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("private claim");
+    keep_aside_then_kill(common.as_path(), claim_path.as_path());
+    let mut verdicts: StageVerdicts = crate::worktree_copy_stage_claim_reaping::judge_stage_owners(common.as_path()).expect("every recovery reads the claim and goes on");
+    let notices: Vec<String> = settle_unreadable_records(common.as_path(), &mut verdicts).expect("the next pass finishes the keep");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("could not be read"); }), "the person is told what could not be read: {notices:?}");
+    let recovered = crate::worktree_copy_stage_claim_reaping::read_claim(claim_path.as_path()).expect("read").expect("the claim reads again");
+    assert_eq!(recovered.0, container, "the claim names the stage folder its records name");
+    assert!(unreadable_records_stand(common.as_path()), "the bytes that could not be read stand in the folder beside the records");
+    std::fs::remove_dir_all(base.as_path()).expect("the fixture");
+}

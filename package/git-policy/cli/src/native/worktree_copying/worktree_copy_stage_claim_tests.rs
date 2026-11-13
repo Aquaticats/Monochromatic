@@ -2540,3 +2540,169 @@ fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left()
     crate::fs_btrfs_ioctl::subvolume_destroy_at(container.as_path()).expect("the control's snapshot");
     remove(root.as_path());
 }
+
+/// What:
+///  The records and the stage folder of an add that was served by a snapshot whose displaced folder could not be
+///  cleared from the stage name,
+/// because a person put a file in it that collides with one the snapshot carries.
+/// Why:
+///   That folder is the person's and it stays; the add is otherwise whole, so it settles its claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = anAddWhoseDisplacedFolderStays('...'); // { root, common, claim, container, made, record, marker }
+/// ```
+struct AnAddWhoseFolderStays {
+    root: PathBuf,
+    common: PathBuf,
+    claim: StageClaim,
+    container: PathBuf,
+    made: PathBuf,
+    record: PathBuf,
+    marker: PathBuf,
+}
+
+/// What:
+///  Build the state one add leaves when its displaced folder stays,
+/// with the person's file inside and the record of the stage's creation naming the snapshot that moved to the
+/// destination.
+/// Why:
+///   The person's file is written after the record's instant, as it is in an add that runs,
+/// and it keeps the folder where a recursive removal would delete it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = anAddWhoseDisplacedFolderStays('...');
+/// ```
+fn an_add_whose_displaced_folder_stays(name: &str) -> AnAddWhoseFolderStays {
+    let (root, common, destination) = scene(name);
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("an add's claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    // The snapshot the exchange moved to the destination, whose identity the record of the creation holds.
+    let snapshot: PathBuf = root.join("the-worktree-now");
+    create_private_directory(snapshot.as_path()).expect("the snapshot");
+    let object = crate::worktree_add_binding::path_identity(snapshot.as_path()).expect("the snapshot's identity");
+    let written: std::time::SystemTime = std::time::SystemTime::now();
+    record_made_at(common.as_path(), container.as_path(), object, written).expect("the record of the object made");
+    // Git's folder, now at the stage name, with a person's file written into it while the add ran.
+    create_private_directory(container.as_path()).expect("the folder Git made");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(container.join("person-keep.txt"), b"a person's only copy").expect("a person's file");
+    let made: PathBuf = made_record_beside_claim(claim.path.as_path());
+    let record: PathBuf = claim.path.with_extension("add");
+    let marker: PathBuf = claim.path.with_extension("done");
+    return AnAddWhoseFolderStays { root, common, claim, container, made, record, marker };
+}
+
+/// Whether the claim, both records and the marker stand, in words naming what does not.
+fn what_the_add_no_longer_has(claim: &Path, made: &Path, record: &Path, marker: &Path) -> Vec<String> {
+    let mut gone: Vec<String> = Vec::new();
+    for (what, path) in [
+        ("the claim", claim),
+        ("the record of the object made", made),
+        ("the destination record", record),
+        ("the marker", marker),
+    ] {
+        if std::fs::symlink_metadata(path).is_err() {
+            gone.push(String::from(what));
+        }
+    }
+    return gone;
+}
+
+/// The release of an add whose displaced folder stands removes nothing of it,
+/// so a kill at any instruction of the release leaves a claim whose records still say the folder is an add's.
+/// Why the control reads this way:
+///  the release removed the record of the object made and the destination record before the claim,
+///  and a kill between those removals left a dead claim with neither,
+///  which the reaping took for a copy's own folder and removed with the file a person put in it.
+#[test]
+fn a_release_leaves_an_adds_records_while_its_displaced_folder_stands() {
+    let AnAddWhoseFolderStays { root, common, claim, container, made, record, marker } = an_add_whose_displaced_folder_stays("claim-release-unsynced-kept");
+    let claim_path: PathBuf = claim.path.clone();
+    claim.mark_complete_unsynced().expect("the add completed");
+    claim.release_unsynced().expect("settled");
+    let gone: Vec<String> = what_the_add_no_longer_has(claim_path.as_path(), made.as_path(), record.as_path(), marker.as_path());
+    assert!(gone.is_empty(), "nothing of the claim was removed while the folder stands: {gone:?}");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    assert!(container.exists(), "the folder stands, so the person removes it once nothing needs it: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// The durable release leaves the same records standing,
+/// so a kill inside it at the same instruction leaves the same state.
+#[test]
+fn the_durable_release_leaves_an_adds_records_while_its_displaced_folder_stands() {
+    let AnAddWhoseFolderStays { root, common, claim, container, made, record, marker } = an_add_whose_displaced_folder_stays("claim-release-durable-kept");
+    let claim_path: PathBuf = claim.path.clone();
+    claim.mark_complete().expect("the add completed");
+    claim.release().expect("settled");
+    let gone: Vec<String> = what_the_add_no_longer_has(claim_path.as_path(), made.as_path(), record.as_path(), marker.as_path());
+    assert!(gone.is_empty(), "nothing of the claim was removed while the folder stands: {gone:?}");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  The state a kill inside the release of an earlier release left:
+/// a dead owner's claim and its completion marker,
+/// the folder Git made holding a person's file,
+/// and neither record.
+/// Why:
+///   The release removed the record of the object made and then the destination record before the claim,
+/// so a kill between the two removals is a state a person's machine can be in today,
+/// and the next command must keep it rather than take the folder for a copy's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = theOrphanStateAKillInsideTheReleaseLeft('...', 0o700);
+/// ```
+fn the_orphan_state_a_kill_inside_the_release_left(name: &str, mode: u32) -> AnAddWhoseFolderStays {
+    let (root, common, destination) = scene(name);
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("an add's claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the folder Git made");
+    std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(mode)).expect("the folder's mode");
+    std::fs::write(container.join("person-keep.txt"), b"a person's only copy").expect("a person's file");
+    // The release removed both records and then the marker, and the kill came before the claim.
+    claim.mark_complete_unsynced().expect("the add completed");
+    crate::worktree_copy_stage_made_object::remove_made(claim.path.as_path()).expect("the record of the object went");
+    crate::worktree_copy_journal_removal::remove_file_if_present(claim.path.with_extension("add").as_path()).expect("the destination record went");
+    crate::worktree_copy_journal_removal::remove_file_if_present(claim.path.with_extension("done").as_path()).expect("the marker went");
+    let made: PathBuf = made_record_beside_claim(claim.path.as_path());
+    let record: PathBuf = claim.path.with_extension("add");
+    let marker: PathBuf = claim.path.with_extension("done");
+    return AnAddWhoseFolderStays { root, common, claim, container, made, record, marker };
+}
+
+/// A dead claim whose folder still stands is kept while its completion marker stands,
+/// even when both records were removed first,
+/// because the marker is written by an add and by nothing else.
+/// Why the control reads this way:
+///  without the marker the folder is a copy's own to the reaping,
+///  which removes it recursively with the file a person put in it,
+///  or stops every command when the folder is not private.
+#[test]
+fn a_dead_claims_stage_whose_marker_stands_is_kept_with_a_persons_file() {
+    let left: AnAddWhoseFolderStays = the_orphan_state_a_kill_inside_the_release_left("claim-release-orphan-marker", 0o700);
+    let notices: Vec<String> = reap_abandoned_stages(left.common.as_path()).expect("reap");
+    assert!(left.container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed"); }), "the folder is kept and named: {notices:?}");
+    make_removable(left.container.as_path());
+    remove(left.root.as_path());
+}
+
+/// The same state with a folder that is not private is kept too,
+/// so the command goes on instead of failing before Git runs.
+#[test]
+fn the_same_state_with_a_folder_that_is_not_private_does_not_stop_the_command() {
+    let left: AnAddWhoseFolderStays = the_orphan_state_a_kill_inside_the_release_left("claim-release-orphan-marker-world", 0o755);
+    let notices: Vec<String> = reap_abandoned_stages(left.common.as_path()).expect("the command goes on");
+    assert!(left.container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    make_removable(left.container.as_path());
+    remove(left.root.as_path());
+}
