@@ -966,19 +966,23 @@ run = "dprint check --list-different"
 # that lock whether or not anything was to fetch, and that is what made agents on this machine wait on each other.
 # Measured on 2026-11-13 (`strace -e trace=flock` over one pass, and a second Cargo run beside a pass): one pass took
 # 70 exclusive acquisitions of the lock and 5.6 s to 5.9 s in a warm worktree, 27.2 s in a fresh one whose cargo
-# shadow still had to verify every workspace, and a Cargo started beside a pass waited 26 times of 42 tries and 27 of
-# 46, up to 349 ms, for that pass alone. After: 1.0 s to 1.1 s, zero acquisitions, and no wait that a pass causes
-# (9 tries, none waited; in one reading of 6 tries, 5 waited on other agents' Cargo). Readings and controls:
+# shadow still had to verify every workspace; a Cargo started beside a pass waited in 27 of 44 and 26 of 40 probes,
+# up to 293 ms and 349 ms, for that pass alone. After: 1.0 s to 1.1 s, zero acquisitions, and no wait that a pass
+# causes (0 of 8 probes in one reading; in another 5 of 7 waited on other agents' Cargo). Readings and controls:
 # `~/temp/agent/cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch-scratch/keep/`.
 #
 # The judgment reads Cargo's own markers and never decides that a fetch must not happen. A lock file it cannot read,
 # a package from a source that is neither a registry nor a git repository, a cargo home holding more than one
 # registry, a crate without its downloaded `.crate`, and a crate folder without the `{"v":1}` marker Cargo writes only
 # after the crate's last file lands (or, for a git source, without a ready checkout of the locked revision) all fetch
-# as before; a crate another Cargo is unpacking right now has no marker yet, so that one fetches too. What it does not
-# judge is whether a lock file is current, which is `--locked`'s own check: the cargo shadow's install step runs it
-# before every resolving command, and the closure check reports a stale lock file as a finding. The order the owner
-# fixed on 2026-11-07 ("Fetch then warn") is unchanged: this only decides which lock files need the fetch.
+# as before; a crate another Cargo is unpacking right now has no marker yet, so that one fetches too.
+#
+# What it does not judge is whether a lock file is current, because nothing here runs cargo for a lock file whose
+# crates are all in place. Measured on 2026-11-13 with a fixture lock that `cargo metadata --offline --locked` refuses
+# (exit 101, "cannot update the lock file ... because --locked was passed"): the task before this change failed on it,
+# and this one leaves it alone, so the first thing to name it inside a lint is the closure check's own
+# `cargo metadata --offline --locked`, which reports it as a warning finding rather than failing this step. The order
+# the owner fixed on 2026-11-07 ("Fetch then warn") is unchanged: this only decides which lock files need the fetch.
 [tasks."fetch:rust-dependencies"]
 description = "Download every locked Cargo dependency of each package (default: all with a Cargo.lock) so the offline closure check can read them"
 usage = """
@@ -996,17 +1000,31 @@ const { dirname, join } = await import('node:path')
 // Cargo holds `<cargo home>/.package-cache` exclusively while it resolves, downloads and unpacks, and this task used
 // to take it once per lock file whether or not anything was to download. Everything below reads the cargo home as
 // any other file would, under no lock, and answers one question: does `cargo fetch --locked` have anything to do?
-// The two markers are Cargo's own, read from its source on 2026-11-13 (src/sources/registry/mod.rs, `unpack_package`,
-// and src/sources/git/utils.rs, `CheckoutGuard`): a registry crate's source folder gets `.cargo-ok` holding `{"v":1}`
-// only after its last file is unpacked, and a git checkout's folder gets an empty `.cargo-ok` only after its reset
-// finished. A folder without its marker is absent or half written, and a concurrent Cargo can make a reader see
-// exactly that, so the answer is a fetch.
+// The markers are Cargo's own, read from its source on 2026-11-13 (src/sources/registry/mod.rs, `unpack_package`, and
+// src/sources/git/utils.rs, `CheckoutGuard`): a registry crate's source folder gets `.cargo-ok` holding `{"v":1}` only
+// after its last file is unpacked, and a git checkout's folder gets an empty `.cargo-ok` only after its reset finished.
+// A folder without its marker is absent or half written, and a concurrent Cargo can make a reader see exactly that,
+// so the answer is a fetch.
+//
+// A registry is only crates.io here, because Cargo names the folder it caches a registry in after that registry and a
+// lock file naming any other one cannot be checked against the one folder. A git source needs both halves of what
+// Cargo holds for it (`GitSource::fetch_db` bails in offline mode when the database is absent or lacks the locked
+// revision, whatever the checkout holds): a folder under `git/db` and a ready checkout of the locked revision. The
+// checkout's folder is named by the revision's abbreviation, so a repository whose name two URLs share is told apart
+// by that abbreviation, which Cargo makes unambiguous within a repository.
 const REGISTRY_UNPACK_MARKER = '.cargo-ok'
 const REGISTRY_UNPACK_MARKER_CONTENT = '{"v":1}'
 const GIT_CHECKOUT_MARKER = '.cargo-ok'
+// Cargo's `CRATES_IO_INDEX` and `CRATES_IO_HTTP_INDEX`, the two spellings crates.io's index is recorded under.
+const CRATES_IO_SOURCES = new Set(['registry+https://github.com/rust-lang/crates.io-index', 'registry+sparse+https://index.crates.io/'])
+// The starts of the folder Cargo caches crates.io under, `short_name` being the index host and a hash of its URL.
+const CRATES_IO_FOLDER_PREFIXES = ['index.crates.io-', 'github.com-']
 // The length git abbreviates a commit id to, which is also the name of a Cargo git checkout's folder
 // (`GitDatabase::to_short_id`, at least seven characters and longer only when seven are ambiguous).
 const SHORTEST_GIT_CHECKOUT_NAME = 7
+const LONGEST_GIT_REVISION = 64
+const SHORTEST_GIT_REVISION = 7
+const GIT_REVISION_SHAPE = /^[0-9a-f]{7,64}$/u
 
 /** The `[[package]]` entries of a `Cargo.lock` as `{ name, version, source }`, or undefined when it is not understood. */
 const lockPackages = (text) => {
@@ -1066,14 +1084,15 @@ const textOf = (path) => {
 }
 
 /**
- The registry cache folder Cargo would use, or why this reader cannot tell.
- Cargo names that folder after the registry it cached (`short_name`), so a home holding one registry leaves no doubt
- about where a lock file's crates belong and a home holding more than one does.
+ The crates.io cache folder Cargo would use, or undefined when this reader cannot name exactly one.
+ Cargo names that folder after the registry it cached (`short_name`), so one crates.io folder among the home's
+ folders is where a lock file's crates belong, and a home with none or with more than the one leaves a doubt.
  */
 const onlyRegistryName = (cargoHome) => {
   const cacheRoot = join(cargoHome, 'registry', 'cache')
   const names = entriesOf(cacheRoot).map((entry) => entry.name).filter((name) => statOf(join(cacheRoot, name))?.isDirectory() === true)
-  return names.length === 1 ? names[0] : undefined
+  const cratesIoNames = names.filter((name) => CRATES_IO_FOLDER_PREFIXES.some((prefix) => name.startsWith(prefix)))
+  return cratesIoNames.length === 1 ? cratesIoNames[0] : undefined
 }
 
 
@@ -1091,16 +1110,21 @@ const readCargoHome = (cargoHome) => {
       if (entry.isDirectory() || entry.isSymbolicLink()) { unpackedRegistryCrates.set(entry.name, join(cargoHome, 'registry', 'src', registryName, entry.name)) }
     }
   }
+  const gitRepositories = new Set()
+  for (const databaseEntry of entriesOf(join(cargoHome, 'git', 'db'))) {
+    const nameAndHash = /^(?<repository>.+)-[0-9a-f]+$/u.exec(databaseEntry.name)
+    if (nameAndHash !== null && statOf(join(cargoHome, 'git', 'db', databaseEntry.name))?.isDirectory() === true) { gitRepositories.add(nameAndHash.groups.repository.toLowerCase()) }
+  }
   for (const checkoutEntry of entriesOf(join(cargoHome, 'git', 'checkouts'))) {
     const nameAndHash = /^(?<repository>.+)-[0-9a-f]+$/u.exec(checkoutEntry.name)
     if (nameAndHash === null) { continue }
     for (const revisionEntry of entriesOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name))) {
       if (statOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name, revisionEntry.name, GIT_CHECKOUT_MARKER)) !== undefined) {
-        readyGitCheckouts.add(nameAndHash.groups.repository + ' ' + revisionEntry.name)
+        readyGitCheckouts.add(nameAndHash.groups.repository.toLowerCase() + ' ' + revisionEntry.name)
       }
     }
   }
-  return { registryName, tarballSizes, unpackedRegistryCrates, readyGitCheckouts }
+  return { registryName, tarballSizes, unpackedRegistryCrates, readyGitCheckouts, gitRepositories }
 }
 
 /** Why the registry crate the lock file names is not in the cargo home, or undefined when it is there and unpacked. */
@@ -1119,10 +1143,11 @@ const registryCrateMissingFrom = ({ home, name, version }) => {
 
 /** The repository name and locked revision of a git source, or undefined when the source text is not understood. */
 const gitSourceOf = (source) => {
-  const [withoutFragment, revision] = source.slice('git+'.length).split('#')
-  const withoutQuery = withoutFragment.split('?')[0].replace(/\/+$/u, '')
+  const [address, revision, ...beyondTheRevision] = source.slice('git+'.length).split('#')
+  if (beyondTheRevision.length > 0 || revision === undefined || !GIT_REVISION_SHAPE.test(revision)) { return undefined }
+  const withoutQuery = address.split('?')[0].replace(/\/+$/u, '')
   const repository = withoutQuery.slice(Math.max(withoutQuery.lastIndexOf('/'), withoutQuery.lastIndexOf(':')) + 1).replace(/\.git$/u, '').toLowerCase()
-  if (repository === '' || revision === undefined || revision === '') { return undefined }
+  if (repository === '') { return undefined }
   return { repository, revision }
 }
 
@@ -1131,6 +1156,7 @@ const gitCheckoutMissingFrom = ({ home, packageName, source }) => {
   const gitSource = gitSourceOf(source)
   if (gitSource === undefined) { return packageName + ' names a git source this reader does not understand' }
   const { repository, revision } = gitSource
+  if (!home.gitRepositories.has(repository)) { return packageName + ' has no git database of ' + repository }
   for (const ready of home.readyGitCheckouts) {
     const [readyRepository, readyRevision] = ready.split(' ')
     if (readyRepository !== repository) { continue }
@@ -1148,12 +1174,14 @@ const fetchDecision = ({ cargoHome, home, lockText }) => {
     if (typeof entry.source === 'string') { sources.set(entry.source, entry) }
   }
   const registrySources = [...sources.keys()].filter((source) => source.startsWith('registry+'))
+  const foreignRegistry = registrySources.find((source) => !CRATES_IO_SOURCES.has(source))
+  if (foreignRegistry !== undefined) { return { fetch: true, reason: 'the lock file names the registry ' + foreignRegistry + ', which this reader cannot check' } }
   const gitSources = [...sources.keys()].filter((source) => source.startsWith('git+'))
   const otherSources = [...sources.keys()].filter((source) => !source.startsWith('registry+') && !source.startsWith('git+'))
   if (otherSources.length > 0) { return { fetch: true, reason: 'the lock file names a source this reader does not know (' + otherSources[0] + ')' } }
   if (registrySources.length === 0 && gitSources.length === 0) { return { fetch: false, reason: 'it names no crate from a registry or a git repository' } }
   if (registrySources.length > 0 && home.registryName === undefined) {
-    return { fetch: true, reason: 'its crates are not in one registry folder of the cargo home at ' + cargoHome }
+    return { fetch: true, reason: 'the cargo home at ' + cargoHome + ' holds no single crates.io registry folder' }
   }
   const registryPackages = packages.filter((entry) => typeof entry.source === 'string' && entry.source.startsWith('registry+'))
   const registryMissing = registryPackages.map((entry) => [entry, registryCrateMissingFrom({ home, name: entry.name, version: entry.version })])
