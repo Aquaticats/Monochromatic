@@ -262,6 +262,33 @@ The level of four is judged when the hour is over and each of the three runs has
 - Still there and next: the two checkouts under `merge-reload-fix`, the fixture copies under `pkgrepair-repair-off-the-path` and `pkgrepair-verify`,
   `sonnet-audits` and `kimi-trials`. Each is read first for a report or measurement that lives nowhere else, and for commits a clone holds that the remote does not.
 
+#### Corrections to this section (2026-11-13T10:51:36-05:00)
+
+- **The sizes were counted with `du`, which counts data shared between copy-on-write copies once for each copy.**
+  `btrfs filesystem du --summarize` on `~/temp/agent`, taken at 10:48:46 after the removal: 190,517,125,120 bytes in all as `du` counts them,
+  of which 68,194,271,232 bytes (63.5 GiB) are the folder's own and 14,116,433,920 bytes (13.1 GiB) are shared inside it.
+  So the folder takes about 77 GiB of the drive, not 232 GiB, and deleting all of it would free about 64 GiB.
+  The removal of 1041 folders "37,200 MiB by `du`" freed almost nothing (`df` read 519 GiB before and after): they were copy-on-write copies of data that is still referenced.
+  The figure 65,984 MiB for one run's scratch is a `du` figure too; that folder's own size is being measured,
+  and the 100 GiB floor in the start-gate brief rests on it until then.
+  The same `du` figures stand in the question put to the owner, in the body of commit `e4fed3aa62`,
+  in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` and in the two launcher briefs.
+- **Five of the removed folders were another session's.** The removal left out two of that session's folders by name and not the rest:
+  `node_modules` under `~/temp/agent/optique-2026-11-13/upstream-arms/worktree-pr1121` and four under `~/temp/agent/optique-reproducers-2026-11-12/work/` (17 MiB together).
+  That session was told at once and answered that the measurements using them were finished and nothing of its failed.
+  It names what any later cleanup leaves alone: `~/temp/agent/upstream-prototype.*`, `optique-2026-11-13`, `optique-session-2026-11-12`,
+  `optique-parse-cost-reproduction` and `pi-runs/optique-*`.
+  Not tied to any run of this session either, and not that session's by its answer:
+  `node_modules` under `pi-runs/css-issues/probe-1579`, `probe-1579-ts` and `pi-runs/design-verify/design`, and the top-level `cargo-home`.
+  "Every one was made by a run or subagent of this session" under "Readings after the restart" is therefore too strong: the large ones were, not every folder.
+  Before any whole folder is removed it is tied to a run or brief of this session first.
+- **The number of agents is a level, not a wall.** This session stopped a run of its own at 10:49:59 because another session's start had made five.
+  The owner: "\"Forced you stop yours\"? Didn't I say bisect up until there's a problem?"
+  No going run is stopped to hold the number; a count above it with no symptom is a reading at that count.
+  The canonical record of the level, the criterion and the readings is now `doc/handover/agents-at-once-on-this-machine.md`,
+  which every session reads (`AGENTS.md`, rule `MXA`).
+  The five-unit readings of 10:45:25 to 10:49:25: write-and-sync 2 to 3 ms on both drives.
+
 #### How the runs of 2026-11-12 ended, and how they continue
 
 `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/how-each-run-ended.md` has one entry for each of the twenty.

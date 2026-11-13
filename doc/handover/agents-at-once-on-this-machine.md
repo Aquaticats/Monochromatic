@@ -19,6 +19,19 @@ We'll re-find the ceiling once the new disk arrives."
 Asked whether that counts one session's agents or all of them:
 "Every agent on the machine".
 
+The number is the level the search stands at,
+a starting point that is raised,
+and never a reason to stop work that is going.
+When the session doing the search stopped a run of its own because another session's start had taken the machine to five,
+the owner wrote:
+"\"Forced you stop yours\"? Didn't I say bisect up until there's a problem?"
+So:
+
+- no run that is going is stopped to get back to the number;
+- a count above the number with no symptom is a reading at that higher count,
+  and is written down as one;
+- the number only says when not to start one more yet.
+
 ## How to count before a start
 
 1.  Count the Pi runs going,
@@ -76,7 +89,11 @@ one line a minute:
   At 10:45:25 the probe counted five units:
   the other session had started a second run,
   which nothing had told it not to.
-  The session doing the search stopped its newest run at 10:50 to bring the machine back to four.
+  The session doing the search stopped its newest run at 10:49:59 to bring the machine back to four,
+  which was wrong (the owner's words under "The cap now"):
+  five with no symptom was a reading to keep, not a breach.
+  The stopped run had worked 5 minutes 25 seconds and was started again at 10:50:28,
+  when a run of the other session had ended.
 - Of the runs going,
   only `integration-pass-18-for-alpha-16` compiles Rust;
   the level is not judged before the places hold runs that each built.
