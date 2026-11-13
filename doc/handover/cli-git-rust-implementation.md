@@ -685,6 +685,42 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Retracted: five reviews at once does not prevent the rate limit; ended reviews now go back to the queue by themselves (2026-11-13T15:45:14-05:00)
+
+Not complete, and written by the coordinating session: the fix that lets a run live through the answer is still being written.
+
+- **Retracted.** The sections of 15:24:13 and 15:38:11 and the first form of the comment in `pool-limits.ts` said no run ended on the rate limit with five or fewer runs on the reviewer's model.
+  Three more ended after that: the jam fix's review at 15:36:05 with two such runs going, and the index-lock and file-mode reviews at 15:41:05 with three.
+  By minute now: two of the 297 minutes at five or fewer held an ending, eight of the 67 at six or more.
+  The runs that were ended had contexts from 27,598 to 523,600 tokens and runs of 118,179 to 599,191 finished,
+  so neither the count of runs nor the size of a run's context tells which request is refused
+  (`keep/runs-on-the-qwen-plan-going-at-each-rate-limit-answer-of-2026-11-13.txt`, and a listing of every review's summary since 12:30).
+  Twenty-one reviews have ended on it today.
+- **What the provider says** (its Token Plan FAQ, fetched between 15:41 and 15:45,
+  <https://docs.modelstudio.console.alibabacloud.com/en/model-studio/token-plan-personal-faq>):
+  - the plan's rate limits "are adjusted dynamically based on overall load" and "cannot be increased"; a limited caller should "wait about 1 minute before retrying";
+  - the concurrency it recommends for the personal edition goes from "1-2 Agents" on the smallest tier to "6-8 Agents" on the largest; which tier this account has is not known here;
+  - a plan that is truly spent answers `insufficient_quota: Your token-plan quota has been exhausted.`, other words than the ones seen here;
+  - **for the owner to know**: the same page says the personal edition "is for individual interactive development" and that using its key
+    "for production automated services, batch scripts, or scheduled background tasks is not allowed".
+    Whether review runs started by a script fall under that is the owner's to weigh; nothing was changed on account of it.
+- **What was changed.**
+  - The pool stays at five, inside what the largest tier is recommended; the comment and the README now say it does not prevent the answer,
+    and the rule "lower it by one at each such ending" is withdrawn (it would walk the pool to nothing).
+  - A review the limit ends is put back at the head of the queue by the filling unit itself, each round of 150 s, to go on from its session
+    (`put-reviews-that-the-rate-limit-ended-back-at-the-head-of-the-queue.ts`; the unit is now `fill-free-places-and-put-ended-reviews-back-at-level-16-20261113T1545`).
+    Run once by hand at 15:43:19 it put back the three named in "Retracted".
+    The package's README names this as what a coordinator does with a run left standing; it is deleted when Pi itself retries the answer.
+- **Three more runs ended by 15:41:14.**
+  - guards-refuse, review of its answer (not final by its own mark: about half the listed files read): one defect reproduced two ways.
+    A kill between deleting a merge's capture reference and removing its record leaves a record nothing can finish,
+    and after `git gc --prune=now` every command, `commit` among them, exits 2. A second finding by reading. Sent to its author.
+  - add-never-skips, answer to its second review, tip `55b1d7671f`: both findings reproduced first and fixed by its report
+    (the lock resolution is made in a mirror below the Git directory and placed by an exchange that hands back a person's write). Its review is queued over `main...55b1d7671f`.
+    Its report says nothing of the notice "not relinked after 3 tries" that was sent to that run on 2026-11-12,
+    so that notice has a run of its own now: `fix/git-policy-cli-package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`.
+  - the jam fix's review: ended on the limit at 48 turns, its controls having run; put back.
+
 #### The owner: one agent, one thing; pass 20 started with the first branch whose review found nothing (2026-11-13T15:38:11-05:00)
 
 Not complete, and written by the coordinating session: pass 20 is queued and has merged nothing yet.
