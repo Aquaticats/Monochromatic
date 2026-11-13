@@ -1540,6 +1540,42 @@ await describe({
           },
         },),
         it({
+          name: 'counts two launchers of one name beside a unit of that name that no client names as three agents, because no launcher proves it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes: two launchers of one audit name whose waiting clients are both gone while their
+             launchers still finish, and the unit one of them made.
+             */
+            const processes = join(folder.path, 'proc',);
+            for (const pid of ['70', '71',]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher file after another; see doc/lint/sequential-awaits.md
+              await writeProcess({
+                folder: processes,
+                pid,
+                words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+              },);
+            }
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-sol-audit.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=synthetic --model=gpt-audit ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(3,);
+          },
+        },),
+        it({
           name: 'counts two launchers of one name beside a unit that two clients name as three agents, refusing a start rather than joining them',
           fn: async () => {
             await using folder = await makeFolder();

@@ -256,6 +256,7 @@ The states one name can be in and the count each gives:
 - a launcher and a unit of its name whose single client waits on another unit gives two agents;
 - a unit named by two clients with one of them refused gives two agents;
 - two launchers of one name with the unit one of them made gives two agents;
+- two launchers of one name beside a unit of that name that no client names gives three agents;
 - two launchers of one name beside a unit that two clients name gives three agents.
 
 A run at the number is refused the way a full pool is:
