@@ -419,7 +419,7 @@ Tradeoffs of the second:
 - Just past that size it may cost up to about a tenth on a line that alternates options and arguments;
    the runs that measured it do not agree.
 - It is unreviewed by upstream and by any person,
-   and adds about 600 lines of source and 750 of tests to maintain.
+   and adds about 600 lines of source and 770 of tests to maintain.
 - The buffer copy stays,
    and from about 32,000 positional tokens it is most of the parse.
 
@@ -778,11 +778,13 @@ and no third model has reviewed either.
 The result:
 
 - The diff for `multiple()`'s state holds up,
-   with four changes made in the recheck,
-   two of them fixes of flaws in how its view handles writes.
+   with five changes made since,
+   three of them fixes of flaws in its view
+   (two found in the recheck,
+   one by the independent review).
    It is kept as
    [`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
-   1,378 lines added across seven files.
+   1,404 lines added across seven files.
 - The diff for the token buffer does not.
    It makes a command line that alternates options and arguments about ten times slower once it takes effect,
    and it is not kept as a patch;
@@ -836,8 +838,8 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
       8,125 and 8,125,
       none failing.
    - With the kept patch:
-      782 (8,331 steps),
-      8,116 and 8,116,
+      782 (8,332 steps),
+      8,117 and 8,117,
       none failing,
       and `deno fmt --check`,
       `deno lint` and `deno check` clean on the six source files it adds or changes.
@@ -850,9 +852,12 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    784,
    8,125 and 8,125 on the agent's diffs,
    and 782,
-   8,116 and 8,116 on the kept patch with its one threshold at two.
+   8,117 and 8,117 on the kept patch with its one threshold at two.
    With both set to zero,
-   five of the agent's new tests fail and no test upstream had before does;
+   five of the agent's new test cases fail
+   (Node and Bun count five failing tests,
+   Deno five failing steps in four tests)
+   and no test upstream had before does;
    each of the five sizes itself as the threshold less one and reads index -1 or a token that is not there.
 - Two probes written for the recheck print what the library returns and how states and buffers read to a caller
    (`Array.isArray`,
@@ -878,8 +883,9 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    (three rounds),
    so annotations do not undo it.
 
-Four changes made in the recheck,
-all in the kept patch:
+Five changes made after the agent's work,
+all in the kept patch,
+four found in the recheck and one by the independent review:
 
 - The agent's parser-level tests only append to a long state.
    A view that failed to drop the item being replaced was caught by one unit test and by no test of `multiple()`.
@@ -904,6 +910,15 @@ all in the kept patch:
    The view now refuses every index,
    in assignments and in `Object.defineProperty()`,
    and a test guards it and fails when the refusal is narrowed again.
+- The view reported its `length` descriptor from the empty target,
+   value 0,
+   while reading `length` gave the real count.
+   A copy made with `Object.defineProperties([], Object.getOwnPropertyDescriptors(state))` came back empty.
+   The independent review of 2026-11-13 found this and showed it with a state of 1,027 items;
+   the library copies array states that way in `annotation-state.ts`,
+   and the reviewer traced that a `multiple()` state does not reach that code in the current flow.
+   The descriptor now carries the real length,
+   and a test guards it and fails when the target's own value is reported again.
 - Comments:
    one cited two of the agent's measurement scripts by name,
    which upstream does not have;
@@ -911,7 +926,12 @@ all in the kept patch:
    and two module headers and the error message spoke of the input buffer,
    which the kept patch does not touch.
 
-The suite counts and the five deliberate breaks named here were run on the kept patch as it now is.
+The suite counts were taken on the kept patch as it now is,
+and so were six deliberate breaks,
+each caught by a test that names what it guards:
+the two of the replace-last path,
+a state view that reads the wrong item,
+and one for each of the three view fixes.
 The two probes were run on the agent's diffs and again on the kept patch,
 with the break of the state view made in the kept patch the second time.
 
@@ -948,8 +968,12 @@ with every state made a view):
    `copyWithin`,
    `sort` and `reverse`.
    On a plain array each of them changed that parse's own copy.
-   A symbol-keyed property can still be set,
+   A property that is not an index can still be set,
+   symbol-keyed or named,
    which is how the library attaches annotations.
+- `Object.getOwnPropertyDescriptor()` of an index says `writable: true`,
+   although a write throws.
+   Saying `false` there would make the elements of a copy made from the descriptors read-only.
 - `Object.freeze()`,
    `Object.seal()` and `Object.preventExtensions()` throw,
    and `Object.isFrozen()` is false.
