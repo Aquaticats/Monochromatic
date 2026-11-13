@@ -648,6 +648,28 @@ branch `fix/git-policy-cli-` with that name on the remote. Not reviewed. By its 
 
 The two places went to the author of the commit made without a proven scratch reference (12:45:48) and the review of the cargo repair fix (12:45:59).
 
+#### The reference listing is off the commit's waiting path; a second review has to be asked for by hand (2026-11-13T12:55:20-05:00)
+
+**`commit-does-not-list-every-reference-on-the-path-it-waits-on`**, resumed 12:36:23, ended `idle` after 67 turns and 19 minutes;
+branch `perf/git-policy-cli-` with that name on the remote. Not reviewed. By its own report:
+
+- From 2,286 timing records: `git for-each-ref` over every reference ran in 98.0% of commits, 7 ms at the median and 26,357 ms at the worst.
+  The set is now read from `packed-refs` and the loose files by the package's own reader, with one `git for-each-ref` left for what that reader cannot prove.
+  Children for each commit go from 13 to 12. 61 tests pass; Clippy clean.
+- The child's own work is milliseconds (220 system calls, 1.18 ms); a reader paced at 1,024 bytes every 25 ms stretches it to 3.34 s.
+  Why two recorded commits held it for 13.9 s and 26.4 s it did not reproduce and does not claim.
+- **Its own limit on what this buys:** it "does not fix today's 56 to 199 s commits": by the records most of that time is the wrapper's own index write (95 s and 82 s in two landings),
+  22.8 s inside the reference step, and waits of 17 to 65 s before a landing begins, none of which this branch touches and none of which has a paired measurement with real Git.
+  ("Today" in its text is 2026-11-12; its session is that day's.)
+- The paired measurement the changed rule asks for was not made: with a private `HOME` and `XDG_RUNTIME_DIR` and no bus the wrapper refuses a commit in 80 ms, the same wall issue 6293 is about from the other side.
+- It calls the branch fit to merge for what it changes. Its review is second in the queue.
+
+**A second review of a branch cannot be asked for with the branch's name.** `start-reviews-of-finished-branches` answered "already reviewed" for the start gate's branch and started nothing,
+while this session's starter script had already printed that it started and taken the entry off the queue.
+The script now says "asked for" and points at the command's own output, and it has a second kind of entry: a review over a range of its own under a name of its own
+(`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
+The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
