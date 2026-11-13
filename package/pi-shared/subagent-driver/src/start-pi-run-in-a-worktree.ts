@@ -42,6 +42,7 @@ import {
 } from './required-output-of-a-command.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import { makeScratchFolder, } from './scratch-folder-of-a-run.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 import {
   UNIT_WAIT_GRACE_SECONDS,
@@ -262,6 +263,17 @@ if (!readOnlyInMain) {
   console.log(`dependencies: status ${String(linked.status,)}`,);
 }
 
+/**
+ The one scratch folder this run gets, made with its `keep/` subfolder before the agent's first prompt names it, so the prompt never
+ names a folder that is not there. A folder an earlier run of this name left is kept as it is: a resumed run gets the same folder
+ again.
+ */
+const scratch = await makeScratchFolder({
+  scratchRoot: options.scratchRoot,
+  runName: options.name,
+},);
+console.log(`scratch: ${scratch.folder} ${(scratch.made ? 'made' : 'kept from an earlier run of this name')}, with a keep/ subfolder that survives the end of the run and everything else deleted then`,);
+
 await mkdir(
   runFolder,
   { recursive: true, },
@@ -304,6 +316,7 @@ const unit = unitCommandOf({
   runFolder,
   workingFolder: worktree,
   promptFile: options.promptFile,
+  scratchFolder: scratch.folder,
   provider: options.provider,
   model: options.model,
   idleSeconds: options.idleSeconds,
@@ -375,6 +388,7 @@ const finished = await finishTheRun({
   launcherEntry: argv[1] ?? '',
   wakesSoFar: Number(env.PI_RUN_WAKES ?? '0',),
   environment: env,
+  scratchRoot: options.scratchRoot,
   unitStatus: status,
   git,
   run: runCommandWithChildProcess,

@@ -42,6 +42,7 @@ import type {
   RunSummary,
 } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { SCRATCH_FOLDER_VARIABLE, } from './scratch-folder-of-a-run.ts';
 import { putTheRunAway, } from './put-the-run-away.ts';
 import { endReasonOfRun, } from './take-the-first-prompt.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
@@ -256,6 +257,8 @@ export async function supervisePiRun(
     environment: {
       ...givenToPi.environment,
       [NESTED_RUN_VARIABLE]: '1',
+      // The one scratch folder this run got, so every command of its `bash` tool reads the same path the first prompt named.
+      ...((options.scratchFolder === undefined) ? {} : { [SCRATCH_FOLDER_VARIABLE]: options.scratchFolder, }),
     },
     standardErrorFile: join(
       options.runFolder,

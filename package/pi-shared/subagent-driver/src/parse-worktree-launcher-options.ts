@@ -11,6 +11,7 @@ import {
   MODEL_OF_A_RUN_NAMING_NONE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
 } from './pool-limits.ts';
+import { defaultScratchRoot, } from './scratch-folder-of-a-run.ts';
 import {
   type RequiredOption,
   requiredPositiveNumber,
@@ -28,7 +29,7 @@ import {
 export const WORKTREE_LAUNCHER_USAGE: string =
   'start-pi-run-in-a-worktree --name=<run name> --branch=<branch> --prompt=<file> --cpu=<percent> --memory=<size> --tasks=<count> --wall=<seconds> '
     + '[--base=<commit or branch>] [--run=<number>] [--session=<file>] [--provider=<name>] [--model=<name>] [--turn-cap=<n>] '
-    + '[--idle-seconds=<n>] [--runs-folder=<folder>] [--checkout-folder=<folder>]';
+    + '[--idle-seconds=<n>] [--runs-folder=<folder>] [--checkout-folder=<folder>] [--scratch-root=<folder>]';
 
 /**
  The branch name that tells the launcher to run in the checkout itself, without making a worktree.
@@ -201,6 +202,11 @@ export type WorktreeLauncherOptions = {
    The checkout the run's worktree is made in, and whose `main` its branch starts from.
    */
   readonly checkoutFolder: string;
+
+  /**
+   The folder a run's one scratch folder lives under, `~/temp/agent` unless the caller names another.
+   */
+  readonly scratchRoot: string;
 };
 
 /**
@@ -282,6 +288,7 @@ export function parseWorktreeLauncherOptions({
       ...DEFAULT_RUNS_FOLDER_IN_HOME,
     ),
     checkoutFolder: parsed['checkout-folder'] ?? checkoutFolder,
+    scratchRoot: parsed['scratch-root'] ?? defaultScratchRoot({ home: homedir(), },),
   };
 }
 
@@ -333,6 +340,7 @@ type WrittenValues = {
   readonly 'idle-seconds'?: string;
   readonly 'runs-folder'?: string;
   readonly 'checkout-folder'?: string;
+  readonly 'scratch-root'?: string;
 };
 
 /**
@@ -375,6 +383,7 @@ function writtenValuesIn(commandLine: readonly string[],): WrittenValues {
         'idle-seconds': { type: 'string', },
         'runs-folder': { type: 'string', },
         'checkout-folder': { type: 'string', },
+        'scratch-root': { type: 'string', },
       },
     },);
     return values;

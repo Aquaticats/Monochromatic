@@ -539,6 +539,14 @@ await describe({
         expect(await logIn(launcherGitLog,),).toContain('rev-parse --verify --quiet main^{commit}',);
         await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
         await expect(readdir(runs,),).resolves.toEqual([],);
+        // A start that was refused makes no scratch folder either: nothing of a run that could not work is left behind.
+        await expect(
+          readdir(join(
+            folder.path,
+            'temp',
+            'agent',
+          ),),
+        ).rejects.toThrow('ENOENT',);
       },
     },),
     it({
@@ -656,6 +664,28 @@ await describe({
         const printed = `${ended.stdout}${ended.stderr}`;
         expect(ended.code,).toBe(1,);
         expect(printed,).not.toContain('Memory peak: 12.0M Pi');
+        // The launcher made the run's one scratch folder before the agent's first prompt, and the run's end emptied it, keeping
+        // the subfolder a reader of the report looks in.
+        expect(printed,).toContain(`scratch: ${join(
+          folder.path,
+          'temp',
+          'agent',
+          'refused-scratch',
+        )} made`,);
+        expect(printed,).toContain(`scratch: refused: emptied ${join(
+          folder.path,
+          'temp',
+          'agent',
+          'refused-scratch',
+        )} except keep/:`,);
+        await expect(
+          readdir(join(
+            folder.path,
+            'temp',
+            'agent',
+            'refused-scratch',
+          ),),
+        ).resolves.toEqual(['keep',],);
         // The reason comes after the unit's own block, so the line a batch prints carries Pi's words rather than the memory line.
         expect(reasonInFailedStart({ output: printed, },).reason,).toContain('Cannot find module',);
         expect(entryLineOf({

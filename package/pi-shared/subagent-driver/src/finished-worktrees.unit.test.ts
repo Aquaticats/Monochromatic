@@ -15,6 +15,7 @@ import {
 import {
   type Worktree,
   briefQueuedAfter,
+  decideScratchRemoval,
   decideWorktree,
   folderSomeProcessWorksIn,
   isInside,
@@ -220,6 +221,90 @@ await describe({
           },
         },),
       ],
+    },),
+    describe({
+      name: decideScratchRemoval.name,
+      children: [
+        it({
+          name: 'empties the scratch folder of a run that ended, whatever reason it ended with, once its unit has gone',
+          fn: async () => {
+            for (const endReason of ['idle', 'model-error', 'wall-clock', 'pi-exited',]) {
+              expect(decideScratchRemoval({
+                endReason,
+                briefQueued: false,
+                unitState: 'inactive',
+                inUseFolder: '',
+              },),).toEqual({ action: 'empty', },);
+            }
+          },
+        },),
+        it({
+          name: 'keeps the folder while its unit runs, before any run of that name ended, while a brief waits for a slot, and while a process of the run works in it',
+          fn: async () => {
+            /**
+             The decisions that all keep the folder, one per reading.
+             */
+            const decisions = [
+              decideScratchRemoval({
+                endReason: 'idle',
+                briefQueued: false,
+                unitState: 'active',
+                inUseFolder: '',
+              },),
+              decideScratchRemoval({
+                briefQueued: false,
+                unitState: 'inactive',
+                inUseFolder: '',
+              },),
+              decideScratchRemoval({
+                endReason: 'idle',
+                briefQueued: true,
+                unitState: 'inactive',
+                inUseFolder: '',
+              },),
+              decideScratchRemoval({
+                endReason: 'idle',
+                briefQueued: false,
+                unitState: 'inactive',
+                inUseFolder: '/home/a/temp/agent/a-scratch',
+              },),
+            ];
+            expect(decisions.map(function actionOf(decision,) {
+              return decision.action;
+            },),).toEqual([
+              'skip',
+              'skip',
+              'skip',
+              'skip',
+            ],);
+            expect(decisions.map(function reasonOf(decision,) {
+              return (decision.action === 'skip') ? decision.reason : '';
+            },),).toEqual([
+              'its unit still runs (active)',
+              'no run of that name wrote a summary, so none of them has ended',
+              'a brief was written after its latest run ended, so the folder is about to be used again',
+              'a process still works in /home/a/temp/agent/a-scratch',
+            ],);
+          },
+        },),
+      ],
+    },),
+    it({
+      name: 'reads the run scratch folder as a folder of the run own work, so a process working there keeps the worktree',
+      fn: async () => {
+        expect(ownFoldersOf({
+          name: 'a',
+          worktree: '/repo/.claude/worktrees/pi-a',
+          runsFolder: '/runs',
+          entries: ['a-1',],
+          reviewFolder: '/reviews',
+          scratchFolder: '/home/a/temp/agent/a-scratch',
+        },),).toEqual([
+          '/repo/.claude/worktrees/pi-a',
+          '/runs/a-1',
+          '/home/a/temp/agent/a-scratch',
+        ],);
+      },
     },),
     describe({
       name: decideWorktree.name,

@@ -28,6 +28,7 @@ const config: NodeFlavorConfig = nodeConfig({
     'write-a-brief-for-a-review': './src/write-a-brief-for-a-review.ts',
     'start-reviews-of-finished-branches': './src/start-reviews-of-finished-branches.ts',
     'write-a-fix-brief-for-each-review': './src/write-a-fix-brief-for-each-review.ts',
+    'empty-the-scratch-folder-of-a-run': './src/empty-the-scratch-folder-of-a-run.ts',
   },
 },);
 

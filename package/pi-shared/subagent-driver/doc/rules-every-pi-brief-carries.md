@@ -10,10 +10,14 @@ Each rule is the project's own requirement.
 - Rule `ATH`:
   scratch goes in `${HOME}/temp/agent`,
   never `/tmp`.
-- The run has one scratch folder,
-  `${HOME}/temp/agent/<the run's name>-scratch`,
-  and everything it writes outside its worktree goes there.
-  That folder is deleted when the run ends,
+- The launcher gives the run one scratch folder,
+  `${HOME}/temp/agent/<the run's name>-scratch` unless it was started with another root,
+  made before the agent's first prompt with a `keep/` subfolder inside it.
+  The first paragraph of the prompt names that folder,
+  and `printenv PI_RUN_SCRATCH_FOLDER` prints the same path from any command the run makes,
+  so no command builds the path itself.
+  Everything the run writes outside its worktree goes there.
+  That folder is emptied when the run ends,
   except its `keep/` subfolder:
   put the report,
   the logs and the measurements a reader of the report needs in `keep/`,
@@ -30,7 +34,8 @@ Each rule is the project's own requirement.
   Make one fixture repository and reuse it,
   or make a copy-on-write copy (`cp --reflink=always`),
   instead of a full copy for each round.
-  On 2026-11-13 the scratch folder held 232 GiB from two days of runs,
+  On 2026-11-13 `${HOME}/temp/agent` held 190.5 GB as `du` counts it from two days of runs,
+  of which 68.2 GB (63.5 GiB) was its own data and 14.1 GB was shared between the copies inside it,
   and a full home drive had ended twenty runs the day before.
 - Never generate synthetic host load in any session or subagent:
   no `stress-ng`,

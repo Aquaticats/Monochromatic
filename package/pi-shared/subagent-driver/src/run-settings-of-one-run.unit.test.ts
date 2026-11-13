@@ -373,6 +373,30 @@ await describe({
           },
         },),
         it({
+          name: 'hands the driver the one scratch folder the run got, so its first prompt can name it',
+          fn: async () => {
+            expect(unitCommandOf({
+              runName: 'a',
+              cpuPercent: 1,
+              memory: '1G',
+              taskCount: 1,
+              wallSeconds: 1,
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              node: '/bin/node',
+              driverEntry: '/pkg/src/drive-pi-subagent.ts',
+              runFolder: '/runs/a-1',
+              workingFolder: '/repo',
+              promptFile: '/runs/a-prompt.md',
+              scratchFolder: '/home/a/temp/agent/a-scratch',
+              provider: 'neuralwatt',
+              model: 'deepseek-v4.1-flash',
+              idleSeconds: 1,
+              turnCap: 1,
+            },).words,).toContain('--scratch-folder=/home/a/temp/agent/a-scratch',);
+          },
+        },),
+        it({
           name: 'hands the driver the session file a resumed run needs',
           fn: async () => {
             expect(unitCommandOf({
@@ -852,6 +876,7 @@ await describe({
               idleSeconds: IDLE_SECONDS_OF_A_RUN,
               runsFolder: join(process.env.HOME ?? '', 'temp', 'agent', 'pi-runs',),
               checkoutFolder: '/repo',
+              scratchRoot: join(process.env.HOME ?? '', 'temp', 'agent',),
             },);
           },
         },),
@@ -876,6 +901,7 @@ await describe({
                 '--idle-seconds=5',
                 '--runs-folder=/runs',
                 '--checkout-folder=/elsewhere',
+                '--scratch-root=/scratch',
               ],
               checkoutFolder: '/repo',
             },),).toEqual({
@@ -895,6 +921,7 @@ await describe({
               idleSeconds: 5,
               runsFolder: '/runs',
               checkoutFolder: '/elsewhere',
+              scratchRoot: '/scratch',
             },);
           },
         },),

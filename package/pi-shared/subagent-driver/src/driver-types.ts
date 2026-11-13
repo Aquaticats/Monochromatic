@@ -252,6 +252,11 @@ export type DriverOptions = {
   readonly session?: string;
 
   /**
+   The one scratch folder this run got, whose path the first prompt names and whose variable every command of the agent reads.
+   */
+  readonly scratchFolder?: string;
+
+  /**
    Further arguments for Pi, each kept whole.
    */
   readonly piArguments: readonly string[];

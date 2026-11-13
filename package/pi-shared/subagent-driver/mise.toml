@@ -103,6 +103,10 @@ run = "node src/list-running-pi-runs-with-their-turns.ts"
 description = "Print the Pi runs that ended since a time, oldest first, each with the reason its summary gives, the status Pi left with and the head of its last message"
 run = "node src/list-runs-that-ended-since.ts"
 
+[tasks."empty-the-scratch-folder-of-a-run"]
+description = "Delete everything inside one run's scratch folder except its keep/ subfolder, and say what was removed, how much room the volume gained, how much keep/ holds and what was left where it is"
+run = "node src/empty-the-scratch-folder-of-a-run.ts"
+
 [tasks."wait-for-a-unit-to-become-active"]
 description = "Wait, bounded, until a systemd user unit is active, then say whether it came up and what it was doing if it did not"
 run = "node src/wait-for-a-unit-to-become-active.ts"

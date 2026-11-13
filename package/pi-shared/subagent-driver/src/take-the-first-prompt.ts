@@ -19,6 +19,7 @@ import { millisecondsLeftUntil, } from './deadline.ts';
 import { endReasonOfPromptWait, } from './end-reasons.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import { scratchNoteOf, } from './scratch-folder-of-a-run.ts';
 import {
   fieldsOf,
   recordsIn,
@@ -130,9 +131,16 @@ async function sendFirstPrompt({
   deadline,
 }: WatchRequest,): Promise<ProgressAfterPrompt> {
   /**
-   The prompt, which must be an ordinary file: a named pipe would wait for a writer.
+   What the brief says, which must be an ordinary file: a named pipe would wait for a writer.
    */
-  const prompt = await readOrdinaryFile(options.promptFile,);
+  const brief = await readOrdinaryFile(options.promptFile,);
+  /**
+   The prompt Pi gets, which starts with the run's own scratch folder: it is where the run's files go, and a brief that names none
+   would leave the agent building a path of its own.
+   */
+  const prompt = (options.scratchFolder === undefined)
+    ? brief
+    : `${scratchNoteOf({ folder: options.scratchFolder, },)}${brief}`;
   /**
    Pi's answer, waited for within the run's own deadline and, until it comes, under the bound a starting Pi gets rather than
    the one an answer owed mid-run gets.

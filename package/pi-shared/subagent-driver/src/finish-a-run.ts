@@ -21,6 +21,7 @@ import {
   runCommandShowingItsOutput,
 } from './run-command.ts';
 import { lastOfPiStandardError, } from './last-of-pi-standard-error.ts';
+import { emptyTheScratchFolderAtTheLowestDiskPriority, } from './scratch-folder-emptied-at-the-lowest-disk-priority.ts';
 import {
   SessionFileUnreadableError,
   sessionFileOfRun,
@@ -119,6 +120,11 @@ export type FinishRequest = {
    How one command is run, which a test replaces.
    */
   readonly run: RunCommand;
+
+  /**
+   The root the run's one scratch folder lives under, which is emptied when the run ends.
+   */
+  readonly scratchRoot: string;
 
   /**
    Where a line about what was done goes.
@@ -248,6 +254,46 @@ async function resumeTheSession({
 }
 
 /**
+ Empties the one scratch folder a run got, keeping its `keep/` subfolder, and reports what that removed.
+
+ The folder is emptied whatever reason the run ended with, because a folder nothing owns is what left two days of scratch on this
+ machine on 2026-11-13. It is kept while the run's own work still runs, for the same reason its worktree is: a deletion would take
+ the folder a build or a reproduction is still writing into, and the work the run left would fail for a report nobody reads.
+
+ @param request - the run, whose name, root and run command say which folder to empty and how
+
+ @param ownWorkLeftRunning - what the run left running, which keeps the folder when it is not empty
+
+ @example
+ ```ts
+ await emptyTheScratchFolderOf({ request, ownWorkLeftRunning: [], },);
+ ```
+ */
+async function emptyTheScratchFolderOf({
+  request,
+  ownWorkLeftRunning,
+}: {
+  readonly request: FinishRequest;
+  readonly ownWorkLeftRunning: readonly string[];
+},): Promise<void> {
+  if (ownWorkLeftRunning.length > 0) {
+    request.report(`scratch: ${request.runName}: the folder was kept, the run's own work still runs in it`,);
+    return;
+  }
+  /**
+   The lines the emptying printed, which say what was removed, what the volume gained and what `keep/` holds.
+   */
+  const lines = await emptyTheScratchFolderAtTheLowestDiskPriority({
+    run: request.run,
+    scratchRoot: request.scratchRoot,
+    runName: request.runName,
+  },);
+  for (const line of lines) {
+    request.report(line,);
+  }
+}
+
+/**
  Finishes one run: reads why it ended, wakes an agent whose own work outlived its turn, and decides what becomes of its worktree.
 
  A run that is resumed answers with the status the resumed launcher ended with; every other run answers with the status its unit
@@ -259,7 +305,7 @@ async function resumeTheSession({
 
  @example
  ```ts
- const finished = await finishTheRun({ runName: 'a', runFolder: '/runs/a-1', unitStatus: 0, wallSeconds: 600, readOnlyInMain: false, worktree: '/repo/.claude/worktrees/pi-a', checkoutFolder: '/repo', processFolder: '/proc', runsFolder: '/runs', commandLine: [], launcherEntry: '/pkg/src/start-pi-run-in-a-worktree.ts', wakesSoFar: 0, environment: process.env, git, run, report: console.log, wait, now: Date.now, },);
+ const finished = await finishTheRun({ runName: 'a', runFolder: '/runs/a-1', unitStatus: 0, wallSeconds: 600, readOnlyInMain: false, worktree: '/repo/.claude/worktrees/pi-a', checkoutFolder: '/repo', processFolder: '/proc', runsFolder: '/runs', commandLine: [], launcherEntry: '/pkg/src/start-pi-run-in-a-worktree.ts', wakesSoFar: 0, environment: process.env, scratchRoot: '/home/a/temp/agent', git, run, report: console.log, wait, now: Date.now, },);
  ```
  */
 export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun> {
@@ -350,6 +396,10 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
       worktree: request.worktree,
     },)}`,);
   }
+  await emptyTheScratchFolderOf({
+    request,
+    ownWorkLeftRunning,
+  },);
   // A run whose Pi left before the run got going is the one ending whose reason only Pi can give: a load failure, a refused
   // provider, a missing module all reach its standard error and nothing else. It is reported last, because a batch's one line
   // per entry is the last line of what a start printed, and `status 1 Memory peak: 12M` was what it said instead.

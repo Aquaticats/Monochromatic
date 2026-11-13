@@ -302,3 +302,13 @@ export {
   waitForUnitToBecomeActive,
 } from './waiting-for-a-unit-to-become-active.ts';
 export { SUMMARY_FILE_NAME, } from './runs-that-ended-since.ts';
+
+/**
+ The one scratch folder a run gets and the emptying of it when the run ends, kept in a file of its own so that neither list
+ outgrows the line budget.
+ */
+export * from './index-of-a-runs-scratch-folder.ts';
+export {
+  type ScratchDecision,
+  decideScratchRemoval,
+} from './finished-worktrees.ts';

@@ -212,6 +212,8 @@ export function isInside({
 
  @param reviewFolder - the folder that holds one folder per review
 
+ @param scratchFolder - the run's one scratch folder, when the caller knows it, which a process working in keeps the worktree too
+
  @returns the folders a process working in keeps the worktree
 
  @example
@@ -225,12 +227,14 @@ export function ownFoldersOf({
   runsFolder,
   entries,
   reviewFolder,
+  scratchFolder,
 }: {
   readonly name: string;
   readonly worktree: string;
   readonly runsFolder: string;
   readonly entries: readonly string[];
   readonly reviewFolder: string;
+  readonly scratchFolder?: string;
 },): readonly string[] {
   /**
    The start of a Kimi review's run name.
@@ -260,6 +264,8 @@ export function ownFoldersOf({
         name.slice(reviewStart.length,),
       ),]
       : []),
+    // The run's scratch folder is its own work too: a reproduction still writing there is the work its worktree was kept for.
+    ...((scratchFolder === undefined) ? [] : [scratchFolder,]),
   ];
 }
 
@@ -611,4 +617,97 @@ export async function briefQueuedAfter({
   return briefs.some(function isLater(brief,) {
     return (brief.at ?? 0) > ended;
   },);
+}
+
+/**
+ What is to be done with one run's scratch folder: emptied now, or left with the reason.
+ */
+export type ScratchDecision =
+  | {
+    /**
+     The folder's contents are emptied, keeping its `keep/` subfolder.
+     */
+    readonly action: 'empty';
+  }
+    | {
+      /**
+       Nothing is done, because a run of that name has not ended, its unit runs, it is about to be resumed, or something of the run
+       still works in it.
+       */
+      readonly action: 'skip';
+
+      /**
+       The line that says why nothing is done.
+       */
+      readonly reason: string;
+    };
+
+/**
+ Says what is to be done with one run's scratch folder.
+
+ It is emptied once a run of that name has ended and its unit has gone, because a folder nothing owns is what left two days of
+ scratch on this machine on 2026-11-13. It is kept while a brief waits for a slot, because the resumed run gets the same folder
+ again, and while a process of the run still works in it.
+
+ @param endReason - why the run ended, or nothing when no summary says
+
+ @param briefQueued - whether a brief was written after its latest run ended
+
+ @param unitState - the state systemd answered for its unit
+
+ @param inUseFolder - the folder of the run's a process still works in, or empty text when none does
+
+ @returns what to do with the folder
+
+ @example
+ ```ts
+ const decision = decideScratchRemoval({ endReason: 'idle', briefQueued: false, unitState: 'inactive', inUseFolder: '', },);
+ ```
+ */
+export function decideScratchRemoval({
+  endReason,
+  briefQueued,
+  unitState,
+  inUseFolder,
+}: {
+  readonly endReason?: string;
+  readonly briefQueued: boolean;
+  readonly unitState: string;
+  readonly inUseFolder: string;
+},): ScratchDecision {
+  /**
+   The states a unit is in while it has not ended.
+   */
+  const running = [
+    'active',
+    'activating',
+    'deactivating',
+    'reloading',
+    'refreshing',
+  ];
+  if (running.includes(unitState,)) {
+    return {
+      action: 'skip',
+      reason: `its unit still runs (${unitState})`,
+    };
+  }
+  if (endReason === undefined) {
+    return {
+      action: 'skip',
+      reason: 'no run of that name wrote a summary, so none of them has ended',
+    };
+  }
+  if (briefQueued) {
+    return {
+      action: 'skip',
+      reason: 'a brief was written after its latest run ended, so the folder is about to be used again',
+    };
+  }
+  if (inUseFolder !== '') {
+    return {
+      action: 'skip',
+      reason: `a process still works in ${inUseFolder}`,
+    };
+  }
+  return { action: 'empty', };
 }

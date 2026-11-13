@@ -21,7 +21,7 @@ import {
  The driver's command line, for the error message.
  */
 export const DRIVER_USAGE =
-  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--pi-argument=<word>]...';
+  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--scratch-folder=<folder>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--pi-argument=<word>]...';
 
 /**
  A command line the driver cannot use.
@@ -157,6 +157,7 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         provider: { type: 'string', },
         model: { type: 'string', },
         session: { type: 'string', },
+        'scratch-folder': { type: 'string', },
         'pi-argument': {
           type: 'string',
           multiple: true,
@@ -190,6 +191,7 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         name: 'model',
       },),),
       ...(values.session === undefined ? {} : { session: values.session, }),
+      ...(values['scratch-folder'] === undefined ? {} : { scratchFolder: values['scratch-folder'], }),
       piArguments: values['pi-argument'] ?? [],
       wallSeconds: requiredSeconds(optionOf({
         value: values['wall-seconds'],

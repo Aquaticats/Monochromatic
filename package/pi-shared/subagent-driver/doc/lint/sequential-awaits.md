@@ -26,6 +26,18 @@ and the tests use one per wait inside a polling loop.
   One command has to stay up while the runs work,
   and each look reads the whole finished corpus,
   so a promise per look would read that corpus many times at once and separate the waits from the deadline that bounds them.
+- Emptying a run's scratch folder (`src/deleting-what-a-run-left-in-its-scratch-folder.ts`):
+  one entry at a time,
+  then one folder at a time, deepest first.
+  A deletion of tens of GiB runs at the idle disk class,
+  so it must neither starve another process's reads nor open a descriptor for every file at once,
+  and the folders come out after everything inside them is gone so a folder that still holds an entry is named rather than
+  its parent being reported for it.
+  The count of a kept folder takes the same shape for the same reason.
+- The same deletion in a test (`src/emptying-a-scratch-folder.unit.test.ts`):
+  one run name at a time,
+  each folder made, filled, emptied and read before the next one,
+  so a failure names the name it belongs to.
 - The test polling helpers (`src/drive-pi-subagent.unit.test.ts`,
   `src/connection-to-pi.unit.test.ts`,
   `src/record-of-pi-run.unit.test.ts`):

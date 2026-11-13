@@ -75,6 +75,15 @@ await describe({
       },
     },),
     it({
+      name: 'reads the one scratch folder the run got, which its first prompt names and its commands read',
+      fn: async () => {
+        expect(parseDriverOptions(COMPLETE,).scratchFolder,).toBeUndefined();
+        expect(parseDriverOptions([...COMPLETE, '--scratch-folder=/home/a/temp/agent/a-scratch',],).scratchFolder,).toBe('/home/a/temp/agent/a-scratch',);
+        // A path holding spaces stays one value, which is what makes a run name with spaces work.
+        expect(parseDriverOptions([...COMPLETE, '--scratch-folder=/home/a/temp/agent/a name-scratch',],).scratchFolder,).toBe('/home/a/temp/agent/a name-scratch',);
+      },
+    },),
+    it({
       name: 'requires every limit, so a run is always bounded',
       fn: async () => {
         for (const name of ['wall-seconds', 'idle-seconds', 'turn-cap',]) {

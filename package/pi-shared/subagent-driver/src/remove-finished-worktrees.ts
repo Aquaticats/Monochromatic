@@ -46,6 +46,11 @@ import {
 } from './run-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 import { unitStateOf, } from './wait-for-a-unit-to-end.ts';
+import { scratchFolderLinesOf, } from './scratch-folders-of-finished-runs.ts';
+import {
+  defaultScratchRoot,
+  scratchFolderOf,
+} from './scratch-folder-of-a-run.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 /**
@@ -82,6 +87,11 @@ const PAUSED_FILE_OPTION = '--paused-file=';
  The option that names the folder holding one entry per process.
  */
 const PROCESS_FOLDER_OPTION = '--process-folder=';
+
+/**
+ The option that names the root every run's scratch folder lives under.
+ */
+const SCRATCH_ROOT_OPTION = '--scratch-root=';
 
 /**
  The option that asks for the removals to be done rather than listed.
@@ -121,7 +131,8 @@ const DEFAULT_REVIEW_FOLDER_IN_HOME: readonly string[] = [
  */
 const USAGE =
   'remove-finished-worktrees [--checkout-folder=<folder>] [--runs-folder=<folder>] [--review-folder=<folder>] '
-    + '[--paused-file=<file>] [--process-folder=<folder>] [--apply] [--clean-folder=<path>] [--clean-word=<word>]...';
+    + '[--paused-file=<file>] [--process-folder=<folder>] [--scratch-root=<folder>] [--apply] [--clean-folder=<path>] '
+    + '[--clean-word=<word>]...';
 
 /**
  The words the command was given.
@@ -197,6 +208,15 @@ const options = {
     option: PAUSED_FILE_OPTION,
   },),
   processFolder: (processGiven === '') ? (env.PI_RUNS_PROCESS_FOLDER ?? '/proc') : processGiven,
+  scratchRoot: (optionIn({
+    commandLine: words,
+    option: SCRATCH_ROOT_OPTION,
+  },) === '')
+    ? defaultScratchRoot({ home: homedir(), },)
+    : optionIn({
+      commandLine: words,
+      option: SCRATCH_ROOT_OPTION,
+    },),
   apply: words.includes(APPLY_OPTION,),
   cleanFolder: optionIn({
     commandLine: words,
@@ -324,21 +344,18 @@ for (const worktree of runWorktreesIn({
     ...(latestSummary === undefined ? {} : { latestSummary, }),
   },);
   /**
-   The folders of this run that must hold no process.
-   */
-  /**
-   Every entry of the runs folder.
-   */
-  const runEntries = await entriesOrNothingIn(options.runsFolder,);
-  /**
-   The folders of this run that must hold no process.
+   The folders of this run that must hold no process, the run's own scratch folder among them.
    */
   const ownFolders = ownFoldersOf({
     name,
     worktree: worktree.path,
     runsFolder: options.runsFolder,
-    entries: runEntries,
+    entries: await entriesOrNothingIn(options.runsFolder,),
     reviewFolder: options.reviewFolder,
+    scratchFolder: scratchFolderOf({
+      scratchRoot: options.scratchRoot,
+      runName: name,
+    },),
   },);
   /**
    The folder a process still works in, if one does.
@@ -347,6 +364,26 @@ for (const worktree of runWorktreesIn({
     folders: ownFolders,
     workingFolders,
   },);
+  /**
+   The state systemd answered for the unit, which both decisions below read.
+   */
+  const unitState = await unitStateOf({
+    run: runCommandWithChildProcess,
+    unitName: `pi-${name}.service`,
+  },);
+  // The scratch folder is emptied whatever reason the run ended with, because a folder nothing owns is what left two days of
+  // scratch on this machine on 2026-11-13. Emptying it before the worktree decision is what a launcher gone before its own end
+  // step leaves for this command to do.
+  printed.push(...await scratchFolderLinesOf({
+    name,
+    endReason,
+    briefQueued,
+    unitState,
+    inUseFolder: inUse.folder ?? '',
+    apply: options.apply,
+    scratchRoot: options.scratchRoot,
+    run: runCommandWithChildProcess,
+  },),);
   /**
    What git says about the worktree's files.
    */
@@ -373,10 +410,7 @@ for (const worktree of runWorktreesIn({
     ),),
     paused: paused.has(name,),
     briefQueued,
-    unitState: await unitStateOf({
-      run: runCommandWithChildProcess,
-      unitName: `pi-${name}.service`,
-    },),
+    unitState,
     inUseFolder: inUse.folder ?? '',
     status: status.status,
     statusText: status.stdout,

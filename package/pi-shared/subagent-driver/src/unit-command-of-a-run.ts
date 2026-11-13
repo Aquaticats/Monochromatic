@@ -116,6 +116,11 @@ export type UnitCommandRequest = {
    The session file the run resumes, when it resumes one.
    */
   readonly session?: string;
+
+  /**
+   The one scratch folder this run got, which the driver names to the agent and hands its commands through the environment.
+   */
+  readonly scratchFolder?: string;
 };
 
 /**
@@ -169,6 +174,7 @@ export function unitCommandOf(request: UnitCommandRequest,): {
       `--run-folder=${request.runFolder}`,
       `--working-folder=${request.workingFolder}`,
       `--prompt-file=${request.promptFile}`,
+      ...((request.scratchFolder === undefined) ? [] : [`--scratch-folder=${request.scratchFolder}`,]),
       `--provider=${request.provider}`,
       `--model=${request.model}`,
       `--wall-seconds=${String(request.wallSeconds,)}`,

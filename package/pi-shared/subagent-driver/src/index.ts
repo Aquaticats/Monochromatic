@@ -52,6 +52,7 @@ export type {
   RunProgress,
   RunSummary,
 } from './driver-types.ts';
+export { END_REASONS, } from './driver-types.ts';
 export {
   continuationPromptOf,
   driverRetries,
@@ -82,7 +83,6 @@ export {
   type RecordOfPiRunRequest,
   startRecordOfPiRun,
 } from './record-of-pi-run.ts';
-export { END_REASONS, } from './driver-types.ts';
 export {
   CLEAN_END_REASONS,
   endReasonOfPromptWait,

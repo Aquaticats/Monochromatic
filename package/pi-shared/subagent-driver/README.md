@@ -7,9 +7,10 @@ enforces the run's limits,
 records a feed and a summary,
 and delivers steering messages from an inbox folder.
 
-Four more commands start those runs:
+Five more commands keep those runs:
 `start-pi-run-when-a-pool-has-room` counts the provider pools and chooses one,
-`start-pi-run-in-a-worktree` makes the worktree and the unit,
+`start-pi-run-in-a-worktree` makes the worktree, the run's one scratch folder and the unit,
+`empty-the-scratch-folder-of-a-run` deletes what a run left in that folder except its `keep/` subfolder,
 `retry-pi-run-start-until-a-pool-has-room` waits for a slot,
 and `start-pi-runs-from-a-batch-list` starts a whole list of runs.
 
@@ -277,7 +278,10 @@ or start a run it would refuse.
   `--model`,
   `--idle-seconds`,
   `--runs-folder`,
-  and `--checkout-folder`.
+  `--checkout-folder`,
+  and `--scratch-root`,
+  the folder every run's scratch folder lives under,
+  `~/temp/agent` when it is not given.
 
 The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`.
 A branch this launcher creates starts at `--base`,
@@ -352,6 +356,118 @@ with no worktree, no run folder and no unit,
 so no provider slot is spent on a run that could not have worked.
 Before this, a launcher took a slot, made a worktree and linked its dependencies,
 and only then did the driver find that its prompt file was not there.
+
+### The one scratch folder a run gets
+
+Every run gets one scratch folder of its own,
+made before the agent's first prompt and emptied when the run ends.
+The owner, asked when a run's scratch is deleted:
+"At run end, all but keep/ . Oh and I forgot to say all the dir names were extremely cryptic and shouldn't have been."
+
+The folder is `<scratch-root>/<the run's name>-scratch`,
+and the scratch root is `~/temp/agent` unless a caller names another with `--scratch-root`.
+Its name carries the run's own name and the word that says what the folder is,
+so someone who sees only the name knows which run made it and that it is scratch.
+It is made with the mode rule `ATH` asks for, `0700`,
+with a `keep/` subfolder inside it,
+and the line the launcher prints says whether this start made it or found it from an earlier run of the same name.
+A folder an earlier run left is kept as it is,
+so a resumed run gets the same folder again with `keep/` as that run left it.
+A start that is refused makes no folder,
+so nothing of a run that could not work is left behind.
+
+The agent learns the path in two ways,
+and neither asks it to build one:
+the first paragraph of its first prompt names the folder and what `keep/` is for,
+and `printenv PI_RUN_SCRATCH_FOLDER` prints the same path from any command it runs.
+The driver hands Pi that variable itself,
+so it is there whether or not the run was started by the launcher.
+
+When the run ends,
+however it ends,
+everything inside that one folder except `keep/` is deleted.
+The folder itself stays,
+with `keep/` inside it,
+and so does anything the deletion had to leave.
+The deletion runs in a process of its own under `ionice --class idle` and `nice --adjustment 19`,
+which is the lowest disk priority the machine gives a process,
+so a deletion of tens of GiB gives way to every other process that wants the disk,
+and one deletion is bounded at `SCRATCH_EMPTYING_BOUND_SECONDS` (1800 s):
+measured on 2026-11-13, 2.0 GiB and 22,000 entries were deleted in 1.38 s at full speed,
+and the largest scratch folder measured on this machine held 63.5 GiB of its own data,
+which is about 42 s at that rate.
+
+The lines the run's end carries say:
+
+- what was removed, in files and folders, and the sizes of those files as their metadata read them.
+  That figure is a sum of file sizes and the line says so:
+  a filesystem that shares data between copies, by reflink or by snapshot,
+  keeps that data for the copy that stays,
+  so the sum can be much larger than the room a deletion gives back.
+  On 2026-11-13 a removal of 1041 build folders that `du` sized at 37,200 MiB freed almost nothing.
+- the room the volume holding the folder had before the deletion and after it,
+  and what it gained,
+  which is the figure a full disk is freed by.
+  Both readings are named, so a reader sees what was measured rather than a difference alone.
+- how much `keep/` holds, in files and in the sizes of those files.
+- every entry that was left where it is, and why,
+  up to ten of them and a count of the rest.
+
+What the deletion refuses or leaves, and why:
+
+- a folder that is not directly under the scratch root,
+  and one whose name is not the one the launcher gives that run,
+  are refused before the disk is read,
+  and the refusal names both the folder it was given and the folder that run's would be;
+- a folder that is a symbolic link is refused rather than followed,
+  because emptying it would delete whatever it points at;
+- a folder that is itself a mount point is refused,
+  because what is mounted there is not this run's to delete;
+- a symbolic link inside the folder is deleted as a link and never followed,
+  so a link to a file in the run's worktree, or to the root of a filesystem,
+  takes nothing with it;
+- an entry that is at a mount point, or that is on another device than the folder's own,
+  is left where it is and named,
+  because emptying it would cross into a filesystem this run did not make;
+- an entry carrying the name `keep` that is not a folder is left where it is and named,
+  rather than followed or deleted,
+  so the place a reader of the report is told to look is never replaced by what a link points at;
+- an entry that cannot be read or removed,
+  such as a fixture left at mode `000` or a file of another account,
+  is named with what the operating system said,
+  and the deletion finishes with everything else it could reach.
+  Two such folders were on this machine on 2026-11-13:
+  `~/temp/agent/service-change-probe`, owned by another account and unreadable,
+  and a `closed` folder at mode `000` under a fixture in
+  `~/temp/agent/pi-runs/kimi-findings-lean-resume-and-progress-save-findings`.
+
+The folder is kept while the run's own work still runs in it,
+for the same reason its worktree is kept:
+a build or a reproduction still writing there would fail for a report nobody reads.
+A launcher gone before its own end step leaves the folder for `remove-finished-worktrees`,
+which empties it once a run of that name has ended and says why it left one alone.
+A run that ended two days of scratch on this machine is the reason both exist:
+on 2026-11-13 `~/temp/agent` held 190.5 GB as `du` counts it,
+of which 68.2 GB (63.5 GiB) was its own data and 14.1 GB was shared between the copies inside it.
+
+### `empty-the-scratch-folder-of-a-run`
+
+`--run-name`, which is required,
+and `--scratch-root`, which defaults to `~/temp/agent`.
+
+```sh
+# empty one run's scratch folder, keeping its keep/ subfolder
+empty-the-scratch-folder-of-a-run --run-name=copy-route
+```
+
+It computes the folder from the run's name and the root,
+so no caller can point it at a folder that is not a run's own,
+and it prints the lines a run's end carries:
+what it removed, how much room the volume gained, how much `keep/` holds,
+and every entry it left where it is with the reason.
+It exits `0` when it emptied the folder or found none to empty,
+and `1` when it refused the folder it was asked for,
+which is the folder named for a run but not the one the launcher gives that run.
 
 ### After the unit ends
 
@@ -677,6 +793,8 @@ the checkout whose worktrees the launcher makes (this folder by default);
 a list of names paused earlier,
 one per line after its first word;
 `--process-folder`;
+`--scratch-root`,
+the root every run's scratch folder lives under, which defaults to `~/temp/agent`;
 `--apply`,
 which does the removals rather than listing them;
 and `--clean-folder` with `--clean-word`,
@@ -705,6 +823,14 @@ and each line says which one did not:
   not in any of its run folders,
   and not in its review folder;
 - `git status` holds nothing uncommitted.
+
+It also empties the scratch folder of each run its launcher never got to,
+by the same readings,
+and says why it left one alone:
+a unit that still runs,
+a name no run of which wrote a summary,
+a brief written after its latest run ended,
+or a process of the run still working in it.
 
 A worktree some process still works in is the check that matters most:
 before 2026-11-11 this step ran `cargo clean` in,
@@ -909,6 +1035,12 @@ each written as `--name=value`:
   a session file to resume.
   It stays one argument,
   so a path holding spaces is safe.
+- `--scratch-folder`:
+  the one scratch folder this run got,
+  which the first paragraph of its prompt names and which every command of the agent reads from
+  `PI_RUN_SCRATCH_FOLDER`.
+  A run started without the launcher may name none,
+  and then its prompt says nothing about scratch and the variable is not set.
 - `--retry-cap`:
   how many attempts follow a model error another attempt may fix,
   three by default,
@@ -1002,6 +1134,10 @@ The list holds `XAUTHORITY`:
 the X server cookie file a browser check reads,
 where `xrandr --query` exits 0 with the variable and exits 1 with
 `Authorization required, but no authorization protocol specified` without it.
+
+The driver adds `PI_RUN_SCRATCH_FOLDER`,
+which is the run's own scratch folder and matches none of the words above;
+a name matching one of them is removed whatever else it says.
 
 The rule costs the names whose own tools were shown to manage without them:
 `SSH_AUTH_SOCK`,
