@@ -307,6 +307,275 @@ fn without_an_operation_in_progress_no_conflict_is_named() {
     remove(&fixture);
 }
 
+/// What:
+///  The commands a sentence of a refusal gives, in order,
+///  with the path placeholders filled in for one file.
+/// Why:
+///   The control runs the words the person is given and not a paraphrase of them,
+///  so a message and the behaviour it promises cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commands = backtickedSpans(sentence).filter((span) => span.includes('<')).map((span) => span.replaceAll('<path>', path));
+/// ```
+fn backticked_commands(sentence: &str, path: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut rest: &str = sentence;
+    while let Some(opened) = rest.find('`') {
+        let after: &str = &rest[opened + 1..];
+        let Some(closed) = after.find('`') else { break };
+        let span: &str = &after[..closed];
+        if span.contains('<') {
+            found.push(span.replace("<paths>", path).replace("<path>", path));
+        }
+        rest = &after[closed + 1..];
+    }
+    return found;
+}
+
+/// What:
+///  The sentence of a refusal that offers the opt-out,
+///  which is the sentence whose commands are the person's own way through.
+/// Why:
+///   Reading it from the message keeps the control tied to what the person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const advice = message.split('. ').find((one) => one.includes('on purpose'));
+/// ```
+fn the_opt_out_sentence(said: &str) -> String {
+    for sentence in said.split(". ") {
+        if sentence.contains("on purpose") {
+            return String::from(sentence);
+        }
+    }
+    return String::new();
+}
+
+/// What:
+///  Run a shell command the way the person would,
+///  in the fixture's own environment,
+///  with the wrapper first on `PATH`.
+/// Why:
+///   A refusal names commands for a shell,
+///  and the control has to run exactly those,
+///  with the same `HOME` and runtime directory as the wrapped command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const observed = await sh(repo, adviceCommand);
+/// ```
+fn run_advice(fixture: &Fixture, directory: &Path, command: &str) -> Observed {
+    let mut shell: std::process::Command = std::process::Command::new("/bin/sh");
+    shell.arg("-c").arg(command);
+    let path: std::ffi::OsString = super::support::wrapper_first_path(fixture);
+    super::support::hermetic(&mut shell, fixture, path.as_os_str());
+    // `hermetic` starts every command in the fixture root; the person runs these in the worktree.
+    shell.current_dir(directory);
+    if let Some(runtime) = super::support::service_runtime(fixture) {
+        shell.env("XDG_RUNTIME_DIR", runtime);
+    }
+    return super::support::observe(&mut shell, b"");
+}
+
+/// What:
+///  The refusal's own advice, run to its end on a real conflict:
+///  the backup is made,
+///  the opt-out replaces the file,
+///  and the backup puts the person's bytes back.
+/// Why:
+///  A refusal that protects the work and then tells the person to make a backup that cannot be restored
+///  loses the very resolution it refused to replace
+///  (a cross-vendor review of this change,
+/// its first finding:
+/// `git diff -- <path>` on an unmerged path is a combined diff,
+/// which `git apply` refuses).
+/// So the bytes are compared here,
+/// and the message must name the command that puts them back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const advice = theOptOutSentence(refusal); const [save, restore] = backtickedCommands(advice, 'a.rs');
+/// await sh(save); await hatch(); await sh(restore ?? 'git apply backup.patch'); expect(read('a.rs')).toEqual(whatThePersonWrote);
+/// ```
+#[test]
+fn the_refusals_own_backup_advice_restores_the_resolution_after_the_opt_out() {
+    let fixture: Fixture = fixture("side-advice-backup");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    let refusal: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&refusal);
+    assert!(rejected_by_policy(&refusal), "{said}");
+    let advice: String = the_opt_out_sentence(said.as_str());
+    assert!(!advice.is_empty(), "the refusal offers the opt-out in its own sentence: {said}");
+    let commands: Vec<String> = backticked_commands(advice.as_str(), "a.rs");
+    assert!(!commands.is_empty(), "the opt-out sentence names a command that keeps the bytes: {advice}");
+    let saved: Observed = run_advice(&fixture, repo.as_path(), commands[0].as_str());
+    assert_eq!(saved.code, Some(0), "the advised backup runs: {}\n{}", commands[0], stderr_of(&saved));
+    let hatch: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--no-enforce-worktree", "--theirs", "--", "a.rs"]);
+    assert_eq!(hatch.code, Some(0), "the opt-out runs: {}", stderr_of(&hatch));
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), b"topic\n", "the opt-out really replaced the file");
+    let restore: Option<&String> = commands.get(1);
+    let restored: Observed = match restore {
+        Some(command) => run_advice(&fixture, repo.as_path(), command.as_str()),
+        // A message that names no way back is judged by the only way back a patch offers.
+        None => run_advice(&fixture, repo.as_path(), "git apply backup.patch"),
+    };
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED, "the advised backup brings the resolution back ({commands:?}, restore exit {:?}: {})", restored.code, stderr_of(&restored));
+    assert!(restore.is_some(), "the refusal names the command that puts the file back: {advice}");
+    remove(&fixture);
+}
+
+/// What:
+///  Every command a refusal names, in the order it names them,
+///  with the path placeholders filled in for one file.
+/// Why:
+///   The controls run the words the person is given and not a paraphrase of them,
+///  so a message and the behaviour it promises cannot drift apart.
+///  Every command a refusal names is in backticks, which is also how the person sees it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commands = backtickedSpans(message).filter((span) => span.includes('<')).map((span) => span.replaceAll('<path>', path));
+/// ```
+fn commands_of_the_message(said: &str, path: &str, message: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut rest: &str = said;
+    while let Some(opened) = rest.find('`') {
+        let after: &str = &rest[opened + 1..];
+        let Some(closed) = after.find('`') else { break };
+        let span: &str = &after[..closed];
+        if span.contains('<') {
+            found.push(span.replace("<paths>", path).replace("<path>", path).replace("<message>", message));
+        }
+        rest = &after[closed + 1..];
+    }
+    return found;
+}
+
+/// What:
+///  The commands of a message that start with `prefix`, in the order named.
+/// Why:
+///   A refusal names reads, a way to conclude, and a way to back the file up;
+///  a control runs the ones of its own kind and leaves the others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reads = commands.filter((one) => one.startsWith('git show'));
+/// ```
+fn commands_starting_with(commands: &[String], prefix: &str) -> Vec<String> {
+    return commands.iter().filter(|one| { return one.starts_with(prefix); }).cloned().collect();
+}
+
+/// What:
+///  The other pieces of advice the refusal gives,
+#[test]
+fn every_other_piece_of_advice_in_the_refusal_works_on_its_own_state() {
+    let fixture: Fixture = fixture("side-advice-sides");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    let refusal: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&refusal);
+    assert!(rejected_by_policy(&refusal), "{said}");
+    // One word, so the shell-splitting of the control carries the whole message as one argument.
+    let commands: Vec<String> = commands_of_the_message(said.as_str(), "a.rs", "resolve-the-conflict");
+    // The three sides the message points at: stage 1 is the base, 2 is ours, 3 is theirs.
+    let sides: Vec<String> = commands_starting_with(commands.as_slice(), "git show");
+    assert_eq!(sides.len(), 3, "the refusal names the three sides: {commands:?}");
+    for (command, expected) in sides.iter().zip([b"base\n" as &[u8], b"main\n", b"topic\n"]) {
+        let shown: Observed = run_advice(&fixture, repo.as_path(), command.as_str());
+        assert_eq!(shown.code, Some(0), "`{command}` prints a side: {}", stderr_of(&shown));
+        assert_eq!(shown.stdout.as_slice(), expected, "`{command}` prints the side it names");
+    }
+    // `git diff` prints the file as it stands: the resolution the person wrote is in it.
+    let diffs: Vec<String> = commands_starting_with(commands.as_slice(), "git diff");
+    assert_eq!(diffs.len(), 1, "the refusal names one way to see the file as it stands: {commands:?}");
+    let shown: Observed = run_advice(&fixture, repo.as_path(), diffs[0].as_str());
+    let text: String = String::from_utf8_lossy(shown.stdout.as_slice()).into_owned();
+    for line in String::from_utf8_lossy(HAND_EDITED).lines() {
+        assert!(text.contains(line), "`{}` prints the line the person wrote ({line:?}): {text}", diffs[0]);
+    }
+    remove(&fixture);
+}
+
+/// What:
+///  The refusal's advice for concluding the merge, run to its end through the wrapper,
+///  with the fixture's own commit service:
+///  the resolution is staged,
+///  the commit is made,
+///  and the merge is over.
+/// Why:
+///  The advice used to be `git commit --message <message> -- <paths>`,
+///  which stages nothing and,
+///  in this wrapper,
+///  commits the named path while the merge stays in progress
+///  (the wrapper says so itself:
+/// "the merge is still in progress, because this commit took only the paths you named").
+/// Real Git refuses that form outright (`fatal: cannot do a partial commit during a merge`).
+/// So the control runs the message's own `git add` and `git commit` commands,
+/// in its order,
+/// and asks for the end state:
+/// no `MERGE_HEAD`,
+/// one ordinary commit,
+/// and the person's bytes in the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [stage, commit] = commandsOfTheMessage(refusal); await runCommit(stage); await runCommit(commit);
+/// expect(existsSync('.git/MERGE_HEAD')).toBe(false); expect(read('a.rs')).toEqual(theResolution);
+/// ```
+#[test]
+fn the_advised_way_to_conclude_the_merge_concludes_it() {
+    let fixture: Fixture = fixture("side-advice-conclude");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    // A resolution a person would write, with no conflict markers left in it.
+    std::fs::write(repo.join("a.rs"), b"both sides, as I settled them\n").expect("a resolution");
+    let refusal: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&refusal);
+    assert!(rejected_by_policy(&refusal), "{said}");
+    // One word, so the shell-splitting of the control carries the whole message as one argument.
+    let commands: Vec<String> = commands_of_the_message(said.as_str(), "a.rs", "resolve-the-conflict");
+    let staging: Vec<String> = commands_starting_with(commands.as_slice(), "git add");
+    let committing: Vec<String> = commands_starting_with(commands.as_slice(), "git commit");
+    assert_eq!(staging.len(), 1, "the refusal names the way to stage the resolution: {commands:?}");
+    assert_eq!(committing.len(), 1, "the refusal names the way to commit it: {commands:?}");
+    assert!(committing[0].contains("--message resolve-the-conflict"), "the commit names the message the refusal gives: {commands:?}");
+    let staged: Observed = super::commit::run_commit(&fixture, repo.as_path(), &shell_words(staging[0].as_str()).iter().map(String::as_str).collect::<Vec<&str>>().as_slice());
+    let staged_said: String = stderr_of(&staged);
+    assert_eq!(staged.code, Some(0), "`{}` runs: {staged_said}", staging[0]);
+    let concluded: Observed = super::commit::run_commit(&fixture, repo.as_path(), &shell_words(committing[0].as_str()).iter().map(String::as_str).collect::<Vec<&str>>().as_slice());
+    let concluded_said: String = stderr_of(&concluded);
+    assert_eq!(concluded.code, Some(0), "`{}` runs: {concluded_said}", committing[0]);
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is over after the advised commands: {concluded_said}");
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), b"both sides, as I settled them\n", "the commit holds the resolution");
+    assert_eq!(
+        git(&fixture, repo.as_path(), &["log", "--format=%s", "-1"]).stdout.as_slice(),
+        b"resolve-the-conflict\n",
+        "one ordinary commit is what the advisee makes"
+    );
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  The words of a command the way a shell splits them:
+///  one argument per space-separated word,
+///  which is all the controls' commands need (none carries a space or a quote).
+/// Why:
+///  The wrapped commands are run as an argument vector,
+///  and the refusal writes them for a shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = command.split(' ').filter((one) => one.length > 0);
+/// ```
+fn shell_words(command: &str) -> Vec<String> {
+    let words: Vec<String> = command.split(' ').filter(|word| { return !word.is_empty(); }).map(String::from).collect();
+    // A refusal writes the whole command, starting at `git`; the wrapper is the `git` the control runs.
+    if words.first().is_some_and(|first| { return first == "git"; }) {
+        return words[1..].to_vec();
+    }
+    return words;
+}
+
+/// Command lines that look like one conflicted file to the guard and are more to Git,
 /// Command lines that look like one conflicted file to the guard and are more to Git,
 /// found by a cross-vendor review.
 #[path = "binary_conflict_side_hardening_tests.rs"]
