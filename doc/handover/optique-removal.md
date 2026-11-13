@@ -1174,10 +1174,29 @@ to settle before a reply:
   It was tightened at 2026-11-13T17:04:45-05:00 to 44 lines;
   the note before the draft in the typo-suggestion document lists what left it and where each part lives.
   Every figure in it stood in the longer draft.
+  A fresh session of the reviewing model read the tightened form as of commit `629e7b84d7`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-tightened-reply-draft-claim-check-prompt.md`,
+  run folder `optique-tightened-reply-draft-claim-check-1`,
+  39 turns,
+  report `${HOME}/temp/agent/optique-reply-draft-tightened-2026-11-13/keep/review-report.md`).
+  It found no wrong figure and no new one,
+  and the owner's choices reflected as recorded.
+  Its findings,
+  folded in:
+  the second patch's ratio did not name what it is a ratio to,
+  and a reader could take it as a ratio to `main`,
+  which no round measured at 32,000 arguments;
+  both drafts now say it is against the first patch alone.
+  The buffer copy had lost "that consumes a token".
+  The opening called every number a ratio where the closing paragraph quotes two absolute times.
+  And the note's list of where each removed part lives was imprecise.
+  Weighed and left:
+  the second patch's figures are those of the patch before its last change,
+  which the linked write-up says and the reply does not.
+  Not reviewed by anyone:
+  those corrections.
   Next:
-  a review of the tightened form by a fresh session of the reviewing model,
-  its findings folded in,
-  and then the draft goes to the owner,
+  the draft goes to the owner,
   who edits it,
   writes the lines the draft marks as the owner's,
   and posts it;

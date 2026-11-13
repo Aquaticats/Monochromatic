@@ -1540,9 +1540,9 @@ places in *primitives.ts*). Timed as built packages on Node 26 and Bun 1.4, five
 (0.20 to 0.32).
 
 I tried both. For the state I have a second patch: above 1,024 items the state becomes an array-shaped view (a
-`Proxy`) over an immutable vector, and below that nothing changes. On top of this patch, 16,000 arguments take
-0.24 times as long on Node and 0.50 on Bun, and 32,000 take 0.16 and 0.43. The core suite passes with it on Deno,
-Node and Bun, also with the threshold lowered to two so that nearly every state is a view. Its cost is that such a
+`Proxy`) over an immutable vector, and below that nothing changes. Against this patch alone, 16,000 arguments take
+0.24 times as long with both on Node and 0.50 on Bun, and 32,000 take 0.16 and 0.43. The core suite passes with it
+on Deno, Node and Bun, also with the threshold at two, where nearly every state is a view. Its cost is that such a
 state is a proxy: it prints as an empty array, `structuredClone()` and `Object.freeze()` throw on it, and in-place
 edits throw. For the buffer I have nothing to offer: with the state copy already removed, also cutting a view in
 `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and 48 to 105 times
