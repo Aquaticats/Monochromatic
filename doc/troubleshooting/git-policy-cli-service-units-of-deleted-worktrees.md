@@ -339,10 +339,12 @@ The measured before and after for the rule itself is the two counts above:
   which is why the proof needed the account's own session in the first place.
   A proof that must commit needed either the real session (and then its repositories leave units
   this release now ends by itself) or a manager of its own (banned on this host).
-- On the release that carries the fix, none of that applies any more:
+- On the release that carries the fix,
+  none of that applies any more:
   a runtime directory of the run's own is the boundary.
   The wrapper asks a manager only when that runtime directory is the one the inherited bus lives in,
-  so such a run asks nothing of the account's manager and keeps its journal, its retry plans and its
+  so such a run asks nothing of the account's manager and keeps its journal,
+  its retry plans and its
   scratch files inside that runtime directory,
   and a commit still lands.
   The proof of the three cases is `keep/repro-in-a-container.sh` beside the report for issue 6293.

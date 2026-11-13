@@ -4417,7 +4417,8 @@ where a later command finds it once this one is gone
 #### A push address that can never be a remote
 
 Owner decision of 2026-11-13 for issue 6293
-("End the plan at once, say so once"):
+("End the plan at once,
+say so once"):
 a push whose address cannot be a remote at all ends its plan on the first refusal,
 with one line that says the push was not made and why,
 and no notice appears on later commands;
@@ -4431,27 +4432,34 @@ a relative path that is not there,
 a directory that exists and is no repository,
 an address with a space and one with a newline all answer
 `fatal: '<address>' does not appear to be a git repository`.
-So the address itself decides, and only four shapes are final
+So the address itself decides,
+and only four shapes are final
 (`src/native/push/push_address_that_cannot_be_a_remote.rs`):
 
 - an empty address,
-  where Git answers `fatal: bad repository ''`, and no string names nothing;
+  where Git answers `fatal: bad repository ''`,
+  and no string names nothing;
 - exactly `DISABLED`,
   the word this project reserves for "nothing is pushed" (rule `APQ`);
   a repository of that name does receive a push,
   so this is our decision and not a syntax of Git;
 - an address that begins with a dash,
-  which Git reads as an option (`error: did you mean '--force'?`, exit `129`) and never as a place to push to;
+  which Git reads as an option (`error: did you mean '--force'?`,
+  exit `129`) and never as a place to push to;
 - an address that begins with `://`,
-  whose protocol name is empty, where Git answers `fatal: protocol '' is not supported`.
+  whose protocol name is empty,
+  where Git answers `fatal: protocol '' is not supported`.
 
-Every other address keeps its retries, whatever Git answered:
+Every other address keeps its retries,
+whatever Git answered:
 an unknown protocol waits for its helper to be installed
 (`git: 'remote-foo' is not a git command`),
 a host that does not answer waits for its network
 (`fatal: unable to access '…': Failed to connect`),
-and a path waits for what may be mounted, cloned or written later.
-Where the two kinds cannot be told apart, the address is the second kind:
+and a path waits for what may be mounted,
+cloned or written later.
+Where the two kinds cannot be told apart,
+the address is the second kind:
 a push that might come back is never given up.
 
 Which addresses a push went to is read from the remote's own configuration,
@@ -4461,8 +4469,11 @@ a destination that is no remote name is its own address.
 A remote may name several push addresses,
 and Git stops the push at the first that fails,
 so one address that can never be a remote is enough for no try to land
-(measured: `remote.origin.pushurl` set to `DISABLED` and then to a working repository,
-where the plain push failed on `DISABLED` and the working address received nothing).
+(measured:
+`remote.origin.pushurl` set to `DISABLED`,
+and then to a working repository,
+where the plain push failed on `DISABLED`,
+and the working address received nothing).
 An answer that names no address leaves the destination as the one address to judge,
 and an address this release could not read keeps its retries.
 A classified failure settles the branch as failed,
@@ -12512,11 +12523,14 @@ holds the directory the same way.
 
 ### A runtime directory of the command's own
 
-Issue 6293 needed this, and the owner decided it on 2026-11-13
-("Private runtime dir is the boundary", recorded in `doc/handover/cli-git-rust-implementation.md`):
+Issue 6293 needed this,
+and the owner decided it on 2026-11-13
+("Private runtime dir is the boundary",
+recorded in `doc/handover/cli-git-rust-implementation.md`):
 the runtime directory the environment names is the boundary of one session.
 
-When `XDG_RUNTIME_DIR` names a directory, and the session bus the command inherited does not live in it,
+When `XDG_RUNTIME_DIR` names a directory,
+and the session bus the command inherited does not live in it,
 the command belongs to no session of the account:
 the wrapper does not use that bus,
 it asks no service manager for anything,
@@ -12539,17 +12553,22 @@ The two places that answer where the rest goes are `state_dir_of_the_command` in
 `src/native/service/service_host_of_a_worktree.rs` and `state_directory` in
 `src/native/foundation/scratch_location.rs`.
 Nothing of such a run is written under the account's real state directory
-(`XDG_STATE_HOME`, else `~/.local/state`) and nothing of it reaches the account's manager.
+(`XDG_STATE_HOME`,
+else `~/.local/state`) and nothing of it reaches the account's manager.
 A run given its own runtime directory therefore commits,
 and leaves both the manager and the state directory untouched.
 
 The bus is read from the first `unix:path=` entry of `DBUS_SESSION_BUS_ADDRESS`;
-an abstract address names no directory, so it never proves the session is this one,
+an abstract address names no directory,
+so it never proves the session is this one,
 and a bus of another directory is another session's manager.
-An address the environment does not name at all, or names while no bus was inherited,
-is a runtime directory of the command's own too: there is no session it belongs to.
+An address the environment does not name at all,
+or names while no bus was inherited,
+is a runtime directory of the command's own too:
+there is no session it belongs to.
 
-Three cases are unaffected, and the container proof measures all three
+Three cases are unaffected,
+and the container proof measures all three
 (`bin/proof-private-runtime-directory.ts`,
 which `mise run //package/git-policy/cli:native:proof:private-runtime` runs,
 and which fails when any of the three moves):
@@ -12563,7 +12582,8 @@ and which fails when any of the three moves):
 - a busy or absent manager changes nothing about either.
 
 What such a run gives up is the state directory's lifetime:
-its journal, its retry plans and its notices live in a directory the login or the container removes,
+its journal,
+its retry plans and its notices live in a directory the login or the container removes,
 so they do not outlive a logout or a reboot.
 And an earlier release's journal under the account's state directory is not adopted by such a run:
 those were written by a service a manager started,

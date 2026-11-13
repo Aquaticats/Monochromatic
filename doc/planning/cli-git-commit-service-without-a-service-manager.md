@@ -1334,11 +1334,18 @@ that records every word it is given and then does what `--scope` does. Three cas
   and the later command added none. Both commits landed.
 - **B, a runtime directory of the command's own, the bus inherited from another
   directory**: **0** manager calls, both commits landed, the service's files in the private
-  directory, and its state under the container's `HOME` at that measurement. Issue 6293's fix
-  moved that state into the private directory: under the container's account, case B now leaves
-  nothing under the account's state directory and its journal, retry plans and scratch files
+  directory,
+  and its state under the container's `HOME` at that measurement.
+  Issue 6293's fix
+  moved that state into the private directory:
+  under the container's account,
+  case B now leaves
+  nothing under the account's state directory and its journal,
+  retry plans and scratch files
   under `<runtime directory>/monochromatic-git-policy-cli/`
-  (reached from this branch, which the fix's branch was cut off, and measured again on 2026-11-13;
+  (reached from this branch,
+  which the fix's branch was cut off,
+  and measured again on 2026-11-13;
   `SPEC.md` "A runtime directory of the command's own").
 - **C, no bus and no runtime directory**: **0** manager calls, both commits landed, sockets
   in `~/.run`.

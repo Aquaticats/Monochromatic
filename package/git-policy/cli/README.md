@@ -393,12 +393,16 @@ Read-only commands,
   so that you push again.
   One failure ends that plan at once instead:
   a push address that can never be a remote
-  (an empty one, exactly `DISABLED`, one that begins with a dash, or a URL that begins with `://`).
+  (an empty one,
+  exactly `DISABLED`,
+  one that begins with a dash,
+  or a URL that begins with `://`).
   Its one line says the push was not made and why,
   the next command in the repository shows that line once,
   and no later command meets another notice for it
   (`SPEC.md` "A push address that can never be a remote").
-  A path that is not there, a host that does not answer and a refused login keep their retries.
+  A path that is not there,
+  a host that does not answer and a refused login keep their retries.
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
    of every URL replaced by `<credentials>`:
   the userinfo,
@@ -5121,8 +5125,11 @@ A member holds none of your branches or refs,
 so one removed is built again the next time a commit in that worktree needs it.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 A command given a runtime directory of its own (`XDG_RUNTIME_DIR` naming a directory the inherited session bus does
-not live in) keeps that directory's contents, its journal, its retry plans and its scratch files inside that runtime
-directory instead, and writes nothing under `XDG_STATE_HOME` or `~/.local/state`
+not live in) keeps that directory's contents,
+its journal,
+its retry plans and its scratch files inside that runtime
+directory instead,
+and writes nothing under `XDG_STATE_HOME` or `~/.local/state`
 (see `SPEC.md` "A runtime directory of the command's own").
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
@@ -6772,8 +6779,11 @@ account's service manager (`src/native/service/service_server_start_through_the_
 Typed by hand with no socket and no address it refuses and starts nothing.
 A commit in a run given a runtime directory of its own therefore leaves nothing in the account's manager and nothing
 under the account's real state directory:
-its journal, the plans of the pushes the service retries, and its scratch files all sit under that runtime directory
-(see "State on disk", and `SPEC.md` "A runtime directory of the command's own").
+its journal,
+the plans of the pushes the service retries,
+and its scratch files all sit under that runtime directory
+(see "State on disk",
+and `SPEC.md` "A runtime directory of the command's own").
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
 
