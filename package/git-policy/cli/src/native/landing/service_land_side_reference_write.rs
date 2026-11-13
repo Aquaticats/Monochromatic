@@ -481,6 +481,31 @@ pub(crate) async fn keep_on_a_side_ref_awaiting(git: &GitContext, repository: &P
 }
 
 /// What:
+///  The one line of what Git said when a step refused,
+///  for a sentence a person reads.
+/// Why:
+///  `fast-import` follows its refusal with its whole statistics report,
+///  and a line that told the person the reference was not written would carry twenty lines of it:
+///  the first line is the one that names the refusal,
+///  and a step that said nothing falls back to the status it ended with
+///  (`refused_words_of`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theRefusalLineOf = (output) => output.stderr.split('\n').map((line) => line.trim()).find((line) => line.length > 0) ?? refusedWordsOf(output)
+/// ```
+pub(crate) fn the_refusal_line_of(output: &GitOutput) -> String {
+    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).to_string();
+    for line in words.lines() {
+        let trimmed: &str = line.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    return refused_words_of(output);
+}
+
+/// What:
 ///  Git's own words for a write it refused,
 /// in one sentence.
 /// Why:

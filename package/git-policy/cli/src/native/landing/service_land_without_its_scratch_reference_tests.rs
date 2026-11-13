@@ -293,6 +293,10 @@ fn a_batch_whose_import_could_not_write_its_reference_lands_its_commits() {
     assert_eq!(branch, commit, "the branch names the commit the import made");
     assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
     assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
+    assert!(
+        !said.contains("fast-import statistics"),
+        "the line names the refusal and not the import's own statistics report, which is twenty lines no person reads: {said}"
+    );
 }
 
 /// What:

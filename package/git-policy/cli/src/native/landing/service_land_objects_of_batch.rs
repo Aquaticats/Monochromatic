@@ -167,10 +167,13 @@ pub(crate) fn objects_of_batch(
             //  told once what the missing reference exposed (`service_land_without_its_scratch_reference.rs`).
             //  A marks file naming fewer is an import that stopped inside the batch, and the commit it names is not the commit the
             //  person's requests make together, so that batch fails with Git's own words as it always did.
+            // The whole of Git's words go to the service's log, and the person reads the line that names the refusal: the
+            //  import follows it with its statistics report, which is no sentence for a person (`the_refusal_line_of`).
             let refused: String = crate::service_land_side_reference_write::refused_words_of(&imported);
+            let told: String = crate::service_land_side_reference_write::the_refusal_line_of(&imported);
             if let Some(made) = the_commits_a_refused_reference_left_unnamed(marks.as_path(), batch.len()) {
                 crate::service_error!("batch {seq}: the batch lands without its own reference: the import could not write {scratch} ({refused})");
-                remember_why_it_has_none(format!("the import of this batch could not write {scratch} ({refused})"));
+                remember_why_it_has_none(format!("the import of this batch could not write {scratch} ({told})"));
                 let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
                 return Ok((made, last));
             }
