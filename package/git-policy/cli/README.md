@@ -1135,13 +1135,19 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    an unfinished bisect moves nothing a removal would notice,
    and Git's own `git worktree remove` deletes the worktree and that log without a word);
 - no process is working in it or in a folder below it,
-   and no process holds a file open in it while working elsewhere,
-   an editor or a build started with `-C` from another directory being the same case,
+   no process holds a file open in it while working elsewhere,
+   and no process runs a program from it,
+   an editor,
+   a `tail -f` or a build started with `-C` from another directory being the same case,
    the command that ran the merge included:
    `-C` names the repository a command works on,
    never its own working folder,
    so a program that spawns a wrapped merge with a linked worktree as that folder
    leaves the worktree kept by this rule;
+   the reading is each process's working folder,
+   its executable and its open descriptors,
+   never its command line or its environment,
+   and a scan that reaches its two-second bound keeps the worktree instead of guessing;
 - no subvolume and no mount point stands below its root,
    because the kernel can never destroy a subvolume that contains another one,
    and Git's own removal would delete the files of the worktree inside it;
@@ -1181,8 +1187,6 @@ The service proves every condition above again,
  the lock,
  the unfinished marks,
  the process table,
- the ignored files (compared again with the worktree the merge ran in,
- which the sweep names in the worktree's own Git directory),
  the records its Git directory holds,
  the record that this program made the worktree,
  and every commit a reference lock holds.
@@ -1191,6 +1195,13 @@ A worktree that no longer meets one of them stays,
  with the path,
  the branch and the reason,
  so nothing is kept in silence.
+Every worktree the sweep keeps is also remembered in
+ `monochromatic-git-policy-cli/kept-landed-worktrees` in the common Git directory,
+ and the next sweep examines it again by itself:
+ the reason a removal was kept is often temporary (a process finishes,
+ a file is committed),
+ and a sweep's candidates are only the branches the merge in front of it brought in,
+ so nothing else would ever look at that worktree again.
 The record names one worktree and not a path:
  it is keyed by the path and by the identity of the registration standing beside it,
  and the service recomputes that name before it removes anything.
@@ -1202,16 +1213,58 @@ The files Git ignores in it go too,
  exactly as they do when a person runs `git worktree remove`:
  a `node_modules/` and a `target/` are rebuilt by the next task,
  and anything else ignored that you put there yourself is gone.
-That is the whole reason a worktree is removed only when this program made it:
- a worktree you created by hand is never removed by itself,
- because this program cannot know which ignored files in it are yours.
-An ignored file you write after the merge returned is one the service compares again before it removes the worktree,
- and it keeps the worktree;
- what goes with it is a file written in the moment between that reading and Git's deletion,
- which is the same window any check and the step relying on it leave.
+The owner's decision of 2026-11-12T13:04:14 is "Keep Git work only":
+Git work is never destroyed by a removal,
+and everything else a person put into the worktree goes with it,
+each thing recorded where you read it afterwards
+(the next section).
+That covers the ignored files,
+a whole ignored directory,
+a worktree nested inside it,
+and a nested Git repository,
+whose commits may exist nowhere else.
+What keeps a worktree is an untracked file that Git does not ignore and that stands directly in it:
+the sweep leaves that worktree,
+and removes it later by itself once the file is gone or added.
+That is also why a worktree is removed by itself only when this program made it:
+ a worktree you created by hand is never removed by itself.
 A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
+
+**Where a removal's deletions are written down.**
+Every removal this program makes or lets Git make records what it deletes of the files the repository's own rules do not
+ name,
+in `monochromatic-git-policy-cli-worktree-deletions.jsonl` in the repository's common Git directory,
+beside `monochromatic-git-policy-cli-audit.jsonl`
+(`git rev-parse --git-common-dir` names the directory).
+One line per removal holds the moment (`time`),
+the worktree it emptied (`worktree`, and `worktreeHex` for a path that is not UTF-8),
+the command that did it (`command`),
+and what went:
+`ignored` names the worktree's ignored entries,
+a whole ignored directory as one entry with the separator that ends it
+(`build/`, `node_modules/`),
+and so one line rather than one line for each of the tens of thousands of files such a directory holds,
+`ignoredTotal` counts every entry Git listed,
+and `ignoredShown` counts the ones the line names,
+which are the first twenty:
+anything past them is counted rather than named,
+so a worktree holding many separate ignored files still writes one readable line.
+`nested` names each registered worktree that stood inside the removal,
+with the files it held in the same shape (`files`,
+`filesShown`,
+`filesTotal`),
+and a listing that could not be read says so in `unreadable` instead of naming nothing.
+A forced removal is written the same way,
+with `--force` in `command`.
+The file rotates at one mebibyte to `monochromatic-git-policy-cli-worktree-deletions.jsonl.1`,
+then `.2`,
+and its generations are kept up to 32 MiB together,
+so the record outlives the worktree.
+A removal that deleted nothing a record explains,
+which is every ordinary clean removal,
+writes no line at all.
 
 **What a removal keeps.**
 A worktree's own Git directory also holds the push failures nobody has seen yet
@@ -2554,11 +2607,26 @@ with no guard:
 An alias the guard reads is still forwarded as you wrote it,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it.
 
-Two commands are never rejected and always leave one audit line (outcome `logged`,
+Two commands always leave one audit line (outcome `logged`,
 with `writtenBeforeGitRuns` `true`,
 because the line is written before Git runs and cannot say whether Git ran the deletion or refused it),
 by the owner's decision,
-also when `--no-enforce-worktree` is given:
+also when `--no-enforce-worktree` is given.
+`git branch -d` and its forms are never rejected.
+`git worktree remove` is never rejected for what the worktree holds,
+because agents are as likely to run `rm -rf`,
+and it is rejected in one case only:
+a live process works in the worktree.
+That refusal names the process by its number and the kernel's name for the program it runs,
+never its command line or its environment,
+says what the removal would do to that program,
+and names the one flag that runs the removal anyway:
+`git worktree --no-enforce-worktree remove <path>`.
+The flag goes directly after the subcommand word `worktree`,
+because a token after `remove` is read as that subcommand's own argument.
+A forced removal is never refused:
+`--force` is your own decision that the worktree goes whatever it holds,
+so it runs exactly as real Git runs it.
 
 - `git worktree remove`,
   because agents are as likely to run `rm -rf`;
@@ -2755,6 +2823,9 @@ run in a clean worktree,
 run in an exempt cache,
 or run with the
  escape) is appended as one JSON line to `monochromatic-git-policy-cli-audit.jsonl` in the common Git directory,
+and what each worktree removal deletes of the files the repository's own rules do not name is written to
+`monochromatic-git-policy-cli-worktree-deletions.jsonl` beside it
+(see "Where a removal's deletions are written down"),
  with the time (`time` and `timeMillis`),
 a `level` (`warn` for a rejection),
 the release,

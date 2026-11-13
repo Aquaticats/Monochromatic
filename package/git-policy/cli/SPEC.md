@@ -3078,8 +3078,11 @@ A worktree whose branch a merge landed is removed by those same routes,
  that it is not the worktree the merge runs in,
  that it is unlocked,
  that no operation is unfinished in it,
- that nothing works inside it,
- that every ignored file it holds is one the worktree the merge ran in also holds,
+ that nothing works inside it
+ (a process whose working folder,
+ executable or open file is there,
+ read from the process table under `PROCESS_SCAN_CEILING`,
+ and a scan that reached its bound keeps the worktree),
  and that the records of its own Git directory are copied,
  and then it records the removal and returns.
  The service proves that same list again immediately before it destroys anything
@@ -3087,9 +3090,6 @@ A worktree whose branch a merge landed is removed by those same routes,
  the registrations are read again,
  the lock and the marks are looked for again,
  the process table is read again,
- the ignored files are compared again with the worktree the sweep names beside the registration
- (the file `monochromatic-git-policy-cli-removal-compared-with` in it,
- so a removal takes that record with the registration and needs no cleanup of its own),
  the records of the worktree's own Git directory are copied again,
  the record that this program made the worktree is read again,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
@@ -3105,6 +3105,42 @@ A worktree whose branch a merge landed is removed by those same routes,
  the branch and the reason,
  and a record whose words could not be written stays for the next command,
  exactly as a failed push's record does.
+ A worktree the sweep itself keeps writes a record under
+ `monochromatic-git-policy-cli/kept-landed-worktrees` of the same directory,
+ and the next sweep examines every worktree still registered there again by itself
+ (`src/native/worktree/worktree_landed_kept_retry.rs`):
+ a sweep's candidates are the branches the merge in front of it brought in,
+ so no later merge would ever look at a worktree kept in an earlier one,
+ while the reason a removal was kept is often temporary.
+ A record whose worktree went,
+ is no longer registered or can never be removed is dropped by that pass.
+ The records are private files named by the hash of the worktree's path,
+ and a path that is not valid UTF-8 names no record a sweep acts on,
+ which leaves the worktree in place rather than removing another directory.
+
+ Every removal writes what it deleted of the files the repository's own rules do not name to
+ `monochromatic-git-policy-cli-worktree-deletions.jsonl` in the common Git directory
+ (`src/native/worktree/worktree_removal_deletions.rs`),
+ one JSON line per removal:
+ `time`,
+ `release`,
+ `kind` (`worktree-removal`),
+ `worktree` and `worktreeHex`,
+ `command` (the words the wrapper ran, `--force` included when it was given),
+ `ignored` (the worktree's ignored entries,
+ a whole ignored directory as one entry with its trailing separator,
+ at most `SHOWN_ENTRIES` = 20 of them),
+ `ignoredShown` and `ignoredTotal`,
+ `nested` (each registered worktree that stood inside it,
+ with `worktree`, `worktreeHex`, `files`, `filesShown` and `filesTotal` for the untracked and ignored files it held),
+ and `unreadable` when a listing could not be read,
+ which is not a failure of the removal.
+ The line is written after the files are gone and only when Git reported success or the destroy returned,
+ so a refused removal writes none,
+ and a removal that deleted nothing the record explains writes none either.
+ The file rotates at one mebibyte and keeps 32 MiB of generations,
+ with no generation pinned,
+ and a write that fails is a debug line and never a failure of the removal.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
  The hand-over writes, beside the registration,
@@ -3129,10 +3165,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  and a mismatch leaves the worktree and names it.
  The record's own name keeps that earlier spelling for the same reason,
  because a record queued while that release ran must still be the record this one finds under its id.
- The worktree the ignored files were compared with is written beside the registration as well
- (the file `monochromatic-git-policy-cli-removal-compared-with`):
- no command of the merge is there any more to name it,
- and the record has no field for either fact without changing a shape another release parses.
+ A record whose hand-over wrote no such identity names the worktree by the path it was keyed by,
+ which is what this release removes on, and the files Git ignores go with it as they do on every other route.
 A queue outlives the program that writes to it,
  and every release of this program shares one queue for one Git directory,
  so a consumer leaves a record it cannot read for the release that wrote it:
@@ -3153,12 +3187,9 @@ A queue outlives the program that writes to it,
  The second attempt is marked in the record itself,
  through the attempt count it already carries,
  so a removal Git refuses again is not queued by every later command.
- A record an earlier release wrote carries neither the identity of its worktree nor the worktree its ignored files were
- compared with,
- so this release cannot prove those files again:
- the service keeps that worktree and names it in the kept-worktree record,
- which the person's next command shows,
- rather than removing it on a proof it cannot repeat.
+ A record an earlier release wrote carries no identity of its worktree,
+ so the service compares the path the record was keyed by,
+ and the removal goes ahead when that path still names the registration the record was written for.
 Nothing about a worktree added inside a landed one is promised after that last reading:
  a worktree registered,
  a lock taken,
@@ -17206,12 +17237,35 @@ A person who needs the stronger promise runs the discard in a disposable worktre
 (`git worktree add <path> <commit>`),
 where the work being discarded is not theirs.
 
-#### The two forms that are recorded and never refused
+#### The two forms that are recorded, and the one refusal a removal has
 
-Two commands run exactly as Git runs them,
-by the owner's decision,
-and leave one audit line each
-(outcome `logged`):
+Two commands run exactly as Git runs them and leave one audit line each
+(outcome `logged`),
+by the owner's decision.
+`git worktree remove` is refused in one case only:
+while a live process works in the worktree.
+The refusal names the process by its number and the kernel's name for the program it runs
+(`/proc/<pid>/comm`),
+never its command line or its environment,
+says what the removal would do to that program,
+and names the escape.
+The escape is the linked-worktree policy's own,
+written directly after the subcommand word `worktree`
+(`git worktree --no-enforce-worktree remove <path>`),
+because a control after `remove` is read as that subcommand's own argument
+(`leading_controls` in `src/native/invocation/wrapper_invocation.rs`),
+and under it the removal runs exactly as real Git runs it.
+A forced removal is never refused: `--force` is the person's own decision that the worktree goes.
+The reading is `process_working_inside`
+(`src/native/worktree/worktree_process_inside.rs`):
+each process's working folder,
+its executable and the files it holds open,
+never `/proc/<pid>/fdinfo/<n>`
+(issue 6287),
+skipping this account's own commit-service markers inside the worktree's Git directory,
+and carrying `PROCESS_SCAN_CEILING`;
+a scan that reached it answers that it did not finish,
+and the removal is refused rather than guessed.
 
 - `git worktree remove` in any worktree.
   The owner's words:
