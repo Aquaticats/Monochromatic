@@ -1201,44 +1201,43 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
   report,
   scripts,
   logs and measurements.
-- `optique-two-remaining-copies-recheck-2026-11-13/`:
-  the recheck of those diffs.
-  Its `keep/` folder holds the records;
-  beside it are the scripts that made them,
-  the staged source arms under `arms/`,
-  which the fourth review pass reads,
-  and `suite-fixture/`,
-  an installed copy of upstream's clone for running its suite.
-  The scripts and records are also in the evidence archive beside the research document,
-  folder `two-remaining-copies-recheck-2026-11-13`.
-  Once the review of the recast is folded in,
-  everything in that folder but `keep/` is to be deleted.
-- `optique-research-record-recast-to-ratios-2026-11-13/`:
-  the archive records the research record's ratios were computed from,
-  the lint and publish logs of the recast,
-  and the browser check of the published README.
-- `optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/`:
-  the runner,
-  image recipe and records of the Node and Bun timing of pull request 1121;
-  its `keep/` folder holds the records,
-  which are also in the evidence archive.
-  It built the image `localhost/optique-pull-request-1121-on-node-and-bun:2026-11-13`,
-  kept until its review is folded in.
+- `optique-two-remaining-copies-recheck-2026-11-13/keep/`:
+  the records of the recheck of those diffs,
+  and the reports of the fourth,
+  fifth and sixth review passes.
+- `optique-research-record-recast-to-ratios-2026-11-13/keep/`:
+  the checks made while the research record was recast,
+  the rendered check of the pushed record,
+  the scratch sizes measured that day,
+  and the list and the result of the cleanup.
+- `optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/keep/`:
+  the records of the Node and Bun timing of pull request 1121,
+  and the report of its review.
 
-Container images `localhost/optique-cross-runtime:2026-11-13`,
-`localhost/optique-upstream-arms:2026-11-13`,
-`localhost/optique-prototype-work:2026-11-13` and `localhost/optique-prototype-work-current-bun:2026-11-13`
-were built on 2026-11-13,
-after `podman system reset` removed the earlier ones.
-The recheck added `localhost/optique-two-remaining-copies-recheck:2026-11-13`
-and two small ones built on it,
-tagged `-annotated` and `-mixed-threshold`,
-and the prototype agent left `localhost/optique-prototype-arms:2026-11-13`.
-The recheck later added two more on it,
-tagged `-kept-patch` and `-node-and-bun`.
-All of these are kept until the review of the recast is folded in,
-in case a check has to be run again,
-and are to be removed after it.
+On 2026-11-13,
+once the last review was folded in,
+everything but `keep/` in those folders was deleted,
+with the reviewers' own scratch folders,
+their branches,
+which held no commit `main` lacks,
+and every container image this work had built
+(each tagged `localhost/optique-*:2026-11-13`).
+The scripts,
+recipes and records the documents cite are in the evidence archive beside the research document,
+in the folders `two-remaining-copies-recheck-2026-11-13`,
+`pull-request-1121-on-node-and-bun-2026-11-13`,
+`recast-to-ratios-2026-11-13` and `measurements-2026-11-13`.
+Running a check again means building its image again from the recipe there,
+which fetches the current Node,
+Deno and Bun and so will not reproduce the versions named in the documents once those move.
+What the deletion listed first and what it did are in
+`${HOME}/temp/agent/optique-research-record-recast-to-ratios-2026-11-13/keep/`,
+files `look-before-cleanup.txt` and `what-the-cleanup-did.txt`.
+`${HOME}/temp/agent` measured 269,602 MiB before that deletion,
+of which this work's folders held about 3,000 MiB;
+the largest folders that had appeared since the measurement earlier that day,
+which read 218,124 MiB,
+belong to other sessions.
 
 The defects in this repository's own tools that showed during the work are filed,
 on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
