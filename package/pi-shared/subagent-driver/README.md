@@ -231,7 +231,8 @@ never slots.
   Two runs that share a name are two agents,
   never one:
   an audit name may go twice,
-  and a launcher and the unit it made are one agent because they are one run;
+  and a launcher and the unit it made are one agent only while the launcher's own `systemd-run` client waits on that unit;
+  a unit no launcher is waiting on is another agent.
 - the agents a caller says it has going which are no Pi run,
   such as subagents of its own session,
   which the gate cannot see.

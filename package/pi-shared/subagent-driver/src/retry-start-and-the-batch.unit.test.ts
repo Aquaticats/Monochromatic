@@ -183,6 +183,54 @@ async function writeProcess({
 }
 
 /**
+ Writes one waiting client into the test's process folder: the `systemd-run` process a launcher keeps until its unit ends, and
+ which is what proves a listed unit is that launcher's own run.
+
+ @param folder - the process folder
+
+ @param pid - the client's own process number
+
+ @param parentPid - the number of the process that started it, which is the launcher's when it is that launcher's client
+
+ @param unitName - the unit the client waits on
+
+ @example
+ ```ts
+ await writeWaitingClient({ folder: processes, pid: '36', parentPid: '35', unitName: 'pi-copy-route.service', });
+ ```
+ */
+async function writeWaitingClient({
+  folder,
+  pid,
+  parentPid,
+  unitName,
+}: {
+  readonly folder: string;
+  readonly pid: string;
+  readonly parentPid: string;
+  readonly unitName: string;
+}): Promise<void> {
+  await mkdir(join(folder, pid,), { recursive: true, },);
+  await writeFile(
+    join(folder, pid, 'cmdline',),
+    [
+      'systemd-run',
+      '--user',
+      '--wait',
+      `--unit=${unitName}`,
+      '--collect',
+      '',
+    ].join('\0',),
+  );
+  // The process's record as the kernel writes it: its number, its name in brackets, its state, and then the process that started
+  // it. The fields after those are not read, so a short record stands in for a whole one.
+  await writeFile(
+    join(folder, pid, 'stat',),
+    `${pid} (systemd-run) S ${parentPid} 0 0\n`,
+  );
+}
+
+/**
  How long a fixture child waits for the word that says the caller passed its first line on, above the look it takes to see the file
  and far below the bound any test may take.
  */
@@ -1323,6 +1371,12 @@ await describe({
               pid: '21',
               words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=with-launcher',],
             },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '22',
+              parentPid: '21',
+              unitName: 'pi-with-launcher.service',
+            },);
             /**
              Every question asked of systemd.
              */
@@ -1418,17 +1472,23 @@ await describe({
           },
         },),
         it({
-          name: 'counts a launcher and the unit it made as one agent, because the unit is the launcher own run',
+          name: 'counts a launcher and the unit it made as one agent, because the launcher own systemd-run client is waiting on that unit',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The process folder a test writes.
+             The process folder a test writes, holding the launcher and the client it waits with.
              */
             const processes = join(folder.path, 'proc',);
             await writeProcess({
               folder: processes,
               pid: '35',
               words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=copy-route',],
+            },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '36',
+              parentPid: '35',
+              unitName: 'pi-copy-route.service',
             },);
             /**
              The runs going now, with the unit that launcher made listed by systemd.
@@ -1448,6 +1508,123 @@ await describe({
             expect(going.length,).toBe(1,);
             expect(going[0]?.name,).toBe('copy-route',);
             expect(going[0]?.agents,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'counts the unit of one audit run and the launcher of a second run as two agents, because no launcher is waiting on that unit',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding the second run's launcher only: the first run's launcher has gone, so only
+             its unit is left of it.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '41',
+              words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-sol-audit.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=synthetic --model=gpt-audit ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.name,).toBe('sol-audit',);
+            expect(going[0]?.agents,).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts a unit as another agent when the client waiting on it was started by no launcher going',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding a launcher and a client whose parent is no launcher: the launcher that
+             started that client has gone while its unit runs.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '42',
+              words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=copy-route',],
+            },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '43',
+              parentPid: '99',
+              unitName: 'pi-copy-route.service',
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-copy-route.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=neuralwatt --model=deepseek-v4.1-flash-flex ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts a unit as another agent when the launcher starting the client waits on a different unit',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding a launcher whose own client waits on another unit's name, and the unit
+             under the launcher's own name.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '44',
+              words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=copy-route',],
+            },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '45',
+              parentPid: '44',
+              unitName: 'pi-another-run.service',
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-copy-route.service x\npi-another-run.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=neuralwatt --model=deepseek-v4.1-flash-flex ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            /**
+             The entry of the launcher's name, beside the unit of the other name the client waits on.
+             */
+            const ofTheLauncher = going.find(function isNamed(run,) {
+              return run.name === 'copy-route';
+            },);
+            expect(ofTheLauncher?.agents,).toBe(2,);
           },
         },),
         it({

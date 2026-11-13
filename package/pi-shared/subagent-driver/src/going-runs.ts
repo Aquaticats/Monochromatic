@@ -8,22 +8,24 @@
 
  The entries are one per run name, which is what a pool counts and what a second start of one name is refused against; each
  entry also says how many agents the name stands for, because the machine's cap counts agents and two runs that share a name are
- two agents.
+ two agents. A launcher and a unit are joined as one run only when the launcher's own `systemd-run` client is still waiting on
+ that very unit: two runs may share a name, because an audit name may go twice, and a unit whose launcher has gone beside a
+ launcher of the same name is two agents, not one.
 
  @module
  */
 
-import {
-  basename,
-  join,
-} from 'node:path';
-import {
-  readdir,
-  readFile,
-} from 'node:fs/promises';
+import { basename, } from 'node:path';
 import type { RunCommand, } from './run-command.ts';
 import {
+  NO_PROCESS,
+  type ProcessGoing,
+  parentPidOf,
+  processesGoingIn,
+} from './processes-of-the-table.ts';
+import {
   PiUnitsUnreadableError,
+  unitNameOfGiven,
 } from './running-pi-units.ts';
 import {
   type PoolMembership,
@@ -33,17 +35,10 @@ import {
   poolNamed,
 } from './pool-limits.ts';
 import { optionIn, } from './option-in.ts';
-import { errorCodeOf, } from './error-code-of.ts';
 import {
   firstWordOf,
-  isDigitsOnly,
   valueOfOption,
 } from './text-of-an-option.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The option that names the provider a run asks for.
@@ -59,6 +54,17 @@ const MODEL_OPTION = '--model=';
  The option that names the run.
  */
 const NAME_OPTION = '--name=';
+
+/**
+ The program that starts a unit and waits on it, as a launcher runs it: a process of that name whose parent is the launcher and
+ whose command line names the unit is what proves the unit is that launcher's own run.
+ */
+const UNIT_WAITER_PROGRAM = 'systemd-run';
+
+/**
+ The option that names the unit a waiting `systemd-run` client started.
+ */
+const UNIT_OPTION = '--unit=';
 
 /**
  The unit properties a Pi run's unit is read for, which is where a unit whose launcher has gone names its pool.
@@ -102,8 +108,9 @@ export type GoingRun = {
 
   /**
    How many agents this run name stands for: one for a launcher or for a unit, one when a launcher and the unit it made share
-   the name, and two when two launchers are going under one name, which an audit name may do and a race can leave for a moment.
-   A pool counts the entry once; the machine's cap counts these agents, so two runs sharing a name are never one agent.
+   the name, and two when two runs are going under one name, which an audit name may do and a race can leave for a moment.
+   A launcher counts for the unit only when its own `systemd-run` client is still waiting on that unit; a unit no launcher proves
+   is another agent. A pool counts the entry once; the machine's cap counts these agents, so two runs sharing a name are never one.
    */
   readonly agents: number;
 
@@ -156,37 +163,176 @@ function membershipOfCommandLine({
 }
 
 /**
- Reads one process's command line, or nothing when the process ended between the listing and the read.
+ One launcher going now: the run it names, and its process number, which is what proves a unit it waits on.
+ */
+type LauncherGoing = {
+  /**
+   The run the launcher names.
+   */
+  readonly run: GoingRun;
 
- @param path - the process's own command line file
+  /**
+   The launcher's process number.
+   */
+  readonly pid: number;
+};
 
- @returns the words the kernel split the line into, or nothing at all
+/**
+ Reads the unit a `systemd-run` client is waiting on.
 
- @throws Error when the read failed for any reason other than a process that is gone
+ @param words - the words of one process's command line
+
+ @returns the unit's name, or empty text when the process is no client waiting on a unit
 
  @example
  ```ts
- const words = await commandLineOrNothingIn('/proc/123/cmdline',);
+ const unitName = unitAwaitedBy({ words: ['systemd-run', '--unit=pi-a.service',], },);
  ```
  */
-async function commandLineOrNothingIn(path: string,): Promise<readonly string[]> {
-  try {
-    return (await readFile(
-      path,
-      'utf8',
-    )).split('\0',);
+function unitAwaitedBy({ words }: { readonly words: readonly string[] }): string {
+  /**
+   The program the process runs, which a waiting client spells as the launcher started it.
+   */
+  const [program,] = words;
+  if ((program === undefined) || (basename(program,) !== UNIT_WAITER_PROGRAM)) {
+    return '';
   }
-  catch (error) {
-    /**
-     The code the operating system gave the read.
-     */
-    const code = errorCodeOf(error,);
-    if ((code === MISSING_PATH_CODE) || (code === 'ESRCH')) {
-      return [];
-    }
-    throw error;
-  }
+  return optionIn({
+    commandLine: words,
+    option: UNIT_OPTION,
+  },);
 }
+
+/**
+ Reads the unit each launcher is waiting on, which is what proves a listed unit is that launcher's own run.
+
+ The launcher starts its unit as `systemd-run --user --wait --unit=pi-<name>.service` and stays that client's parent until the
+ unit ends, so a live client naming a unit whose parent is a launcher of that name proves the unit is that launcher's run. A unit
+ no launcher proves is another agent: a unit of one run and a launcher of another run may share a name, because an audit name may
+ go twice.
+
+ @param processes - every process of the folder
+
+ @param launchers - the launchers going now, with their process numbers
+
+ @param processFolder - the folder holding one entry per process
+
+ @returns the names of the units a launcher proved to be its own run
+
+ @example
+ ```ts
+ const proved = await unitsLaunchersWaitOn({ processes, launchers, processFolder: '/proc', },);
+ ```
+ */
+async function unitsLaunchersWaitOn({
+  processes,
+  launchers,
+  processFolder,
+}: {
+  readonly processes: readonly ProcessGoing[];
+  readonly launchers: readonly LauncherGoing[];
+  readonly processFolder: string;
+},): Promise<ReadonlySet<string>> {
+  /**
+   The units proved to be a launcher's own run.
+   */
+  const proved = new Set<string>();
+  for (const process of processes) {
+    /**
+     The unit this process waits on, when it is a `systemd-run` client.
+     */
+    const unitName = unitAwaitedBy({ words: process.words, },);
+    if (unitName === '') {
+      continue;
+    }
+    /**
+     The process that started this client.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one waiting client after another, and a parent is read only while the client lives; see doc/lint/sequential-awaits.md
+    const parent = await parentPidOf({
+      processFolder,
+      pid: process.pid,
+    },);
+    /**
+     The launcher that started this client, when one of that name did.
+     */
+    const launcher = launchers.find(function startedIt(candidate,) {
+      /**
+       The run the candidate launcher names, and the unit its name makes.
+       */
+      const { name: candidateName, } = candidate.run;
+      return (candidate.pid === parent)
+        && (unitNameOfGiven({ name: candidateName, },) === unitName);
+    },);
+    if (launcher !== undefined) {
+      proved.add(unitName,);
+    }
+  }
+  return proved;
+}
+
+/**
+ Reads the launcher processes among the processes of the folder: one entry per process that names a run.
+
+ @param processes - every process of the folder
+
+ @param launcherEntryNames - the basenames a launcher is run as
+
+ @param pools - the pools to read a launcher's own options against
+
+ @returns one entry per launcher that names a run
+
+ @example
+ ```ts
+ const launchers = launchersAmong({ processes, launcherEntryNames: LAUNCHER_ENTRY_NAMES, },);
+ ```
+ */
+function launchersAmong({
+  processes,
+  launcherEntryNames,
+  pools = PROVIDER_POOLS,
+}: {
+  readonly processes: readonly ProcessGoing[];
+  readonly launcherEntryNames: readonly string[];
+  readonly pools?: readonly ProviderPool[];
+}): readonly LauncherGoing[] {
+  /**
+   The launchers found so far.
+   */
+  const launchers: LauncherGoing[] = [];
+  for (const process of processes) {
+    /**
+     The entry point the process runs, which is the second word Node and a shebang script both leave in place.
+     */
+    const [, entryPoint,] = process.words;
+    if ((entryPoint === undefined) || (!launcherEntryNames.includes(basename(entryPoint,),))) {
+      continue;
+    }
+    /**
+     The run this launcher names.
+     */
+    const name = optionIn({
+      commandLine: process.words,
+      option: NAME_OPTION,
+    },);
+    if (name === '') {
+      continue;
+    }
+    launchers.push({
+      pid: process.pid,
+      run: {
+        name,
+        agents: 1,
+        membership: membershipOfCommandLine({
+          commandLine: process.words,
+          pools,
+        },),
+      },
+    },);
+  }
+  return launchers;
+}
+
 
 /**
  Reads the Pi runs whose launcher is still running, before their unit exists.
@@ -211,58 +357,14 @@ export async function launcherRunsIn({
   readonly launcherEntryNames: readonly string[];
   readonly pools?: readonly ProviderPool[];
 }): Promise<readonly GoingRun[]> {
-  /**
-   The entries of the process folder, which is one per process number.
-   */
-  const entries = await readdir(processFolder,);
-  /**
-   The launchers found so far.
-   */
-  const runs: GoingRun[] = [];
-  for (const entry of entries) {
-    if (!isDigitsOnly(entry,)) {
-      continue;
-    }
-    /**
-     The launcher's command line, split where the kernel splits it, or nothing when the process ended between the listing and
-     the read.
-     */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, and a launcher's line is only readable while its process lives; see doc/lint/sequential-awaits.md
-    const commandLine = await commandLineOrNothingIn(join(
-      processFolder,
-      entry,
-      'cmdline',
-    ),);
-    if (commandLine.length === 0) {
-      continue;
-    }
-    /**
-     The entry point the process runs, which is the second word Node and a shebang script both leave in place.
-     */
-    const [, entryPoint,] = commandLine;
-    if ((entryPoint === undefined) || (!launcherEntryNames.includes(basename(entryPoint,),))) {
-      continue;
-    }
-    /**
-     The run this launcher names.
-     */
-    const name = optionIn({
-      commandLine,
-      option: NAME_OPTION,
+  return launchersAmong({
+    processes: await processesGoingIn({ processFolder, },),
+    launcherEntryNames,
+    pools,
+  },)
+    .map(function runOf(launcher,) {
+      return launcher.run;
     },);
-    if (name === '') {
-      continue;
-    }
-    runs.push({
-      name,
-      agents: 1,
-      membership: membershipOfCommandLine({
-        commandLine,
-        pools,
-      },),
-    },);
-  }
-  return runs;
 }
 
 /**
@@ -366,34 +468,49 @@ export async function goingRunsNow({
   readonly onProblem: (problem: string) => void;
 }): Promise<readonly GoingRun[]> {
   /**
+   Every process whose command line could be read, which is where the launchers and the clients waiting on their units are found.
+   */
+  const processes = await processesGoingIn({ processFolder, },);
+  /**
    The launchers that have not made their unit yet.
    */
-  const launchers = await launcherRunsIn({
-    processFolder,
+  const launchers = launchersAmong({
+    processes,
     launcherEntryNames,
     pools,
   },);
   /**
-   The runs the launchers already account for, one entry per name, each with the agents going under that name: two launchers of
-   one name are two agents, while a launcher and the unit it made are one, and the unit is folded into the entry the launcher
-   already holds.
+   The runs the launchers account for, one entry per name, each with the agents going under that name: two launchers of one name
+   are two agents. A unit is folded into its launcher's entry only when that launcher is proved to be waiting on it.
    */
   const runs = new Map<string, GoingRun>();
   for (const launcher of launchers) {
     /**
+     The run this launcher names, which is the entry it joins.
+     */
+    const { name, } = launcher.run;
+    /**
      The entry this name already holds, when a launcher of it was seen.
      */
-    const held = runs.get(launcher.name,);
+    const held = runs.get(name,);
     runs.set(
-      launcher.name,
+      name,
       (held === undefined)
-        ? launcher
+        ? launcher.run
         : {
           ...held,
           agents: held.agents + 1,
         },
     );
   }
+  /**
+   The units a launcher proved to be its own run, by the client it is still waiting with.
+   */
+  const provedUnits = await unitsLaunchersWaitOn({
+    processes,
+    launchers,
+    processFolder,
+  },);
   /**
    What systemd said about the Pi units.
    */
@@ -416,7 +533,28 @@ export async function goingRunsNow({
     );
   }
   for (const name of unitRunNamesIn({ shown: listed.stdout, },)) {
-    if (runs.has(name,)) {
+    /**
+     The unit's own name, which is what a launcher's waiting client names.
+     */
+    const unitName = `${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX}`;
+    /**
+     The entry this run name already holds, when a launcher of it is going.
+     */
+    const held = runs.get(name,);
+    if ((held !== undefined) && provedUnits.has(unitName,)) {
+      // The launcher is proved to be waiting on this very unit, so it is that one run, already counted.
+      continue;
+    }
+    if (held !== undefined) {
+      // A launcher of this name is going and no launcher proves this unit, so the two are two runs: one more agent under this
+      // name, in the one entry a pool counts for it. The entry keeps the launcher's own pool membership.
+      runs.set(
+        name,
+        {
+          ...held,
+          agents: held.agents + 1,
+        },
+      );
       continue;
     }
     /**
@@ -428,13 +566,13 @@ export async function goingRunsNow({
       words: [
         '--user',
         'show',
-        `${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX}`,
+        unitName,
         EXEC_START_PROPERTY,
         '--value',
       ],
     },);
     if (shown.status !== 0) {
-      onProblem(`pool of unit ${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX} not read: ${shown.problem
+      onProblem(`pool of unit ${unitName} not read: ${shown.problem
         ?? shown.stderr
           .trim()}`);
     }
