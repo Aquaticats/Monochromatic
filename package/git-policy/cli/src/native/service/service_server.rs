@@ -362,8 +362,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
     start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
-    // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
-    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
+    // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
+    //  and only past the newest `DONE_RETAINED` of the journal, before the rest are read into that memory.
+    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED, &crate::claim_time::ClaimTime::read());
     if pruned > 0 {
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
