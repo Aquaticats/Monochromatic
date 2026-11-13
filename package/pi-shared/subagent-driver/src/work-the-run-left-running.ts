@@ -28,12 +28,27 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
-import { isRecord, } from './read-pi-fields.ts';
+import {
+  ownWorkFoldersOf,
+  processesAtTheirFolders
+} from './wake-a-run-whose-work-outlives-its-turn.ts';
 import {
   type RunCommand,
   runCommandWithChildProcess,
 } from './run-command.ts';
-import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
+import {
+  type WorkOfARun,
+  workTheToolReportedIn,
+} from './what-a-runs-feed-says-about-its-work.ts';
+
+/**
+ What a run's feed says about the work it left running, kept in a file of its own so that neither module outgrows the line budget.
+ */
+export {
+  type ReportedWorkOfARun,
+  type WorkOfARun,
+  workTheToolReportedIn,
+} from './what-a-runs-feed-says-about-its-work.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -41,140 +56,9 @@ import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-t
 const MISSING_PATH_CODE = 'ENOENT';
 
 /**
- The statuses the `process` tool holds a process under while it still runs, which are the ones a run may be waiting for.
- */
-const LIVE_STATUSES: ReadonlySet<string> = new Set<string>([
-  'running',
-  'terminating',
-  'terminate_timeout',
-]);
-
-/**
  The number of characters of a command a line carries, so a line stays a line.
  */
 const COMMAND_CHARACTERS = 160;
-
-/**
- One process a run started, as the run's own `process` tool recorded it.
- */
-export type WorkOfARun = {
-  /**
-   The tool's name for the process, such as `proc_7adb`.
-   */
-  readonly id: string;
-
-  /**
-   The name the agent gave it, which is the tool's own name when it gave none.
-   */
-  readonly name: string;
-
-  /**
-   The process number the tool holds, which is no number when the tool recorded none.
-   */
-  readonly pid?: number;
-
-  /**
-   The command the tool started.
-   */
-  readonly command: string;
-
-  /**
-   The folder the tool started it in.
-   */
-  readonly cwd: string;
-
-  /**
-   The status the tool last reported, when a record named one.
-   */
-  readonly status?: string;
-};
-
-/**
- Reads the processes a run's own `process` tool last reported as running.
-
- The records are the feed's own: every start, update and list the tool answered is a `tool_end` whose result carries the process
- or the processes it answered with, so what the tool holds is read without asking Pi, whose session may already be over.
-
- @param feedShown - the run's feed, one JSON record per line
-
- @returns the processes the tool reported and did not later report as ended
-
- @example
- ```ts
- const running = workTheToolReportedIn({ feedShown: await readFile(feedFile, 'utf8',), },);
- ```
- */
-export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: string },): readonly WorkOfARun[] {
-  /**
-   The last status the tool reported for each process, by the tool's name for it.
-   */
-  const reported = new Map<string, WorkOfARun>();
-  for (const line of feedShown.split('\n',)) {
-    if (line === '') {
-      continue;
-    }
-    /**
-     One record of the feed, of any shape.
-     */
-    const record: unknown = JSON.parse(line,);
-    if ((!isRecord(record,)) || (record.kind !== 'tool_end')
-      || (record.tool !== 'process')
-      || (record.isError === true)) {
-      continue;
-    }
-    if ((typeof record.result) !== 'string') {
-      continue;
-    }
-    /**
-     What the tool answered, of any shape.
-     */
-    const result: unknown = JSON.parse(record.result,);
-    /**
-     What that answer says about processes, if anything.
-     */
-    const { details, } = isRecord(result,) ? result : { details: undefined, };
-    if (!isRecord(details,)) {
-      continue;
-    }
-    /**
-     Every process this answer names, one or many, as the answer holds them.
-     */
-    const listed: readonly unknown[] = Array.isArray(details.processes) ? details.processes : [];
-    /**
-     What this answer says about the processes, one of them or a list.
-     */
-    const named: readonly unknown[] = [
-      ...(isRecord(details.process,) ? [details.process,] : []),
-      ...listed,
-    ];
-    for (const process of named) {
-      if (!isRecord(process,)) {
-        continue;
-      }
-      /**
-       The tool's name for it, which is what a later record repeats.
-       */
-      const { id, } = process;
-      if ((typeof id) !== 'string') {
-        continue;
-      }
-      reported.set(
-        id,
-        {
-          id,
-          name: ((typeof process.name) === 'string') ? process.name : id,
-          ...((typeof process.pid) === 'number' ? { pid: process.pid, } : {}),
-          command: ((typeof process.command) === 'string') ? process.command : '',
-          cwd: ((typeof process.cwd) === 'string') ? process.cwd : '',
-          ...((typeof process.status) === 'string' ? { status: process.status, } : {}),
-        },
-      );
-    }
-  }
-  return [...reported.values()].filter(function stillRuns(work,) {
-    return work.status === undefined ? false : LIVE_STATUSES.has(work.status,);
-  },);
-}
 
 /**
  Reads the control group a process is in, from the process folder's own record of it.
@@ -323,6 +207,9 @@ function lineOf({ work, }: { readonly work: WorkOfARun },): string {
 
  @param processFolder - the folder holding one entry per process, `/proc` here
 
+ @param scratchFolder - the run's one scratch folder, when the run was given one, which its own work works in as much as its
+ worktree
+
  @param run - how a command is run, which a test replaces
 
  @returns one line per process the run still has going, empty when it has none the driver can see
@@ -336,11 +223,13 @@ export async function workOutlivingTheTurnIn({
   runFolder,
   workingFolder,
   processFolder,
+  scratchFolder,
   run = runCommandWithChildProcess,
 }: {
   readonly runFolder: string;
   readonly workingFolder: string;
   readonly processFolder: string;
+  readonly scratchFolder?: string;
   readonly run?: RunCommand;
 },): Promise<readonly string[]> {
   /**
@@ -369,19 +258,29 @@ export async function workOutlivingTheTurnIn({
    The process numbers already named, so a process is not named twice.
    */
   const named = new Set<number>();
-  for (const work of reported) {
+  for (const work of reported.running) {
     /**
-     Whether the number the tool holds is still a process.
+     Whether the number the tool holds is still a process, which is what says so when the feed's copy of the tool's own answer is
+     cut and no status survived it.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read before the next is asked about; a handful of processes at most; see doc/lint/sequential-awaits.md
     const alive = (work.pid === undefined) ? false : await processIsThere({
       processFolder,
       pid: work.pid,
     },);
+    // A process the feed names without a number and without a status is one nothing can say is over, so it counts as work that
+    // may still run: a run is never ended on a guess that its work has finished.
+    if (alive || ((work.pid === undefined) && (work.statusIsUnknown === true))) {
+      lines.push(lineOf({ work, },),);
+      if (work.pid !== undefined) {
+        named.add(work.pid,);
+      }
+      continue;
+    }
     /**
      Whether the unit the command names still runs it.
      */
-    const { unit, } = alive ? {} : unitNamedBy({ command: work.command, },);
+    const { unit, } = unitNamedBy({ command: work.command, },);
     /**
      What the manager says about that unit.
      */
@@ -398,13 +297,22 @@ export async function workOutlivingTheTurnIn({
       },)).stdout
         .trim()
         === 'active';
-    if ((!alive) && (!unitRuns)) {
+    if (!unitRuns) {
       continue;
     }
     lines.push(lineOf({ work, },),);
-    if (work.pid !== undefined) {
-      named.add(work.pid,);
-    }
+  }
+  // An answer the feed holds only a cut copy of, from which no process could be read, may have started work this cannot name:
+  // it is said plainly rather than read as no work at all.
+  if (reported.unreadableAnswers
+    .length
+    > 0) {
+    lines.push(`${String(reported.unreadableAnswers
+      .length,)} `
+      + `process-tool answer${(reported.unreadableAnswers
+        .length
+        === 1) ? '' : 's'} `
+      + 'the feed holds only a cut copy of, so a process one of them started may still run',);
   }
   /**
    What the process table shows working in the run's own folders.
@@ -417,14 +325,16 @@ export async function workOutlivingTheTurnIn({
     /**
      Whether it works in one of the run's own folders, which is the run's work however it was started.
      */
-    const worksInOwnFolder = [
-      workingFolder,
+    const worksInOwnFolder = ownWorkFoldersOf({
+      worktree: workingFolder,
       runFolder,
-    ].some(function isTheFolder(own,) {
-      return (own !== '') && ((process.folder === own)
-        || process.folder
-          .startsWith(`${own}/`,));
-    },);
+      ...((scratchFolder === undefined) ? {} : { scratchFolder, }),
+    },)
+      .some(function isTheFolder(own,) {
+        return (own !== '') && ((process.folder === own)
+          || process.folder
+            .startsWith(`${own}/`,));
+      },);
     if (!worksInOwnFolder) {
       continue;
     }

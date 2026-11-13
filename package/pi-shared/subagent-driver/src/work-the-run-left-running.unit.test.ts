@@ -310,7 +310,10 @@ await describe({
               },),
               '',
             ].join('\n',);
-            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual([],);
+            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual({
+              running: [],
+              unreadableAnswers: [],
+            },);
           },
         },),
         it({
@@ -340,14 +343,120 @@ await describe({
               },),
               '',
             ].join('\n',);
-            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual([{
-              id: 'proc_7adb',
-              name: 'native-build-2',
-              pid: 486_667,
-              command: `cd ${aWorktree()} && systemd-run --user --scope -- mise run build`,
-              cwd: aWorktree(),
+            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual({
+              running: [{
+                id: 'proc_7adb',
+                name: 'native-build-2',
+                pid: 486_667,
+                command: `cd ${aWorktree()} && systemd-run --user --scope -- mise run build`,
+                cwd: aWorktree(),
+                status: 'running',
+              },],
+              unreadableAnswers: [],
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: workTheToolReportedIn.name,
+      children: [
+        it({
+          name: 'reads a process out of an answer the feed holds only a cut copy of, which is the answer that ended two finished runs as driver-failed, and never throws',
+          fn: async () => {
+            /**
+             A feed whose one answer is cut where the feed cuts it: 500 characters of the tool's own answer and the marker for the
+             rest, as `~/temp/agent/pi-runs/optique-two-remaining-copies-prototype-1/feed.jsonl` line 289 holds it.
+             */
+            const shown = JSON.stringify({
+              kind: 'tool_end',
+              tool: 'process',
+              isError: false,
+              result: '{"content":[{"type":"text","text":"Started process deno-core-suite (proc_a88e) with pid 284377."}],'
+                + '"details":{"action":"start","process":{"id":"proc_a88e","name":"deno-core-suite","pid":284377,'
+                + '"command":"W=/home/user/temp/agent/upstream-prototype.3lsGY9v7; podman run --rm --cpus 2 ...[1937]',
+            },);
+            /**
+             What the function answered, which must be an answer rather than an exception.
+             */
+            const reported = workTheToolReportedIn({ feedShown: `${shown}\n`, },);
+            expect(reported.unreadableAnswers,).toEqual([],);
+            expect(reported.running,).toEqual([{
+              id: 'proc_a88e',
+              name: 'deno-core-suite',
+              pid: 284_377,
+              command: '',
+              cwd: '',
+              // The cut fell inside the command, so the status is the process table's to say and the tool's no longer.
+              statusIsUnknown: true,
+            },],);
+          },
+        },),
+        it({
+          name: 'reads the process an output answer names out of the flat details a cut copy still holds',
+          fn: async () => {
+            /**
+             A feed whose one answer is an `output` answer, cut inside the file name it ends with.
+             */
+            const shown = JSON.stringify({
+              kind: 'tool_end',
+              tool: 'process',
+              isError: false,
+              result: `${String.raw`{"content":[{"type":"text","text":"\"deno-core-suite\" (proc_a88e) [running]"}],`
+                 }"details":{"action":"output","id":"proc_a88e","processName":"deno-core-suite",`
+                + `"processStatus":"running","stream":"both","tailLines":40,"pattern":null,"mode":"literal",`
+                + `"stdoutFile":"/tmp/pi-proce...[920]`,
+            },);
+            expect(workTheToolReportedIn({ feedShown: `${shown}\n`, },).running,).toEqual([{
+              id: 'proc_a88e',
+              name: 'deno-core-suite',
+              command: '',
+              cwd: '',
               status: 'running',
             },],);
+          },
+        },),
+        it({
+          name: 'counts an answer nothing can be read from, so a process it started is work that may still run, and reads no line of the feed it cannot parse',
+          fn: async () => {
+            /**
+             A feed whose answer is cut inside its first string, and one line that is no record at all.
+             */
+            const shown = [
+              JSON.stringify({
+                kind: 'tool_end',
+                tool: 'process',
+                isError: false,
+                result: '{"content":[{"type":"text","text\\',
+              },),
+              'not a record',
+              '',
+            ].join('\n',);
+            /**
+             What the function answered about a feed with both kinds of unreadable line.
+             */
+            const reported = workTheToolReportedIn({ feedShown: shown, },);
+            expect(reported.running,).toEqual([],);
+            expect(reported.unreadableAnswers,).toHaveLength(2,);
+            expect(reported.unreadableAnswers[0],).toContain('a process-tool answer the feed holds only a cut copy of',);
+            expect(reported.unreadableAnswers[1],).toContain('a line of the feed that is no record',);
+          },
+        },),
+        it({
+          name: 'keeps the status an answer that is whole reports, and the last one a later answer reports',
+          fn: async () => {
+            /**
+             A feed whose tool reported one process running and then reported it exited.
+             */
+            const shown = [
+              aToolAnswer({ action: 'start', process: aProcess({},), },),
+              aToolAnswer({ action: 'status', process: aProcess({ status: 'exited', },), },),
+              '',
+            ].join('\n',);
+            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual({
+              running: [],
+              unreadableAnswers: [],
+            },);
           },
         },),
       ],
@@ -423,6 +532,112 @@ await describe({
               processFolder: processes,
               entry: 'nobody',
             },),).toBe('',);
+          },
+        },),
+        it({
+          name: 'names a process working in the run one scratch folder, which is the work a run own end step must not empty under',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            /**
+             The scratch folder the launcher gave the run.
+             */
+            const scratch = '/home/a/temp/agent/copy-route-scratch';
+            // A reproduction working in the scratch folder, in a scope of its own, which is where the briefs tell an agent to run
+            // a command whose result a later turn reads.
+            await writeProcess({
+              folder: processes,
+              pid: 103,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: scratch,
+              command: 'bash',
+            },);
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              scratchFolder: scratch,
+              processFolder: processes,
+              run: async function answered() {
+                return {
+                  status: 1,
+                  stdout: 'inactive\n',
+                  stderr: '',
+                };
+              },
+            },),).toEqual(['103 bash',],);
+            // The same process with no scratch folder named is no work of the run's, which is the state the run's end was in before
+            // the folder counted.
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                return {
+                  status: 1,
+                  stdout: 'inactive\n',
+                  stderr: '',
+                };
+              },
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'counts a process a cut answer names but no longer numbers as work that may still run, and says an answer it cannot read at all may have started some',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            /**
+             A feed holding one cut answer that names a process and numbers neither it nor its status, and one answer nothing can be
+             read from.
+             */
+            const feed = [
+              JSON.stringify({
+                kind: 'tool_end',
+                tool: 'process',
+                isError: false,
+                result: '{"details":{"action":"start","process":{"id":"proc_7adb","name":"native-build-2","command":"bui',
+              },),
+              JSON.stringify({
+                kind: 'tool_end',
+                tool: 'process',
+                isError: false,
+                result: '{"content":[{"type":"text","text\\',
+              },),
+              '',
+            ].join('\n',);
+            await writeFile(join(
+              folder.path,
+              'feed.jsonl',
+            ), feed,);
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                return {
+                  status: 1,
+                  stdout: 'inactive\n',
+                  stderr: '',
+                };
+              },
+            },),).toEqual([
+              'proc_7adb (native-build-2)',
+              '1 process-tool answer the feed holds only a cut copy of, so a process one of them started may still run',
+            ],);
           },
         },),
         it({
