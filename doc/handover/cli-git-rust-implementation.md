@@ -2931,52 +2931,54 @@ The first two qwen4 reviews under the new rule ended within about forty-five min
   and reads Kimi's review of the same commit when it appears.
   Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
 
-Round 250 (`fix/git-policy-cli-abort-and-skip-save-what-they-discard-second-pass`, from the tip of round 248)
-closes the five things round 248 left open, each measured against the wrapper built from its own worktree:
+Round 298 (`fix/git-policy-cli-abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+from the tip of round 250) carries out the owner's answer of 2026-11-12T10:35:07,
+"Refuse with opt-out", for the abort and skip forms,
+and takes the saving round 250 built out of the tree:
+`conflict/abort_save.rs`, `conflict/abort_save_again.rs` and their two test files,
+the `index-stage-0` copy, and the `saved-abort` and `saved-skip` audit outcomes.
 
-- `--skip` (`rebase`, `cherry-pick`, `revert`, `am`, and `am --skip` ending an apply-backend rebase) dropped the hand
-  resolution of the conflict it stopped at, with no copy and no audit line, and was not a guarded form at all. It is one
-  now, saved the way an abort is saved, and it runs in the main worktree as well as a linked one: the copy is the
-  protection, and only a copy that cannot be made refuses.
-- Content that stands only in the index is copied from the index itself (`checkout-index` into
-  `discarded/<time>/index-stage-0/`, named `<path> (index-stage-0)`), so the abort goes on; only a copy Git cannot write
-  refuses. The conflict-side forms drop nothing that stands only in the index: measured, `checkout --ours/--theirs`,
-  `checkout <rev> -- <path>`, `restore --theirs` and `restore --staged --worktree` touch the conflicted path's own
-  stages and the worktree file, and the worktree file is what the carve-out already copies.
-- An untracked file at a path the restored tree tracks makes Git refuse the abort, so the wrapper now refuses first,
-  naming the file, saying Git will not restore that tree while it is there, and giving the way forward; no copy is made.
-  A skip's reset writes that tree silently, so the same file is copied there instead.
-- Each saved source is compared with its copy once more immediately before the command starts
-  (in the plain and the coordinated forward, and before the process becomes Git), and whatever changed is copied again
-  into `later-<n>` beside the first copy; three rounds bound it, and a file that never holds still is refused and named.
-- The growing-file loss of round 248 is the same case: the copy still stops at the size it opened, and the source it
-  changed under is copied again within that bound instead of refusing the abort.
+What the branch does, measured through the built wrapper in fixtures of its own:
 
-The window that remains is the instant between that last comparison and Git's own reset; `SPEC.md`
-("The comparison immediately before Git starts") and the notice a person reads say so in plain words.
+- An abort or a skip whose only change is the operation's own state runs exactly as Git runs it,
+  and the wrapper adds no line.
+- One that would discard work standing nowhere else is refused before anything is changed.
+  The refusal names the command, each path with the kind of work standing there
+  (a resolution or edit made since Git stopped at the conflict,
+  content only the index holds,
+  a staged resolution,
+  a staged edit,
+  and, where no result is recorded, an edit made since the operation began),
+  at most five paths with the rest counted,
+  the quit form that stops the operation and keeps the index and files,
+  and `--no-enforce-worktree` directly after the subcommand.
+  Nothing is copied and no sentence says a copy was made.
+- An untracked file at a path the restored tree tracks is where Git itself refuses the command,
+  for every abort form and every skip form (measured with Git 2.56.0),
+  and the words say so and name the file.
+- The same question is asked again immediately before the process becomes Git,
+  once; a difference found there refuses the command.
+  `SPEC.md` states the window that remains between that measurement and Git's own reset.
 
-Two audits of 0.6.1-alpha.12 arrived while round 250 worked, and every one of their findings in this code is measured
-against the wrapper built from round 250's own worktree:
+Three readings the earlier rounds had wrong, each fixed with a control that failed first:
+`AUTO_MERGE` is recorded by a rebase, a cherry-pick and an `am` as well as by a merge,
+so every form compares both sides with it;
+a path the worktree no longer holds, and a staged deletion, hold no content the reset would lose,
+so they are no reason to refuse (the untracked-file advice itself moves a file out of the way);
+and a skip's reset refuses an untracked file in the way rather than writing over it.
+Every read of a file in the Git directory on this path is bounded and regular-file only:
+a pipe at `rebase-merge/orig-head` held `git rebase --abort` for good, and now it answers.
 
-- The audit's `skip_commands_discard_hand_resolutions.ts` prints "No defect observed" for `rebase`, `cherry-pick`,
-  `revert` and `am --skip`, and its `discard_skip_forms.ts` (with `MODE=worktree` and `MODE=staged`) prints `HELD`.
-  The unrelated edit the second audit widened the finding with is copied too: the skip's listing is every uncommitted
-  tracked change, and a staged resolution beside a later worktree edit is copied from the index as well.
-- `repro_am_abort_during_rebase_apply.ts` and
-  `repro_rebase_abort_while_a_merge_waits_inside_an_edit_stop.ts` keep the hand resolution and the unstaged edit in
-  every combination they try, where native Git loses them: the per-command liveness of round 248 answers the
-  operation-equality finding, and three binary tests now hold it.
-- `repro_staged_resolution_deleted_before_merge_abort.ts` keeps the staged text in both cases, and
-  `discard_abort_probes.ts` prints `ok` for every probe: staged-only content, staged plus a later worktree edit, and the
-  untracked file in the way.
-- `repro_orig_head_moved_by_reset_hides_ignored_file.ts` refuses the abort and keeps the ignored file with `ORIG_HEAD`
-  moved and unmoved, because a rebase's abort reads `rebase-merge/orig-head`.
-- The continually growing conflict file no longer holds a conflict-side command: the copy stops at the size it opened,
-  is kept, and the notice says the file was still being written (a unit test drives it through the copy loop's own
-  pause).
+Open for the coordinating session:
 
-Open for the coordinating session: nothing in this code; the `btrfs_the_snapshot_created_before_its_record_is_removed`
-control still fails on this host, unrelated.
+- Merge the branch. It is 371 commits behind `main` and does not hold `afc0545123`,
+  so a scope that runs a wrapper built from it needs a 4 GiB memory cap.
+- The package linter reports findings in files this branch does not touch,
+  which are `main`'s and older than the linter; nothing it reports is in this branch's files.
+- Audit finding 5 of 0.6.1-alpha.14 (a refusal whose advice the same guard refuses) is answered here
+  by running every piece of advice these refusals give, in the state it was printed in.
+  The installed release still discards a hand resolution on `--skip` (audit item 8);
+  this branch refuses it, so the next release must carry the branch.
 
 The gate of `7e3b74281a` ended at 20:34 with `gate-exit-status=1` before it ran a test:
 the `native_binary` test target did not compile
