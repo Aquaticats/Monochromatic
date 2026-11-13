@@ -33,6 +33,8 @@ jams come first.
 The owner wrote on 2026-11-10:
 "Prioritize fixing the jams and release jam fixes asap."
 and "And you have 62 slots."
+Since 2026-11-13 that count is void: the owner capped this session at four agents at once, to be raised by bisecting
+(section "After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned").
 (Neuralwatt 20,
 Neuralwatt flex 22,
 opencode-go 20;
@@ -134,6 +136,219 @@ when it lands,
 move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
+
+### After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned (2026-11-13T10:27:50-05:00)
+
+#### What the owner did and said
+
+The machine came up at 08:56:31. The owner wrote in the terminal:
+
+- "I rebooted. I did a podman system reset -f and deleted some more of my personal data
+  and deleted also anything in ~/temp/agent/ last modified before Thursday.
+  I put sqfs+zstd archive of them as ~/temp/agent*.zstd , and uploaded them all to pcloud, and deleted the older archives locally."
+- "I believe this is partially your mess-up. I had no idea we had so much stuff in ~/temp/agent/ .
+  I believe we need to strengthen our auto-cleanup rules."
+- "I've realized both of the disks installed right now would just go boom on a long mv, from either direction,
+  though that might be an effect of my config.
+  I've since set bfq io idle wait to 1 and vm.swappiness to 1, which could help with disk somewhat.
+  I bought an enterprise SSD which is arriving on Sunday which is supposedly going to help a lot."
+- "In the meantime, you set your max concurrent pi+sonnet subagents starting from 4,
+  then bisecting up until we hit this disk's ceiling. We'll re-find the ceiling once the new disk arrives.
+  If the new disk still doesn't solve the problems sufficiently, we'll look at Sail Research sandboxes and more."
+
+So, as the project's own rules until the owner changes them:
+
+- This session runs at most four agents at once, Pi runs and Sonnet subagents counted together, whatever the provider pools would take.
+  The pool limits in `package/pi-shared/subagent-driver/src/pool-limits.ts` stay what a provider answers at once;
+  they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper only" is void while the cap stands.
+- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in (expected 2026-11-15).
+- The scratch folder is to be cleaned by rule, not by the owner.
+- `podman system reset` replaces the image prune of the wind-down section; that step is closed.
+- No long move or copy between the two drives in either direction.
+
+#### Readings after the restart
+
+- `df` at 10:27:50: `/var/home` 519 GiB free of 1906 (70% used); `/var/mnt/encrypted` 1640 GiB free of 3727 (54% used).
+- Drives (`lsblk`): `nvme0n1` "SPCC M.2 PCIe SSD" 1.9T and `sda` "Samsung SSD 860 EVO 4TB" 3.6T, both on `bfq`;
+  by size the first is the home drive and the second the build volume. `vm.swappiness` reads 1.
+- Every reading of this section was taken between 10:27:50 and 10:33:59 (the clock at the first `df` and at the commit that recorded them).
+- `/proc/pressure/io` with none of this work's runs going and one sizing walk of this session on the home drive:
+  `full avg10=11.64 avg60=12.45 avg300=8.07`. That is the baseline the cap's readings are compared with.
+- Another session is at work on the same machine (commits about Optique on `main` from 10:16:01 to 10:21:46,
+  the unit `pi-optique-input-trace-and-reply-claim-check`, container images built within the hour).
+  It is not this work, is left alone, and is load the readings include.
+- `~/temp/agent` still held 232,330 MiB (`du`, listing in `~/temp/agent/scratch-size-2026-11-13/du-depth-2-in-mib.txt`),
+  all of it last modified on 2026-11-12 or later. The largest folders, in MiB:
+  `pkgrepair-repair-off-the-path` 65,984 (its `runs` 36,335, `base` 18,169, `strace` 7,713);
+  `merge-reload-fix` 49,389 (two checkouts of the repository, `wt-main` and `wt-alpha13`, 24.7 GiB each);
+  `sonnet-audits` 45,614; `kimi-trials` 16,476; `module-test-logs` 10,991; `pkgrepair-verify` 7,084; `pi-runs` 6,740;
+  `cli-git-btrfs-fixtures` 5,750; `reviews` 3,848.
+  Every one was made by a run or subagent of this session and none was removed when its run ended:
+  no tool owns their removal, and the rule that says to delete superseded scratch was not applied.
+- The owner's archive `~/temp/agentModifiedOnNOV11Dirs2026NOV121809.sqfs` (66,996,248,576 bytes) is on the home drive.
+- Every scratch path the wind-down section names exists.
+- One commit through the wrapper in the main checkout (the one that recorded this section, `d04825f518`) took 0.741 s of wall clock;
+  real Git was not measured beside it, so it is one sample and no comparison.
+- The start gate of the Pi launcher refuses a start under 100 GiB free on the build volume (`free-space-floor.ts`)
+  and never reads the home drive, which is the one that filled on 2026-11-12 and holds every run folder, Pi session and container image.
+
+#### Worktrees and branches after the restart
+
+`~/temp/agent/worktree-check-2026-11-13/worktrees.jsonl` has one line per worktree, from a read-only pass with real Git and one `git ls-remote`.
+
+- Nothing committed is missing from the remote: of 153 worktrees, 64 have their tip as the tip of the remote branch of the same name,
+  86 have it in the remote's `main`, one is behind its remote branch,
+  and the two whose branch has no remote of that name (`test/qwen-review-...`, review worktrees with no change of their own)
+  sit on commits `a7e3fcfe58e0` and `5c579487c53a`, which remote `fix/` branches hold.
+- 56 worktrees hold uncommitted paths. The Pi worktrees among them are the runs that ended on 2026-11-12; their counts are in the file.
+  Two are large: `pi-kimi-review-suite-only-failures-of-the-alpha-11-gate-round-231` (17,540 paths) and
+  `pi-alpha-10-audit-commit-keeps-non-utf-8-bytes` (403 paths). Nothing in any of them is removed before it is read.
+- Two entries name folders that no longer exist (`/var/home/user/worktrees/translation-repair` and `verify-coverage`);
+  they are not this work's and are left for their owner.
+- 86 worktrees whose tip is in `main` are landed work still on disk.
+
+#### The cap and how the ceiling is looked for
+
+- Until the launcher carries the cap, this session counts by hand before every start: `pi-*` units of this work plus Sonnet subagents going, at most four.
+  The hourly loop is not set up again before whatever fills free slots reads the cap.
+- Steps: four, then double (eight, sixteen, ...) until a level fails, then halve the gap between the last level that held and the one that failed.
+  Only real queued work is run; no load is made for the test.
+- The owner's answers through the question tool, 2026-11-13 after 10:34:
+  - Whose runs count: "Every agent on the machine (Recommended)". So the four are every Pi run on the machine, whoever started it,
+    plus this session's Sonnet subagents; with one run of another session going, this session starts three.
+  - What counts as hitting the ceiling: "Measured symptoms, but \"a commit through the wrapper takes longer than your rule\"
+    is obviously a bad \"symptom\" since that might just say the wrapper is bad."
+    So a level fails on the first of two things: a Pi run gets no answer to its first prompt in 120 s or ends on a disk error;
+    or a 4 KiB write-and-sync probe on either drive takes over 5 s twice in a row (the 5 s is this session's figure, offered in the question and not objected to).
+    A level is held at least an hour and until its runs have each built once.
+    The wrapper's commit time is written beside each reading and fails no level; nor do the kernel's stall figures.
+  - When a run's scratch is deleted: "At run end, all but keep/ . Oh and I forgot to say all the dir names were extremely cryptic and shouldn't have been."
+    So the launcher gives each run one scratch folder and deletes it when the run ends, except a `keep/` subfolder for its report, logs and measurements;
+    a subagent's brief names one folder the same way and its starter deletes it on return;
+    and every scratch folder's name says what is in it to someone who was not there.
+- At every reading the count of all agent runs on the machine is written beside the figures, because the ceiling is the disk's.
+
+#### Started at the level of four (2026-11-13T10:43:42-05:00)
+
+One run of another session was going (`pi-optique-input-trace-and-reply-claim-check`), so this session started three,
+as the list `~/temp/agent/pi-runs/batch-2026-11-13-pass-18-continued-and-two-launcher-changes.json`
+(unit `launch-batch-2026-11-13-pass-18-continued-and-two-launcher-changes`, output in the `.out` file beside the list):
+
+- `integration-pass-18-for-alpha-16`, its third run, with the brief `integration-pass-18-for-alpha-16-continued-after-the-restart-of-2026-11-13-prompt.md`.
+  The second run of 2026-11-12 got further than this document said: it wrote section 1 of `~/temp/agent/integration-pass-18/report.md`
+  (all nine branches merged at the named tips, three repair commits, `cargo check --all-targets` green on the tree of `bbb12e1be1`,
+  no build at the tip, no test compile, no Clippy, no test and no measurement run),
+  and it put the eight edits of the performance judge on `perf/git-policy-cli-performance-judge-measures-the-changed-commit-rule` at `0efb4bcb4d` (on the remote, unfinished).
+  The worktree is clean and the branch's tip is `5cad071d28` locally and on the remote.
+- `start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`
+  (branch `feat/pi-shared-subagent-driver-` and that name): the cap as the owner set it, counted in runs, settable per command, and a 100 GiB floor on the drive of the runs folder
+  (the largest scratch folder of one run of 2026-11-12 held 65,984 MiB).
+- `launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep` (branch `feat/pi-shared-subagent-driver-` and that name).
+
+The probe of the ceiling's criterion runs beside them as the unit `disk-ceiling-probe-level-4-20261113`
+(a 4 KiB write-and-sync on each drive every minute for an hour, readings in `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`).
+The level of four is judged when the hour is over and each of the three runs has built once.
+
+#### Scratch rules written, and the first removal
+
+- `AGENTS.md` carries three new rules (`e4fed3aa62`): `1SF` (one scratch folder for each run or subagent, deleted by its starter at its end except `keep/`),
+  `SFN` (a scratch folder's name says what it holds and when) and `SZR` (every coordinator pass reports the scratch folder's measured size).
+  `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` tells every Pi run the same (`87c5359b2f`), by hand until the launcher makes the folder.
+- Removed at 10:42:58, exactly the 1041 folders listed in `~/temp/agent/scratch-size-2026-11-13/build-and-dependency-folders-to-delete.txt`
+  (cargo `target` folders that carry cargo's mark, `node_modules`, private cargo homes; 37,200 MiB by `du`), each logged beside the list.
+  Folders of another session (`upstream-prototype.O1iPjcqr`, `deno-2026-11-13`) were left out.
+  `df` read 519 GiB free before and straight after; whether that is delayed accounting or shared copy-on-write data is being measured
+  (`btrfs filesystem du`), and with it how much of the 232,330 MiB is data of its own.
+- Still there and next: the two checkouts under `merge-reload-fix`, the fixture copies under `pkgrepair-repair-off-the-path` and `pkgrepair-verify`,
+  `sonnet-audits` and `kimi-trials`. Each is read first for a report or measurement that lives nowhere else, and for commits a clone holds that the remote does not.
+
+#### Next, in order
+
+1.  Read how each run of 2026-11-12 ended and write the briefs that continue them; they start as slots of the four come free.
+2.  Judge the level of four after its hour; then eight, if it held.
+3.  Review the two launcher changes when their runs end (qwen4, in a worktree of its own, counted against the cap), merge them, and only then set the hourly loop up again.
+4.  Remove the rest of the rebuildable scratch as described under "Scratch rules written, and the first removal".
+5.  Measure a commit against real Git, as item 5 of "Order of work after the restart" in the wind-down section asks.
+
+### Wound down for a restart of the machine: the home drive is full (2026-11-12T16:41:25-05:00)
+
+#### What happened
+
+- `/var/home` is full: 1906 GiB in size, 1819 GiB used, 1 GiB free, 100% (`df` at 16:04:12).
+  It had 280.68 GiB free at 11:35:19. The owner moved data onto it in the afternoon.
+  The build volume `/var/mnt/encrypted` had 560 GiB free at the same reading.
+- Twenty Pi runs ended between 15:56:45 and 15:59:48, every one with `stop=error`
+  (`~/temp/agent/gate/runs-ended-since-1453-read-at-1606.log`).
+  The feed of one holds "ENOSPC: no space left on device, write" beside connect time-outs to the model provider.
+  Run folders, Pi sessions and the journal all live on that drive.
+- The "disk pressure" of the afternoon, the starts that failed, the commits of minutes and the one that was not made
+  all happened while that drive filled. How much of each was the full drive and how much is the wrapper's own defect is not separated yet;
+  the findings recorded since 13:30 (in-process file work that stalls, a housekeeping round of forty minutes, a service that stops answering)
+  stand as observed and need measuring again on a healthy machine before they are fixed or dropped.
+- The owner could not reach the machine and wrote through GitHub:
+  two commits on `main` made in GitHub's web editor (`6b88bafc75` at 15:52:40, `869cd1ff95` at 16:00:20, committer "GitHub")
+  add a root file whose name is the message:
+  "I am Aquaticat and if you are an agent and see this wind down asap gracefully. The disk pressure means nothing can be done anyway
+  and I will try to fix them after restart. I can only communicate this way because the machine is not responding at all."
+  Its content: "If you see this edit this or leave a comment or something!"
+  This session saw it at about 16:10 through a subagent's report, read the commits, and was told in the terminal by the owner:
+  "Act on it. Every input takes 10min."
+- The owner's choice through the question tool at about 16:08, for the full drive: "Prune all unused images (Recommended)".
+
+#### What was done to wind down
+
+- Acknowledged as the file asks: a comment on commit `869cd1ff95` on GitHub (comment 209661196, posted by 16:41:25).
+- `podman image prune --force` (dangling images) was started at about 16:05 and `podman image prune --all --force` at about 16:10,
+  each in a capped scope.
+  Read at 16:52:07: the first one failed after about forty-seven minutes and freed nothing:
+  "write /var/home/user/.local/share/containers/storage/overlay-images/.tmp-images.json...: no space left on device".
+  `podman` has to rewrite its own image list to remove an image, and the drive had no room for that.
+  The second was still running at 16:45:40 and faces the same.
+  `/var/home` read 2138 MiB free at 16:43:15 and 1 MiB at 16:45:40: something was still writing to it; what, is not established.
+  After the restart the drive needs some room made by other means before a prune can work.
+  Read at 17:05:22: the second prune ended with the same two errors (on `overlay-images` and `overlay-layers`),
+  and `/var/home` then read 43 GiB free, 98% used.
+  Whether that room came from images the prune did remove before it failed or from the owner's side is not established.
+  With room there, the prune the owner chose can be run again; it was not run again before the restart,
+  so as not to have a storage change under way when the machine goes down.
+- The wind-down commit `dbc00b10dc` was on the remote's `main` at 16:45:25
+  (the wrapper's first try answered "The commit service could not finish this commit, so it was not made";
+  a try with real Git directly was stopped by the repository's own guard and not worked around; the second try through the wrapper landed, and an explicit push published it).
+- The hourly loop is cancelled (cron `c0352b43` deleted). It is to be set up again after the restart, with no expiry, as the owner asked on 2026-11-12.
+- At 16:41:25 no `pi-*` and no `launch-*` unit of this work was live: every run and every launcher had ended by itself.
+  So no run had to be stopped, and the wind-down note
+  (`~/temp/agent/notes-to-send/2026-11-12T1612-wind-down-commit-what-you-have-and-end-your-turn.md`) was not sent to anyone.
+- Nothing new is started.
+
+#### What is where, for after the restart
+
+- Every run of today that had commits pushed them as it went (auto-push). Uncommitted work of the twenty runs that died is in their worktrees
+  under `.claude/worktrees/pi-<run name>` on the build volume, which is not the drive that filled.
+  First step after the restart, before anything is started or cleaned: for each worktree, `git status --short` and whether its branch's tip is on the remote.
+  Nothing there is removed before that.
+- Integration pass 18: branch `integrate/git-policy-cli-pass-18-for-alpha-16` at `5cad071d28` (nine merges and `main`), no report,
+  eight uncommitted edits in its worktree (a half-made change of the performance judge).
+  Its continuation (round 314, started 16:01:45) died with the rest; its brief stands:
+  `~/temp/agent/pi-runs/integration-pass-18-for-alpha-16-continued-prompt.md`.
+- The run for issue 6286 (`reload-fix-brought-onto-main-where-a-program-link-already-is-1`) ended in the same minutes at 323 turns; state unread.
+- Briefs written and never run: rounds 310 (three), 311, 312, 313, all under `~/temp/agent/pi-runs/` with their batch lists
+  `agents-batch-round-310.json` to `agents-batch-round-314.json`.
+- Second readings finished and not yet routed: `~/temp/agent/digest-2026-11-12T1506-three-runs/digest.md`
+  (the Kimi audit of LFS, the review of the first fix for issue 6286, the short-copy fix).
+  Its two findings that expose a secret: with curl tracing turned on the wrapper relays raw HTTP request lines unmasked,
+  and a secret made only of punctuation is printed. And one against a recorded choice: a push without a terminal still starts `SSH_ASKPASS`.
+- All of `~/temp/agent` (run folders, digests, notes, scratch scripts) is on the drive that filled.
+  Files written there after about 15:56 can be cut short or missing.
+
+#### Order of work after the restart
+
+1.  `df` on `/var/home` and `/var/mnt/encrypted`; nothing is started under 50 GiB free on the home drive (a figure of this session, for the owner to change).
+2.  The check of worktrees and branches named above; push what is not on the remote.
+3.  Read how each of the twenty runs ended and what it left; continue each from its branch with a brief that says where it stopped.
+4.  Pass 18 first: finish its checks, answer where the package repair runs after its seventh branch, then release 0.6.1-alpha.16.
+5.  Measure a commit against real Git on the healthy machine before anything else is concluded about the commit service.
+6.  Set the hourly loop up again.
+7.  Remove the root file whose name begins "I am Aquaticat" once the owner says it has served.
 
 ### How far the protection of a worktree being removed reaches; free space; the second and third audits of 0.6.1-alpha.14 (2026-11-12T13:04:14-05:00)
 
@@ -296,6 +511,95 @@ move its durable facts to their canonical doc and delete it from this page.
 - Whether a commit stood in a queue behind other work of the service, or its own steps were slow under the pressure, is not established.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
+
+#### Integration pass 18 ended on a model error with its merges committed and no report; continued in round 314 (2026-11-12T15:59:51-05:00)
+
+- `integration-pass-18-for-alpha-16-1` ended at 15:59:42 with `endReason` "model-error" at 222 turns,
+  in the middle of a sentence ("Now the judge, the core of the change:"). It wrote no report.
+- Read with real Git at about 16:00:
+  the branch `integrate/git-policy-cli-pass-18-for-alpha-16` is at `5cad071d28`
+  ("Merge branch 'main' into ...", 14:53:06), on top of `bbb12e1be1`
+  ("fix(git-policy-cli): the merged controls build the shadow call and the request the hand-out added", 14:47:26);
+  its notes folder holds merge messages up to the ninth merge.
+  Which checks ran after the last merge, and how they ended, is not established.
+- Its worktree holds uncommitted edits to eight files
+  (`README.md`, `SPEC.md`, four files of `bin/native-perf*`, a unit test, `mise.toml`):
+  the run had begun changing the package's performance judge to the commit rule as changed at 14:03:46.
+  This session caused that: the note of 14:06 about the changed rule was also sent to the integration run,
+  which took it as work. A note that changes a requirement goes to runs whose task it is, not to an integration.
+- The user service manager: at 15:45:52 `systemctl --user` answered "Transport endpoint is not connected" twice.
+  Checked at 15:47:47: the manager's process (pid 5196, up since 04:04) and its sockets were there and the agents' processes ran.
+  One refused connection under load, not a lost session.
+- Round 314, started through the package launcher at about 16:02:
+  the continuation of pass 18 in the same worktree
+  (`~/temp/agent/pi-runs/integration-pass-18-for-alpha-16-continued-prompt.md`).
+  It establishes the state from the earlier run's session,
+  moves the eight edits to a branch of their own (`perf/git-policy-cli-performance-judge-measures-the-changed-commit-rule`, unfinished),
+  finishes the checks, answers where the package repair runs after the seventh branch and whether it can delay a landing,
+  and writes the report.
+- `/proc/pressure/io` at 15:59:42: full avg10=22.07, avg60=26.34, avg300=27.84.
+
+#### The hourly pass after 15:00: the disk pressure is back and the restarted runs did not survive it (2026-11-12T15:44:38-05:00)
+
+- `/proc/pressure/io` at 15:03:42: full avg10=51.03, avg60=65.18, avg300=69.24, higher than at 13:25.
+  At 14:42:41 it had read full avg10=8.39. It comes and goes; what drives it at each time is not established.
+  This session's own read-only commands now take minutes: a `tail` of one small file returned forty minutes after it was sent.
+- Culled: none.
+- Rounds 310, 311 and 312, started again at 14:06 to 14:20, all ended without a turn:
+  - The two runs of round 310 that were up at 14:11 ended within nine minutes with `endReason` "prompt-rejected" and zero turns:
+    Pi gave "no answer in 120000 ms" to its first prompt, and "Pi was still running 5000 ms after SIGKILL."
+    The third ended on `CommandAnswerMissingError: mise exec ... command -v node answered -1`.
+  - Round 311's launcher printed "Failed to query unit state: Connection timed out" and then reported status 0
+    for a run that had done nothing; its run folder is empty.
+  - Round 312 ended with "Main processes terminated with: code=exited, status=1/FAILURE".
+  - Each failed start leaves a new worktree whose package repair (`pnpm install`, `mpm-shadow install`) runs on in the main checkout's commit service,
+    which is the service whose landings wait. Starting again and again makes the jam worse.
+- So no start is tried again until integration pass 18 is merged and released, or the pressure is seen low at the time of the try.
+  The driver's 120-second bound on Pi's first prompt and the launcher's false status 0 were added to the launcher-fix brief
+  (`~/temp/agent/pi-runs/launcher-starts-a-run-under-load-instead-of-ending-a-batch-on-one-timed-out-request-prompt.md`).
+  Not started and waiting, with briefs written: rounds 310 (three runs), 311, 312, and round 313 whose launcher was still alive at 15:03.
+- Ended since 14:00: the Kimi audit of LFS (14:18:42), the review of the first fix for issue 6286 (14:23:17),
+  and `add-says-when-its-copy-is-short-and-settles-below-a-read-only-directory-1` (14:52:21, "Both defects are fixed").
+  A Sonnet subagent reads them a second time into `~/temp/agent/digest-2026-11-12T1506-three-runs/digest.md`.
+- Twenty-four runs of this work had live units at 15:03, pass 18 and the run for issue 6286 among them.
+  Pass 18 has been running since 12:06:32; its bounded wait of fifty minutes ended at 15:04:55 with the run still active.
+
+#### Seven Kimi audits of 0.6.1-alpha.14, read a second time (2026-11-12T14:46:45-05:00)
+
+- `~/temp/agent/digest-2026-11-12T1406-kimi-audits/digest.md`; each audit's uncut report is beside it.
+  Every reproduction ran a wrapper built from `b1cdc4a842`, none the installed one.
+  Corrected here: round 313's launcher printed "started" at 14:46:33, not at about 14:50.
+- New, shown by a run through a built wrapper:
+  - A typed push of `feature`, diverged from its remote, while `main` is checked out and stands at the same commit,
+    moves the local `main` and its worktree to the merge made for `feature`.
+    This is why `main` stayed where it was at 12:00:10: there it stood at another commit.
+  - The removal of a landed worktree deletes the only reference to a commit when that reference is a person's under `refs/worktree/`;
+    after `git gc --prune=now` the commit is gone. Real Git's own `git worktree remove` drops per-worktree references too.
+    This session's reading of the decision of 13:04:14, open to veto:
+    the automatic removal keeps such a commit as it keeps one that only a detached `HEAD` holds,
+    and a typed unforced removal does what real Git does and names the commits now held by nothing.
+  - `git -c 'alias.wipe=!git -C . reset --hard' wipe` exits 0 and a tracked edit is gone, with no refusal;
+    `SPEC.md` records the shell-alias case as intended, which the rule restated at 10:33 does not allow.
+  - An edit staged while a merge carries a person's uncommitted work is lost; shown only with a pause put into the source.
+- Not a finding about the wrapper, and a cost on the whole fleet:
+  Cargo's lock on its package cache held the auditors' own builds and tests for minutes to more than half an hour in five of the seven audits.
+- Repeats of what the Sonnet audits hold: the same-transaction snapshot stage, the `backup.patch` advice,
+  `--no-overwrite-ignore` under the opt-out, the two merge records that keep each other, the detached nested worktree.
+- Decided behaviour since 13:04:14, not defects: untracked files of a nested worktree going with a removal.
+- Claimed and not shown, left out of the notes: a "5,139 ms" figure that is in neither session nor log,
+  a "killed add reaches the same state" that was never run, and client-side consequences that were never driven.
+- How the runs ended: none was cut.
+  Two finished and were then not stopped cleanly by the driver ("still running 5000 ms after SIGKILL", `pi-not-stopped`);
+  one ended its turn with a build of its own still running.
+  Four auditors ran `ps` with `args` over all processes against their rules; two ran `systemctl --user list-units`.
+  Six of the seven had no independent review, because every advisor call returned 429 or a time-out.
+- Routed at 14:51:55 in one note to five runs
+  (`~/temp/agent/notes-to-send/2026-11-12T1455-findings-of-seven-kimi-audits-of-alpha-14-as-a-second-reading-established-them.md`;
+  the file's name carries a time ahead of the clock):
+  the typed-push run, the discard guard, the inventory of saved copies, the add's repair, and the build-tree measurement (for Cargo's lock).
+  The landed-removal run of round 311 was not up yet (no inbox, half an hour after its third start),
+  so the per-worktree reference was written into its brief, and so was the decision of 13:04:14 earlier;
+  the notes of 13:06 and 14:51 are sent to it once it is up.
 
 #### A commit in the main checkout got no answer for thirteen minutes and was not made (2026-11-12T14:33:44-05:00)
 

@@ -682,6 +682,22 @@ XTD:
  slow disk).
 Use `${HOME}/temp/agent` or the build directory.
 
+1SF:
+ Each run or subagent gets one scratch folder of its own;
+ its starter deletes that folder when it ends,
+ keeping only its `keep/` subfolder of reports,
+ logs and measurements.
+
+SFN:
+ Name each scratch folder for what it holds and when,
+ so a stranger needs no context:
+ `wrapper-commit-timing-against-real-git-2026-11-13`,
+ never `pkgrepair` or `ff-carry`.
+
+SZR:
+ Every coordinator pass reports the measured size of `${HOME}/temp/agent` and its largest folders to the user,
+ so growth is seen before a drive fills.
+
 CLN:
  Investigating package source:
  `gh repo clone <repo> "${HOME}/temp/agent/<name>-<date>" -- --depth 1`,
@@ -855,7 +871,8 @@ FDL:
  which turns `-prune` into a no-op.
 
 RLW:
- `rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`):
+ `rm` commands as issued never contain environment variables (`$HOME`,
+ `${DIR}`):
  write every path literally,
  because an unset or empty variable widens what gets deleted.
 
@@ -939,7 +956,7 @@ AUT:
  never expanding scope or acting on adjacent undecided choices.
 
 VR2:
- Request with one clear reading:
+ Request or answer with one clear reading:
  act.
 Readings differing in what to do:
  confirm first.
@@ -980,9 +997,10 @@ NMJ:
  and autofix runs have corrupted it.
 
 PIN:
- Pin tool versions only with a comment explaining why;
- never pin tools this repository publishes,
- since `toolchain.lock.json` records them.
+ Pin tool versions only with a comment explaining why,
+ never tools this repository publishes;
+ test on current releases only:
+ an older one's failures are no defect.
 
 SPG:
  Automation that spawns agent sessions needs explicit recursion guards (env var flag,
@@ -1445,6 +1463,17 @@ SBS:
  and consumers together.
 
 ## Before declaring work complete
+
+### Who declares completion
+
+SGO:
+ Only the owner declares work complete,
+ final or approved.
+An agent must mark its docs and reports incomplete,
+ unapproved or non-final,
+ stating what was done and checked,
+ by whom,
+ and what is open.
 
 ### Package completeness
 

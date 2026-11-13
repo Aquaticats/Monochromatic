@@ -1,5 +1,17 @@
 # `@optique/core` 0.7.0 to 1.3.1: each positional token builds a typo suggestion in every option parser that rejects it, so a successful parse of many paths takes seconds
 
+Unapproved and not final.
+An AI session wrote this document on 2026-11-12 and rewrote its reply draft on 2026-11-13,
+and the owner has not approved it.
+Done and checked by that session:
+the measurements and the source reading reported here,
+and one review by a model from another vendor of the text as it stood on 2026-11-12.
+Open:
+a second such review read the text as of commits `5a4e07d2e3` and `426d33d638`,
+and its findings were folded in;
+the corrections made after that are not reviewed,
+and the reply draft waits for the owner.
+
 Status,
 2026-11-12:
 upstream fixed this in two steps.
@@ -587,7 +599,7 @@ The six constraints:
 
 Risk to the poster:
 the reply would go out under the owner's account.
-Upstream's policy ends:
+The last of the policy's numbered rules reads:
 "Violations of this policy may result in being banned from contributing."
 The draft and its numbers were produced with AI assistance,
 so posting it unreviewed,
@@ -627,9 +639,13 @@ Readiness check,
     yes,
     the figures under "Verification" come from that script unchanged.
 7.  Reproduction runnable by others on a clean machine through CI:
-    not done.
-    The script needs one file and one installed package;
-    no repository with a workflow was created.
+    not done on 2026-11-12.
+    Done since:
+    `Aquaticat/optique-parse-cost-reproduction`,
+    private,
+    with three workflow runs that fail on their asserting steps;
+    the scripts were also run on Node,
+    Deno and Bun on 2026-11-13.
 8.  Verdict:
     no recommendation to post.
     The blocker is one only the owner can clear:
@@ -644,38 +660,126 @@ per upstream's policy.
 An AI session wrote every line of it and no person has reviewed it;
 it speaks for nobody until the owner makes it theirs.
 
+It answers both things the maintainer asked:
+a reassessment on 1.3.6 and on `main`,
+and a reproducer.
+The reassessment itself is the owner's to state,
+so that line is a placeholder.
+
+Rewritten 2026-11-13T09:36:05-05:00,
+because the thread moved:
+
+- The owner answered on the commit at 2026-11-12T13:52:56Z:
+   "Looking.
+   ETA:
+   In 24h with 90% certainty."
+   The owner followed it at 2026-11-13T14:27:49Z with
+   "Sorry,
+   I had some issues with my machine.
+   New ETA:
+   in 72h with 80% certainty.",
+   which runs to 2026-11-16T14:27:49Z.
+- The maintainer read this repository's documents without waiting,
+   opened upstream issue 1120 from them at 2026-11-13T08:16:37Z,
+   and opened pull request 1121 for it two hours later.
+   So the draft no longer reports the short-option cost as news;
+   it reports a measurement of the pull request.
+- The input-trace cost has its own document and a checked patch,
+   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+
+Decided by the owner on 2026-11-13,
+in answer to questions put that morning:
+
+- On when to answer:
+   "Wait for the review",
+   and
+   "I want to have everything figured out ourselves before giving replies."
+   So the draft is not posted until the independent review is folded in and the open points are settled.
+- On the input-trace patch:
+   "Keep it local for now."
+   and,
+   when an agent took that to mean the draft should leave the patch out:
+   "I only said to "keep it **local** for **now**",
+   which means it can be in the draft."
+   So the draft carries the patch paragraph,
+   and nothing about the patch is filed or posted until the owner posts the reply.
+
 ~~~md
-Thanks for the pointer. I reran the old parser from the parent of this commit against several versions. One parse of
+Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
+had sent you any of it.
+
+[Owner: your answer to "would you consider reassessing". What the record here shows: performance was the reason for
+one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
+and Valibot reasons you noticed.]
+
+The numbers behind that. The parser this commit removed, unchanged from its parent, one parse of
 `['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a two-CPU container:
 
 - 1.1.1: 2,696 ms
-- 1.3.1: 2,707 ms
-- 1.3.2: 180 ms
-- 1.3.6: 184 ms
-- 1.4.0-dev.2664 (main before #997): 229 ms
-- 1.4.0-dev.2971 (current dev): 95 ms
+- 1.3.2 and 1.3.6: 180 ms and 184 ms
+- 1.4.0-dev.2971: 95 ms
 
-So #992 removed 93% of it and #997 about half of the rest. Three things you may not have:
+So #992 removed 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
+`errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
 
-- On 1.3.6, a CPU profile still puts about three quarters of the parse in `suggestion.js` and `usage.js`
-  (`traverseUsage`, `findSimilar`, `createErrorWithSuggestions`); `levenshteinDistance` itself is down to 6%.
-- `main` at #997's base, which contains 1.3.2, took 229 ms on this input against 180 ms for 1.3.2 itself.
-- Short tokens did improve at 1.3.2 here (300 ms to 185 ms for a thousand 1 to 3 character names), unlike the
-  short-path note in #992. My guess, untested, is that this parser's long option names fail the new length check.
+On #1121: I measured its branch at a175cdb7 from source on Deno, seven rounds with the arms rotated, a thousand
+paths after `--`:
 
-On the current dev build the suggestion code is gone from the profile; what is left is `short-option.js` (31%),
-`input-trace.js` (23%) and `constructs.js` (14%), because every token is still offered to every option parser. Is
-that the intended end state?
+- 1.3.6: 30.8 ms
+- main at 84f95710: 56.5 ms
+- #1121: 42.0 ms
 
-A standalone script (only `@optique/core`) that shows the same effect is in
-`doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` in this repository.
+That is 0.75 times main (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42), which agrees with your own figures.
+On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
+
+What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
+both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
+of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
+input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
+an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
+to main and to #1121's branch. It does not make the parse linear: a profile of the patched build shows two smaller
+per-argument copies behind it, in `multiple()` (the state array) and `argument()` (the buffer slice); 32,000
+arguments take 29 s unpatched and 5.7 s patched. The write-up and the patch: [commit permalink to
+doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
+
+The patch was written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for it?
+
+One thing that is still true of 1.3.6: the default path collects the option names and searches them on every
+mismatch, and a profile puts about three quarters of the parse there. The length check skips a name only when its
+length differs from the token's by more than three or by more than half the token's length, so a token about as
+long as the option names pays in full. A literal `errors.noMatch` on every option avoids all of it.
+
+The reproducer you asked for: three scripts that run unchanged on Node, Deno and Bun, against an npm version or a
+checkout, and a workflow that runs them on pinned versions:
+https://github.com/Aquaticat/optique-parse-cost-reproduction
+
+One question: after #997 every token is still offered to every option parser, a constant cost per token and option.
+Is that the intended end state?
 
 For context: the parser we replaced Optique with here was a different parser with bugs of its own and has since been
 deleted, so our old 4.24 s and 0.89 s compared two different things.
 
-[Owner: add here, in your own words, anything you want to say about the cost not having been reported upstream in
-July, and the disclosure of AI assistance that upstream's policy asks for.]
+[Owner: add, in your own words, the disclosure of AI assistance that upstream's policy asks for, and anything you
+want to say about the cost not having been reported upstream in July.]
+
+[Owner: whether to tell dahlia that the research record #1120 cites was marked "Status: complete" by an AI session
+without your approval, was still changing that day, and now says so.]
 ~~~
+
+The repository the draft links was created private on 2026-11-12T21:02:14Z
+and made public at 2026-11-13T14:41:43Z,
+on the owner's answer "Make public as it is".
+"As it is" refers to its first commit,
+which GitHub made when the repository was created and which carries the account's own address
+where the two later commits carry its noreply address;
+the owner was told and chose not to rewrite it.
+Three of its workflow runs fail on their asserting steps,
+as its README says they should
+(`43306241322`,
+`43306311950` and `43443075690`).
+
+The draft's link to the input-trace write-up is a placeholder:
+put a commit permalink there on the day of posting.
 
 [object loop]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/constructs.ts#L5869-L5884
 [no-match 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L1232-L1271

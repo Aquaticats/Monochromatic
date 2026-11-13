@@ -3,7 +3,30 @@
 ## Research status
 
 - Status:
-   complete
+   not approved by the owner as complete.
+   An AI session wrote it on 2026-11-12 and marked it "complete" on its own word,
+   which the owner rejected on 2026-11-13:
+   "No.
+   It was not complete.
+   At the very least it should have said I haven't approved it as complete."
+   What was done:
+   the source reading and measurement dated in this list,
+   one independent review recorded under "Independent review",
+   and two in-place notes of 2026-11-13.
+   What is known to be open:
+   the questions under "Questions" that only upstream can answer,
+   and the further measurements in the two troubleshooting documents this one points to.
+   What the word may have cost:
+   upstream's issue 1120 cites this document at commit `249bbf19ea`,
+   where this line read "complete".
+   The owner,
+   2026-11-13:
+   "You marking it Status:
+   complete probably caused dahlia to pre-emptively work more than what the information at that time called for.
+   And it might have also created extra work for dahlia."
+   Whether it did is not known here;
+   the findings were still moving that day,
+   as the two notes of 2026-11-13 in this document show.
 - Source reading recorded:
    2026-11-12T09:11:13-05:00
 - Measurement recorded:
@@ -1054,6 +1077,11 @@ without the separator the pre-release is about twice as fast as 1.3.6,
 with it about 1.8 times slower.
 Nothing on upstream's tracker mentions this cost;
 a search of issues and pull requests for the scope functions' names returns the feature's own pull request and no report.
+That was so on 2026-11-12.
+On 2026-11-13 upstream's maintainer opened issue 1120 for it,
+citing this document,
+and pull request 1121;
+`doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md` has what followed.
 
 ### A cost that grows with the square of the token count
 
@@ -1088,6 +1116,13 @@ and no issue or pull request on upstream's tracker reports it:
 a search for `InputTrace` returns only the work that introduced it in March 2026.
 At the sizes most command lines have it is invisible,
 which is how it went unnoticed here too until suggestion work stopped dominating.
+
+Measured further on 2026-11-13,
+in `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`:
+across three runtimes and the release lines from 1.0 to 1.3 the exponent ranged from 1.56 to 1.93,
+wider than the 1.75 to 1.97 given here from one script on one machine;
+a patch for the copy was checked;
+and two smaller copies per token were found behind it.
 
 ### Facts read from source and record
 
