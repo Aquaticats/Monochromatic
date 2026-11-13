@@ -9,6 +9,7 @@ Open:
 a model from another vendor reviewed it as of commit `426d33d638`,
 and the corrections made after that as of commit `2d06b4ae60`,
 where it found nothing to change in this document.
+The paragraph on Deno's maintenance state under "Upstream filing decision" was added after that and has had no review.
 
 Found on 2026-11-13 while checking that the scripts of a reproduction repository run on Deno.
 The repository holds a `package.json` so that Node treats its scripts as ES modules,
@@ -275,8 +276,15 @@ The message itself could say that a discovered `package.json` is why `node_modul
 it names `deno.json` and `nodeModulesDir` and not `--no-config`.
 That is a wording preference and no report was drafted for it.
 
+Deno's own state bears on how much this matters.
+Its maintainers wrote on 2026-10-15 that they [will maintain Deno until October 2027][deno state],
+with monthly maintenance releases and no new feature work.
+So the scripts' Node and Bun commands are the ones to rely on,
+and the Deno route is kept only because a source checkout runs on it without a build.
+
 [mode]: https://github.com/denoland/deno/blob/fe7ed012d92c642fd8e5607ac5a45d517538b5c5/libs/resolver/factory.rs#L363-L385
 [byonm]: https://github.com/denoland/deno/blob/fe7ed012d92c642fd8e5607ac5a45d517538b5c5/libs/resolver/factory.rs#L1340-L1345
 [error]: https://github.com/denoland/deno/blob/fe7ed012d92c642fd8e5607ac5a45d517538b5c5/libs/resolver/npm/byonm.rs#L43-L45
 [no config]: https://github.com/denoland/deno/blob/fe7ed012d92c642fd8e5607ac5a45d517538b5c5/cli/factory.rs#L1594
 [no package json]: https://github.com/denoland/deno/blob/fe7ed012d92c642fd8e5607ac5a45d517538b5c5/libs/resolver/factory.rs#L616-L620
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027

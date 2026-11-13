@@ -31,6 +31,22 @@
    2026-11-12T09:11:13-05:00
 - Measurement recorded:
    2026-11-12T10:05:51-05:00
+- Timing figures rewritten as ratios:
+   2026-11-13T16:00:49-05:00,
+   by the same AI session,
+   from the records already in the evidence archive and with no new measurement.
+   The owner on 2026-11-13:
+   "You should always assume the machine doesn't just have you using it and all timings are unpredictable
+   and cannot stand on their own and comparative timing is better."
+   Each timing is now a ratio to another arm in the same rounds or to another size in the same process;
+   a time in milliseconds stays only where it is labelled as scale,
+   where it quotes upstream or commit `4879a44e6a`,
+   or where upstream's own estimate is an absolute time.
+   Every measurement in this document ran on Node.
+   None ran on Deno,
+   whose maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
+   with no new feature work.
+   No reviewer has read this rewrite yet.
 - Scope:
    how the eager "did you mean" cost entered `@optique/core`,
    how upstream handled it,
@@ -588,10 +604,13 @@ A Pi agent built and ran the harness.
 Its medians for the thousand-path input were recomputed here from its raw records and match,
 and a separate timing loop written for this check,
 run once per arm in the same image,
-gave 2,793 ms on 1.1.1,
-181 ms on 1.3.6,
-89 ms on `1.4.0-dev.2971`
-and 0.13 ms for the owned parser.
+agreed in size:
+against its own figure for 1.3.6,
+1.1.1 took 15.4 times as long,
+`1.4.0-dev.2971` 0.49 times
+and the owned parser under a thousandth.
+That loop ran each arm once and did not interleave them,
+so it confirms the order of size and nothing finer.
 The other inputs come from the agent's summary and were not recomputed.
 
 ### Run-to-run spread
@@ -604,31 +623,38 @@ A difference smaller than that is noise.
 
 ### A thousand real paths
 
-Median,
-with minimum and maximum:
+Each arm's median over the 49 timed parses,
+as a ratio to the median of 1.3.6 from the same seven rounds:
 
 - 1.1.1:
-   2,695.7 ms (2,574.6 to 3,898.9)
+   14.6
 - 1.3.1:
-   2,706.7 ms (2,570.5 to 2,985.2)
+   14.7
 - 1.3.2:
-   180.0 ms (166.3 to 206.0)
-- 1.3.6:
-   184.3 ms (172.8 to 228.5)
+   0.98
 - `1.4.0-dev.2664`,
    `main` just before [pull request 997][]:
-   229.0 ms (206.6 to 294.6)
+   1.24
 - `1.4.0-dev.2665`,
    that pull request's head:
-   90.2 ms (80.5 to 115.0)
+   0.49
 - `1.4.0-dev.2667`,
    its merge:
-   96.8 ms (84.4 to 114.8)
+   0.53
 - `1.4.0-dev.2971`,
    the current `dev` build:
-   95.0 ms (83.6 to 242.6)
+   0.52
 - owned parser:
-   0.18 ms (0.09 to 1.32)
+   about a thousandth
+
+The ratios paired round by round,
+which are the firmer figures,
+are in [the section on the differences with each process as one observation][paired differences].
+For scale only,
+since the machine was shared and loaded:
+the median of 1.3.6 was 184.3 ms (172.8 to 228.5 over the rounds),
+that of 1.1.1 2,695.7 ms (2,574.6 to 3,898.9)
+and that of the owned parser 0.18 ms.
 
 What this shows:
 
@@ -638,46 +664,48 @@ What this shows:
    the two figures agree in size and are not the same measurement.
 - [Pull request 992][] removed 93% of the time,
    between 1.3.1 and 1.3.2.
-- 1.3.6 still takes 184 ms for this parse,
-   0.18 ms per path.
+- 1.3.6 still takes about a fifteenth of the 1.1.1 time for this parse,
+   and that remainder grows with the number of paths.
 - The 1.4 line was slower than the 1.3 line at the same patch level.
    `1.4.0-dev.2664` was built on 2026-09-29 from a commit that contains tag 1.3.2 and no later 1.3 tag,
-   and took 229.0 ms where 1.3.2 took 180.0 ms:
-   27% more,
-   which is beyond the spread.
+   and took 27% more than 1.3.2 by the medians,
+   which is beyond the spread;
+   paired by round it is 1.24 (1.14 to 1.43).
    An earlier wording here compared it with 1.3.6 and said `main` "had become" slower than it;
    1.3.6 was tagged on 2026-10-15,
    after that build,
    so that comparison was out of order.
    [Pull request 997][] then cut the 1.4 line's time by 61%.
-- The current pre-release takes 95 ms,
-   about half of 1.3.6.
+- The current pre-release takes about half the time of 1.3.6.
 - The parse grows with the number of paths in every Optique arm.
-   On 1.3.6 it took 1.0 ms for one path,
-   2.5 ms for ten,
-   23.4 ms for a hundred
-   and 184.3 ms for a thousand.
+   On 1.3.6,
+   ten times the paths took 2.5 times as long from one path to ten,
+   9.4 times from ten to a hundred
+   and 7.9 times from a hundred to a thousand.
 
 ### A thousand short paths
 
+As ratios to the median of 1.3.6 from the same rounds:
+
 - 1.1.1:
-   303.9 ms
+   1.65
 - 1.3.1:
-   300.3 ms
+   1.63
 - 1.3.2:
-   185.3 ms
-- 1.3.6:
-   184.0 ms
+   1.01
 - `1.4.0-dev.2664`:
-   228.6 ms
+   1.24
 - `1.4.0-dev.2665`:
-   91.8 ms
+   0.50
 - `1.4.0-dev.2667`:
-   90.1 ms
+   0.49
 - `1.4.0-dev.2971`:
-   89.7 ms
+   0.49
 - owned parser:
-   0.17 ms
+   about a thousandth
+
+For scale only,
+the median of 1.3.6 was 184.0 ms.
 
 [Pull request 992][] says short paths "showed no improvement".
 On this parser they improved by 38% between 1.3.1 and 1.3.2.
@@ -686,38 +714,41 @@ so the new length check rejects them against a token of one to three characters;
 that reading comes from the patch's code and was not tested separately.
 
 From 1.3.2 through 1.3.6,
-short and long paths cost the same,
-about 0.18 ms each,
-and on the pre-releases with [pull request 997][] about 0.09 ms each.
+short and long paths cost the same
+(the two medians of 1.3.6 differ by under 0.2%),
+and on the pre-releases with [pull request 997][] about half of that.
 What remains no longer depends on the token's length.
 
 ### Upstream's own reproduction
 
 The script in [issue 988][],
-thirty options and a thousand long paths:
+thirty options and a thousand long paths,
+as ratios to the median of 1.3.6 from the same rounds:
 
 - 1.1.1:
-   964.3 ms
+   8.82
 - 1.3.1:
-   952.0 ms
+   8.71
 - 1.3.2:
-   111.1 ms
-- 1.3.6:
-   109.3 ms
+   1.02
 - `1.4.0-dev.2664`:
-   147.8 ms
+   1.35
 - `1.4.0-dev.2665`:
-   83.0 ms
+   0.76
 - `1.4.0-dev.2667`:
-   80.3 ms
+   0.73
 - `1.4.0-dev.2971`:
-   86.2 ms
+   0.79
+
+For scale only,
+the median of 1.3.6 was 109.3 ms.
 
 Upstream reported 1,736 ms to 167 ms for [pull request 992][] and 112 ms to 65 ms for [pull request 997][].
 The ratios here,
 8.6 from 1.3.1 to 1.3.2 and 1.8 from `1.4.0-dev.2664` to `1.4.0-dev.2665`,
 are close to upstream's 10.4 and 1.7;
-the absolute values differ with the machine and the two-CPU cap.
+the absolute values differ with the machine and the two-CPU cap,
+which is why only the ratios are compared.
 
 ### Control: paths after the separator
 
@@ -725,9 +756,13 @@ With `['--message', 'x', '--', ...paths]`,
 `parseCommitRegion` cuts the list at the separator and hands Optique two tokens,
 `--message` and `x`.
 Across every path count and both path lists,
-the Optique arms' medians ran from 0.39 to 0.97 ms,
+the Optique arms' medians stayed within a factor of 2.5 of one another
+(0.39 to 0.97 ms,
+for scale only),
 with no version standing apart.
-The owned parser took 0.03 to 0.05 ms up to a hundred paths and 0.16 to 0.17 ms at a thousand,
+The owned parser took three to six times as long at a thousand paths as at up to a hundred
+(0.16 to 0.17 ms against 0.03 to 0.05 ms,
+for scale only),
 since it reads the paths itself.
 No version changes that fixed cost.
 
@@ -789,14 +824,18 @@ That is the behavior change commit `1e53f52e02` announced.
 ### What this does and does not support
 
 - It answers the maintainer's question for this parser:
-   on 1.3.6 a thousand-path parse costs 184 ms,
-   and on the current pre-release 95 ms,
-   against 2,696 ms on the version this project left.
+   in the same rounds,
+   a thousand-path parse on 1.1.1,
+   the version this project left,
+   took 14.6 times as long as on 1.3.6,
+   and on the current pre-release 0.52 times as long as on 1.3.6.
 - It does not say what the old wrapper would have cost in total on 1.3.6.
    The wrapper no longer exists,
    and only its parse was timed.
 - It does not rank Optique against the owned parser.
-   The 0.18 ms shows that reading a thousand paths needs almost no work;
+   The owned parser's time,
+   about a thousandth of that of 1.3.6,
+   shows that reading a thousand paths needs almost no work;
    the two parsers do different things.
 - The harness,
    the check scripts,
@@ -811,7 +850,6 @@ That is the behavior change commit `1e53f52e02` announced.
 The owner's instruction on 2026-11-12 was to resolve what analysis,
 measurement and source reading can resolve before any question goes to the maintainer.
 This section holds those answers.
-An audit of `passThrough()` was still running when it was last updated.
 
 The second round of measurement,
 on 2026-11-12 from 16:41:27Z to 16:56:17Z,
@@ -963,7 +1001,11 @@ per version:
    3.8 and 4.1,
    approaching the 4 a square gives;
    from 4 to 256 characters the time rose in a straight line,
-   about 4.3 ms per character at 500 tokens and 16 options;
+   and fitted as a power of the length its exponent was 0.82 (standard deviation 0.01 over five rounds);
+   256 characters took 27 to 30 times as long as 4 in each of the five rounds;
+   the slope,
+   4.6 to 4.8 ms per character by round at 500 tokens and 16 options,
+   is for scale only;
    the exponent in tokens was 1.13.
    The prediction held,
    so the experiment can see these shapes.
@@ -977,9 +1019,13 @@ per version:
    3.7,
    4.0,
    3.9) and the same exponent in tokens (1.14);
-   flat in length at about 20 ms,
-   with one exception at twelve characters,
-   where it took 77 ms.
+   flat in length,
+   with an exponent of -0.07 (standard deviation 0.04),
+   and one exception at twelve characters,
+   where its median was 3.8 times that of the other lengths,
+   and in single rounds 3.3 to 5.6 times that of eight or sixteen characters
+   (84 ms against about 22 by the medians,
+   for scale only).
    The length check of [pull request 992][] skips a name only when its length differs from the token's by more than three
    characters or by more than half the token's length,
    so a token about as long as the option names still pays for every edit distance.
@@ -1016,15 +1062,22 @@ with 50 options whose names are 20 characters long:
 
 - One call of the search function took 0.061 ms,
    about a sixteenth of the estimate.
+   The estimate is an absolute time,
+   so this one comparison has to be in milliseconds;
+   on a shared and loaded machine it shows the order of size and nothing finer.
    The cost model in the evidence archive predicted 0.07 to 0.095 ms from the first round's profile before this was run.
-- One failing parse of one mistyped option took 3.1 to 3.4 ms,
-   against 0.011 ms for a parse that succeeds,
-   in two separate measurements.
+- One failing parse of one mistyped option took about 300 times as long as a parse that succeeds in the same process:
+   297 to 299 in the three rounds of the check script,
+   and 323 in the agent's run
+   (3.1 to 3.4 ms against 0.011 ms,
+   for scale only).
    Each of the 50 option parsers rejects the token and each runs its own search,
    so one typo is about 55 searches.
 - One successful parse of a thousand paths made 50,000 searches,
    counted,
-   and took 8.7 s.
+   and in the agent's run took about 2,600 times as long as its one failing parse
+   (8.7 s,
+   for scale only).
 
 So the estimate was right for the unit it priced and off by the number of times that unit runs:
 about 50 times for a single typo,
@@ -1035,8 +1088,10 @@ and tokens times options for a parse that succeeds.
 The first round found `1.4.0-dev.2664` slower than 1.3.2,
 which it contains.
 A function-by-function comparison of profiles attributes it:
-of 33.6 ms added per parse,
-`short-option.js` accounts for 32.0 ms,
+of the time added per parse,
+`short-option.js` accounts for 95%
+(32.0 of 33.6 ms in the two profiles,
+for scale only),
 and that file does not exist in 1.3.2.
 
 Its source,
@@ -1091,8 +1146,11 @@ Every version measured,
 takes time close to the square of the number of positional tokens once other costs are small.
 With one option parser,
 a separate script written for this check gave exponents from 1.75 to 1.97 between 1,000 and 8,000 tokens:
-about 30 ms at 1,000 and 1.4 to 1.7 s at 8,000,
-on all three.
+within one process,
+eight times the tokens took 38 to 60 times as long,
+over two rounds on each of the three
+(about 30 ms at 1,000 and 1.4 to 1.7 s at 8,000,
+for scale only).
 
 The cause is in `packages/core/src/input-trace.ts`,
 unchanged at line 141 from 1.1.1 to `main`:
@@ -1216,3 +1274,5 @@ These need the maintainer's own account:
 [pull request 997]: https://github.com/dahlia/optique/pull/997
 [issue 1083]: https://github.com/dahlia/optique/issues/1083
 [issue 1084]: https://github.com/dahlia/optique/issues/1084
+[paired differences]: #the-differences-with-each-process-as-one-observation
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027
