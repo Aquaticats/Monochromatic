@@ -754,10 +754,15 @@ as the project's own:
 - what a document states that a reader can only check by opening the archive is kept beside it as plain text,
   cut to the records that back the statement;
   a document that names an archive only as the place raw material is kept gets nothing but the pointer;
-- a file whose bytes a recorded digest pins is not edited,
-  and files no digest pins are edited in place by rule `WR6`
-  (adopted by the coordinating session,
-  open to veto).
+- every file that names a removed archive is edited in place by rule `WR6`,
+  and every file that records a digest of an edited file gets the current bytes and SHA-256 beside the recorded ones,
+  round after round until nothing changes.
+  The coordinating session had adopted the opposite
+  (a file a recorded digest pins is not edited)
+  and put it to the owner at about 17:38 with three options;
+  the owner chose "Edit all, re-record digests".
+  The brief was changed to that before the run had a run folder;
+  whether the run was sent the changed text is checked against its feed when it starts.
 
 The work is one run,
 `tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored`,
