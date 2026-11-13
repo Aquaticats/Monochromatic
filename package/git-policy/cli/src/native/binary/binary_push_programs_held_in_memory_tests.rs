@@ -78,9 +78,8 @@ struct World {
     record: PathBuf,
     /// The service of the fixture.
     service: FixtureService,
-    /// The folder this control's own stand-in `git-lfs` lives in.
-    stand_in: PathBuf,
-    /// The `PATH` the shell that commits in this control searches.
+    /// The `PATH` the shell that commits in this control searches,
+    /// which holds that shell's own stand-in `git-lfs` and not the service's list.
     shell_path: OsString,
 }
 
@@ -148,7 +147,7 @@ fn world(name: &str) -> World {
     let shell_path: OsString = shell_path(&fixture, stand_in.as_path());
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return World { fixture, repo, origin, record, service, stand_in, shell_path };
+    return World { fixture, repo, origin, record, service, shell_path };
 }
 
 /// What:
