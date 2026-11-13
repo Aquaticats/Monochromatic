@@ -83,7 +83,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Clearance = { lock: string; pid: number };
+/// type Clearance = { lock: string; pid: number; evidence: 'pid-file' | 'service-marker' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Clearance {
@@ -93,6 +93,31 @@ pub struct Clearance {
     /// the PID file's,
     /// or the number the service's marker named.
     pub pid: i64,
+    /// What named that number,
+    ///  which the line for the person says.
+    pub evidence: Evidence,
+}
+
+/// What:
+///  The evidence a removal acted on,
+///  in the terms the person reads.
+/// Why:
+///   A lock's PID file is one fact and the commit service's marker is another:
+///  the line must say which of them named the holder,
+///  or it describes a file that does not exist.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Evidence = 'pid-file' | 'service-marker';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Evidence {
+    /// The lock's own PID file,
+    ///  written because `core.lockfilePid` is on.
+    PidFile,
+    /// The commit service's marker,
+    ///  which the service itself wrote into the lock.
+    ServiceMarker,
 }
 
 /// What:
@@ -123,7 +148,7 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
                     Some((number, _identity)) => number,
                     None => 0,
                 };
-                Some(Clearance { lock: lock.to_path_buf(), pid })
+                Some(Clearance { lock: lock.to_path_buf(), pid, evidence: Evidence::ServiceMarker })
             }
             _ => None,
         };
@@ -157,7 +182,7 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     std::fs::remove_file(lock).ok()?;
     // The PID file goes with the lock it belongs to: Git writes it beside the lock and removes both together.
     let _removed = std::fs::remove_file(pid_file_beside(lock));
-    return Some(Clearance { lock: lock.to_path_buf(), pid });
+    return Some(Clearance { lock: lock.to_path_buf(), pid, evidence: Evidence::PidFile });
 }
 
 /// What:
@@ -303,10 +328,19 @@ fn nothing_holds_it_open(lock: &Path, device: u64, inode: u64) -> bool {
 /// `monochromatic-git-policy-cli: cleared ${lock}, whose holder is gone ...`
 /// ```
 pub fn clearance_line(clearance: &Clearance) -> String {
+    let who: String = match clearance.evidence {
+        Evidence::PidFile => format!(
+            "its PID file names {}, and this repository's own record of the processes its commands started names that same process",
+            gone_holder_words(clearance.pid)
+        ),
+        Evidence::ServiceMarker => format!(
+            "the commit service's own marker in it names {}, and that process no longer runs",
+            gone_holder_words(clearance.pid)
+        ),
+    };
     return format!(
-        "monochromatic-git-policy-cli: cleared {}, which a Git that no longer runs left: its PID file names {}, and this repository's own record of the processes its commands started names that same process. A Git fills a lock and renames it over its target, so the file it never renamed held only that Git's unfinished copy of the index, the reference list, HEAD or the shallow file, and the repository has the file it had before.\n",
-        clearance.lock.display(),
-        gone_holder_words(clearance.pid)
+        "monochromatic-git-policy-cli: cleared {}, which a Git that no longer runs left: {who}. A Git fills a lock and renames it over its target, so the file it never renamed held only that Git's unfinished copy of the index, the reference list, HEAD or the shallow file, and the repository has the file it had before.\n",
+        clearance.lock.display()
     );
 }
 /// What:
