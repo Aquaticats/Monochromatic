@@ -1125,9 +1125,9 @@ cut at `FEED_PREVIEW_CHARACTERS.toolResult`.
 A preview cut inside a JSON string is not a JSON document,
 and reading one back fails with `Unterminated string in JSON`,
 at the position the cut landed.
-That is what turned ten runs of 2026-11-12 and 2026-11-13 into `driver-failed`
+That is what turned runs of 2026-11-12 and 2026-11-13 into `driver-failed`
 after their work was whole and Pi had exited 0,
-each naming the position the cut landed at in a summary read on 2026-11-13 under `${HOME}/temp/agent/pi-runs`.
+each summary naming the position the cut landed at (issue 6299).
 The feed is read as it is written,
 so a line its writer has not finished is no record yet and is left alone:
 that is what `src/whole-lines-of-a-feed.ts` does for every reader of a feed.
