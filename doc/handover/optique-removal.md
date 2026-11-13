@@ -839,6 +839,52 @@ each in answer to a question that gave the options:
   filed on the owner's answer "Open one issue (Recommended)";
   none of them was changed.
 
+- Upstream issue 1118,
+  about PowerShell completion tests exceeding Bun's five-second timeout,
+  which the owner took for something this work set off:
+  "I believe we're the only ones using Bun 1.3.14,
+  so this one has to have been triggered by us.
+  And we don't care about support for older versions,
+  just like Bun itself doesn't care."
+  and
+  "I suspect you tested Bun 1.3.14 anyway,
+  which we shouldn't have.
+  Even if we did,
+  it shouldn't have been counted or marked as a defect."
+  What the records show,
+  checked on 2026-11-13 by the session that did the work:
+  - The issue was opened by upstream's maintainer at 2026-11-12T18:11:19Z.
+    It,
+    and the two beside it (1116 and 1117),
+    name neither this repository nor its owner.
+    It reports `mise test` on the maintainer's own branch `bugfiix/docs-build-oom`,
+    on Fedora Linux 44.
+  - Upstream's `mise.toml` pins `bun = "1.3"`,
+    and `mise ls-remote bun` lists 1.3.14 as the newest 1.3 release,
+    so `mise test` in upstream's checkout runs Bun 1.3.14 for whoever runs it.
+  - This repository's `toolchain.lock.json` held Bun 1.4.4 at the commit before the issue (`07597bdd20`) and holds it now.
+  - No file in this work's scratch records names 1.3.14.
+    The records show Bun 1.3.0,
+    in the prototype's work image,
+    whose first Bun log is dated 2026-11-12T15:02:28-05:00,
+    about two hours after the issue;
+    and Bun 1.4.4 on 2026-11-13.
+  - This repository's public Optique documents,
+    as of the commit before the issue,
+    say nothing about Bun tests or PowerShell.
+  So nothing found ties the issue to this work.
+  Not established:
+  what the session did before its context was summarised,
+  beyond what those records hold;
+  and why the maintainer ran the suite that day.
+  What was wrong on this side is the Bun 1.3.0:
+  the prototype's image pinned it with no reason given,
+  the session ran upstream's suite on it on 2026-11-13,
+  and wrote the failing-test counts into a public document.
+  That is an old version,
+  the failures are no finding about upstream,
+  and nothing about them is to be reported.
+
 Nothing in this section has been approved by the owner as complete or final;
 it is one AI session's record of what it did,
 checked and left open.
