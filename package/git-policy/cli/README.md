@@ -988,14 +988,17 @@ Read-only commands,
      and returns;
      that service deletes the
    subvolume in its own time,
-   normally within a second,
+   in the next round the service runs for that repository,
      so a busy volume's btrfs transaction or cleaner does not hold your
-   command.
+   command,
+     and a volume no add is copying to is not the next round's wait either.
      The path you named is gone the moment the command returns;
      the files are gone when the service has run.
      A
-   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
-   service did not delete it yet:
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory,
+   or in the repository's
+   `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
+   means the service did not delete it yet:
      while a record for it is still queued,
      the next command of that repository wakes the service that reads the
    record,
@@ -1159,6 +1162,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and a volume it did not make refuses the removal while every file of the worktree is still there;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
+
+A worktree that fails one of those is kept and the report says why.
+A nested worktree of this repository inside it is named with the branch it is on,
+or with the fact that it is on a detached `HEAD`,
+and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
+ uncommitted.
+A subvolume or a mount point that is no worktree of this repository is named with what it is,
+with the move or the unmount that keep every file of it first,
+and with a `btrfs subvolume delete` last and for what it destroys,
+ because a subvolume there may be another repository's worktree.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -2059,9 +2072,13 @@ and
  name it:
 its content is not part of the tree.
  Move it out,
-delete it with `btrfs subvolume delete`,
-or unmount it,
-then run the deletion again.
+which keeps every file of it,
+or unmount a mount point,
+which keeps its contents,
+then run the deletion again;
+`btrfs subvolume delete` comes after those and is named for what it does,
+because it destroys everything inside that subvolume,
+which the deletion that refused cannot see.
 A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
 with the same reason and the same ways forward;
 the entries the deletion had already removed from that directory stay removed,
@@ -2273,7 +2290,16 @@ the two tools that rewrite link layouts in place are the commit service's work w
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
-  The add's clean runs in a worktree you may already be working in,
+  Where the copy carried the worktree's own build state inside the worktree,
+   the add moves that state aside in one rename before it returns and the commit service cleans it,
+   so a build you start at once finds no build directory and compiles everything itself:
+   correct,
+  and slower than a build that waits for the service's clean.
+   The worktree's own crates never come back from the repair as fresh artifacts with another checkout's paths.
+  The clean that still runs inside the add,
+  which is the case only where the copied state cannot be
+   moved aside,
+  runs in a worktree you may already be working in,
    and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
    so the bytes standing there when the clean ends are kept whole under the repository's Git directory,
    in `monochromatic-git-policy-cli-displaced-locks`,
@@ -7223,16 +7249,19 @@ all durations in whole milliseconds taken from the monotonic clock:
   They were added for the reading in
   `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `prepareParts` splits the preparation by the stretch of work it was in,
-  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  as `{"layout": {"ms": 12, "calls": 1, "childrenMs": 480}, ...}`:
   the seams are one line each in `src/native/landing/service_prepare.rs`,
-  each figure is the time that stretch spent without a Git child
+  `ms` is the time that stretch spent without a Git child
   (the steps are listed apart in `steps`),
+  `childrenMs` is the time of the Git steps that began inside it,
+  clipped to its end,
+  so a stretch a child dominated states that child's time rather than nothing,
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `buildParts` is the same shape for the build phase:
-  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
-  with a name for every stretch that held no Git child.
+  `{"branch": {"ms": 1, "calls": 1, "childrenMs": 0}, "shadow skeleton": {"ms": 3, "calls": 1, "childrenMs": 0}, ...}`,
+  with a name for every stretch and the time of the Git children that began inside it.
   The shadow repository's creation is the one this was added for:
   it is in-process filesystem work,
   so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure

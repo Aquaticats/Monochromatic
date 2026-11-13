@@ -91,6 +91,28 @@ pub enum Verdict {
     /// The work was done,
     /// or there was nothing to do.
     Done,
+    /// What:
+    ///  The push delivered the commit,
+    ///  and the words are what the server and the reconcile said about it,
+    /// which the person is told through a record.
+    /// Why:
+    ///   Only the push answers this,
+    /// and the record is written where every other record of a push is written,
+    ///  by the step that settles it,
+    /// so that a storage that refused the words leaves the item not done and says why
+    /// (`service_work_settling_a_verdict.rs`), and so that both the round and the retry plan
+    ///  record what a landed push said.
+    ///  The commit is the one the push sent, never the newest record the round claimed:
+    /// the record is named for it,
+    ///  and a commit that landed after the claim is what the push sends.
+    Delivered {
+        /// The commit the push sent,
+        /// which its record is named for.
+        commit: String,
+        /// What the push chose to show,
+        /// which is nothing when it said nothing.
+        said: String,
+    },
     /// The work failed;
     /// the text is what the person should be told.
     Failed(String),

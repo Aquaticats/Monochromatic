@@ -131,7 +131,7 @@ fn fill_one(
 /// ```ts
 /// await templateOf({ context, commonDir, gitDir, repository })
 /// ```
-fn template_of(
+pub(crate) fn template_of(
     context: &GitContext,
     common_dir: &Path,
     git_dir: &Path,
