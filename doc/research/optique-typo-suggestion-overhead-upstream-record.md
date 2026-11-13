@@ -3,7 +3,19 @@
 ## Research status
 
 - Status:
-   complete
+   not approved by the owner as complete.
+   An AI session wrote it on 2026-11-12 and marked it "complete" on its own word,
+   which the owner rejected on 2026-11-13:
+   "No.
+   It was not complete.
+   At the very least it should have said I haven't approved it as complete."
+   What was done:
+   the source reading and measurement dated in this list,
+   one independent review recorded under "Independent review",
+   and two in-place notes of 2026-11-13.
+   What is known to be open:
+   the questions under "Questions" that only upstream can answer,
+   and the further measurements in the two troubleshooting documents this one points to.
 - Source reading recorded:
    2026-11-12T09:11:13-05:00
 - Measurement recorded:
