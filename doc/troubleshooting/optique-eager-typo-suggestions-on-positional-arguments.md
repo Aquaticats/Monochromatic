@@ -658,7 +658,9 @@ Rewritten 2026-11-13T09:36:05-05:00,
 because the thread moved:
 
 - The owner answered on the commit at 2026-11-12T13:52:56Z:
-   "Looking. ETA: In 24h with 90% certainty."
+   "Looking.
+   ETA:
+   In 24h with 90% certainty."
    That day ended at 2026-11-13T13:52:56Z,
    before this rewrite.
 - The maintainer read this repository's documents without waiting,

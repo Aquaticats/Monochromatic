@@ -19,7 +19,7 @@ which says the regression
 then reproduced locally",
 and links this document at commit `249bbf19ea`.
 Pull request 1121 for it was opened at 2026-11-13T10:10:30Z and is open at this writing.
-What this project measured of that pull request is under "Upstream's pull request 1121, measured".
+What this project measured of that pull request is under "Upstream's pull request 1121 as measured here".
 
 The measurement behind it is in `doc/research/optique-typo-suggestion-overhead-upstream-record.md`,
 section "What the 1.4 line added",
@@ -262,7 +262,7 @@ Bun's 1.3.6 figure is lower than the others' (21.1 ms against 36.9 on Node),
 while its figure for the pre-release is about the same (55.2 against 70.5),
 so the scope work costs relatively more there.
 
-### Upstream's pull request 1121, measured
+### Upstream's pull request 1121 as measured here
 
 Seven rounds with the order of the arms rotated,
 on Deno 2.9.8,

@@ -774,7 +774,9 @@ Nothing has been sent upstream by this project.
 Upstream moved on its own from this repository's public documents:
 
 - The owner answered the maintainer on the commit at 2026-11-12T13:52:56Z:
-  "Looking. ETA: In 24h with 90% certainty."
+  "Looking.
+  ETA:
+  In 24h with 90% certainty."
   That day ended at 2026-11-13T13:52:56Z with no reply posted.
 - The maintainer opened upstream issue 1120 at 2026-11-13T08:16:37Z,
   citing the research record and the short-option document at commit `249bbf19ea`,
