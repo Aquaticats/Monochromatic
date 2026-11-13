@@ -39,12 +39,23 @@ holding one JSON object in a fenced block tagged `review-statement`:
 ```review-statement
 {
   "commit": "<the commit this review reads>",
-  "diff": { "lines": 0, "linesRead": 0 },
-  "files": [ { "path": "<a file the diff touches>", "read": "whole" } ],
-  "commands": [
-    { "command": "<a command this review ran>", "exit": 0, "ranBuiltProgram": "<a path under target/ or dist/>" }
+  "diff": {
+    "lines": "<how many lines the diff file holds>",
+    "linesRead": "<how many of those lines this review read>"
+  },
+  "files": [
+    { "path": "<a file the diff touches, from the top of the checkout>", "read": "whole" }
   ],
-  "findings": [ { "finding": "<its number or short name>", "shownBy": "run" } ]
+  "commands": [
+    {
+      "command": "<a command this review ran, as it ran it>",
+      "exit": 0,
+      "ranBuiltProgram": "<the path of a program this worktree built>"
+    }
+  ],
+  "findings": [
+    { "finding": "<the finding's number or short name>", "shownBy": "run" }
+  ]
 }
 ```
 

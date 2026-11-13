@@ -34,7 +34,7 @@ Look hardest at: @FOCUS@
 
 ## What this review read and ran
 
-Write this section as the first section of your review file, right after its title and before any finding: the heading below, then one JSON object in one fenced block tagged \`review-statement\`, with every value replaced by what you did. A program reads it, so keep its shape exactly.
+Write this section, its heading and all, as the first section of your review file, right after the title and before any finding: the heading as it is written above, then one JSON object in one fenced block tagged \`review-statement\`, with every value replaced by what you did. A program reads it, so keep its shape exactly.
 
 \`\`\`review-statement
 @STATEMENT_SKELETON@
