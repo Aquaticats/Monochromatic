@@ -220,7 +220,6 @@ export {
   workWaitMillisecondsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
 export {
-  type WorkOfARun,
   cgroupOf,
   unitNamedBy,
   wakeMessageOf,
@@ -342,6 +341,11 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The library surface of reading a run's own records, kept in a file of its own for the same reason.
+ */
+export * from './index-of-reading-a-run.ts';
 
 /**
  The library surface of starting a run, kept in a file of its own so that neither list outgrows the line budget.

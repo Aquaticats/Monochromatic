@@ -964,12 +964,17 @@ the launcher that builds the session's environment asks it, once, before it make
 - `feed.jsonl`:
   one line per event worth watching,
   as it happens.
+  A `tool_end` line keeps only a preview of what the tool answered,
+  and an answer of the run's own `process` tool that names processes also gets a `processes` line holding it whole,
+  because the driver reads those answers to tell whether work of the run's still runs,
+  and text cut inside a JSON string cannot be read back.
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
+  `workProblem` says what the driver could not read when it asked what the run left running,
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
@@ -1103,7 +1108,8 @@ and its feed gains a `problem` line naming the work it waited for,
 so the two ends are never one word.
 
 What the driver asks is in `work-the-run-left-running.ts`:
-the run's own `process` tool, whose every answer is a record of the feed and whose records carry the process number,
+the run's own `process` tool, whose every answer that names processes is a `processes` line of the feed,
+carrying the process number,
 the folder it started in and the command it runs;
 the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's own unit,
 which is how a `systemd-run --scope` the agent made is found;
@@ -1113,9 +1119,35 @@ for work whose number has gone.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
 
-`driver-failed` means the driver itself hit an error:
-`driverError` names it,
-or `feedProblem` does when the feed could not be written.
+The `processes` line is why an answer is there twice.
+The `tool_end` line beside it keeps only a preview of what the tool answered,
+cut at `FEED_PREVIEW_CHARACTERS.toolResult`,
+and a preview cut inside a JSON string is not a JSON document:
+reading that back fails with `Unterminated string in JSON at position 509`.
+That is what turned twelve runs of 2026-11-12 and 2026-11-13 into `driver-failed`
+after their work was whole and Pi had exited 0,
+found on 2026-11-13 by reading the summaries under `${HOME}/temp/agent/pi-runs`.
+The feed is read as it is written,
+so a line its writer has not finished is no record yet and is left alone:
+that is what `src/whole-lines-of-a-feed.ts` does for every reader of a feed.
+
+A read that fails after the agent ended its turn does not change why the run ended.
+The run still ends as the run it was,
+and `workProblem` carries what could not be read,
+together with a `work-unreadable` line on the feed saying the same.
+That is what a reader sees when the process table,
+the feed or the manager cannot be read while the driver asks what the run left running:
+the agent finished its turn and Pi exited 0,
+so the run did its work,
+and only the driver's knowledge of the work left behind is missing.
+
+`driver-failed` means the driver itself hit an error before it knew how the run ended,
+or that the feed could not be written:
+`driverError` names the error,
+or `feedProblem` does.
+A run that settled is never reported that way for a read that failed after its work was done:
+that failure is `workProblem`,
+and the end reason stays the one the run earned.
 
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.

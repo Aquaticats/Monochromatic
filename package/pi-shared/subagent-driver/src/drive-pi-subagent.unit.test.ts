@@ -40,9 +40,14 @@ import {
   FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
+  PROCESSES_RECORD_KIND,
+  recordsIn,
   type RunSummary,
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
+import {
+  REPORTED_PROCESS_ID,
+} from './stand-in-pi-scenario-plays-fixture.ts';
 import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
@@ -765,6 +770,49 @@ await describe({
         expect(String(run.feed[waiting]?.problem,),).toContain('native-build',);
         expect(woke,).toBeGreaterThan(waiting,);
         expect(run.feed[woke]?.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a run whose tool answered with more than a feed line keeps of it ends idle, with the answer whole on the feed',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'process-answer-longer-than-a-line', },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.piExit?.code,).toBe(0,);
+        // Nothing was read badly: the whole answer sits on the feed as a record of its own, which is what the driver reads to
+        // tell whether work of the run's still runs.
+        expect(run.summary.workProblem,).toBeUndefined();
+        /**
+         The record that keeps the tool's answer whole.
+         */
+        const answered = run.feed.find((entry,) => entry.kind === PROCESSES_RECORD_KIND,);
+        expect(answered,).toBeDefined();
+        expect(recordsIn(answered?.processes,).map((process,) => process.id,),).toEqual([REPORTED_PROCESS_ID,],);
+      },
+    },),
+    it({
+      name: 'a run that settled and whose Pi exited 0 ends idle when the read of its work fails, and the failure sits beside that ending',
+      fn: async () => {
+        // The process folder is a file, so the driver's read of it fails as a damaged process table would. That read is the last
+        // thing between a settled run and its end, and it fails after the agent did its work and Pi exited 0: the run must still
+        // end as the run it was, and the failure is what a reader finds beside that ending.
+        const run = await runDriver({
+          scenario: 'normal',
+          environment: { PI_RUNS_PROCESS_FOLDER: '/dev/null', },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.piExit?.code,).toBe(0,);
+        expect(run.summary.settled,).toBe(1,);
+        // The summary says what could not be read, and never that the driver failed.
+        expect(String(run.summary.workProblem,),).toContain('ENOTDIR',);
+        expect(run.summary.driverError,).toBeUndefined();
+        /**
+         The feed's own line for that failure, under a name of its own.
+         */
+        const unreadable = run.feed.filter((entry,) => entry.kind === 'work-unreadable',);
+        expect(unreadable.length,).toBe(1,);
+        expect(String(unreadable[0]?.failure,),).toContain('ENOTDIR',);
       },
     },),
     it({
