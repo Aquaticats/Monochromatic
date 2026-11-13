@@ -33,8 +33,10 @@ where the record has Bun as well,
 is corrected,
 and those corrections have had no review.
 The reply draft was then tightened on the owner's choice,
-as the note before it says,
-and its tightened form has had no review.
+as the note before it says.
+A fresh session of that vendor's model reviewed the tightened form as of commit `629e7b84d7`;
+the note before the draft says what it found and what was changed for it,
+and those changes have had no review.
 Deno appears only as one of the runtimes the reproduction scripts and the suite were run on;
 its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
 with no new feature work.
@@ -783,18 +785,49 @@ on two choices the owner made that afternoon when shown the Node and Bun timing 
    the draft went from 66 lines to 44.
    What left it,
    with where each now lives:
-   the rounds that showed no difference and the count of mismatches,
-   under "Inputs that are slow" in this document and in the reproduction repository's README;
+   the rounds that showed no difference,
+   under "Inputs that are slow" in this document;
+   the count of mismatches,
+   in the reproduction repository's README and under "How the cost grows" in
+   `doc/research/optique-typo-suggestion-overhead-upstream-record.md`;
    `main` before the merge against 1.3.6,
    in `doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md`;
    what the `Proxy` of the second patch costs a caller and the figures for the buffer attempt,
    in the input-trace document under "Prototypes for the two further copies",
    which the draft links;
    and the paragraph on what 1.3.6 still does on every mismatch,
-   in step 4 of "Root cause" and under "Verified workarounds" in this document.
+   in step 4 of "Root cause" and under "Verified workarounds" in this document,
+   with the length check's two limits in the research record.
+   Shorter phrases left it too,
+   each of which stands in the documents named here:
+   that the parser was unchanged from the commit's parent,
+   the two-CPU container,
+   "faster in all seven",
+   that the arms were rotated,
+   that the first patch applies to `main` as of the merge,
+   that the core suite passes with the second patch,
+   and how the second patch was timed and what it does.
    No figure in the tightened draft is new:
    each stood in the longer one.
-   No reviewer has read the tightened form yet.
+   A model from another vendor,
+   in a fresh session,
+   reviewed the tightened form as of commit `629e7b84d7`.
+   It found no wrong figure and no new one,
+   and found the owner's choices reflected as recorded.
+   Folded in from it:
+   the second patch's ratio now names what it is a ratio to,
+   the first patch alone,
+   where a reader could have taken it as a ratio to `main`,
+   which no round measured at that size;
+   the buffer copy is again said of each primitive that consumes a token;
+   the opening speaks of the measurements and no longer of every number,
+   since the closing paragraph quotes two absolute times from the old commit message;
+   and this note's list of where each removed part lives is corrected.
+   Weighed and left as it is:
+   the second patch's figures are those of the patch before its last change,
+   to how a view answers a request for its `length` descriptor,
+   which the linked write-up says and the reply does not.
+   Those corrections have had no review.
 
 ~~~md
 Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
@@ -804,8 +837,8 @@ had sent you any of it.
 one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
 and Valibot reasons you noticed.]
 
-The numbers, each a ratio between versions run in the same round because the machine is shared, with the range of
-the single rounds in brackets. The parser this commit removed, one parse of `['--message', 'x', ...1000 paths]` on
+My measurements, each a ratio between versions run in the same round because the machine is shared, with the range
+of the single rounds in brackets. The parser this commit removed, one parse of `['--message', 'x', ...1000 paths]` on
 Node 26, seven rounds: 1.3.2 took 0.065 times as long as 1.3.1 (0.061 to 0.070), and 1.4.0-dev.2971 took 0.51
 times as long as 1.3.6 (0.46 to 0.61). So #992 removed about 93% of it and #997 about half of what was left.
 
@@ -817,9 +850,10 @@ On the `InputTraceImpl.set()` copy you set aside in #1120: I have a patch that k
 hash trie. With 8,000 positional arguments and one option the patched build takes 0.11 times as long as main on
 Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), over five rounds, and the core suite passes with it on
 Deno, Node and Bun. It does not make the parse linear: `multiple()` still rebuilds its state array for each item
-and each primitive still slices the buffer for each token. A second patch removes the state copy (on top of the
-first, 32,000 arguments take 0.16 times as long on Node and 0.43 on Bun) at the cost of making a large state a
-`Proxy`; for the buffer I have nothing that works. The write-up, with both patches and what the `Proxy` costs:
+and each primitive that consumes a token still slices the rest of the buffer. A second patch removes the state
+copy (32,000 arguments take 0.16 times as long as with the first patch alone on Node, and 0.43 on Bun) at the cost
+of making a large state a `Proxy`; for the buffer I have nothing that works. The write-up, with both patches and
+what the `Proxy` costs:
 [commit permalink to doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in
 Aquaticats/Monochromatic].
 

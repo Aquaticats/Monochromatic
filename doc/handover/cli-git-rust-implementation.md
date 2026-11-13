@@ -685,6 +685,78 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Pass 20 is in `main` and `0.6.1-alpha.18` is dispatched; abort-and-skip passed its second review; the owner: a stale lock file fails the lint through the closure check (2026-11-13T17:44:06-05:00)
+
+Not final and not approved:
+written by the coordinating session from the runs' own reports and its commands' output.
+
+- **Pass 20** reported at 17:37:48 that its branch is fit to be released
+  (`~/temp/agent/pi-runs/integration-pass-20-for-alpha-18-1/report-from-its-summary.md`):
+  the finished-records branch merged with no conflict;
+  one repair commit, `9a1178f17b`,
+  gives the branch's own fixture the field `shadow` that `main` had added to `CommitRequest`;
+  build, both test compiles and Clippy pass;
+  the nine controls the branch adds pass by name;
+  a commit of one changed file added 21 ms to 737 ms over real Git's 5 ms to 10 ms in twelve rounds.
+  Its two red tests are the two of `service_journal_restored_at_start` that fail on `main` too and have a run of their own queued.
+- Merged into `main` at about 17:40 as `f3c9fbfe92`.
+  `main..e048c741ed` held the branch's eight commits and the repair and nothing else.
+- `native:release -- 0.6.1-alpha.17 0.6.1-alpha.18` dispatched `crate-release.yml` run 43521287707;
+  `native:release:wait` is going in unit `gpc-release-wait-0-6-1-alpha-18`.
+  Then: `native:install -- 0.6.1-alpha.18` and a sample commit.
+- **Abort and skip** (`92591a71e6`): its second review ended at 17:35:41 with no defect found,
+  its reproductions run through the wrapper built at that commit against real Git
+  (`~/temp/agent/change-reviews/git-policy-cli-abort-and-skip-answers-after-its-first-review/review.md`).
+  It is integration pass 24
+  (`integrate/git-policy-cli-pass-24-for-alpha-22`,
+  brief `~/temp/agent/pi-runs/integration-pass-24-for-alpha-22-prompt.md`),
+  pinned to that commit,
+  queued at 17:43.
+- **Start gate** (`a75145b0b1`): its fourth review reproduced one defect.
+  A level file that cannot be read for a moment
+  (rewritten in place while a start looks)
+  ends a waiting start with status 1 instead of letting it wait.
+  Sent to its author
+  (`~/temp/agent/pi-runs/start-gate-answers-its-fourth-review-of-2026-11-13-prompt.md`),
+  queued.
+- **Add never skips** (`55b1d7671f`): its third review reports two things,
+  both sent to its author
+  (`~/temp/agent/pi-runs/add-never-skips-answers-its-third-review-of-2026-11-13-prompt.md`):
+  the filling now reads `info/exclude` with a call that can block the thread that polls the runtime,
+  and the helper's check that the patterns are there looks at the first pattern alone.
+- **The cargo fetch lock** (`perf/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch`, `26a02ec36c`,
+  the root `mise.toml` alone):
+  its author finished at 17:37:10.
+  By its report one lint pass took Cargo's package-cache lock 70 times before and takes it 0 times after,
+  and a second Cargo beside a pass waited in 27 of 44 probes before and in 0 of 8 after;
+  the linter's closure check alone still takes the lock 105 times in a lint,
+  which is the next item and has no run yet.
+  Its review is written by hand
+  (the launcher reads no task file;
+  `~/temp/agent/change-reviews/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch/brief.md`)
+  and queued.
+- That branch changes what a stale lock file does:
+  with every crate cached,
+  the fetch step used to fail on it and now leaves it alone,
+  and the closure check names it as a warning that does not fail the lint.
+  Asked through the question tool at about 17:42 with three options
+  (fail through the closure check,
+  a warning only,
+  keep the old fetch),
+  the owner chose "Fail via closure check (Recommended)".
+  A run for it is queued:
+  `stale-cargo-lock-file-fails-the-lint-through-the-closure-check`,
+  branch `fix/linter-monochromatic-lint-stale-cargo-lock-file-fails-the-lint-through-the-closure-check`.
+  The cargo fetch branch reaches `main` with that fix or after it,
+  never before,
+  so that no lint in between lets a stale lock file through.
+- The run that takes the closure check's 105 lock acquisitions away starts when the stale-lock fix has ended,
+  from that branch:
+  both change `package/linter/monochromatic-lint/src/closure_cargo.rs`,
+  and two branches that met in the same files cost a continuation on 2026-11-12
+  (the landed-removal second pass,
+  seven files against `main`).
+
 #### The owner: no archive stays tracked; five runs of 2026-11-12 that never took a turn are started again (2026-11-13T17:31:03-05:00)
 
 Not final and not approved:
@@ -722,41 +794,66 @@ Measured on `main` at 17:30
   (one search,
   its control still to be run by the author).
 
-Adopted by the coordinating session as the reading of the owner's words,
-open to veto,
-and asked through the question tool where marked:
+The owner's answers,
+through the question tool at about 17:33,
+each asked with the measurements beside it:
 
-- "From the repo" is read as from the tree.
-  History is not rewritten:
-  that would move every branch and worktree in flight and is the owner's to order (asked).
-- "Represent the data another way" is read as plain files in the tree:
-  a gzip of one text file becomes that file,
-  a zip becomes a folder of its members.
-  The cost is measured and stated to the owner:
-  each checkout grows by about 1.13 GB,
-  and the archives' bytes stay in history beside the new ones.
-- The three Java archives stay tracked and unignored for now:
-  the owner named gzip,
-  zip and tar,
-  and each of the three is read by a build
-  (`gradlew`,
-  and the plugin's `build.ts` with its reproducibility test),
-  so replacing one is a change to that package (asked).
-- A file whose bytes a recorded digest pins is not edited;
-  one record maps every removed archive to its replacement,
-  and files no digest pins are edited in place by rule `WR6`.
+- How the data is kept
+  (plain files of everything,
+  trimmed to what is cited,
+  or a store outside the repository):
+  "Trim to what is cited.
+  It doesn't discard the evidence for good because we are not going to rewrite history."
+- Whether history is rewritten too:
+  "Leave history (Recommended)".
+- What happens to the three Java archives
+  (keep all,
+  drop the plugin's,
+  drop all three):
+  "Override allowlist all 3."
+  Read as:
+  `*.jar` is ignored like the other formats,
+  and the three tracked ones stay tracked through exceptions written beside the pattern.
+
+So,
+as the project's own:
+
+- the raw bulk leaves the tree and Git history is where each whole archive stays;
+  one record lists every removed archive with its path,
+  bytes,
+  SHA-256,
+  the commit that last held it and the command that prints it from history;
+- what a document states that a reader can only check by opening the archive is kept beside it as plain text,
+  cut to the records that back the statement;
+  a document that names an archive only as the place raw material is kept gets nothing but the pointer;
+- every file that names a removed archive is edited in place by rule `WR6`,
+  and every file that records a digest of an edited file gets the current bytes and SHA-256 beside the recorded ones,
+  round after round until nothing changes.
+  The coordinating session had adopted the opposite
+  (a file a recorded digest pins is not edited)
+  and put it to the owner at about 17:38 with three options;
+  the owner chose "Edit all, re-record digests".
+  The brief was changed to that before the run had a run folder;
+  whether the run was sent the changed text is checked against its feed when it starts.
 
 The work is one run,
-`tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored`,
-on branch `chore/doc-tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored`,
-queued at 17:31
-(brief `~/temp/agent/pi-runs/tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored-prompt.md`).
-It stops and reports,
+`tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored`,
+on branch `chore/doc-tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text`,
+queued at 17:36
+(brief `~/temp/agent/pi-runs/tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-prompt.md`).
+A first brief,
+written before the answers for plain files of everything,
+was withdrawn:
+its launcher was stopped at 17:33:42 before it had made a worktree,
+a branch or a run folder,
+and the brief was deleted.
+The run stops and reports,
 instead of deciding,
-on a member that is not text or that Git LFS would take,
-on a credential-shaped string in an unpacked log,
+on an archive whose recorded digest does not match it,
+on code or a task that reads one,
+on a credential-shaped string in what it is about to keep,
 on a commit a guard refuses,
-and on a file near the forge's size bound.
+and where what one archive's documents cite comes to more than about a megabyte.
 Nothing of it reaches `main` before its report is read and the change reviewed.
 
 ##### Five runs of 2026-11-12 that never took a turn
@@ -2488,6 +2585,51 @@ Each pick is quoted as the owner gave it.
 #### Free space
 
 - 107 GiB at 12:26:24, so the launcher's gate lets round 308 start; 103 GiB at 12:30:01.
+### The finished records of the commit service are pruned by age and count together (2026-11-13T13:34:00-05:00)
+
+- Branch `fix/git-policy-cli-finished-records-of-the-commit-service-are-pruned-only-when-old-and-beyond-a-count`,
+  four commits from `main` (`31260af3b1`):
+  `88759e42e3` the binary controls,
+  `1475725556` the rule and both documents,
+  `7c8aba14ac` and `8c3bce9551` the controls' own repairs.
+  Not merged: the coordinating agent merges it.
+  It merges into the main of 2026-11-13T13:41:21-05:00 (207 commits after the base) with no conflict:
+  `git merge-tree --write-tree --name-only main HEAD` writes a tree and lists nothing.
+- What it does now:
+  `prune_done` skips the newest `DONE_RETAINED` (1024) records and removes one only when
+  `a_client_may_still_read_finished_batch` says no client of it may still read it.
+  The removal still runs only at a service's start (`service_server.rs` for an instance's own journal,
+  `service_main.rs` for an earlier release's shared one).
+- The age, `A_FINISHED_RECORD_IS_READ` (`service/wait_ceilings.rs`),
+  is now `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus `LOOKING_FOR_A_LANDED_COMMIT`,
+  30 minutes 17 seconds.
+  The withdrawal is in it because the answer to it is decided from the same record
+  (`service_busy.rs`, `naming`).
+  The count is still 1024, for the other half of the rule:
+  it is what a repository that lands rarely keeps for ever.
+- Measured on 2026-11-13, both from the branch's debug wrapper:
+  an average finished record is 1267 bytes,
+  so 1024 records weigh 1.30 MB and 10,240 weigh 13.0 MB;
+  the first answer after a start took a median 50 to 76 ms with 1024 records and 579 to 640 ms with 10,240
+  (seven runs each, two rounds),
+  while later answers took 6 to 13 ms at both sizes,
+  so a start's read grows with the records and the landing's lookup does not.
+  The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.
+- Reproduced at `main` and refuted on the branch, by the audit's own steps
+  (one wrapped commit, 1024 further landings, a restart, the same identity again):
+  at `main` the restart logged `removed the records of 1 old finished batches`,
+  the record was 103 s old, and the resend landed a second `one-request` commit;
+  on the branch the record survived the restart and the resend was answered `already: true` with the first commit.
+- Limits now stated in `README.md` and `SPEC.md`:
+  a client stalled past the age is recognised only while fewer than 1024 batches landed since it;
+  a service that keeps landing keeps its records until its next start, and that start reads them all;
+  two services of one worktree each remember only what landed before they started, so a request resent to the
+  other one lands twice (nothing in the journal prevents it, and one service per worktree is what does);
+  and a service of an earlier release on the same journal still removes by count alone.
+- Two tests of `service_journal_restored_at_start` were already red on `main` and are not this branch's:
+  their pipes are refused at once as not regular files
+  (`the read was given its ceiling: 460.459µs`), and neither they nor the product code they cover touch
+  `prune_done`, `landed_commits` or the record's age.
 
 ### The owner's answers of 2026-11-12T12:11:18-05:00, through the question tool: a slow push, finished records, a way back, a foreign subvolume
 
