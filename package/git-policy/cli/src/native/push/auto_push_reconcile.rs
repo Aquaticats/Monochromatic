@@ -54,7 +54,7 @@ use crate::auto_push_reconcile_awaiting::{MergePusherAwaiting, integrate_and_pus
 /// What one reconcile run integrates,
 /// how it words itself and how it ended,
 /// shared with the loop.
-pub use crate::auto_push_reconcile_plan::{Integrated, Reconcile};
+pub use crate::auto_push_reconcile_plan::{Integrated, PushedSide, Reconcile};
 
 /// Where the plain push goes,
 /// as `auto_push_destination` decides it.
@@ -349,7 +349,8 @@ pub fn integrate_and_push(
 
 /// What:
 ///  Merge the remote tip into the pushed branch's tip and publish the result,
-/// from a command that is not a task of the runtime.
+/// from a command that is not a task of the runtime,
+/// naming and following the branch the push sent.
 /// Why:
 ///   Another worktree advancing the remote makes the plain push fail for good,
 /// while both histories are valid and
@@ -358,9 +359,12 @@ pub fn integrate_and_push(
 /// so the landed commit stays
 ///  reachable and nothing is forced.
 ///   Once the merge is published,
-/// the branch and its worktree are fast-forwarded to it when that cannot lose or
-///  overwrite anything;
-/// otherwise they are left as they are and the report says why.
+/// the branch the push sent follows it,
+/// and the worktree that has that branch checked out follows with it,
+///  when that cannot lose or overwrite anything;
+/// otherwise the branch is left where it is and the report says why.
+/// That is the pushed branch and never another:
+///  a branch the command's own checkout happens to show is not moved over a merge of another branch.
 ///   A push destination Git cannot name,
 /// a conflict,
 /// an exhausted retry budget and every failure of a command are
@@ -397,7 +401,7 @@ pub fn reconcile_divergent_push(
     let plan = Reconcile {
         destination,
         local: local.to_owned(),
-        branch_ref: Some(branch_ref),
+        pushed: PushedSide::Branch(branch_ref),
         label: "auto-push",
         explicit: false,
     };

@@ -203,14 +203,52 @@ pub fn clean_reason(said: &str) -> String {
     }
     let mut text: String = kept.join("\n");
     if text.len() > LONGEST_REASON {
-        let mut cut: usize = LONGEST_REASON;
-        while !text.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        text.truncate(cut);
-        text.push_str("\n(Git's output is cut here.)");
+        text = keeping_the_ends(&kept, LONGEST_REASON);
     }
     return text;
+}
+
+/// What:
+///  The longest end of a text that fits a budget,
+/// with the lines in the middle cut out and a marker where they were.
+/// Why:
+///   The last line is the wrapper's own sentence,
+/// and the first lines are Git's:
+/// a notice told by the last line alone lost the statement of what was published and where the branch is
+/// when the text was cut at its end,
+/// and a failure notice cut at its end lost Git's words as well.
+/// So the two ends are kept and only the middle goes,
+/// and a single line that needs the whole budget is cut and marked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function keepingTheEnds(lines: string[], budget: number): string;
+/// ```
+fn keeping_the_ends(lines: &[String], budget: usize) -> String {
+    const MARKER: &str = "(Git's output is cut here.)";
+    let Some((last, earlier)) = lines.split_last() else {
+        return String::new();
+    };
+    if last.len() + MARKER.len() + 2 > budget {
+        let mut cut: usize = budget;
+        while !last.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        return format!("{}\n{MARKER}", &last[..cut]);
+    }
+    // The last line, the marker, and the two line feeds between them are already spent.
+    let mut used: usize = last.len() + MARKER.len() + 2;
+    let mut head: Vec<&str> = Vec::new();
+    for line in earlier {
+        if used + line.len() + 1 > budget {
+            break;
+        }
+        used += line.len() + 1;
+        head.push(line.as_str());
+    }
+    head.push(MARKER);
+    head.push(last.as_str());
+    return head.join("\n");
 }
 
 /// What:

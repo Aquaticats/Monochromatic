@@ -146,7 +146,7 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     let stderr = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{stderr}");
     assert!(stderr.contains("[rejected]"), "Git's own report is unchanged: {stderr}");
-    assert!(stderr.contains("monochromatic-git-policy-cli: push: origin/main had new commits"), "{stderr}");
+    assert!(stderr.contains("monochromatic-git-policy-cli: push: origin/main had commits main did not have"), "{stderr}");
     let published = oid(&fixture, race.origin.as_path(), "main");
     assert!(reachable(&fixture, &race, &landed, &published));
     assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));
@@ -170,7 +170,7 @@ fn a_gate_that_refuses_the_merge_stops_the_stacking() {
     let stderr = stderr_of(&observed);
     assert_eq!(observed.code, Some(1), "{stderr}");
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
-    assert!(!stderr.contains("had new commits"), "{stderr}");
+    assert!(!stderr.contains("had commits"), "{stderr}");
     assert!(
         stacked_push_ran(&race),
         "the merge was pushed through a stacked push and the origin's hook refused it: {:?}",
@@ -188,7 +188,7 @@ fn a_dry_run_runs_no_stacked_push() {
     let before = oid(&fixture, race.origin.as_path(), "main");
     let observed = run_wrapped(&fixture, race.repo.as_path(), &["push", "--dry-run", "origin", "HEAD:main"]);
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
-    assert!(!stderr_of(&observed).contains("had new commits"));
+    assert!(!stderr_of(&observed).contains("had commits"));
     assert!(
         !stacked_push_ran(&race),
         "a dry run runs no stacked push: {:?}",

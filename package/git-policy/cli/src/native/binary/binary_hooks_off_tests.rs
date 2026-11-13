@@ -222,7 +222,7 @@ fn a_configured_pre_push_hook_does_not_run_for_a_lost_race_push() {
     commit_directly(&fixture, &world, "local.txt");
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
-    assert!(stderr_of(&pushed).contains("had new commits"), "{}", stderr_of(&pushed));
+    assert!(stderr_of(&pushed).contains("had commits main did not have"), "{}", stderr_of(&pushed));
     assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }

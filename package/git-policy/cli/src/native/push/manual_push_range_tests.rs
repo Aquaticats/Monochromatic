@@ -87,6 +87,7 @@ fn published_repository(name: &str) -> (PathBuf, String) {
 fn update(local: Option<&str>, prior: Option<&str>) -> PushUpdate {
     return PushUpdate {
         local_oid: local.map(str::to_owned),
+        from: String::from("main"),
         remote_oid: prior.map(str::to_owned),
         remote_name: "origin".to_owned(),
         remote_ref: "refs/heads/main".to_owned(),

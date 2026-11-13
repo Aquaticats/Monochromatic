@@ -151,9 +151,13 @@ fn a_reconcile_that_could_not_move_the_branch_shows_its_report_once() {
     let shown: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
     let text: String = stderr_of(&shown);
     assert_eq!(shown.code, Some(0), "{text}");
-    assert!(text.contains("was not fast-forwarded") || text.contains("unchanged"), "the report says what became of the branch: {text}");
+    assert!(text.contains("main is not at it"), "the report says what became of the branch: {text}");
     assert!(text.contains("b.txt"), "the report names the overlapping path: {text}");
-    assert!(text.contains("git merge --ff-only origin/main"), "the report names the command that finishes the move: {text}");
+    let published: String = String::from_utf8_lossy(&git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]).stdout).trim().to_string();
+    assert!(
+        text.contains(format!("git merge --ff-only {published}").as_str()),
+        "the report names the published merge as the command that finishes the move: {text}"
+    );
     // Shown once: the record went with the words, and the command after it says nothing about the merge.
     let again: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
     assert!(!stderr_of(&again).contains("git merge --ff-only"), "the report is shown once: {}", stderr_of(&again));

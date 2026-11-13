@@ -1082,7 +1082,7 @@ fn a_clean_worktree_is_fast_forwarded_to_the_published_merge() {
         "remote\n"
     );
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "");
-    assert!(err.contains("main and the worktree were fast-forwarded"), "{err}");
+    assert!(err.contains("and main and this worktree are now at it"), "{err}");
     assert!(!err.contains("unchanged"), "{err}");
     remove(&s.root);
 }
@@ -1099,12 +1099,10 @@ fn a_worktree_with_a_tracked_change_is_left_behind_with_the_reason_reported() {
     let (_result, err) = run(&s, &landed);
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), landed);
     assert!(
-        err.contains(
-            "unchanged (the worktree has uncommitted changes to files the merge changes: a.txt)"
-        ),
+        err.contains("is not at it: the worktree has uncommitted changes to files the merge changes: a.txt"),
         "{err}"
     );
-    assert!(err.contains("git merge --ff-only origin/main"), "{err}");
+    assert!(err.contains("move it with `git merge --ff-only "), "{err}");
     remove(&s.root);
 }
 
@@ -1215,7 +1213,7 @@ fn a_branch_that_moved_after_the_landing_is_not_fast_forwarded() {
     .expect("git");
     assert_eq!(
         result,
-        Err(String::from("the branch moved after the commit landed"))
+        Err(String::from("the branch moved since the push was made"))
     );
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), before);
     remove(&s.root);
@@ -1350,7 +1348,7 @@ fn the_report_says_the_uncommitted_work_was_left_as_it_is() {
     let published = text_of(&s.remote, &["rev-parse", "main"]);
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published);
     assert!(
-        err.contains("fast-forwarded to it; your uncommitted changes were left as they are."),
+        err.contains("and this worktree are now at it; your uncommitted changes were left as they are."),
         "{err}"
     );
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "M b.txt");
@@ -1783,7 +1781,10 @@ fn integrate_for(
             merge_ref: merge_ref.to_owned(),
         },
         local: landed.to_owned(),
-        branch_ref,
+        pushed: match branch_ref {
+            Some(reference) => PushedSide::Branch(reference),
+            None => PushedSide::Expression("HEAD"),
+        },
         label: if explicit { "push" } else { "auto-push" },
         explicit,
     };
@@ -2787,4 +2788,114 @@ fn a_commit_that_lands_after_the_reading_is_not_published_by_the_reconcile() {
     assert!(!holds_commit(&s, racing.as_str(), published.as_str()), "BUG: the merge published the commit whose own gate had not answered");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), racing, "the branch that moved is left where it is");
     remove(&s.root);
+}
+
+/// What:
+///  The subject of a merge names the branch the push sent,
+///  its body says what happened in the path that made it,
+///  and a reader a year later finds the two tips and the way to undo it.
+/// Why:
+///  The merge of a typed push of `feat/cli-git-worktree-copy` said `into main`,
+///  the branch that happened to be checked out,
+///  a wrong statement in a published history that cannot be corrected without rewriting it.
+#[test]
+fn the_merge_message_names_the_pushed_branch_and_the_reason_of_its_path() {
+    use crate::auto_push_reconcile_plan::{PushedSide, Reconcile, merge_message, wording_of};
+    let destination = Destination {
+        remote: String::from("origin"),
+        merge_ref: String::from("refs/heads/feat/topic"),
+    };
+    let local: String = "a".repeat(40);
+    let remote_tip: String = "b".repeat(40);
+    let typed = Reconcile {
+        destination: destination.clone(),
+        local: local.clone(),
+        pushed: PushedSide::Branch("refs/heads/feat/topic"),
+        label: "push",
+        explicit: true,
+    };
+    let message: String = merge_message(&typed, remote_tip.as_str());
+    assert_eq!(message.lines().next(), Some("Merge origin/feat/topic into feat/topic"), "{message}");
+    assert!(!message.contains("main"), "the checked-out branch is never named: {message}");
+    assert!(
+        message.contains("Created by monochromatic-git-policy-cli push because origin/feat/topic had commits feat/topic did not have."),
+        "{message}"
+    );
+    assert!(!message.contains("advanced after the commit landed"), "no commit of the person's is involved: {message}");
+    assert!(
+        message.contains(&format!("The first parent is feat/topic at {local} and the second origin/feat/topic at {remote_tip}; nothing was forced.")),
+        "{message}"
+    );
+    assert!(message.contains("`git revert -m 1 <commit>` on feat/topic keeps both sides' commits"), "{message}");
+    assert!(!message.contains("Published to"), "the subject already names where it landed: {message}");
+    let wording = wording_of(&typed);
+    assert_eq!(wording.source, "feat/topic");
+    assert_eq!(wording.merged_into, "feat/topic");
+    // The automatic push says what made it, and it is not the typed push's sentence.
+    let automatic = Reconcile {
+        destination: destination.clone(),
+        local: local.clone(),
+        pushed: PushedSide::Branch("refs/heads/feat/topic"),
+        label: "auto-push",
+        explicit: false,
+    };
+    let auto_message: String = merge_message(&automatic, remote_tip.as_str());
+    assert!(auto_message.contains("because origin/feat/topic advanced after the commit landed."), "{auto_message}");
+    assert!(!auto_message.contains("had commits"), "{auto_message}");
+}
+
+/// What:
+///  A refspec whose two sides are named differently says both,
+///  and a push of an expression names no local branch.
+#[test]
+fn a_merge_published_somewhere_else_names_the_branch_and_the_ref() {
+    use crate::auto_push_reconcile_plan::{PushedSide, Reconcile, merge_message, wording_of};
+    let destination = Destination {
+        remote: String::from("origin"),
+        merge_ref: String::from("refs/heads/other"),
+    };
+    let elsewhere = Reconcile {
+        destination: destination.clone(),
+        local: "a".repeat(40),
+        pushed: PushedSide::Branch("refs/heads/feat/topic"),
+        label: "push",
+        explicit: true,
+    };
+    let message: String = merge_message(&elsewhere, "b".repeat(40).as_str());
+    assert_eq!(message.lines().next(), Some("Merge origin/other into feat/topic"), "{message}");
+    assert!(message.contains("Published to origin/other."), "{message}");
+    let expression = Reconcile {
+        destination,
+        local: "a".repeat(40),
+        pushed: PushedSide::Expression("HEAD"),
+        label: "push",
+        explicit: true,
+    };
+    let expression_message: String = merge_message(&expression, "b".repeat(40).as_str());
+    assert_eq!(expression_message.lines().next(), Some("Merge origin/other into other"), "{expression_message}");
+    assert!(expression_message.contains("origin/other had commits HEAD did not have."), "{expression_message}");
+    assert!(!expression_message.contains("on the local branch alone"), "there is no local branch: {expression_message}");
+    let wording = wording_of(&expression);
+    assert_eq!(wording.source, "HEAD");
+    assert_eq!(wording.merged_into, "other");
+    assert_eq!(expression.pushed.branch(), None);
+}
+
+/// What:
+///  The worktree that holds a branch is read from the listing Git prints,
+///  which is how the move finds the checkout that has to follow.
+/// Why:
+///  A branch is checked out in at most one worktree,
+///  and the wrong one would be written.
+#[test]
+fn the_worktree_holding_a_branch_is_read_from_gits_listing() {
+    use crate::auto_push_reconcile_branch_advance::worktree_holding;
+    let listing: &[u8] = b"worktree /one\0HEAD 1111\0branch refs/heads/main\0\0worktree /two\0HEAD 2222\0branch refs/heads/feat/topic\0\0worktree /three\0HEAD 3333\0detached\0\0";
+    assert_eq!(worktree_holding(listing, "refs/heads/feat/topic"), Some(PathBuf::from("/two")));
+    assert_eq!(worktree_holding(listing, "refs/heads/main"), Some(PathBuf::from("/one")));
+    assert_eq!(worktree_holding(listing, "refs/heads/absent"), None);
+    // A path whose bytes are not text stays whole.
+    let bytes: &[u8] = b"worktree /r\xffpo\0HEAD 1111\0branch refs/heads/main\0\0";
+    let found = worktree_holding(bytes, "refs/heads/main").expect("the worktree is listed");
+    assert_eq!(found.as_os_str().as_encoded_bytes(), b"/r\xffpo");
 }

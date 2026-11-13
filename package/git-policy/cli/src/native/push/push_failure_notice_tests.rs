@@ -692,3 +692,25 @@ fn the_record_keeps_what_the_push_came_to() {
     }
     remove(root.as_path());
 }
+
+/// What:
+///  A text longer than a record may hold keeps its last line whole.
+/// Why:
+///  The last line is the wrapper's own sentence,
+///  the statement of what a reconcile published and where the branch is,
+///  and cutting it at the end left a person who reads only that line with
+///  "(Git's output is cut here.)".
+#[test]
+fn a_long_text_keeps_the_line_that_says_what_the_wrapper_did() {
+    let mut lines: Vec<String> = vec![String::from("remote: a long refusal of the server")];
+    for index in 0..400 {
+        lines.push(format!("{index}: {}", "x".repeat(40)));
+    }
+    let said: String = lines.join("\n");
+    let cleaned: String = clean_reason(said.as_str());
+    let last: &str = lines.last().expect("a last line");
+    assert!(cleaned.ends_with(last), "the last line survives whole: {}", cleaned.ends_with(last));
+    assert!(cleaned.contains("(Git's output is cut here.)"), "the cut is marked");
+    assert!(cleaned.len() <= LONGEST_REASON, "the record fits its limit: {}", cleaned.len());
+    assert!(cleaned.starts_with("remote: a long refusal of the server"), "Git's first line is kept too");
+}

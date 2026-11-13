@@ -31,8 +31,11 @@
 //! ```
 
 /// The reconcile loop that auto-push shares,
-/// and what it needs.
-use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push, run_line_prefix};
+/// and what it needs,
+/// including which local side the push sent.
+use crate::auto_push_reconcile::{
+    Destination, Integrated, MergePusher, PushedSide, Reconcile, integrate_and_push, run_line_prefix,
+};
 /// The words the loop puts before every line it adds,
 /// so a stop of an explicit push speaks as the loop does.
 use crate::auto_push_reconcile_plan::{Wording, wording_of};
@@ -101,18 +104,26 @@ pub struct StackRequest<'a> {
 }
 
 /// What:
-///  The branch HEAD names,
-/// or nothing for a detached HEAD.
+///  The local branch the failed push sent,
+/// or nothing when its source names no branch.
 /// Why:
-///   The branch follows the published merge when it can;
-/// a detached HEAD stays where it is.
+///   The merge the reconcile publishes names and follows the branch that was pushed,
+/// which is the source side of the update Git reported.
+///  The branch a worktree happens to have checked out is a different question,
+/// and answering it named a branch nobody pushed:
+/// the merge's subject said `into main` for a push of `feat/topic`,
+/// and a checkout whose tip equalled the pushed tip was moved over a merge of another branch
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// "A typed push of a branch that was not checked out published a merge labelled with the checked-out branch").
+///  A source that is an expression (`HEAD` of a detached checkout, `feat/topic~1`) names no branch,
+/// so nothing local follows the merge then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await git(['symbolic-ref', '--quiet', 'HEAD'])).stdout.trim() || undefined
+/// const pushedBranch = (git, from) => { const named = (await git(['rev-parse','--symbolic-full-name', from])).trim(); return named.startsWith('refs/heads/') ? named : undefined; };
 /// ```
-fn checked_out_branch(git: &PushGit) -> Option<String> {
-    let arguments: Vec<OsString> = ["symbolic-ref", "--quiet", "HEAD"]
+fn pushed_branch(git: &PushGit, from: &str) -> Option<String> {
+    let arguments: Vec<OsString> = ["rev-parse", "--symbolic-full-name", from]
         .iter()
         .map(OsString::from)
         .collect();
@@ -120,11 +131,11 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
     if output.code != Some(0) {
         return None;
     }
-    let name = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    if name.is_empty() {
+    let named = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if !named.starts_with("refs/heads/") {
         return None;
     }
-    return Some(name);
+    return Some(named);
 }
 
 /// What:
@@ -207,14 +218,18 @@ pub fn stack_failed_push(
     if !update.remote_ref.starts_with("refs/heads/") {
         return None;
     }
-    let branch_ref: Option<String> = checked_out_branch(git);
+    let branch_ref: Option<String> = pushed_branch(git, update.from.as_str());
+    let pushed: PushedSide<'_> = match branch_ref.as_deref() {
+        Some(reference) => PushedSide::Branch(reference),
+        None => PushedSide::Expression(update.from.as_str()),
+    };
     let plan = Reconcile {
         destination: Destination {
             remote: update.remote_name.clone(),
             merge_ref: update.remote_ref.clone(),
         },
         local,
-        branch_ref: branch_ref.as_deref(),
+        pushed,
         label: "push",
         explicit: true,
     };

@@ -20,12 +20,12 @@
 //! const integrated = await integrateAndPushOnTheRuntime({ git, plan, rejected, pushMerge });
 //! ```
 
-use crate::auto_push_reconcile_plan::{Integrated, Reconcile, wording_of};
+use crate::auto_push_reconcile_plan::{Integrated, PushedSide, Reconcile, merge_message, wording_of};
 use crate::auto_push_reconcile_basics_and_limits::{
     MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
     unpublished, was_rejected_as_stale,
 };
-use crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting;
+use crate::auto_push_reconcile_branch_advance::{Advanced, advance_pushed_branch_awaiting};
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::auto_push_destination::{Destination, read_destination_awaiting};
@@ -95,13 +95,52 @@ impl MergePusherAwaiting for PushMergeThroughGitAwaiting<'_> {
 }
 
 /// What:
+///  The words that say where the branch the push sent is now.
+/// Why:
+///   The report's last line has to answer that question on its own,
+/// so the sentence says what the move did and not what it was asked for:
+///  the worktree here that followed,
+/// the worktree elsewhere that followed,
+/// a branch no worktree had checked out,
+///  and every reason a move was left undone,
+/// with the one step that finishes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function followedSentence(advanced: Advanced, branch: string): string;
+/// ```
+fn followed_sentence(advanced: &Advanced, branch: &str) -> String {
+    return match advanced {
+        Advanced::Here { kept: false } => format!("and {branch} and this worktree are now at it"),
+        Advanced::Here { kept: true } => format!(
+            "and {branch} and this worktree are now at it; your uncommitted changes were left as they are"
+        ),
+        Advanced::Elsewhere { worktree, kept: false } => {
+            format!("and {branch} and the worktree at {} are now at it", worktree.display())
+        }
+        Advanced::Elsewhere { worktree, kept: true } => format!(
+            "and {branch} and the worktree at {} are now at it; that worktree's uncommitted changes were left as they are",
+            worktree.display()
+        ),
+        Advanced::Nowhere => format!("and {branch} is now at it"),
+        Advanced::Not { reason, advice } => {
+            debug(TAG, &format!("{branch} was not fast-forwarded: {reason}"));
+            format!("and {branch} is not at it: {reason}; {advice}")
+        }
+    };
+}
+
+/// What:
 ///  The reconcile loop,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
 ///   Every step below it is awaited,
 /// so the loop holds no worker while Git runs;
 /// it is the only body of these decisions,
-/// so the entry a command outside the runtime calls cannot drift from it.
+/// so the entry a command outside the runtime cannot drift from it.
+///  The merge it publishes is named after the branch the push sent,
+/// and that branch follows it wherever it is checked out,
+/// so a typed push of a branch that is not checked out is reported and resolved as that branch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,8 +159,9 @@ pub async fn integrate_and_push_awaiting(
     let line_prefix: &str = wording.line_prefix.as_str();
     let failed_prefix: &str = wording.failed_prefix.as_str();
     let short: &str = wording.short.as_str();
+    let source: &str = wording.source.as_str();
     let merged_into: &str = wording.merged_into.as_str();
-    let message: &str = wording.message.as_str();
+    let remote: &str = destination.remote.as_str();
     let mut previous: String = rejected.output.clone();
     // The remote tip a merge was pushed against, with the refusal it got: a remote that still shows that tip did not
     // move, so the refusal was a rule and not a race.
@@ -142,8 +182,7 @@ pub async fn integrate_and_push_awaiting(
                     &format!("{previous}\n{}", failed.output),
                     failed.exit_code,
                     &format!(
-                        "{}/{short} has commits this branch lacks, and fetching them failed; nothing was pushed and the worktree was not touched.",
-                        destination.remote
+                        "{remote}/{short} has commits {merged_into} lacks, and fetching them failed; nothing was pushed and no branch or worktree was moved.",
                     ),
                 )));
             }
@@ -193,11 +232,14 @@ pub async fn integrate_and_push_awaiting(
                     failed_prefix,
                     &previous,
                     rejected.exit_code,
-                    "Git could not relate the branch to the remote tip; nothing was pushed and the worktree was not touched.",
+                    &format!(
+                        "Git could not relate {merged_into} to {remote}/{short}; nothing was pushed and no branch or worktree was moved.",
+                    ),
                 )));
             }
         }
-        let committed = match commit_merge_awaiting(git, &local, &remote_tip, message).await? {
+        let message: String = merge_message(plan, remote_tip.as_str());
+        let committed = match commit_merge_awaiting(git, &local, &remote_tip, message.as_str()).await? {
             Ok(found) => found,
             Err(paths) => {
                 return Ok(Integrated::Finished(unpublished(
@@ -205,11 +247,9 @@ pub async fn integrate_and_push_awaiting(
                     &previous,
                     rejected.exit_code,
                     &format!(
-                        "merging {}/{short} into {merged_into}{CONFLICT_PHRASE}{}. Nothing was pushed and the worktree was not touched; \
-                         merge {}/{short} in a separate worktree, resolve the conflicts and push.",
-                        destination.remote,
+                        "merging {remote}/{short} into {merged_into}{CONFLICT_PHRASE}{}. Nothing was pushed and no branch or worktree was moved; \
+                         merge {remote}/{short} in a separate worktree, resolve the conflicts and push.",
                         paths.join(", "),
-                        destination.remote
                     ),
                 )));
             }
@@ -223,38 +263,32 @@ pub async fn integrate_and_push_awaiting(
         );
         let pushed: PushAttempt = (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
         if pushed.exit_code == 0 {
-            let branch: &str = match plan.branch_ref {
-                Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
-                None => "HEAD",
-            };
-            let advanced = match plan.branch_ref {
-                Some(branch_ref) => (advance_local_branch_awaiting(git, branch_ref, &local, &merge_oid)).await?,
-                None => Err(String::from("HEAD is detached")),
-            };
-            let followed: String = match advanced {
-                Ok(false) => format!("{branch} and the worktree were fast-forwarded to it."),
-                Ok(true) => format!(
-                    "{branch} and the worktree were fast-forwarded to it; your uncommitted changes were left as they are."
-                ),
-                Err(reason) => {
-                    debug(TAG, &format!("{branch} was not fast-forwarded: {reason}"));
-                    format!(
-                        "{branch} itself and the worktree are unchanged ({reason}); update {branch} with `git merge --ff-only {}/{short}` \
-                         when the worktree allows.",
-                        destination.remote
-                    )
+            let followed: String = match plan.pushed.branch() {
+                None => String::from("no local branch follows it"),
+                Some(branch_ref) => {
+                    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+                    let advanced: Advanced =
+                        (advance_pushed_branch_awaiting(git, branch_ref, &local, &merge_oid)).await?;
+                    followed_sentence(&advanced, branch)
                 }
             };
             let mut merged_parts: String = String::new();
             for line in announce(line_prefix, (journal_identifier(plan.explicit), label), &committed.merged) {
                 merged_parts.push_str(format!("{line}\n").as_str());
             }
+            let cause: String = if plan.explicit {
+                format!("{remote}/{short} had commits {source} did not have")
+            } else {
+                format!("{remote}/{short} had new commits")
+            };
+            // The undo line comes before the summary, because a caller that reads only the last line of the output must
+            //  meet the statement of what was published and where the branch is, and never the advice on how to undo it.
             return Ok(Integrated::Finished(PushAttempt {
                 exit_code: 0,
                 output: format!(
-                    "{}\n{merged_parts}{line_prefix}{}/{short} had new commits, so the merge {merge_oid} of {branch} and {}/{short} \
-                     was published. {followed}",
-                    pushed.output, destination.remote, destination.remote
+                    "{}\n{merged_parts}{line_prefix}to undo this merge, `git revert -m 1 {merge_oid}` keeps both sides' commits and removes its effect.\n\
+                     {line_prefix}{cause}, so the merge of {source} and {remote}/{short} was published to {remote}/{short}, {followed} (merge {merge_oid}).",
+                    pushed.output
                 )
                 .trim_start_matches('\n')
                 .to_owned(),
@@ -271,9 +305,8 @@ pub async fn integrate_and_push_awaiting(
         &previous,
         rejected.exit_code,
         &format!(
-            "{}/{short} advanced again during each of {MAX_RECONCILE_ATTEMPTS} attempts, so nothing was pushed and the worktree was not touched. \
+            "{remote}/{short} advanced again during each of {MAX_RECONCILE_ATTEMPTS} attempts, so nothing was pushed and no branch or worktree was moved. \
              Push again when the remote is quiet.",
-            destination.remote
         ),
     )));
 }
@@ -308,7 +341,7 @@ pub async fn reconcile_divergent_push_awaiting(
     let plan = Reconcile {
         destination,
         local: local.to_owned(),
-        branch_ref: Some(branch_ref),
+        pushed: PushedSide::Branch(branch_ref),
         label: "auto-push",
         explicit: false,
     };

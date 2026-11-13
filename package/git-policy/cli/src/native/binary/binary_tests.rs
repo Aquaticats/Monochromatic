@@ -615,6 +615,12 @@ mod held_push_settled_by_the_verdict;
 #[path = "binary_push_stops_before_a_refused_commit_tests.rs"]
 mod push_stops_before_a_refused_commit;
 
+/// A typed push of a branch that is not checked out:
+/// the merge, the line and the fast-forward name and follow the branch that was pushed,
+/// in every shape of that push.
+#[path = "binary_push_of_a_branch_not_checked_out_tests.rs"]
+mod push_of_a_branch_not_checked_out;
+
 /// The report a reconcile owes when it published a merge but could not move the local branch,
 /// or moved it beside uncommitted work,
 /// shown once by a later command.

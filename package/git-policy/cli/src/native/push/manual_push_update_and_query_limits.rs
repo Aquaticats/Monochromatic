@@ -29,6 +29,13 @@ pub struct PushUpdate {
     /// Local object name;
     /// `None` for a deletion.
     pub local_oid: Option<String>,
+    /// The local side Git reported for the update,
+    /// as the push named it:
+    /// a branch,
+    /// `HEAD`,
+    /// or a commit expression,
+    /// and empty for a deletion.
+    pub from: String,
     /// Destination object name confirmed by `ls-remote`;
     /// `None` when the ref is absent.
     pub remote_oid: Option<String>,

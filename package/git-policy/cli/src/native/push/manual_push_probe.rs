@@ -237,6 +237,7 @@ pub fn confirm_group(
         }
         confirmed.push(PushUpdate {
             local_oid: local.clone(),
+            from: update.from.clone(),
             remote_oid: authoritative,
             remote_name: remote_name.to_owned(),
             remote_ref: update.to.clone(),
