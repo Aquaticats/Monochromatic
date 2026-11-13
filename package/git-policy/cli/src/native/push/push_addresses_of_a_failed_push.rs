@@ -74,6 +74,7 @@ fn query_arguments(remote: &str) -> Vec<OsString> {
 
 /// What:
 ///  The addresses one answer of `git remote get-url --push --all` names,
+///  byte for byte as the configuration spells them,
 ///  or the destination itself when the answer names none.
 /// Why:
 ///   A destination that is no remote name is its own address,
@@ -93,9 +94,12 @@ fn push_addresses_from(answer: Option<&QueryOutput>, remote: &str) -> Vec<String
     }
     let mut addresses: Vec<String> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        let trimmed: &str = line.trim();
-        if !trimmed.is_empty() {
-            addresses.push(trimmed.to_owned());
+        // What: The address is taken as the configuration spells it, trailing and leading spaces included.
+        // Why:  `DISABLED ` is a legal path whose one difference from the reserved word is a space, and a bare
+        //       repository of that name receives a push; trimming it read that repository as the reserved word and
+        //       ended a plan a retry would have landed (the review of issue 6293, finding 4).
+        if !line.is_empty() {
+            addresses.push(line.to_owned());
         }
     }
     return if addresses.is_empty() { vec![remote.to_owned()] } else { addresses };

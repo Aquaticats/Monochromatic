@@ -505,9 +505,27 @@ impl WorkHandlers for GitHandlers {
             Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
                 Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
             }
-            // A push whose address can never be a remote, and what the words of any other failed push mean, are read in
-            // `service_work_failed_push_verdict.rs`.
-            Ok(failed) => crate::service_work_failed_push_verdict::verdict_of_a_failed_push(failed, newest.repository.as_path()),
+            // A push whose address can never be a remote, what a push that reached an address came to, and what the words of any
+            //  other failed push mean, are read in `service_work_failed_push_verdict.rs`.
+            Ok(failed) => {
+                let settled: crate::service_work_failed_push_verdict::SettledFailedPush = crate::service_work_failed_push_verdict::verdict_of_a_failed_push(
+                    failed,
+                    newest.branch_ref.as_str(),
+                    newest.repository.as_path(),
+                );
+                // A push that reached an address is backed up, so what is left to say is where the commit is and which address was
+                //  given up: a report, which the next command shows once and which no later push of the branch removes.
+                if let Some(report) = settled.report
+                    && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
+                {
+                    crate::service_error!(
+                        "what the push of {} {} did could not be recorded for the person: {reason}",
+                        newest.oid,
+                        crate::service_timing::in_the_repository_at(newest.repository.as_path())
+                    );
+                }
+                settled.verdict
+            }
             Err(error) => Verdict::Retry(format!("{error}")),
         };
         });

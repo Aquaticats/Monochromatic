@@ -1993,6 +1993,120 @@ fn stage_with_the_push_address(name: &str, address: &str) -> Stage {
 }
 
 /// What:
+///  The stage with its remote's push addresses replaced by `addresses`, in order.
+/// Why:
+///  A remote may name several push addresses and Git pushes to each in order,
+///  so the shapes the review of issue 6293 found (a delivered push behind a dead address, a dead first address)
+///  need more than one.
+fn stage_with_the_push_addresses(name: &str, addresses: &[&str]) -> Stage {
+    let stage: Stage = stage_without_a_hook(name);
+    for address in addresses {
+        git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", address]);
+    }
+    return stage;
+}
+
+/// What:
+///  A push that reached the repository and failed at the reserved word beside it is reported as delivered,
+///  and its plan ends because there is nothing left to push.
+/// Why:
+///  The review of issue 6293 (finding 2) measured the opposite:
+/// Git delivered to the first address and exited 128 on the second,
+/// the verdict ended the plan, and the notice said the commit existed only on this computer while a remote held it.
+/// What the push did decides, address by address (`push_attempts_of_a_failed_push.rs`).
+#[test]
+fn a_push_delivered_before_the_reserved_word_is_reported_as_delivered() {
+    let stage: Stage = stage_without_a_hook("push-delivered-then-reserved");
+    // The address that works first, so the commit is delivered there, and the reserved word second.
+    let address: String = stage.remote.to_str().expect("a UTF-8 path").to_owned();
+    git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", address.as_str()]);
+    git(
+        stage.repo.as_path(),
+        &["config", "--add", "remote.origin.pushurl", crate::push_address_that_cannot_be_a_remote::DISABLED_ADDRESS],
+    );
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the first address took the commit");
+    let due_after_any_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert!(due_after_any_pause.is_empty(), "the branch is backed up, so no later try is due");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "the person is told once: {shown:?}");
+    let notice: &str = shown[0].as_str();
+    assert!(notice.contains("was made"), "the record says the push was made: {notice}");
+    assert!(!notice.contains("exists only on this computer"), "the commit is on the address that took it: {notice}");
+    assert!(notice.contains(address.as_str()), "the record names the address that holds the commit: {notice}");
+    assert!(
+        notice.contains(crate::push_address_that_cannot_be_a_remote::DISABLED_ADDRESS),
+        "and the one given up: {notice}"
+    );
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push that failed at its first address keeps its plan, and the words name that address rather than a later one.
+/// Why:
+///  The review of issue 6293 (finding 3) measured the opposite:
+///  with `[a host that does not answer, DISABLED]` Git stopped at the host and never attempted `DISABLED`,
+///  yet the notice blamed `DISABLED` and ended a plan a retry would have completed.
+#[test]
+fn a_push_whose_first_address_did_not_answer_keeps_its_plan_and_blames_it() {
+    let stage: Stage = stage_with_the_push_addresses(
+        "push-unreachable-then-reserved",
+        &["https://unreachable-host.invalid/repo.git", crate::push_address_that_cannot_be_a_remote::DISABLED_ADDRESS],
+    );
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered");
+    let due_after_a_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert_eq!(due_after_a_pause.len(), 1, "the push waits for a new try, as it always has");
+    let notice: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(!notice.contains("stopped trying at once"), "a failure that can pass does not end the plan: {notice}");
+    assert!(notice.contains("tries this push again"), "the notice promises the retry the service keeps: {notice}");
+    assert!(
+        !notice.contains("the remote's push address is `DISABLED`"),
+        "the reserved word Git never attempted is not the cause: {notice}"
+    );
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push to an address that is the reserved word plus a space keeps its plan while the address fails for another
+///  reason.
+/// Why:
+///  The review of issue 6293 (finding 4) measured the opposite:
+///  `DISABLED ` is a legal path whose bare repository receives a push,
+///  and trimming it to `DISABLED` ended the plan for good after one held lock,
+///  while a push by hand to the same address succeeded.
+#[test]
+fn a_push_to_the_reserved_word_plus_a_space_keeps_its_plan() {
+    let stage: Stage = stage_without_a_hook("push-reserved-with-a-space");
+    let spaced: PathBuf = stage.root.join("DISABLED ");
+    git(stage.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", spaced.to_str().expect("a UTF-8 path")]);
+    // The remote's ref lock, held by this control, so the first push fails for a reason that can pass.
+    let lock: PathBuf = spaced.join("refs").join("heads").join("main.lock");
+    std::fs::create_dir_all(lock.parent().expect("the lock has a directory")).expect("refs/heads");
+    std::fs::write(lock.as_path(), b"").expect("the lock");
+    git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", "DISABLED "]);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    let due_after_a_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert_eq!(due_after_a_pause.len(), 1, "the push waits for a new try, as it always has");
+    let notice: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(!notice.contains("stopped trying at once"), "a held lock does not end the plan: {notice}");
+    assert!(
+        !notice.contains("that address can never be a repository"),
+        "the address is a repository, and Git's own words say why it refused: {notice}"
+    );
+    remove(stage.root.as_path());
+}
+
+/// What:
 ///  A push to the reserved word ends its plan at once,
 /// with one line for the person.
 /// Why:

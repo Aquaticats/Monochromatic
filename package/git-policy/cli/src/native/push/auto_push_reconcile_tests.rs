@@ -1087,6 +1087,36 @@ fn a_clean_worktree_is_fast_forwarded_to_the_published_merge() {
     remove(&s.root);
 }
 
+/// What:
+///  A merge the remote took moves the local branch even when another push address made the push exit non-zero.
+/// Why:
+///  A remote may name several push addresses and Git pushes to each in order,
+///  so `[<the remote>, DISABLED]` publishes the merge and still exits 128 on the reserved word.
+///  The reconcile advanced the branch only on exit 0,
+///  so the local branch stayed behind a merge the remote held and every later commit published another one
+///  (the review of issue 6293, finding 2, reproduced end to end).
+#[test]
+fn a_merge_another_address_refused_still_moves_the_local_branch() {
+    let s = scenario("ar-second-address-dead");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    // The real remote first, so the merge is delivered there, and the reserved word second, so the push exits 128.
+    git(&s.local, &["config", "--add", "remote.origin.pushurl", s.remote.to_str().expect("utf-8")]);
+    git(&s.local, &["config", "--add", "remote.origin.pushurl", "DISABLED"]);
+    let (result, err) = run(&s, &landed);
+    let published = text_of(&s.remote, &["rev-parse", "main"]);
+    assert_eq!(published, text_of(&s.local, &["rev-parse", "HEAD"]), "the local branch follows the merge the remote holds: {err}");
+    assert_eq!(text_of(&s.local, &["rev-parse", "main"]), published);
+    assert_eq!(
+        text_of(&s.remote, &["rev-list", "--parents", "-1", "main"]).split(' ').count(),
+        3,
+        "the remote holds the merge, not the landed commit alone"
+    );
+    assert!(err.contains("was published"), "the report says the merge was published: {err}");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    remove(&s.root);
+}
+
 /// A tracked change in a file the move writes keeps the branch and the worktree where they are,
 /// and the report names
 ///  the file and the command.

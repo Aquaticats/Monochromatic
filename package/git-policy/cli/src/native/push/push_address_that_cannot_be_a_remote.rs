@@ -179,24 +179,74 @@ fn as_a_person_reads_it(address: &str) -> String {
 /// words('DISABLED', CannotBeARemote.TheReservedWord) // 'monochromatic-git-policy-cli: ...'
 /// ```
 pub fn words(address: &str, reason: CannotBeARemote) -> String {
+    return format!(
+        "the commit service did not push: {}. No try can land it, so the commit service stopped trying at once, and this is the one notice \
+         of it. The commit is saved in this repository: set the remote's push address to one a push can reach \
+         (`git remote set-url --push <remote> <address>`) and commit again, or push by hand.",
+        why(address, reason)
+    );
+}
+
+/// What:
+///  The one line the person reads for a push that reached some addresses and gave up one.
+/// Why:
+///   The same address that can never be a remote is still worth saying once,
+/// but the commit is backed up:
+///  saying "it exists only on this computer" there was false, and ended the plan of a branch a remote held
+/// (the review of issue 6293, finding 2).
+/// So the line names the addresses that hold the commit first,
+/// then the address given up and why,
+/// and it promises nothing about a retry of that address.
+/// A push that reached no address never reaches this function:
+/// its line is `words`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordsAfterDelivery('DISABLED', CannotBeARemote.TheReservedWord, ['/srv/remote.git']) // 'monochromatic-git-policy-cli: ...'
+/// ```
+pub fn words_after_delivery(address: &str, reason: CannotBeARemote, reached: &[&str]) -> String {
+    let mut holders: String = String::new();
+    for holder in reached {
+        if !holders.is_empty() {
+            holders.push_str(", ");
+        }
+        holders.push_str(format!("`{}`", as_a_person_reads_it(holder)).as_str());
+    }
+    let where_the_commit_is: &str = if holders.is_empty() { "another address of the remote" } else { holders.as_str() };
+    return format!(
+        "the commit service pushed this branch to {where_the_commit_is}, and did not push it to one address: {}. No try can land it \
+         there, so the commit service is not trying that address again, and the commit is on the address above.",
+        why(address, reason)
+    );
+}
+
+/// What:
+///  The clause that says why one address can never be a remote.
+/// Why:
+///   Two lines say it,
+/// one for a push that delivered nowhere and one for a push that delivered elsewhere,
+/// and neither may contradict the other about the address itself.
+/// An address that can carry a URL's user information is masked here, once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// why('DISABLED', CannotBeARemote.TheReservedWord) // 'the remote's push address is `DISABLED`, ...'
+/// ```
+fn why(address: &str, reason: CannotBeARemote) -> String {
     let read: String = as_a_person_reads_it(address);
-    let why: String = match reason {
-        CannotBeARemote::Empty => String::from("the commit service could not push: the remote's push address is empty, and an empty address can never be a repository"),
+    return match reason {
+        CannotBeARemote::Empty => String::from("the remote's push address is empty, and an empty address can never be a repository"),
         CannotBeARemote::TheReservedWord => format!(
-            "the commit service did not push: the remote's push address is `{DISABLED_ADDRESS}`, the word this project uses to mean that nothing is pushed, and that address can never be a repository"
+            "the remote's push address is `{DISABLED_ADDRESS}`, the word this project uses to mean that nothing is pushed, and that address \
+             can never be a repository"
         ),
         CannotBeARemote::AnOption => format!(
-            "the commit service did not push: the remote's push address `{read}` starts with a dash, so Git reads it as an option and never as a place to push to"
+            "the remote's push address `{read}` starts with a dash, so Git reads it as an option and never as a place to push to"
         ),
         CannotBeARemote::NoProtocolName => format!(
-            "the commit service did not push: the remote's push address `{read}` begins with `{NO_PROTOCOL}`, so it names no protocol, and no protocol has an empty name"
+            "the remote's push address `{read}` begins with `{NO_PROTOCOL}`, so it names no protocol, and no protocol has an empty name"
         ),
     };
-    return format!(
-        "{why}. No try can land it, so the commit service stopped trying at once, and this is the one notice of it. The commit is saved in \
-         this repository: set the remote's push address to one a push can reach (`git remote set-url --push <remote> <address>`) and commit \
-         again, or push by hand."
-    );
 }
 
 /// The readings above are controlled beside them.

@@ -1,22 +1,36 @@
 //! Controls of the addresses a failed push is judged by:
 //! what a remote's answer names,
+//! byte for byte,
 //! and what a destination that is no remote name is read as.
 
 use super::*;
 
 /// What:
 ///  A remote with several push addresses has every one of them,
-/// in the order Git prints them.
+/// in the order Git prints them,
+/// exactly as the configuration spells each.
 /// Why:
-///  Git stops a push at the first address that fails,
-/// so one address that can never be a remote is enough for no try to land,
-/// and the order is what says which address a person should look at first.
+///  The order is the order Git attempts them,
+/// which is what says which address a failure belongs to;
+/// and a space is part of an address:
+/// `DISABLED ` is a legal path that receives a push,
+/// so trimming it read a real remote as the reserved word
+/// (the review of issue 6293, finding 4).
 #[test]
-fn every_push_address_the_configuration_names_is_read_in_order() {
+fn every_push_address_the_configuration_names_is_read_in_order_and_byte_for_byte() {
     let answer: QueryOutput = QueryOutput { code: Some(0), stdout: b"DISABLED\n/srv/real.git\n".to_vec(), stderr: Vec::new() };
     assert_eq!(push_addresses_from(Some(&answer), "origin"), vec![String::from("DISABLED"), String::from("/srv/real.git")]);
-    let one: QueryOutput = QueryOutput { code: Some(0), stdout: b"  /srv/real.git  \n\n".to_vec(), stderr: Vec::new() };
-    assert_eq!(push_addresses_from(Some(&one), "origin"), vec![String::from("/srv/real.git")], "surrounding spaces and blank lines are not addresses");
+    // Git prints the configured value verbatim, trailing space included (measured with Git 2.56.0).
+    let spaced: QueryOutput = QueryOutput { code: Some(0), stdout: b"DISABLED \n/srv/real.git\n".to_vec(), stderr: Vec::new() };
+    assert_eq!(
+        push_addresses_from(Some(&spaced), "origin"),
+        vec![String::from("DISABLED "), String::from("/srv/real.git")],
+        "the trailing space is part of the address Git was given"
+    );
+    let leading: QueryOutput = QueryOutput { code: Some(0), stdout: b" DISABLED\n".to_vec(), stderr: Vec::new() };
+    assert_eq!(push_addresses_from(Some(&leading), "origin"), vec![String::from(" DISABLED")], "so is a leading one");
+    let one: QueryOutput = QueryOutput { code: Some(0), stdout: b"/srv/real.git\n\n".to_vec(), stderr: Vec::new() };
+    assert_eq!(push_addresses_from(Some(&one), "origin"), vec![String::from("/srv/real.git")], "a blank line names no address");
 }
 
 /// What:

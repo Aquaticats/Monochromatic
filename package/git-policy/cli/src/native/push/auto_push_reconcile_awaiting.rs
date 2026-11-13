@@ -222,7 +222,13 @@ pub async fn integrate_and_push_awaiting(
             ),
         );
         let pushed: PushAttempt = (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
-        if pushed.exit_code == 0 {
+        // What: A merge the remote took is a merge the local branch follows, whatever another push address did.
+        // Why:  A remote may name several push addresses, and Git prints the worst fate among them in its exit status,
+        //       so `[<a repository>, DISABLED]` publishes the merge and exits 128. Reading that status as "not published"
+        //       left the local branch behind a merge the remote holds, and every later commit published another one
+        //       (`push_attempts_of_a_failed_push.rs`, and the review of issue 6293, finding 2).
+        let arrived: bool = pushed.exit_code == 0 || crate::push_attempts_of_a_failed_push::arrived_somewhere(pushed.output.as_str(), destination.merge_ref.as_str());
+        if arrived {
             let branch: &str = match plan.branch_ref {
                 Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
                 None => "HEAD",
