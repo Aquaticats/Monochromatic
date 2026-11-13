@@ -61,6 +61,9 @@ enum Duty {
     ReadNothing,
     /// Reads the whole request and answers nothing.
     ReadsAndSilent,
+    /// Reads the whole request and refuses it,
+    /// so a control has a real request line and the commit ends at once.
+    ReadsAndRefuses,
     /// Answers nothing at all,
     /// not even a greeting.
     SilentThroughout,
@@ -78,10 +81,14 @@ struct StandIn {
     accepted: Arc<AtomicUsize>,
     /// Whether a whole request line has been read.
     read_all: Arc<AtomicBool>,
+    /// The whole request line the stand-in read,
+    /// with its framing newline,
+    /// for a control that sends it to a real service.
+    recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
     /// Told to the thread that serves at the end of the control.
     stop: Arc<AtomicBool>,
-    /// The wrapper's own bound,
-    /// which the tests below run a commit with.
+    /// The fixture's services,
+    /// which keep the runtime directory the stand-in listened in alive.
     _service: FixtureService,
 }
 
@@ -115,10 +122,12 @@ fn stand_in(fixture: &Fixture, repo: &Path, duty: Duty) -> StandIn {
     let greeted: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let accepted: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let read_all: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>> = Arc::new(std::sync::Mutex::new(None));
     let stop: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let serving_greeted: Arc<AtomicUsize> = Arc::clone(&greeted);
     let serving_accepted: Arc<AtomicUsize> = Arc::clone(&accepted);
     let serving_read: Arc<AtomicBool> = Arc::clone(&read_all);
+    let serving_recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>> = Arc::clone(&recorded);
     let serving_stop: Arc<AtomicBool> = Arc::clone(&stop);
     std::thread::spawn(move || {
         let greeting: String = format!("{}\n", encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(RELEASE.to_string()) }));
@@ -133,39 +142,65 @@ fn stand_in(fixture: &Fixture, repo: &Path, duty: Duty) -> StandIn {
             let one_greeting: String = greeting.clone();
             let one_greeted: Arc<AtomicUsize> = Arc::clone(&serving_greeted);
             let one_read: Arc<AtomicBool> = Arc::clone(&serving_read);
+            let one_recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>> = Arc::clone(&serving_recorded);
             let one_stop: Arc<AtomicBool> = Arc::clone(&serving_stop);
             std::thread::spawn(move || {
-                serve_one(stream, one_greeting.as_str(), duty, &one_greeted, &one_read, &one_stop);
+                serve_one(stream, one_greeting.as_str(), duty, &one_greeted, &one_read, &one_recorded, &one_stop);
             });
         }
     });
-    return StandIn { runtime: service.runtime.clone(), greeted, accepted, read_all, stop, _service: service };
+    return StandIn { runtime: service.runtime.clone(), greeted, accepted, read_all, recorded, stop, _service: service };
 }
 
 /// What the stand-in does for one connection,
 /// as the duty of the control says,
 /// and it keeps the connection open until the control ends:
 /// a connection the wrapper reads is a connection that must answer nothing rather than close.
-fn serve_one(stream: UnixStream, greeting: &str, duty: Duty, greeted: &AtomicUsize, read_all: &AtomicBool, stop: &AtomicBool) {
+fn serve_one(
+    stream: UnixStream,
+    greeting: &str,
+    duty: Duty,
+    greeted: &AtomicUsize,
+    read_all: &AtomicBool,
+    recorded: &std::sync::Mutex<Option<Vec<u8>>>,
+    stop: &AtomicBool,
+) {
     if !matches!(duty, Duty::SilentThroughout) {
         let _timeout = stream.set_write_timeout(Some(PATIENCE));
         if stream.try_clone().is_ok_and(|mut welcome| { return welcome.write_all(greeting.as_bytes()).is_ok() }) {
             _ = greeted.fetch_add(1, Ordering::SeqCst);
         }
     }
-    if matches!(duty, Duty::ReadsAndSilent) {
+    if matches!(duty, Duty::ReadsAndSilent | Duty::ReadsAndRefuses) {
         let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a reader of the connection"));
         let _held = reader.get_ref().set_read_timeout(Some(PATIENCE));
-        let mut line: String = String::new();
-        if reader.read_line(&mut line).is_ok_and(|read| { return read > 0 }) {
+        let mut line: Vec<u8> = Vec::new();
+        if reader.read_until(b'\n', &mut line).is_ok_and(|read| { return read > 0 }) {
             read_all.store(true, Ordering::SeqCst);
+            *recorded.lock().expect("the stand-in's record of the request") = Some(line.clone());
+        }
+        if matches!(duty, Duty::ReadsAndRefuses) {
+            // A refusal the client reads as "the service answered and did not take it", so the commit ends at once and the
+            //  request line this control needs is the one it just recorded.
+            let refused: String = format!("{}\n", encode_service(&ServiceMessage::Failed { id: String::new(), code: code_of("unavailable") }));
+            let _sent = stream.try_clone().is_ok_and(|mut answer| { return answer.write_all(refused.as_bytes()).is_ok() });
         }
     }
     // Nothing is read of a connection whose duty is to read nothing, so the wrapper's write fills its buffers and waits in the
-    //  kernel; and nothing is answered on either kind, so the wrapper waits for the answer its bound ends.
+    //  kernel; and nothing is answered on the other kinds, so the wrapper waits for the answer its bound ends.
     while !stop.load(Ordering::SeqCst) {
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+/// The refusal code a stand-in answers with,
+/// by the name the protocol spells it.
+fn code_of(name: &str) -> git_policy_cli::service_protocol::FailureCode {
+    use git_policy_cli::service_protocol::FailureCode;
+    return match name {
+        "unavailable" => FailureCode::Unavailable,
+        other => panic!("a stand-in asks for a refusal code this control does not know: {other}"),
+    };
 }
 
 /// A command for the fixture's `bin/git` against the stand-in's runtime,
@@ -393,6 +428,61 @@ fn a_commit_whose_service_reads_and_says_nothing_ends_at_the_silence_bound() {
     remove_settled(&fixture);
 }
 
+impl StandIn {
+    /// The whole request line the stand-in read,
+    /// with its framing newline.
+    fn recording(&self) -> Option<Vec<u8>> {
+        return self.recorded.lock().expect("the stand-in's record of the request").clone();
+    }
+}
+
+/// What:
+///  A connection the real service greeted,
+///  tried again while a connection is taken and answered nothing.
+/// Why:
+///   A service that has just started takes a connection before it greets,
+/// and a control that speaks first would be talking to a connection the
+///  service is about to drop;
+/// the retry keeps the control about framing rather than about a start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const connection = connectAndGreet(socket); // a stream whose first line was the welcome
+/// ```
+fn connect_and_greet(socket: &Path) -> (UnixStream, String) {
+    let began: Instant = Instant::now();
+    loop {
+        let mut connection: UnixStream = UnixStream::connect(socket).expect("the real service listens");
+        let greeting: String = read_for(&mut connection, Duration::from_secs(2)).0;
+        if greeting.contains("welcome") {
+            return (connection, greeting);
+        }
+        assert!(began.elapsed() < PATIENCE, "the service at {} never greeted a connection", socket.display());
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// What a connection to the service said within `within`,
+/// and whether the service closed it.
+fn read_for(connection: &mut UnixStream, within: Duration) -> (String, bool) {
+    let until: Instant = Instant::now() + within;
+    let mut said: String = String::new();
+    let mut chunk: [u8; 4096] = [0; 4096];
+    loop {
+        let left: Duration = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return (said, false);
+        }
+        let _timeout = connection.set_read_timeout(Some(left));
+        match std::io::Read::read(connection, &mut chunk) {
+            Ok(0) => return (said, true),
+            Ok(read) => said.push_str(String::from_utf8_lossy(&chunk[..read]).as_ref()),
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return (said, false),
+            Err(_ended) => return (said, true),
+        }
+    }
+}
+
 /// What:
 ///  A commit whose landing takes longer than the silence bound still lands, because the service says it is alive while it
 ///  works.
@@ -568,4 +658,72 @@ fn a_commit_killed_at_each_step_leaves_nothing_behind() {
         assert!(staged.contains(long_name(0).as_str()), "the staged edit survives a kill at {at}: {staged}");
         remove_settled(&fixture);
     }
+}
+
+/// What:
+///  A request line whose framing newline never arrived is refused by the real service:
+///  nothing of it is read as a message, nothing is queued, the branch does not move,
+///  and the service says so in its log; the same bytes with their newline are taken.
+/// Why:
+///  A client that gives up writing says the service never took the request,
+///  and that is true only if the service refuses a line the client could not finish.
+///  The review of this change sent a real 3,262-byte request without its newline to the real service binary
+///  and the commit landed, twice, once after a full close;
+///  and the client's chunked write can leave exactly that stream, because a socket's buffers hold the whole
+///  JSON object and not the last newline.
+///  The control first has the client send a real request to a stand-in that records it,
+///  then puts the real service at the same address and sends the recorded line without its newline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = await capturedRequest(fixture, repo); // from a stand-in that refuses it
+/// await theRealService.serve(fixture, gitDir);
+/// expect(await sendAndClose(socket, line.slice(0, -1)).answers).toBe(''); expect(head()).toBe(before);
+/// ```
+#[test]
+fn a_request_line_whose_newline_never_arrived_is_refused_and_lands_nothing() {
+    let fixture: Fixture = fixture("request-line-never-framed");
+    let repo: PathBuf = staged_repository(&fixture, "repo", 1);
+    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the worktree's Git directory");
+    let before: String = head_of(&fixture, repo.as_path());
+    // The client's own request line, recorded by a stand-in that refuses it, so the control sends the bytes a commit sends.
+    let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::ReadsAndRefuses);
+    let arguments: Vec<String> = commit_arguments(&fixture, "repo");
+    let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let refused: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
+    assert_eq!(refused.code, Some(1), "the commit the stand-in refuses fails: {}", String::from_utf8_lossy(refused.stderr.as_slice()));
+    let request: Vec<u8> = stand_in.recording().expect("the stand-in recorded the client's request line");
+    assert!(request.ends_with(b"\n"), "a request line ends with its framing newline: {:?}", String::from_utf8_lossy(request.as_slice()));
+    // The stand-in is dropped whole, and the real service of this worktree starts in a runtime directory of its own: the
+    //  socket's name is the worktree's instance and only the directory differs, so a control still talks about this worktree,
+    //  and no straggling connection of the stand-in can answer it.
+    drop(stand_in);
+    let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, git_dir.as_path());
+    let socket: PathBuf = socket_for(service.runtime.as_path(), git_dir.as_path());
+    let (mut connection, greeting): (UnixStream, String) = connect_and_greet(socket.as_path());
+    assert!(greeting.contains("welcome"), "the real service greets the connection: {greeting}");
+    // The exact line the client sent, without its framing newline, and then the client's half of the connection closed.
+    if let Err(error) = std::io::Write::write_all(&mut connection, &request[..request.len() - 1]) {
+        let log: String = std::fs::read_to_string(fixture.root.join("service.log")).unwrap_or_default();
+        panic!("the request line goes out without its newline: {error}; service log: {log}");
+    }
+    connection.shutdown(std::net::Shutdown::Write).expect("the client's half of the connection is closed");
+    let (said, _closed): (String, bool) = read_for(&mut connection, Duration::from_secs(3));
+    drop(connection);
+    assert!(said.is_empty(), "a line that ended with the connection is refused, so no answer comes back: {said}");
+    assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
+    let journal: PathBuf = fixture.root.join("journal");
+    let queued: Vec<(PathBuf, Option<git_policy_cli::service_journal::Intent>)> =
+        git_policy_cli::service_journal::list_intents_read_only(journal.as_path(), git_policy_cli::service_journal::OPEN_EXTENSION);
+    assert!(queued.is_empty(), "nothing was queued: {queued:?}");
+    let log: String = std::fs::read_to_string(fixture.root.join("service.log")).unwrap_or_default();
+    assert!(log.contains("framing newline"), "the service says in its log that it refused the line: {log}");
+    // The same bytes with their framing newline are taken: the refusal is the missing newline and nothing else.
+    let (mut framed, _greeting): (UnixStream, String) = connect_and_greet(socket.as_path());
+    std::io::Write::write_all(&mut framed, request.as_slice()).expect("the line goes out whole");
+    let (answered, _closed): (String, bool) = read_for(&mut framed, PATIENCE);
+    assert!(answered.contains("\"landed\""), "the same request with its newline is taken and lands: {answered}");
+    assert_ne!(head_of(&fixture, repo.as_path()), before, "and the branch is at a new commit");
+    remove_settled(&fixture);
 }

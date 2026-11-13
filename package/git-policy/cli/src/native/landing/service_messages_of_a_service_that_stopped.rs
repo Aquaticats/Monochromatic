@@ -79,10 +79,13 @@ pub(crate) fn silent_after_preparing(shows: WhatTheBranchShows) -> String {
              the ones it took. There is nothing to run."
         ),
         WhatTheBranchShows::NotMade => format!(
-            "{what_it_said} The branch is not at the commit this command prepared, so this commit was not made. A service that \
-             wakes after this command ended does not make it, because a request whose command is gone is dropped before it \
-             lands. {NOTHING_CHANGED_AND_THE_STAGED_WORK} {NOTHING_CHANGED}\n{}",
-            steps_for_a_commit_that_was_not_made()
+            "{what_it_said} The branch is not at the commit this command prepared, so this commit was not made by this command. \
+             The whole request did reach the service, so a service that wakes after this command ended may still land it: run \
+             `{}` to see whether it has, and `{}` to see what is still staged, before running the commit again. \
+             {NOTHING_CHANGED_AND_THE_STAGED_WORK}\n{}",
+            CHECK_COMMANDS[0],
+            CHECK_COMMANDS[1],
+            steps_for_a_result_that_is_not_known()
         ),
         WhatTheBranchShows::Unread => format!(
             "{what_it_said} The branch could not be read afterwards, so whether the commit was made is not known: run \
@@ -133,8 +136,9 @@ fn steps_for_a_commit_that_was_not_made() -> String {
          waits for a disk that never answers. Starting it again does not help, because the service manager believes it runs; \
          restart that one unit with `{RESTART_ONE_UNIT_COMMAND}` and the unit name the status printed. What it was doing is in \
          its log: `journalctl --user --unit` and the same unit name, from the start of this commit. \
-         3. Run the same commit again, which is safe: this command's request is dropped before it lands, so the commit is made \
-         once and never twice."
+         3. Run the same commit again, which is safe: this command's request never reached the service as one whole line, \
+         because a service reads a request only when its framing newline arrived, so the commit is made once and never \
+         twice."
     );
 }
 

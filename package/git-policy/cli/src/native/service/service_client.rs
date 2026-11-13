@@ -284,17 +284,20 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         let mut payload: String = line.clone();
         payload.push('\n');
         // What:
-        //  The request is written within a bound, and the wait is on progress rather than on a clock.
+        //  The request is written within a bound, and the wait is on progress rather than on a clock; a give-up says
+        //  "never taken" only when this command never put one whole request line on the wire.
         // Why:
         //  One `write_all` of a request waits in the kernel until the service reads it,
         //  and a service that stopped reading never does:
         // a request of one mebibyte fills both buffers of the connection and then waits with no end,
         //  so no ceiling of this client was ever looked at again
         //  (the audit of release 0.6.1-alpha.12 that stopped the service during the write of its request).
-        //  A connection that ends is sent on again, as before;
-        // a request of which the service took no part, or not all of it in
-        //  time, never reached the service as one line,
-        // so that commit cannot be made and is not waited for again.
+        //  `trace.sends` counts the attempts that put the whole line on the wire, so it is what tells the two ends apart:
+        // with none, no line ever reached the service whole and, the service refusing a line that ends without its newline
+        //  (`service_server_connection_handling.rs`), nothing of this commit can be taken or land later;
+        // with one, an earlier attempt may already be the service's, so the result is not known and the commit's scratch
+        //  tree stays with the service's claim on it (the review of this change, finding 1).
+        let before_the_write: usize = trace.sends;
         match write_within(reader.get_ref(), payload.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING) {
             Wrote::All => {}
             Wrote::Ended => {
@@ -304,6 +307,10 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     return Err(ClientFailure::MayNotHaveLanded);
                 }
                 continue;
+            }
+            Wrote::NothingTaken | Wrote::TooSlow if before_the_write > 0 => {
+                // An earlier attempt delivered this request whole, so it may be the service's however this one ended.
+                return Err(ClientFailure::MayNotHaveLanded);
             }
             Wrote::NothingTaken => return Err(ClientFailure::ServiceNotReading { took_nothing: true }),
             Wrote::TooSlow => return Err(ClientFailure::ServiceNotReading { took_nothing: false }),
