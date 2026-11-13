@@ -609,6 +609,12 @@ NHX:
  any sense of hurry lowers its work.
 Briefs ask for the best result.
 
+A1T:
+ One agent gets one thing:
+ a brief holds a single task,
+ and a different task goes to a fresh agent,
+ never into a running or resumed one.
+
 ## Before running a command
 
 ### Command execution conventions
