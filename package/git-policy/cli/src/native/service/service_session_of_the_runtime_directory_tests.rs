@@ -9,7 +9,9 @@ use crate::service_host_of_a_worktree::state_dir_of_the_command;
 /// What:
 ///  The bus belongs to the runtime directory only when its socket's directory is that directory.
 /// Why:
-///  `systemd-run --user` finds the manager by this bus, so a bus elsewhere is another session's manager, and asking it is
+///  `systemd-run --user` finds the manager by this bus,
+/// so a bus elsewhere is another session's manager,
+/// and asking it is
 ///  what issue 6293 forbids.
 #[test]
 fn the_bus_is_ours_only_when_its_socket_sits_in_our_runtime_directory() {
@@ -44,9 +46,11 @@ fn a_command_belongs_to_the_session_only_when_its_own_bus_lives_in_the_runtime_d
 }
 
 /// What:
-///  The account's state directory serves the session's own run, and the runtime directory serves every other one.
+///  The account's state directory serves the session's own run,
+/// and the runtime directory serves every other one.
 /// Why:
-///  A run given a runtime directory of its own must leave nothing under the account's real state directory, and a session
+///  A run given a runtime directory of its own must leave nothing under the account's real state directory,
+/// and a session
 ///  whose own bus lives in its runtime directory keeps exactly the paths earlier releases used.
 #[test]
 fn the_state_directory_is_the_accounts_only_for_the_sessions_own_run() {

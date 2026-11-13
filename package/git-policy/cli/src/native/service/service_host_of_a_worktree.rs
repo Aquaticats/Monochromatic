@@ -10,14 +10,17 @@
 //! and each of them is derived from the worktree and the account's folders,
 //! never from a service manager:
 //! the socket is beside the worktree's other service files under
-//! `$XDG_RUNTIME_DIR`, and the journal is under the state folder
+//! `$XDG_RUNTIME_DIR`,
+//! and the journal is under the state folder
 //! (`journal_of`),
 //! which is where the unit's `StateDirectory=` used to put it,
 //! so an upgrade keeps every record it had.
 //! A runtime directory of the command's own is a boundary of its own:
 //! nothing of such a run is written under the account's real state directory
-//! (`state_dir_of_the_command`, and issue 6293).
-//! This file replaces the provisioning host, which carried the user's unit folder,
+//! (`state_dir_of_the_command`,
+//! and issue 6293).
+//! This file replaces the provisioning host,
+//! which carried the user's unit folder,
 //! the session bus and the manager's wait;
 //! nothing here names a manager.
 //!
@@ -60,7 +63,8 @@ pub struct ServiceHost {
     /// Why:
     ///  The enhancement asks a service manager only for the session whose bus this is,
     /// and a folder the wrapper fell back to is no session at all
-    /// (`service_server_start_through_the_manager.rs`, and issue 6293).
+    /// (`service_server_start_through_the_manager.rs`,
+    /// and issue 6293).
     pub named_runtime_dir: Option<PathBuf>,
     /// What:
     ///  The session bus address the environment gave this command,
@@ -117,18 +121,22 @@ impl ServiceHost {
 
 /// What:
 ///  The state folder this command's commit service keeps its records in:
-///  the account's (`XDG_STATE_HOME`, else `~/.local/state`),
+///  the account's (`XDG_STATE_HOME`,
+/// else `~/.local/state`),
 ///  or the runtime directory itself when that directory is the command's own.
 /// Why:
 ///   A run given a runtime directory of its own is a boundary of its own
-/// (issue 6293, the owner's decision of 2026-11-13):
+/// (issue 6293,
+/// the owner's decision of 2026-11-13):
 /// its service is not the account's session's service,
 /// so nothing of it may be written under the account's real state directory,
-/// and its journal, its retry plans and its scratch files live under that runtime directory instead.
+/// and its journal,
+/// its retry plans and its scratch files live under that runtime directory instead.
 /// A session whose own bus lives in its runtime directory is unaffected:
 /// its service state stays exactly where earlier releases kept it.
 /// An account that named no runtime directory (`~/.run`) keeps the account's state folder too:
-/// no session was named, so nothing here belongs to another session.
+/// no session was named,
+/// so nothing here belongs to another session.
 /// The trade is the private directory's own:
 /// its records do not outlive a logout or a reboot,
 /// and an earlier release's journal under the account's state directory is not adopted by such a run.
@@ -177,10 +185,14 @@ pub fn state_dir_of(state_home: Option<&Path>, home: Option<&Path>) -> Option<Pa
 ///  `.run` in the home directory.
 /// Why:
 ///   A machine with no login session sets no `XDG_RUNTIME_DIR` (a container,
-/// a service's own child, a cron job), and a commit must land there as it does anywhere else:
-/// real Git commits there, so this wrapper does.
+/// a service's own child,
+/// a cron job),
+/// and a commit must land there as it does anywhere else:
+/// real Git commits there,
+/// so this wrapper does.
 /// The home is the one place an account has of its own that survives a reboot,
-/// and `.run` is four characters, which leaves a socket address the room it needs.
+/// and `.run` is four characters,
+/// which leaves a socket address the room it needs.
 /// A folder the wrapper makes is private (0700);
 /// `ensure_private` sets that at every start.
 /// An account with neither a named folder nor a home has nowhere of its own to put a socket,

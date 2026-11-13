@@ -50,6 +50,16 @@ pub mod push_retry_failure;
 /// which ends the retry plan at once with one line (issue 6293).
 pub mod push_address_that_cannot_be_a_remote;
 
+/// The addresses a failed push was sent to,
+/// read from the remote's configuration in both faces of a push.
+pub mod push_addresses_of_a_failed_push;
+
+/// The results a push returns when it sent nothing:
+/// held back by a verdict,
+/// skipped with a note,
+/// or with its branch moved past the commit it read.
+pub mod auto_push_results_of_a_push_that_sent_nothing;
+
 /// The two signs one look at a process of a push finds,
 /// and the identities a holder is remembered by.
 pub mod push_progress_signs;

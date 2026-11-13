@@ -130,7 +130,8 @@ pub fn renew(path: &Path) {
 ///  a relative `XDG_STATE_HOME` is ignored as the XDG rules say.
 ///  It mirrors the cache directory of the version cache.
 ///   A run given a runtime directory of its own leaves nothing under the account's real state directory
-/// (issue 6293, `state_dir_of_the_command`):
+/// (issue 6293,
+/// `state_dir_of_the_command`):
 /// its scratch files go where its service's journal goes,
 /// which is inside that runtime directory.
 ///
@@ -139,38 +140,82 @@ pub fn renew(path: &Path) {
 /// const base = stateDirOfTheCommand(env); // the account's state directory, else the runtime directory
 /// ```
 pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> {
-    let named_runtime_directory: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR")
-        .filter(|named| {
-            return !named.is_empty();
-        })
-        .map(PathBuf::from);
-    let home: Option<PathBuf> = environment_value(environment, "HOME")
-        .filter(|home| {
-            return !home.is_empty();
-        })
-        .map(PathBuf::from);
-    let state_home: Option<PathBuf> = environment_value(environment, "XDG_STATE_HOME").map(PathBuf::from).filter(|state| {
-        return state.is_absolute();
-    });
-    let bus_address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS").filter(|address| {
-        return !address.is_empty();
-    });
-    let runtime_dir: Option<PathBuf> = runtime_directory(named_runtime_directory.as_deref(), home.as_deref());
-    let placed: Option<PathBuf> = runtime_dir.as_deref().and_then(|runtime| {
-        return state_dir_of_the_command(
-            named_runtime_directory.as_deref(),
-            runtime,
-            bus_address.as_deref().and_then(std::ffi::OsStr::to_str),
-            state_home.as_deref(),
-            home.as_deref(),
-        );
-    });
-    let base: PathBuf = placed.or(state_home).or_else(|| {
-        return home.map(|home_directory| {
-            return home_directory.join(".local").join("state");
-        });
-    })?;
-    return Some(base.join("monochromatic-git-policy-cli"));
+    let named_runtime_directory: Option<PathBuf> = named_path(environment, "XDG_RUNTIME_DIR");
+    let home: Option<PathBuf> = named_path(environment, "HOME");
+    let state_home: Option<PathBuf> = absolute_path(environment, "XDG_STATE_HOME");
+    let bus_address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS");
+    let base: Option<PathBuf> = state_base(named_runtime_directory.as_deref(), home.as_deref(), state_home.as_deref(), bus_address.as_deref());
+    return Some(base?.join("monochromatic-git-policy-cli"));
+}
+
+/// What:
+///  The folder the wrapper's own directory sits in:
+/// the runtime directory for a run given one of its own,
+///  the account's state directory otherwise.
+/// Why:
+///   Two readings decide it,
+/// and the boundary between them is `state_dir_of_the_command`:
+/// a runtime directory the environment named may be the command's own,
+/// which makes the account's state directory another session's business.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stateBase({ named, home, stateHome, bus }) // stateDirOfTheCommand(env) ?? stateHome ?? home && join(home, '.local/state')
+/// ```
+fn state_base(
+    named_runtime_directory: Option<&Path>,
+    home: Option<&Path>,
+    state_home: Option<&Path>,
+    bus_address: Option<&std::ffi::OsStr>,
+) -> Option<PathBuf> {
+    let runtime_dir: Option<PathBuf> = runtime_directory(named_runtime_directory, home);
+    if let Some(runtime) = runtime_dir.as_deref() {
+        let bus: Option<&str> = bus_address.and_then(std::ffi::OsStr::to_str);
+        let placed: Option<PathBuf> = state_dir_of_the_command(named_runtime_directory, runtime, bus, state_home, home);
+        if let Some(directory) = placed {
+            return Some(directory);
+        }
+    }
+    if let Some(named) = state_home {
+        return Some(named.to_path_buf());
+    }
+    let home_directory: &Path = home?;
+    return Some(home_directory.join(".local").join("state"));
+}
+
+/// What:
+///  A path the environment names,
+///  or nothing when it names none or names the empty string.
+/// Why:
+///   An empty value is what a shell hands a variable set to nothing,
+/// and it names no directory the wrapper could use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namedPath(env, 'HOME') // env.HOME === '' ? undefined : env.HOME
+/// ```
+fn named_path(environment: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
+    let value: OsString = environment_value(environment, name)?;
+    if value.is_empty() {
+        return None;
+    }
+    return Some(PathBuf::from(value));
+}
+
+/// What:
+///  An absolute path the environment names,
+/// and nothing for a relative one.
+/// Why:
+///   The XDG rules ignore a relative `XDG_STATE_HOME`,
+/// and a relative folder would be read under whatever directory the command runs in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// absolutePath(env, 'XDG_STATE_HOME') // isAbsolute(env.XDG_STATE_HOME ?? '') ? env.XDG_STATE_HOME : undefined
+/// ```
+fn absolute_path(environment: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
+    let path: PathBuf = PathBuf::from(environment_value(environment, name)?);
+    return path.is_absolute().then_some(path);
 }
 
 /// What:

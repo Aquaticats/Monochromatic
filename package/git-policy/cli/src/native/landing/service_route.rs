@@ -80,10 +80,13 @@ pub struct RouteInputs<'a> {
     ///  which is nothing when it gave none and the route fell back to a folder of its own.
     /// Why:
     ///  The enhancement asks a service manager for a scope only for the session whose bus belongs to the directory the
-    ///  environment named: a folder this program made is no session, and asking would reach the account's manager from a
+    ///  environment named:
+    /// a folder this program made is no session,
+    /// and asking would reach the account's manager from a
     ///  command that was given a runtime directory of its own (issue 6293).
     pub named_runtime_dir: Option<&'a Path>,
-    /// `DBUS_SESSION_BUS_ADDRESS`, which tells the enhancement whether the bus is this session's.
+    /// `DBUS_SESSION_BUS_ADDRESS`,
+    /// which tells the enhancement whether the bus is this session's.
     pub bus_address: Option<&'a str>,
     /// `HOME`.
     pub home: Option<&'a Path>,
@@ -113,7 +116,8 @@ pub struct Route {
 /// What:
 ///  Decides the route.
 /// Why:
-///   Starting the server needs the runtime folder, the worktree's instance and the wrapper's own executable,
+///   Starting the server needs the runtime folder,
+/// the worktree's instance and the wrapper's own executable,
 /// and with those three there is always a route:
 /// the wrapper starts the server itself,
 /// so nothing here depends on a session bus,
@@ -125,7 +129,8 @@ pub struct Route {
 /// except for a command given a runtime directory of its own:
 /// such a run's service belongs to no session of the account,
 /// so its journal lives inside that runtime directory and nothing of it touches the account's real state directory
-/// (`state_dir_of_the_command`, and issue 6293).
+/// (`state_dir_of_the_command`,
+/// and issue 6293).
 /// An account that names neither keeps its journal in the runtime folder,
 /// which lasts the login session:
 /// a commit still lands,
@@ -147,18 +152,20 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
         _ => return if socket.exists() { Some(Route { address: Bind::Path(socket), host: None }) } else { None },
     };
-    let state_dir: PathBuf = state_dir_of_the_command(
-        inputs.named_runtime_dir.filter(|named| {
-            return *named == runtime_dir;
-        }),
-        runtime_dir,
-        inputs.bus_address,
-        inputs.state_home,
-        inputs.home,
-    )
-    .unwrap_or_else(|| {
-        return runtime_dir.to_path_buf();
-    });
+    // What: The runtime directory the environment named, when it is the one in use.
+    // Why:  Only that one can be a session; a folder this program fell back to names no session at all.
+    let named_in_use: Option<PathBuf> = match inputs.named_runtime_dir {
+        Some(named) if named == runtime_dir => Some(named.to_path_buf()),
+        _ => None,
+    };
+    // What: The state folder of this command: the account's, or the runtime directory for a run of its own.
+    // Why:  A run given a runtime directory of its own keeps its service's state inside it (issue 6293), and an
+    //       account that names neither folder keeps it in the runtime directory.
+    let placed_state: Option<PathBuf> = state_dir_of_the_command(named_in_use.as_deref(), runtime_dir, inputs.bus_address, inputs.state_home, inputs.home);
+    let state_dir: PathBuf = match placed_state {
+        Some(directory) => directory,
+        None => runtime_dir.to_path_buf(),
+    };
     let host: ServiceHost = ServiceHost {
         runtime_dir: runtime_dir.to_path_buf(),
         state_dir,
@@ -168,9 +175,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         git_dir: inputs.git_dir.to_path_buf(),
         // The name the environment gave, which is what the enhancement's gate reads: a folder this program fell back to is
         //  no session, so no manager is asked for it.
-        named_runtime_dir: inputs.named_runtime_dir.filter(|named| {
-            return *named == runtime_dir;
-        }).map(Path::to_path_buf),
+        named_runtime_dir: named_in_use,
         bus_address: inputs.bus_address.map(str::to_string),
     };
     return Some(Route { address: Bind::Path(socket), host: Some(host) });

@@ -5,7 +5,9 @@
 
 use super::*;
 use crate::service_instance::socket_for;
+use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::test_support::{fixture, remove};
+use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 
 const GIT: &str = "/usr/bin/git";
 
@@ -58,7 +60,38 @@ fn the_program_and_the_runtime_directory_mean_a_route() {
     assert_eq!(address, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
     let named = host.expect("what starting needs comes with the route");
     assert_eq!(named.instance, crate::service_instance::instance_of(machine.git_dir.as_path()));
-    assert_eq!(named.journal(), crate::service_journal_folder_of_an_instance::journal_of(&machine.root.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current), named.instance.as_str()));
+    // What: This run inherited no bus, so its runtime directory is its own, and the journal lives inside it.
+    // Why:  A run given a runtime directory of its own leaves nothing under the account's state directory
+    //       (issue 6293, and `state_dir_of_the_command`).
+    assert_eq!(
+        named.journal(),
+        journal_of(&machine.runtime.join(SERVICE_UNIT.current), named.instance.as_str()),
+        "a runtime directory of the run's own holds the service's journal"
+    );
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A session whose own bus lives in its runtime directory keeps the journal under the account's state
+///  directory.
+/// Why:
+///  The boundary is the bus's directory (issue 6293);
+/// choosing the runtime directory for every run would move a person's journal,
+/// which the sweep and every later command read where earlier releases wrote it.
+#[test]
+fn the_sessions_own_runtime_directory_keeps_the_journal_under_the_accounts_state_directory() {
+    let machine: Machine = machine("route-own-session");
+    add_program(&machine);
+    let bus: String = format!("unix:path={}", machine.runtime.join("bus").display());
+    let mut session: RouteInputs<'_> = inputs(&machine);
+    session.bus_address = Some(bus.as_str());
+    let Some(Route { host, .. }) = choose_route(&session) else { panic!("a route expected") };
+    let named = host.expect("what starting needs comes with the route");
+    assert_eq!(
+        named.journal(),
+        journal_of(&machine.root.join(SERVICE_UNIT.current), named.instance.as_str()),
+        "the session whose bus this is keeps the account's state directory"
+    );
     remove(machine.root.as_path());
 }
 

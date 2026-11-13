@@ -138,9 +138,10 @@ fn the_state_directory_follows_the_xdg_rules() {
 ///  A run given a runtime directory of its own keeps its scratch files inside that directory.
 /// Why:
 ///  Issue 6293's decision ("Private runtime dir is the boundary") is that nothing of such a run is written under the
-///  account's real state directory, and the scratch files of every command are part of that.
-///  A session whose own bus lives in its runtime directory is unaffected, and so is an account that named no runtime
-///  directory at all.
+///  account's real state directory,
+///  and the scratch files of every command are part of that.
+///  A session whose own bus lives in its runtime directory is unaffected,
+///  and so is an account that named no runtime directory at all.
 #[test]
 fn a_run_given_a_runtime_directory_of_its_own_keeps_its_scratch_inside_it() {
     let account: &[(&str, &Path)] = &[("XDG_STATE_HOME", Path::new("/state")), ("HOME", Path::new("/home/u"))];

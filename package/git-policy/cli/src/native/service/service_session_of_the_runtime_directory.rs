@@ -1,8 +1,11 @@
 //! What:
 //!  Whether the runtime directory a command uses is the session its inherited bus belongs to.
 //! Why:
-//!  One boundary decides two things, and they must never disagree
-//! (issue 6293; the owner's decision of 2026-11-13, "Private runtime dir is the boundary"):
+//!  One boundary decides two things,
+//! and they must never disagree
+//! (issue 6293;
+//! the owner's decision of 2026-11-13,
+//! "Private runtime dir is the boundary"):
 //!  a service manager is asked for a scope only for the session whose bus lives in the runtime directory,
 //!  and the commit service keeps its journal and its retry plans under the account's state directory only for that
 //!  session.
@@ -13,7 +16,8 @@
 //! (`service_host_of_a_worktree::state_dir_of_the_command`).
 //! The bus's address is the fact:
 //! `/run/user/1000/bus` is the bus of the session whose runtime directory is `/run/user/1000`,
-//! and a folder this program fell back to (`~/.run`, for an account that named none) is no session at all.
+//! and a folder this program fell back to (`~/.run`,
+//! for an account that named none) is no session at all.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +32,8 @@ use std::path::Path;
 ///   The address is the fact,
 /// and its socket's directory is the runtime directory its session uses:
 /// `/run/user/1000/bus` is the bus of the session whose runtime directory is `/run/user/1000`.
-/// An abstract address has no directory, so it cannot be proven ours;
+/// An abstract address has no directory,
+/// so it cannot be proven ours;
 /// a list of addresses is read in order and the first that names a path decides.
 ///
 /// In TS you'd write (pseudocode):
@@ -49,13 +54,17 @@ pub fn bus_is_ours(runtime_dir: &Path, address: Option<&str>) -> bool {
 /// What:
 ///  Whether the runtime directory the environment named is the session its inherited bus belongs to.
 /// Why:
-///   A manager is asked only for such a session, and only such a session keeps its service state under the account's
+///   A manager is asked only for such a session,
+/// and only such a session keeps its service state under the account's
 ///  state directory:
-///   `systemd-run --user` finds its manager by the session bus, so a bus of another directory is another session's
+///   `systemd-run --user` finds its manager by the session bus,
+/// so a bus of another directory is another session's
 ///  manager,
-/// and asking it would put this run's service in the account's manager and its cgroup, which is what a private runtime
+/// and asking it would put this run's service in the account's manager and its cgroup,
+/// which is what a private runtime
 ///  directory must never cause (issue 6293).
-///   A folder the wrapper fell back to names no session, and a runtime directory whose bus lives elsewhere is a
+///   A folder the wrapper fell back to names no session,
+/// and a runtime directory whose bus lives elsewhere is a
 ///  directory of the command's own.
 ///
 /// In TS you'd write (pseudocode):

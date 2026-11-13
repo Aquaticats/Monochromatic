@@ -261,7 +261,7 @@ pub async fn push_once_awaiting(
     //  push would be paid by every commit.
     let push_addresses: Vec<String> = match attempt.exit_code {
         0 => Vec::new(),
-        _ => crate::auto_push::push_addresses_of_awaiting(git, sent.remote.as_str()).await,
+        _ => crate::push_addresses_of_a_failed_push::push_addresses_of_awaiting(git, sent.remote.as_str()).await,
     };
     return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), push_addresses, err);
 }

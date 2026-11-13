@@ -2,7 +2,9 @@
 //!  Whether a push address can never be a remote at all,
 //! and the words for one that cannot.
 //! Why:
-//!  The owner's decision of 2026-11-13 ("End the plan at once, say so once", issue 6293):
+//!  The owner's decision of 2026-11-13 ("End the plan at once,
+//! say so once",
+//! issue 6293):
 //! a push whose address cannot be a remote ends its plan on the first refusal,
 //! with one line that says the push was not made and why;
 //! an address that might come back (a drive that is not mounted,
@@ -10,20 +12,32 @@
 //! a login that is refused) keeps its retries as before.
 //! The line between the two cannot come from Git's words:
 //! measured with Git 2.56.0,
-//! `DISABLED`, `no-such-remote`, an unmounted `/mnt/not-mounted/repo.git`,
+//! `DISABLED`,
+//! `no-such-remote`,
+//! an unmounted `/mnt/not-mounted/repo.git`,
 //! a directory that exists but is no repository,
 //! an address with a space and one with a newline all answer the same
 //! `fatal: '<address>' does not appear to be a git repository`;
-//! so the address itself is read, and only a shape no machine state can make a remote is final:
-//!  - an empty address: `fatal: bad repository ''`, and no string names nothing;
-//!  - this project's own word `DISABLED`, which rule `APQ` tells every agent to point a throwaway
-//!    clone's push address at (`../DISABLED` and a repository of that name do receive a push, so this is a
+//! so the address itself is read,
+//! and only a shape no machine state can make a remote is final:
+//!  - an empty address:
+//!    `fatal: bad repository ''`,
+//!    and no string names nothing;
+//!  - this project's own word `DISABLED`,
+//!    which rule `APQ` tells every agent to point a throwaway
+//!    clone's push address at (`../DISABLED` and a repository of that name do receive a push,
+//!    so this is a
 //!    reservation of the project and not a syntax of Git);
-//!  - an address that starts with a dash, which Git reads as an option
-//!    (`error: did you mean '--force'?`, exit 129) and never as a place to push to;
-//!  - an address that starts with `://`, whose protocol name is empty: `fatal: protocol '' is not supported`,
+//!  - an address that starts with a dash,
+//!    which Git reads as an option
+//!    (`error: did you mean '--force'?`,
+//!    exit 129) and never as a place to push to;
+//!  - an address that starts with `://`,
+//!    whose protocol name is empty:
+//!    `fatal: protocol '' is not supported`,
 //!    and no protocol has an empty name.
-//! Every other address is retried, whatever Git answered:
+//! Every other address is retried,
+//!    whatever Git answered:
 //! a URL with an unknown scheme waits for its helper to be installed
 //! (`git: 'remote-foo' is not a git command`),
 //! a host that does not answer for its network
@@ -36,7 +50,9 @@
 //! ```
 
 /// The word this project reserves for a push address that must never be pushed to
-/// (`AGENTS.md`, rule `APQ`: `git remote set-url --push origin DISABLED`).
+/// (`AGENTS.md`,
+/// rule `APQ`:
+/// `git remote set-url --push origin DISABLED`).
 pub const DISABLED_ADDRESS: &str = "DISABLED";
 
 /// The prefix of a URL whose protocol name is empty.
@@ -63,7 +79,8 @@ pub enum CannotBeARemote {
 ///  or nothing when it might be one now or later.
 /// Why:
 ///   The four answers come from what Git itself refuses whatever the machine's state is;
-/// every other shape is left to its retries (`doc/…`, and the module doc's measurements).
+/// every other shape is left to its retries (`doc/…`,
+/// and the module doc's measurements).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -92,12 +109,16 @@ pub fn cannot_be_a_remote(address: &str) -> Option<CannotBeARemote> {
 /// Why:
 ///   A remote may name more than one push address,
 /// and Git stops the push at the first that fails
-/// (measured with Git 2.56.0: `remote.origin.pushurl` twice, `DISABLED` first, and the second,
+/// (measured with Git 2.56.0:
+/// `remote.origin.pushurl` twice,
+/// `DISABLED` first,
+/// and the second,
 /// working address received nothing),
 /// so one address that can never be a remote is enough for no try to land.
 /// An empty list names no address,
 /// which is a push whose destination this release could not read:
-/// nothing is known, so it keeps its retries.
+/// nothing is known,
+/// so it keeps its retries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,9 +150,11 @@ pub fn first_that_cannot_be_remote(addresses: &[String]) -> Option<(&str, Cannot
 fn as_a_person_reads_it(address: &str) -> String {
     let Some(scheme_end) = address.find(NO_PROTOCOL) else { return address.to_owned() };
     let authority_start: usize = scheme_end + NO_PROTOCOL.len();
-    let authority_end: usize = address[authority_start..].find('/').map_or(address.len(), |slash| {
-        return authority_start + slash;
-    });
+    let after_the_authority_start: &str = &address[authority_start..];
+    let authority_end: usize = match after_the_authority_start.find('/') {
+        Some(slash) => authority_start + slash,
+        None => address.len(),
+    };
     let authority: &str = &address[authority_start..authority_end];
     let Some(at) = authority.rfind('@') else { return address.to_owned() };
     return format!("{}***@{}", &address[..authority_start], &address[authority_start + at + 1..]);

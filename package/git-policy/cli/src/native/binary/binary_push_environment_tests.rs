@@ -102,7 +102,8 @@ fn push_world(fixture: &Fixture) -> PushWorld {
 ///  The per-user scratch directory of the fixture's run.
 /// Why:
 ///  It follows the runtime directory the wrapper is given
-/// (issue 6293: a run given a runtime directory of its own keeps nothing under the account's state directory),
+/// (issue 6293:
+/// a run given a runtime directory of its own keeps nothing under the account's state directory),
 /// so a control that looks for what a command left there must look where this build puts it.
 fn user_scratch_of(fixture: &Fixture) -> PathBuf {
     let runtime: PathBuf = super::support::service_runtime(fixture).expect("the fixture's runtime directory");

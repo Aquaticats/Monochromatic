@@ -1,21 +1,29 @@
 //! Controls of the line issue 6293 draws between "can never be a remote" and "not reachable now".
 //! Why:
-//!  The line cannot come from Git's words, so each case here names the words Git 2.56.0 answered when the address was
+//!  The line cannot come from Git's words,
+//! so each case here names the words Git 2.56.0 answered when the address was
 //!  pushed to from a fixture on 2026-11-13 (`keep/push-address-probe-output.txt` and
-//!  `keep/push-address-shapes-output.txt` beside that run's report), and the reading this module makes of it.
+//!  `keep/push-address-shapes-output.txt` beside that run's report),
+//! and the reading this module makes of it.
 
 use super::*;
 
 /// Git's answer to every relative or absolute path that is not a repository now,
 /// whatever the reason:
-/// measured for `DISABLED`, `no-such-remote`, `/mnt/not-mounted/repo.git`, a directory that exists and holds no
-/// repository, `my remote` and `a`+newline+`b`, all with Git 2.56.0.
+/// measured for `DISABLED`,
+/// `no-such-remote`,
+/// `/mnt/not-mounted/repo.git`,
+/// a directory that exists and holds no
+/// repository,
+/// `my remote` and `a`+newline+`b`,
+/// all with Git 2.56.0.
 const A_PATH_THAT_IS_NOT_A_REPOSITORY_NOW: &str = "fatal: 'X' does not appear to be a git repository";
 
 /// What:
 ///  The four shapes no machine state can turn into a remote are read as final.
 /// Why:
-///  Each is Git's own answer to the shape itself, quoted beside the case.
+///  Each is Git's own answer to the shape itself,
+/// quoted beside the case.
 #[test]
 fn an_address_that_no_machine_state_can_make_a_remote_is_final() {
     // `git push '' main`: "fatal: bad repository ''".
@@ -32,12 +40,18 @@ fn an_address_that_no_machine_state_can_make_a_remote_is_final() {
 }
 
 /// What:
-///  Every address that might name a remote now or later keeps its retries, whatever Git answered.
+///  Every address that might name a remote now or later keeps its retries,
+/// whatever Git answered.
 /// Why:
-///  A path that is not there now may be mounted, cloned or written; a word that is not exactly the reserved one is a
-///  path; an unknown protocol may get its helper; a host that does not answer may answer.
+///  A path that is not there now may be mounted,
+/// cloned or written;
+/// a word that is not exactly the reserved one is a
+///  path;
+/// an unknown protocol may get its helper;
+/// a host that does not answer may answer.
 ///  Git answered the same `fatal: '…' does not appear to be a git repository` for the reserved word and for every one of
-///  the paths, which is why the words alone decide nothing.
+///  the paths,
+/// which is why the words alone decide nothing.
 #[test]
 fn an_address_that_might_be_a_remote_later_is_never_final() {
     for address in [
@@ -69,9 +83,12 @@ fn an_address_that_might_be_a_remote_later_is_never_final() {
 }
 
 /// What:
-///  One address that can never be a remote ends a push that names several, because Git stops at the first that fails.
+///  One address that can never be a remote ends a push that names several,
+/// because Git stops at the first that fails.
 /// Why:
-///  Measured with Git 2.56.0: `remote.origin.pushurl` set to `DISABLED` and then to a working repository, a plain
+///  Measured with Git 2.56.0:
+/// `remote.origin.pushurl` set to `DISABLED` and then to a working repository,
+/// a plain
 ///  `git push origin main` failed on `DISABLED` and the working address received nothing.
 #[test]
 fn one_address_that_cannot_be_a_remote_ends_a_push_that_names_several() {
@@ -85,10 +102,13 @@ fn one_address_that_cannot_be_a_remote_ends_a_push_that_names_several() {
 }
 
 /// What:
-///  The line a person reads says what was not done, why, and that no try can mend it,
+///  The line a person reads says what was not done,
+/// why,
+/// and that no try can mend it,
 ///  and it is one line.
 /// Why:
-///  The notice of a failed push already names the branch and the commit above this line, and a person reads the first
+///  The notice of a failed push already names the branch and the commit above this line,
+/// and a person reads the first
 ///  line of a notice.
 #[test]
 fn the_line_says_the_push_was_not_made_and_why_in_one_line() {
@@ -114,8 +134,10 @@ fn the_line_says_the_push_was_not_made_and_why_in_one_line() {
 /// What:
 ///  An address this program prints never shows the password a URL may carry.
 /// Why:
-///  Git masks user information in its own messages, and the line this program writes must not be the one that prints a
-///  secret to a terminal, a log or a transcript.
+///  Git masks user information in its own messages,
+/// and the line this program writes must not be the one that prints a
+///  secret to a terminal,
+/// a log or a transcript.
 #[test]
 fn a_printed_address_never_shows_the_user_information_of_a_url() {
     let masked: String = words("-https://user:secret@host/repo.git", CannotBeARemote::AnOption);

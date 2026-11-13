@@ -1983,7 +1983,8 @@ fn a_plan_the_start_could_not_list_is_listed_again_and_its_push_is_made() {
 ///  The stage with its remote's push address changed to `address`,
 ///  so the plan meets an address instead of a real repository.
 /// Why:
-///  The setup pushes once, and changing the push address afterwards keeps the upstream and the recorded push while the
+///  The setup pushes once,
+/// and changing the push address afterwards keeps the upstream and the recorded push while the
 ///  address is the one under test.
 fn stage_with_the_push_address(name: &str, address: &str) -> Stage {
     let stage: Stage = stage_without_a_hook(name);
@@ -1992,14 +1993,18 @@ fn stage_with_the_push_address(name: &str, address: &str) -> Stage {
 }
 
 /// What:
-///  A push to the reserved word ends its plan at once, with one line for the person.
+///  A push to the reserved word ends its plan at once,
+/// with one line for the person.
 /// Why:
-///  This is the owner's decision of 2026-11-13 for issue 6293 ("End the plan at once, say so once") measured on the
+///  This is the owner's decision of 2026-11-13 for issue 6293 ("End the plan at once,
+/// say so once") measured on the
 ///  service's own round:
 /// Git answers the reserved word exactly as it answers a path that is not there
-/// (`fatal: 'DISABLED' does not appear to be a git repository`), so the address decides
+/// (`fatal: 'DISABLED' does not appear to be a git repository`),
+/// so the address decides
 /// (`push_address_that_cannot_be_a_remote.rs`),
-/// and no later round is planned, so no later command meets another notice.
+/// and no later round is planned,
+/// so no later command meets another notice.
 #[test]
 fn a_push_to_the_reserved_address_ends_its_plan_at_once_and_leaves_one_notice() {
     let stage: Stage = stage_with_the_push_address("push-address-reserved", crate::push_address_that_cannot_be_a_remote::DISABLED_ADDRESS);
@@ -2024,10 +2029,15 @@ fn a_push_to_the_reserved_address_ends_its_plan_at_once_and_leaves_one_notice() 
 }
 
 /// What:
-///  A push to a path that is not there now keeps its plan, whatever Git answered.
+///  A push to a path that is not there now keeps its plan,
+/// whatever Git answered.
 /// Why:
-///  Git answered the same fatal line as it did for the reserved word, and that path may be mounted or cloned later, so the
-///  line cannot be what ends a plan: where the two cannot be told apart, the second kind keeps its retries.
+///  Git answered the same fatal line as it did for the reserved word,
+/// and that path may be mounted or cloned later,
+/// so the
+///  line cannot be what ends a plan:
+/// where the two cannot be told apart,
+/// the second kind keeps its retries.
 #[test]
 fn a_push_to_a_path_that_is_not_there_keeps_its_plan() {
     let stage: Stage = stage_with_the_push_address("push-address-missing-path", "/mnt/not-mounted/repo.git");
@@ -2051,7 +2061,8 @@ fn a_push_to_a_path_that_is_not_there_keeps_its_plan() {
 /// (`fatal: '…' does not appear to be a git repository`),
 /// and that directory may become a repository,
 /// so the address is the second kind and nothing may give up on it.
-/// This is the "a path that exists but is no repository" case of the requirement, made real rather than quoted.
+/// This is the "a path that exists but is no repository" case of the requirement,
+/// made real rather than quoted.
 #[test]
 fn a_push_to_a_directory_that_is_no_repository_keeps_its_plan() {
     let stage: Stage = stage_without_a_hook("push-address-not-a-repository");
