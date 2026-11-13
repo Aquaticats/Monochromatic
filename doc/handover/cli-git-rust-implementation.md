@@ -606,6 +606,24 @@ Two things from its report that reach past its branch:
 
 Both runs' scratch folders held only `keep/` at their end. The two places went to the reviews of the jam fix (12:39:37) and of the issue 6286 run (12:39:46); eight units were going at 12:40:29.
 
+#### The review of the commit made without a proven scratch reference: a way to lose another command's commit, opened by the change (2026-11-13T12:41:45-05:00)
+
+`~/temp/agent/change-reviews/git-policy-cli-commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so/review.md`, on commit `c9758832c4`, four reproduction scripts beside it.
+Weighed by this session: both findings are fixed, and the branch does not merge before the first is closed.
+
+- **A stale marks file lands an earlier attempt's commits on a new base.** The sequence: the scratch reference of attempt one is refused and the batch is taken from the marks `fast-import` exported;
+  the marks file stays; another command lands a commit and the branch move is refused, so the landing builds the batch again; the second `fast-import` is ended by a signal before it writes its marks;
+  the fallback reads the first attempt's marks, and `update-ref` moves the branch to commits that stand on the old base. The other command's commit is no longer in the branch's history.
+  Reproduced by the review in Git alone (marks exported after a refused reference, marks written only at exit, a branch moved to a commit whose parent is not the old value);
+  the landing's part is read from the code, not run end to end.
+- **Checked by this session against `main`:** on `main` and so in `0.6.1-alpha.16` that path fails the commit and keeps its tip beside the failure (`service_land_objects_of_batch.rs`, lines 168 to 171);
+  it is this branch that makes it land. The loss is not in the release.
+- **A held batch is told "The branch names the commit now"** while the branch has not moved; read from the code, with the control that checks only the start of the line.
+
+The brief that answers it (`~/temp/agent/pi-runs/commit-made-without-a-proven-scratch-reference-answers-its-review-of-2026-11-13-prompt.md`) resumes the author in its own session and is second in the queue:
+the marks an attempt reads are that attempt's own, an import ended by a signal is no batch, no batch reaches the branch move unless its first commit stands on the attempt's base,
+and the whole sequence is reproduced in the landing itself by a control that fails before the fix.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
