@@ -891,6 +891,24 @@ each in answer to a question that gave the options:
   Rule `PIN` in `AGENTS.md` was amended on the owner's choice:
   test on current releases only,
   and an older one's failures are no defect.
+- The two per-token copies the input-trace patch leaves,
+  in `multiple()` and `argument()`,
+  asked whether to prototype fixes for them before the reply,
+  describe them in the reply as profiled and not fixed,
+  or leave them out:
+  "Prototype now (Recommended)".
+  A Pi run was started for it on 2026-11-13,
+  named `optique-two-remaining-copies-prototype`,
+  on DeepSeek through Neuralwatt,
+  with the brief `${HOME}/temp/agent/pi-runs/optique-two-remaining-copies-prototype-prompt.md`.
+  It works in a fresh disposable clone of its own under `${HOME}/temp/agent`,
+  on top of the trace patch,
+  on the current Node,
+  Deno and Bun,
+  and sends nothing anywhere.
+  Its result is to be checked again by the coordinating session,
+  as the trace patch was,
+  before anything about it is written into a document.
 
 Nothing in this section has been approved by the owner as complete or final;
 it is one AI session's record of what it did,
@@ -912,7 +930,8 @@ Where each piece stands:
   Settled on 2026-11-13 and recorded there:
   the patch removes the largest of three per-token copies and leaves two,
   in `multiple()` and `argument()`,
-  which were profiled and not prototyped;
+  which were profiled,
+  and whose fixes are being prototyped on the owner's decision of 2026-11-13;
   the patched tree passes upstream's core suite on Bun 1.4.4,
   the current release,
   with no failure;
