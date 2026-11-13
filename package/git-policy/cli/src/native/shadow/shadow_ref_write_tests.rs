@@ -695,11 +695,15 @@ fn head_of(repo: &Path) -> String {
 /// which is the whole of this reader's contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Reading {
-    /// The reader answers in process, and its answer is exactly Git's.
+    /// The reader answers in process,
+    /// and its answer is exactly Git's.
     InProcess,
-    /// The reader declines, Git answers, and the snapshot is Git's answer.
+    /// The reader declines,
+    /// Git answers,
+    /// and the snapshot is Git's answer.
     ByGit,
-    /// The reader declines and Git refuses to list the store at all, so the commit is refused with Git's own words.
+    /// The reader declines and Git refuses to list the store at all,
+    /// so the commit is refused with Git's own words.
     Refused,
 }
 
@@ -917,8 +921,11 @@ fn the_reader_answers_every_kind_of_store_as_git_does_or_declines() {
 /// `refs/worktree` and `refs/rewritten` to the worktree's own Git directory,
 ///  so a linked worktree never sees the main worktree's copies.
 /// The snapshot read the shared directory's whole `refs` tree and then overlaid the worktree's
-/// own three namespaces,  which kept the shared copies: a hook in the shadow then saw refs this
-/// worktree does not have,  and could take the main worktree's state for its own.
+/// own three namespaces,
+/// which kept the shared copies:
+/// a hook in the shadow then saw refs this
+/// worktree does not have,
+/// and could take the main worktree's state for its own.
 #[cfg(unix)]
 #[test]
 fn a_linked_worktree_does_not_snapshot_the_shared_per_worktree_refs() {
@@ -951,7 +958,9 @@ fn a_linked_worktree_does_not_snapshot_the_shared_per_worktree_refs() {
 }
 
 /// What:
-///  A symbolic ref whose chain ends at no ref, or in a loop, is not in the snapshot,
+///  A symbolic ref whose chain ends at no ref,
+///  or in a loop,
+///  is not in the snapshot,
 ///  because Git does not print it either.
 /// Why:
 ///   Git prints a symbolic ref only when its chain ends at a ref that exists;
@@ -959,7 +968,8 @@ fn a_linked_worktree_does_not_snapshot_the_shared_per_worktree_refs() {
 ///  and the shadow's Git would drop it too,
 /// so a snapshot that holds it answers a name Git refuses.
 /// A symbolic ref whose target is a *direct* ref with a missing object IS printed by both,
-/// and that case is in the same control, so the rule cannot be "drop every symbolic ref".
+/// and that case is in the same control,
+/// so the rule cannot be "drop every symbolic ref".
 #[cfg(unix)]
 #[test]
 fn a_symbolic_ref_that_ends_nowhere_is_not_in_the_snapshot() {
@@ -1003,9 +1013,12 @@ const COST_STORE_REFS: usize = 2000;
 
 /// How many rounds each arm of the cost control runs.
 ///
-/// The arms alternate, so both see the same page cache and the same host,
+/// The arms alternate,
+/// so both see the same page cache and the same host,
 /// and twenty rounds are enough to see the spread of each:
-/// the numbers are printed, never asserted, because a machine's speed is not this package's contract.
+/// the numbers are printed,
+/// never asserted,
+/// because a machine's speed is not this package's contract.
 const COST_ROUNDS: usize = 20;
 
 /// What:
@@ -1025,17 +1038,20 @@ fn median_of(spans: &mut [std::time::Duration]) -> std::time::Duration {
 }
 
 /// What:
-///  The reader costs less than the one Git child it replaced,
-///  and the numbers of both are printed.
+///  What the reader costs beside the one Git child it replaced,
+///  over a store of the size the commit path meets here,
+///  printed for a reader of the report.
 /// Why:
-///  The whole reason for reading the ref files is that a commit should not start a process over
-/// the repository's refs,  and the claim is worthless unless it is measured on a store of the size the commit path meets.
-/// The control asserts only that both arms answer the same listing;
-/// what each cost is printed for the report,
-///  because a wall-clock assertion would fail on a busy host and pass on an idle one.
+///  The reason for reading the ref files is that a commit should not start a process over the repository's refs,
+/// so the two costs have to be seen beside each other rather than assumed.
+///  Nothing here asserts a speed:
+/// this host's spread over twenty alternating rounds is wider than the difference between the arms when it is busy,
+///  so a wall-clock assertion would fail on a loaded host and pass on an idle one,
+/// and a machine's speed is not this package's contract.
+/// What the control does hold is that both arms answer the same store identically.
 #[cfg(unix)]
 #[test]
-fn the_reader_costs_less_than_the_git_child_it_replaces() {
+fn the_cost_of_both_arms_is_printed_over_a_store_of_the_repository_s_size() {
     let root: PathBuf = fixture("shadow-refs-cost-of-both-arms");
     let repo: PathBuf = store_of_kind(root.as_path(), "cost");
     let head: String = head_of(repo.as_path());
@@ -1050,12 +1066,12 @@ fn the_reader_costs_less_than_the_git_child_it_replaces() {
     let mut reader_spans: Vec<std::time::Duration> = Vec::with_capacity(COST_ROUNDS);
     let mut child_spans: Vec<std::time::Duration> = Vec::with_capacity(COST_ROUNDS);
     for _round in 0..COST_ROUNDS {
-        let began: std::time::Instant = std::time::Instant::now();
+        let reader_began: std::time::Instant = std::time::Instant::now();
         let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, repo.as_path(), &sources).expect("the reader's answer");
-        reader_spans.push(began.elapsed());
-        let began: std::time::Instant = std::time::Instant::now();
+        reader_spans.push(reader_began.elapsed());
+        let child_began: std::time::Instant = std::time::Instant::now();
         let printed: std::process::Output = git_output(repo.as_path(), &["for-each-ref", LISTING_FORMAT]);
-        child_spans.push(began.elapsed());
+        child_spans.push(child_began.elapsed());
         assert!(printed.status.success(), "real Git refused the listing");
         assert_eq!(snapshot_listing(entries.as_slice()), printed.stdout, "the two arms answer the same store differently");
     }

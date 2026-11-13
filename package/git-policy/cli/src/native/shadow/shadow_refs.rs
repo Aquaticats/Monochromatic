@@ -288,13 +288,37 @@ fn is_a_per_worktree_name(name: &str) -> bool {
 /// ```ts
 /// const endOfChain = (chains, target) => { let name = target; for (let step = 0; step < 5; step++) { const entry = chains.get(name); if (!entry) return undefined; if (entry.symref === '') return [name, entry.oid]; name = entry.symref } return undefined }
 /// ```
+/// What:
+///  Where a ref name sits in the snapshot's own byte order,
+///  or `None` when the snapshot holds no such name.
+/// Why:
+///   The entries are sorted by name once,
+/// and a symbolic ref's every step is a search of that order,
+///  written here as the search itself because the snapshot's names are what is compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const findByName = (entries, name) => { let low = 0, high = entries.length; while (low < high) { const middle = low + ((high - low) >> 1); const order = compare(entries[middle].name, name); if (order < 0) low = middle + 1; else if (order > 0) high = middle; else return middle } return undefined }
+/// ```
+fn find_by_name(entries: &[RefSnapshotEntry], name: &[u8]) -> Option<usize> {
+    let mut low: usize = 0;
+    let mut high: usize = entries.len();
+    while low < high {
+        let middle: usize = low.saturating_add(high.saturating_sub(low) / 2);
+        match entries[middle].name.as_slice().cmp(name) {
+            std::cmp::Ordering::Less => low = middle.saturating_add(1),
+            std::cmp::Ordering::Greater => high = middle,
+            std::cmp::Ordering::Equal => return Some(middle),
+        }
+    }
+    return None;
+}
+
 fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
     let mut current: Vec<u8> = target.to_vec();
     for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
         // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
-        let found: usize = entries
-            .binary_search_by(|entry| { return entry.name.as_slice().cmp(current.as_slice()); })
-            .ok()?;
+        let found: usize = find_by_name(entries, current.as_slice())?;
         if entries[found].symref.is_empty() {
             return Some((entries[found].name.clone(), entries[found].oid.clone()));
         }
