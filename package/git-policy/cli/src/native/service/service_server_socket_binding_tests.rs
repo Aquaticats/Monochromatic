@@ -35,31 +35,39 @@ fn every_kind_of_address_is_named_in_words_a_person_can_act_on() {
 }
 
 /// What:
-///  A bind takes the address over from a socket that accepts a connection and greets nothing,
-///  which is a service that is exiting.
+///  A bind leaves a socket that accepts a connection to its service,
+///  and takes over only one the kernel refuses.
 /// Why:
-///  Such a service held the address for 33 seconds on 2026-11-12 while a commit waited 37 seconds on it;
-/// the next server takes the name within one greeting's read, and the old one keeps its own socket until it ends.
+///  The review of `53726ade2d` reproduced two live services for one worktree, because a socket that accepted and greeted
+///  nothing within a second was taken over: a service that is recovering, starved or stopped in a debugger is silent and
+///  alive. The refusal is the kernel's proof; a silence is not.
 #[test]
-fn a_socket_that_greets_nothing_is_taken_over() {
-    // A socket path must fit in a socket address, which the fixture tree's depth does not allow.
+fn a_socket_that_accepts_is_left_to_its_service_and_a_refused_one_is_taken_over() {
     let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("bind-over-silent");
     let path: std::path::PathBuf = root.join("3f9a.sock");
-    let dying: UnixListener = UnixListener::bind(path.as_path()).expect("the dying service's address");
+    // A service that holds the address and is stopped: it accepts into its backlog and greets nothing.
+    let silent: UnixListener = UnixListener::bind(path.as_path()).expect("the service's address");
     let holding = std::thread::spawn(move || {
         let mut held: Vec<UnixStream> = Vec::new();
-        while let Ok((stream, _)) = dying.accept() {
+        while let Ok((stream, _)) = silent.accept() {
             held.push(stream);
             if held.len() > 8 {
                 break;
             }
         }
     });
-    let began: std::time::Instant = std::time::Instant::now();
-    let taken: UnixListener = bind_path(path.as_path()).expect("the next server takes the address");
-    assert!(began.elapsed() < std::time::Duration::from_secs(5), "the takeover is one greeting's read, not a wait on the dying process");
-    // The new server is the one a connection reaches now.
-    let _connected: UnixStream = UnixStream::connect(path.as_path()).expect("a connection to the new address");
-    drop(taken);
+    let refused: std::io::Error = bind_path(path.as_path()).expect_err("a socket that accepts keeps its service's address");
+    assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse, "{refused}");
+    // The service's own address still answers.
+    let _connected: UnixStream = UnixStream::connect(path.as_path()).expect("the service's address answers");
     std::mem::forget(holding);
+
+    // A socket nothing holds refuses, and that one is taken over: the case a killed service leaves.
+    let stale_root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("bind-stale");
+    let stale: std::path::PathBuf = stale_root.join("3f9a.sock");
+    let killed: UnixListener = UnixListener::bind(stale.as_path()).expect("a socket a service left");
+    drop(killed);
+    let taken: UnixListener = bind_path(stale.as_path()).expect("a refused socket is taken over");
+    let _reaches: UnixStream = UnixStream::connect(stale.as_path()).expect("and the new one answers");
+    drop(taken);
 }

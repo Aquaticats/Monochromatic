@@ -27,35 +27,65 @@ use crate::service_server_pid_note_of_an_instance::{path as pid_note_path, remov
 use crate::service_socket_directory_only_this_account_may_open::{ensure_private, keep_only_its_owner};
 use std::path::{Path, PathBuf};
 
-/// The files one running service owns.
+/// The files one running service owns,
+/// and what proves each is still its own when it removes it.
 #[derive(Clone, Debug)]
 pub struct OwnFiles {
     /// The address the service listens at,
     /// when it was given one.
     pub socket: Option<PathBuf>,
+    /// What:
+    ///  The device and inode of the socket this service bound.
+    /// Why:
+    ///  A path can name another file by the time the service ends:
+    ///  a second server that bound the same name,
+    /// or a person's file put there.
+    /// The inode is the object this process bound,
+    /// and the kernel never hands one inode to two files.
+    pub socket_identity: Option<(u64, u64)>,
     /// The note that names the service's process,
     /// beside the address.
     pub pid_note: Option<PathBuf>,
+    /// What:
+    ///  The exact text this service wrote into its note.
+    /// Why:
+    ///  A note is removed only while it still names this process;
+    /// one that names another server is that server's to remove.
+    pub note_text: Option<String>,
 }
 
 impl OwnFiles {
     /// What:
-    ///  Removes the address and the note,
-    ///  which is what an instance that ended leaves.
+    ///  Removes the address and the note this service owns,
+    ///  and leaves whatever a path names that is not its own.
     /// Why:
     ///   A file that stayed would count the instance again in the survey of removed worktrees,
     /// and a person looking for a service that exited would find an address to it.
-    ///  A file that cannot be removed is noise for the next sweep and never a failure of the end.
+    /// What must not happen is the review's finding 1:
+    ///  a service that ends unlinking a second server's address and note by their paths,
+    /// which left that server unreachable and the note missing,
+    ///  so the proof that guards a journal's removal read true of a live service.
+    /// So each removal is a comparison, not a path:
+    /// the socket goes only while the path still names the inode this process bound,
+    /// and the note only while it still holds the text this process wrote.
+    /// A file that cannot be removed or compared is noise for the next sweep and never a failure of the end.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// try { unlink(socket) } catch {} try { unlink(note) } catch {}
+    /// if (inodeOf(socket) === mine) unlink(socket); if (readFile(note) === myText) unlink(note)
     /// ```
     pub fn remove(&self) {
-        if let Some(socket) = self.socket.as_ref() {
+        use std::os::unix::fs::MetadataExt;
+        if let (Some(socket), Some((device, inode))) = (self.socket.as_ref(), self.socket_identity)
+            && let Ok(metadata) = std::fs::symlink_metadata(socket)
+            && metadata.dev() == device
+            && metadata.ino() == inode
+        {
             let _removed = std::fs::remove_file(socket);
         }
-        if let Some(note) = self.pid_note.as_ref() {
+        if let (Some(note), Some(text)) = (self.pid_note.as_ref(), self.note_text.as_ref())
+            && matches!(std::fs::read_to_string(note), Ok(current) if current == *text)
+        {
             remove_pid_note(note.as_path());
         }
     }
@@ -75,18 +105,29 @@ impl OwnFiles {
 /// ensurePrivate(dirname(socket)); keepOnlyItsOwner(socket); writePidNote(pidNote); return { socket, pidNote };
 /// ```
 pub fn take(socket: &Path, instance: Option<&str>) -> std::io::Result<OwnFiles> {
+    use std::os::unix::fs::MetadataExt;
     let directory: &Path = socket.parent().unwrap_or_else(|| {
         return Path::new(".");
     });
     ensure_private(directory)?;
     keep_only_its_owner(socket)?;
+    // What: The socket's identity is read from the file this process just bound.
+    // Why:  It is the only proof available at the end that the path still names this service's own socket
+    //       (`remove`).
+    let identity: Option<(u64, u64)> = std::fs::symlink_metadata(socket).ok().map(|metadata| {
+        return (metadata.dev(), metadata.ino());
+    });
     let note: Option<PathBuf> = instance.map(|name| {
         return pid_note_path(directory, name);
     });
+    let mut note_text: Option<String> = None;
     if let Some(path) = note.as_ref() {
-        write_pid_note(path.as_path(), i32::try_from(std::process::id()).unwrap_or(0))?;
+        let pid: i32 = i32::try_from(std::process::id()).unwrap_or(0);
+        write_pid_note(path.as_path(), pid)?;
+        // A note that was not written (a platform without a birth identity) leaves nothing to compare, and nothing is removed.
+        note_text = crate::service_server_pid_note_of_an_instance::text(pid).ok();
     }
-    return Ok(OwnFiles { socket: Some(socket.to_path_buf()), pid_note: note });
+    return Ok(OwnFiles { socket: Some(socket.to_path_buf()), socket_identity: identity, pid_note: note, note_text });
 }
 
 /// Controls of the files stay out of the release executable.

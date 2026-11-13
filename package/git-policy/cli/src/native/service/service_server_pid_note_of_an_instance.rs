@@ -25,7 +25,7 @@
 //! writeAtomic(join(instanceDir, `${instance}.pid`), `${process.pid} ${currentBirthIdentity()}\n`);
 //! ```
 
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
 use std::path::{Path, PathBuf};
 
 /// The ending of the note that names an instance's process.
@@ -56,14 +56,34 @@ pub fn path(socket_directory: &Path, instance: &str) -> PathBuf {
 /// write(pidNotePath, `${process.pid} ${currentBirthIdentity()}\n`);
 /// ```
 pub fn write(note: &Path, pid: i32) -> std::io::Result<()> {
-    let identity: String = match current_birth_identity() {
-        Ok(identity) => identity,
+    let Ok(text) = text(pid) else {
         // A platform without an identity source cannot make a note a later command may trust, so none is made.
-        Err(_unsupported) => return Ok(()),
+        return Ok(());
     };
     let temporary: PathBuf = note.with_extension("pid.writing");
-    std::fs::write(&temporary, format!("{pid} {identity}\n"))?;
+    std::fs::write(&temporary, text)?;
     return std::fs::rename(&temporary, note);
+}
+
+/// What:
+///  The exact text a note for `pid` holds:
+///  the number,
+///  one space,
+///  the process's birth identity,
+///  and one line feed.
+/// Why:
+///   A service removes its note only while the file still holds this text,
+/// so the text it will write is also the text it compares later
+/// (`service_server_files_of_a_running_instance.rs`).
+/// A comparison of the two strings is the proof that the file is that service's and not a later server's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteText(pid) // `${pid} linux:123456\n`
+/// ```
+pub fn text(pid: i32) -> Result<String, ProcessIdentityError> {
+    let identity: String = current_birth_identity()?;
+    return Ok(format!("{pid} {identity}\n"));
 }
 
 /// The note as text, or nothing when it is not there.

@@ -119,23 +119,39 @@ pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Opti
 
 /// What:
 ///  Binds a socket file,
-/// taking over one that no service listens on.
+/// taking over one that no process holds.
 /// Why:
 ///   A service that was killed leaves its socket file behind,
 /// and the next bind of the same path then fails with
 ///  "Address already in use" although nothing answers there.
-/// Only a socket that refuses a connection is replaced:
-/// one that
-///  answers belongs to a running service,
-/// and any other file is the person's.
-/// Two services started on one path at the same
-///  moment are the caller's to avoid (the service manager's socket,
-/// which production uses,
-/// never comes here).
+/// What proves that no process holds it is the kernel's own refusal of a connection:
+///  a socket file another process still has bound accepts a connection whether or not that process is willing to greet
+///  on it.
+/// A silence is never that proof.
+///   The review of `53726ade2d` reproduced, with the real binary,
+/// a second server taking the address of a service that was alive and stopped
+///  mid-instruction,
+/// and the first one's own cleanup then unlinking the second's:
+/// two live services for one worktree,
+/// and a note that named neither.
+///  A service is silent for legitimate reasons:
+/// it is recovering the batches of an earlier service before its acceptor starts
+///  (`service_main.rs`, seconds),
+/// the machine starves its acceptor,
+/// or a debugger stops it.
+/// So a socket that accepts is left to its service, and the bind fails;
+/// the command that wanted a server waits,
+/// bounded,
+/// and starts one when the address is free
+///  (`service_server_start_by_the_wrapper.rs`,
+/// which does not spawn a server while something accepts at the address).
+///  The cost is the wait that the earlier takeover was written to avoid: a service that is leaving keeps its address until
+///  it has,
+/// which the commit's own ceiling bounds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return listen(path) } catch (inUse) { if (await refusesConnections(path)) { unlink(path); return listen(path) } throw inUse }
+/// try { return listen(path) } catch (inUse) { if (!refusesConnections(path)) throw inUse; unlink(path); return listen(path) }
 /// ```
 pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener> {
     use std::os::unix::fs::FileTypeExt;
@@ -148,22 +164,11 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
         Ok(meta) => meta.file_type().is_socket(),
         Err(_missing) => false,
     };
-    // What: A socket file is taken over when nothing greets on it: a connection refused, or accepted and answered with nothing in
-    //       the time a greeting takes.
-    // Why:  A killed service leaves a socket that refuses, and a service that is exiting keeps listening while it finishes
-    //       (measured 2026-11-12: an instance that was stopped 287 ms after it started kept its address for 33 s, and a commit
-    //       waited 37 s on it). The second kind answers neither, and waiting for it to close is a wait on a process that is
-    //       already leaving. Unlinking the name is safe whoever holds it: the old instance keeps its own socket until it ends,
-    //       and every new connection comes here.
-    let replaced: bool = match UnixStream::connect(path) {
-        Err(error) => error.kind() == std::io::ErrorKind::ConnectionRefused,
-        Ok(stream) => {
-            let _patience = stream.set_read_timeout(Some(crate::service_server_start_by_the_wrapper::GREETING_READ));
-            let mut reader = std::io::BufReader::new(stream);
-            !matches!(crate::service_client_listen_and_ask_to_retire::listen(&mut reader), crate::service_client_listen_and_ask_to_retire::Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }))
-        }
-    };
-    if !is_socket || !replaced {
+    // What: The kernel's refusal of a connection is the only proof that no process holds this address.
+    // Why:  A socket that accepts belongs to a live process, whatever it says or does not say: taking it over unlinked the
+    //       address of a running service and let a second one bind the same path (the review's finding 1).
+    let refused: bool = matches!(UnixStream::connect(path), Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused);
+    if !is_socket || !refused {
         return Err(first);
     }
     std::fs::remove_file(path)?;

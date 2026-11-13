@@ -176,6 +176,15 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     if answered(server.socket.as_path()) {
         return StartAttempt::Greeted;
     }
+    // What: Something that accepts a connection but greets nothing is a service that is alive and slow, and no server is started
+    //       beside it.
+    // Why:  Such a service holds its address (`bind_path` takes over only a socket the kernel refuses), so a server started here
+    //       would fail to bind and exit; the command that needs the service waits instead, until the address frees or its own
+    //       ceiling passes. This is the wait that keeps a slow recovery or a starved acceptor from failing a commit, and it is
+    //       the reason the takeover that used to skip it is gone.
+    if accepts(server.socket.as_path()) {
+        return StartAttempt::AnotherCommandStartsIt;
+    }
     let log: PathBuf = server.log();
     if let Err(_cannot_truncate) = log_file::truncate_when_past_its_cap(log.as_path()) {
         // A log that cannot be shortened still takes the server's lines, and the start is worth making.
@@ -208,7 +217,30 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     if spawn(&detached).is_err() {
         return StartAttempt::DidNotGreet(log);
     }
-    return if waits_for_a_greeting(server.socket.as_path(), START_WAIT) { StartAttempt::Greeted } else { StartAttempt::DidNotGreet(log) };
+    return match waits_for_a_greeting(server.socket.as_path(), START_WAIT) {
+        true => StartAttempt::Greeted,
+        // What: A start that did not greet, while the address still takes a connection, is a service that was already there and
+        //       is leaving: the server this command started could not bind and exited, and the caller keeps waiting.
+        // Why:  Failing here would fail a commit whose service is about to be free, and the caller's own ceiling bounds the wait.
+        false if accepts(server.socket.as_path()) => StartAttempt::AnotherCommandStartsIt,
+        false => StartAttempt::DidNotGreet(log),
+    };
+}
+
+/// What:
+///  Whether something accepts a connection at this address,
+///  which a listening socket does whether or not its process will greet.
+/// Why:
+///  It is how a command tells "nothing is bound here" from "a service is bound and not answering yet",
+/// and the second is never a reason to bind the name again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// accepts(socket) // connect succeeds
+/// ```
+pub fn accepts(socket: &Path) -> bool {
+    let address: Bind = Bind::Path(socket.to_path_buf());
+    return connect(&address).is_ok();
 }
 
 /// What:

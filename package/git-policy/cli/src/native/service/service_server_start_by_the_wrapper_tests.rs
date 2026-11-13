@@ -68,3 +68,46 @@ fn a_wait_with_nothing_at_the_address_ends_at_its_bound() {
     assert!(!waits_for_a_greeting(root.join("none.sock").as_path(), Duration::from_millis(50)));
     assert!(began.elapsed() < Duration::from_secs(5), "the bound is the bound");
 }
+
+/// What:
+///  A command that finds an address accepting but greeting nothing starts no server and keeps waiting.
+/// Why:
+///  A service that is recovering, starved or stopped in a debugger holds its address and says nothing;
+/// a server started beside it could not bind and would exit, and the command would report a start that did not greet
+///  while a live service was there all along. The waiting is what makes the address's silence safe
+///  (`service_server_socket_binding.rs`): the command's own ceiling bounds it.
+#[test]
+fn a_command_waits_at_an_address_that_accepts_and_greets_nothing() {
+    let root: PathBuf = folder("waits-while-silent");
+    let socket: PathBuf = root.join("3f9a.sock");
+    // A service that holds the address, accepts every connection, and greets nothing: alive and slow.
+    let silent = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the service's address");
+    let holding = std::thread::spawn(move || {
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while let Ok((stream, _)) = silent.accept() {
+            held.push(stream);
+            if held.len() > 16 {
+                break;
+            }
+        }
+    });
+    let server = ServerToStart {
+        socket: socket.clone(),
+        instance: String::from("3f9a"),
+        journal: root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        // A program that runs and exits without binding, so nothing about this control depends on a missing file: the address
+        //  is held by the service that is there.
+        program: PathBuf::from("/bin/true"),
+        manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    let attempt: StartAttempt = start(&server);
+    assert_eq!(attempt, StartAttempt::AnotherCommandStartsIt, "the command waits for the service that is there");
+    assert!(began.elapsed() < Duration::from_secs(2), "and it waits neither a start nor a probe, but returns at once: {:?}", began.elapsed());
+    // Nothing was started: the log the program would have written is not there.
+    assert!(!server.log().exists(), "no server was started beside the live one");
+    std::mem::forget(holding);
+}

@@ -21,15 +21,36 @@ fn the_files_are_made_and_removed() {
     assert!(!socket.exists(), "the address goes with the service");
 }
 
-/// The note of a service whose number has another birth names nothing.
+/// What:
+///  A service that ends leaves the address and the note of a *later* server where they are.
+/// Why:
+///  The review of `53726ade2d` reproduced the other behaviour with the real binary:
+/// a second server had bound the same path, and the first one's exit unlinked the second's socket and note,
+///  so the second was unreachable and the proof that guards a journal's removal read true of a live service.
+/// The inode of the socket and the text of the note are what say whose each file is.
 #[test]
-fn a_note_of_another_birth_names_nothing() {
-    let root = folder("stale");
+fn a_service_leaves_files_that_are_not_its_own() {
+    let root = folder("not-ours");
     let socket = root.join("3f9a.sock");
-    let note = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
-    std::fs::write(note.as_path(), "1 linux:000000\n").expect("a stale note");
-    std::fs::write(socket.as_path(), "").expect("a file where the address was");
-    let files = OwnFiles { socket: Some(socket.clone()), pid_note: Some(note.clone()) };
+    // What this service bound and wrote.
+    let mine = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("this service's socket");
+    let files = take(socket.as_path(), Some("3f9a")).expect("the files are taken");
+    let note = files.pid_note.clone().expect("the note is beside the address");
+    // A later server's: another socket bound at the same path, and a note naming another process.
+    std::fs::remove_file(socket.as_path()).expect("the address is freed for the later server");
+    let theirs = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the later server's socket");
+    std::fs::write(note.as_path(), "1 linux:000000\n").expect("the later server's note");
+
     files.remove();
-    assert!(!socket.exists() && !note.exists(), "a stale address and note are removed");
+    assert!(socket.exists(), "the later server's address is left where it is");
+    assert!(note.exists(), "and its note with it");
+    assert_eq!(std::fs::read_to_string(note.as_path()).expect("the note reads"), "1 linux:000000\n");
+    drop(mine);
+    drop(theirs);
+    // And what is still this service's own goes.
+    std::fs::remove_file(socket.as_path()).expect("clean up the later socket");
+    std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a socket to remove");
+    let again = take(socket.as_path(), Some("3f9a")).expect("the files are taken again");
+    again.remove();
+    assert!(!socket.exists() && !note.exists(), "a service's own files are removed");
 }
