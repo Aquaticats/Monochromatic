@@ -670,6 +670,30 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The installed release deletes a stage folder whose claim lost its records, a person's file with it: issue 6296 (2026-11-13T13:46:59-05:00)
+
+Not complete: how a person reaches the state without building it by hand is not shown against the release; the fix is with the snapshot branch's author.
+Run and read by the coordinating session.
+
+- The second finding of the snapshot branch's review was run against the released binary `0.6.1-alpha.16`, between 13:45:04 and 13:46:42,
+  in a disposable repository with a `HOME` and an `XDG_RUNTIME_DIR` of its own, with the review's own build on the same state as the control.
+  The state: a `.stage` claim of an owner that is gone, the stage folder beside the repository holding one file, and neither the `.made` nor the `.add` record.
+  Both binaries, on a forwarded `git add` in a linked worktree: status 0, the line "removed the stage … that an interrupted ignored-state copy left behind",
+  the folder and the file gone.
+  Script and outputs: `~/temp/agent/snapshot-review-file-deletion-checked-against-the-installed-release-2026-11-13/`.
+- Read in `main` at `2613d85910`: `release_unsynced` (`worktree_copying/worktree_copy_stage_claim.rs`, lines 196 to 205) removes the `.made` record and the add's record before the claim,
+  and its comment says the durable release uses the same order.
+  So the order that leaves that state after a kill is in `main`; the guard the branch adds (`of_an_add`) is not, and the review shows the guard is defeated by the same kill.
+- Not shown: the whole sequence, from a real `git worktree add` served by a snapshot whose displaced directory holds a person's file, and a kill at that instruction, against the release.
+  It needs both a file written into the new worktree while the add runs and a kill inside the release of the claim.
+- Filed as issue 6296. The snapshot branch's author, started at 13:46:32, was told by a note in its inbox (taken by its run) and names the issue in the commit that closes the window.
+- **Review of the launcher's scratch-folder fixes** (`c0a18005c2...a0dff71830`), ended before 13:46:31: two defects, both reproduced.
+  The sweep that removes finished worktrees runs its clean command with no deadline, so a clean that blocks holds the whole sweep;
+  and the proof that a scratch folder is its run's own is taken once before a walk of up to 1800 s, in which a new attempt of the same name can start and lose what it writes.
+  The second is the same harm as the first review's second finding through another window; the author is asked to remove the class.
+  Brief `~/temp/agent/pi-runs/launcher-scratch-folder-change-answers-its-second-review-of-2026-11-13-prompt.md`, first in the queue.
+  **Nothing deletes scratch automatically until this is answered, reviewed and merged.**
+
 #### The snapshot branch's review deleted a person's file through the built wrapper; the guards branch's advice loses what it tells a person to back up (2026-11-13T13:44:04-05:00)
 
 Not complete: both branches go back to their authors.
