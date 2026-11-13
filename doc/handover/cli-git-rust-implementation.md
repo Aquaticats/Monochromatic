@@ -811,6 +811,27 @@ which is in the list of owner choices still to ask.
   All ten go back to the author
   (`~/temp/agent/pi-runs/review-briefs-change-answers-its-review-of-2026-11-13-prompt.md`),
   queued.
+- **The snapshot of a person** (`503200e087`),
+  read at 18:10:
+  its third review found no path that discards a file,
+  fails a commit or waits without a bound,
+  and reproduced two defects in the kept-stage record of the last commit.
+  A change below a subfolder of the payload never makes the record stale,
+  so after a person removes a nested file the folder is kept for good and each command names a file that is gone;
+  and the `.kept` record is never removed.
+  Both go back to the author
+  (`~/temp/agent/pi-runs/snapshot-of-a-person-answers-its-third-review-of-2026-11-13-prompt.md`),
+  queued.
+- **The index lock**:
+  its author answered the second review at 17:56:08
+  (tip `675771e759`,
+  `main` merged in;
+  by its report Clippy passes,
+  the `lock::` and `landing` tests pass 377
+  and the killed-holder controls 13).
+  The review of that answer,
+  over `main...675771e759`,
+  is queued.
 
 #### Pass 20 is in `main` and `0.6.1-alpha.18` is dispatched; abort-and-skip passed its second review; the owner: a stale lock file fails the lint through the closure check (2026-11-13T17:44:06-05:00)
 
