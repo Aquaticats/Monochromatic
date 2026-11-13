@@ -13,8 +13,9 @@ It did not clone,
 build,
 or run Kitesurf.
 The same session corrected it at 2026-11-13T16:56:35-05:00,
-after a second pass by the advisor model (same vendor, so not an independent review),
-in the Kitesurf build requirements,
+after a second pass by the advisor model,
+which comes from the same vendor and so is not an independent review.
+The corrections are in the Kitesurf build requirements,
 the source for the Boa fallback,
 the file that holds the stay-on-this-machine rule,
 and the reading of the EAGAIN troubleshooting doc.
