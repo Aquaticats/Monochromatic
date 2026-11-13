@@ -163,6 +163,16 @@ pub fn land_batch_timed(
     //  kept where a commit that did not land is kept, and the person is told where, because a commit no reference names is one
     //  `git gc --prune=now` takes (`keep_what_a_side_reference_write_left`).
     crate::service_land_side_reference_write::keep_what_a_side_reference_write_left(landing, announce, requests, seq);
+    // A batch whose own reference the write did not prove is landed as real Git would land it, and the person is told once what the
+    //  missing reference exposed; a commit held behind a reference lock is kept on its kept name, because the batch's own reference
+    //  is not there to hold it (`service_land_without_its_scratch_reference.rs`).
+    crate::service_land_without_its_scratch_reference::say_what_it_cost_and_keep_a_held_commit(
+        landing,
+        announce,
+        requests,
+        seq,
+        result.as_ref().ok().map(Vec::as_slice),
+    );
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
     //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
     //  removes the branch itself (`service_scratch_ref_of_a_dropped_batch.rs`). One that wrote its intent leaves it to the restart.
@@ -227,6 +237,13 @@ mod built_tests;
 #[cfg(test)]
 #[path = "service_land_side_reference_write_tests.rs"]
 mod side_reference_write_tests;
+
+/// Controls for a batch whose own scratch reference the write did not prove stay out of the release executable:
+/// it lands as real Git lands a commit,
+/// and the person is told once what the missing reference exposed.
+#[cfg(test)]
+#[path = "service_land_without_its_scratch_reference_tests.rs"]
+mod without_its_scratch_reference_tests;
 
 /// Controls for the push a landed commit leaves before its client is answered stay out of the release executable.
 #[cfg(test)]

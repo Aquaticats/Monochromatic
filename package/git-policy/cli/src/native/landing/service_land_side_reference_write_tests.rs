@@ -28,7 +28,7 @@
 //! ```
 
 use super::*;
-use super::tests::{World, built_request, request, world};
+use super::tests::{World, built_request, world};
 use crate::service_land_side_reference_write::{
     AKeptCommit, ASideRefWrite, keep_on_a_side_ref, keep_on_the_scratch_reference, keep_on_the_scratch_reference_awaiting, keep_unlanded, keep_unlanded_awaiting,
 };
@@ -373,62 +373,6 @@ fn a_kept_reference_another_command_wrote_after_the_read_is_not_replaced() {
 }
 
 /// What:
-///  A commit Git built survives a maintenance that drops what no reference names,
-///  even though the write of the batch's own side reference was still running when this command stopped waiting for it.
-/// Why:
-///  The landing answers such a batch with a failure,
-///  and nothing else names the commit it built:
-///  a commit that is on no branch and that no reference names is one `git gc --prune=now` takes
-///  (the owner's rule "never discard user data").
-///  The commit is kept on the reference a commit that did not land is kept on,
-///  and the person is told where it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// expect(await landBatchWithAGitStuckOnTheScratchReference(...)).toEqual({ error: 'unavailable' });
-/// expect(revParse(keptRef(1))).toBe(commit); expect(catFileExists(commit)).toBe(true); expect(announced).toContain('refs/cli-git/kept/1')
-/// ```
-#[test]
-fn a_built_commit_survives_a_prune_when_the_write_of_its_scratch_reference_is_left_running() {
-    let mut world: World = world("service-land-side-ref-scratch-left-running");
-    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    // The repository names a shared-file mode, even the one that shares nothing, which is one of the settings whose write the
-    //  landing leaves to Git (`side_reference_written_here.rs`): this control is about the wait for Git's write of the batch's
-    //  own reference, so that write must be Git's.
-    git(world.repo.as_path(), &["config", "core.sharedRepository", "false"]);
-    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
-    let commit: String = built.commit.clone().expect("the commit Git built");
-    let program: PathBuf = world.root.join("git-stuck-on-the-scratch-reference");
-    make_the_side_reference_directories(&world);
-    let script: String = format!(
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{invocations}'\ncase \" $* \" in\n  *\" update-ref --no-deref refs/worktree/cli-git-service/\"*)\n    while {alive}; do sleep 0.05; done;;\n  *\" update-ref --no-deref refs/cli-git/kept/\"*)\n    shift 4\n    printf '%s\\n' \"$2\" > '{repository}/.git/'\"$1\" || exit 1\n    exit 0;;\nesac\nexec '{real}' \"$@\"\n",
-        invocations = side_ref_git_invocations(&world).display(),
-        alive = while_test_lives(world.root.as_path()),
-        repository = world.repo.display(),
-        real = crate::test_support::REAL_GIT,
-    );
-    std::fs::write(&program, script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
-    world.context.git.real_git = program;
-    let announced: Announced = Announced(RefCell::new(Vec::new()));
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return with_a_short_wait(|| { return land_batch_announcing(&world.context, 1, std::slice::from_ref(&built), &announced); });
-    });
-    let kept: String = kept_ref(1);
-    let kept_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]);
-    let kept_names: String = String::from_utf8_lossy(kept_read.stdout.as_slice()).trim().to_string();
-    git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
-    let lines: Vec<String> = announced.0.borrow().clone();
-    let asked: String = invocations_of(&world);
-    remove(world.root.as_path());
-    assert_eq!(landed.err(), Some(FailureCode::Unavailable), "the batch is not made, and it says so; the Git asked was:\n{asked}");
-    assert_eq!(kept_names, commit, "the commit the batch built is kept where a commit that did not land is kept");
-    assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
-    assert!(lines.iter().any(|line| { return line.contains(kept.as_str()); }), "the person is told where the commit is kept: {lines:?}");
-}
-
-/// What:
 ///  The scratch reference another command wrote between the read and the removal is not removed.
 /// Why:
 ///  The removal read the reference as naming the batch's commit and proved that commit kept elsewhere;
@@ -591,7 +535,8 @@ fn git_that_refuses_every_reference_write(world: &World) -> PathBuf {
 ///  Every other ending of a landing that answers a batch as not made keeps the commit on a reference
 ///  and says which.
 ///  Here the reference of the batch could not be written and the kept reference could not either,
-///  so the commit object is named by nothing at all,
+///  and the branch write that would have named it is refused too,
+/// so the commit object is named by nothing at all,
 /// and a maintenance that drops what no reference names takes it.
 ///  The one thing the wrapper can still give the person is the object's own name,
 /// so it does
@@ -600,7 +545,7 @@ fn git_that_refuses_every_reference_write(world: &World) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// refuseEveryReferenceWrite(); expect((await landBatch(built)).error).toEqual('unavailable'); expect(announced()).toContain('no reference'); expect(announced()).toContain(commit)
+/// refuseEveryReferenceWrite(); expect((await landBatch(built)).error).toEqual('reference-locked'); expect(announced()).toContain('no reference'); expect(announced()).toContain(commit)
 /// ```
 #[test]
 fn a_commit_no_reference_can_keep_is_named_to_the_person() {
@@ -622,7 +567,11 @@ fn a_commit_no_reference_can_keep_is_named_to_the_person() {
     let lines: Vec<String> = announced.0.borrow().clone();
     let asked: String = invocations_of(&world);
     remove(world.root.as_path());
-    assert_eq!(landed.err(), Some(FailureCode::Unavailable), "the batch is not made; the Git asked was:\n{asked}");
+    assert_eq!(
+        landed.err(),
+        Some(FailureCode::ReferenceLocked),
+        "the branch write the stand-in refused is what answers the batch, and its own words are the reason; the Git asked was:\n{asked}"
+    );
     assert!(!kept_read.status.success(), "no kept reference names the commit");
     assert!(!scratch_read.status.success(), "the batch's own reference names nothing");
     assert!(still_there.status.success(), "the commit object is still in the store");
@@ -631,49 +580,4 @@ fn a_commit_no_reference_can_keep_is_named_to_the_person() {
         panic!("the person is told the commit's name; the lines were {lines:?}");
     };
     assert!(named.contains("no reference"), "the line says no reference is proven to name it: {named}");
-}
-
-/// What:
-///  A batch the import made every commit of,
-/// whose last name the repository refused,
-/// is kept beside that refusal and named to the person.
-/// Why:
-///  `fast-import` writes the commits and updates the batch's own reference last:
-///  a repository that refuses that update leaves them named by nothing at all,
-/// and a commit no
-///  reference names is one `git gc --prune=now` takes.
-///  The marks the import exported name every commit it made,
-///  so the landing keeps the batch's tip
-/// where a commit that did not land is kept and says so
-///  (the owner's rule "never discard user data").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// refuseTheReferenceFolder(); expect((await landBatch(changes)).error).toEqual('unavailable'); expect(revParse(keptRef(1))).toBe(commit); expect(announced()).toContain(keptRef(1))
-/// ```
-#[test]
-fn a_batch_whose_import_could_not_name_its_commit_keeps_it_beside_the_refusal() {
-    let world: World = world("service-land-side-ref-import-refused");
-    let change: CommitRequest = request(&world, "typed", "typed.txt", "the change a person made\n");
-    // The batch's own reference cannot be written, and every other reference can: the folder the import writes
-    //  its reference into refuses every write.
-    let references: PathBuf = world.repo.join(".git/refs/worktree");
-    std::fs::create_dir_all(references.as_path()).expect("the reference's folder");
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
-    let announced: Announced = Announced(RefCell::new(Vec::new()));
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return land_batch_announcing(&world.context, 1, std::slice::from_ref(&change), &announced);
-    });
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
-    let kept: String = kept_ref(1);
-    let kept_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]);
-    let held: String = String::from_utf8_lossy(kept_read.stdout.as_slice()).trim().to_string();
-    git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", held.as_str()]);
-    let lines: Vec<String> = announced.0.borrow().clone();
-    remove(world.root.as_path());
-    assert_eq!(landed.err(), Some(FailureCode::Unavailable), "the batch is not made, and it says so");
-    assert!(!held.is_empty(), "the commit the import made is kept on the reference a commit that did not land is kept on");
-    assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
-    assert!(lines.iter().any(|line| { return line.contains(kept.as_str()); }), "the person is told where the commit is kept: {lines:?}");
 }

@@ -416,9 +416,13 @@ Read-only commands,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
   a program whose connection to the server is open is waited for while it works,
-  and one that keeps it open with nothing moving for the connected window (150 seconds)
-   is stopped,
-  with `git lfs push --all <remote>` named as its way forward.
+  and one that keeps it open for the connected window (150 seconds) while the connection carries fewer
+   bytes than the minimum rate (`CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+  1024 bytes in that window,
+  about 7 bytes per second) is stopped,
+  with `git lfs push --all <remote>` and a smaller floor as its ways forward.
+  A connection that only moves a byte now and then is what the floor exists for:
+  it is judged as a connection that moved nothing (see "The least traffic that counts as progress" in the SPEC).
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -3655,6 +3659,36 @@ the rules:
 `SPEC.md`,
 "Word-level second merge pass".
 
+### A commit made without the reference that would have protected it
+
+A commit is written to the object store before any reference names it,
+and `refs/worktree/cli-git-service/<batch>` is what keeps its objects out of a
+`git gc --prune=now` until the branch write names them.
+Real Git needs no such reference:
+one `git commit` writes the objects and moves the branch itself.
+When the write of that reference cannot be proven
+(Git refuses it,
+or the wait for it ended before it did),
+the commit is made as real Git makes it and the command exits `0`,
+with one line on standard error that says the commit was made,
+naming the reference that was not written and Git's own words for why,
+and saying what names the commit now:
+the branch,
+for a commit that landed,
+or that the branch has not moved yet and will name it when the lock in its way goes,
+for a commit that is held.
+A batch whose commits `fast-import` builds lands this way only when its own import wrote the marks
+the landing reads,
+when that import exited rather than being ended by a signal,
+and when its first commit stands on the base the attempt found:
+the marks an earlier attempt left are removed before the next import starts,
+because a killed import leaves the earlier file as it was,
+and a batch built on another base would carry the branch past a commit another command landed.
+Nothing changes for a commit whose reference the write proved.
+`SPEC.md`,
+"What names a commit between its objects and its branch",
+measures the window this leaves open.
+
 ### A commit held behind a reference lock
 
 The owner,
@@ -4449,10 +4483,17 @@ fractional or non-numeric value is ignored.
   A run whose connection to the remote is open (the push,
   the fetch that follows a refused push,
   and the Git LFS upload)
-   is waiting for the remote and is ended only when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
+   is waiting for the remote and is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
    seconds,
-   unmeasured);
+   unmeasured),
+   or when the connection carried fewer than `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` in that window,
+   which is what a server that keeps the connection alive with keepalive packets alone does
+   (over a URL those bytes are the socket's,
+  and over a path they are the pipe's);
   the service's retry plan keeps the push and tries it again.
+  A connection that carries a byte now and then therefore no longer holds a push for ever,
+  and the stop says how many bytes it carried,
+  because "nothing moved" would not be true there.
   The owner's answer of 2026-11-03,
   "Bound it,
   keep retrying (Recommended)",
@@ -4491,6 +4532,28 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push are ended by the same stall window when they show no sign of work;
    a query that works is never ended for being slow.
+- `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+   default `1024`.
+  The least traffic the push's connection to the remote must carry in one window and still count as progress:
+  the connected window (150 seconds) while a connection is open,
+   which is about 7 bytes per second,
+   and the stall window (30 seconds) for a remote that is a path,
+   where the keepalive arrives on the pipe,
+   which is about 34 bytes per second.
+  Bytes below it are not progress,
+  so a connection that only sends keepalive packets,
+   or a server that drips its answer a byte at a time,
+   is judged as a silent one and ended at the connected window rather than kept alive for ever.
+  The window is the connected one and is not a setting;
+  this number is,
+  and a smaller one lets a slower line through
+   (Git's own keepalive is at most five bytes per second,
+   and the slowest line this default lets through moves 1024 bytes in the window).
+  A zero,
+  negative,
+  fractional or non-numeric value is no setting at all,
+  so a typo cannot remove the rule.
+  See "The least traffic that counts as progress" in the SPEC for the measurement.
 - `CLI_GIT_PUSH_RETRY_SECONDS`,
    default `10`.
   The pause before the commit service tries a stopped or failed auto-push again on its own.
@@ -7003,9 +7066,36 @@ Guard tests keep it so:
   a worktree that Git's own `gc` prunes is not seen by the wrapper,
   so its
   records are lost with it.
-- The service keeps the records of its newest 1024 finished batches in its journal and removes older ones when it starts;
-  a request is answered as already landed only while its own client retries it,
-  which is minutes at most.
+- The service keeps a finished batch's record while a client of it may still send its request again,
+  and keeps the newest 1024 records whatever their age;
+  a record is removed only when it is both older than `A_FINISHED_RECORD_IS_READ` and beyond that count,
+  and the removal runs when a service starts.
+  A client's whole life is `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus
+  `LOOKING_FOR_A_LANDED_COMMIT`,
+  which is 30 minutes 17 seconds,
+  so a request sent again inside that time is answered as already landed
+  however many other landings pushed its record past the count,
+  and one sent again later is answered as already landed while fewer than 1024 batches have landed since it.
+  Limit:
+  a client that was stalled past that time is recognised only while the repository landed fewer than 1024
+  batches in the meantime.
+  Limit:
+  a request replayed by a later command from a recording of an earlier one obeys no ceiling of this wrapper,
+  so its record is the only thing that keeps it from landing twice,
+  and that record is kept only by the two conditions above.
+  Limit:
+  a service that keeps landing keeps every record it writes until its next start,
+  so its journal grows by the batches it lands while it runs,
+  and the first commits after that start wait for it to read every record it kept.
+  Limit:
+  two services of one worktree at the same time each remember what landed before they started,
+  so a request one of them landed and a client sends again to the other is landed twice;
+  one service per worktree is what keeps that from happening.
+  Limit:
+  a service of an earlier release,
+  started on the same journal,
+  removes the oldest records by count alone,
+  so a change of release may drop a record this release would keep.
 - The service exits after three hours with nothing to do (Bazel's server has the same default);
   the next commit starts it
   again.

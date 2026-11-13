@@ -544,6 +544,15 @@ mod fault_stream;
 #[path = "binary_fault_remote_tests.rs"]
 mod fault_remote;
 
+/// Controls for the least traffic a push's connection must carry and still count as progress:
+/// a hung hook kept alive by keepalives,
+/// a dripped answer,
+/// a slowly read upload,
+/// an honest slow push,
+/// and a silent phase after the upload.
+#[path = "binary_push_minimum_rate_tests.rs"]
+mod push_minimum_rate;
+
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
@@ -592,6 +601,12 @@ mod service_pruned;
 /// never re-read.
 #[path = "binary_service_replay_tests.rs"]
 mod service_replay;
+
+/// How long the service remembers a finished request:
+/// a request sent again after more landings than the journal keeps,
+/// and the age and the count a record must both pass before it goes.
+#[path = "binary_service_finished_record_retention_tests.rs"]
+mod service_finished_record_retention;
 
 /// A commit whose branch write meets a reference lock:
 /// the wait for a live holder,

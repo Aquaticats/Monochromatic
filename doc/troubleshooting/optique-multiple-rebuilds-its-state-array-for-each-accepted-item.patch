@@ -10,10 +10,10 @@ index 00000000..dca43323
 +    items it already holds.
 diff --git a/packages/core/src/internal/array-view.test.ts b/packages/core/src/internal/array-view.test.ts
 new file mode 100644
-index 00000000..9a9580ba
+index 00000000..eaceb7c9
 --- /dev/null
 +++ b/packages/core/src/internal/array-view.test.ts
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,179 @@
 +/**
 + * Unit tests for array-shaped views of elements that live in another
 + * structure.
@@ -115,6 +115,26 @@ index 00000000..9a9580ba
 +    assert.deepEqual(writable, ITEMS);
 +  });
 +
++  test("gives a copy made from its descriptors its length and elements", () => {
++    const view = virtualArrayOf(elementsOf(ITEMS));
++
++    assert.equal(
++      Object.getOwnPropertyDescriptor(view, "length")?.value,
++      ITEMS.length,
++    );
++    // A `length` descriptor taken from the empty target would cut this copy
++    // back to no elements.
++    const copy: string[] = [];
++    for (const key of Reflect.ownKeys(view)) {
++      const descriptor = Reflect.getOwnPropertyDescriptor(view, key);
++      if (descriptor !== undefined) {
++        Object.defineProperty(copy, key, descriptor);
++      }
++    }
++    assert.equal(copy.length, ITEMS.length);
++    assert.deepEqual(copy, ITEMS);
++  });
++
 +  test("refuses writes past its end and keeps no trace of them", () => {
 +    const writable = virtualArrayOf(elementsOf(ITEMS)) as string[];
 +    const pastEnd = String(ITEMS.length);
@@ -175,10 +195,10 @@ index 00000000..9a9580ba
 +});
 diff --git a/packages/core/src/internal/array-view.ts b/packages/core/src/internal/array-view.ts
 new file mode 100644
-index 00000000..567ed63f
+index 00000000..f78d5e48
 --- /dev/null
 +++ b/packages/core/src/internal/array-view.ts
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,205 @@
 +/**
 + * Array-shaped views of elements that live in another structure.
 + *
@@ -303,13 +323,19 @@ index 00000000..567ed63f
 +  },
 +  getOwnPropertyDescriptor(target, property) {
 +    // `length` is a non-configurable own property of the target array and the
-+    // proxy may not hide it, so it is reported from the target.  Index
-+    // descriptors come from the elements, which is what makes deep equality
-+    // and property enumeration see the presented elements.
-+    if (property === "length") {
-+      return Reflect.getOwnPropertyDescriptor(target, property);
-+    }
++    // proxy may not hide it, so its descriptor comes from the target, with the
++    // presented length as its value: the target's own value is 0, and a copy
++    // made from the view's descriptors would otherwise be cut back to nothing.
++    // The target's `length` is writable, so a proxy may report another value.
++    // Index descriptors come from the elements, which is what makes deep
++    // equality and property enumeration see the presented elements.
 +    const elements = elementsOf(target);
++    if (property === "length") {
++      const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
++      return descriptor === undefined
++        ? undefined
++        : { ...descriptor, value: elements.length };
++    }
 +    const index = indexOfProperty(property, elements.length);
 +    if (index !== undefined) {
 +      return {
