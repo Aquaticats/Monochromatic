@@ -693,7 +693,10 @@ Not complete: whether a review gone on with from its session finishes is not yet
 
 #### The owner took the qwen plan's DeepSeek model out of the pools (2026-11-13T15:00:53-05:00)
 
-Not complete: the change is made in the main checkout and read by the launcher; its commit follows the package's type check and unit tests.
+Made by the coordinating session and committed as `9969eb76ff` at 15:07:00, after the package's build, type check and unit tests passed (15:06:47);
+the test output names the two pool tests that were changed to the new order.
+The package's built output in the main checkout dated from 2026-11-11 and the tests import it, so the checks were run after a build.
+One test outside pools (`drive-pi-subagent`, a run that ends on its wall clock) failed once in the run before, with `driver-failed`, and passed in this one.
 
 - The owner, between 14:56 and 15:00: "Remove Qwen hosted Deepseek from the pool."
 - `package/pi-shared/subagent-driver/src/pool-limits.ts`: `qwen-plan-deepseek` (`qwen-token-plan-individual`, `deepseek-v4.1-flash-1017`) has limit 0
