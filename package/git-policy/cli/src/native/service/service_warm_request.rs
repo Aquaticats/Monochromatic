@@ -28,7 +28,6 @@ use crate::service_instance::{instance_of, socket_for};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
 use std::io::Write;
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 /// Whether a process of the table is the commit service of `instance`:
@@ -104,7 +103,8 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
     if !socket.exists() || !service_process_runs(instance_of(git_dir).as_str(), Path::new("/proc")) {
         return false;
     }
-    let Ok(mut connection) = UnixStream::connect(&socket) else { return false };
+    // A warm message waits no longer for its connection than any other look at the service (`CONNECT_CEILING`).
+    let Ok(mut connection) = crate::unix_socket_connect_within_a_deadline::connect_within(socket.as_path(), crate::wait_ceilings::CONNECT_CEILING) else { return false };
     let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();

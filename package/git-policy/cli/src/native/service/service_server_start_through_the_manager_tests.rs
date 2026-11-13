@@ -156,3 +156,31 @@ fn the_start_through_the_manager_wraps_the_bases_own_words() {
     assert!(words.starts_with("--user --scope --quiet -- /bin/git monochromatic-git-policy-cli service run --path "), "{words}");
     assert!(words.contains("--instance 3f9a"), "the service is told which worktree it serves: {words}");
 }
+
+/// What:
+///  A probe whose child cannot be reaped still answers within its bound, and the reaping happens off the command's path.
+/// Why:
+///  The review of `3d5c1a0d8c` found `kill()` then `wait()` after the bound: a child inside an uninterruptible call cannot be
+/// ended by a signal until that call returns, so the wait held the commit for as long as that took. The seam here is the
+/// ending-and-reaping itself, made slow; a wait on the command's path would hold the probe for its length.
+#[test]
+fn a_probe_whose_child_cannot_be_reaped_answers_within_its_bound() {
+    let root: PathBuf = folder("probe-unreapable");
+    std::fs::create_dir_all(root.join("slow").as_path()).expect("folder");
+    // A stand-in that outlasts the probe's bound, so the bound is what ends the probe.
+    let manager: ManagerStart = ManagerStart { program: stand_in(root.join("slow").as_path(), 0, "30") };
+    let (told, heard) = std::sync::mpsc::channel::<&'static str>();
+    let ended = move |_child: std::process::Child| {
+        // What the review's wedged child looks like: the ending can be asked for and nothing comes of it for a long time.
+        let _told = told.send("the ending began");
+        std::thread::sleep(Duration::from_secs(30));
+    };
+    let began = std::time::Instant::now();
+    let answered: bool = manager.probe_with(Box::new(ended));
+    let took: Duration = began.elapsed();
+    assert!(!answered, "a manager that does not answer the probe in time is not asked");
+    assert!(took < PROBE_WAIT + Duration::from_secs(2), "the probe ends at its bound whatever the child does: {took:?}");
+    // And the ending was begun, on a thread of its own, before the probe answered.
+    heard.recv_timeout(Duration::from_secs(1)).expect("the child was ended, off this path");
+    crate::test_support::remove(root.as_path());
+}

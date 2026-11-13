@@ -395,17 +395,19 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
 }
 
 /// What:
-///  Whether something listens on the socket:
-/// a connection to it succeeds.
+///  Whether a service answers at the socket: a connection within `CONNECT_CEILING` that greets in this protocol.
 /// Why:
-///  A service is running when its socket takes a connection.
+///  A connection that succeeds is not an answer: a listening socket queues it and greets nothing while its program is
+/// stopped at an instruction, which is what the review of `3d5c1a0d8c` measured when `service status` called such a
+/// service "running and answers". The greeting is the answer, and the connection is bounded
+/// (`CONNECT_CEILING`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const serviceAnswers = async (socket: string) => { try { await connect(socket); return true; } catch { return false; } };
+/// const serviceAnswers = async (socket: string) => answered(socket)
 /// ```
 fn service_answers(socket: &Path) -> bool {
-    return std::os::unix::net::UnixStream::connect(socket).is_ok();
+    return crate::service_server_start_by_the_wrapper::answered(socket);
 }
 
 /// What:

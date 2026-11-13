@@ -334,6 +334,36 @@ pub(crate) fn track_for_this_thread(root: &Path) {
 }
 
 /// What:
+///  Fills a listening socket's backlog,
+///  and gives the connections the kernel queued,
+///  which the caller keeps alive for as long as the state is needed.
+/// Why:
+///  A listening socket whose backlog is full takes no further connection until its program accepts,
+/// and a program stopped at any instruction never accepts.
+///  Making that state with a socket this process never accepts is how a control reaches it without stopping anything:
+/// the review of `3d5c1a0d8c` measured 4096 queued (the host's `somaxconn`) and a commit still waiting after 30 s.
+///  Each attempt is made with a zero deadline, so a full backlog answers at once and the fill costs one system call a
+///  connection rather than a wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const queued = fillBacklog(socketPath); // connections the kernel holds, so nothing else can be taken
+/// ```
+pub(crate) fn fill_a_socket_backlog(socket: &Path) -> Vec<std::os::unix::net::UnixStream> {
+    let mut queued: Vec<std::os::unix::net::UnixStream> = Vec::new();
+    // More attempts than any host's backlog: the first refusal is the end of the fill.
+    for _attempt in 0..20_000 {
+        match crate::unix_socket_connect_within_a_deadline::connect_within(socket, std::time::Duration::ZERO) {
+            Ok(stream) => queued.push(stream),
+            // A full backlog answers "not taken inside no time at all", which is what this control produced.
+            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => return queued,
+            Err(error) => panic!("the backlog of {} answered {error}", socket.display()),
+        }
+    }
+    panic!("the backlog of {} never filled in 20000 connections", socket.display());
+}
+
+/// What:
 ///  A directory of this test's own,
 ///  short enough for a socket path,
 ///  removed with the thread's other fixtures.

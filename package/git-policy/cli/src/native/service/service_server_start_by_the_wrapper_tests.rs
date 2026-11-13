@@ -113,3 +113,41 @@ fn a_command_waits_at_an_address_that_accepts_and_greets_nothing() {
     assert!(!server.log().exists(), "no server was started beside the live one");
     std::mem::forget(holding);
 }
+
+/// What:
+///  An address whose listening socket is full and never accepts is not answered on, and the answer comes within the bound.
+/// Why:
+///  A plain connect waits for as long as the program that listens stays stopped, and every deadline of this program sat
+/// after the connect returned: the review of `3d5c1a0d8c` measured a commit still waiting after 30 s for exactly that,
+///  where a healthy one took 42 ms. The connection is now made within `CONNECT_CEILING`, so the look ends.
+#[test]
+fn an_address_whose_queue_is_full_is_not_answered_on_within_the_bound() {
+    let root = folder("full-queue");
+    let socket = root.join("3f9a.sock");
+    let listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a listening socket");
+    let queued = crate::test_support::fill_a_socket_backlog(socket.as_path());
+    assert!(!queued.is_empty(), "the kernel queued at least one connection");
+    let began = std::time::Instant::now();
+    assert!(!answered(socket.as_path()), "a socket that takes no connection is not answered on");
+    let took = began.elapsed();
+    assert!(
+        took < crate::wait_ceilings::CONNECT_CEILING + Duration::from_secs(1),
+        "the look ends at its own bound ({took:?}), not when the service moves"
+    );
+    // And the start of a server there waits rather than spawning one that cannot bind.
+    let server = ServerToStart {
+        socket: socket.clone(),
+        instance: String::from("3f9a"),
+        journal: root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        program: PathBuf::from("/bin/true"),
+        manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
+    };
+    let began = std::time::Instant::now();
+    assert_eq!(start(&server), StartAttempt::AnotherCommandStartsIt, "a full queue is a service that is there");
+    assert!(began.elapsed() < Duration::from_secs(10), "and the start does not wait out its ceiling: {:?}", began.elapsed());
+    drop(queued);
+    drop(listener);
+}

@@ -11,7 +11,7 @@
 //! const listener = bind(path ?? inheritedDescriptor);
 //! ```
 
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::UnixListener;
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
 pub const INHERITED_DESCRIPTOR: i32 = 3;
 
@@ -167,7 +167,13 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
     // What: The kernel's refusal of a connection is the only proof that no process holds this address.
     // Why:  A socket that accepts belongs to a live process, whatever it says or does not say: taking it over unlinked the
     //       address of a running service and let a second one bind the same path (the review's finding 1).
-    let refused: bool = matches!(UnixStream::connect(path), Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused);
+    // What: The probe is made within `CONNECT_CEILING`, and only a refusal is a socket nothing holds.
+    // Why:  A socket whose backlog is full takes no connection until its program accepts, so a plain connect here waits for a
+    //       stopped service to move; and a connect that only queued is not a refusal, so nothing is taken over.
+    let refused: bool = matches!(
+        crate::unix_socket_connect_within_a_deadline::connect_within(path, crate::wait_ceilings::CONNECT_CEILING),
+        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused
+    );
     if !is_socket || !refused {
         return Err(first);
     }

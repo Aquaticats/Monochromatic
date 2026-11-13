@@ -81,9 +81,15 @@ pub struct ClientConfig {
     ///  write to end before it reports that the result is not known (`wait_ceilings.rs`,
     /// `SHORT_EXTRA_WAIT`).
     pub extra_wait: Duration,
-    /// The longest a command waits for the service to be there,
-    /// starts included,
-    /// before it names the state it found.
+    /// What:
+    ///  The longest a command waits for the service to be there,
+    ///  starts included,
+    ///  before it names the state it found.
+    /// Why:
+    ///  It is one start's bound (`START_WAIT`), and not the minute a service manager was given:
+    /// with the wrapper starting the server itself there is no manager whose start rate, failed state or unit text
+    /// could hold a start longer, and the longest measured cold start is 1,041 ms.
+    ///  A second command that waits on the first one's start waits the same bound, which ends at the same moment.
     pub start_ceiling: Duration,
 }
 
@@ -131,7 +137,7 @@ pub fn client_config(address: Bind, host: Option<&crate::service_host_of_a_workt
         answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
         withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
         extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
-        start_ceiling: crate::wait_ceilings::START_CEILING,
+        start_ceiling: crate::service_client_listen_and_ask_to_retire::START_WAIT,
         waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
     };
 }

@@ -45,16 +45,28 @@ pub(crate) enum Heard {
     Silent,
 }
 
+/// What:
+///  A connection to the service's address, made within `CONNECT_CEILING`.
+/// Why:
+///   A listening socket whose backlog is full takes no connection until its program accepts,
+/// and a program stopped at any instruction never accepts,
+///  so a plain connect waits for as long as that process stays stopped.
+///  The review of `3d5c1a0d8c` measured a commit still waiting after 30 s for that reason
+/// (`foundation/unix_socket_connect_within_a_deadline.rs`, and `CONNECT_CEILING` for the number).
+///  A connection that only queued is never read as an answer either:
+/// the caller reads a greeting from what it gets, and a full backlog answers none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// connect(address) // a stream within CONNECT_CEILING, or the failure that ended the attempt
+/// ```
 pub(crate) fn connect(address: &Bind) -> std::io::Result<UnixStream> {
     return match address {
         #[cfg(target_os = "linux")]
-        Bind::Abstract(name) => {
-            use std::os::linux::net::SocketAddrExt;
-            UnixStream::connect_addr(&std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())?)
-        }
+        Bind::Abstract(name) => crate::unix_socket_connect_within_a_deadline::connect_abstract_within(name.as_str(), crate::wait_ceilings::CONNECT_CEILING),
         #[cfg(not(target_os = "linux"))]
         Bind::Abstract(_) => Err(std::io::Error::other("abstract sockets need Linux")),
-        Bind::Path(path) => UnixStream::connect(path),
+        Bind::Path(path) => crate::unix_socket_connect_within_a_deadline::connect_within(path, crate::wait_ceilings::CONNECT_CEILING),
         Bind::Inherited => Err(std::io::Error::other("a client does not inherit the socket")),
     };
 }
@@ -146,7 +158,8 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 /// await askToRetire(socket)
 /// ```
 pub fn ask_to_retire(socket: &std::path::Path) {
-    let Ok(stream) = UnixStream::connect(socket) else { return };
+    // A person's command must not wait on a service whose backlog is full (`CONNECT_CEILING`).
+    let Ok(stream) = crate::unix_socket_connect_within_a_deadline::connect_within(socket, crate::wait_ceilings::CONNECT_CEILING) else { return };
     let _timeout = stream.set_read_timeout(Some(START_WAIT));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream);
     let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader) else { return };

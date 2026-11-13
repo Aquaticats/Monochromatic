@@ -218,3 +218,60 @@ fn entries_of(folder: &Path) -> Vec<PathBuf> {
     found.sort();
     return found;
 }
+
+/// What:
+///  `service status` says a service that takes a connection and greets nothing does not answer.
+/// Why:
+///  A connection that the kernel queues is not an answer; the service would never greet it. This is the review's related
+///  measurement (`debug-stop-fill-log.txt`), where a stopped service was reported "running and answers".
+#[test]
+fn the_status_of_a_service_that_queues_but_never_greets_says_it_does_not_answer() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("stqg");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
+    let socket: std::path::PathBuf = socket_for(root.as_path(), git_dir.as_path());
+    std::fs::create_dir_all(socket.parent().expect("the folder of the address")).expect("socket folder");
+    // A processor: it accepts and says nothing, which is a service stopped at an instruction.
+    let listening = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a listening socket");
+    let holding = std::thread::spawn(move || {
+        let mut held = Vec::new();
+        while let Ok((stream, _)) = listening.accept() {
+            held.push(stream);
+            if held.len() > 4 {
+                break;
+            }
+        }
+    });
+    let report: StatusReport = service_status(Some(root.as_path()), Some(git_dir.as_path()));
+    assert_eq!(report.code, 1, "{}", report.stderr);
+    assert!(!report.stdout.contains("answers"), "a service that greets nothing does not answer: {}", report.stdout);
+    std::mem::forget(holding);
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  `service status` says a service whose queue is full does not answer,
+///  and says it within its bound.
+/// Why:
+///  A queued connection was read as an answer, so a service stopped at an instruction was reported "running and answers"
+/// (the review of `3d5c1a0d8c`, reproduced). The answer is a greeting, not a connection.
+#[test]
+fn the_status_of_a_service_whose_queue_is_full_says_it_does_not_answer() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("stfq");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
+    let socket: std::path::PathBuf = socket_for(root.as_path(), git_dir.as_path());
+    std::fs::create_dir_all(socket.parent().expect("the folder of the address")).expect("socket folder");
+    let listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a listening socket");
+    let queued = crate::test_support::fill_a_socket_backlog(socket.as_path());
+    assert!(!queued.is_empty(), "the kernel queued at least one connection");
+    let began = std::time::Instant::now();
+    let report: StatusReport = service_status(Some(root.as_path()), Some(git_dir.as_path()));
+    let took = began.elapsed();
+    assert_eq!(report.code, 1, "{}", report.stderr);
+    assert!(!report.stdout.contains("answers"), "a service that takes no connection does not answer: {}", report.stdout);
+    assert!(took < crate::wait_ceilings::CONNECT_CEILING + std::time::Duration::from_secs(2), "and the answer comes at its bound: {took:?}");
+    drop(queued);
+    drop(listener);
+    crate::test_support::remove(root.as_path());
+}

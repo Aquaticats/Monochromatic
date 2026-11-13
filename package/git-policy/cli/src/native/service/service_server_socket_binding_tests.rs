@@ -4,6 +4,7 @@
 //! and the descriptor the service manager passed in.
 
 use super::*;
+use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 
 /// What:
@@ -70,4 +71,26 @@ fn a_socket_that_accepts_is_left_to_its_service_and_a_refused_one_is_taken_over(
     let taken: UnixListener = bind_path(stale.as_path()).expect("a refused socket is taken over");
     let _reaches: UnixStream = UnixStream::connect(stale.as_path()).expect("and the new one answers");
     drop(taken);
+}
+
+/// What:
+///  A bind against a listening socket whose queue is full ends at its bound, and takes nothing over.
+/// Why:
+///  The takeover probe used a plain connect, so a service stopped with a full queue held the probe for as long as it stayed
+/// stopped: the review of `3d5c1a0d8c` found the self-healing start unable to run for that reason. A full queue is not a
+/// refusal, so it is not a socket to take over either.
+#[test]
+fn a_bind_against_a_full_queue_ends_at_its_bound_and_takes_nothing() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("bind-full-queue");
+    let path: std::path::PathBuf = root.join("3f9a.sock");
+    let listener: UnixListener = UnixListener::bind(path.as_path()).expect("a listening socket");
+    let queued = crate::test_support::fill_a_socket_backlog(path.as_path());
+    assert!(!queued.is_empty(), "the kernel queued at least one connection");
+    let began = std::time::Instant::now();
+    let refused: std::io::Error = bind_path(path.as_path()).expect_err("a socket that holds a full queue keeps its address");
+    let took = began.elapsed();
+    assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse, "{refused}");
+    assert!(took < crate::wait_ceilings::CONNECT_CEILING + std::time::Duration::from_secs(1), "the probe ends at its bound: {took:?}");
+    drop(queued);
+    drop(listener);
 }

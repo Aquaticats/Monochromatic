@@ -52,11 +52,17 @@ pub const ANSWER_CEILING: Duration = Duration::from_secs(20 * 60);
 /// Every rebuild says so on standard error with the time so far and this limit.
 pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 
-/// The longest a client waits for the service to start when it can ask the service manager how the start goes.
-///  Measured:
-/// the slowest of 52 cold starts took 1,041 ms (`startWaitMs`,
-/// `reachMs`).
-/// One minute is 58 times that.
+/// What:
+///  A long patience for work this program waits for inside itself:
+///  the build of the service's runtime, the state a landing reports after a commit, and the journal a service restores.
+/// Why:
+///  It was the client's wait for a start, measured against a service manager's start (the slowest of 52 cold starts took
+/// 1,041 ms, and one minute is 58 times that).
+///  A client no longer waits a minute for a start: the wrapper starts the server itself, so one start's bound is
+///  `START_WAIT` (`service_client_settings_and_watches.rs`), and a stopped service fails a commit in ten seconds rather
+///  than sixty.
+///  What still uses this is a wait inside the service, where a minute is the patience that keeps a slow host from ending
+///  work the person is waiting for.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
 /// The longest a service waits for the build of its own multi-thread runtime,
@@ -75,6 +81,22 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// and the slowest of 52 cold starts greeted in 1,041 ms,
 /// so one minute is far from any ordinary slow start.
 pub const RUNTIME_BUILD_PATIENCE: Duration = START_CEILING;
+
+/// What:
+///  The longest one connection to a service's address may take.
+/// Why:
+///   A connection is made by the kernel, and its cost is one round trip through a listening socket that accepts;
+///  but a listening socket whose backlog is full takes no connection at all until its program accepts,
+///  and a program stopped at any instruction never accepts
+///  (`foundation/unix_socket_connect_within_a_deadline.rs`).
+///  A caller that has no bound of its own on the connection therefore has no bound at all:
+/// the review of `3d5c1a0d8c` measured a commit still waiting after 30 s, with nothing printed,
+///  where the same commit against a healthy service took 42 ms.
+///  One second is 24 times that whole healthy commit and twice the longest measured cold start,
+///  and a look at a service costs at most this plus `GREETING_READ`, so a wait's own ceiling still bounds it.
+///  Measured: the healthy commit of 42 ms (the review's own run), and the 4096 connections the kernel queued
+///  before it answered nothing (the same run, `somaxconn`).
+pub const CONNECT_CEILING: Duration = Duration::from_secs(1);
 
 /// The longest a command waits for the greeting of a service it only has to tell about work whose record it has
 /// already written:

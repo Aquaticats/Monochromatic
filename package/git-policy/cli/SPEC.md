@@ -6739,11 +6739,18 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `WITHDRAW_CEILING` 10 minutes:
   the client's wait for the answer to its withdrawal (five times the longest observed
   landing).
-- `START_CEILING` 60 seconds:
+- `START_WAIT` 10 seconds:
   a command's whole wait for its worktree's service,
   starts included,
-  after which it names the state it found (58 times the slowest observed start,
+  after which it names the state it found (9.6 times the slowest observed start,
   1.04 s).
+  It is one start's bound: with the wrapper starting the server itself there is no manager whose start rate, failed
+  state or unit text could hold a start longer.
+- `CONNECT_CEILING` 1 second:
+  one connection to a service's address.
+  A listening socket whose backlog is full takes no connection until its program accepts, and a program stopped at
+  an instruction never accepts, so a connection without this bound is a wait without any (the review of
+  `3d5c1a0d8c` measured a commit waiting 30 s with nothing printed, where a healthy one took 42 ms).
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
   the longest a command waits for the greeting of a service it only has to tell about work whose record it has
   already written (a snapshot's trash,
@@ -7400,13 +7407,13 @@ on the commit path:
   one start this command made that sent no greeting within `START_WAIT` (ten seconds),
   which fails the commit with the file the service's output went to,
   and never waits again in the same command;
-  nothing at all at the address by `START_CEILING`, which is "The commit service did not start";
-  and something that took the connection but answered nothing by `START_CEILING`, which is
+  nothing at all at the address by `START_WAIT`, which is "The commit service did not start";
+  and something that accepted a connection but answered nothing by `START_WAIT`, which is
   `ClientFailure::NothingAnswered` with the address and the time waited,
   because the two states have different next steps.
   A service that greeted and then went silent for `HEARTBEAT_SILENCE` is the service that stopped,
   because a working service beats while it works:
-  the command starts a fresh one — the bind takes the address over from a socket that greets nothing — and sends its
+  the command starts a fresh one — the bind takes an address over only from a socket the kernel refuses — and sends its
   request again,
   which the journal's record of the request makes safe to repeat.
   The three-second bound a unit the manager called `active` was given is gone with the manager's restart:

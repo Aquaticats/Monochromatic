@@ -63,6 +63,59 @@ pub fn connect_within(path: &Path, wait: Duration) -> io::Result<UnixStream> {
 }
 
 /// What:
+///  A connected socket at an abstract name, made within `wait`.
+/// Why:
+///   A development run and a control name their service by an abstract name instead of a path,
+///  and such a socket is behind the same full backlog as any other:
+///  a connect that waits there waits for the process that listens to accept.
+///  The bytes of the name are the address, with a leading zero byte where a path would start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// connectAbstractWithin('name', wait) // UnixStream, or the failure that ended the attempt
+/// ```
+///
+/// # Errors
+///
+/// The same failures as `connect_within`.
+pub fn connect_abstract_within(name: &str, wait: Duration) -> io::Result<UnixStream> {
+    let deadline: Instant = Instant::now() + wait;
+    let descriptor: OwnedFd = socket_of_a_stream()?;
+    let (address, length): (libc::sockaddr_un, libc::socklen_t) = address_of_an_abstract_name(name)?;
+    wait_until_connected(descriptor.as_raw_fd(), &address, length, deadline)?;
+    become_blocking(descriptor.as_raw_fd())?;
+    // SAFETY: the descriptor is a connected unix stream socket, nothing else holds it, and its ownership moves into the stream.
+    return Ok(unsafe { UnixStream::from_raw_fd(descriptor.into_raw_fd()) });
+}
+
+/// What:
+///  The socket address of an abstract name,
+///  which is the name's bytes after one zero byte.
+/// Why:
+///   The kernel tells an abstract name from a path by the first byte of the field,
+///  so the name is copied one byte in and the length covers the zero and the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { address, length } = addressOfAbstractName('name');
+/// ```
+fn address_of_an_abstract_name(name: &str) -> io::Result<(libc::sockaddr_un, libc::socklen_t)> {
+    let bytes: &[u8] = name.as_bytes();
+    // SAFETY: `sockaddr_un` is plain data and an all-zero value of it is valid.
+    let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    // One byte for the zero that marks the name abstract, and the name's bytes after it.
+    if bytes.is_empty() || bytes.len() + 1 >= address.sun_path.len() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the abstract name {name} needs {} bytes and one socket address holds {}", bytes.len() + 1, address.sun_path.len() - 1)));
+    }
+    address.sun_family = libc::AF_UNIX as libc::sa_family_t;
+    for (at, byte) in bytes.iter().enumerate() {
+        address.sun_path[at + 1] = *byte as libc::c_char;
+    }
+    let length: libc::socklen_t = std::mem::size_of::<libc::sa_family_t>().saturating_add(bytes.len()).saturating_add(1) as libc::socklen_t;
+    return Ok((address, length));
+}
+
+/// What:
 ///  A non-blocking socket of the family and type of a unix stream.
 /// Why:
 ///   The connection has to be asked for on a socket that does not wait,

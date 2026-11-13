@@ -51,6 +51,27 @@ use std::time::Duration;
 ///  and nothing on any later one.
 pub const PROBE_WAIT: Duration = Duration::from_secs(2);
 
+/// What:
+///  What is done with a probe child the bound ended, on a thread of its own.
+/// Why:
+///  A probe child that is inside an uninterruptible read or write cannot be ended by a signal until that call returns
+///  (a stuck mount, a kernel stall on the filesystem holding the program),
+///  and a wait for it on this path would wait for as long as that takes:
+/// the review of `3d5c1a0d8c` found `kill()` then `wait()` with no bound after `PROBE_WAIT`.
+///  So the ending and the reaping happen here, never on the command's path, which goes on without the probe's answer.
+///  A thread that waits for ever is the price of a child that cannot be ended; it holds no lock, no descriptor of the
+///  command's, and dies with the process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // after the bound: child.kill(); thread(() => child.wait()); return false
+/// ```
+pub fn end_and_reap_off_the_path(child: std::process::Child) {
+    let mut child: std::process::Child = child;
+    let _ended = child.kill();
+    let _reaped = child.wait();
+}
+
 /// The extra a start through the manager is given past the base's own start wait,
 /// after which the scope is ended and the base's start is used instead.
 /// Why:
@@ -111,6 +132,20 @@ impl ManagerStart {
     /// waitAtMost(PROBE_WAIT, () => manager.probe())
     /// ```
     pub fn probe(&self) -> bool {
+        return self.probe_with(Box::new(end_and_reap_off_the_path));
+    }
+
+    /// What:
+    ///  The probe, with how a child the bound ended is dealt with given by the caller.
+    /// Why:
+    ///  The control of this file hands in a way that never returns, which is the state a probe child in an uninterruptible
+    /// call is in, and asserts that the probe still answers within its bound; a wait on this path would fail it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// probeWith(endAndReap) // endAndReap runs on a thread of its own
+    /// ```
+    fn probe_with(&self, end_and_reap: Box<dyn FnOnce(std::process::Child) + Send>) -> bool {
         let mut command: std::process::Command = std::process::Command::new(&self.program);
         command.args(["--user", "--scope", "--quiet", "--", "/bin/true"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
         let Ok(mut child) = command.spawn() else { return false };
@@ -119,8 +154,12 @@ impl ManagerStart {
             match child.try_wait() {
                 Ok(Some(status)) => return status.success(),
                 Ok(None) if std::time::Instant::now() >= deadline => {
-                    let _ended = child.kill();
-                    let _reaped = child.wait();
+                    // What: The child is ended and reaped on a thread of its own, and this command goes on without its answer.
+                    // Why:  A signal cannot end a child inside an uninterruptible call, and waiting for such a child here was
+                    //       the review's finding 8: a commit could wait for ever inside a probe.
+                    std::thread::spawn(move || {
+                        end_and_reap(child);
+                    });
                     return false;
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(10)),

@@ -111,7 +111,7 @@ impl SignsOfWork {
 /// ```
 pub fn service_is_serving(socket: &Path) -> bool {
     use std::io::BufRead;
-    let Ok(stream) = std::os::unix::net::UnixStream::connect(socket) else { return false };
+    let Ok(stream) = git_policy_cli::unix_socket_connect_within_a_deadline::connect_within(socket, git_policy_cli::wait_ceilings::CONNECT_CEILING) else { return false };
     // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
     //  caller's loop, which has its own bound.
     let _timeout = stream.set_read_timeout(Some(GREETING_READ));
@@ -150,7 +150,7 @@ pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::fr
 pub fn wait_until_nothing_listens(socket: &Path) {
     let began: std::time::Instant = std::time::Instant::now();
     loop {
-        match std::os::unix::net::UnixStream::connect(socket) {
+        match git_policy_cli::unix_socket_connect_within_a_deadline::connect_within(socket, git_policy_cli::wait_ceilings::CONNECT_CEILING) {
             Err(error) if matches!(error.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound) => return,
             Ok(_) | Err(_) => {}
         }

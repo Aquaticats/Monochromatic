@@ -240,7 +240,15 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
 /// ```
 pub fn accepts(socket: &Path) -> bool {
     let address: Bind = Bind::Path(socket.to_path_buf());
-    return connect(&address).is_ok();
+    return match connect(&address) {
+        // The connection was made: a process holds this address.
+        Ok(_stream) => true,
+        // What: A connection the bound ended is still a process holding the address: its queue is full and it takes no more.
+        // Why:  A full queue and a socket nobody holds are different states of the world, and only the refusal says the second:
+        //       a server started on the first would fail to bind, and the caller would be told a start that did not greet while a
+        //       service was there (`accepts`' callers wait for it).
+        Err(error) => error.kind() == std::io::ErrorKind::TimedOut,
+    };
 }
 
 /// What:
