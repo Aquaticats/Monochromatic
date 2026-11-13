@@ -1154,7 +1154,22 @@ to settle before a reply:
   the suite record has all three,
   and the reply draft now says so.
   Not reviewed by anyone:
-  those last corrections.
+  those last corrections,
+  in commits `f8c6a64194` and `4ee9f13bf1`.
+  The four documents were loaded as GitHub renders them after the last of those commits,
+  and their new links,
+  both draft fences and the changed sentences render as written.
+  Upstream was read again at 2026-11-13T22:01:52Z:
+  `main` is still the merge `d26f1a24`,
+  and the commit thread has no comment after the owner's of 14:27:49Z.
+  A read earlier that evening found no open pull request and no issue newer than 1120.
+- Put to the owner on 2026-11-13 and not yet answered:
+  whether the reply draft keeps its paragraph on the input-trace patch closing what pull request 1121 leaves,
+  now that the Node and Bun timing shows it does so on Node and not on Bun.
+  The reply draft and the draft issue otherwise wait for the owner's edit,
+  the owner's own lines where the drafts mark them,
+  and the owner's posting;
+  the time the owner gave the maintainer runs to 2026-11-16T14:27:49Z.
 - Asked the same day which of the recheck's results the reply draft should carry,
   the owner chose the second patch with its costs and the buffer finding,
   and not the note about `concat`.
