@@ -16678,23 +16678,27 @@ and bounds a listing to one entry per such directory instead of one per file ins
 Asking Git about the written paths alone was measured and lost.
 A linked worktree of 20,000 tracked files, three runs per arm interleaved round by round,
 a fourth arm of the same binary as the control for run-to-run spread,
-on eight CPUs with a load average of 58 to 83:
-native Git took 61 to 74 ms for `reset --hard HEAD`,
-18 to 21 ms for `checkout --force HEAD` and 8 to 9 ms for `clean -fd`;
-release 0.6.1-alpha.13 took 273 to 297, 228 to 1136 (one run of the second arm of that release
-reached 1136) and 27 to 31 ms;
-this reading took 109 to 111, 59 to 65 and 31 to 38 ms,
-against 111 to 113, 59 to 69 and 35 to 668 ms for the control.
-So the check adds about 45 ms to `reset --hard` and to `checkout --force` over this reading's own control,
-where the installed release adds about 215 to 270 ms.
+on eight CPUs with a load average of 15 to 28:
+native Git took 53 to 56 ms for `reset --hard HEAD`,
+18 ms for `checkout --force HEAD` and 8 to 9 ms for `clean -fd`;
+release 0.6.1-alpha.13 took 250 to 255, 212 to 218 and 26 to 28 ms;
+this reading took 95 to 102, 60 to 66 and 31 to 32 ms,
+against 93 to 101, 60 to 62 and 30 to 33 ms for the control.
+So the check adds about 43 to 47 ms to `reset --hard` and to `checkout --force` over this reading's own
+control,
+where the installed release adds about 195 to 200 ms;
+the base of this branch measured 145 ms for `reset --hard` against 63 for Git alone.
 The same worktree with 5,000 untracked files added beside those 20,000:
-native Git 59 to 70, 30 to 36 and 123 to 179 ms;
-the installed release 504 to 578, 550 to 594 and 21 to 35 ms;
-this reading 110 to 117, 88 to 94 and 21 to 27 ms,
-against 107 to 125, 84 to 132 and 23 to 27 ms for the control.
-A `clean -fd` there is refused before Git runs, which is why its wrapper arms are cheaper than Git
-(`pi-discard-refuse/cost.ts`, and the earlier reading,
-`pi-discard-guard-cont/cost.ts`, measured 23,683 files at a load average of 31 to 40 and found the same order).
+native Git 53 to 55, 18 to 19 and 118 to 119 ms;
+the installed release 488 to 493, 459 to 463 and 21 to 23 ms;
+this reading 97 to 99, 66 to 68 and 57 to 59 ms,
+against 97 to 103, 63 to 64 and 58 to 60 ms for the control.
+A `clean -fd` there is refused before Git runs, which is why its wrapper arms are cheaper than Git.
+Before the sorted lookup, the same shape cost this reading 721 to 903 ms for `reset --hard`
+(load average 92 to 98);
+the lookup brought it to about 100, which is 44 ms over real Git and the same as the control.
+(`pi-discard-refuse/cost.ts` in that run folder, and the base's `pi-discard-guard-cont/cost.ts`,
+which measured 23,683 files at a load average of 31 to 40 and found the same order.)
 An entry stands where the form writes when it is a written path,
 below one,
 or above one;
