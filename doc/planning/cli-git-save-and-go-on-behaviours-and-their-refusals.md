@@ -40,8 +40,10 @@ The plan for the merge is under its own section.
   Every fixture had its own `HOME`,
   its own `XDG_RUNTIME_DIR` (mode `0700`)
   and a `bin/git` link to the wrapper,
-  under `${HOME}/temp/agent/guards-inventory-2026-11-12/`;
-  the runs of the installed release are in that folder's `out/*.md`.
+  under `${HOME}/temp/agent/guards-inventory-2026-11-12/` while the work ran;
+  the transcripts are kept in
+  `${HOME}/temp/agent/guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on-scratch/keep/runs-of-the-installed-and-branch-wrappers/`,
+  and the scripts that made them in `../the-probe-scripts/`.
   The installed release moved from `0.6.1-alpha.13` to `0.6.1-alpha.15` during the work;
   each quoted run names the release it used.
 - **code**:
@@ -377,6 +379,31 @@ and Git's own refusal is the answer (**run**:
 another branch,
 `fix/git-policy-cli-fast-forward-merge-and-pull-carry-what-a-diverged-merge-carries`,
 is making the fast-forward path refuse where the diverged path refuses).
+
+### A second defect of the carry, which a conversion must not inherit
+
+The seven audits of `0.6.1-alpha.14` (the digest of 2026-11-12T14:06,
+finding R7-A) found that a staged save a person makes *while* a merge carries their work can be lost:
+the carry reads each path's index entry while it plans its steps,
+then writes them all in one `update-index --index-info`
+(`merge_isolation_carry_apply.rs`,
+`carry_awaiting`'s `plan_index_awaiting`,
+and `merge_isolation_carry_writes.rs`,
+`write_steps_awaiting`).
+A `git add` of the same path in between is replaced by the carry's older record,
+and the newer staged bytes are in no layer.
+The auditors showed it only with a stop patched into the source before the first `update-index`
+(`CLI_GIT_AUDIT_STOP_BEFORE_INDEX`),
+so the window is real in the code and no run shows its width in practice.
+
+This branch does not reproduce it and does nothing about it:
+the carry is out of its conversion scope,
+and showing the window needs a stop the release does not have.
+The conversion's step 2 must therefore read each index entry again immediately before the write that
+replaces it,
+the way the worktree layer already re-reads its file
+(`merge_isolation_take_asides.rs`),
+and carry that with a control that stages a newer line while the merge is held at that point.
 
 ### What the refusal would be
 
