@@ -757,6 +757,22 @@ XTD:
  slow disk).
 Use `${HOME}/temp/agent` or the build directory.
 
+1SF:
+ Each run or subagent gets one scratch folder of its own;
+ its starter deletes that folder when it ends,
+ keeping only its `keep/` subfolder of reports,
+ logs and measurements.
+
+SFN:
+ Name each scratch folder for what it holds and when,
+ so a stranger needs no context:
+ `wrapper-commit-timing-against-real-git-2026-11-13`,
+ never `pkgrepair` or `ff-carry`.
+
+SZR:
+ Every coordinator pass reports the measured size of `${HOME}/temp/agent` and its largest folders to the user,
+ so growth is seen before a drive fills.
+
 CLN:
  Investigating package source:
  `gh repo clone <repo> "${HOME}/temp/agent/<name>-<date>" -- --depth 1`,
