@@ -4424,6 +4424,23 @@ with one line that says the push was not made and why,
 and no notice appears on later commands;
 an address that might come back keeps its retries exactly as before.
 
+What a push **did** decides that verdict,
+address by address,
+and never the list of addresses the configuration names
+(the review of this change,
+findings 2 to 4,
+each reproduced and each a control now):
+a remote may name several push addresses and Git pushes to each in order and stops at the first that fails,
+so `<a repository>` then `DISABLED` delivers the commit and still exits `128`,
+`<a host that does not answer>` then `DISABLED` fails at the host and never attempts `DISABLED`,
+and an address that already holds the commit prints `Everything up-to-date` and no lane at all
+(measured with Git 2.56.0).
+So `src/native/push/push_attempts_of_a_failed_push.rs` reads each `To <address>` lane,
+the fate of the recorded ref under it,
+`Everything up-to-date`,
+and the address Git's own `fatal:` or `error:` sentence names,
+matched byte for byte against the configuration so that a trailing space in an address is part of it.
+
 Git's own words cannot draw that line.
 Measured with Git 2.56.0 (`/usr/bin/git push <address> main` from a fixture):
 `DISABLED`,
@@ -4466,23 +4483,41 @@ Which addresses a push went to is read from the remote's own configuration,
 with `git remote get-url --push --all <remote>`,
 and only after a push failed;
 a destination that is no remote name is its own address.
-A remote may name several push addresses,
-and Git stops the push at the first that fails,
-so one address that can never be a remote is enough for no try to land
-(measured:
-`remote.origin.pushurl` set to `DISABLED`,
-and then to a working repository,
-where the plain push failed on `DISABLED`,
-and the working address received nothing).
 An answer that names no address leaves the destination as the one address to judge,
 and an address this release could not read keeps its retries.
-A classified failure settles the branch as failed,
+
+Three outcomes follow,
+and the address Git failed at decides which:
+
+- the push reached an address,
+  and the address it failed at can never be a remote:
+  the branch is backed up,
+  so the plan ends (there is nothing left to push)
+  and one record says the commit is on the address that holds it,
+  names the address given up,
+  and promises nothing about that address;
+  the record is a report,
+  not a failure,
+  so no later command reads "it exists only on this computer" about a commit a remote holds;
+- the push reached an address,
+  and the address it failed at may come back:
+  the plan is kept,
+  so that address still gets the commit when it returns,
+  and the record says the push reached the first address and names the one that failed;
+- the push reached nothing:
+  a failure at an address that can never be a remote ends the plan with the one line,
+  and any other failure keeps the words it always had.
+
+A failure the service gives up on settles the branch as failed,
 which forgets its retry plan,
 and the record the next command shows carries the line;
 that command removes the record as it shows it,
 so the person reads the line once and no later command meets another.
 The line names the address only for the shapes that do not describe themselves,
 and a URL's user information is masked whenever an address is printed.
+A reconcile that published its merge moves the local branch whatever another push address did:
+the merge is on the remote,
+and a branch left behind it published another merge at every later commit.
 
 #### A blocked commit is never published
 
@@ -6985,13 +7020,16 @@ on the commit path:
 - A service that cannot be made to exist ends the command within a bound and names what it found.
   The wrapper starts the service itself
   (`service_server_start_by_the_wrapper.rs`),
-  so there is no unit whose state a manager could report and nothing to reset, restart or reload.
+  so there is no unit whose state a manager could report and nothing to reset,
+  restart or reload.
   Three states end that wait:
   one start this command made that sent no greeting within `START_WAIT` (ten seconds),
   which fails the commit with the file the service's output went to,
   and never waits again in the same command;
-  nothing at all at the address by `START_CEILING`, which is "The commit service did not start";
-  and something that took the connection but answered nothing by `START_CEILING`, which is
+  nothing at all at the address by `START_CEILING`,
+  which is "The commit service did not start";
+  and something that took the connection but answered nothing by `START_CEILING`,
+  which is
   `ClientFailure::NothingAnswered` with the address and the time waited,
   because the two states have different next steps.
   A service that greeted and then went silent for `HEARTBEAT_SILENCE` is the service that stopped,
@@ -7022,7 +7060,8 @@ on the commit path:
   so the runtime directory may take 40),
   which is counted on the spelling the commit's own connect uses and is asked before anything is created;
   and a runtime directory this account cannot write,
-  which is where the address, the output and the notes live.
+  which is where the address,
+  the output and the notes live.
   There is no longer a state a service manager could create and a command could not reach:
   the manager takes no part in an address,
   a start or a wait.
@@ -12529,14 +12568,48 @@ and the owner decided it on 2026-11-13
 recorded in `doc/handover/cli-git-rust-implementation.md`):
 the runtime directory the environment names is the boundary of one session.
 
-When `XDG_RUNTIME_DIR` names a directory,
-and the session bus the command inherited does not live in it,
+The question has three answers,
+and the environment's proof decides between them
+(`src/native/service/service_session_of_the_runtime_directory.rs`,
+and both halves read that one answer):
+
+- this session,
+  proven by a bus socket inside the runtime directory
+  (or `unix:runtime=yes`,
+  which names that bus);
+- another session's,
+  proven by a bus socket outside it;
+- nothing proven:
+  an abstract address (`unix:abstract=…`,
+  the shape `dbus-launch` and sessions without systemd-logind give),
+  a bus that is not a Unix socket,
+  no address at all,
+  or no runtime directory the environment named.
+
+A service manager is asked for a scope only on the first answer,
+which is the gate this wrapper has always had,
+so no manager is ever asked about a bus that was not shown to serve this runtime directory.
+
+When the answer is another session's,
 the command belongs to no session of the account:
 the wrapper does not use that bus,
-it asks no service manager for anything,
-and every file its commit service owns is written inside that runtime directory
-(`src/native/service/service_session_of_the_runtime_directory.rs` answers the question,
-and both halves read that one answer).
+and every file its commit service owns for durable state is written inside that runtime directory.
+When nothing is proven,
+the service's durable records stay under the account's state directory instead:
+that is where a logout does not clear them,
+and where the earlier records a service reads are.
+Reading an unproven bus as another session's moved a real session's journal and retry plans into a
+directory a logout clears,
+and left the earlier records unread
+(the review of this change,
+finding 6,
+reproduced).
+The cost is the other way for a run given a runtime directory of its own whose inherited bus is abstract:
+its records go where its own `XDG_STATE_HOME` or `HOME` names,
+which for a run that isolates its home is still not the account's real state directory,
+while a run that isolates only the runtime directory writes them where that home's state directory is.
+It still asks no manager,
+so nothing of such a run reaches the account's manager.
 The socket,
 the service's log,
 its process note and the real-Git record already lived there;
@@ -16677,7 +16750,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16767,7 +16841,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.

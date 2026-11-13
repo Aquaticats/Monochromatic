@@ -1,5 +1,6 @@
 //! What:
-//!  What one failed push did, address by address:
+//!  What one failed push did,
+//! address by address:
 //!  the addresses Git printed a `To` line for and what became of the recorded ref at each,
 //!  whether the recorded ref arrived anywhere,
 //!  and the address Git's own failure sentence names.
@@ -13,10 +14,13 @@
 //! and with a repository that already holds the commit Git prints `Everything up-to-date` and no `To` line.
 //! So neither "the push failed" nor "an address is one that can never be a remote" says what happened:
 //!  - a verdict that ends the plan because *an* address can never be a remote ends it for a push that was
-//!    delivered, and tells the person the commit is only on this computer while a remote holds it;
+//!    delivered,
+//!    and tells the person the commit is only on this computer while a remote holds it;
 //!  - a verdict that blames the address in the configuration rather than the one Git failed at blames an
-//!    address Git never attempted, and gives up a backup a retry could complete.
-//! What Git printed decides, and nothing is trimmed or normalised on the way:
+//!    address Git never attempted,
+//!    and gives up a backup a retry could complete.
+//! What Git printed decides,
+//!    and nothing is trimmed or normalised on the way:
 //! the address of a `To` line is the rest of that line byte for byte,
 //! so `DISABLED ` (a legal path whose one difference from the reserved word is a space) is not the reserved
 //! word (the review's finding 4).
@@ -56,7 +60,8 @@ pub struct AttemptedAddress {
 /// Why:
 ///   The three facts answer the three questions a verdict asks:
 /// which addresses were reached (the report for the person),
-/// whether the ref arrived anywhere (is the branch backed up), and
+/// whether the ref arrived anywhere (is the branch backed up),
+/// and
 /// which address Git failed at (is that address one that can never be a remote).
 ///
 /// In TS you'd write (pseudocode):
@@ -81,7 +86,16 @@ impl FailedPushByAddress {
     /// The addresses that hold the recorded ref,
     /// in the order Git attempted them.
     pub fn arrived_at(&self) -> Vec<&str> {
-        return self.attempted.iter().filter(|one| { return one.arrived; }).map(|one| { return one.address.as_str(); }).collect();
+        // What: One pass over the lanes Git printed, keeping the address of each that took the ref.
+        // Why:  A chain of adapters here is a closure the package linter can name a function for, and a loop says the
+        //       same thing without one.
+        let mut holders: Vec<&str> = Vec::new();
+        for lane in &self.attempted {
+            if lane.arrived {
+                holders.push(lane.address.as_str());
+            }
+        }
+        return holders;
     }
 }
 
@@ -160,17 +174,22 @@ fn read(output: &str, destination_ref: &str) -> (Vec<AttemptedAddress>, bool) {
     return (attempted, arrived);
 }
 
-/// What happened to the recorded ref at one address, from the marker of its status line.
+/// What happened to the recorded ref at one address,
+/// from the marker of its status line.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Status {
-    /// The ref was written there, or was already there.
+    /// The ref was written there,
+    /// or was already there.
     Arrived,
-    /// The remote, or Git itself, refused to write the ref there.
+    /// The remote,
+    /// or Git itself,
+    /// refused to write the ref there.
     Refused,
 }
 
 /// What:
-///  The fate of one ref at one address, from the line that reports it.
+///  The fate of one ref at one address,
+/// from the line that reports it.
 /// Why:
 ///   Git prints one such line per ref and address,
 /// with the fate in the second column and a space before it.
@@ -186,7 +205,10 @@ enum Status {
 ///
 /// So the fate is the character after the first,
 /// and a line whose second character is not one of them
-/// (a `fatal:`, a `hint:`, a `remote:` from a hook, the `To` line itself) answers nothing.
+/// (a `fatal:`,
+/// a `hint:`,
+/// a `remote:` from a hook,
+/// the `To` line itself) answers nothing.
 /// Reading the first character instead made `! [rejected]` an arrival,
 /// which reported a refused ref as delivered.
 ///
@@ -308,7 +330,8 @@ const NOTHING_TO_SEND_LINE: &str = "Everything up-to-date";
 /// What separates the ref a status line reports from the one it writes.
 const REFERENCE_ARROW: &str = " -> ";
 
-/// The fates a ref's status line reports, in the column after its leading space:
+/// The fates a ref's status line reports,
+/// in the column after its leading space:
 /// a space for an update,
 /// `+` for a forced one,
 /// `-` for a deletion,

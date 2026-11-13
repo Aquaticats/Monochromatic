@@ -137,7 +137,8 @@ Read-only commands,
   The wrapper starts the commit service itself on the first commit
    (`src/native/service/service_server_start_by_the_wrapper.rs`);
    no service manager takes part,
-   and a commit on a machine with no service manager, no session bus and no unit lands.
+   and a commit on a machine with no service manager,
+  no session bus and no unit lands.
    A service that cannot be made to exist fails the commit within a bound and names the file its output went to.
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
@@ -392,7 +393,7 @@ Read-only commands,
   with `git-lfs`'s own words,
   so that you push again.
   One failure ends that plan at once instead:
-  a push address that can never be a remote
+  a push that reached no address and failed at one that can never be a remote
   (an empty one,
   exactly `DISABLED`,
   one that begins with a dash,
@@ -403,6 +404,12 @@ Read-only commands,
   (`SPEC.md` "A push address that can never be a remote").
   A path that is not there,
   a host that does not answer and a refused login keep their retries.
+  A remote may name several push addresses and Git pushes to each in order,
+  so the verdict is about what the push did at the address it failed at:
+  a branch that reached one address is backed up,
+  its plan ends,
+  and the one record says where the commit is and which address was given up;
+  a push that reached one and failed at an address that may come back keeps its plan.
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
    of every URL replaced by `<credentials>`:
   the userinfo,
@@ -5124,12 +5131,16 @@ so anything you keep in that folder stays.
 A member holds none of your branches or refs,
 so one removed is built again the next time a commit in that worktree needs it.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
-A command given a runtime directory of its own (`XDG_RUNTIME_DIR` naming a directory the inherited session bus does
-not live in) keeps that directory's contents,
-its journal,
+A command whose runtime directory is provably its own
+(`XDG_RUNTIME_DIR` naming a directory the inherited session bus does not live in)
+keeps its journal,
 its retry plans and its scratch files inside that runtime
 directory instead,
-and writes nothing under `XDG_STATE_HOME` or `~/.local/state`
+and writes nothing under `XDG_STATE_HOME` or `~/.local/state`.
+A bus address that proves neither session,
+such as an abstract `unix:abstract=…` one,
+keeps the account's state directory,
+so a real session's records never move into a directory a logout clears
 (see `SPEC.md` "A runtime directory of the command's own").
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
@@ -6855,7 +6866,8 @@ It is started by the first command that needs it,
 and exits after three idle hours,
 like Bazel's server.
 Nothing of the wrapper writes a unit file,
-links one, or asks a service manager for anything,
+links one,
+or asks a service manager for anything,
 so nothing can start it at login:
 `src/native/source_guard/no_start_at_login_tests.rs` keeps it so.
 
@@ -7305,8 +7317,10 @@ a line a settlement writes from the locks alone says only that the move of the b
 because it read nothing else
 (see "A commit held behind a reference lock").
 
-`ls \"$XDG_RUNTIME_DIR/monochromatic-git-policy-cli\"` lists the addresses, notes and logs of the services that exist.
-Read the journal around the commit's `startMillis`, and the log file beside the address:
+`ls \"$XDG_RUNTIME_DIR/monochromatic-git-policy-cli\"` lists the addresses,
+notes and logs of the services that exist.
+Read the journal around the commit's `startMillis`,
+and the log file beside the address:
 
 ```sh
 # sh: one worktree's service lines on 2026-11-01 between 22:52 and 22:54

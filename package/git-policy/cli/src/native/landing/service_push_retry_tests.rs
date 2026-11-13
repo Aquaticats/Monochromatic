@@ -1993,10 +1993,12 @@ fn stage_with_the_push_address(name: &str, address: &str) -> Stage {
 }
 
 /// What:
-///  The stage with its remote's push addresses replaced by `addresses`, in order.
+///  The stage with its remote's push addresses replaced by `addresses`,
+/// in order.
 /// Why:
 ///  A remote may name several push addresses and Git pushes to each in order,
-///  so the shapes the review of issue 6293 found (a delivered push behind a dead address, a dead first address)
+///  so the shapes the review of issue 6293 found (a delivered push behind a dead address,
+/// a dead first address)
 ///  need more than one.
 fn stage_with_the_push_addresses(name: &str, addresses: &[&str]) -> Stage {
     let stage: Stage = stage_without_a_hook(name);
@@ -2012,8 +2014,10 @@ fn stage_with_the_push_addresses(name: &str, addresses: &[&str]) -> Stage {
 /// Why:
 ///  The review of issue 6293 (finding 2) measured the opposite:
 /// Git delivered to the first address and exited 128 on the second,
-/// the verdict ended the plan, and the notice said the commit existed only on this computer while a remote held it.
-/// What the push did decides, address by address (`push_attempts_of_a_failed_push.rs`).
+/// the verdict ended the plan,
+/// and the notice said the commit existed only on this computer while a remote held it.
+/// What the push did decides,
+/// address by address (`push_attempts_of_a_failed_push.rs`).
 #[test]
 fn a_push_delivered_before_the_reserved_word_is_reported_as_delivered() {
     let stage: Stage = stage_without_a_hook("push-delivered-then-reserved");
@@ -2045,7 +2049,8 @@ fn a_push_delivered_before_the_reserved_word_is_reported_as_delivered() {
 }
 
 /// What:
-///  A push that failed at its first address keeps its plan, and the words name that address rather than a later one.
+///  A push that failed at its first address keeps its plan,
+/// and the words name that address rather than a later one.
 /// Why:
 ///  The review of issue 6293 (finding 3) measured the opposite:
 ///  with `[a host that does not answer, DISABLED]` Git stopped at the host and never attempted `DISABLED`,

@@ -1,5 +1,6 @@
 //! Controls for the route decision:
-//! a runtime directory, the worktree's Git directory and the wrapper's own executable
+//! a runtime directory,
+//! the worktree's Git directory and the wrapper's own executable
 //!  are the whole of it,
 //! and nothing here needs a session bus or a service manager.
 
@@ -49,8 +50,13 @@ fn add_program(machine: &Machine) -> PathBuf {
     return machine.wrapper.clone();
 }
 
-/// What: A runtime directory, a worktree and the wrapper's own executable are a route, with what starting needs.
-/// Why:  The wrapper starts the server itself, so no bus and no unit take part in the decision.
+/// What:
+/// A runtime directory,
+/// a worktree and the wrapper's own executable are a route,
+/// with what starting needs.
+/// Why:
+///  The wrapper starts the server itself,
+/// so no bus and no unit take part in the decision.
 #[test]
 fn the_program_and_the_runtime_directory_mean_a_route() {
     let machine: Machine = machine("route-program");
@@ -99,7 +105,8 @@ fn the_sessions_own_runtime_directory_keeps_the_journal_under_the_accounts_state
 /// What:
 ///  A run whose bus is provably another session's keeps the journal inside its own runtime directory.
 /// Why:
-///  That is issue 6293's boundary: the wrapper does not use a bus that lives elsewhere,
+///  That is issue 6293's boundary:
+/// the wrapper does not use a bus that lives elsewhere,
 ///  and nothing of such a run is written under the account's real state directory.
 #[test]
 fn a_bus_proven_another_sessions_keeps_the_journal_in_the_runtime_directory() {
@@ -117,8 +124,13 @@ fn a_bus_proven_another_sessions_keeps_the_journal_in_the_runtime_directory() {
     remove(machine.root.as_path());
 }
 
-/// What: Without an executable, an existing socket is still used as it is, and otherwise nothing.
-/// Why:  A socket another program made is reachable; with neither the socket nor a program there is nothing to reach.
+/// What:
+/// Without an executable,
+/// an existing socket is still used as it is,
+/// and otherwise nothing.
+/// Why:
+///  A socket another program made is reachable;
+/// with neither the socket nor a program there is nothing to reach.
 #[test]
 fn an_existing_socket_is_used_without_a_program() {
     let machine: Machine = machine("route-socket");
@@ -131,8 +143,12 @@ fn an_existing_socket_is_used_without_a_program() {
     remove(machine.root.as_path());
 }
 
-/// What: No runtime directory is no route at all.
-/// Why:  The address, the log and the notes live there, and a relative or absent folder names no place.
+/// What:
+/// No runtime directory is no route at all.
+/// Why:
+///  The address,
+/// the log and the notes live there,
+/// and a relative or absent folder names no place.
 #[test]
 fn no_runtime_directory_is_no_route() {
     let machine: Machine = machine("route-no-runtime");

@@ -192,8 +192,10 @@ pub fn words(address: &str, reason: CannotBeARemote) -> String {
 /// Why:
 ///   The same address that can never be a remote is still worth saying once,
 /// but the commit is backed up:
-///  saying "it exists only on this computer" there was false, and ended the plan of a branch a remote held
-/// (the review of issue 6293, finding 2).
+///  saying "it exists only on this computer" there was false,
+/// and ended the plan of a branch a remote held
+/// (the review of issue 6293,
+/// finding 2).
 /// So the line names the addresses that hold the commit first,
 /// then the address given up and why,
 /// and it promises nothing about a retry of that address.
@@ -226,7 +228,8 @@ pub fn words_after_delivery(address: &str, reason: CannotBeARemote, reached: &[&
 ///   Two lines say it,
 /// one for a push that delivered nowhere and one for a push that delivered elsewhere,
 /// and neither may contradict the other about the address itself.
-/// An address that can carry a URL's user information is masked here, once.
+/// An address that can carry a URL's user information is masked here,
+/// once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -2,7 +2,8 @@
 //!  The verdict of one push Git refused,
 //!  from what the push did address by address and from Git's own words.
 //! Why:
-//!  Three readings decide it, and the addresses come first
+//!  Three readings decide it,
+//! and the addresses come first
 //! (`push_attempts_of_a_failed_push.rs`):
 //!  - a push that reached no address and failed at one that can never be a remote ends its plan at once,
 //!    with one line that says so
@@ -20,10 +21,13 @@
 //!    that address is given up for itself,
 //!    the plan ends because there is nothing left to push,
 //!    and the person reads one line saying the commit is on the address that holds it
-//!    (the review of issue 6293, finding 2, which found the notice saying the commit was only on this computer
+//!    (the review of issue 6293,
+//!    finding 2,
+//!    which found the notice saying the commit was only on this computer
 //!    while a remote held it);
 //!    when the address it failed at may come back,
-//!    the plan is kept, so that address still gets the commit when it returns;
+//!    the plan is kept,
+//!    so that address still gets the commit when it returns;
 //!  - otherwise what a failed push's own words mean decides it (`push_retry_failure.rs`):
 //!    a conflict,
 //!    a login the service does not have and a server hook's decline need the person,
@@ -45,7 +49,8 @@ use crate::auto_push::AutoPushResult;
 /// The addresses that can never be a remote,
 /// and the lines the person reads for them.
 use crate::push_address_that_cannot_be_a_remote::{CannotBeARemote, cannot_be_a_remote, words, words_after_delivery};
-/// What one failed push did, address by address.
+/// What one failed push did,
+/// address by address.
 use crate::push_attempts_of_a_failed_push::{FailedPushByAddress, failed_push_by_address};
 /// What a failed push's own words mean.
 use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};

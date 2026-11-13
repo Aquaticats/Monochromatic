@@ -143,7 +143,8 @@ impl ServiceHost {
 /// and no address at all prove neither this session nor another,
 /// so such a command keeps the account's state folder and reads the earlier records there,
 /// because the alternative is a real session whose retry plans vanish with its logout
-/// (the review of issue 6293, finding 6).
+/// (the review of issue 6293,
+/// finding 6).
 /// The trade is the private directory's own:
 /// its records do not outlive a logout or a reboot,
 /// and an earlier release's journal under the account's state directory is not adopted by such a run.

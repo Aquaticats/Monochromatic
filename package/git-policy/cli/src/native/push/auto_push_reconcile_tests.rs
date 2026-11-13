@@ -1094,7 +1094,9 @@ fn a_clean_worktree_is_fast_forwarded_to_the_published_merge() {
 ///  so `[<the remote>, DISABLED]` publishes the merge and still exits 128 on the reserved word.
 ///  The reconcile advanced the branch only on exit 0,
 ///  so the local branch stayed behind a merge the remote held and every later commit published another one
-///  (the review of issue 6293, finding 2, reproduced end to end).
+///  (the review of issue 6293,
+/// finding 2,
+/// reproduced end to end).
 #[test]
 fn a_merge_another_address_refused_still_moves_the_local_branch() {
     let s = scenario("ar-second-address-dead");

@@ -9,26 +9,33 @@
 
 use super::*;
 
-/// A repository that received the commit, then an address that is not a repository.
+/// A repository that received the commit,
+/// then an address that is not a repository.
 const REPOSITORY_THEN_DEAD: &str = "To /srv/remote-0.git\n * [new branch]      main -> main\nfatal: 'DISABLED' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
-/// The reserved word first: Git fails before it reaches the repository.
+/// The reserved word first:
+/// Git fails before it reaches the repository.
 const DEAD_THEN_REPOSITORY: &str = "fatal: 'DISABLED' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
-/// A host that does not answer, then the reserved word Git never attempts.
+/// A host that does not answer,
+/// then the reserved word Git never attempts.
 const UNREACHABLE_THEN_DEAD: &str = "fatal: unable to access 'https://unreachable-host.invalid/repo.git/': Could not resolve host: unreachable-host.invalid\n";
 
 /// Two addresses that both took the commit.
 const TWO_REPOSITORIES: &str = "To /srv/remote-0.git\n * [new branch]      main -> main\nTo /srv/remote-1.git\n * [new branch]      main -> main\n";
 
-/// A hook on the first address declined, and Git went on to the second, which took the commit.
+/// A hook on the first address declined,
+/// and Git went on to the second,
+/// which took the commit.
 const DECLINED_THEN_REPOSITORY: &str = "remote: a hook says no        \nTo /srv/remote-0.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote-0.git'\nTo /srv/remote-1.git\n * [new branch]      main -> main\n";
 
-/// The first address already held the commit, and the second is not a repository.
+/// The first address already held the commit,
+/// and the second is not a repository.
 const UP_TO_DATE_THEN_DEAD: &str = "Everything up-to-date\nfatal: 'DISABLED' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
 /// A remote whose ref lock another process held:
-/// the address answers, and refuses the ref.
+/// the address answers,
+/// and refuses the ref.
 const LOCK_HELD: &str = "remote: error: cannot lock ref 'refs/heads/main': Unable to create '/srv/DISABLED /refs/heads/main.lock': File exists.\nremote: \nTo DISABLED \n ! [remote rejected] main -> main (reference already exists)\nerror: failed to push some refs to 'DISABLED '\n";
 
 /// The addresses the configuration above names.
@@ -39,7 +46,8 @@ fn configured(addresses: &[&str]) -> Vec<String> {
 /// What:
 ///  A push Git delivered to one address and refused at the next reports the arrival.
 /// Why:
-///  The review's finding 2: the commit is on the first remote while the notice said it was only on this computer,
+///  The review's finding 2:
+/// the commit is on the first remote while the notice said it was only on this computer,
 /// and the plan that keeps the branch backed up was ended.
 #[test]
 fn a_push_that_delivered_before_it_failed_reports_the_arrival() {
@@ -56,9 +64,12 @@ fn a_push_that_delivered_before_it_failed_reports_the_arrival() {
 }
 
 /// What:
-///  An address that already held the commit counts as an arrival, although Git prints no lane for it.
+///  An address that already held the commit counts as an arrival,
+/// although Git prints no lane for it.
 /// Why:
-///  A retry of a delivered branch, or a person's push by hand, meets exactly this shape,
+///  A retry of a delivered branch,
+/// or a person's push by hand,
+/// meets exactly this shape,
 /// and reading it as "nothing arrived" would print the false notice of finding 2 again.
 #[test]
 fn an_address_that_already_held_the_commit_is_an_arrival() {
@@ -71,8 +82,10 @@ fn an_address_that_already_held_the_commit_is_an_arrival() {
 /// What:
 ///  A push that failed at an address Git names before it reached any other blames that address.
 /// Why:
-///  The review's finding 3: with `[a host that does not answer, DISABLED]` Git stops at the host and never attempts
-/// `DISABLED`, yet the notice blamed `DISABLED` and ended a plan a retry could complete.
+///  The review's finding 3:
+/// with `[a host that does not answer, DISABLED]` Git stops at the host and never attempts
+/// `DISABLED`,
+/// yet the notice blamed `DISABLED` and ended a plan a retry could complete.
 #[test]
 fn the_address_git_failed_at_is_the_one_its_sentence_names() {
     let addresses: Vec<String> = configured(&["https://unreachable-host.invalid/repo.git", "DISABLED"]);
@@ -91,9 +104,11 @@ fn the_address_git_failed_at_is_the_one_its_sentence_names() {
 }
 
 /// What:
-///  An address that is the reserved word plus a space is read as the address, not as the reserved word.
+///  An address that is the reserved word plus a space is read as the address,
+/// not as the reserved word.
 /// Why:
-///  The review's finding 4: `DISABLED ` is a legal path whose bare repository receives a push,
+///  The review's finding 4:
+/// `DISABLED ` is a legal path whose bare repository receives a push,
 /// and trimming it turned a transient failure into a permanent give-up with a notice that called it impossible.
 #[test]
 fn an_address_is_read_byte_for_byte_as_git_printed_it() {
@@ -110,10 +125,13 @@ fn an_address_is_read_byte_for_byte_as_git_printed_it() {
 }
 
 /// What:
-///  A refusal on one address and an arrival at the next is an arrival, and the refusal's address is the failing one.
+///  A refusal on one address and an arrival at the next is an arrival,
+/// and the refusal's address is the failing one.
 /// Why:
-///  Git goes on to the next push URL after a rejection (measured), so the branch can be backed up while one address
-/// refused it; reading the rejection as the whole push failed the branch that was published.
+///  Git goes on to the next push URL after a rejection (measured),
+/// so the branch can be backed up while one address
+/// refused it;
+/// reading the rejection as the whole push failed the branch that was published.
 #[test]
 fn a_refusal_before_an_arrival_is_still_an_arrival() {
     let addresses: Vec<String> = configured(&["/srv/remote-0.git", "/srv/remote-1.git"]);
@@ -127,8 +145,10 @@ fn a_refusal_before_an_arrival_is_still_an_arrival() {
 /// What:
 ///  A sentence that names no configured address blames nothing.
 /// Why:
-///  A login Git refuses quotes only the host, and one that cannot resolve a host names no address at all;
-/// guessing an address there ends a plan that may come back, which is what the owner's decision forbids.
+///  A login Git refuses quotes only the host,
+/// and one that cannot resolve a host names no address at all;
+/// guessing an address there ends a plan that may come back,
+/// which is what the owner's decision forbids.
 #[test]
 fn a_sentence_that_names_no_configured_address_blames_nothing() {
     let addresses: Vec<String> = configured(&["https://host.invalid/repo.git", "DISABLED"]);
@@ -144,7 +164,8 @@ fn a_sentence_that_names_no_configured_address_blames_nothing() {
 /// What:
 ///  Only the recorded ref's own status line says anything about the recorded ref.
 /// Why:
-///  A status line for another branch, and a line that is no status at all,
+///  A status line for another branch,
+/// and a line that is no status at all,
 ///  must not report an arrival for this branch.
 #[test]
 fn only_the_recorded_refs_own_status_line_reports_an_arrival() {

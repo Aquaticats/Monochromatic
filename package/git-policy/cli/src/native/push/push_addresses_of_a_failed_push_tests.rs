@@ -15,7 +15,8 @@ use super::*;
 /// and a space is part of an address:
 /// `DISABLED ` is a legal path that receives a push,
 /// so trimming it read a real remote as the reserved word
-/// (the review of issue 6293, finding 4).
+/// (the review of issue 6293,
+/// finding 4).
 #[test]
 fn every_push_address_the_configuration_names_is_read_in_order_and_byte_for_byte() {
     let answer: QueryOutput = QueryOutput { code: Some(0), stdout: b"DISABLED\n/srv/real.git\n".to_vec(), stderr: Vec::new() };

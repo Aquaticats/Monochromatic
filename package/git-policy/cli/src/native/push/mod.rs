@@ -54,8 +54,11 @@ pub mod push_address_that_cannot_be_a_remote;
 /// read from the remote's configuration in both faces of a push.
 pub mod push_addresses_of_a_failed_push;
 
-/// What one failed push did, address by address:
-/// the addresses Git attempted, whether the recorded ref arrived, and the address that failed.
+/// What one failed push did,
+/// address by address:
+/// the addresses Git attempted,
+/// whether the recorded ref arrived,
+/// and the address that failed.
 pub mod push_attempts_of_a_failed_push;
 
 /// The results a push returns when it sent nothing:

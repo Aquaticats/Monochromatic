@@ -11,12 +11,14 @@ use std::path::PathBuf;
 ///  a socket outside it proves another session's,
 ///  and everything else proves nothing.
 /// Why:
-///   The three answers decide two things each (who may be asked for a scope, and where durable records live),
+///   The three answers decide two things each (who may be asked for a scope,
+/// and where durable records live),
 /// so a proof must never widen:
 /// an abstract address names no directory,
 /// and reading it as "ours" asked a foreign manager,
 /// while reading it as "another session's" moved a real session's retry plans into a directory a logout clears
-/// (the review of issue 6293, finding 6).
+/// (the review of issue 6293,
+/// finding 6).
 #[test]
 fn the_session_is_proven_only_by_a_bus_socket_the_address_names() {
     let ours: &Path = Path::new("/run/user/1000");
@@ -55,12 +57,15 @@ fn the_session_is_proven_only_by_a_bus_socket_the_address_names() {
 }
 
 /// What:
-///  A runtime directory the environment did not name, or named and did not use, proves nothing.
+///  A runtime directory the environment did not name,
+/// or named and did not use,
+/// proves nothing.
 /// Why:
 ///  A folder this program fell back to (`~/.run`) is no session at all,
 ///  and only the directory in use can be compared with the bus's socket.
 ///  A directory the environment named itself is the run's own as soon as the bus in it is another session's,
-///  even a persistent one under the home: a logout clears nothing there.
+///  even a persistent one under the home:
+/// a logout clears nothing there.
 #[test]
 fn a_runtime_directory_the_environment_did_not_name_proves_no_session() {
     let ours: &Path = Path::new("/run/user/1000");
@@ -91,8 +96,10 @@ fn a_runtime_directory_the_environment_did_not_name_proves_no_session() {
 ///  A run given a runtime directory of its own must leave nothing under the account's real state directory,
 /// a session whose own bus lives in its runtime directory keeps exactly the paths earlier releases used,
 ///  and an unproven bus must lose nothing:
-/// its journal and retry plans stay where a logout does not clear them, and the earlier records there are read
-///  (the review of issue 6293, finding 6).
+/// its journal and retry plans stay where a logout does not clear them,
+/// and the earlier records there are read
+///  (the review of issue 6293,
+/// finding 6).
 #[test]
 fn the_state_directory_moves_only_for_a_bus_proven_another_sessions() {
     let ours: &Path = Path::new("/run/user/1000");
