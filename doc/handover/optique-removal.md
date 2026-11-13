@@ -846,6 +846,11 @@ to settle before a reply:
   run name `optique-input-trace-and-reply-claim-check`,
   started 2026-11-13;
   its findings are to be weighed and folded in.
+  It reads the documents as of commit `5a4e07d2e3`.
+  They changed after that,
+  so a second pass over the changes is owed:
+  its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`,
+  to be run by resuming the first run's session once its report is in.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
   a local file that is not committed.
