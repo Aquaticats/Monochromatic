@@ -121,6 +121,14 @@ export type BatchEntry = {
   readonly wall?: number;
 
   /**
+   How many model turns the run may start.
+
+   The launcher sizes a cap from finished runs of the same name, and a run whose name has none cannot be started without this:
+   a restart of a review is such a run, and it carries the cap the review itself was given.
+   */
+  readonly turnCap?: number;
+
+  /**
    The number of the run's folder, or nothing for the next free number.
    */
   readonly run?: number;
@@ -159,6 +167,7 @@ export const BATCH_ENTRY_FIELDS: readonly string[] = [
   'memory',
   'tasks',
   'wall',
+  'turnCap',
   'run',
   'sessionOf',
   'session',
@@ -325,6 +334,7 @@ export function retryWordsOf({
     `--memory=${entry.memory ?? BATCH_DEFAULT_MEMORY}`,
     `--tasks=${String(entry.tasks ?? BATCH_DEFAULT_TASK_COUNT,)}`,
     `--wall=${String(entry.wall ?? BATCH_DEFAULT_WALL_SECONDS,)}`,
+    ...((entry.turnCap === undefined) ? [] : [`--turn-cap=${String(entry.turnCap,)}`,]),
     ...((entry.run === undefined) ? [] : [`--run=${String(entry.run,)}`,]),
     ...((entry.base === undefined) ? [] : [`--base=${entry.base}`,]),
     ...((entry.provider === undefined) ? [] : [`--provider=${entry.provider}`,]),

@@ -754,8 +754,12 @@ its brief opens with what the earlier run did and did not do,
 and names the earlier review file and reproduction scripts so the second run does not repeat the reading;
 and its diff is the whole earlier diff,
 or only the files the earlier review did not read whole when its statement says it read the rest.
-The batch list is `<reviews folder>/<change>/restart-<n>-batch.json`, one entry,
+The batch list is `<reviews folder>/<change>/restart-<n>-batch.json`,
+one entry,
 which `start-a-batch-in-its-own-unit` or `start-pi-runs-from-a-batch-list` takes as any other.
+The entry carries the review's own wall clock and turn cap,
+because a restart's name has no finished run for the launcher to size a cap from,
+and a lower cap would end the second reading where the first was cut.
 
 Nothing is ever written over:
 a brief, a diff, a reading or a batch list that already holds other text refuses the whole restart,

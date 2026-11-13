@@ -26,6 +26,8 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   CHANGE_DIFF_FILE_NAME,
   REVIEW_FILE_NAME,
+  REVIEW_TURN_CAP,
+  REVIEW_WALL_SECONDS,
   REVIEW_READING_FILE_NAME,
   type ReviewCheck,
   aRestartIsPending,
@@ -617,6 +619,10 @@ await describe({
             expect(started[0]?.words.join(' ',),).toContain(`--branch=${plan.entry.branch}`,);
             expect(started[0]?.words.join(' ',),).toContain(`--base=${aCommit()}`,);
             expect(started[0]?.words.join(' ',),).toContain(`--prompt=${plan.briefFile}`,);
+            // A restart's own name has no finished run to size a turn cap from, and the review's own limits are what it gets.
+            expect(started[0]?.words.join(' ',),).toContain(`--turn-cap=${String(plan.entry.turnCap,)}`,);
+            expect(plan.entry.wall,).toBe(REVIEW_WALL_SECONDS,);
+            expect(plan.entry.turnCap,).toBe(REVIEW_TURN_CAP,);
             expect(lines,).toHaveLength(1,);
             expect(lines[0],).toContain('status 0',);
             // The launcher is the only thing that ran: no run folder was made beside the earlier run's own.

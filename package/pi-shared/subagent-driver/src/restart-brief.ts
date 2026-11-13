@@ -43,6 +43,10 @@ import {
   reviewFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
+import {
+  REVIEW_TURN_CAP,
+  REVIEW_WALL_SECONDS,
+} from './reviews-of-finished-branches.ts';
 
 /**
  One restart's plan: the files it writes, the entry a launcher takes, and the line to print.
@@ -460,6 +464,8 @@ export async function restartPlanOf({
     cpu: BATCH_DEFAULT_CPU_PERCENT,
     memory: BATCH_DEFAULT_MEMORY,
     tasks: BATCH_DEFAULT_TASK_COUNT,
+    wall: REVIEW_WALL_SECONDS,
+    turnCap: REVIEW_TURN_CAP,
     provider: REVIEWING_PROVIDER,
     model: REVIEWING_MODEL,
   };

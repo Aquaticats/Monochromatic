@@ -182,6 +182,9 @@ It starts nothing itself unless the caller adds `--start`.
 - The batch list is `<reviews folder>/<change>/restart-<n>-batch.json`,
   one entry,
   so the launcher takes it as any other batch.
+  The entry carries the review's own wall clock and turn cap:
+  a restart's own name has no finished run to size a cap from,
+  and a cap below the review's would cut the second reading where the first was cut.
 
 Nothing is written over.
 A brief,
