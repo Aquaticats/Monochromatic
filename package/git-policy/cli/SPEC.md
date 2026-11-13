@@ -4238,7 +4238,7 @@ The command that meets one settles it in the pass that runs before every forward
   and what may still stand on disk because of it.
   The folder is not work:
   a command does not sweep for it.
-- A stage claim's bytes are kept in that folder by one link,
+- A stage claim's bytes are copied into that folder,
   which leaves the claim at its own name,
   and the claim is then written again at that name in one rename.
   No instant exists in which the stage has no claim:
@@ -4246,6 +4246,16 @@ The command that meets one settles it in the pass that runs before every forward
   removes the record of the object the stage's creation made,
   and then takes the stage for a copy's own folder and removes it with whatever a person put in it
   (a review's finding, reproduced in a second process before this rule was written).
+  The bytes are copied and never linked:
+  `assert_private_path` requires a journal file to have one name,
+  every forwarded command reads every claim before Git runs,
+  and a claim kept under a second name stopped every command of the repository for ever
+  (a review's second finding, reproduced through the built wrapper).
+  A claim that already has a second name is answered as one this release cannot read,
+  so the pass finishes that half-done keep rather than refusing it.
+  A record that is no plain file,
+  and a copy that cannot be written,
+  fall back to the rename that keeps what it can.
   A claim whose folder nothing names is renamed aside with the words that say what may stand,
   because nothing beside it names that folder any more.
   Where the claim cannot be written again,
@@ -4262,8 +4272,25 @@ The command that meets one settles it in the pass that runs before every forward
   or one a crash left without a claim,
   must not lose it.
 - A stage whose destination record (`<identifier>.add`) was settled away is still an add's stage when the record of its
-  object stands,
-  and is judged by that record instead of by the branch that removes a copy's private folder without asking what it holds.
+  object or its completion marker (`<identifier>.done`) stands,
+  and is judged by those records instead of by the branch that removes a copy's private folder without asking what it
+  holds.
+  The marker is written by an add and by nothing else,
+  and a release of an earlier release removed both records before the marker,
+  so a kill inside that release left a claim with no record at all: that stage is an add's too (issue 6296).
+- A release of a claim removes nothing of it while its stage folder stands and no pending journal names that folder:
+  the claim, both records and the marker stay,
+  so a kill at any instruction of the release leaves the proofs of that folder and the next command keeps it and names
+  it instead of removing it with what a person put in it (issue 6296).
+  A pending journal is the exception,
+  because from the moment a copy exists its journal names the folder and settles it,
+  which is what a copy's own rung relies on while it stages.
+  Once the folder is gone, or a journal names it, the claim, the records and the marker go in that order.
+- A dead claim whose folder no record proves is removed as a copy's own only when that folder holds nothing the
+  wrapper's own stage does not: the payload a copy fills,
+  its registration,
+  or the temporaries of those writes.
+  Anything else may be a person's, so the folder is kept and the line names the entry that kept it.
 - A destination record whose claim was moved is still read:
   the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
   naming the worktree it describes with the two commands that settle it,
