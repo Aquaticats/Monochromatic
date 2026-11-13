@@ -855,13 +855,6 @@ to settle before a reply:
   with the same outcome on each
   (`passthrough-cases.jsonl` beside it).
   Nothing about it is to be mentioned in public.
-- A troubleshooting document is owed for a Deno behaviour met on 2026-11-13:
-  with a `package.json` beside the script,
-  `deno run --import-map` with an `npm:` target stops with
-  "Could not find a matching package",
-  and `--no-config` avoids it.
-  The four invocations tried are in `${HOME}/temp/agent/optique-2026-11-13/cross-runtime/deno-variants.log`;
-  Deno's source was not read.
 - Which of the drafted questions go into the reply.
   The draft asks one,
   whether offering every token to every option parser is the intended end state.
