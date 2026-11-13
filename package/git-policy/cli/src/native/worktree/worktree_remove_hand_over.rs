@@ -43,6 +43,7 @@ use crate::service_work::work_directory;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::worktree_removal_interrupted_destroy::record_leaving;
 use crate::service_work::Verdict;
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_kept_notices::record_kept_worktree;
@@ -57,14 +58,29 @@ use std::fs::File;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
+/// What:
+///  The name a subvolume this program leaves for the service takes,
+///  and the record that names its delete,
+///  re-exported where every reader of them already names them.
+/// Why:
+///   The shape of a leaving name and of its record is one subject
+/// (`worktree_removal_leaves_a_subvolume_for_the_service.rs`),
+/// and a caller names them by this module,
+/// so the subject moved and the names did not.
+pub use crate::worktree_removal_leaves_a_subvolume_for_the_service::{DELETE_REFERENCE, DELETING_PREFIX, deleting_name, removal_item};
+
+/// What:
+///  The move that leaves one subvolume for the service,
+///  re-exported so every caller keeps naming it by this module.
+/// Why:
+///   A caller names the move and the record together,
+/// and the two moved to the file that owns them
+/// (`worktree_removal_leaves_a_subvolume_for_the_service.rs`),
+/// so the names stay where the callers already read them.
+pub(crate) use crate::worktree_removal_leaves_a_subvolume_for_the_service::leave_a_subvolume_for_the_service;
+
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemoveHandOver";
-
-/// What a renamed subvolume's name starts with while the service deletes it:
-/// a name no person gives a worktree,
-/// so it is never mistaken for one,
-/// and one the next commands report when it stays.
-pub const DELETING_PREFIX: &str = "cli-git-deleting-";
 
 /// The process table a removal reads to see whether anything works in the worktree.
 const PROCESS_TABLE: &str = "/proc";
@@ -80,13 +96,6 @@ pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-remova
 /// It holds the device and the inode of each, which is what tells the worktree the proof was made for from one a person
 /// added at the same path while the record waited.
 pub const IDENTITY_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-identity";
-
-/// The reference an item of this kind names,
-/// which is no branch:
-/// an item carries a reference-shaped field so that every reader of a record keeps one shape,
-/// and no push is ever made for this kind.
-pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-delete";
-
 /// What:
 ///  The reference an item of this kind names when what waits for the service is a whole worktree Git removes file by file,
 ///  and not a subvolume a removal already renamed out of the way.
@@ -98,49 +107,6 @@ pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-dele
 ///  Git's own refuse-or-remove of the tracked files it finds is the whole proof of the removal,
 ///  and a path renamed away first would leave a registration naming nothing.
 pub const WORKTREE_REMOVAL_REFERENCE: &str = "refs/worktree/cli-git-service/worktree-remove";
-
-/// What:
-///  The name a removed worktree's subvolume takes while it waits for the service's delete.
-/// Why:
-///   The subvolume id names one subvolume for good,
-/// while a name names whatever is there when the call runs,
-/// so a name built
-///  from the id can never stand for another person's directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const deletingName = (id: bigint) => `cli-git-deleting-${id.toString(16).padStart(16, '0')}`;
-/// ```
-pub fn deleting_name(id: u64) -> OsString {
-    return OsString::from(format!("{DELETING_PREFIX}{id:016x}"));
-}
-
-/// What:
-///  The item that names one renamed subvolume for the service.
-/// Why:
-///   The record is the only thing that outlives the command,
-/// so it names the exact path the rename made and the subvolume id it
-///  holds:
-/// a delete acts on that path alone,
-/// and a path that is gone is nothing to delete.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const removalItem = ({ commonDir, parentPath, id, deleting }) => ({ kind: 'subvolume-delete', repository: parentPath, gitDir: commonDir, ref: DELETE_REFERENCE, oid: hex40(id), parent: join(parentPath, deleting), created: now, tries: 0 });
-/// ```
-pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem {
-    let deleting: PathBuf = parent_path.join(deleting_name(id));
-    return WorkItem {
-        kind: WorkKind::SubvolumeDelete,
-        repository: parent_path.to_path_buf(),
-        git_dir: common_dir.to_path_buf(),
-        branch_ref: String::from(DELETE_REFERENCE),
-        oid: format!("{id:040x}"),
-        parent: deleting.display().to_string(),
-        created: now_iso(),
-        tries: 0,
-    };
-}
 
 /// What:
 ///  The item that names one landed worktree for the commit service to remove with Git,
@@ -300,10 +266,10 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await handOverRemoval({ context, commonDir, parent, parentPath, name, id });
+/// await handOverRemoval({ context, commonDir, parent, parentPath, name, id, target, registration });
 /// ```
-pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path) -> Result<(), String> {
-    return hand_over_with(common_dir, parent, parent_path, name, id, target, &ThroughTheService { context });
+pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, registration: &OsStr) -> Result<(), String> {
+    return hand_over_with(common_dir, parent, parent_path, name, id, target, registration, &ThroughTheService { context });
 }
 
 /// What:
@@ -346,6 +312,9 @@ impl ToldOfHandOver for ThroughTheService<'_> {
 /// so a control reaches no service and no session bus.
 /// Why:
 ///   The record is written and the directory renamed before the service is told,
+/// and the removal's own record names the place the
+///  directory takes before it takes it,
+/// so a kill in the moments between leaves a state the next command finishes,
 /// so a control can assert both without a
 ///  service,
 /// and a wake that fails is never the removal's failure:
@@ -354,11 +323,15 @@ impl ToldOfHandOver for ThroughTheService<'_> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// handOverWith({ commonDir, parent, parentPath, name, id, target, told });
+/// handOverWith({ commonDir, parent, parentPath, name, id, target, registration, told });
 /// ```
-pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn ToldOfHandOver) -> Result<(), String> {
+pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, registration: &OsStr, told: &dyn ToldOfHandOver) -> Result<(), String> {
     let item: WorkItem = record_the_removal(common_dir, parent_path, id)?;
     let deleting: OsString = deleting_name(id);
+    // Where the files will stand is written before the rename, so a command killed between the two leaves a record whose
+    // worktree path is gone and whose place is named, which is a state the next command finishes the registration by
+    // (a review finding, F4).
+    record_leaving(common_dir, registration, parent_path.join(deleting.as_os_str()).as_path());
     if let Err(error) = rename_at(parent, name, parent, deleting.as_os_str(), false) {
         // Nothing was renamed, so the record names a path that does not exist and the service will find nothing to delete.
         return Err(format!("the subvolume of {} cannot be renamed out of the way ({error})", target.display()));
