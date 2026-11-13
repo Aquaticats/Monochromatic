@@ -3191,15 +3191,23 @@ Now the merge runs and the person's work is carried across it:
   the entry Git records for that path decides whether the file is executable,
   and the file system decides the rest from the process's umask and the directory's default ACL,
   exactly as Git's own checkout of the same entry does.
-  A permission bit Git does not record, like the `0600` of a `chmod 0600` on a tracked `0644` file,
-  follows the same rule, so a merge that changes such a file writes Git's mode over it
+  A permission bit Git does not record,
+  like the `0600` of a `chmod 0600` on a tracked `0644` file,
+  follows the same rule,
+  so a merge that changes such a file writes Git's mode over it
   (owner's decision of 2026-11-12T12:26:24-05:00,
-  "As real Git, both cases";
+  "As real Git,
+  both cases";
   `SPEC.md`,
   "Merges and commits never fail").
-  The one place your own bits are written is a path the merge deletes while your file stays,
+  The one place your own bits are written for a file you did not stage is a path the merge deletes while your file stays,
   which is a deletion against an edit you made:
-  nothing of the merge's stands there, so your entry goes back with every bit the capture read.
+  nothing of the merge's stands there,
+  so your entry goes back with every bit the capture read.
+  A mode you staged is your work as your staged bytes are,
+  because `git add` writes the executable bit into the index:
+  it stays staged over the merge's object,
+  and at a path the merge deletes the entry and the file it names come back.
 - A merge killed after it cleared those paths puts the captured bytes back
   when it turns out the merge never landed,
   and carries them when it did.

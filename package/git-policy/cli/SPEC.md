@@ -5016,14 +5016,15 @@ and "never discard user data"):
   and real Git writes the merge's content over it with the mode its entry and the umask give,
   so this command does the same and the file ends as Git's own checkout leaves it
   (owner's decision of 2026-11-12T12:26:24-05:00,
-  "As real Git, both cases",
+  "As real Git,
+  both cases",
   recorded in `doc/handover/cli-git-rust-implementation.md`).
   So a path the merge writes is created as Git creates it:
   `0666`,
   or `0777` when Git's entry for it is executable,
   with the file system narrowing that by the process's umask and any default ACL of the directory,
   and the executable bits come from the mode the two layers end with
-  (`write_entry` in `src/native/merge/merge_isolation_carry_place.rs`,
+  (`write_entry` in `src/native/merge/merge_isolation_carry_place_write.rs`,
   and `plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
   A saved merge's install writes the same mode,
   because `checkout-index` creates the file as Git does
@@ -5032,7 +5033,14 @@ and "never discard user data"):
   and a permission bit a person set that Git does not record is not listed as work the merge would discard,
   because the merge does not discard what it writes over:
   the mode follows Git.
-  The one place the person's own bits are written is a path the merge deletes while their file stays,
+  A staged entry is a different thing:
+  `git add` writes the executable bit into the index,
+  where it is a record of Git's and a piece of the person's work as their staged bytes are,
+  so a staged mode stays staged over the merge's object,
+  and at a path the merge deletes it is written back with the file it names
+  (`plan_index_awaiting` and `plan_worktree_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
+  The one place the person's own bits are written for an unstaged file is a path the merge deletes while their
+  file stays,
   which is a deletion against an edit they made:
   nothing of Git's stands there,
   so their entry goes back exactly as the capture read it,
