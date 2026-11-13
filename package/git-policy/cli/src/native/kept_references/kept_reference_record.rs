@@ -239,6 +239,68 @@ pub fn record_a_removals_kept_reference(common_dir: &Path, reference: &str, comm
 }
 
 /// What:
+///  Remove the record of every kept reference the repository no longer holds.
+/// Why:
+///  A reference a person removed by hand,
+///  or one whose removal a crash cut between the delete and this file,
+///  leaves a record that names nothing,
+///  and the folder's size is what the references bound.
+///  A record written a moment ago is kept:
+///  another command may have written the reference it names after this pass listed the repository,
+///  and its record is the only account of the worktree that reference was kept for.
+///  That grace is the floor the size rule uses,
+/// which is an hour by default.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const file of await readdir(folder)) { const record = await read(file); if (!held.has(record.reference) && now - record.keptAtMs > grace) await unlink(file); }
+/// ```
+pub fn sweep_records_of_references_that_are_gone(common_dir: &Path, held: &[crate::kept_references_reading::OneKeptReference], now: u128, grace: std::time::Duration) {
+    let Ok(listing) = std::fs::read_dir(record_folder(common_dir)) else {
+        return;
+    };
+    for entry in listing.flatten() {
+        let path: std::path::PathBuf = entry.path();
+        let Ok(bytes) = std::fs::read(path.as_path()) else {
+            continue;
+        };
+        let Ok(value) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
+            continue;
+        };
+        let Some(reference) = value.get("reference").and_then(Value::as_str) else {
+            continue;
+        };
+        if names_one_of(held, reference) {
+            continue;
+        }
+        let kept_at_ms: u128 = value.get("kept_at_ms").and_then(Value::as_u64).map(u128::from).unwrap_or(0);
+        if now.saturating_sub(kept_at_ms) <= grace.as_millis() {
+            continue;
+        }
+        let _removed = std::fs::remove_file(path.as_path());
+    }
+}
+
+/// What:
+///  Whether any kept reference the repository holds is the one a record's line names.
+/// Why:
+///  A record whose reference the repository no longer holds names nothing,
+///  and telling that apart from one another command wrote a moment ago is what the grace below is for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesOneOf = (held, reference) => held.some((one) => one.reference === reference);
+/// ```
+fn names_one_of(held: &[crate::kept_references_reading::OneKeptReference], reference: &str) -> bool {
+    for one in held {
+        if one.reference == reference {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  The worktree a record names,
 ///  as JSON,
 ///  or nothing when it names none.

@@ -50,7 +50,7 @@
 use crate::kept_reference_limits::{KeptReferenceLimits, limits_from_the_environment};
 use crate::kept_reference_log::log_one_pruning;
 use crate::kept_reference_pass_answers::{
-    ThePass, commits_of_survivors, kept_one, now_ms, oldest_the_floor_allows, pruned_one, recorded_or_first_seen,
+    ThePass, age_at, commits_of_survivors, kept_at, kept_one, now_ms, oldest_the_floor_allows, pruned_one, recorded_or_first_seen,
 };
 use crate::kept_reference_record::KeptReferenceRecord;
 use crate::kept_references_reading::{OneKeptReference, bytes_only_these_reach, read_the_kept_references};
@@ -123,10 +123,12 @@ async fn remove_only_while_it_names(git: &GitContext, common_dir: &Path, name: &
 ///  The order of the rules matters:
 ///  a commit a branch reaches is no loss whatever its age,
 ///  and its objects stop counting against the size limit as soon as it is planned.
+///  What the pass takes first is the oldest reference the rules allow,
+///  so the cap a pass has is spent on the references that waited longest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const plan = async (reading, records, limits, now) => ({ planned, reasons, surviving, stoppedEarly });
+/// const plan = await planThePass(reading, records, limits, now);
 /// ```
 async fn plan_the_pass(
     git: &GitContext,
@@ -136,40 +138,127 @@ async fn plan_the_pass(
     limits: KeptReferenceLimits,
     now: u128,
     began: Instant,
-) -> Result<(Vec<bool>, Vec<Option<WhyPruned>>, u64, bool), String> {
-    let mut planned: Vec<bool> = vec![false; reading.len()];
-    let mut reasons: Vec<Option<WhyPruned>> = vec![None; reading.len()];
-    let mut count: usize = 0;
+) -> Result<ThePlan, String> {
+    let mut plan: ThePlan = ThePlan {
+        planned: vec![false; reading.len()],
+        reasons: vec![None; reading.len()],
+        dropped: vec![false; reading.len()],
+        surviving_bytes: 0,
+        stopped_early: false,
+    };
+    // The oldest first, so the references that waited longest are the ones a pass of the cap takes.
+    let mut times: Vec<(u128, usize)> = Vec::with_capacity(reading.len());
     for at in 0..reading.len() {
-        let age: u128 = crate::kept_reference_pass_answers::age_at(records, at, now);
-        if reading[at].reached_a_branch {
-            planned[at] = true;
-            reasons[at] = Some(WhyPruned::ReachedABranch);
-            count += 1;
-        } else if age > limits.max_age.as_millis() {
-            planned[at] = true;
-            reasons[at] = Some(WhyPruned::TooOld);
-            count += 1;
-        }
+        times.push((kept_at(records, at, now), at));
     }
-    // What the references that stay still reach, now that the two rules above have had their say.
-    let mut surviving: u64 = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading, planned.as_slice()).as_slice()).await?;
-    let mut stopped_early: bool = false;
-    while surviving > limits.max_bytes {
+    times.sort_by_key(the_time_of_a_pair);
+    let mut order: Vec<usize> = Vec::with_capacity(times.len());
+    for pair in &times {
+        order.push(pair.1);
+    }
+    let mut count: usize = 0;
+    for at in order {
+        let why: Option<WhyPruned> = if reading[at].reached_a_branch {
+            Some(WhyPruned::ReachedABranch)
+        } else if age_at(records, at, now) > limits.max_age.as_millis() {
+            Some(WhyPruned::TooOld)
+        } else {
+            None
+        };
+        let Some(reason) = why else {
+            continue;
+        };
+        if count >= THE_MOST_A_PASS_PRUNES {
+            // What the limits allow is left to the next pass, which runs after the next landed commit.
+            plan.dropped[at] = true;
+            plan.stopped_early = true;
+            continue;
+        }
+        plan.planned[at] = true;
+        plan.reasons[at] = Some(reason);
+        count += 1;
+    }
+    plan.surviving_bytes = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading, plan.planned.as_slice()).as_slice()).await?;
+    // Each removal of the size rule is followed by a fresh reading of what the survivors reach, so the limit is judged
+    //  from what the repository would keep and not from what it started with.
+    while plan.surviving_bytes > limits.max_bytes {
         if count >= THE_MOST_A_PASS_PRUNES || began.elapsed() >= A_PASS_WITHIN {
-            stopped_early = true;
+            plan.stopped_early = true;
             break;
         }
         // Every reference that is left being younger than the floor is no failure: no pass may remove one for its size.
-        let Some(oldest) = oldest_the_floor_allows(reading, records, planned.as_slice(), limits, now) else {
+        let Some(oldest) = oldest_the_floor_allows(reading, records, plan.planned.as_slice(), limits, now) else {
             break;
         };
-        planned[oldest] = true;
-        reasons[oldest] = Some(WhyPruned::TooMuchKept);
+        plan.planned[oldest] = true;
+        plan.reasons[oldest] = Some(WhyPruned::TooMuchKept);
         count += 1;
-        surviving = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading, planned.as_slice()).as_slice()).await?;
+        plan.surviving_bytes = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading, plan.planned.as_slice()).as_slice()).await?;
     }
-    return Ok((planned, reasons, surviving, stopped_early));
+    return Ok(plan);
+}
+
+/// What:
+///  What one pass decided about every kept reference of a repository.
+/// Why:
+///  The removals and the listing are two readings of one decision,
+///  so the decision is made once and carried as a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ThePlan = { planned: boolean[]; reasons: (WhyPruned | null)[]; dropped: boolean[]; survivingBytes: number; stoppedEarly: boolean };
+/// ```
+struct ThePlan {
+    /// Whether each reference goes.
+    planned: Vec<bool>,
+    /// Why each reference that goes does.
+    reasons: Vec<Option<WhyPruned>>,
+    /// Whether the pass's cap left each reference to a later pass.
+    dropped: Vec<bool>,
+    /// The bytes the references that stay reach.
+    surviving_bytes: u64,
+    /// Whether work the limits allowed was left to a later pass.
+    stopped_early: bool,
+}
+
+/// What:
+///  The time of one kept reference and its place in the reading,
+/// as the sort reads it.
+/// Why:
+///  A pass takes the oldest references first,
+///  and the place is what the rest of the pass asks about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theTimeOfAPair = ([keptAt]) => keptAt;
+/// ```
+fn the_time_of_a_pair(pair: &(u128, usize)) -> u128 {
+    return pair.0;
+}
+
+/// What:
+///  Why one reference the pass left is still there.
+/// Why:
+///  The listing names the rule that spared a reference,
+///  and a reference the plan dropped for the cap is spared by the plan and not by a limit,
+///  which a person has to be able to tell apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whyItStayed = (planned, dropped, age, limits) => dropped ? 'cap' : planned ? 'refused' : age <= limits.maxAge ? 'young' : 'floor';
+/// ```
+fn why_it_stayed(planned: bool, dropped: bool, age_ms: u128, limits: KeptReferenceLimits) -> WhyNotPruned {
+    if dropped {
+        return WhyNotPruned::ThisPassReachedItsCap;
+    }
+    if planned {
+        // The plan said this one goes and the removal was refused, which is where a reference another command moved ends.
+        return WhyNotPruned::TheRemovalWasRefused;
+    }
+    if age_ms <= limits.max_age.as_millis() {
+        return WhyNotPruned::YoungerThanTheLimit;
+    }
+    return WhyNotPruned::UnderTheSizeLimit;
 }
 
 /// What:
@@ -179,6 +268,9 @@ async fn plan_the_pass(
 ///  and only the removal itself is left out when a person asks what the pass would do.
 ///  A failed Git question removes nothing and answers the reason,
 ///  so a repository under a lock or a full disk keeps every commit it holds.
+///  A removal Git refuses leaves the reference where it is and says so,
+///  which is what a reference another command moved or another pass removed comes to,
+///  and the next pass judges it from what it names then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,9 +289,9 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
     for one in &reading.kept {
         records.push(recorded_or_first_seen(common_dir, one, now));
     }
-    let (planned, reasons, bytes_after, stopped_early) =
-        plan_the_pass(git, common_dir, reading.kept.as_slice(), records.as_slice(), limits, now, began).await?;
-    let mut pass: ThePass = ThePass { bytes_before: reading.bytes_only_they_reach, bytes_after, dry_run, stopped_early, ..ThePass::default() };
+    let plan: ThePlan = plan_the_pass(git, common_dir, reading.kept.as_slice(), records.as_slice(), limits, now, began).await?;
+    let mut pass: ThePass =
+        ThePass { bytes_before: reading.bytes_only_they_reach, bytes_after: plan.surviving_bytes, dry_run, stopped_early: plan.stopped_early, ..ThePass::default() };
     // A control acts between the listing and the removals here: a reference written after this point is not one this
     //  pass listed, and one written at a listed name carries another value than this pass reads.
     if let Err(error) = crate::transaction_phase::reach_transaction_phase(crate::transaction_phase::Phase::KeptReferencesListed, None) {
@@ -207,8 +299,9 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
     }
     for (at, one) in reading.kept.iter().enumerate() {
         let record: Option<&KeptReferenceRecord> = records[at].as_ref();
-        let Some(why) = reasons[at] else {
-            pass.kept.push(kept_one(one, record, now, limits, planned[at], stopped_early));
+        let age_ms: u128 = age_at(records.as_slice(), at, now);
+        let Some(why) = plan.reasons[at] else {
+            pass.kept.push(kept_one(one, record, now, why_it_stayed(plan.planned[at], plan.dropped[at], age_ms, limits)));
             continue;
         };
         let pruned: Pruned = pruned_one(one, record, now, why);
@@ -222,12 +315,17 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
                 one.reference,
                 one.commit
             );
-            pass.kept.push(kept_one(one, record, now, limits, planned[at], true));
+            pass.kept.push(kept_one(one, record, now, WhyNotPruned::TheRemovalWasRefused));
             continue;
         }
         crate::kept_reference_record::remove_record(common_dir, one.reference.as_str());
         log_one_pruning(common_dir, &pruned, now);
         pass.pruned.push(pruned);
+    }
+    // A record whose reference is gone names nothing, and the folder it sits in is bounded by the references the
+    //  repository holds: a grace of the floor keeps a record another command wrote a moment ago.
+    if !dry_run {
+        crate::kept_reference_record::sweep_records_of_references_that_are_gone(common_dir, reading.kept.as_slice(), now, limits.floor);
     }
     return Ok(pass);
 }

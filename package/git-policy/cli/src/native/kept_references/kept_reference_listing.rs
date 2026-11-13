@@ -52,6 +52,7 @@ pub fn kept_words(why: WhyNotPruned, limits: KeptReferenceLimits) -> String {
         WhyNotPruned::YoungerThanTheLimit => format!("it is younger than the age limit of {}", span_words(limits.max_age)),
         WhyNotPruned::UnderTheSizeLimit => format!("the objects only kept references reach weigh less than the {} bytes the size limit allows", limits.max_bytes),
         WhyNotPruned::ThisPassReachedItsCap => String::from("the pass that read it had reached the most removals one pass makes, so a later pass takes it"),
+        WhyNotPruned::TheRemovalWasRefused => String::from("this pass planned to remove it and Git refused, because the reference moved or another pass removed it first"),
     };
 }
 

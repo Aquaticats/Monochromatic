@@ -77,6 +77,9 @@ pub enum WhyNotPruned {
     /// This pass had already planned `THE_MOST_A_PASS_PRUNES` removals,
     /// so what the limits allow is left to a later pass.
     ThisPassReachedItsCap,
+    /// The pass removed the reference and Git refused,
+    /// because the reference moved or another pass removed it first.
+    TheRemovalWasRefused,
 }
 
 /// What:
@@ -333,6 +336,23 @@ pub fn age_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) -> 
 }
 
 /// What:
+///  When one kept reference was written,
+///  as its record says,
+///  and the moment of this reading when the repository records none.
+/// Why:
+///  A pass takes the oldest references first,
+///  and a reference with no record is dated by this pass,
+///  so the order it takes them in is the order a person would guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptAt = (records, at, now) => records[at]?.keptAtMs ?? now;
+/// ```
+pub fn kept_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) -> u128 {
+    return kept_at_or(records[at].as_ref(), now);
+}
+
+/// What:
 ///  The oldest kept reference the floor allows a pass to remove for its size,
 ///  or nothing when every one that is left is younger than the floor.
 /// Why:
@@ -366,23 +386,17 @@ pub fn oldest_the_floor_allows(reading: &[OneKeptReference], records: &[Option<K
 ///  One kept reference the pass left,
 ///  with the rule that spared it.
 /// Why:
-///  The listing of a reference that stayed says which of the rules spared it,
-///  and a reference the pass planned to take but Git refused says so as well.
+///  The listing of a reference that stayed says which rule spared it,
+///  and a reference the pass planned to take but Git refused says so as well,
+///  so no person reads a rule that did not decide it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const keptOne = (one, record, now) => ({ ...one, keptAtMs, ageMs, whyNot });
+/// const keptOne = (one, record, now, whyNot) => ({ ...one, keptAtMs, ageMs, whyNot });
 /// ```
-pub fn kept_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, now: u128, limits: KeptReferenceLimits, planned: bool, cap_reached: bool) -> Kept {
+pub fn kept_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, now: u128, why_not: WhyNotPruned) -> Kept {
     let kept_at_ms: u128 = kept_at_or(record, now);
     let age_ms: u128 = age_or_nothing(record, now);
-    let why_not: WhyNotPruned = if planned && cap_reached {
-        WhyNotPruned::ThisPassReachedItsCap
-    } else if age_ms <= limits.max_age.as_millis() {
-        WhyNotPruned::YoungerThanTheLimit
-    } else {
-        WhyNotPruned::UnderTheSizeLimit
-    };
     return Kept {
         reference: one.reference.clone(),
         commit: one.commit.clone(),
