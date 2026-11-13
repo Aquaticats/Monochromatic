@@ -6,11 +6,12 @@ and the owner has not approved it.
 Done and checked by that session:
 the measurements and the source reading reported here.
 Open:
-a model from another vendor reviewed the text twice,
-as of commits `5a4e07d2e3` and `426d33d638`,
+a model from another vendor reviewed the text as of commits `5a4e07d2e3` and `426d33d638`,
+and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
-the corrections made after its second pass are not reviewed,
-and the two further copies named under "What is left after the fix" are profiled and not fixed.
+the corrections made after that last pass are not reviewed,
+and the two further copies named under "What is left after the fix" are profiled and not fixed:
+fixes for them are being prototyped and nothing about that is settled.
 
 Status,
 2026-11-13:
@@ -207,15 +208,23 @@ median of three parses:
 with `set` in `input-trace.js` at 92.7% of the parse.
 So the trace copy is by far the largest of the three at every size measured,
 the prototype removes that one only,
-and what is left is mostly the other two,
-nine tenths of the patched parse at 16,000 to 32,000 tokens and a little over half at 4,000 to 8,000:
-the patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
+and what is left at the larger sizes is mostly the other two,
+nine tenths of the patched parse at 16,000 to 32,000 tokens.
+At 4,000 to 8,000 the same two functions are 14.6% and 13.3% of the patched parse,
+27.9% together,
+and the two files they sit in are 54.7%;
+the profile does not separate the copies from the other work in those functions,
+so it gives no closer figure for the copies' own share at those sizes.
+The patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
 The prototype's author,
 an AI agent,
 had attributed the remainder to the buffer copy alone;
 the profile puts more of it in `multiple()`.
 
-Neither of the two was prototyped.
+Neither of the two has a fix here.
+On 2026-11-13 the owner chose to have fixes prototyped before any reply to upstream,
+and that work was started the same day;
+this document says nothing about its result until the result has been checked.
 Each changes a value that other code reads as a plain array
 (the state of `multiple()`,
 and the context's token buffer),

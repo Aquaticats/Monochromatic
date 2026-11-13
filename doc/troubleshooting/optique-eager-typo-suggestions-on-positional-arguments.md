@@ -8,8 +8,9 @@ the measurements and the source reading reported here,
 and one review by a model from another vendor of the text as it stood on 2026-11-12.
 Open:
 a second such review read the text as of commits `5a4e07d2e3` and `426d33d638`,
+and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
-the corrections made after that are not reviewed,
+the corrections made after that last pass are not reviewed,
 and the reply draft waits for the owner.
 
 Status,

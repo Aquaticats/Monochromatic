@@ -864,7 +864,8 @@ each in answer to a question that gave the options:
     so `mise test` in upstream's checkout runs Bun 1.3.14 for whoever runs it.
   - This repository's `toolchain.lock.json` held Bun 1.4.4 at the commit before the issue (`07597bdd20`) and holds it now.
   - No measurement or run record of this work names 1.3.14;
-    the two scratch files that do are copies of upstream's issues 1116 and 1118.
+    the scratch files that do are copies of upstream's issues 1116 and 1118
+    and the review reports that quote them.
     The records show Bun 1.3.0,
     in the prototype's work image,
     whose first Bun log is dated 2026-11-12T15:02:28-05:00,
@@ -973,9 +974,25 @@ to settle before a reply:
   Its own findings were small and were corrected the same day:
   a wrong count and two unrecorded statements in the Deno document
   (the two were then run and recorded),
+  a sentence there that dated a Deno run without a record
+  (replaced by the recorded one),
   and wording that said slightly more than the records in this handover and in the input-trace document.
-  The corrections made after it are not reviewed.
   Its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`.
+  A third pass read those corrections,
+  commit `2d06b4ae60`,
+  by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-3`,
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-3.md`).
+  It found each correction supported by its record or source,
+  the three checks run after the second pass real and run against the patch as committed,
+  and nothing in the status lines claiming more than unapproved.
+  It found two wording matters,
+  corrected the same day:
+  a share of the patched parse at 4,000 to 8,000 tokens that was the share of two files,
+  given as the share of the two copies
+  (the document now gives both the functions' and the files' figures and says the profile cannot do better);
+  and a count of scratch files in this handover.
+  The corrections made after that third pass are not reviewed.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
   a local file that is not committed.
