@@ -337,9 +337,10 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
             failure,
             ClientFailure::MayNotHaveLanded
                 | ClientFailure::ServiceSilent
-                // The branch was read afterwards: `NotMade` is the one of the three that knows the commit was not made,
-                //  and `Made` says so.
-                | ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made | WhatTheBranchShows::Unread }
+                // The branch was read afterwards. `Made` says the commit was made; `Unread` does not know; and `NotMade`
+                //  says the branch holds no commit of this command's yet, which a service that wakes may still land, so
+                //  none of the three may claim that nothing changed.
+                | ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made | WhatTheBranchShows::Unread | WhatTheBranchShows::NotMade }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
                 | ClientFailure::InterruptedNotKnown { .. }
                 | ClientFailure::WorkNotHandedOver(_)

@@ -3822,9 +3822,14 @@ none is waited out or retried on the moved head yet:
   the greeting at the start wait the command was given,
   and the answer at `HEARTBEAT_SILENCE` and `ANSWER_CEILING`
   (`service/wait_ceilings.rs` has the measurement beside each).
-  A request the service took no part of never reached it as one line,
-  so that commit was not made and cannot land later,
-  and the message says so.
+  A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived:
+  a line that ends with the connection instead of its newline is refused and never queued.
+  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did, the same give-up is reported as a result that is not known,
+  and the commit's staged work and scratch tree stay where they are.
+  A commit whose whole request did reach the service is never described as one a waking service cannot land:
+  that message says the service may still make it and names `git log -1`.
 - A commit whose service stopped says four things,
   whether it stopped before it answered,
   after the request reached it,

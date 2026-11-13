@@ -709,7 +709,7 @@ fn a_request_line_whose_newline_never_arrived_is_refused_and_lands_nothing() {
         panic!("the request line goes out without its newline: {error}; service log: {log}");
     }
     connection.shutdown(std::net::Shutdown::Write).expect("the client's half of the connection is closed");
-    let (said, _closed): (String, bool) = read_for(&mut connection, Duration::from_secs(3));
+    let (said, _refused_closed): (String, bool) = read_for(&mut connection, Duration::from_secs(3));
     drop(connection);
     assert!(said.is_empty(), "a line that ended with the connection is refused, so no answer comes back: {said}");
     assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
@@ -722,7 +722,7 @@ fn a_request_line_whose_newline_never_arrived_is_refused_and_lands_nothing() {
     // The same bytes with their framing newline are taken: the refusal is the missing newline and nothing else.
     let (mut framed, _greeting): (UnixStream, String) = connect_and_greet(socket.as_path());
     std::io::Write::write_all(&mut framed, request.as_slice()).expect("the line goes out whole");
-    let (answered, _closed): (String, bool) = read_for(&mut framed, PATIENCE);
+    let (answered, _framed_closed): (String, bool) = read_for(&mut framed, PATIENCE);
     assert!(answered.contains("\"landed\""), "the same request with its newline is taken and lands: {answered}");
     assert_ne!(head_of(&fixture, repo.as_path()), before, "and the branch is at a new commit");
     remove_settled(&fixture);

@@ -7644,15 +7644,26 @@ now inside these bounds:
   A line is read in chunks under the bound the connection carries,
   because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
   so a service that dribbles bytes and never ends its line held a client inside one call for ever.
-- A request of which the service took no part,
-  or not the whole of it within `REQUEST_WRITE_CEILING`,
-  never reached the service as one line,
-  so the commit was not made and cannot land later:
-  the command ends with the failure for that (`ClientFailure::ServiceNotReading`,
-  `landing/service_messages_of_a_service_that_stopped.rs`),
-  which names what the service did not take,
-  says the staged changes and working files are as they were,
-  and gives the steps below.
+- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+  A line that ends with the connection instead of its newline is not decoded,
+  not queued,
+  and refused in the service's log
+  (`service/service_server_connection_handling.rs`).
+  The two ends agree on one meaning of "taken",
+  and neither carries the proof alone:
+  the client's chunked write can leave every byte of the object and only the newline unsent,
+  and the service used to decode that at end of stream and land it
+  (the review of this change, finding 1).
+- The client says the service never took a request only when it never put one whole request line on the wire.
+  A give-up on the write ends with `ClientFailure::ServiceNotReading`,
+  which says the commit was not made and cannot land later
+  (`landing/service_messages_of_a_service_that_stopped.rs`),
+  only when no attempt of this command delivered a whole line;
+  after an attempt that did, a give-up ends with the "not known" failure,
+  whose commit's scratch tree stays with the service's claim on it.
+  The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
+  the landing's client-gone check races the connection writer's heartbeat,
+  so that message says the service may still land it and names `git log -1`.
 - The service sends a heartbeat every second (`HEARTBEAT_EVERY`) to a client whose request is queued or landing;
   a client that
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,

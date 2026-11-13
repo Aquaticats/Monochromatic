@@ -358,11 +358,11 @@ fn a_give_up_after_a_whole_delivery_says_the_result_is_not_known() {
     let service: UnixListener = a_listener_on(name.as_str());
     let serving = std::thread::spawn(move || {
         // The first connection: the request arrives whole, and nothing is answered.
-        let (first, _address) = service.accept().expect("the client connects");
+        let (first, _first_address) = service.accept().expect("the client connects");
         greet_and_read(&first);
         drop(first);
         // The second connection: greeted, and not one byte of the request read.
-        let (second, _address) = service.accept().expect("the client sends again");
+        let (second, _second_address) = service.accept().expect("the client sends again");
         (&second).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
         std::thread::sleep(STAND_IN_PATIENCE);
         drop(second);
