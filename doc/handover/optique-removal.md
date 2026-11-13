@@ -1038,22 +1038,32 @@ to settle before a reply:
   no test guarding that descriptor;
   a count of failing tests that differs by runtime;
   and two omissions in the list of what a caller can notice.
-  Not reviewed by anyone:
-  the changes made after that pass,
+  A fifth pass by the same model read the changes made after that,
   which are that fix,
   the timing on Node and Bun,
   and the timing parts rewritten as ratios,
-  committed as `f398643c8b`.
-  A fifth pass over exactly those is prepared
-  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fifth-pass-prompt.md`).
-  The machine held sixteen agents against a cap of sixteen when it was to start,
-  so the unit `optique-review-fifth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
-  and starts it when a place is free;
-  its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-5.log`,
-  the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-5`,
-  and its report goes to `keep/review-report-5.md` beside that log.
-  If the unit gave up,
-  start the pass by hand with the same prompt.
+  as of commit `9fd4f0e93e`
+  (run folder `optique-input-trace-and-reply-claim-check-5`,
+  19 turns;
+  prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fifth-pass-prompt.md`;
+  report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-5.md`).
+  It recomputed every ratio,
+  range,
+  count and exponent from the summary of the records and found them to match,
+  found the `length` fix correct and guarded by a test that fails without it,
+  and found the five earlier findings resolved.
+  It raised three things.
+  The drafts and "What does not work" gave the slowdown of both fixes over the base
+  as if it were the buffer view's own;
+  they now give both fixes over the state fix alone,
+  and the timing part lists both comparisons.
+  A sentence said same-code pairs had medians "within a tenth of 1" where one was 0.82;
+  it now gives the two medians and says no such pair was timed on Node or Bun.
+  And the view has no `setPrototypeOf` trap;
+  that is dismissed,
+  because a plain array lets a caller change its prototype in the same way
+  and the change reaches only the view it is called on.
+  Both wording changes are in commit `65fddfa874`.
 - The owner's two corrections of 2026-11-13 on the timing,
   both acted on the same day:
   "Why did you time a thing only on deno and why did you time a thing on deno (to be discontinued software) at all?",
@@ -1064,15 +1074,25 @@ to settle before a reply:
   and the section's timing parts and the two drafts now give ratios between arms run in the same round,
   with no absolute time as a finding.
   Deno's own tracker says it is maintained "until October 2027" with bug fixes only (issue 37030 there).
-  The earlier documents of this work still give absolute times and Deno figures in places.
   Asked on 2026-11-13 how far the rewrite should go,
   the owner chose "Everything (Recommended)":
   the three Optique troubleshooting documents,
   the research record and the README of the public reproduction repository are to be recast to ratios,
   with absolute times only as labelled scale,
   and are to say that Deno is maintained only until October 2027.
-  That recast is open work,
-  and its result needs a review pass of its own.
+  That recast is written:
+  the short-option and typo-suggestion documents in commit `4721f3722b`,
+  the older parts of the input-trace document in `4b98e390ac`,
+  the research record in `65fddfa874`,
+  each from records already in the evidence archive and with no new measurement.
+  The README held no absolute time;
+  it gained a paragraph saying what kind of figure it gives and one on Deno's state,
+  published as commit `d99a8aec8c937b71749eac1da3a7d5b479c7d132` of `Aquaticat/optique-parse-cost-reproduction`.
+  `doc/troubleshooting/deno-run-with-an-npm-import-map-fails-beside-a-package-json.md` gained the same note on Deno.
+  Times that remain in milliseconds are labelled as scale,
+  quote upstream or commit `4879a44e6a`,
+  or sit beside upstream's own estimate of "less than 1ms".
+  No reviewer has read the recast.
 - Asked the same day which of the recheck's results the reply draft should carry,
   the owner chose the second patch with its costs and the buffer finding,
   and not the note about `concat`.
@@ -1129,8 +1149,12 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
   an installed copy of upstream's clone for running its suite.
   The scripts and records are also in the evidence archive beside the research document,
   folder `two-remaining-copies-recheck-2026-11-13`.
-  Once the fourth review pass is folded in,
+  Once the review of the recast is folded in,
   everything in that folder but `keep/` is to be deleted.
+- `optique-research-record-recast-to-ratios-2026-11-13/`:
+  the archive records the research record's ratios were computed from,
+  the lint and publish logs of the recast,
+  and the browser check of the published README.
 
 Container images `localhost/optique-cross-runtime:2026-11-13`,
 `localhost/optique-upstream-arms:2026-11-13`,
@@ -1141,7 +1165,9 @@ The recheck added `localhost/optique-two-remaining-copies-recheck:2026-11-13`
 and two small ones built on it,
 tagged `-annotated` and `-mixed-threshold`,
 and the prototype agent left `localhost/optique-prototype-arms:2026-11-13`.
-All of these are kept until the fourth review pass is folded in,
+The recheck later added two more on it,
+tagged `-kept-patch` and `-node-and-bun`.
+All of these are kept until the review of the recast is folded in,
 in case a check has to be run again,
 and are to be removed after it.
 
