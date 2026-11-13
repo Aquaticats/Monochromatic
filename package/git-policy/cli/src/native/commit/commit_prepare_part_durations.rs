@@ -1,5 +1,6 @@
 //! What:
 //!  How long each stretch of a commit's preparation held no Git child,
+//!  and how much of it a Git child took,
 //!  by name,
 //!  kept until the commit's timing record takes the figures.
 //! Why:
@@ -15,6 +16,11 @@
 //!  Each stretch is measured from one clock read at each seam to the next,
 //!  and the Git steps that ran inside it are taken out of it,
 //!  because those are recorded apart and a stretch that holds one is not waiting.
+//!  The time of those children is kept beside the stretch's own,
+//!  under the stretch's name,
+//!  because a stretch a child dominated otherwise reads as nothing at all:
+//!  the shadow ref snapshot of one commit of 2026-11-12 took 13.9 s inside `git for-each-ref`
+//!  and its stretch stated 2 ms.
 //!  A name is one of a fixed set compiled into the wrapper,
 //!  never a path,
 //!  a message or an option value.
@@ -59,6 +65,9 @@ pub struct PreparePart {
     pub name: String,
     /// How long it did that without a Git child.
     pub took: Duration,
+    /// How long the Git steps that began inside it ran,
+    /// clipped to its end.
+    pub children: Duration,
 }
 
 /// Lock kept:
@@ -87,9 +96,9 @@ static DROPPED: Mutex<usize> = Mutex::new(0);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// notePreparePart('layout', 12);
+/// notePreparePart('layout', 12, 480);
 /// ```
-pub fn note_prepare_part(name: &str, took: Duration) {
+pub fn note_prepare_part(name: &str, took: Duration, children: Duration) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of stretches.
     let mut parts = PARTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if parts.len() >= MAX_PREPARE_PARTS {
@@ -97,7 +106,7 @@ pub fn note_prepare_part(name: &str, took: Duration) {
         *dropped += 1;
         return;
     }
-    parts.push(PreparePart { name: String::from(name), took });
+    parts.push(PreparePart { name: String::from(name), took, children });
 }
 
 /// What:
@@ -121,23 +130,24 @@ pub fn drain_prepare_parts() -> (Vec<PreparePart>, usize) {
 }
 
 /// The stretches of one name added together,
-/// with the number of times the name was marked,
+/// with the number of times the name was marked and the time of their children,
 /// in the order the names first appeared.
-fn totals_of(parts: &[PreparePart]) -> Vec<(String, Duration, usize)> {
-    let mut totals: Vec<(String, Duration, usize)> = Vec::new();
+fn totals_of(parts: &[PreparePart]) -> Vec<(String, Duration, usize, Duration)> {
+    let mut totals: Vec<(String, Duration, usize, Duration)> = Vec::new();
     for part in parts {
         let mut found: bool = false;
-        for (name, sum, calls) in &mut totals {
+        for (name, sum, calls, children) in &mut totals {
             if *name != part.name {
                 continue;
             }
             *sum += part.took;
             *calls += 1;
+            *children += part.children;
             found = true;
             break;
         }
         if !found {
-            totals.push((part.name.clone(), part.took, 1));
+            totals.push((part.name.clone(), part.took, 1, part.children));
         }
     }
     return totals;
@@ -145,7 +155,7 @@ fn totals_of(parts: &[PreparePart]) -> Vec<(String, Duration, usize)> {
 
 /// What:
 ///  The stretches as a JSON object,
-/// `{"layout":{"ms":12,"calls":1},...}`,
+/// `{"layout":{"ms":12,"calls":1,"childrenMs":0},...}`,
 /// one member per name,
 /// with the times of a name marked more than once added together.
 /// Why:
@@ -153,15 +163,24 @@ fn totals_of(parts: &[PreparePart]) -> Vec<(String, Duration, usize)> {
 ///  and a reading wants the whole of what the command spent in each.
 ///  `calls` says how many stretches a sum is made of,
 ///  so a name that was marked twice is not read as one long stretch.
+///  `childrenMs` is what the Git steps that began inside those stretches took,
+///  so a stretch whose child took all of it states the child's time
+///  beside its own rather than nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify(Object.fromEntries(totals.map(([name, sum, calls]) => [name, { ms: sum, calls }])))
+/// JSON.stringify(Object.fromEntries(totals.map(([name, sum, calls, children]) => [name, { ms: sum, calls, childrenMs: children }])))
 /// ```
 pub fn prepare_parts_json(parts: &[PreparePart]) -> String {
     let mut members: Vec<String> = Vec::new();
-    for (name, sum, calls) in totals_of(parts) {
-        members.push(format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(name.as_str()), sum.as_millis(), calls));
+    for (name, sum, calls, children) in totals_of(parts) {
+        members.push(format!(
+            "{}:{{\"ms\":{},\"calls\":{},\"childrenMs\":{}}}",
+            quote(name.as_str()),
+            sum.as_millis(),
+            calls,
+            children.as_millis()
+        ));
     }
     return format!("{{{}}}", members.join(","));
 }
@@ -207,12 +226,12 @@ impl PreparePartClock {
     }
 
     /// Ends the running stretch,
-    /// keeping what it spent without a Git child.
+    /// keeping what it spent without a Git child and what those children took.
     fn close(&mut self) {
         let ended: Instant = Instant::now();
         let whole: Duration = ended.saturating_duration_since(self.began);
         let children: Duration = step_time_between(self.began, ended);
-        note_prepare_part(self.name, whole.saturating_sub(children));
+        note_prepare_part(self.name, whole.saturating_sub(children), children);
         self.began = ended;
     }
 }

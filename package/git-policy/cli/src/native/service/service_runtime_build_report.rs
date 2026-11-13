@@ -21,7 +21,7 @@
 //! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(4); }
 //! ```
 
-use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, a_build_is_still_on_its_way, flavor_words, runtime_build, spawn_on_runtime_within, tasks_can_run};
+use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, flavor_words, runtime_build, spawn_on_runtime_within, the_worker_answers};
 use crate::wait_ceilings::RUNTIME_BUILD_PATIENCE;
 
 /// What:
@@ -97,6 +97,9 @@ fn waiting_words(what: &str) -> String {
 /// so the three tasks a service cannot be without reach both the same way;
 /// a build the system refused has nothing coming and is never waited for,
 /// and the caller is answered at once instead.
+/// The line is said when a build that outlasted its deadline is on its way,
+/// which is one reading of the one state the wait itself reads,
+/// so the line and the wait describe the same moment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +110,7 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    if !tasks_can_run() && a_build_is_still_on_its_way() {
+    if the_worker_answers().a_build_is_coming {
         crate::service_warn!("{}", waiting_words(what));
     }
     return spawn_on_runtime_within(RUNTIME_BUILD_PATIENCE, future);
