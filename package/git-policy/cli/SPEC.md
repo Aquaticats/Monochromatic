@@ -6596,14 +6596,26 @@ on the commit path:
   and "What names a commit between its objects and its branch" below).
   That line says the commit was made,
   names the reference that was not written and Git's own words for it,
-  and says that no later maintenance can take the commit now the branch names it.
+  and says what names the commit now:
+  a landed batch's branch names it,
+  while a batch held behind a reference lock says the branch has not moved yet and that it names
+  the commit as soon as the lock goes,
+  because that ending has not moved the branch
+  (`the_line`).
   An import whose update of the batch's own reference the repository refused is the same ending,
-  reached without a reference that was ever written:
-  the marks `fast-import` exported name every commit of a batch it read to its end,
-  so those commits land and the line above is said,
-  and a batch the import stopped inside still fails and keeps nothing,
-  because the commit its marks name is not the commit its requests make together
-  (`src/native/landing/service_land_objects_of_batch.rs`).
+  reached without a reference that was ever written,
+  and three things hold it to a batch that is real
+  (`src/native/landing/service_land_objects_of_batch.rs`):
+  the marks it reads were written by its own import
+  (the file an earlier attempt left is removed before the import starts,
+  and a file that cannot be proven gone is not read at all),
+  only an import that exited with a status and wrote every commit of the batch is taken as one
+  (a child a signal ended writes no marks,
+  and one that stopped inside the stream writes fewer or none),
+  and its first commit must stand on the base the attempt found,
+  which is the check the path that takes a commit Git built already made.
+  A batch any of the three refuses fails and keeps nothing,
+  because its commits are not the commits its requests make together.
   A write the service's stop ended,
   and a Git that cannot be started at all,
   still answer the batch as not made:

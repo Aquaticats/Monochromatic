@@ -3569,7 +3569,18 @@ or the wait for it ended before it did),
 the commit is made as real Git makes it and the command exits `0`,
 with one line on standard error that says the commit was made,
 naming the reference that was not written and Git's own words for why,
-and saying that the branch names the commit now so no later maintenance can take it.
+and saying what names the commit now:
+the branch,
+for a commit that landed,
+or that the branch has not moved yet and will name it when the lock in its way goes,
+for a commit that is held.
+A batch whose commits `fast-import` builds lands this way only when its own import wrote the marks
+the landing reads,
+when that import exited rather than being ended by a signal,
+and when its first commit stands on the base the attempt found:
+the marks an earlier attempt left are removed before the next import starts,
+because a killed import leaves the earlier file as it was,
+and a batch built on another base would carry the branch past a commit another command landed.
 Nothing changes for a commit whose reference the write proved.
 `SPEC.md`,
 "What names a commit between its objects and its branch",

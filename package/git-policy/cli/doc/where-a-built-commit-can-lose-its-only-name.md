@@ -195,6 +195,11 @@ A batch whose own reference the write did not prove is made,
 and the command says once that the commit was made and that the reference which keeps a `git gc`
 off a landing commit's objects was not in place for it,
 naming the reference and Git's words.
+What that line says names the commit is one of two things:
+a landed batch's branch,
+or,
+for a batch held behind a reference lock,
+that the branch has not moved yet and names the commit as soon as the lock goes.
 
 Every ending that still answers a batch as not made says the commit's name and where it is kept:
 `refs/cli-git/kept/<batch>` when the keep was written,

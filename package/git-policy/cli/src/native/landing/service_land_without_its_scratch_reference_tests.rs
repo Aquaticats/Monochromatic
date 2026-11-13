@@ -423,14 +423,21 @@ fn another_command_commits(repo: &Path, message: &str) -> String {
 /// What:
 ///  A marks file an earlier attempt wrote does not land that attempt's commits on a later attempt's base.
 /// Why:
-///  `fast-import` exports its marks when it exits, and a refused reference update still exports all of them,
+///  `fast-import` exports its marks when it exits,
+///  and a refused reference update still exports all of them,
 ///  so attempt one leaves a full marks file behind.
-///  A child ended by a signal writes none, so attempt two, killed in its stream, leaves attempt one's file as it was.
+///  A child ended by a signal writes none,
+///  so attempt two,
+///  killed in its stream,
+///  leaves attempt one's file as it was.
 ///  Reading it would hand the landing commits built on the first base,
 ///  the branch write would move the branch to them because `update-ref` asks only that the branch still names the old value,
 ///  and the commit another command landed in between would stop being on the branch:
-///  that is lost user data, and it is the one way this change could lose another command's work.
-///  The batch is not made, the other command's commit stays, and no marks file outlives the attempt that read it.
+///  that is lost user data,
+///  and it is the one way this change could lose another command's work.
+///  The batch is not made,
+///  the other command's commit stays,
+///  and no marks file outlives the attempt that read it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -475,6 +482,64 @@ and the commit another command landed ({their_commit}) is still on it: {theirs_k
     assert!(theirs_kept, "the commit another command landed is still on the branch");
     assert_eq!(named, their_commit, "the branch still names the commit another command landed");
     assert!(!marks_left, "no marks file outlives the attempt that read it");
+}
+
+/// What:
+///  A Git that imports the stream it is given from another base than the one the attempt found,
+///  and whose every other run is the real Git's.
+/// Why:
+///  The import is built from this attempt's base,
+///  so a commit it makes stands on that base.
+///  The stand-in rewrites that one line to show the last door on this path:
+///  `update-ref` would move the branch to a commit built anywhere,
+///  and a batch built on another base would carry the branch past a commit another command landed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fromAnotherBase = script({ on: 'fast-import', pipe: (stream) => stream.replace(`from ${old}`, `from ${older}`) })
+/// ```
+fn a_git_that_imports_from_another_base(world: &World, old: &str, older: &str) -> PathBuf {
+    let program: PathBuf = world.root.join("git-that-imports-from-another-base");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" fast-import \"*) sed \"s|^from {old}$|from {older}|\" | '{real}' \"$@\"; exit $?;;\nesac\nexec '{real}' \"$@\"\n",
+        old = old,
+        older = older,
+        real = crate::test_support::REAL_GIT,
+    );
+    std::fs::write(program.as_path(), script.as_str()).expect("the program");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// What:
+///  An import whose first commit does not stand on the base this attempt found is not landed.
+/// Why:
+///  The branch move asks only that the branch still names the value the attempt read,
+///  never that the commit it moves to has it as a parent,
+///  so this is the last place a batch built elsewhere can be stopped.
+///  The marks of such an import name every commit and the child exited zero,
+///  so nothing before this check can tell it apart from a batch that is right.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git = gitThatImportsFromAnotherBase(base, older); expect(await landBatch(mine)).toBeAnError(); expect(revParse('HEAD')).toBe(base)
+/// ```
+#[test]
+fn an_import_whose_commits_stand_on_another_base_is_not_landed() {
+    let mut world: World = world("service-land-without-its-reference-other-base");
+    let older: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let base: String = git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", older.as_str(), "-m", "the base this attempt finds"]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    let mine: CommitRequest = request(&world, "typed", "typed.txt", "the change a person made\n");
+    world.context.git.real_git = a_git_that_imports_from_another_base(&world, base.as_str(), older.as_str());
+    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    });
+    let named: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    remove(world.root.as_path());
+    assert!(landed.is_err(), "a batch whose first commit stands on another base is not landed: {landed:?}");
+    assert_eq!(named, base, "the branch is where the batch found it");
 }
 
 /// What:
