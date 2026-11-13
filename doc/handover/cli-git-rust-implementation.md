@@ -670,14 +670,16 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
-#### The level of eight is held a second hour: its last reading on the home drive took 5.9 s (2026-11-13T12:57:52-05:00)
+#### The level of eight held and sixteen agents are going: one reading on the home drive took 5.9 s and the next 1 ms (2026-11-13T13:02:01-05:00)
 
 The hour's readings are in `doc/handover/agents-at-once-on-this-machine.md` under "Level 8".
 In short: the build volume never slower than 358 ms, the home drive 1 ms at the median and under 100 ms in every reading but the sixtieth, which took 5,901 ms at 12:56:31.
 One reading over the bound is not the criterion (two in a row), and the probe's hour ended on it.
 The probe was started again at once, and its next reading, at 12:58:07 with eight units going, took 1 ms on the home drive: not two in a row, so the level held.
 This session first wrote that it would hold at eight for a second hour; that was a precaution of its own with no failure behind it (rule `HLD`), and it was dropped.
-**The level went to sixteen at about 12:59:30**: queue entries are started twenty seconds apart until sixteen units are going, and the probe runs as `disk-ceiling-probe-level-16-20261113`.
+**The level went to sixteen**: the starts began at 12:58:50, twenty seconds apart (two reviews and six resumes), and sixteen units were going at 13:01:43.
+The probe runs as `disk-ceiling-probe-level-16-20261113`; its record is under "Level 16" in `doc/handover/agents-at-once-on-this-machine.md`.
+Ten entries are left in the resume queue, and a waiter starts the next ones as places free.
 The pnpm store is on the home drive (`~/.local/share/pnpm/store/v11`, with `virtualStoreType: global`, so a worktree's packages are links into it) and so are Pi's sessions and the caches;
 which of them, or what else, was writing in that minute is not established.
 

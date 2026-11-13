@@ -9,7 +9,7 @@ and the search for the number the drives carry.
 
 At most **16** agents run on this machine at once,
 counted across every session
-(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:59,
+(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:58:50,
 each time when the level before had held its hour).
 
 The owner,
@@ -165,9 +165,9 @@ one line a minute:
   Home drive: median 1 ms,
   and every reading under 100 ms but the last,
   **5,901 ms at 12:56:31** with seven units going.
-  The bound is 5,000 ms twice in a row,
-  and the probe's hour ended on that reading,
-  so whether a second would have followed is not known.
+  The bound is 5,000 ms twice in a row;
+  the probe's hour ended on that reading,
+  and the reading that followed it is in the bullet marked "Held".
   What was writing to the home drive in that minute is not established;
   two starts fell in the forty seconds before it
   (a resume at 12:55:20 that started nothing and a review at 12:56:03).
@@ -185,14 +185,35 @@ one line a minute:
   and the driver then failed to parse a result the feed had cut short
   (issue 6295).
 
-### Level 16, started 2026-11-13T12:59:30-05:00
+### Level 16, started 2026-11-13T12:58:50-05:00
 
 - Going when it started: eight runs of the session doing the search
   (resumes of wrapper work,
   two launcher authors answering reviews,
   reviews).
-- Added: queue entries twenty seconds apart until sixteen are going,
-  reviews and resumes of wrapper work that each build Rust.
+- Added between 12:58:51 and 13:01:21,
+  twenty seconds apart:
+  the reviews of the index-lock fix and of the commit that does not list every reference,
+  and resumes of the runs
+  `abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+  `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file`,
+  `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`,
+  `removal-goes-around-a-subvolume-or-mount-it-did-not-make`,
+  `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`
+  and `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`.
+  Sixteen units were going at 13:01:43.
 - Probe: unit `disk-ceiling-probe-level-16-20261113`,
   the same file,
-  one hour.
+  one hour from its first reading at 12:58:48,
+  which was taken with eight units going.
+  Its readings at 12:59:48 and 13:00:53 were taken with eleven and fourteen units,
+  so the hour holds fewer readings at sixteen than the hours of the levels before held at theirs.
+- A sizing walk of the scratch folders on the build volume
+  (`btrfs filesystem du`,
+  disk weight 1)
+  was started at 13:04 by the session doing the search;
+  a slow build-volume reading while it goes is read against it.
+- Ten entries are left in the resume queue,
+  one of them waiting for the branch it builds on.
+  Whether thirty-two can be reached with real work is not settled by that count:
+  reviews of the branches that finish add entries.
