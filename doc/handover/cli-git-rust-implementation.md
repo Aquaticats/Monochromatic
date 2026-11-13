@@ -674,8 +674,10 @@ The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files),
 
 The hour's readings are in `doc/handover/agents-at-once-on-this-machine.md` under "Level 8".
 In short: the build volume never slower than 358 ms, the home drive 1 ms at the median and under 100 ms in every reading but the sixtieth, which took 5,901 ms at 12:56:31.
-One reading over the bound is not the criterion (two in a row), and the probe's hour ended on it, so the level is neither failed nor shown to hold.
-The probe was started again at once for a second hour at eight; the step to sixteen waits for an hour without a reading over the bound.
+One reading over the bound is not the criterion (two in a row), and the probe's hour ended on it.
+The probe was started again at once, and its next reading, at 12:58:07 with eight units going, took 1 ms on the home drive: not two in a row, so the level held.
+This session first wrote that it would hold at eight for a second hour; that was a precaution of its own with no failure behind it (rule `HLD`), and it was dropped.
+**The level went to sixteen at about 12:59:30**: queue entries are started twenty seconds apart until sixteen units are going, and the probe runs as `disk-ceiling-probe-level-16-20261113`.
 The pnpm store is on the home drive (`~/.local/share/pnpm/store/v11`, with `virtualStoreType: global`, so a worktree's packages are links into it) and so are Pi's sessions and the caches;
 which of them, or what else, was writing in that minute is not established.
 

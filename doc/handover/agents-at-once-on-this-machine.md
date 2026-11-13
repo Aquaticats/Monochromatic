@@ -7,10 +7,10 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **8** agents run on this machine at once,
+At most **16** agents run on this machine at once,
 counted across every session
-(raised from 4 on 2026-11-13 at 11:57,
-when the level of four had held its hour).
+(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:59,
+each time when the level before had held its hour).
 
 The owner,
 2026-11-13,
@@ -147,7 +147,16 @@ one line a minute:
   A lock held by another agent's build is a wait on a neighbour,
   not on a drive;
   it is written here because it grows with the count.
-- **Not judged yet; held for a second hour.** Sixty readings from 11:57:29 to 12:56:31,
+- **Held.** The reading after the 5,901 ms one,
+  at 12:58:07 with eight units going,
+  took 1 ms on the home drive:
+  one reading over the bound and not two in a row,
+  which is what the criterion asks for.
+  The session doing the search had first written "held for a second hour";
+  that extra hour was a precaution of its own with no failure behind it and was dropped after one reading
+  (rule `HLD` in `AGENTS.md`).
+  The 5.9 s stands recorded as the worst the home drive showed at eight.
+- Sixty readings from 11:57:29 to 12:56:31,
   forty-six with eight units going,
   ten with seven,
   three with six and one with four.
@@ -166,8 +175,6 @@ one line a minute:
   highest 9.1.
   One-minute load: median 11.2,
   highest 38.1.
-  The probe runs on as `disk-ceiling-probe-level-8-second-hour-20261113`;
-  sixteen waits for an hour at eight without a reading over the bound.
 - No run got no answer to its first prompt and none ended on a disk error in that hour.
   Nine runs ended with their reports
   (two of them marked `driver-failed` by issue 6295 after their agents had finished).
@@ -177,3 +184,15 @@ one line a minute:
   its agent had given its report and settled,
   and the driver then failed to parse a result the feed had cut short
   (issue 6295).
+
+### Level 16, started 2026-11-13T12:59:30-05:00
+
+- Going when it started: eight runs of the session doing the search
+  (resumes of wrapper work,
+  two launcher authors answering reviews,
+  reviews).
+- Added: queue entries twenty seconds apart until sixteen are going,
+  reviews and resumes of wrapper work that each build Rust.
+- Probe: unit `disk-ceiling-probe-level-16-20261113`,
+  the same file,
+  one hour.
