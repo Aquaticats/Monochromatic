@@ -32,7 +32,7 @@ use crate::transaction_owner::TransactionOwner;
 /// Exclusive,
 /// synced,
 /// private files and directories.
-use crate::private_storage::{create_private_directory, sync_directory, write_exclusive_synced};
+use crate::private_storage::{create_private_directory, sync_directory, write_exclusive_synced, write_private_file_unsynced};
 /// The fail-closed recovery failure.
 use crate::recovery_error::{RecoveryError, io_failure};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -344,13 +344,23 @@ pub fn settled_marker(record: &Path) -> PathBuf {
 /// (`merge_isolation_carry.rs`).
 /// Two commands finishing the same record both write it; the second finds it,
 /// which is not a failure.
+/// The marker is not synced,
+/// unlike the record beside it:
+/// it holds no bytes of the person's,
+/// and a power cut that loses it costs one more carry of work the checkout already holds,
+/// because the objects a missing marker would need are still there until a collection,
+/// which a wrapped command runs only after it has settled the record
+/// (`merge_isolation_recovery.rs`).
+/// A sync here would be on the path a merge waits for, which is the path this project keeps free of them
+/// (`AGENTS.md`,
+/// `SLW`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// try { writeFileSync(marker, '', { flag: 'wx' }) } catch (e) { if (e.code !== 'EEXIST') throw e }
 /// ```
 pub fn mark_carry_finished(record: &Path) -> std::io::Result<()> {
-    return match write_exclusive_synced(settled_marker(record).as_path(), b"") {
+    return match write_private_file_unsynced(settled_marker(record).as_path(), b"") {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(error),
