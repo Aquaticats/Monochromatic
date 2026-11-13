@@ -1,12 +1,12 @@
 diff --git a/changes.d/core/positional-argument-write-cost.md b/changes.d/core/positional-argument-write-cost.md
 new file mode 100644
-index 00000000..c0c30195
+index 00000000..9a8b5749
 --- /dev/null
 +++ b/changes.d/core/positional-argument-write-cost.md
 @@ -0,0 +1,5 @@
-+ -  Fixed successful parses with many positional arguments to take time close
-+    to linear in the number of arguments instead of quadratic time.  Every
-+    recorded input copied the entire input trace, so a parse of a few thousand
++ -  Removed the largest of the per-argument copies that make a successful
++    parse with many positional arguments take quadratic time.  Every recorded
++    input copied the entire input trace, so a parse of a few thousand
 +    positional arguments spent most of its time copying; a parse of 8,000
 +    positional arguments is now about eight times faster.
 diff --git a/packages/core/src/input-trace.test.ts b/packages/core/src/input-trace.test.ts

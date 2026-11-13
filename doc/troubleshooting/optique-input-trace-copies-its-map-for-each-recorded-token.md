@@ -131,16 +131,82 @@ and 78.6% at four thousand paths
 (research document,
 same section).
 
-### What is left after the fix
+### What is left after the fix: two more copies per token
 
 With the prototype under "Upstream filing artifact",
-the exponent falls to between 1.18 and 1.27,
-not to 1.
+the exponent over 500 to 8,000 tokens falls to between 1.18 and 1.27,
+not to 1,
+and above that it rises again.
+The patched build on Node 26.13.1,
+median of five parses:
+
+- 2,000 tokens:
+   22.5 ms
+- 4,000 tokens:
+   49.2 ms
+- 8,000 tokens:
+   144.3 ms
+- 16,000 tokens:
+   777.8 ms
+- 32,000 tokens:
+   5,702.5 ms,
+   from a second run in which 16,000 tokens took 823.5 ms
+
+Two more places copy an array that grows with the token count,
+once per token,
+and a profile of the patched build names both.
+
+`multiple()` rebuilds its whole state array for each item it accepts,
+[`packages/core/src/modifiers.ts` lines 2743 to 2746][multiple state]:
+
+```ts
+// packages/core/src/modifiers.ts at commit 1d6e4594 on main
+        state: annotateFreshArray(context.state, [
+          ...(added ? context.state : context.state.slice(0, -1)),
+          nextItemState,
+        ]),
+```
+
+`argument()` copies the rest of the token buffer for each token it consumes,
+[`packages/core/src/primitives.ts` line 2725][argument buffer]:
+
+```ts
+// packages/core/src/primitives.ts at commit 1d6e4594 on main
+              buffer: context.buffer.slice(i + 1),
+```
+
+`node --cpu-prof` on the patched build,
+self time under the parse:
+
+- Parses of 4,000 and 8,000 tokens together:
+   `modifiers.js` 38.9%,
+   `short-option.js` 17.7%,
+   `primitives.js` 15.8%,
+   the new trie 4.7%,
+   `input-trace.js` 1.8%.
+- Parses of 16,000 and 32,000 tokens together:
+   `multiple()`'s `parseSync` 71.2%,
+   the function in `primitives.js` that holds the `argument()` excerpt 19.1%,
+   the trie 0.9%.
+
+The unpatched build at the same sizes,
+median of three parses:
+16,000 tokens 6,687.4 ms and 32,000 tokens 29,164.0 ms,
+with `set` in `input-trace.js` at 92.7% of the parse.
+So the trace copy is by far the largest of the three at every size measured,
+the prototype removes that one only,
+and what is left is the other two:
+the patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
 The prototype's author,
 an AI agent,
-attributes the rest to `context.buffer.slice()` per consumed token,
-which copies the remainder of the token buffer.
-That attribution was not checked here.
+had attributed the remainder to the buffer copy alone;
+the profile puts more of it in `multiple()`.
+
+Neither of the two was prototyped.
+Each changes a value that other code reads as a plain array
+(the state of `multiple()`,
+and the context's token buffer),
+so a fix reaches further than the trace's did.
 
 ### A figure that turned out too narrow
 
@@ -166,7 +232,11 @@ in a container from `docker.io/cachyos/cachyos-v4:latest` run with
 `--network none --cpus 2 --memory 4g --pids-limit 512 --blkio-weight 10` and no mounts,
 on 2026-11-13.
 1.1.1 was measured on 2026-11-12 with an earlier script (research document).
-The 1.0 and 1.2 lines were not run.
+The newest release of each older line,
+1.0.15,
+1.1.13 and 1.2.13,
+resolved from the registry on 2026-11-13,
+was run the same day on Node beside 1.3.6.
 
 ### Harness
 
@@ -225,6 +295,28 @@ Fitted exponent,
 - Bun:
    1.63 and 1.57
 
+The older release lines on Node,
+five rounds with the order rotated,
+lowest and highest fitted exponent,
+then lowest and highest median for 8,000 tokens:
+
+- 1.0.15:
+   1.85 to 1.92;
+   1,319 to 1,358 ms
+- 1.1.13:
+   1.85 to 1.93;
+   1,324 to 1,403 ms
+- 1.2.13:
+   1.82 to 1.92;
+   1,318 to 1,385 ms
+- 1.3.6,
+   in the same rounds:
+   1.84 to 1.90;
+   1,298 to 1,395 ms
+
+The four overlap throughout,
+so the cost is the same on every release line from 1.0 to 1.3.
+
 On GitHub's runners,
 the workflow of the reproduction repository fitted 1.70 and 1.56 on Node
 (run `43306311950`),
@@ -262,7 +354,9 @@ Tradeoffs:
 
 ### Apply the prototype
 
-The patch under "Upstream filing artifact" removes the cost.
+The patch under "Upstream filing artifact" removes the trace copy,
+the largest of the three copies,
+and leaves the other two.
 It was checked against upstream's source,
 not as a patch to a published package's built files,
 so using it means building `@optique/core` from source.
@@ -449,13 +543,32 @@ run in a container with upstream's toolchain on 2026-11-13:
 - `git apply` of the patch onto `main` at `84f95710` and onto pull request 1121's head `a175cdb7`:
    clean on both.
 
-Not run:
-upstream's full suite on Bun.
-The agent's run of it on 2026-11-12,
-on a host whose disk was full,
-ended with 82 failures;
-the ones read from its log were five-second timeouts in shell-completion tests,
-and no run without the patch was taken to compare.
+Upstream's core suite on Bun 1.3.0,
+run on 2026-11-13 on an unpatched worktree of `1d6e4594`,
+then on the patched tree,
+then on the unpatched one again:
+
+- Unpatched,
+   both runs:
+   7,668 pass,
+   157 fail,
+   and two test files that did not load
+   (`facade.test.ts` and `short-options.test.ts`,
+   "Cannot find module '@optique/env'",
+   a workspace package that was not built in that fresh worktree).
+- Patched:
+   8,457 pass,
+   155 fail,
+   every file loaded.
+- By test name,
+   the same 154 tests fail in all three runs.
+   No test fails only with the patch.
+   Every failure with the patch is in the suites "completion module" and "joined Bash option completion".
+
+So the patch adds no Bun failure among the tests that ran both ways.
+The tests of the two files that did not load without the patch ran only with it,
+and none of them failed there.
+Why the shell-completion tests fail in this container was not looked into.
 
 Effect,
 on Deno 2.9.8 from source,
@@ -542,9 +655,10 @@ and the container recipes and runners that produced them.
     the latest release,
     on `1.4.0-dev.2971`,
     and on `main` from source.
-    1.1.1 on 2026-11-12.
-    The 1.0 and 1.2 lines not run;
-    the code is the same there by `git tag --contains`.
+    1.1.1 on 2026-11-12,
+    and 1.0.15,
+    1.1.13 and 1.2.13 on 2026-11-13,
+    with the same growth as 1.3.6.
 2.  Prior art in the code:
     read issue 752 and the trace's history;
     no stated reason for the copy.
@@ -611,6 +725,12 @@ key and earlier traces stay untouched. From source on Deno, 8,000 arguments went
 exponent from about 1.8 to about 1.2; a thousand paths through a `git commit`-shaped parser took 0.78 times as
 long. The core suite passes on Deno and Node with it, and it applies cleanly to main and to #1121's branch.
 
+It does not make the parse linear. A profile of the patched build shows two more per-argument copies behind this
+one: `multiple()` rebuilds its state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`)
+and `argument()` slices the rest of the buffer for each token (`context.buffer.slice(i + 1)`). They are what is
+left: 16,000 arguments take 6.7 s unpatched and 0.8 s patched, 32,000 take 29.2 s and 5.7 s. I have not tried to
+change either.
+
 It also bears on what #1121 leaves. Measured the same way, seven rounds with the arms rotated, a thousand paths
 after `--` took 1.37 times as long on #1121's branch as on 1.3.6 (1.34 to 1.42), and 0.94 times with this patch
 on top (0.86 to 1.07, two of seven rounds slower).
@@ -626,6 +746,8 @@ written by an AI agent and rechecked by another.]
 [scoped out]: https://github.com/dahlia/optique/issues/1120#:~:text=The%20separate%20whole%2DMap%20copy,outside%20this%20issue%27s%20scope
 [record trace]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/primitives.ts#L162-L176
 [trace set]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/input-trace.ts#L140-L144
+[multiple state]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/modifiers.ts#L2743-L2746
+[argument buffer]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/primitives.ts#L2725
 [policy pull requests]: https://github.com/dahlia/optique/blob/84f9571069584d8e36a3a4cfbaebf8a9a61fc645/AI_POLICY.md?plain=1#L14-L18
 [policy issues]: https://github.com/dahlia/optique/blob/84f9571069584d8e36a3a4cfbaebf8a9a61fc645/AI_POLICY.md?plain=1#L25-L27
 [no timing]: https://github.com/dahlia/optique/pull/1121#:~:text=without%20timing%20thresholds

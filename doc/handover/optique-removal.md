@@ -827,6 +827,13 @@ Where each piece stands:
   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
   a patch beside it,
   and a draft issue that is not to be filed for now.
+  Settled on 2026-11-13 and recorded there:
+  the patch removes the largest of three per-token copies and leaves two,
+  in `multiple()` and `argument()`,
+  which were profiled and not prototyped;
+  upstream's Bun suite fails the same tests with and without the patch;
+  and the 1.0,
+  1.1 and 1.2 lines grow as 1.3.6 does.
 - The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is public,
   at commit `76b15277df53e5577cdc4e67bfeda3b7302b12c6`.
   Three workflow runs fail on their asserting steps.
@@ -848,10 +855,13 @@ to settle before a reply:
   with the same outcome on each
   (`passthrough-cases.jsonl` beside it).
   Nothing about it is to be mentioned in public.
-- What is left of the token-count growth after the patch (a fitted exponent near 1.2) is attributed only by the
-  patch's author and was not checked.
-- Upstream's full suite on Bun was not run against the patch with a baseline.
-- The 1.0 and 1.2 release lines were not measured.
+- A troubleshooting document is owed for a Deno behaviour met on 2026-11-13:
+  with a `package.json` beside the script,
+  `deno run --import-map` with an `npm:` target stops with
+  "Could not find a matching package",
+  and `--no-config` avoids it.
+  The four invocations tried are in `${HOME}/temp/agent/optique-2026-11-13/cross-runtime/deno-variants.log`;
+  Deno's source was not read.
 - Which of the drafted questions go into the reply.
   The draft asks one,
   whether offering every token to every option parser is the intended end state.

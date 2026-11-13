@@ -724,7 +724,9 @@ What #1121 leaves looks like the `InputTraceImpl.set()` copy you set aside in #1
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
 input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
-to main and to #1121's branch. The write-up and the patch: [commit permalink to
+to main and to #1121's branch. It does not make the parse linear: a profile of the patched build shows two smaller
+per-argument copies behind it, in `multiple()` (the state array) and `argument()` (the buffer slice); 32,000
+arguments take 29 s unpatched and 5.7 s patched. The write-up and the patch: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
 The patch was written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for it?
