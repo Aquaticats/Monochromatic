@@ -172,13 +172,13 @@ fn commit_and_already(answer: &Submitted, what: &str) -> (String, bool) {
     return (commit.clone(), *already);
 }
 
-/// The identity and the commit of the request a finished record names.
-fn first_request_of(journal: &Path) -> (String, String) {
+/// The identity, the commit and the batch number of the one finished record a scene's first request left.
+fn first_request_of(journal: &Path) -> (String, String, u64) {
     let listed = list_intents(journal, DONE_EXTENSION);
     let (_, Some(intent)) = listed.first().cloned().expect("one finished record") else { panic!("the first finished record parses") };
     let id: String = intent.ids.first().cloned().expect("the record names its request");
     let commit: String = intent.commits.first().cloned().expect("the record names the commit it landed");
-    return (id, commit);
+    return (id, commit, intent.seq);
 }
 
 /// A repository with a file committed, a running service and the journal it writes.
@@ -232,7 +232,17 @@ fn a_request_resent_after_more_landings_than_the_journal_keeps_is_recognised() {
     let scene: Scene = scene("service-finished-resend");
     scene.serve();
     scene.wrapped_commit(ONE_REQUEST);
-    let (id, commit): (String, String) = first_request_of(scene.journal.as_path());
+    let (id, commit, first_seq): (String, String, u64) = first_request_of(scene.journal.as_path());
+    // What:
+    //  The service that lands the rest starts after the one that landed the wrapped commit.
+    // Why:
+    //   A batch number comes from the reading of the clocks at its service's start,
+    // so every record of a later service is above every record of an earlier one,
+    // and the wrapped commit's record is then the oldest the count would push out first.
+    // A commit through the wrapper starts a service of its own when the fixture offers none where it looks,
+    // so where its record would otherwise be the newest, this is what states the order the audit met.
+    scene.service.stop_all();
+    scene.serve();
     let client: ClientConfig = scene.client();
 
     // More landings than the journal keeps, one after another, each a batch of its own.
@@ -250,6 +260,7 @@ fn a_request_resent_after_more_landings_than_the_journal_keeps_is_recognised() {
         landings += 1;
     }
     assert_eq!(finished(scene.journal.as_path()).len(), DONE_RETAINED + 1, "the journal holds one record more than it keeps, so the oldest is beyond the count");
+    assert_eq!(finished(scene.journal.as_path()).first().copied(), Some(first_seq), "the record of the wrapped commit is the oldest by its batch number");
 
     // The restart whose start is where the journal decides what it remembers.
     scene.service.stop_all();
@@ -266,7 +277,6 @@ fn a_request_resent_after_more_landings_than_the_journal_keeps_is_recognised() {
     scene.service.stop_all();
     remove_settled(&scene.fixture);
 }
-
 /// What:
 ///  A finished record older than the age but within the count stays.
 /// Why:
