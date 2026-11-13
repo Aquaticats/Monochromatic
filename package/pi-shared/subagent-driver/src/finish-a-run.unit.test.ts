@@ -12,6 +12,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   rm,
   symlink,
   writeFile,
@@ -246,6 +247,104 @@ function answering(status: number,): RunCommand {
 await describe({
   name: finishTheRun.name,
   children: [
+    it({
+      name: 'resumes the session a run left its work running for, reading the summary from the runs folder and the run folder own name',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The run whose turn ended with work still running.
+         */
+        const run = await makeFinishedRun({
+          base: folder.path,
+          runName: 'copy-route',
+        },);
+        /**
+         The session file its summary names, which the resumed run continues.
+         */
+        const sessionFile = join(
+          folder.path,
+          'a-session.jsonl',
+        );
+        await writeFile(
+          join(
+            run.runFolder,
+            'summary.json',
+          ),
+          JSON.stringify({
+            endReason: 'idle',
+            sessionStats: { sessionFile, },
+          },),
+        );
+        /**
+         The launcher entry a resumed run is started by, which records the words it was given and ends as a finished run does.
+         */
+        const launcherEntry = join(
+          folder.path,
+          'a-launcher.ts',
+        );
+        /**
+         Where that entry writes what it was given.
+         */
+        const resumedWords = join(
+          folder.path,
+          'resumed-words.json',
+        );
+        await writeFile(launcherEntry, `#!/usr/bin/env node\nimport { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(resumedWords,)}, JSON.stringify(process.argv.slice(2)));\n`,);
+        /**
+         Every line the launcher reported.
+         */
+        const reported: string[] = [];
+        await finishTheRun({
+          runName: 'copy-route',
+          runFolder: run.runFolder,
+          runsFolder: run.runsFolder,
+          unitStatus: 0,
+          // A wall clock already spent is a wait with nothing left to wait for, so the session is resumed at once and the test
+          // spends no time spinning on a process that never ends.
+          wallSeconds: 0,
+          readOnlyInMain: false,
+          worktree: run.runFolder,
+          checkoutFolder: folder.path,
+          processFolder: await processTableOfMany({
+            base: folder.path,
+            working: [run.runFolder,],
+          },),
+          commandLine: ['--name=copy-route', '--run=1', '--session=/an-older-session.jsonl',],
+          launcherEntry,
+          wakesSoFar: 0,
+          environment: process.env,
+          scratchRoot: run.scratchRoot,
+          git: async function noGitQuestion() {
+            throw new Error('a run that is resumed is not asked what becomes of its worktree',);
+          },
+          run: answering(1,),
+          report: function keep(line,) {
+            reported.push(line,);
+          },
+          wait: async function noWait() {
+            // The work it left running is read once and is still there.
+          },
+          now: Date.now,
+        },);
+        // The summary was found where it is, so the session was resumed with the file it names, and the run the launcher started
+        // answers with the status it ended with.
+        expect(reported.join('\n',),).toContain('its work still runs after 0 s',);
+        expect(reported.join('\n',),).toContain('resumed run ended with status 0',);
+        /**
+         What the resumed launcher was given, as one list of words.
+         */
+        const words: unknown = JSON.parse(await readFile(resumedWords, 'utf8',),);
+        expect(words,).toEqual([
+          '--name=copy-route',
+          `--prompt=${join(
+            run.runFolder,
+            'wake-prompt.md',
+          )}`,
+          `--session=${sessionFile}`,
+        ],);
+      },
+      timeout: 60_000,
+    },),
     it({
       name: 'keeps the scratch folder while the run own work still runs, whatever reason the run ended with, and empties it when nothing of the run is left',
       fn: async () => {

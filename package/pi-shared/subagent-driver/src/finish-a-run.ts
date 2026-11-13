@@ -9,7 +9,10 @@
  */
 
 import { writeFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  basename,
+  join,
+} from 'node:path';
 import {
   endReasonIn,
   onABranchNow,
@@ -206,7 +209,9 @@ async function resumeTheSession({
      */
     const sessionFile = await sessionFileOfRun({
       runsFolder: request.runsFolder,
-      runFolder: request.runFolder,
+      // The summary is read from the runs folder and this run's own folder's name: handing it the folder's whole path made the two
+      // one path twice over, so no run whose turn ended was ever resumed.
+      runFolder: basename(request.runFolder,),
     },);
     /**
      Where the note the resumed agent reads is written.

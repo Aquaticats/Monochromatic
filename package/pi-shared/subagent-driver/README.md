@@ -370,6 +370,12 @@ Its name carries the run's own name and the word that says what the folder is,
 so someone who sees only the name knows which run made it and that it is scratch.
 It is made with the mode rule `ATH` asks for, `0700`,
 with a `keep/` subfolder inside it,
+and a start refuses a path that is not a folder at all:
+a symbolic link is followed by nothing,
+since making the folder through one would change the mode of the directory it points at and put a `keep/` inside it,
+and a link that points nowhere used to end the start with a raw `ENOENT`.
+The refusal names what is at the path and what to do about it,
+and a start refused that way makes no worktree, no run folder, no folder and no unit,
 and the line the launcher prints says whether this start made it or found it from an earlier run of the same name.
 A folder an earlier run left is kept as it is,
 so a resumed run gets the same folder again with `keep/` as that run left it.
@@ -385,7 +391,8 @@ so it is there whether or not the run was started by the launcher.
 
 When the run ends,
 however it ends,
-everything inside that one folder except `keep/` is deleted.
+everything inside that one folder except `keep/` is deleted,
+once the run that ended is proven still to own it.
 The folder itself stays,
 with `keep/` inside it,
 and so does anything the deletion had to leave.
@@ -424,6 +431,19 @@ What the deletion refuses or leaves, and why:
   and one whose name is not the one the launcher gives that run,
   are refused before the disk is read,
   and the refusal names both the folder it was given and the folder that run's would be;
+- a folder the run that ended cannot be shown to own is refused,
+  which is the case of a newer attempt of the same name:
+  a scratch folder is named by the run's name,
+  and a name is free as soon as its unit is collected,
+  so the attempt before it may still be ending while it writes in that folder.
+  The proof is taken in the process that deletes,
+  immediately before the first entry goes:
+  no unit `pi-<the run's name>.service` is going,
+  and no process of the account works in the folder.
+  A reading nobody could take,
+  such as a manager that answers nothing,
+  is no proof either,
+  and the line says which reading failed;
 - a folder that is a symbolic link is refused rather than followed,
   because emptying it would delete whatever it points at;
 - a folder that is itself a mount point is refused,
@@ -449,6 +469,15 @@ What the deletion refuses or leaves, and why:
 The folder is kept while the run's own work still runs in it,
 for the same reason its worktree is kept:
 a build or a reproduction still writing there would fail for a report nobody reads.
+"Still runs" is read for every reason a run can end with,
+not only for a run that ended its turn,
+because a reproduction the agent started in a scope of its own outlives the unit:
+a run that met its wall clock or its stop file has left that work running.
+The folders a run's own work works in are its worktree,
+its run folders and its one scratch folder,
+and that one list serves the launcher's end step,
+the driver's own check that lets a turn end,
+and the command below.
 A launcher gone before its own end step leaves the folder for `remove-finished-worktrees`,
 which empties it once a run of that name has ended and says why it left one alone.
 A run that ended two days of scratch on this machine is the reason both exist:
@@ -471,8 +500,15 @@ and it prints the lines a run's end carries:
 what it removed, how much room the volume gained, how much `keep/` holds,
 and every entry it left where it is with the reason.
 It exits `0` when it emptied the folder or found none to empty,
-and `1` when it refused the folder it was asked for,
-which is the folder named for a run but not the one the launcher gives that run.
+and `1` when it refused the folder it was asked for:
+one that is not the folder the launcher gives that run,
+one that is a symbolic link or a mount point,
+or one the run that ended cannot be shown still to own.
+A deletion its own bound ended is reported as that,
+with how many files and folders are still there,
+and the rest is left for the next end of a run of this name or for this command.
+A machine without `ionice` is the one case where the deletion is made again without the disk class,
+which is what the fallback is for.
 
 ### After the unit ends
 
@@ -1239,6 +1275,16 @@ asked of the manager,
 for work whose number has gone.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
+
+A result the driver cannot read never ends a run as failed.
+The feed keeps 500 characters of each tool result and a marker for the rest,
+so a `process` tool answer longer than that arrives cut;
+it is read as far as it goes,
+and a process it names without a status is one the process table answers for.
+An answer nothing can be read from at all counts as work that may still run rather than as no work,
+which is what keeps a finished run from being closed on a guess.
+Before this, one cut answer threw and ended two finished runs as `driver-failed` on 2026-11-13
+(issue 6295).
 
 `driver-failed` means the driver itself hit an error:
 `driverError` names it,
