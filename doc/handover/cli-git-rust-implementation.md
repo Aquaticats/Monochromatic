@@ -228,12 +228,46 @@ So, as the project's own rules until the owner changes them:
     and every scratch folder's name says what is in it to someone who was not there.
 - At every reading the count of all agent runs on the machine is written beside the figures, because the ceiling is the disk's.
 
+#### Started at the level of four (2026-11-13T10:43:42-05:00)
+
+One run of another session was going (`pi-optique-input-trace-and-reply-claim-check`), so this session started three,
+as the list `~/temp/agent/pi-runs/batch-2026-11-13-pass-18-continued-and-two-launcher-changes.json`
+(unit `launch-batch-2026-11-13-pass-18-continued-and-two-launcher-changes`, output in the `.out` file beside the list):
+
+- `integration-pass-18-for-alpha-16`, its third run, with the brief `integration-pass-18-for-alpha-16-continued-after-the-restart-of-2026-11-13-prompt.md`.
+  The second run of 2026-11-12 got further than this document said: it wrote section 1 of `~/temp/agent/integration-pass-18/report.md`
+  (all nine branches merged at the named tips, three repair commits, `cargo check --all-targets` green on the tree of `bbb12e1be1`,
+  no build at the tip, no test compile, no Clippy, no test and no measurement run),
+  and it put the eight edits of the performance judge on `perf/git-policy-cli-performance-judge-measures-the-changed-commit-rule` at `0efb4bcb4d` (on the remote, unfinished).
+  The worktree is clean and the branch's tip is `5cad071d28` locally and on the remote.
+- `start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`
+  (branch `feat/pi-shared-subagent-driver-` and that name): the cap as the owner set it, counted in runs, settable per command, and a 100 GiB floor on the drive of the runs folder
+  (the largest scratch folder of one run of 2026-11-12 held 65,984 MiB).
+- `launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep` (branch `feat/pi-shared-subagent-driver-` and that name).
+
+The probe of the ceiling's criterion runs beside them as the unit `disk-ceiling-probe-level-4-20261113`
+(a 4 KiB write-and-sync on each drive every minute for an hour, readings in `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`).
+The level of four is judged when the hour is over and each of the three runs has built once.
+
+#### Scratch rules written, and the first removal
+
+- `AGENTS.md` carries three new rules (`e4fed3aa62`): `1SF` (one scratch folder for each run or subagent, deleted by its starter at its end except `keep/`),
+  `SFN` (a scratch folder's name says what it holds and when) and `SZR` (every coordinator pass reports the scratch folder's measured size).
+  `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` tells every Pi run the same (`87c5359b2f`), by hand until the launcher makes the folder.
+- Removed at 10:42:58, exactly the 1041 folders listed in `~/temp/agent/scratch-size-2026-11-13/build-and-dependency-folders-to-delete.txt`
+  (cargo `target` folders that carry cargo's mark, `node_modules`, private cargo homes; 37,200 MiB by `du`), each logged beside the list.
+  Folders of another session (`upstream-prototype.O1iPjcqr`, `deno-2026-11-13`) were left out.
+  `df` read 519 GiB free before and straight after; whether that is delayed accounting or shared copy-on-write data is being measured
+  (`btrfs filesystem du`), and with it how much of the 232,330 MiB is data of its own.
+- Still there and next: the two checkouts under `merge-reload-fix`, the fixture copies under `pkgrepair-repair-off-the-path` and `pkgrepair-verify`,
+  `sonnet-audits` and `kimi-trials`. Each is read first for a report or measurement that lives nowhere else, and for commits a clone holds that the remote does not.
+
 #### Next, in order
 
-1.  Record the owner's answers on scratch retention and the ceiling's criterion.
-2.  Put the cap, and a floor for the home drive, into the launcher (`package/pi-shared/subagent-driver`), settable per command as the pool limits are.
-3.  Remove what is rebuildable from `~/temp/agent` (checkouts, build folders, binaries) gently, one folder at a time, after listing it.
-4.  Read how each run of 2026-11-12 ended, then continue pass 18 first, within the cap.
+1.  Read how each run of 2026-11-12 ended and write the briefs that continue them; they start as slots of the four come free.
+2.  Judge the level of four after its hour; then eight, if it held.
+3.  Review the two launcher changes when their runs end (qwen4, in a worktree of its own, counted against the cap), merge them, and only then set the hourly loop up again.
+4.  Remove the rest of the rebuildable scratch as described under "Scratch rules written, and the first removal".
 5.  Measure a commit against real Git, as item 5 of "Order of work after the restart" in the wind-down section asks.
 
 ### Wound down for a restart of the machine: the home drive is full (2026-11-12T16:41:25-05:00)
