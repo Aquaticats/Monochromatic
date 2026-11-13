@@ -44,6 +44,7 @@ import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
+import { pullCachyosLatest } from './native-test-base.ts';
 import {
   proofScript,
   standInSystemdRun,
@@ -243,10 +244,17 @@ async function buildTheImage({
       'Containerfile',
     ),
   );
+  /**
+   The CachyOS image this host's CPU runs, pulled first so the build names a resolved base and the image carries the
+   same C library as the executable copied into it (AGENTS.md rule BXD).
+   */
+  const base = await pullCachyosLatest();
   await runCommand({
     command: 'podman',
     args: [
       'build',
+      '--build-arg',
+      `CACHYOS_IMAGE=${base.cachyosImage}`,
       ...buildLimitArguments(limits,),
       '--file',
       'Containerfile',

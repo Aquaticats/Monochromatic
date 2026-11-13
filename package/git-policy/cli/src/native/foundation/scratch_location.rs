@@ -166,8 +166,8 @@ pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
         );
     });
     let base: PathBuf = placed.or(state_home).or_else(|| {
-        return home.map(|home| {
-            return home.join(".local").join("state");
+        return home.map(|home_directory| {
+            return home_directory.join(".local").join("state");
         });
     })?;
     return Some(base.join("monochromatic-git-policy-cli"));
