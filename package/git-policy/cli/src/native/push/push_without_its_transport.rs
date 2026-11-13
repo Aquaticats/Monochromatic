@@ -59,7 +59,8 @@ pub async fn words(git: &PushGit, item: &WorkItem) -> String {
     return format!(
         "the push of {branch} of {repository} was not made. The command that asked for it set GIT_SSH, GIT_SSH_COMMAND or \
          GIT_PROXY_COMMAND, and those settings are held only in the memory of the commit service; the service that holds this \
-         push has been started again since, so they are gone with it, and nothing was sent through another transport.{run}",
+         push has been started again since, or the command that asked could not reach it, so the settings are gone, and nothing \
+         was sent through another transport.{run}",
         branch = item.branch_ref,
         repository = repository,
         run = run,
