@@ -34,7 +34,7 @@ use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_with
 use crate::lazy_runtime::spawn_on_runtime;
 /// One step of blocking work,
 /// off the runtime's threads.
-use crate::blocking_job::run_blocking_job;
+use crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget;
 /// A path and the span the removal is reported in.
 use std::path::PathBuf;
 use std::time::Duration;
@@ -89,7 +89,7 @@ pub fn start(path: PathBuf) {
 async fn remove(path: PathBuf) {
     let named: String = path.display().to_string();
     let outcome: Result<Removal, crate::blocking_job::BlockingJobError> =
-        run_blocking_job(move || { return remove_within(path.as_path(), SCRATCH_REMOVAL_CEILING); }).await;
+        run_a_slow_job_within_the_budget(move || { return remove_within(path.as_path(), SCRATCH_REMOVAL_CEILING); }).await;
     let ceiling: Duration = SCRATCH_REMOVAL_CEILING;
     match outcome {
         Ok(Removal::Finished) => {}

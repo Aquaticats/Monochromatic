@@ -322,7 +322,50 @@ fn remove_entries_in_turn(request: &EntryRemoval) -> Vec<String> {
 /// async function removeEntriesAwaiting(request: EntryRemoval): Promise<string[]>;
 /// ```
 pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
-    let indices: Arc<[usize]> = Arc::from((0..request.manifest.entries.len()).collect::<Vec<usize>>());
+    let all: Vec<usize> = (0..request.manifest.entries.len()).collect();
+    return remove_these_entries_awaiting(request, all.as_slice()).await;
+}
+
+/// What:
+///  How many entries of one trash the service removes in one wave:
+/// as many as the host allows,
+/// within the places slow work may take.
+/// Why:
+///  A wave that has begun is finished, because an entry's removal is what the ceiling may not stop halfway:
+/// the next round proves each entry it removes by the identity the manifest recorded,
+/// so an entry left by a wave is removed by a later one and no entry is removed twice.
+/// So the wave is also the most a trash item's bound can overrun.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wave = Math.min(workerBudget(entries, ENTRY_MEMORY, host), places_a_round_may_take());
+/// ```
+pub(crate) fn entries_a_wave_may_remove(host: &HostResources) -> usize {
+    return worker_budget(&BudgetRequest { items: usize::MAX, per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host }).min(places_a_round_may_take()).max(1);
+}
+
+/// What:
+///  Remove the entries `entries` names of the trash `request` describes,
+/// side by side,
+/// and return the reason each entry that stays gives,
+/// in entry order.
+/// Why:
+///   The service empties one trash within a bound of its own
+/// (`TRASH_ITEM_CEILING`),
+/// and what a bound can stop is what it has not started:
+/// it hands the removal one wave of entries at a time,
+/// so every entry a wave names is removed or reported,
+/// and the entries after it are named for the next round
+/// (`worktree_trash_dispose.rs`).
+/// The accounting is the whole trash's:
+/// the same lanes, the same width and the same order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await removeTheseEntries({ inside, trash, manifest, host, remove }, [3, 4, 5]);
+/// ```
+pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entries: &[usize]) -> Vec<String> {
+    let indices: Arc<[usize]> = Arc::from(entries.to_vec());
     // One lane per entry, so no entry waits for another.
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     for index in indices.iter() {

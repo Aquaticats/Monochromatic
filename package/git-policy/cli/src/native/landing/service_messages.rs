@@ -163,6 +163,13 @@ pub enum ClientFailure {
     ///  was stuck in,
     /// such as a branch write that has not returned.
     WithdrawalUnconfirmed { blocker: Option<String> },
+    /// The service said nothing on every try,
+    /// and this command then asked it to drop the request and was told it will not land.
+    ServiceGoneNotLanded { blocker: Option<String> },
+    /// The service said nothing on every try,
+    /// and it did not answer the ask that would have dropped the request,
+    /// so whether the commit was made is not known and the request may still land when the service comes back.
+    ServiceGoneUnconfirmed { blocker: Option<String> },
     /// The person interrupted the command with `signal` while it waited,
     /// and the service confirmed that the request will never land.
     Interrupted {
@@ -383,6 +390,23 @@ pub fn render(failure: &ClientFailure) -> String {
              Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
             waiting_for(blocker.as_deref())
+        ),
+        ClientFailure::ServiceGoneNotLanded { blocker } => format!(
+            "The commit service stopped answering while this commit waited, so this command asked it to drop the commit, and \
+             the service confirmed that it will not land. The branch is not at the commit this command prepared, so the commit \
+             was not made.{} Your staged changes and your worktree are exactly as they were, so run the commit again. \
+             {NOTHING_CHANGED}",
+            it_had_said(blocker.as_deref())
+        ),
+        ClientFailure::ServiceGoneUnconfirmed { blocker } => format!(
+            "The commit service stopped answering while this commit waited, and it did not answer this command's ask to \
+             drop the commit either, so it is not known whether the commit was made and the request may still land when the \
+             service answers again.{} Run `{}` to see whether the branch holds it, and `{}` to see what is still staged. \
+             If the branch does not hold it, the request will not land later by itself: look at why the service is stuck \
+             with `{LOG_COMMAND}`, restart it with `{RESTART_COMMAND}`, and run the commit again.",
+            it_had_said(blocker.as_deref()),
+            CHECK_COMMANDS[0],
+            CHECK_COMMANDS[1]
         ),
         ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \

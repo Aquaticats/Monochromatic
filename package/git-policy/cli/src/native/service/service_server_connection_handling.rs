@@ -23,7 +23,7 @@ use crate::service_timing::{Arrival, log, retire_line};
 use crate::service_instance::instance_of;
 use crate::service_work::Wake;
 use crate::service_busy::{EarlyAnswer, LandingBoard};
-use crate::blocking_job::run_blocking_job;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than, run_blocking_job_within_the_budget};
 use crate::service_reply::{NoteSource, Reply, write_until_answered_noting};
 use crate::service_protocol::{
     ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client,
@@ -179,7 +179,7 @@ impl NoteSource for StuckNotice {
             // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
-            self.still_reading = Some(Box::pin(run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), last); })));
+            self.still_reading = Some(Box::pin(run_blocking_job_within_the_budget(move || { return note_from_the_board(&board, request.as_deref(), last); })));
         }
         let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
         // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
@@ -257,18 +257,32 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
     if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
         return Some(false);
     }
-    return match run_blocking_job(move || {
-        // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
-        #[cfg(test)]
-        crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
-        return instance_of(git_dir.as_path()) != mine;
-    }).await {
-        Ok(foreign) => Some(foreign),
-        Err(error) => {
-            crate::service_error!("the instance of a Git directory could not be looked at: {error}");
+    // Only asks of the reserve class queue here: no slow work of the service holds a place of it, so this wait is behind
+    //  other requests' own looks and the landing's own steps, each bounded by its own ceiling
+    //  (`blocking_jobs_within_the_budget.rs`, `SLOW_WORK_RESERVE`).
+    return match run_a_job_awaited_no_longer_than(crate::wait_ceilings::LANDING_STATE_CEILING, (mine, git_dir), look_up_the_directory).await {
+        TheAnswerOfAJobAwaited::Ran(foreign) => Some(foreign),
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_error!("the system gave no place for the look at the instance of a Git directory, so the request it belongs to is not taken; the next send looks again");
+            None
+        }
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_error!(
+                "the instance of a Git directory gave no answer within {:?}, so the request it belongs to is not taken; the next send looks again",
+                crate::wait_ceilings::LANDING_STATE_CEILING
+            );
             None
         }
     };
+}
+
+/// `is_foreign`'s read,
+/// as the job of the pool takes it.
+fn look_up_the_directory((mine, git_dir): (String, PathBuf)) -> bool {
+    // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+    #[cfg(test)]
+    crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
+    return instance_of(git_dir.as_path()) != mine;
 }
 
 /// Refuses a message about a Git directory that another instance serves.
@@ -428,7 +442,7 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
     let board: Arc<LandingBoard> = Arc::clone(&shared.board);
     let asked: String = id.clone();
     // The decision is made by creating files in the journal, which can wait on storage.
-    let early: EarlyAnswer = match run_blocking_job(move || { return board.withdraw_early(asked.as_str()); }).await {
+    let early: EarlyAnswer = match run_blocking_job_within_the_budget(move || { return board.withdraw_early(asked.as_str()); }).await {
         Ok(answer) => answer,
         // Without a thread to decide here, the landing thread answers between two landings, as it does for a request that began.
         Err(error) => {
