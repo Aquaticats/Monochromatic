@@ -23,7 +23,7 @@ use std::io::ErrorKind;
 use std::os::fd::{FromRawFd, RawFd};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The shortest wait the kernel is asked for,
 /// so a bound that is spent still names a wait it accepts.
@@ -116,49 +116,81 @@ impl Address {
         return Ok(unsafe { UnixStream::from_raw_fd(descriptor) });
     }
 
-    /// The connect itself and the wait for the socket to take it.
+    /// What:
+    ///  The connect itself, and the wait for the socket to take it,
+    ///  retried while the queue of a listening socket has no room.
+    /// Why:
+    ///   On a socket that does not block, a connect into a queue nothing accepts returns `EAGAIN` and does not
+    /// happen at all, and a peer that stops accepting leaves the poll that follows reporting the socket as writable:
+    /// asking the kernel whether a peer is there is what keeps an unconnected socket from being handed on as connected
+    /// (the control `a_queue_nothing_accepts_ends_the_wait_at_its_bound` caught exactly that).
+    /// So the connect is asked again after each wait, and the answer is proved by `getpeername` before it is given.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// while (true) { const rc = connect(); if (rc === 0) return proveConnected(); if (!retryable(errno)) throw refused(); if (expired()) throw timedOut(); await poll(POLLOUT, left) }
+    /// ```
     fn ask(&self, descriptor: RawFd) -> std::io::Result<()> {
-        // SAFETY: `descriptor` is an open socket, and the structure with its length is one address the call reads and does
-        //  not write.
-        let asked: libc::c_int = unsafe { libc::connect(descriptor, (&raw const self.structure).cast(), self.length) };
-        if asked == 0 {
-            return Ok(());
-        }
-        let error: std::io::Error = std::io::Error::last_os_error();
-        // A socket that does not block reports a connect that is under way, a queue with no room and a signal that came first
-        //  as these; each is waited for below, and a queue with no room gains room when the service accepts.
-        if !matches!(error.raw_os_error(), Some(libc::EINPROGRESS | libc::EAGAIN | libc::EINTR)) {
-            return Err(refused(&self.named, error));
-        }
-        let mut waiting: libc::pollfd = libc::pollfd { fd: descriptor, events: libc::POLLOUT, revents: 0 };
-        let millis: libc::c_int = libc::c_int::try_from(self.within.max(SHORTEST_WAIT).as_millis()).unwrap_or(libc::c_int::MAX);
-        // SAFETY: `waiting` is one valid `pollfd` for the call, which reads and writes only that.
-        let ready: libc::c_int = unsafe { libc::poll(&raw mut waiting, 1, millis) };
-        if ready < 0 {
-            let failed: std::io::Error = std::io::Error::last_os_error();
-            if failed.kind() == ErrorKind::Interrupted {
-                return Ok(());
+        let until: Instant = Instant::now() + self.within.max(SHORTEST_WAIT);
+        loop {
+            // SAFETY: `descriptor` is an open socket, and the structure with its length is one address the call reads and does
+            //  not write.
+            let asked: libc::c_int = unsafe { libc::connect(descriptor, (&raw const self.structure).cast(), self.length) };
+            if asked == 0 {
+                return self.proved(descriptor);
             }
-            return Err(refused(&self.named, failed));
+            let error: std::io::Error = std::io::Error::last_os_error();
+            match error.raw_os_error() {
+                // A second connect of a socket that is already connected says so.
+                Some(libc::EISCONN) => return self.proved(descriptor),
+                // No room in the queue, a connect under way, or a signal that came first: each is waited for below, and the
+                //  ask is made again, because a connect into a full queue has connected nothing.
+                Some(libc::EAGAIN | libc::EINPROGRESS | libc::EALREADY | libc::EINTR) => {}
+                _ => return Err(refused(&self.named, error)),
+            }
+            let left: Duration = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(std::io::Error::new(ErrorKind::TimedOut, format!(
+                    "the socket at {} took no connection within {} ms, so nothing there is accepting connections",
+                    self.named,
+                    self.within.as_millis()
+                )));
+            }
+            let mut waiting: libc::pollfd = libc::pollfd { fd: descriptor, events: libc::POLLOUT, revents: 0 };
+            let millis: libc::c_int = libc::c_int::try_from(left.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
+            // SAFETY: `waiting` is one valid `pollfd` for the call, which reads and writes only that.
+            let ready: libc::c_int = unsafe { libc::poll(&raw mut waiting, 1, millis) };
+            if ready < 0 {
+                let failed: std::io::Error = std::io::Error::last_os_error();
+                if failed.kind() == ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(refused(&self.named, failed));
+            }
+            // Ready or not, the connect is asked again: only it can say whether a peer took this socket.
         }
-        if ready == 0 {
-            return Err(std::io::Error::new(ErrorKind::TimedOut, format!(
-                "the socket at {} took no connection within {} ms, so nothing there is accepting connections",
-                self.named,
-                self.within.as_millis()
-            )));
-        }
-        let mut failure: libc::c_int = 0;
-        let mut length: libc::socklen_t = libc::socklen_t::try_from(size_of::<libc::c_int>()).unwrap_or(0);
+    }
+
+    /// What:
+    ///  Says that the socket has a peer,
+    ///  or fails naming the address.
+    /// Why:
+    ///   A socket that was bound and never connected has no peer,
+    /// and handing one on would make every later step fail with a message about a connection that was never made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// getpeername(fd).errno === 0 ? ok() : throw refused()
+    /// ```
+    fn proved(&self, descriptor: RawFd) -> std::io::Result<()> {
+        // SAFETY: `sockaddr_un` is a plain structure of integers and a byte array, for which all zero bytes are a valid value;
+        //  this call only writes it, with the length it was given.
+        let mut peer: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        let mut length: libc::socklen_t = libc::socklen_t::try_from(size_of::<libc::sockaddr_un>()).unwrap_or(0);
         // SAFETY: the two pointers are this function's own variables, and the length passed is their size.
-        let asked_error: libc::c_int = unsafe {
-            libc::getsockopt(descriptor, libc::SOL_SOCKET, libc::SO_ERROR, (&raw mut failure).cast(), &raw mut length)
-        };
-        if asked_error < 0 {
+        let asked: libc::c_int = unsafe { libc::getpeername(descriptor, (&raw mut peer).cast(), &raw mut length) };
+        if asked < 0 {
             return Err(refused(&self.named, std::io::Error::last_os_error()));
-        }
-        if failure != 0 {
-            return Err(refused(&self.named, std::io::Error::from_raw_os_error(failure)));
         }
         return Ok(());
     }
