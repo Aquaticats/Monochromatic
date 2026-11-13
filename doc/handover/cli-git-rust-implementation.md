@@ -551,6 +551,29 @@ This run's scratch folder was emptied by hand to its `keep/` (its reproduction s
 The place it freed went to the resume of `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried` at 12:33:44; seventeen entries are left.
 Waiting for a review place: this branch.
 
+#### The run that brings the fix for issue 6286 onto `main` is finished (2026-11-13T12:36:22-05:00)
+
+`reload-fix-brought-onto-main-where-a-program-link-already-is`, resumed at 12:10:58, ended `idle` after 64 turns and 23 minutes;
+branch `fix/git-policy-cli-` with that name at `1cb47223f8` on the remote. Its worktree was clean and was removed by the launcher at the run's end.
+It read the three files it had uncommitted when the drive filled, found them whole, and did again what the restart had lost (Clippy twice, the whole test set, both proof runs, four measurements, the gate image).
+Not reviewed and not approved by anyone. By its own report (`keep/` of its scratch folder):
+
+- Nothing of the wrapper asks the user manager for a manager-wide reload: no `Reload` member, and a guard that fails when any release line asks for one.
+  A release change moves the program link; a unit at an older text is dropped and started again, bounded at 5 s.
+- It goes through the manager's five recorded defects one by one with the test for each;
+  a manager that does not answer never fails the commit, and every wait says what it waits for after 2 s.
+- In its fixture the first commit after an install took 162 ms against `main`'s 557 ms and prints no "Updating the commit service...".
+- **Three things it wants a reader to know:** four test failures that `main` has too (it shows the files are byte-identical to `main` at the commit it merged);
+  a service that is truly wedged now costs up to 121 s where it cost about 3 s;
+  and a machine that installed `0.6.1-alpha.13` or `0.6.1-alpha.14` pays one unload and start of each worktree's unit on its first commit.
+- It says where the path without a manager takes over: nowhere, on this branch; that is the other run's change.
+- It calls the branch fit to merge and release.
+
+The 121 s for a wedged service is a cost this branch adds and is weighed at the review, with the jam fix beside it, which bounds the same wait from the client's side.
+The reviews of this branch and of the jam fix are the first two entries of the queue; the starter script now starts a review entry through the package's own command for reviews.
+The place this run freed went to the resume of `commit-does-not-list-every-reference-on-the-path-it-waits-on` at 12:36:23.
+The note about issue 6295 was published to its run at 12:34, not at 12:36 as the entry on the jam fix says.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
