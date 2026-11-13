@@ -819,9 +819,11 @@ each in answer to a question that gave the options:
   told that its first commit carries the account's own address:
   "Make public as it is".
   Done at 2026-11-13T14:41:43Z.
-- The five `passThrough()` findings held back from this repository:
-  "Draft a private advisory (Recommended)",
-  meaning a local draft for the owner to review and submit through GitHub's private reporting.
+- One further item,
+  held back from this repository:
+  the owner's decision on it is recorded in a local file,
+  `${HOME}/temp/agent/optique-2026-11-13/held-back-item-notes.md`,
+  which is not committed.
 - The research record's status line,
   which read "complete" on the word of the session that wrote it:
   "No.
@@ -1038,15 +1040,14 @@ to settle before a reply:
   and the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-4`.
   If that unit gave up,
   start the pass by hand with the same prompt.
-- The private advisory draft for the `passThrough()` findings is written and waits for the owner:
-  `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
-  a local file that is not committed.
-  Its five cases were run again on 2026-11-13 on 1.3.6,
-  `1.4.0-dev.2971`,
-  `main` at `84f95710` and pull request 1121's head,
-  with the same outcome on each
-  (`passthrough-cases.jsonl` beside it).
-  Nothing about it is to be mentioned in public.
+- One further item waits for the owner.
+  It is held back from this repository on the owner's decision.
+  What it is,
+  where its draft is and what was checked are in the local file
+  `${HOME}/temp/agent/optique-2026-11-13/held-back-item-notes.md`,
+  which is not committed;
+  read that file before writing anything about the item anywhere.
+  On 2026-11-13 the owner chose to have this handover point to it without saying what it concerns.
 - Which of the drafted questions go into the reply.
   The draft asks whether an issue for the first patch is welcome,
   whether a proxy-backed state is wanted at all,
