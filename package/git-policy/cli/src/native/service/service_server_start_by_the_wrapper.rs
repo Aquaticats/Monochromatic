@@ -270,9 +270,16 @@ pub fn answered(socket: &Path) -> bool {
     return matches!(listen(&mut reader), Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }));
 }
 
-/// Waits, bounded, for the service to greet.
-/// The wait has a deadline of its own rather than a count of tries,
-/// so a slow start is never cut short by a slow look.
+/// What:
+///  Waits, bounded, for the service to greet.
+/// Why:
+///  The wait has a deadline of its own rather than a count of tries,
+/// and each look inside it is bounded too:
+///  a connection is made within `CONNECT_CEILING` and a greeting is read within `GREETING_READ`,
+///  so one look can cost seconds and never the whole wait.
+///  Without that, a look at a service whose queue is full waited for the service to move, and the wait's own
+/// deadline sat after a call that never returned (`CONNECT_CEILING`, and the review of `3d5c1a0d8c`).
+///  The wait can outlast its bound by at most one look, which is what the caller's own ceiling allows for.
 pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
     let deadline: Instant = Instant::now() + bound;
     loop {
