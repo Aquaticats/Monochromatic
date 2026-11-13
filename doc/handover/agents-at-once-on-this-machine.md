@@ -140,3 +140,10 @@ one line a minute:
 - Probe: unit `disk-ceiling-probe-level-8-20261113`,
   the same file,
   one hour.
+- Seen at this level and no symptom by the criterion:
+  one run's lint waited 529 seconds on the shared cargo cache lock and never started
+  (`fetch:rust-dependencies`,
+  reported at 12:16).
+  A lock held by another agent's build is a wait on a neighbour,
+  not on a drive;
+  it is written here because it grows with the count.

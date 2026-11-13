@@ -469,6 +469,25 @@ adds the two passages outside the package its report named (the skill's "practic
 and is the first entry of the resume queue.
 The place the review freed went, a moment before the review was read, to the resume of `reload-fix-brought-onto-main-where-a-program-link-already-is` (issue 6286) at 12:10:58; eight units were going at 12:11:41.
 
+#### The first resumed run of 2026-11-12 is finished: a commit is made when its scratch reference cannot be proven (2026-11-13T12:16:40-05:00)
+
+`commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`, resumed in its own session at 11:57, ended `idle` after 63 turns and 18 minutes;
+branch `fix/git-policy-cli-` with that name at `c9758832c4` on the remote. The resume found its session whole and went on from where the full drive had cut it.
+Not reviewed and not approved by anyone. By its own report (`keep/report.md` in its scratch folder, which held nothing but `keep/` when it ended):
+
+- Eight new controls; with the change taken out, five of the six that ran failed and two were not reached; green at the tip.
+  Clippy with `-D warnings` clean. Through the built wrapper in a disposable repository with its own `HOME` and `XDG_RUNTIME_DIR`:
+  three commits through a read-only reference store, each made, with real Git in the same state as the oracle.
+- The whole `landing::` module: 1042 passed, 15 failed, 4 ignored inside a private PID namespace;
+  it says each of the fifteen is a control the namespace or the host falsifies and that it ran each outside and saw it pass.
+- **Not done:** the package's whole linter never started. `lint:monochromatic-lint` waits on `fetch:rust-dependencies`,
+  which waited 529 seconds on the shared cargo cache lock before the run ended it, and a 14-file run was still going after 25 minutes.
+  That wait happened with eight agents going and is written beside the level's readings; it is a lock, not a drive.
+- It calls the branch fit to merge for the code it changes, with those two caveats.
+
+Next for it: its qwen4 review, then the next integration pass.
+The place it freed went to the start gate's author answering its review, started 12:16:51.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
