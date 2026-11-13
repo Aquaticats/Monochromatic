@@ -162,6 +162,7 @@ fn empty_request(repository_root: &Path, id: &str, base: &str) -> CommitRequest 
         cleanup: None,
         index: repository_root.join(".git/index"),
         scratch,
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };
