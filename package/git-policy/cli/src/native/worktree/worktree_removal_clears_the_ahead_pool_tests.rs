@@ -43,7 +43,7 @@ fn the_pool_of_a_worktree_that_is_going_away_goes_with_its_members() {
     let member: PathBuf = pool.join(A_MEMBER);
     std::fs::create_dir_all(member.as_path()).expect("a snapshot ahead of an add");
     std::fs::write(member.join("tracked.txt"), b"the worktree's own file\n").expect("its files");
-    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()), "the pool of a worktree that is going away goes");
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(root.as_path(), admin.as_path()), Ok(()), "the pool of a worktree that is going away goes");
     assert!(!pool.exists(), "no fill finds a pool under its own name any more");
     assert!(!member.exists(), "and no member is left");
 }
@@ -60,7 +60,7 @@ fn a_worktree_with_no_pool_is_nothing_to_clear() {
     let root: PathBuf = fixture("ahead-pool-absent");
     let admin: PathBuf = root.join("worktrees/wt");
     std::fs::create_dir_all(admin.as_path()).expect("an administrative directory");
-    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()));
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(root.as_path(), admin.as_path()), Ok(()));
     assert!(!admin.join("monochromatic-git-policy-cli").exists(), "nothing was made for a pool that never was");
 }
 
@@ -116,11 +116,46 @@ fn a_pool_a_killed_clear_left_under_its_taken_name_goes_with_the_next_clear() {
     // The pool a fill made after that clear, which is the one the removal was written for.
     let pool: PathBuf = pool_folder(admin.as_path());
     std::fs::create_dir_all(pool.join(A_MEMBER).as_path()).expect("the pool of the worktree that is going away");
-    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()));
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(root.as_path(), admin.as_path()), Ok(()));
     assert!(!left.exists(), "the leftover of the killed clear goes");
     assert!(!member.exists(), "with the member it still held");
     assert!(!pool.exists(), "and the pool a fill made goes as it always did");
     assert!(!folder.exists(), "the data folder is free again, because it held nothing but those pools");
+}
+
+/// What:
+///  A symbolic link planted at the name of the pool a fill reads is not taken,
+///  and neither is one at the name of a pool a killed clear left,
+///  so nothing below the link's target is deleted and the removal is not stopped by it.
+/// Why:
+///   A pool is a directory this program writes;
+/// a link at its name is somebody else's,
+///  and taking it renamed the link and
+/// then read every entry below it through the target,
+///  so a plain directory there was removed recursively
+/// from the target and the removal reported success (a review finding,
+/// F4).
+/// A name is not a proof of what is at it.
+#[test]
+fn a_symbolic_link_at_a_pool_name_is_no_pool_and_what_it_points_at_survives() {
+    let root: PathBuf = fixture("ahead-pool-link");
+    let admin: PathBuf = root.join("worktrees/wt");
+    let folder: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let outside: PathBuf = root.join("outside");
+    let keep: PathBuf = outside.join("member/keep.txt");
+    std::fs::create_dir_all(keep.parent().expect("the folder a person keeps")).expect("a folder outside the registration");
+    std::fs::write(keep.as_path(), b"mine\n").expect("a file outside the registration");
+    std::fs::create_dir_all(folder.as_path()).expect("the data folder");
+    let pool: PathBuf = pool_folder(admin.as_path());
+    std::os::unix::fs::symlink(outside.as_path(), pool.as_path()).expect("a link at the pool's name");
+    // The same shape at the name a killed clear leaves, which no fill ever reads.
+    let left: PathBuf = folder.join(TAKEN_BY_A_CLEAR);
+    std::os::unix::fs::symlink(outside.as_path(), left.as_path()).expect("a link at a taken name");
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(root.as_path(), admin.as_path()), Ok(()), "the clear takes no link and has nothing else to do");
+    assert_eq!(std::fs::read(keep.as_path()).expect("the file below the link's target is still there"), b"mine\n", "the file outside the registration survives");
+    assert!(keep.is_file(), "and its directory with it");
+    assert!(std::fs::symlink_metadata(pool.as_path()).is_ok(), "the link itself is not this program's to move or remove");
+    assert!(std::fs::symlink_metadata(left.as_path()).is_ok(), "and neither is the one at the taken name");
 }
 
 /// What:
@@ -153,7 +188,7 @@ fn the_records_a_person_reads_stay_and_a_name_this_program_did_not_make_is_no_po
     std::fs::create_dir_all(pool.join(A_MEMBER).as_path()).expect("the pool of the worktree that is going away");
     let left: PathBuf = folder.join(TAKEN_BY_A_CLEAR);
     std::fs::create_dir_all(left.join(A_MEMBER).as_path()).expect("the pool a killed clear left");
-    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()));
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(root.as_path(), admin.as_path()), Ok(()));
     assert!(!pool.exists(), "the pool a fill reads goes");
     assert!(!left.exists(), "and so does the pool a killed clear left");
     for path in [&notices, &kept, &queued] {

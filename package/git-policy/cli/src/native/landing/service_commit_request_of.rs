@@ -74,6 +74,12 @@ pub(crate) struct RequestOf<'a> {
     /// The build's clock,
     /// handed on so the shadow's creation and Git's build name their own stretches.
     pub clock: &'a mut BuildPartClock,
+    /// Where the service of this worktree listens,
+    /// which the commit asks for a finished shadow before it builds anything.
+    pub service: &'a crate::service_server_socket_binding::Bind,
+    /// Where the drawn shadow this attempt was handed is kept:
+    /// the arm that answers the service releases it, or leaves its removal to the service.
+    pub handed: &'a mut Option<crate::shadow_drawn::HandedShadow>,
 }
 
 /// The rebuilt line as the arguments a Git start reads.
@@ -97,7 +103,7 @@ fn the_line_as_arguments(line: &Vec<OsString>) -> &[OsString] {
 /// function theRequestOf(fields: RequestOf): [CommitRequest, string, string?];
 /// ```
 pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, String, Option<String>), TransactionStop> {
-    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, reissued, id, clock } = fields;
+    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, reissued, id, clock, service, handed } = fields;
     if let Some(found) = amendment {
         // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the single
         //  parent.
@@ -121,9 +127,11 @@ pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, St
             staged_all: native_inputs.staged_all,
             selected_privately: native_inputs.selected_privately,
             clock,
+            service,
+            handed,
         })?;
         let parent: String = built.parents.first().cloned().unwrap_or_default();
-        let sent: CommitRequest = request_for_git_built(ready, native_inputs, id, built.commit, invocation.region.amend);
+        let sent: CommitRequest = request_for_git_built(ready, native_inputs, id, built.commit, invocation.region.amend, built.drawn);
         return Ok((sent, parent, Some(built.message)));
     };
     let sent: CommitRequest = request_for_embedded(ready, native_inputs, id, made, tree);

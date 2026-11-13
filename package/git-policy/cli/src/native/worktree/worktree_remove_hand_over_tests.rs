@@ -66,7 +66,7 @@ fn the_hand_over_renames_the_subvolume_and_records_where_it_stands() {
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let told: RememberingTold = RememberingTold { told_of: std::cell::RefCell::new(Vec::new()), answer: Err(String::from("no service answers here")) };
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), &told).expect("handed over");
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), std::ffi::OsStr::new("wt"), &told).expect("handed over");
     assert!(!made.exists(), "the path the person named is gone");
     let deleting: PathBuf = parent_path.join(deleting_name(7));
     assert!(deleting.is_dir(), "the subvolume stands under the name built from its id");
@@ -103,7 +103,7 @@ fn the_service_deletes_the_subvolume_a_record_names_and_a_gone_path_is_done() {
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
     let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), &NobodyTold).expect("handed over");
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the service's own call deletes it");
     assert!(!parent_path.join(deleting_name(id)).exists(), "the directory is gone");
@@ -168,7 +168,7 @@ fn a_subvolume_that_took_the_hidden_names_place_is_not_the_records_to_delete() {
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
     let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), &NobodyTold).expect("handed over");
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
     let moved_away: PathBuf = root.join("the-original");
     std::fs::rename(hidden.as_path(), moved_away.as_path()).expect("the original is moved elsewhere");
@@ -255,7 +255,7 @@ fn a_claimed_record_whose_consumer_found_no_directory_is_deleted_here() {
         Verdict::Done,
         "a directory that is not at its hidden name yet is nothing to delete, and the consumer has yet to settle the claim"
     );
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), &NobodyTold).expect("handed over");
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
     assert!(!hidden.exists(), "a claim is no promise of a delete, so the removal deletes the directory: {}", hidden.display());
     remove(root.as_path());
@@ -291,7 +291,7 @@ fn a_renamed_subvolume_whose_record_was_already_settled_is_deleted_here() {
     enqueue(work.as_path(), &item).expect("the record");
     let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("claim").expect("the record is claimable");
     crate::work_item::settle(work.as_path(), &claimed, crate::work_item::DONE).expect("the service settles it before the rename");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), &NobodyTold).expect("handed over");
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
     assert!(!hidden.exists(), "the subvolume the removal renamed is named by no record, so the removal deletes it: {}", hidden.display());
     assert!(!pending_record_path(common.as_path(), &item).exists(), "no record is left for a directory that is gone");
@@ -328,7 +328,7 @@ fn a_parent_path_no_record_can_name_is_not_handed_over() {
     std::fs::create_dir(made.as_path()).expect("worktree");
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let told: RememberingTold = RememberingTold { told_of: std::cell::RefCell::new(Vec::new()), answer: Ok(()) };
-    let answer: Result<(), String> = hand_over_with(common.as_path(), &parent, parent_path.as_path(), OsStr::new("worktree"), 47, made.as_path(), &told);
+    let answer: Result<(), String> = hand_over_with(common.as_path(), &parent, parent_path.as_path(), OsStr::new("worktree"), 47, made.as_path(), OsStr::new("wt"), &told);
     assert!(answer.is_err(), "a path no record can name is not handed over: {answer:?}");
     assert!(made.is_dir(), "nothing was renamed, so the removal destroys the subvolume in place");
     assert!(told.told_of.borrow().is_empty(), "no service is told of a hand-over that did not happen");
@@ -368,7 +368,7 @@ impl RemoveOperations for HandingOverStand {
         return std::fs::remove_dir_all(held.parent_path.join(held.name.as_os_str())).map_err(|error| { return error.to_string(); });
     }
 
-    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path) -> Result<(), String> {
+    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path, _registration: &std::ffi::OsStr) -> Result<(), String> {
         self.handed.set(true);
         return Ok(());
     }
