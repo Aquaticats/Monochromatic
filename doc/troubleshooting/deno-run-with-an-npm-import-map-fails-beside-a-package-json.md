@@ -6,7 +6,10 @@ and the owner has not approved it.
 Done and checked by that session:
 the invocations and the source reading reported here.
 Open:
-no one else has reviewed it.
+a model from another vendor reviewed it once,
+as of commit `426d33d638`,
+and its findings were folded in;
+the corrections made after that are not reviewed.
 
 Found on 2026-11-13 while checking that the scripts of a reproduction repository run on Deno.
 The repository holds a `package.json` so that Node treats its scripts as ES modules,
@@ -150,7 +153,7 @@ The folder is the reproduction repository `Aquaticat/optique-parse-cost-reproduc
 `package.json`,
 `commit-paths.ts`,
 `maps/npm-1.3.6.json`.
-`commit-paths.ts` imports `@optique/core/constructs` and four more subpaths and prints one JSON line.
+`commit-paths.ts` imports `@optique/core/constructs` and five more subpaths and prints one JSON line.
 
 ### Invocations that fail
 
@@ -170,6 +173,9 @@ so the failure is not a failed download.
 Each printed the script's JSON line,
 and the line names where the library was loaded from:
 
+- The failing command itself,
+   in a copy of the folder that leaves the `package.json` out:
+   from Deno's cache.
 - `deno run --no-config --import-map maps/npm-1.3.6.json commit-paths.ts`:
    from Deno's cache,
    `/deno-cache/npm/registry.npmjs.org/@optique/core/1.3.6/`.
@@ -183,7 +189,8 @@ and the line names where the library was loaded from:
    `deno run commit-paths.ts`:
    from the folder's own `node_modules`.
 
-The record is `measurements-2026-11-13/cross-runtime/deno-variants.log`
+The records are `cross-runtime/deno-variants.log` and `close-review-2-gaps.jsonl`,
+under `measurements-2026-11-13`
 in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`.
 
 ## Verified workarounds
@@ -223,7 +230,8 @@ and the version is whatever was installed.
    It is applied,
    and the `npm:` specifier it produces is then resolved in manual mode.
 - Removing the `package.json`.
-   Deno ran the same scripts on 2026-11-12 in a folder without one,
+   Deno then runs the command,
+   as the first entry under "Invocations that work" records,
    but the file is there so that Node does not have to detect the module type of each `.ts` script.
 
 ## Upstream filing artifact

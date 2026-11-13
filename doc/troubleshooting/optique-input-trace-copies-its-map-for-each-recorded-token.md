@@ -6,9 +6,10 @@ and the owner has not approved it.
 Done and checked by that session:
 the measurements and the source reading reported here.
 Open:
-a model from another vendor reviewed the text as of commit `5a4e07d2e3`,
+a model from another vendor reviewed the text twice,
+as of commits `5a4e07d2e3` and `426d33d638`,
 and its findings were folded in;
-what changed after that commit is not yet reviewed,
+the corrections made after its second pass are not reviewed,
 and the two further copies named under "What is left after the fix" are profiled and not fixed.
 
 Status,
@@ -206,7 +207,8 @@ median of three parses:
 with `set` in `input-trace.js` at 92.7% of the parse.
 So the trace copy is by far the largest of the three at every size measured,
 the prototype removes that one only,
-and what is left is the other two:
+and what is left is mostly the other two,
+nine tenths of the patched parse at 16,000 to 32,000 tokens and a little over half at 4,000 to 8,000:
 the patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
 The prototype's author,
 an AI agent,
@@ -561,7 +563,8 @@ run in a container with upstream's toolchain on 2026-11-13:
    The exit status of the check is in the records;
    those of the other two were printed to the session and not saved.
 - `git apply` of the patch onto `main` at `84f95710` and onto pull request 1121's head `a175cdb7`:
-   clean on both.
+   clean on both,
+   checked again with the patch as committed here.
 
 Upstream's core suite on Bun 1.4.4,
 the current release and the one this repository's toolchain lock records,
@@ -769,9 +772,9 @@ long. The core suite passes on Deno and Node with it, and it applies cleanly to 
 
 It does not make the parse linear. A profile of the patched build shows two more per-argument copies behind this
 one: `multiple()` rebuilds its state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`)
-and `argument()` slices the rest of the buffer for each token (`context.buffer.slice(i + 1)`). They are what is
-left: 16,000 arguments take 6.7 s unpatched and 0.8 s patched, 32,000 take 29.2 s and 5.7 s. I have not tried to
-change either.
+and `argument()` slices the rest of the buffer for each token (`context.buffer.slice(i + 1)`). They are most of
+what is left, nine tenths of the patched parse at these sizes: 16,000 arguments take 6.7 s unpatched and 0.8 s
+patched, 32,000 take 29.2 s and 5.7 s. I have not tried to change either.
 
 It also bears on what #1121 leaves. Measured the same way, seven rounds with the arms rotated, a thousand paths
 after `--` took 1.37 times as long on #1121's branch as on 1.3.6 (1.34 to 1.42), and 0.94 times with this patch

@@ -6,9 +6,10 @@ and the owner has not approved it.
 Done and checked by that session:
 the measurements and the source reading reported here.
 Open:
-a model from another vendor reviewed the text as of commit `5a4e07d2e3`,
+a model from another vendor reviewed the text twice,
+as of commits `5a4e07d2e3` and `426d33d638`,
 and its findings were folded in;
-what changed after that commit is not yet reviewed,
+the corrections made after its second pass are not reviewed,
 and upstream's pull request 1121 was not merged at this writing.
 
 Status,

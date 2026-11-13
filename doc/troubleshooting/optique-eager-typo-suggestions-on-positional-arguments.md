@@ -7,9 +7,9 @@ Done and checked by that session:
 the measurements and the source reading reported here,
 and one review by a model from another vendor of the text as it stood on 2026-11-12.
 Open:
-a second such review read the text as of commit `5a4e07d2e3`,
+a second such review read the text as of commits `5a4e07d2e3` and `426d33d638`,
 and its findings were folded in;
-what changed after that commit is not yet reviewed,
+the corrections made after that are not reviewed,
 and the reply draft waits for the owner.
 
 Status,

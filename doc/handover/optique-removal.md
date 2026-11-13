@@ -863,7 +863,8 @@ each in answer to a question that gave the options:
     and `mise ls-remote bun` lists 1.3.14 as the newest 1.3 release,
     so `mise test` in upstream's checkout runs Bun 1.3.14 for whoever runs it.
   - This repository's `toolchain.lock.json` held Bun 1.4.4 at the commit before the issue (`07597bdd20`) and holds it now.
-  - No file in this work's scratch records names 1.3.14.
+  - No measurement or run record of this work names 1.3.14;
+    the two scratch files that do are copies of upstream's issues 1116 and 1118.
     The records show Bun 1.3.0,
     in the prototype's work image,
     whose first Bun log is dated 2026-11-12T15:02:28-05:00,
@@ -885,7 +886,7 @@ each in answer to a question that gave the options:
   the failures are no finding about upstream,
   and nothing about them is to be reported.
   The comparison was run again on Bun 1.4.4 the same day,
-  where the patched tree passes the whole suite,
+  where the patched tree passes the core suite,
   and the document now reports that.
   Rule `PIN` in `AGENTS.md` was amended on the owner's choice:
   test on current releases only,
@@ -912,7 +913,7 @@ Where each piece stands:
   the patch removes the largest of three per-token copies and leaves two,
   in `multiple()` and `argument()`,
   which were profiled and not prototyped;
-  the patched tree passes upstream's whole suite on Bun 1.4.4,
+  the patched tree passes upstream's core suite on Bun 1.4.4,
   the current release,
   with no failure;
   and the 1.0,
@@ -942,9 +943,19 @@ to settle before a reply:
   the length check misstated in the reply draft,
   and smaller wording and timestamp matters.
   The documents changed after that commit,
-  so a second pass over the changes was started on 2026-11-13 by resuming the same session
-  (run folder `optique-input-trace-and-reply-claim-check-2`);
-  its report is to be weighed and folded in when it ends.
+  so a second pass over the changes was run on 2026-11-13 by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-2`,
+  27 turns and 17 minutes,
+  reading `main` at `426d33d638`;
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-2.md`).
+  It found every new figure to match its record,
+  the new source excerpts verbatim,
+  and the first pass's corrections all in place.
+  Its own findings were small and were corrected the same day:
+  a wrong count and two unrecorded statements in the Deno document
+  (the two were then run and recorded),
+  and wording that said slightly more than the records in this handover and in the input-trace document.
+  The corrections made after it are not reviewed.
   Its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
