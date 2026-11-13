@@ -65,6 +65,11 @@ pub mod signal_relay_without_relay;
 /// and the pidfd that names that child.
 pub mod signal_relay_descriptor;
 
+/// One descriptor's own record,
+/// opened only when the text of its link says it can be the file a scan looks for,
+/// and never past a bound.
+pub mod descriptor_record;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 

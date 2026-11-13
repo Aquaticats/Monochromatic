@@ -17,6 +17,7 @@ import {
   finishRun,
 } from './stand-in-pi-records-fixture.ts';
 import { scenarioPlays, } from './stand-in-pi-scenario-plays-fixture.ts';
+import { workPlays, } from './stand-in-pi-work-plays-fixture.ts';
 
 /**
  Status the crashing scenarios exit with.
@@ -117,6 +118,14 @@ export async function playPrompt(id: unknown,): Promise<void> {
   const waitingPlay = waitingPromptPlays.get(scenario,);
   if (waitingPlay !== undefined) {
     await waitingPlay(id,);
+    return;
+  }
+  /**
+   The scenario's play if its subject is work the run leaves running after its turn.
+   */
+  const workPlay = workPlays.get(scenario,);
+  if (workPlay !== undefined) {
+    workPlay(id,);
     return;
   }
   /**

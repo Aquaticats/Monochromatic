@@ -239,6 +239,59 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
     return Some(AddPlan { destination, insert_at: word_index + 1, quiet });
 }
 
+/// What:
+///  Why a `git worktree add` the ladder does not serve runs as plain Git,
+/// in the clause the notice reads.
+/// Why:
+///   An add the wrapper cannot serve is still an add a person waits for,
+/// and the one thing the wrapper
+///  knows about it is which fact put it on the plain route:
+/// the folder the worktree goes in does not exist yet,
+///  which is what the ladder's own reading of the destination refuses,
+/// or a form of the command the wrapper does not read at all.
+/// The clause is built here so the words and the reading that refuses share one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whyPlain = (destination) => parentMissing(destination) ? `because the folder it goes in, ${quoted}, does not exist yet` : 'because the form of the command is not one it reads';
+/// ```
+pub fn why_a_plain_add(destination: Option<&Path>) -> String {
+    if let Some(parent) = destination.and_then(Path::parent)
+        && matches!(std::fs::symlink_metadata(parent), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound)
+    {
+        return format!("because the folder it goes in, {}, does not exist yet", crate::json_record::quote(parent.to_string_lossy().as_ref()));
+    }
+    return String::from("because the command's form is not one the wrapper reads");
+}
+
+/// What:
+///  Whether the person asked for `--quiet` on a `git worktree add`,
+///  whatever the ladder makes of the form.
+/// Why:
+///   The words after `add` are read once,
+/// by [`add_operands`],
+/// and the plan carries the answer only for a form the ladder
+///  serves:
+/// an add whose destination the ladder refuses still has a person who may have asked for no
+///  lines,
+/// so the answer is taken from the same reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quiet = (args, subcommandIndex) => addOperands(args.slice(subcommandIndex + 2))?.[1] ?? false;
+/// ```
+pub fn add_is_quiet(arguments: &[OsString], subcommand_index: usize) -> bool {
+    let word_is = |index: usize, wanted: &[u8]| { return arguments.get(index).is_some_and(|word| { return word.as_encoded_bytes() == wanted; }); };
+    if !word_is(subcommand_index, b"worktree") {
+        return false;
+    }
+    let word_index: usize = subcommand_index + 1;
+    if !word_is(word_index, b"add") {
+        return false;
+    }
+    return add_operands(&arguments[word_index + 1..]).is_some_and(|(_operands, quiet)| { return quiet; });
+}
+
 
 /// How an option of `git worktree add` takes its value,
 /// as `parse-options.c` of Git 2.56.0 does (`do_get_value`,
