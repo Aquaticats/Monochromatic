@@ -574,6 +574,38 @@ The reviews of this branch and of the jam fix are the first two entries of the q
 The place this run freed went to the resume of `commit-does-not-list-every-reference-on-the-path-it-waits-on` at 12:36:23.
 The note about issue 6295 was published to its run at 12:34, not at 12:36 as the entry on the jam fix says.
 
+#### Two more resumed runs ended: the service that needs no manager says "not yet", and one run measured the cargo lock (2026-11-13T12:39:37-05:00)
+
+**`commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`**, resumed 11:38:36, ended `idle` after 130 turns and 58 minutes. Not reviewed. By its own report:
+
+- The base is in: a service started by the wrapper with no manager and no D-Bus, built on musl and glibc, twenty controls at the user boundary green with no manager at all, no time added that it could measure.
+  1,742 of 1,743 tests of the modules it changed pass; the one failure and seven more it names are in files its branch leaves byte-identical to its base.
+- **Its own answer on a merge: not yet, for three things.** The enhancement (a manager used where there is one) with its two controls is not built;
+  an older client retiring a healthy newer service again and again, which it says is its own defect, is not fixed; and the half of the proof that runs with a manager is not run.
+- Five choices between two behaviours a person would notice, each with its reason: a bind over a socket that greets nothing is taken over; with `XDG_RUNTIME_DIR` absent it uses `~/.run`;
+  `SERVICE_GREETING_SILENCE` is deleted; the whole-command lock is narrowed to one start; a failing start fails at `START_WAIT` with the log named.
+- It ended its turn with that list instead of going on. Its continuation is the first entry of the queue
+  (`~/temp/agent/pi-runs/commit-service-that-needs-no-service-manager-goes-on-with-what-keeps-it-from-a-merge-prompt.md`):
+  the three things, and a section saying what the branch already does for issue 6293's case, shown by a run, for the run that builds that fix on it.
+
+**`add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`**, resumed 12:33:44, ended `idle` after 16 turns and 5 minutes: it had been writing its last report when the drive filled.
+Branch `fix/git-policy-cli-` with that name on the remote; it calls it fit to merge; its review is the second entry of the queue.
+Two things from its report that reach past its branch:
+
+- **An add's reads have no deadline.** It held one `open` of a launcher record for 600 s with a preloaded shim and the add waited 90,008 ms until its script ended it,
+  printing "still copying the ignored files" while it was in the toolchain repair. Reproduced, not fixed, with its reason in `doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md` on its branch.
+- **Cargo's package-cache lock serializes every agent's cargo.** Its write-up is `doc/troubleshooting/cargo-package-cache-lock-holds-a-build-for-minutes.md` on its branch (not on `main` yet):
+  one exclusive lock for each `CARGO_HOME`, taken even with `--offline --locked`; on 2026-11-12 a `cargo check` waited 300 s, a debug build took 3,250 s of wall clock mostly in that wait,
+  and a selection of 37 tests took 256.6 s and lost two tests to the watchdog, against 2.9 s with a cargo home of its own whose `registry` and `git` are links to the shared ones.
+  Today's 529 s lint wait at the level of eight is the same lock.
+  This session's own try at 12:41 shows nothing either way and is no evidence: `cargo metadata --offline --locked --no-deps`, three times with each cargo home, alternating,
+  took 99 to 277 ms in both and never printed the lock's line.
+  That command was not shown to take the lock at all (with `--no-deps` it may not read the registry), and no other cargo was shown to hold it in those two seconds,
+  so the probe could not have shown a wait. A probe that can needs a control first: a cargo home whose lock is held on purpose, and a command proven to wait on it.
+  Not established: whether two cargos with cargo homes of their own can corrupt the shared registry when one of them unpacks a crate the other reads; with everything fetched beforehand nothing should be written, and that is the condition to prove before every run is given one.
+
+Both runs' scratch folders held only `keep/` at their end. The two places went to the reviews of the jam fix (12:39:37) and of the issue 6286 run (12:39:46); eight units were going at 12:40:29.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
