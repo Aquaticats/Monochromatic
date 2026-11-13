@@ -1,9 +1,9 @@
 # The commit service without a service manager
 
-Status, 2026-11-12: parts 1 to 4 done (the inventory, how Bazel does without a
-service manager, the design, and the manager as an enhancement).
-Parts 5 to 8 are added below as each is finished;
-this line is rewritten each time.
+Status, 2026-11-13: parts 1 to 4 done, part 5 built for the base and open for the
+enhancement, part 6 proven in a container and open for the manager-with-manager half,
+part 7 measured, part 8 done. The closing section says what is built, proven, measured
+and left open.
 
 The task: the wrapper's commit service stops being a unit of the user's
 service manager and becomes a server the wrapper starts, finds, replaces and
@@ -1161,57 +1161,160 @@ the path a commit waits on. It should be switchable off without changing
 anything a person can observe besides the cgroup, which is what its two tests
 assert.
 
-## What is built in this branch, and what is not
+## Part 5, what was built, in steps
 
-Built, with a commit each:
+Each step is a commit on branch
+`refactor/git-policy-cli-commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`.
 
-- the base: the wrapper starts the server
-  (`service_server_start_by_the_wrapper.rs`),
-  detached in its own session
-  (`service_server_start_spawns_a_detached_process.rs`),
-  named by a note with its process birth identity
-  (`service_server_pid_note_of_an_instance.rs`),
-  its output in one capped file
-  (`service_server_log_file_of_an_instance.rs`),
-  its address and note made and removed around its life
-  (`service_server_files_of_a_running_instance.rs`),
-  in a folder only this account may enter
-  (`service_socket_directory_only_this_account_may_open.rs`);
-- the route, the commit's start and the client's wait rewritten on that base
-  (`service_route.rs`, `service_commit_starts_the_server.rs`,
-  `service_client_settings_and_watches.rs`,
-  `service_client_reach_service.rs`);
-- the unit templates, the provisioning, the record of the unit texts, the
-  earlier single service's retirement, the two-runtime-directory refusal, the
-  D-Bus client and the zbus dependency, the manager watch and its repairs, and
-  the four user-boundary controls whose subject they were: all gone;
-- the real Git recorded in a note beside the sockets instead of in a unit file;
-- the sweep of removed worktrees and the removal hook ask a service to leave
-  over its own address and prove it gone by its note;
-- the journal keeps every service line beside the file
-  (`journald_native.rs`, its sink asks the journal's socket when that socket
-  exists and writes the same line to the file);
-- a bind takes an address over from a socket that accepts and greets nothing,
-  which is a service that is exiting;
-- `SPEC.md` and `README.md` rewritten where they described socket activation,
-  the units, the manager watch, the reload and the unit-file record, and two
-  source guards rewritten: no release code writes a unit, and none names a
-  manager member.
+1. `179c723a98` the base: the route, the commit's start, the client's wait, the real
+   Git recorded beside the sockets, the sweep and the removal hook, and the removal of
+   the unit templates, the provisioning, the unit-text record, the earlier single
+   service's retirement, the two-runtime-directory refusal, the D-Bus client and the
+   `zbus` dependency.
+2. `403b3a9624` the new modules and their controls: the start
+   (`service_server_start_by_the_wrapper.rs`), the detached process
+   (`service_server_start_spawns_a_detached_process.rs`), the note that names the
+   process (`service_server_pid_note_of_an_instance.rs`), the capped log
+   (`service_server_log_file_of_an_instance.rs`), the private folder and socket
+   (`service_socket_directory_only_this_account_may_open.rs`), the files a running
+   service owns (`service_server_files_of_a_running_instance.rs`), the host
+   (`service_host_of_a_worktree.rs`), the commit's start
+   (`service_commit_starts_the_server.rs`), and the user-boundary controls
+   (`binary_service_starts_tests.rs`).
+3. `7db1d00785` the journal keeps every service line beside the file;
+   `SPEC.md`, `README.md` and two source guards rewritten.
+4. `8660c2e575` a bind takes an address over from a socket that accepts and greets
+   nothing, which is a service that is exiting.
+5. `4f63e44f7f` the controls of the new modules: a short folder for a socket path, the
+   session field read at the right offset, a greeter thread that ends.
+6. `89cf84f069` the controls that named the manager name what replaced it;
+   `SERVICE_GREETING_SILENCE` is gone with the restart it bounded.
+7. `3164c7225e` the fallback control names the record beside the sockets.
+8. `e151a68539` two defects the user-boundary controls found: the real Git was never
+   recorded, and a start that could not create its marker was called another
+   command's start.
+9. `be51f5894b` a commit lands on a machine that names no runtime directory.
 
-Not built, and open:
+### The interface three of these changed
 
-- part 4's enhancement (a transient scope through `systemd-run`, with Bazel's
-  probe and plain-exec fallback) is designed here and not written;
-- the low-memory idle exit of part 3 is designed and not written;
-- the container proof of part 6 (an image with no systemd, no D-Bus and no
-  `XDG_RUNTIME_DIR`) was not run;
-- the times of part 7 were not measured;
-- `service stop` does not exist, so a person cannot ask a worktree's service to
-  leave by hand, and the push deadline advice still names the manager's
-  `set-environment`;
-- a service of a newer release still honours a retire from an older client, so
-  an older client can retire a healthy newer service rather than be served by
-  it;
-- the old `source_guard` list of manager members is now empty, but the
-  `mise.toml` tasks and `bin/` tooling still use this host's manager for the
-  package's own gates, which is the developers' harness and not the release.
+- **A start takes the address over from a socket that greets nothing.** The old bind
+  refused any socket a process held. A service of this release greets before it
+  restores anything, so a socket that accepts and says nothing is a service that is
+  leaving or stopped inside itself; waiting for it cost a commit 37 s on 2026-11-12.
+- **`SERVICE_GREETING_SILENCE` is gone.** It bounded the repair of a unit a manager
+  called `active`; with no manager there is no such state. A service that greeted and
+  then went silent is read against `HEARTBEAT_SILENCE` and the command starts a fresh
+  server itself.
+- **`XDG_RUNTIME_DIR` is optional.** A container, a service's own child and a cron job
+  set none, and real Git commits there. A command that names one uses it; one that
+  names none keeps its sockets in `~/.run`, made private at every start; an account
+  with neither names nowhere and says so rather than guessing a folder that is not
+  its.
+
+## Part 6, the proofs
+
+### The base needs no service manager: an Alpine container
+
+Image: `alpine:latest`, built by `Containerfile.alpine-wrapper-build` from the Alpine
+packages `cargo`, `rust`, `git`, `musl-dev` and `build-base`, so the wrapper in it is
+musl-linked and needs no glibc: `ELF 64-bit LSB pie executable, x86-64, dynamically
+linked, interpreter /lib/ld-musl-x86_64.so.1, stripped, 25,698,392 bytes`. The build
+inside the image took 15 m 27 s.
+
+The run (`podman run --rm --cpus 4 --memory 4g --pids-limit 1024`), with the wrapper
+installed as `/usr/local/bin/git` ahead of the real Git at `/usr/bin/git`, and with
+`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` removed from the environment:
+
+- `pid 1: sh`; `systemctl`, `systemd-run`, `dbus-daemon` and `systemd` all `none`;
+  `/run/systemd` and `/run/dbus` absent; `XDG_RUNTIME_DIR: <unset>`;
+  `DBUS_SESSION_BUS_ADDRESS: <unset>`.
+- commit one, through the wrapper, with no service running: **80 ms**, subject
+  `first`.
+- commit two, which must find the service commit one started: **30 ms**, subject
+  `second`.
+- commit three, in a **second worktree of the same repository**: subject `third`, with
+  its own service, so one server per worktree and none shared.
+- the files it left: `<instance>.log`, `<instance>.pid`, `<instance>.sock` and
+  `real-git` under `~/.run/monochromatic-git-policy-cli/`; **no unit file anywhere**
+  under `HOME`.
+- the two servers, from `ps`, each with exactly the arguments the design names:
+  `--path …/f6b2….sock --journal ~/.local/state/monochromatic-git-policy-cli/service/f6b2…
+  --git /usr/bin/git --instance f6b2…`.
+
+The output is kept whole as `proof-alpine-no-manager-output.txt` beside this run's
+report, with the script (`alpine-proof-no-manager.sh`) and the Containerfile.
+
+**A finding of its own**: Alpine's Git is 2.54.1, below the 2.56.0 this wrapper was
+tested with, and the wrapper says so on standard error and commits anyway. Nothing in
+the wrapper or its service failed to build or behave on musl.
+
+### A manager that received no call
+
+Not run. The branch asks no service manager for anything, so the only way to run this
+half is a container image with systemd in it, and the design's enhancement (part 4) is
+what would make a call at all. `grep` over the release sources for
+`org.freedesktop.systemd1`, `StartUnit`, `ResetFailedUnit` and `ActiveState` finds
+nothing, and `src/native/source_guard/no_start_at_login_tests.rs` fails if that ever
+changes again; that is a source proof where the brief asked for a bus that counts
+calls, and it is weaker.
+
+## Part 7, the times
+
+`monochromatic-git-policy-cli 0.6.1-alpha.16` installed, against a release build of
+this branch, alternating on the same fixture shape, a fresh worktree each round so the
+first commit starts a service and the second finds it. Milliseconds:
+
+| round | installed first | mine first | installed later | mine later |
+|-------|-----------------|------------|-----------------|------------|
+| 1     | 60              | 140        | 50              | 30         |
+| 2     | 160             | 90         | 30              | 30         |
+| 3     | 80              | 80         | 40              | 30         |
+| median| 80              | 90         | 40              | 30         |
+| spread| 60 to 160       | 80 to 140  | 30 to 50        | 30 to 30   |
+
+A first commit is 10 ms slower at the median and 80 ms slower in the worst round,
+inside the two arms' own spreads of 60 to 100 ms; a later commit is 10 ms faster at the
+median. The requirement ("a first commit must not be slower than today's by more than
+the spread") holds on this sample, which is small: three rounds an arm, on a machine
+with four agents and no build running.
+
+The installed release ran in this machine's own environment, because it cannot commit
+at all without its service manager: that is the defect this branch removes, and it is
+why the two arms cannot share an environment.
+
+## What is left open
+
+Each of these is a piece of the brief this run did not finish, in the order it should
+be taken.
+
+1. **Part 4's enhancement is designed and not written.** A transient scope through
+   `systemd-run`, with Bazel's probe and its plain-exec fallback, so a manager's cgroup
+   is given where a manager is there and taking it away changes nothing else. Its two
+   controls (the manager is there and the cgroup is gained; the manager does not answer
+   in time and the result is exactly the base's) are the whole of what proves it an
+   enhancement.
+2. **Bazel's low-memory idle exit** is designed in part 3 and not written.
+3. **The manager-with-manager half of the container proof.** A container whose image
+   has systemd, a private counting bus, and a wrapper built from this branch run to
+   green with every method call counted as zero. Today the source guards stand in for
+   it.
+4. **A retire from an older client to a newer service.** The audit of 0.6.1-alpha.14
+   found a client of alpha.13 sending `retire` a hundred times to a healthy alpha.14
+   service, and failing after ten seconds. This branch still honours the retire in the
+   version the client announced and still re-sends it until its deadline, so the defect
+   is unchanged: the service should refuse a retire from a client of an older protocol
+   once, remember it, and the older client should use the service that is there.
+5. **`git monochromatic-git-policy-cli service stop`** does not exist, so a person
+   cannot ask a worktree's service to leave by hand; the push deadline advice still
+   names the manager's `set-environment`.
+6. **The unit files of earlier releases stay where they lie.** Nothing reads them, which
+   is why leaving them is harmless, but nothing removes them either, and the inventory's
+   part 1 entry 6 promised a retirement.
+7. **Two source guards and the package's `bin/` tooling** still assume this host's
+   manager for cgroups: `native-gate*`, `native:test:container` and the mutation tasks.
+   They never reach a release, and the inventory says so.
+8. **The seven failures in the library suite that are not this branch's** (see the
+   report): five `worktree` and `worktree_copying` controls, `policy_checks`'s
+   overwriting-forms control, the snapshot-rung source assertion, and the
+   blocking-code guard's `lazy_runtime` lines. They fail in files this branch leaves
+   byte-identical to its base, in isolation as well as in the suite.
