@@ -344,11 +344,35 @@ and that refusal's remedy no longer promises that a typed push records a list fo
 
 ### Checks after this change
 
-- `mise run //package/git-policy/cli:native:clippy`: no warning.
-- The module tests named in the report,
-  and the binary controls
-  `binary::push_programs_held_in_memory`,
-  each shown failing before its fix.
+- `mise run //package/git-policy/cli:native:clippy` at the final commit (`558eefd875`):
+  `Finished ... in 4.29s`, no warning, with `-D warnings`.
+- `native:test:host -- --no-fail-fast push_without_its_transport service_push_programs_held_in_memory
+  earlier_push_programs_record lfs_pre_push service_work`:
+  `148 tests run: 148 passed, 7449 skipped`.
+  A wider run of the same modules with `service_protocol`, `service_journal` and `service_handoff`
+  (`226 tests run: 224 passed, 2 failed`) leaves two failures in
+  `service_journal_restored_at_start`,
+  which are `main`'s and not this change's:
+  both expect a read to stall on a pipe standing where a plan file would be,
+  and `de74ced87d` (in `main`) makes that read skip a name that is not a regular file,
+  so the read answers instead of stalling
+  (`a_journal_that_gives_no_answer_is_left_behind_at_its_ceiling`,
+  `a_plan_a_service_could_not_read_at_its_start_is_read_again_and_tried`).
+- `native:test:binary:host -- --no-fail-fast push_programs_held_in_memory`:
+  `5 tests run: 5 passed`, each against real Git,
+  a real bare remote and the built wrapper:
+  neither command line reaches any file under the fixture's Git directory,
+  runtime directory,
+  state directory or home (with a planted value as the positive control),
+  two commits each push with their own command's settings,
+  a push a restarted service has to try again stops with the words that name the command and that command sends the
+  commit,
+  the record of the earlier shape is removed by the first command,
+  and the remedy an LFS refusal prints pushes from the shell.
+  With three breaks in place at once (the transport stop removed,
+  the removal of the earlier record removed,
+  and the request's values ignored) all five controls fail,
+  and the log is `keep/binary-controls-with-the-three-breaks-failing.log` in the run's scratch folder.
 
 ## Open work
 
