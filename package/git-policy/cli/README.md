@@ -4908,7 +4908,7 @@ The question is asked only when the cache holds no artifact for that text,
 which one `stat` answers,
 so a warm cache pays nothing beside the read it always made.
 
-Two cases keep the write on the command's path,
+These cases keep the write on the command's path,
 because nothing else can make it:
 
 - a machine where no service runs for that worktree,
@@ -4918,7 +4918,17 @@ because nothing else can make it:
   since the service's own environment carries no such variable and it would compile the configuration's files
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
-  so a repository with both lists leaves them to the service.
+  so a repository with both lists leaves them to the service;
+- a service that takes no connection within its bound.
+  The request's connection is made within 250 ms (`wait_ceilings.rs`,
+  `WARM_REQUEST_CONNECT_CEILING`),
+  so a service whose queue of unaccepted connections is full,
+  which is what a service stopped inside its own process leaves,
+  costs the command that bound and no more;
+  a request that is not made is not sent,
+  and the command compiles and publishes the rules itself.
+  The line that follows the connection is a few hundred bytes into a send buffer of 212,992 bytes,
+  so it is taken even by a service that reads nothing.
 
 The artifact itself is published without a file or directory sync:
 a reader validates its magic,

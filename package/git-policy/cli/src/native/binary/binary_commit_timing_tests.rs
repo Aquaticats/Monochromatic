@@ -1723,11 +1723,15 @@ fn a_listener_that_never_accepts(path: &Path, backlog: libc::c_int) -> OwnedFd {
 ///  a control of the connect therefore needs a process that looks like that service and is not it.
 ///  The shell holds the words and runs a sleep,
 ///  and the group guard of `spawn_owned` ends it however the control ends.
-fn a_process_that_looks_like_the_service(instance: &str) -> Child {
+///  The fixture starts a service of every worktree under it when a wrapped command runs (`bounded_for`,
+///  `service_runtime`),
+///  so this process says the same thing on the control's own runtime directory,
+///  where the service it is not has left no socket.
+fn a_process_that_looks_like_the_service(instance: &str) -> Held {
     let mut command: Command = Command::new("/bin/sh");
     command.args(["-c", "sleep 600; :", "service", "run", "--instance", instance]);
     command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    return spawn_owned(&mut command).expect("the stand-in process starts");
+    return Held(spawn_owned(&mut command).expect("the stand-in process starts"));
 }
 
 /// One run of the refusing commit,
@@ -1783,7 +1787,7 @@ fn a_commit_whose_rules_are_cold_answers_at_its_usual_time_when_the_service_take
     std::fs::create_dir_all(blocked_socket.parent().expect("the socket's directory")).expect("the socket directory");
     let _listener: OwnedFd = a_listener_that_never_accepts(blocked_socket.as_path(), 0);
     let _filling: UnixStream = UnixStream::connect(blocked_socket.as_path()).expect("a queue of no depth takes one connection");
-    let _stand_in: Child = a_process_that_looks_like_the_service(instance_argument(blocked_repo.as_path()).as_str());
+    let _stand_in: Held = a_process_that_looks_like_the_service(instance_argument(blocked_repo.as_path()).as_str());
     assert_eq!(compiled_rules_in(blocked_cache.as_path()), 0, "the cold cache of the blocked commit holds nothing yet");
     let blocked: Refusal = refusing_commit(&fixture, blocked_repo.as_path(), blocked_runtime.as_path(), blocked_cache.as_path());
     assert_eq!(blocked.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(blocked.observed.stderr.as_slice()));

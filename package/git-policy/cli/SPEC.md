@@ -6077,6 +6077,11 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its connection is made within `WARM_REQUEST_CONNECT_CEILING` (`src/native/service/wait_ceilings.rs`),
+so a service whose queue of unaccepted connections is full costs the command that bound and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
