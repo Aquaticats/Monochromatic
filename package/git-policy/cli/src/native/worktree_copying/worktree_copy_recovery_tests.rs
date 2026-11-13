@@ -730,10 +730,16 @@ fn recovery_removes_a_stage_no_journal_names() {
     let claim = claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::create_dir(claim.container()).expect("stage");
     std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
-    // A copy's stage holds the source's entries under `payload`, so that is where a partial copy stands.
+    // A copy's stage holds the source's entries under `payload`, and says what it is writing before its first byte.
     let payload: PathBuf = claim.container().join(crate::worktree_copy_stage::PAYLOAD_NAME);
     std::fs::create_dir(payload.as_path()).expect("the payload a copy fills");
     std::fs::write(payload.join("half"), b"copied so far").expect("partial copy");
+    let staged: crate::worktree_copy_manifest::WorktreeCopyEntry = crate::worktree_copy_manifest::WorktreeCopyEntry {
+        kind: crate::worktree_copy_manifest::EntryKind::File,
+        mode: 0o644,
+        relative_path: b"half".to_vec(),
+    };
+    crate::worktree_copy_stage_intended_entries::record_intended_entries(claim.container(), &[staged]).expect("the record of what the payload holds");
     let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     assert_eq!(report.notices.len(), 1);

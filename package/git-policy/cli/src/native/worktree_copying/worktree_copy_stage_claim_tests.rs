@@ -45,6 +45,14 @@ fn abandoned_stage(container: &Path) {
     let locked: PathBuf = payload.join("locked");
     create_private_directory(locked.as_path()).expect("locked");
     std::fs::write(locked.join("data"), b"staged").expect("data");
+    // A copy writes down what its payload will hold before its first byte, and that record is what proves these
+    // entries are the wrapper's own (`worktree_copy_stage_intended_entries.rs`).
+    let staged: crate::worktree_copy_manifest::WorktreeCopyEntry = crate::worktree_copy_manifest::WorktreeCopyEntry {
+        kind: crate::worktree_copy_manifest::EntryKind::File,
+        mode: 0o644,
+        relative_path: b"locked/data".to_vec(),
+    };
+    crate::worktree_copy_stage_intended_entries::record_intended_entries(container, &[staged]).expect("the record of what the payload holds");
     std::fs::set_permissions(locked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("read-only");
 }
 
@@ -292,32 +300,44 @@ fn a_claim_naming_a_relative_path_is_no_claim_a_sweep_acts_on() {
     remove(root.as_path());
 }
 
-/// A claim that names a stage others can read is refused:
-/// the directory is not provably monochromatic-git-policy-cli's own.
+/// A claim that names a stage others can read keeps what stands in that stage and names it,
+/// and the command goes on:
+/// the mode is no proof of whose folder it is,
+/// so the entries decide,
+/// and a refusal here stopped every command of the repository for a folder nothing was removed from.
+/// An empty one at that mode goes, because there is nothing in it to lose.
 #[test]
-fn a_shared_stage_is_refused_and_kept() {
+fn a_shared_stage_is_kept_named_and_the_command_goes_on() {
     let (root, common, destination) = scene("claim-shared");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::create_dir(claim.container()).expect("container");
     std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o755)).expect("shared");
-    let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
-    assert!(failure.0.contains("private stage is unsafe"), "{}", failure.0);
-    assert!(claim.container().exists());
+    std::fs::write(claim.container().join("person-keep.txt"), b"a person's only copy").expect("a person's file");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    assert!(claim.container().join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("person-keep.txt"); }), "the folder is named by the entry that kept it: {notices:?}");
+    std::fs::remove_file(claim.container().join("person-keep.txt")).expect("the control's file");
+    let settled: Vec<String> = reap_abandoned_stages(common.as_path()).expect("a second pass");
+    assert!(!claim.container().exists(), "an empty folder at that mode loses nothing and goes: {settled:?}");
     remove(root.as_path());
 }
 
-/// A symbolic link in the container's place is refused,
-/// so a planted link never redirects the removal.
+/// A symbolic link in the container's place is kept and its target untouched,
+/// and the command goes on:
+/// a link is not a folder this account made,
+/// so nothing in it is examined or removed,
+/// and a refusal here stopped every command of the repository for a link nothing was removed from.
 #[test]
-fn a_linked_container_is_refused_and_its_target_kept() {
+fn a_linked_container_is_kept_and_its_target_kept() {
     let (root, common, destination) = scene("claim-linked");
     let target: PathBuf = root.join("target");
     std::fs::create_dir(target.as_path()).expect("target");
     std::fs::write(target.join("keep"), b"keep").expect("keep");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::os::unix::fs::symlink(target.as_path(), claim.container()).expect("link");
-    assert!(reap_abandoned_stages(common.as_path()).is_err());
-    assert!(target.join("keep").exists());
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    assert!(target.join("keep").exists(), "the link's target keeps its file: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed"); }), "the link is named: {notices:?}");
     remove(root.as_path());
 }
 
@@ -2813,4 +2833,315 @@ fn measure_what_the_release_check_costs() {
     }
     make_removable(container.as_path());
     remove(root.as_path());
+}
+
+/// What:
+///  A dead copy's stage whose payload holds a file the copy wrote down and a file nobody wrote down,
+/// under a path the person chose,
+/// with the mode the stage is given.
+/// Why:
+///   A copy's payload is the source's ignored state,
+/// mirrored entry by entry,
+/// and its record of what it would write is at the top of the container;
+/// a person's file below the payload is at a path that record never names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = aDeadCopysStageWhosePayloadHoldsAPersonsFile('...', 'ignored/mine/notes.txt', 0o700);
+/// ```
+fn a_dead_copys_stage_whose_payload_holds_a_persons_file(name: &str, person_relative: &str, mode: u32) -> (PathBuf, PathBuf, StageClaim) {
+    let (root, common, destination) = scene(name);
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("a claim of a dead owner");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the folder the copy made");
+    std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(mode)).expect("the stage's mode");
+    let payload: PathBuf = container.join(crate::worktree_copy_stage::PAYLOAD_NAME);
+    create_private_directory(payload.as_path()).expect("the payload a copy fills");
+    // What the copy wrote, and what it wrote down before it wrote it.
+    let copied: PathBuf = payload.join("ignored/pkg/index.js");
+    std::fs::create_dir_all(copied.parent().expect("a parent")).expect("the entry's directory");
+    std::fs::write(copied.as_path(), b"module.exports = 1;\n").expect("a copied entry");
+    let staged: crate::worktree_copy_manifest::WorktreeCopyEntry = crate::worktree_copy_manifest::WorktreeCopyEntry {
+        kind: crate::worktree_copy_manifest::EntryKind::File,
+        mode: 0o644,
+        relative_path: b"ignored/pkg/index.js".to_vec(),
+    };
+    crate::worktree_copy_stage_intended_entries::record_intended_entries(container.as_path(), &[staged]).expect("the record of what the payload holds");
+    // The person's own file, at a path no record of the copy names.
+    let persons: PathBuf = payload.join(person_relative);
+    std::fs::create_dir_all(persons.parent().expect("a parent")).expect("the person's directory");
+    std::fs::write(persons.as_path(), b"a person's only copy").expect("a person's file");
+    return (root, common, claim);
+}
+
+/// A person's file below the payload of a dead copy's stage is kept and named,
+/// at whatever depth they put it.
+/// Why the control reads this way:
+///  the copy branch removes a private folder recursively,
+///  so a rule that reads only the top level of the folder deletes this file and the line names nothing of theirs.
+#[test]
+fn a_dead_copys_stage_whose_payload_holds_a_persons_file_is_kept_and_named() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-payload-person", "ignored/pkg/notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    let persons: PathBuf = container.join("payload/ignored/pkg/notes.txt");
+    assert!(persons.exists(), "the person's file survives: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("payload/ignored/pkg/notes.txt"); }), "the line names the file that kept the stage: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// The same file under a directory the copy never made is kept the same way,
+/// and the line names the subtree that is not the copy's,
+/// which is the outermost entry no record explains and the one the person removes.
+#[test]
+fn a_persons_file_deeper_in_a_dead_copys_payload_is_kept_the_same_way() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-payload-deep", "cache/a/b/c/d.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    assert!(container.join("payload/cache/a/b/c/d.txt").exists(), "the person's file survives: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("payload/cache"); }), "the line names the subtree that is not the copy's: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// A dead copy's stage whose payload the copy recorded, holding only the entries it wrote, is still removed,
+/// so a killed copy leaves no payload behind for ever.
+#[test]
+fn a_dead_copys_stage_whose_payload_is_its_own_is_still_removed() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-payload-own", "ignored/pkg/index.js", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists(), "the copy's own payload goes with its stage: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("removed the stage") && notice.contains("ignored-state copy"); }), "{notices:?}");
+    remove(root.as_path());
+}
+
+/// A dead copy's stage whose payload holds something and no record of what the copy was writing is kept and named,
+/// because nothing there separates the wrapper's entries from a person's.
+#[test]
+fn a_dead_copys_stage_whose_payload_has_no_record_is_kept_and_named() {
+    let (root, common, _destination) = scene("claim-copy-payload-unrecorded");
+    let claim: StageClaim = claim_stage_for(common.as_path(), _destination.as_path(), &dead_copy_owner()).expect("a claim of a dead owner");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the folder the copy made");
+    let payload: PathBuf = container.join(crate::worktree_copy_stage::PAYLOAD_NAME);
+    create_private_directory(payload.as_path()).expect("the payload a copy fills");
+    std::fs::write(payload.join("index.js"), b"module.exports = 1;\n").expect("an entry of an earlier release");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    assert!(payload.join("index.js").exists(), "nothing of a folder nothing describes is removed: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("no record of what the copy was writing"); }), "{notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// A dead copy's stage holding an empty payload and no record at all is removed,
+/// because an empty folder loses nothing and a copy killed before its record leaves exactly that.
+#[test]
+fn a_dead_copys_stage_holding_an_empty_payload_and_no_record_is_removed() {
+    let (root, common, _destination) = scene("claim-copy-payload-empty");
+    let claim: StageClaim = claim_stage_for(common.as_path(), _destination.as_path(), &dead_copy_owner()).expect("a claim of a dead owner");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the folder the copy made");
+    create_private_directory(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path()).expect("the payload a copy fills");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists(), "an empty payload loses nothing and goes with its stage: {notices:?}");
+    remove(root.as_path());
+}
+
+/// A person's file at the top level of a dead copy's stage is kept, as it was before this change,
+/// and so is one the copy's own record could not have written at the top.
+#[test]
+fn a_persons_file_at_the_top_of_a_dead_copys_stage_is_still_kept() {
+    let (root, common, _destination) = scene("claim-copy-top-person");
+    let claim: StageClaim = claim_stage_for(common.as_path(), _destination.as_path(), &dead_copy_owner()).expect("a claim of a dead owner");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the folder the copy made");
+    create_private_directory(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path()).expect("the payload a copy fills");
+    std::fs::write(container.join("person-keep.txt"), b"a person's only copy").expect("a person's file");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    assert!(container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// The variable that marks the child which removes an add's records and is then killed.
+const RELEASE_CHILD_VARIABLE: &str = "CLI_GIT_RELEASE_CHILD";
+
+/// The child's three paths:
+/// the claim, the stage folder it names, and the destination record beside it,
+/// and the step of the earlier release it is killed at.
+const RELEASE_CHILD_CLAIM: &str = "CLI_GIT_RELEASE_CHILD_CLAIM";
+const RELEASE_CHILD_CONTAINER: &str = "CLI_GIT_RELEASE_CHILD_CONTAINER";
+const RELEASE_CHILD_RECORD: &str = "CLI_GIT_RELEASE_CHILD_RECORD";
+const RELEASE_CHILD_STOP: &str = "CLI_GIT_RELEASE_CHILD_STOP";
+
+/// The two steps of the earlier release a kill is named at:
+/// after the destination record is gone, which leaves the completion marker,
+/// and after the marker is gone, which leaves the claim alone.
+const KILLED_AFTER_THE_RECORD: &str = "after-the-record";
+const KILLED_AFTER_THE_MARKER: &str = "after-the-marker";
+
+/// The body the parent starts in a child process for the kill inside the release of an earlier release:
+/// it marks the add complete and removes the record of the object made and then the destination record,
+/// which is the order of that release,
+/// and the signal comes at the instruction after the second removal,
+/// which no handler can catch.
+/// Run without the child's variable it returns at once and checks nothing.
+#[cfg(target_os = "linux")]
+#[test]
+fn child_removes_an_adds_records_in_the_earlier_order_and_is_killed() {
+    if std::env::var_os(RELEASE_CHILD_VARIABLE).is_none() {
+        return;
+    }
+    let claim_path: PathBuf = PathBuf::from(std::env::var_os(RELEASE_CHILD_CLAIM).expect("the child is given a claim"));
+    let container: PathBuf = PathBuf::from(std::env::var_os(RELEASE_CHILD_CONTAINER).expect("the child is given a stage"));
+    let record: PathBuf = PathBuf::from(std::env::var_os(RELEASE_CHILD_RECORD).expect("the child is given a destination record"));
+    let claim: StageClaim = StageClaim::adopted(claim_path.as_path(), container.as_path(), Some(record.as_path())).expect("the claim");
+    claim.mark_complete_unsynced().expect("the add completed");
+    crate::worktree_copy_stage_made_object::remove_made(claim_path.as_path()).expect("the record of the object went");
+    crate::worktree_copy_journal_removal::remove_file_if_present(record.as_path()).expect("the destination record went");
+    if std::env::var_os(RELEASE_CHILD_STOP).is_some_and(|stop: std::ffi::OsString| { return stop == KILLED_AFTER_THE_RECORD; }) {
+        // SAFETY: `raise` has no preconditions, and `SIGKILL` ends this process before it can be caught or ignored.
+        unsafe { libc::raise(libc::SIGKILL) };
+        unreachable!("SIGKILL ends the child");
+    }
+    crate::worktree_copy_journal_removal::remove_file_if_present(claim_path.with_extension("done").as_path()).expect("the marker went");
+    // SAFETY: `raise` has no preconditions, and `SIGKILL` ends this process before it can be caught or ignored.
+    unsafe { libc::raise(libc::SIGKILL) };
+    unreachable!("SIGKILL ends the child");
+}
+
+/// What:
+///  The whole sequence of issue 6296,
+/// run with the real functions at every step:
+/// a repository whose main checkout is a btrfs subvolume,
+/// an add's claim,
+/// the real snapshot rung that serves the add,
+/// the real exchange that puts the snapshot at the destination,
+/// a person's file in the folder Git made,
+/// which is then at the stage name and cannot be moved into the new worktree,
+/// then the release of an earlier release killed at the instruction the issue names,
+/// and the reaping of the next command.
+/// Why:
+///   The issue is that state,
+/// so the control builds it rather than a hand-written folder:
+/// every path, mode and record here is one the add's own steps make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { root, common, container } = await anAddServedByASnapshotWhoseDisplacedFolderStays('...');
+/// ```
+#[cfg(target_os = "linux")]
+fn an_add_served_by_a_snapshot_whose_displaced_folder_stays(name: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture(name)?;
+    let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    let destination: PathBuf = root.join("topic");
+    let plan = crate::worktree_ladder_test_support::plan_to(destination.clone());
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("an add's claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
+    let bound = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("bound");
+    let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &crate::worktree_ladder_test_support::main_identity(repo.as_path())).expect("source");
+    let container: PathBuf = claim.container().to_path_buf();
+    crate::worktree_snapshot::take_snapshot(
+        &source,
+        &plan,
+        container.as_path(),
+        &bound.admin,
+        bound.binding.pointer.as_slice(),
+        &crate::fixture_content_decision::content_environment(),
+    )
+    .expect("the snapshot");
+    let mode: u32 = std::os::unix::fs::MetadataExt::mode(&std::fs::metadata(source.root.as_path()).expect("the source's mode")) & 0o7777;
+    crate::worktree_snapshot::put_in_place(container.as_path(), destination.as_path(), mode, bound.binding.destination_id).expect("the exchange");
+    // Git made an empty destination and the exchange put it at the stage name; a person wrote into it while the add
+    // ran, and the same name is a file or a directory of what the snapshot carries, so settling moves none of it.
+    assert!(container.is_dir(), "the folder Git made is at the stage name");
+    std::fs::create_dir_all(container.join("ignored/pkg").as_path()).expect("the person's directory");
+    std::fs::write(container.join("ignored/pkg/index.js"), b"a person's only copy\n").expect("a person's file where the snapshot has one");
+    std::fs::write(container.join("person-keep.txt"), b"a person's only copy\n").expect("a person's file");
+    // The rung's own settling: Git's pointer goes, every other entry of the folder stays and is named, because it
+    // collides with what the snapshot carries and a recursive removal would take it.
+    let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(container.as_path(), destination.as_path(), bound.binding.destination_id, bound.binding.pointer.as_slice());
+    assert!(!notes.is_empty(), "the rung names what a recursive removal would have taken: {notes:?}");
+    assert!(container.join("person-keep.txt").is_file(), "the person's file stays where the settling leaves it");
+    return Some((root, common, container));
+}
+
+/// The record of the object a stage's creation made,
+/// and the destination record beside the claim,
+/// which the release of an earlier release removed before the claim.
+#[cfg(target_os = "linux")]
+fn the_records_a_release_removes(claim: &StageClaim) -> (PathBuf, PathBuf) {
+    return (made_record_beside_claim(claim.path.as_path()), claim.path.with_extension("add"));
+}
+
+/// What:
+///  The whole sequence of issue 6296 run against this build,
+/// killed at one of the two instructions that release would have removed a record at:
+/// a real add served by a snapshot whose displaced folder stays with a person's file in it,
+/// then the release of an earlier release in a child process that ends at `stop`,
+/// then the next command's reaping.
+/// Why:
+///   The issue is that state,
+/// so the control builds it with the add's own steps and kills where a person's machine was killed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notices = await theWholeSequenceOfIssue6296('...', KILLED_AFTER_THE_RECORD);
+/// ```
+#[cfg(target_os = "linux")]
+fn the_whole_sequence_of_issue_6296(name: &str, stop: &str) -> Vec<String> {
+    use std::os::unix::process::ExitStatusExt;
+    let Some((root, common, container)) = an_add_served_by_a_snapshot_whose_displaced_folder_stays(name) else { return Vec::new() };
+    let claim: StageClaim = crate::worktree_copy_stage_claim::claim_naming_stage(common.as_path(), container.as_path()).expect("the add's claim names its stage");
+    let (made, record): (PathBuf, PathBuf) = the_records_a_release_removes(&claim);
+    assert!(made.is_file() && record.is_file(), "the add wrote the record of the object its creation made and the destination record");
+    // The person's files stand before the kill and must stand after the next command.
+    assert!(container.join("person-keep.txt").is_file() && container.join("ignored/pkg/index.js").is_file());
+    let module: &str = module_path!();
+    let path: String = format!("{}::child_removes_an_adds_records_in_the_earlier_order_and_is_killed", module.split_once("::").map_or(module, |(_, rest)| { return rest; }));
+    let killed: std::process::Output = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
+        .args(["--exact", path.as_str(), "--nocapture", "--test-threads=1"])
+        .env(RELEASE_CHILD_VARIABLE, "1")
+        .env(RELEASE_CHILD_CLAIM, claim.path.as_path())
+        .env(RELEASE_CHILD_CONTAINER, container.as_path())
+        .env(RELEASE_CHILD_RECORD, record.as_path())
+        .env(RELEASE_CHILD_STOP, stop)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child process runs");
+    assert_eq!(killed.status.signal(), Some(libc::SIGKILL), "the child was killed where the issue says: {:?}", killed.status);
+    assert!(!made.exists() && !record.exists(), "the state the issue describes: a dead claim with neither record beside it");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the next command goes on");
+    assert!(container.join("person-keep.txt").is_file(), "the person's file at the top of the stage survives: {notices:?}");
+    assert!(container.join("ignored/pkg/index.js").is_file(), "the person's file at a path the snapshot has survives: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed"); }), "the line says the folder was not changed: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+    return notices;
+}
+
+/// The whole sequence of issue 6296, killed after the destination record is gone:
+/// the add's completion marker still stands,
+/// so the folder is judged as an add's stage and kept,
+/// and the person's files stay.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_whole_sequence_of_issue_6296_killed_after_the_record_keeps_a_persons_file() {
+    let notices: Vec<String> = the_whole_sequence_of_issue_6296("issue-6296-after-record", KILLED_AFTER_THE_RECORD);
+    assert!(!notices.is_empty(), "the control ran and the state was built");
+}
+
+/// The whole sequence of issue 6296, killed after the marker is gone too:
+/// the claim names a folder no record proves,
+/// so the folder is judged by what stands in it,
+///  and the line names the subtree that is not the wrapper's,
+/// which is the person's own directory and what a recursive removal would have taken.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_whole_sequence_of_issue_6296_killed_after_the_marker_names_the_persons_entries() {
+    let notices: Vec<String> = the_whole_sequence_of_issue_6296("issue-6296-after-marker", KILLED_AFTER_THE_MARKER);
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("it holds ignored,"); }), "the line names the person's own subtree: {notices:?}");
 }

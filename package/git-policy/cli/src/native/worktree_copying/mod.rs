@@ -48,6 +48,11 @@ pub mod worktree_copy_compare;
 /// validated stage of one source's ignored state beside a destination worktree.
 pub mod worktree_copy_stage;
 
+/// The record a copy writes into its stage before its first payload byte:
+/// the paths the payload will hold,
+/// which is what proves a folder's contents are the wrapper's.
+pub mod worktree_copy_stage_intended_entries;
+
 /// The copying of a staged snapshot's files and links into the stage,
 /// one worker per slice of the manifest.
 #[cfg(unix)]

@@ -118,7 +118,9 @@ fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Opti
     for name in names {
         let own: bool = name == PAYLOAD_NAME
             || name == crate::worktree_copy_stage_binding::STAGE_BINDING_NAME
-            || name.starts_with(format!("{}.", crate::worktree_copy_stage_binding::STAGE_BINDING_NAME).as_str());
+            || name == crate::worktree_copy_stage_intended_entries::INTENDED_NAME
+            || name.starts_with(format!("{}.", crate::worktree_copy_stage_binding::STAGE_BINDING_NAME).as_str())
+            || name.starts_with(format!("{}.", crate::worktree_copy_stage_intended_entries::INTENDED_NAME).as_str());
         if !own {
             return Ok(Some(name));
         }

@@ -16,7 +16,7 @@
 use crate::private_storage::create_private_directory;
 use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
-use crate::diagnostic_log::debug;
+use crate::diagnostic_log::{debug, warn};
 use crate::worktree_copy_ceiling::CopyCeiling;
 pub use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, copy_worker_count, create_private_tree, try_clone};
@@ -28,6 +28,9 @@ use crate::worktree_copy_manifest::{
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, is_separator_byte, select_roots, shown_repository_path};
 use crate::json_record::quote;
+
+/// The tag every line this module logs carries.
+const TAG: &str = "worktreeCopyStage";
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -396,6 +399,14 @@ fn stage_into(
         );
     }
     let walked: std::time::Duration = started.elapsed();
+    // What the payload is about to hold goes in before its first byte, so a kill at any later instruction leaves a
+    // stage that says what the copy was writing: the reaping removes a payload only where every entry of it is one of
+    // these paths, and anything else may be a person's and keeps the folder
+    // (`worktree_copy_stage_intended_entries.rs`). A record that cannot be written never fails the copy: the stage is
+    // then kept and named by the command that finds it, which is the safe direction.
+    if let Err(error) = crate::worktree_copy_stage_intended_entries::record_intended_entries(stage_container, entries.as_slice()) {
+        warn(TAG, format!("monochromatic-git-policy-cli: what the copy of {} was writing could not be recorded ({}); a kill while it runs leaves a stage the next command keeps and names", source_root.display(), error.0).as_str());
+    }
     let copied_manifest: CopiedManifest =
         copy_manifest_entries_with(source_root, stage_root, entries.as_slice(), clone, ceiling)?;
     let copied: std::time::Duration = started.elapsed();
