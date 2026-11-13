@@ -431,9 +431,11 @@ Tradeoffs of the second:
    It changes the option-scope work and does not touch `input-trace.ts`.
 - Making the token buffer a view in `argument()` only,
    the second of the two prototypes.
-   The other primitives then slice that view through its proxy,
-   and a line that alternates options and arguments took 10.9 times as long as without it at 24,000 tokens on Node
-   and 39.9 times on Bun.
+   The other primitives then slice that view through its proxy.
+   With the state fix in both arms,
+   a line that alternates options and arguments took 18.3 times as long with the view as without it
+   at 24,000 tokens on Node,
+   and 48.1 times on Bun.
    The figures are under "Timing of options and arguments alternating".
 - Copying the state of `multiple()` with `slice` and `push` in place of the spread.
    On Deno,
@@ -1011,8 +1013,10 @@ The order of the arms rotated from round to round.
 A ratio whose range straddles 1 is no finding in either direction.
 
 How far two runs of identical code differ was measured in the runs themselves.
-Below its threshold an arm runs the very code of the base,
-and such pairs had medians within a tenth of 1 and single rounds from 0.56 to 1.53.
+Below its threshold an arm runs the very code of the base.
+On Deno the state fix over the base had a median of 0.82 at 100 tokens and 1.06 at 1,000,
+with single rounds from 0.56 to 1.53;
+on Node and Bun no size wholly below the threshold was timed.
 One check ran the base twice in each of ten rounds:
 the second over the first had a median between 0.97 and 1.03 at every size,
 with single rounds from 0.75 to 1.25.
@@ -1171,6 +1175,17 @@ Both fixes over the base:
    11.2 at 48,000 (10.1 to 11.9);
    the buffer fix alone,
    8.8 (8.5 to 11.2) and 12.0 (9.8 to 13.8).
+
+Those ratios set a build with both fixes against a build with neither.
+Both fixes over the state fix alone,
+which holds the state fix constant and so shows what the buffer fix adds:
+
+- Node:
+   18.3 at 24,000 tokens (13.5 to 22.3),
+   13.0 at 48,000 (10.4 to 16.7).
+- Bun:
+   48.1 at 24,000 (24.1 to 65.0),
+   105.0 at 48,000 (74.9 to 153.8).
 
 Slower in every round on every runtime.
 At 12,000 tokens and below,
@@ -1448,10 +1463,10 @@ I tried both. For the state I have a second patch: above 1,024 items the state b
 0.24 times as long on Node and 0.50 on Bun, and 32,000 take 0.16 and 0.43. The core suite passes with it on Deno,
 Node and Bun, also with the threshold lowered to two so that nearly every state is a view. Its cost is that such a
 state is a proxy: it prints as an empty array, `structuredClone()` and `Object.freeze()` throw on it, and in-place
-edits throw. For the buffer I have nothing to offer: a view cut in `argument()` alone made a line that alternates
-options and arguments 11 to 13 times slower on Node and 40 to 77 times slower on Bun, because the other primitives
-then slice the view through the proxy. With the state fixed, the buffer copy is most of what is left from about
-32,000 arguments.
+edits throw. For the buffer I have nothing to offer: with the state patch in place, also cutting a view in
+`argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and 48 to 105 times
+slower on Bun, because the other primitives then slice the view through the proxy. With the state fixed, the buffer
+copy is most of what is left from about 32,000 arguments.
 
 It also bears on what #1121 leaves. Measured the same way, seven rounds with the arms rotated, a thousand paths
 after `--` took 1.37 times as long on #1121's branch as on 1.3.6 (1.34 to 1.42), and 0.94 times with this patch

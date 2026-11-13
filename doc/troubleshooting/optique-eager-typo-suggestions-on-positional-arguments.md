@@ -783,8 +783,9 @@ second patch removes the state copy by making a state of more than 1,024 items a
 immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
 (built packages, five rounds with the arms taking turns), and the core suite passes on Deno, Node and Bun. Its cost
 is that such a state is a `Proxy`, which prints as an empty array and throws on `structuredClone()`,
-`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: a view cut in `argument()` alone made
-a line that alternates options and arguments 11 to 13 times slower on Node and 40 to 77 times slower on Bun.
+`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: with the second patch in place, also
+cutting a view in `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and
+48 to 105 times slower on Bun.
 The write-up and both patches: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
