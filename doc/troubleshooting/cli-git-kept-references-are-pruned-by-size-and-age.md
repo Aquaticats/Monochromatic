@@ -122,8 +122,8 @@ at about 1.3 KiB of objects a day.
 In order,
 for each reference under `refs/cli-git/kept/` that is a number or a number and `-rescue`:
 
-1. A branch,
-   a remote-tracking reference or a tag reaches the commit:
+1. A local branch,
+   a remote-tracking branch or a tag reaches the commit:
    the reference goes at once,
    whatever its age.
 2. The reference is older than the age limit and no branch reaches its commit:
@@ -133,6 +133,21 @@ for each reference under `refs/cli-git/kept/` that is a number or a number and `
    one at a time,
    each removal followed by a fresh reading of what the survivors reach,
    and no reference younger than the floor goes for its size.
+
+Only a branch,
+a remote-tracking branch and a tag settle a commit.
+Every other reference is a holder in flight or a holder of its own:
+the landing's `refs/worktree/cli-git-service/<batch>`,
+the carried work of an isolated merge,
+a private fetch of a push,
+a person's stash.
+Each of those goes away by itself,
+so a kept reference removed because one of them reached the commit would lose the commit when that
+holder went,
+and the pass leaves it to the age rule instead.
+The question is asked again immediately before a reference goes for that reason,
+because a branch can move off the commit between the listing and the removal while the reference's
+own value stays the same.
 
 A pass plans at most sixteen removals and stops after twenty seconds,
 leaving the rest to the next pass,
@@ -200,8 +215,16 @@ the worktree the commit was built in,
 and the reason:
 
 ```json
-{"time_ms":1794513038147,"time":"2026-11-12T18:30:38.147Z","reference":"refs/cli-git/kept/1794071191963902","commit":"deb10b333be2e7c350d4d5cce35b8d474161fbbc","batch":1794071191963902,"rescued":false,"age_seconds":5434600,"kept_at":"2026-11-07T18:26:31.963Z","worktree":"/home/a person/worktrees/task","why":"too-old","why_words":"it reached no branch and was older than the 30-day age limit"}
+{"outcome":"pruned","time_ms":1794513038147,"time":"2026-11-12T18:30:38.147Z","reference":"refs/cli-git/kept/1794071191963902","commit":"deb10b333be2e7c350d4d5cce35b8d474161fbbc","batch":1794071191963902,"rescued":false,"age_seconds":5434600,"kept_at":"2026-11-07T18:26:31.963Z","worktree":"/home/a person/worktrees/task","why":"too-old","why_words":"it reached no branch and was older than the age limit of 30 days"}
 ```
+
+The line goes before the reference does,
+because the reference was the only handle on the commit:
+a crash between the two must leave the account of what went.
+A removal Git then refuses,
+because another pass took the reference first or another command moved it,
+adds a second line about the same reference with `"outcome":"refused"`,
+so a person reading both knows the removal did not happen.
 
 The time a reference was written is kept beside it while it exists,
 one small file per reference in

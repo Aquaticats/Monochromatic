@@ -3113,7 +3113,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  exactly as a failed push's record does.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
- The hand-over writes, beside the registration,
+ The hand-over writes,
+beside the registration,
  in the file `monochromatic-git-policy-cli-removal-identity`,
  the device and the inode of the registration and of the worktree root,
  and the service compares them with the two directories standing there before it removes anything.
@@ -3129,7 +3130,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  A record whose hand-over wrote no such identity,
  which is every record an earlier release queued,
  is compared with the name it was keyed by,
- which is the name the release before this one computed from the path and the registration's device, inode and
+ which is the name the release before this one computed from the path and the registration's device,
+inode and
  change time:
  a match proves the registration is untouched since the hand-over,
  and a mismatch leaves the worktree and names it.
@@ -3146,8 +3148,11 @@ A queue outlives the program that writes to it,
  and a version above this build's,
  are left in `pending` and looked at again,
  which is one read per record per round;
- a field this build does not know is ignored, and the record is this build's work when its kind and version are;
- and a record that is not a record at all, which no release can ever read, is settled in `failed`
+ a field this build does not know is ignored,
+and the record is this build's work when its kind and version are;
+ and a record that is not a record at all,
+which no release can ever read,
+is settled in `failed`
  (`record_of_a_later_release` in `src/native/landing/work_item.rs`).
  A whole-worktree removal that a commit service of an earlier release refused is queued once more by the next command
  of the repository,
@@ -3418,7 +3423,15 @@ and `refs/cli-git/auto-push/fetch-<pid>` (a private fetch of a push) are left wh
 A kept reference goes in three cases,
 judged in this order.
 Its commit has been reached by a local branch,
-a remote-tracking branch or a tag:
+a remote-tracking branch or a tag
+(and by none of the holders that go away by themselves:
+a landing's `refs/worktree/cli-git-service/<batch>`,
+the carried work of an isolated merge,
+a private fetch of a push,
+a person's stash,
+each of which is a holder in flight and not a branch):
+the question is asked again immediately before such a reference goes,
+because a branch can move off the commit while the reference's own value stays the same;
 the reference holds nothing any more and goes at the pass that reads it,
 whatever its age.
 It is older than thirty days and no branch reaches its commit:
@@ -3454,6 +3467,7 @@ such a reference is never pruned before it has been listed for the whole age lim
 which loses no commit and lets every reference this release and the earlier ones wrote be bounded.
 
 Before a reference whose commit no branch reaches is removed,
+and before every other removal of a reference too,
 the wrapper appends one line to
 `<common Git directory>/monochromatic-git-policy-cli-kept-references.jsonl`
 that carries the time,
@@ -3464,7 +3478,14 @@ the worktree the commit was built in,
 its age and the reason it went.
 That line is the only account of the commit afterwards,
 because the reference was its only handle,
-and `git gc` takes the objects once it is gone.
+and `git gc` takes the objects once it is gone,
+so the line is written before the reference goes and never after:
+a crash between the two must not leave the repository without either.
+A removal Git then refuses
+(because another pass took the reference first,
+or another command moved it)
+appends a second line about the same reference with `"outcome":"refused"`,
+so what the log says is what became of each removal.
 A line that cannot be written never stops the removal:
 the rule against unbounded growth decides,
 and the service's log names the failure.
@@ -12062,7 +12083,8 @@ and the append is one whole-entry write on an append-mode descriptor with no loc
 (`log_lines_appended_without_a_lock.rs`),
 so two reviews of one repository may run beside each other and every other kind.
 Reviews run after the pushes and before the steps that free space:
-a push is the person's backup, and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
+a push is the person's backup,
+and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
 On 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round emptied the trashes of removed worktrees ahead of them,
 one of which can run for many minutes (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 
@@ -13789,10 +13811,13 @@ the commit then fails where real Git's own filter would have made the directory 
 and no step of the wrapper can close that window,
 because a link cannot make the directory it names.
 The shadow's store link is what a filter of a wrapped commit writes through only when that commit both stages
-tracked changes at commit time (`--all`) and is built by real Git (an editor, a signature, a hook):
+tracked changes at commit time (`--all`) and is built by real Git (an editor,
+a signature,
+a hook):
 the staging of every other shape runs in the real repository,
 where `git-lfs` writes into the real store.
-What the repository holds at that name is the person's, in every form,
+What the repository holds at that name is the person's,
+in every form,
 and the creation never replaces,
 moves or deletes it:
 a directory,
