@@ -171,12 +171,13 @@ So, as the project's own rules until the owner changes them:
 - `df` at 10:27:50: `/var/home` 519 GiB free of 1906 (70% used); `/var/mnt/encrypted` 1640 GiB free of 3727 (54% used).
 - Drives (`lsblk`): `nvme0n1` "SPCC M.2 PCIe SSD" 1.9T and `sda` "Samsung SSD 860 EVO 4TB" 3.6T, both on `bfq`;
   by size the first is the home drive and the second the build volume. `vm.swappiness` reads 1.
-- `/proc/pressure/io` at about 10:33 with none of this work's runs going and one sizing walk of this session on the home drive:
+- Every reading of this section was taken between 10:27:50 and 10:33:59 (the clock at the first `df` and at the commit that recorded them).
+- `/proc/pressure/io` with none of this work's runs going and one sizing walk of this session on the home drive:
   `full avg10=11.64 avg60=12.45 avg300=8.07`. That is the baseline the cap's readings are compared with.
 - Another session is at work on the same machine (commits about Optique on `main` from 10:16:01 to 10:21:46,
   the unit `pi-optique-input-trace-and-reply-claim-check`, container images built within the hour).
   It is not this work, is left alone, and is load the readings include.
-- `~/temp/agent` still held 232,330 MiB at about 10:50 (`du`, listing in `~/temp/agent/scratch-size-2026-11-13/du-depth-2-in-mib.txt`),
+- `~/temp/agent` still held 232,330 MiB (`du`, listing in `~/temp/agent/scratch-size-2026-11-13/du-depth-2-in-mib.txt`),
   all of it last modified on 2026-11-12 or later. The largest folders, in MiB:
   `pkgrepair-repair-off-the-path` 65,984 (its `runs` 36,335, `base` 18,169, `strace` 7,713);
   `merge-reload-fix` 49,389 (two checkouts of the repository, `wt-main` and `wt-alpha13`, 24.7 GiB each);
@@ -185,11 +186,13 @@ So, as the project's own rules until the owner changes them:
   Every one was made by a run or subagent of this session and none was removed when its run ended:
   no tool owns their removal, and the rule that says to delete superseded scratch was not applied.
 - The owner's archive `~/temp/agentModifiedOnNOV11Dirs2026NOV121809.sqfs` (66,996,248,576 bytes) is on the home drive.
-- Every scratch path the wind-down section names exists (read at about 10:45).
+- Every scratch path the wind-down section names exists.
+- One commit through the wrapper in the main checkout (the one that recorded this section, `d04825f518`) took 0.741 s of wall clock;
+  real Git was not measured beside it, so it is one sample and no comparison.
 - The start gate of the Pi launcher refuses a start under 100 GiB free on the build volume (`free-space-floor.ts`)
   and never reads the home drive, which is the one that filled on 2026-11-12 and holds every run folder, Pi session and container image.
 
-#### Worktrees and branches after the restart (read 10:52)
+#### Worktrees and branches after the restart
 
 `~/temp/agent/worktree-check-2026-11-13/worktrees.jsonl` has one line per worktree, from a read-only pass with real Git and one `git ls-remote`.
 
