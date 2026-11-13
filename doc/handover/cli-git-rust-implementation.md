@@ -143,6 +143,8 @@ move its durable facts to their canonical doc and delete it from this page.
   `1475725556` the rule and both documents,
   `7c8aba14ac` and `8c3bce9551` the controls' own repairs.
   Not merged: the coordinating agent merges it.
+  It merges into the main of 2026-11-13T13:41:21-05:00 (207 commits after the base) with no conflict:
+  `git merge-tree --write-tree --name-only main HEAD` writes a tree and lists nothing.
 - What it does now:
   `prune_done` skips the newest `DONE_RETAINED` (1024) records and removes one only when
   `a_client_may_still_read_finished_batch` says no client of it may still read it.
