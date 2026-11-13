@@ -670,6 +670,23 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The push-stops branch passed its review; integration pass 19 for `0.6.1-alpha.17` is queued with two branches (2026-11-13T13:50:07-05:00)
+
+Not complete: the pass has not started; nothing is released.
+Read from the review's own report by the coordinating session.
+
+- **Review of `push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window`** (commit `f56257b9e1`), ended before 13:49:37: no defect.
+  It built the change and ran its controls under `cargo nextest`
+  (the eight of the library, the six through the built wrapper, and the twenty-one of the meter the change was taken out of),
+  and reasons that with a floor of zero the new condition is the old one, so waits that are not a push are unchanged.
+  It notes that the binary test program run directly, outside `nextest`, fails every fixture at the service's teardown, `main`'s unchanged controls included: a matter of the harness.
+- **Pass 19** takes the two branches that a review which built and ran them found clean:
+  commit-is-made at `159fa32a47` and push-stops at `f56257b9e1`.
+  Brief `~/temp/agent/pi-runs/integration-pass-19-for-alpha-17-prompt.md`; branch `integrate/git-policy-cli-pass-19-for-alpha-17` from `main`;
+  first in the queue, it starts as a place frees.
+  Every other branch is named in the brief as left out, each with a review today that reproduced a defect or a review still going.
+- The scratch-folder change's author started at 13:49:38 on its second review's findings.
+
 #### The installed release deletes a stage folder whose claim lost its records, a person's file with it: issue 6296 (2026-11-13T13:46:59-05:00)
 
 Not complete: how a person reaches the state without building it by hand is not shown against the release; the fix is with the snapshot branch's author.
