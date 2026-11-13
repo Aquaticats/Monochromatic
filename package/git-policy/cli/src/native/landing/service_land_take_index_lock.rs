@@ -49,6 +49,14 @@ pub(crate) fn take_index_lock(
     scratch: &str,
 ) -> Result<IndexLock, FailureCode> {
     let repository: &Path = first.repository.as_path();
+    // What: The locks a killed command left in this repository are met before this landing waits for the index.
+    // Why:  A restarted service meets the lock of the service that was killed holding it. The service's own reclaimer removes a
+    //       marked lock whose holder is gone, and the wrapper's record proves a Git the wrapper started is gone, so the commit
+    //       lands at once instead of the wait reaching its ceiling and withdrawing the change.
+    let _cleared: usize = crate::abandoned_locks::clear_abandoned_locks_telling(
+        crate::abandoned_locks::roots_of_git_directory(first.index.parent().unwrap_or(repository)).as_slice(),
+        &mut std::io::stderr(),
+    );
     let waiting_since: Instant = Instant::now();
     let mut notes: WaitNotes = WaitNotes::default();
     let taken = acquire_noting_wait_within(first.index.as_path(), seq, lock_ceiling, announce, &mut notes);

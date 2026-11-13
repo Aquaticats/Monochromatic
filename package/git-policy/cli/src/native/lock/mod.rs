@@ -98,6 +98,20 @@ pub mod push_lock_clearing;
 /// The notice a forwarded fetch or push is preceded by when reference locks of a killed Git are found.
 pub mod forwarded_lock_notice;
 
+/// The record a command writes about the processes it starts in a repository,
+/// and the proof that one of them is gone.
+pub mod lock_holder_records;
+
+/// What the wrapper's records of the processes it started say about a lock's holder.
+pub mod lock_holder_record_reads;
+
+/// The proof that one lock file is abandoned,
+/// and the one removal that acts on it.
+pub mod abandoned_lock_proving;
+
+/// The pass a command makes over its repository's lock files.
+pub mod abandoned_locks;
+
 /// What the wrapper prints about reference locks,
 /// and the quoted command that clears one it will not remove.
 pub mod stale_ref_lock_message;

@@ -98,7 +98,7 @@ pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_milli
 /// A network or user-space file system can be
 ///  written by a Git on another machine,
 /// whose process numbers mean nothing here.
-const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
+pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
