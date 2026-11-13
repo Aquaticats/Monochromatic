@@ -574,8 +574,9 @@ Read-only commands,
   when it resolves every conflicted file,
   the merge is published and its commit message and the report
    list each part merged by word (see "Word-level second merge pass").
-  An amended or rebased branch is not merged,
-  and its rejection is shown as before.
+  An amended or rebased branch is reconciled like any other:
+  the merge brings the published commits it replaced into the remote history beside the new ones,
+  and only a real overlap between the two is a conflict.
   When a post-commit policy kept one of the branch's commits local,
    the push stops at the commit before the first of them:
   it publishes the newest commit that no such verdict forbids,
