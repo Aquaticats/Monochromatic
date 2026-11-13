@@ -139,6 +139,20 @@ fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatu
     }
 }
 
+/// What:
+///  Moves a record's times past the life of any client of it,
+///  without waiting for that age to pass.
+/// Why:
+///   A finished record is removed only when it is both past every client of it and beyond the count,
+/// so a control that needs one removed says how old it is.
+/// A record this control wrote carries no reading of the clocks,
+/// which is how it is judged by its modification time.
+fn age_past_a_client_s_life(path: &Path) {
+    let past: Duration = git_policy_cli::wait_ceilings::A_FINISHED_RECORD_IS_READ + Duration::from_secs(60);
+    let when: std::time::SystemTime = std::time::SystemTime::now().checked_sub(past).expect("a fixture time after the epoch");
+    std::fs::File::open(path).expect("a fixture record to age").set_modified(when).expect("a fixture time to age");
+}
+
 fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE };
 }
@@ -257,6 +271,7 @@ fn a_commit_through_the_service_lands_and_is_acknowledged() {
 
 /// A service that starts on a journal holding more finished batches than it keeps removes the oldest records before it
 ///  answers its first request,
+/// those being both beyond the count and past every client of them,
 /// and a commit through it still lands.
 #[test]
 fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
@@ -267,7 +282,9 @@ fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
     let surplus: u64 = 5;
     let kept: u64 = u64::try_from(DONE_RETAINED).expect("a count");
     for seq in 1..=(kept + surplus) {
-        std::fs::write(journal.join(format!("{seq}.{DONE_EXTENSION}")), "not an intent").expect("an old finished batch");
+        let record: PathBuf = journal.join(format!("{seq}.{DONE_EXTENSION}"));
+        std::fs::write(&record, "not an intent").expect("an old finished batch");
+        age_past_a_client_s_life(record.as_path());
     }
     let name: String = address(&fixture, "prune");
     let service: Service = start_service(&fixture, name.as_str(), None);
@@ -279,7 +296,7 @@ fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
         assert!(!journal.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} is among the oldest and is removed");
     }
     for seq in (surplus + 1)..=(kept + surplus) {
-        assert!(journal.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} is among the newest and is kept");
+        assert!(journal.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} is among the newest and is kept whatever their age");
     }
     assert_eq!(count_of(&fixture, &repo, "message of prune-1"), 1);
     stop(service);
@@ -290,6 +307,7 @@ fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
 /// nothing
 ///  reads that journal's finished batches,
 /// and it grew by a file per commit.
+/// A record goes there only when it is past every client of it and beyond the count too.
 #[test]
 fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() {
     let fixture: Fixture = fixture("service-prune-shared");
@@ -301,7 +319,9 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
     let surplus: u64 = 5;
     let kept: u64 = u64::try_from(DONE_RETAINED).expect("a count");
     for seq in 1..=(kept + surplus) {
-        std::fs::write(shared.join(format!("{seq}.{DONE_EXTENSION}")), "not an intent").expect("an old finished batch");
+        let record: PathBuf = shared.join(format!("{seq}.{DONE_EXTENSION}"));
+        std::fs::write(&record, "not an intent").expect("an old finished batch");
+        age_past_a_client_s_life(record.as_path());
     }
     let name: String = address(&fixture, "prune-shared");
     let mut command: Command = super::support::service_command();
@@ -319,7 +339,7 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         assert!(!shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the oldest and is removed");
     }
     for seq in (surplus + 1)..=(kept + surplus) {
-        assert!(shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the newest and is kept");
+        assert!(shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the newest and is kept whatever their age");
     }
     stop(service);
     remove_settled(&fixture);

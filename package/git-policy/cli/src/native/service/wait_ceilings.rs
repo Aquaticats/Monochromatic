@@ -900,11 +900,25 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// so the record must outlive every client that can still be inside those two steps.
 /// A client's whole wait for an answer ends at `ANSWER_CEILING`,
 /// counted from its first send and longer than any batch takes to land,
-/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that;
-/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it.
+/// and every resend of that wait happens inside it,
+/// because a reconnect restarts neither bound;
+/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it;
+/// a request the ceiling withdrew is then answered from the same record,
+/// which names whether it landed,
+/// and that answer may take `WITHDRAW_CEILING`;
+/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that.
 /// A record older than the sum cannot be read by any client of it,
-/// and the cleanup that removes a removed worktree's journal may then take it.
-pub const A_FINISHED_RECORD_IS_READ: Duration = ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
+/// so the cleanup that removes a removed worktree's journal may take it,
+/// and a running service may forget the identity it names (`prune_done`,
+/// `service_journal.rs`).
+/// Each of the four is a bound of its own with its measurement beside it above;
+/// this is their sum because one command reaches them one after another.
+/// The age is counted from the reading the record carries,
+/// which is taken when the batch's intent is written,
+/// after the client sent its request and before its record is published,
+/// so the age a record has is never longer than the wait its client has been inside.
+pub const A_FINISHED_RECORD_IS_READ: Duration =
+    ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(WITHDRAW_CEILING).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
 
 /// How long a command that stopped an instance's service waits for the manager to report its processes gone
 /// before it leaves the instance's journal to a later sweep.

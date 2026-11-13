@@ -7233,7 +7233,8 @@ on the commit path:
   decision that replaces it.
   A `withdrawn` decision with its confirmation stays as a tombstone,
   so every copy of the request that
-  reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches,
+  reaches a group is dropped (kept for `DONE_RETAINED`,
+  the count of finished records the journal never goes below,
   forgotten oldest first by the landing
   thread alone,
   between two groups,
@@ -16069,6 +16070,62 @@ the attempts of one landing are `LANDING_ATTEMPTS` in `src/native/landing/servic
 The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
 a service's start settles only an earlier release's shared journal,
 and the wrapper recovers nothing for a commit.
+A finished batch's record is the memory of the request identities it landed:
+it is what tells a client whose answer was lost that its request already landed,
+and what answers the withdrawal of a request the client stopped waiting for (`service/service_journal.rs`,
+`service/service_busy.rs`).
+A service removes such a record only when both hold:
+it is older than `A_FINISHED_RECORD_IS_READ`,
+and it is beyond the newest `DONE_RETAINED` records of the journal.
+The removal runs when a service starts (`prune_done`) and never on the path a commit waits on.
+The age is the whole life of a client of the record (`service/wait_ceilings.rs`):
+the wait for the answer,
+inside which every resend of the request happens (`ANSWER_CEILING`),
+the short extra wait for a request the service says is inside its stuck branch write (`SHORT_EXTRA_WAIT`),
+the withdrawal whose answer the same record decides (`WITHDRAW_CEILING`),
+and the look the client makes for its commit after a lost answer (`LOOKING_FOR_A_LANDED_COMMIT`);
+30 minutes 17 seconds.
+The count is what a repository that lands rarely keeps for ever,
+so a client that was stalled past any age the service states is still answered as already landed
+while fewer than `DONE_RETAINED` batches have landed since its own.
+A burst of landings therefore pushes a record past the count and keeps it,
+and a long quiet time passes the age and keeps it;
+only both together spend the memory of a landed request,
+which is what stops a journal growing without end.
+The age is read from the reading of the clocks the record carries,
+written with the record itself (`service/service_journal_record_age.rs`):
+the boot and machine IDs,
+the monotonic clock and the wall clock,
+the reading a claim's lease is judged by (`service/claim_time.rs`),
+so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
+a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
+and only a record of an earlier release,
+which carries no reading,
+is judged by its modification time.
+Limit:
+a service that keeps landing keeps every record it writes until its next start,
+so its journal and the memory of the requests it landed grow by the batches it lands while it runs,
+and the next start removes those past the age and beyond the count,
+after reading every record it kept,
+which the first commits after that start wait for.
+Limit:
+a client that was stalled past the age is recognised only while the repository landed fewer than `DONE_RETAINED`
+batches since its own.
+Limit:
+a request replayed by a later command from a recording of an earlier one obeys no ceiling of this wrapper,
+so only its record keeps it from landing twice,
+and that record is kept only by the two conditions above.
+Limit:
+two services of one worktree at the same time hold a memory of the requests that landed before each of them started
+(`landed_commits` read at its start),
+so a request one of them landed and a client sends again to the other is landed twice;
+one service per worktree is what keeps that from happening,
+and nothing in the journal alone prevents it.
+Limit:
+a service of an earlier release,
+started on the same journal,
+removes the oldest records by the count alone,
+so a change of release may drop a record this release would keep for its client.
 A batch whose branch does not show its commit is dropped,
 unless a record of a hold names it:
 a held batch is settled first

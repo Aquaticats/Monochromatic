@@ -433,3 +433,44 @@ one line a minute:
   and is read by the counts it holds:
   a count that stays near twenty is a reading at twenty,
   not thirty-two held.
+- **The pools bound the count at about twenty-five, and the owner keeps it so.**
+  A run that names no model goes to one open pool,
+  `neuralwatt-flex`,
+  which takes twenty,
+  and reviews are held to five.
+  Asked at about 17:56 through the question tool whether to open more room for author runs,
+  the owner answered:
+  "Keep it.
+  I suspect any more would blow up the disk anyway."
+  So thirty-two stays the number that says when not to start one more,
+  the count does not pass about twenty-five,
+  and the search goes no higher until a pool changes or the new drive is in.
+- Readings from 17:21:32 to 18:06:06,
+  forty-four of them,
+  **every one taken while the sizing walk ran**:
+  agents going twenty at two readings,
+  twenty-one at one,
+  twenty-two at four,
+  twenty-three at four,
+  twenty-four at nineteen
+  and twenty-five at fourteen.
+  - Home drive: slowest 42 ms.
+  - Build volume: over one second eight times
+    (1,503 ms at 17:26:32,
+    2,179 at 17:32:34,
+    **5,764 at 17:37:13**,
+    3,326 at 17:50:19,
+    1,366 at 17:52:45,
+    4,264 at 17:53:47,
+    **9,820 at 17:57:53**,
+    2,860 at 18:03:03);
+    two over the bound,
+    never two in a row.
+  - By the criterion no symptom;
+    by the rule this file set on 2026-11-13 at 13:33,
+    readings taken during a sizing walk cannot be put down to the agents alone,
+    so these do not judge the level.
+  - The walk had run fifty-three minutes at 18:06 with nothing printed.
+- Free room at 18:06:54: `/var/home` 506 GiB,
+  the build volume 1.5 TiB by `df`'s rounding
+  (1,467 GiB by the launcher's count at 17:51).
