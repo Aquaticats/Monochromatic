@@ -12,6 +12,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
   MACHINE_CAP_DEFAULT,
   MACHINE_CAP_VARIABLE,
   type MachineCap,
@@ -42,6 +43,7 @@ import {
 function aRun(name: string,): GoingRun {
   return {
     name,
+    agents: 1,
     membership: {
       holds: 'a-pool',
       pool: NEURALWATT_DEEPSEEK_FLEX,
@@ -64,6 +66,7 @@ function aRun(name: string,): GoingRun {
 function aRunInNoPool(name: string,): GoingRun {
   return {
     name,
+    agents: 1,
     membership: { holds: 'no-pool', },
   };
 }
@@ -105,6 +108,30 @@ await describe({
           },
         },),
         it({
+          name: 'reads the largest whole number a number holds exactly, and refuses the first one it does not and a value of hundreds of digits',
+          fn: async () => {
+            /**
+             The largest whole number a number holds exactly, and the first one above it.
+             */
+            const largest = LARGEST_EXACTLY_HELD_WHOLE_NUMBER;
+            const firstNotHeld = String(BigInt(largest,) + 1n,);
+            expect(machineCapIn({ listed: String(largest,), },),).toBe(largest,);
+            for (const listed of [firstNotHeld, '9'.repeat(String(largest,).length * 20,),]) {
+              try {
+                machineCapIn({ listed, },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(MachineCapError,);
+                expect(String(error,),).toContain(MACHINE_CAP_VARIABLE,);
+                expect(String(error,),).toContain('too large',);
+                expect(String(error,),).toContain(listed,);
+                continue;
+              }
+              throw new Error(`the cap read "${listed.slice(0, 30,)}" instead of refusing it`,);
+            }
+          },
+        },),
+        it({
           name: 'refuses a setting that is no whole number, naming the variable and the value, rather than counting it as some other cap',
           fn: async () => {
             for (const listed of ['half', '4.5', '-1', `${String(MACHINE_CAP_DEFAULT,)} agents`,]) {
@@ -134,6 +161,30 @@ await describe({
           },
         },),
         it({
+          name: 'reads the largest whole number a number holds exactly, and refuses the first one it does not and a value of hundreds of digits',
+          fn: async () => {
+            /**
+             The largest whole number a number holds exactly, and the first one above it.
+             */
+            const largest = LARGEST_EXACTLY_HELD_WHOLE_NUMBER;
+            const firstNotHeld = String(BigInt(largest,) + 1n,);
+            expect(otherAgentsGoingIn({ listed: String(largest,), },),).toBe(largest,);
+            for (const listed of [firstNotHeld, '9'.repeat(String(largest,).length * 20,),]) {
+              try {
+                otherAgentsGoingIn({ listed, },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(MachineCapError,);
+                expect(String(error,),).toContain(OTHER_AGENTS_GOING_VARIABLE,);
+                expect(String(error,),).toContain('too large',);
+                expect(String(error,),).toContain(listed,);
+                continue;
+              }
+              throw new Error(`the count read "${listed.slice(0, 30,)}" instead of refusing it`,);
+            }
+          },
+        },),
+        it({
           name: 'refuses a setting that is no whole number, naming the variable and the value, so a mistyped count never reads as none',
           fn: async () => {
             try {
@@ -154,24 +205,37 @@ await describe({
       name: agentsGoingOf.name,
       children: [
         it({
-          name: 'counts every run going, including one no pool holds, and adds the agents the caller says the gate cannot see',
+          name: 'counts every agent the runs stand for, including one no pool holds, so two runs that share a name are two agents',
           fn: async () => {
             /**
-             The runs going now: one in a pool, and one an audit on another account.
+             A run in a pool, an audit on another account, and two runs going under one name, which is how an audit name may
+             go twice and what a race can leave for a moment.
              */
-            const runs = [aRun('copy-route',), aRunInNoPool('sol-audit-1',),];
+            const runs = [
+              aRun('copy-route',),
+              aRunInNoPool('sol-audit-1',),
+              {
+                ...aRunInNoPool('sol-audit-2',),
+                agents: 2,
+              },
+            ];
             /**
              How many agents of its own the caller says it has going.
              */
             const otherAgentsGoing = 2;
+            /**
+             One agent for the run in a pool and one for the audit, two for the name that stands for two agents, and the
+             caller's own agents besides.
+             */
+            const agentsTheRunsStandFor = 4;
             expect(agentsGoingOf({
               runs,
               otherAgentsGoing,
-            },),).toBe(runs.length + otherAgentsGoing,);
+            },),).toBe(agentsTheRunsStandFor + otherAgentsGoing,);
             expect(agentsGoingOf({
               runs,
               otherAgentsGoing: 0,
-            },),).toBe(runs.length,);
+            },),).toBe(agentsTheRunsStandFor,);
           },
         },),
       ],

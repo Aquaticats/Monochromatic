@@ -39,6 +39,12 @@ export {
   otherAgentsGoingIn,
 } from './machine-cap.ts';
 export {
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
+  type WholeNumberProblem,
+  type WholeNumberReading,
+  wholeNumberIn,
+} from './whole-number-setting.ts';
+export {
   SESSION_FOLDER_VARIABLE,
   sessionFolderOf,
 } from './pi-session-folder.ts';

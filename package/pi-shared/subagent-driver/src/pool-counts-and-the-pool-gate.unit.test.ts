@@ -15,6 +15,7 @@ import {
 import {
   ALREADY_RUNNING_EXIT_STATUS,
   BUILD_VOLUME_FLOOR_BYTES,
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
   BYTES_IN_A_GIBIBYTE,
   type FreeSpace,
   type FreeSpaceAgainstItsFloor,
@@ -88,6 +89,8 @@ const TEST_SESSION_FILES_VOLUME = '/a-session-files-volume-of-the-test';
 
  @param pool - the membership to count it with, which is outside every pool when absent
 
+ @param agents - how many agents this name stands for, which is one unless a test says two runs share it
+
  @returns the run
 
  @example
@@ -95,9 +98,10 @@ const TEST_SESSION_FILES_VOLUME = '/a-session-files-volume-of-the-test';
  const run = aRun('copy-route');
  ```
  */
-function aRun(name: string, pool?: PoolMembership,): GoingRun {
+function aRun(name: string, pool?: PoolMembership, agents = 1,): GoingRun {
   return {
     name,
+    agents,
     membership: pool ?? { holds: 'no-pool', },
   };
 }
@@ -822,6 +826,33 @@ await describe({
             expect(() => limitsIn({ listed: 'opencode-go', },),).toThrow(PoolLimitsError,);
           },
         },),
+        it({
+          name: 'reads a limit as large as a number holds exactly, and refuses the first one it does not, and a limit of hundreds of digits, rather than reading them as no limit at all',
+          fn: async () => {
+            /**
+             The largest whole number a number holds exactly, and the first one above it.
+             */
+            const largest = LARGEST_EXACTLY_HELD_WHOLE_NUMBER;
+            const firstNotHeld = String(BigInt(largest,) + 1n,);
+            expect(limitsIn({ listed: `${OPENCODE_GO.name}=${String(largest,)}`, },).get(OPENCODE_GO.name,),).toBe(largest,);
+            for (const limit of [firstNotHeld, '9'.repeat(String(largest,).length * 20,),]) {
+              /**
+               The pair a caller would have written.
+               */
+              const listed = `${OPENCODE_GO.name}=${limit}`;
+              try {
+                limitsIn({ listed, },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(PoolLimitsError,);
+                expect(String(error,),).toContain(POOL_LIMITS_VARIABLE,);
+                expect(String(error,),).toContain('too large',);
+                continue;
+              }
+              throw new Error(`the limit read "${limit.slice(0, 30,)}" instead of refusing it`,);
+            }
+          },
+        },),
       ],
     },),
     describe({
@@ -1435,6 +1466,60 @@ await describe({
                 cap: MACHINE_CAP_DEFAULT,
               },)}; not started: copy-route`,
             ],);
+          },
+        },),
+        it({
+          name: 'refuses a start at the cap when two runs that share one name are going, because they are two agents and not one',
+          fn: async () => {
+            /**
+             One run name that stands for two agents, which an audit name may do and a race can leave for a moment.
+             */
+            const runs = [aRun('sol-audit', undefined, 2,),];
+            /**
+             A cap of the agents those runs stand for, which is two and more than their number of entries.
+             */
+            const cap = 2;
+            /**
+             What the gate answered for one more agent, with the cap at the agents going.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills(),
+              machineCap: {
+                cap,
+                otherAgentsGoing: 0,
+              },
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${machineCapRefusalTextOf({
+                agentsGoing: cap,
+                cap,
+              },)}; not started: copy-route`,
+            ],);
+            /**
+             What the gate answers a caller that asks only for the counts while those two agents share one name.
+             */
+            const counted = await gateOutcomeOf({
+              options: gateOptions({ countsOnly: true, }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills(),
+              machineCap: {
+                cap,
+                otherAgentsGoing: 0,
+              },
+            },);
+            expect(counted.lines,).toEqual([countsLineOf({
+              tallies: talliesOf({ runs, },),
+              agentsGoing: cap,
+              cap,
+              volumes: volumesAnewRunFills(),
+            },),],);
           },
         },),
         it({

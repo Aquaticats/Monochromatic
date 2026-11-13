@@ -14,9 +14,10 @@
  say bisect up until there's a problem?" The canonical record of the level is `doc/handover/agents-at-once-on-this-machine.md`.
 
  The cap counts every agent going on the machine, never a slot of a pool: every Pi run, in a pool or in none, whoever started it,
- a run whose name begins `sol-` as much as one on a provider no pool holds, and every launcher that has not made its unit yet. A
- caller also says how many agents of its own it has going which are no Pi run, and those are added, because a subagent of a session
- fills this machine's drives as a Pi run does.
+ a run whose name begins `sol-` as much as one on a provider no pool holds, and every launcher that has not made its unit yet. Two
+ runs that share a name are two agents, while a launcher and the unit it made are one, because they are one run. A caller also says
+ how many agents of its own it has going which are no Pi run, and those are added, because a subagent of a session fills this
+ machine's drives as a Pi run does.
 
  Owner, 2026-11-13: "you set your max concurrent pi+sonnet subagents starting from 4, then bisecting up until we hit this disk's
  ceiling. We'll re-find the ceiling once the new disk arrives." Asked whose runs count: "Every agent on the machine".
@@ -25,7 +26,10 @@
  */
 
 import type { GoingRun, } from './going-runs.ts';
-import { isWholeNumber, } from './is-whole-number.ts';
+import {
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
+  wholeNumberIn,
+} from './whole-number-setting.ts';
 
 /**
  The variable that sets the cap for one command, as `<whole number of agents>`, so the cap is raised a step at a time and found
@@ -106,12 +110,21 @@ export function machineCapIn({ listed, }: { readonly listed: string },): number 
   if (written === '') {
     return MACHINE_CAP_DEFAULT;
   }
-  if (!isWholeNumber(written,)) {
+  /**
+   What this value was read as, or why it could not be read.
+   */
+  const reading = wholeNumberIn(written,);
+  if (!reading.read) {
+    if (reading.problem === 'too-large-to-hold-exactly') {
+      throw new MachineCapError(
+        `${MACHINE_CAP_VARIABLE} holds "${listed}", which is a whole number too large for a number to hold exactly, so it would count as no cap at all. Set it to at most ${String(LARGEST_EXACTLY_HELD_WHOLE_NUMBER,)} agents.`,
+      );
+    }
     throw new MachineCapError(
       `${MACHINE_CAP_VARIABLE} holds "${listed}", which is no whole number of agents. Set it to the number of agents this machine may carry at once, such as ${String(MACHINE_CAP_DEFAULT,)}.`,
     );
   }
-  return Number(written,);
+  return reading.value;
 }
 
 /**
@@ -136,18 +149,27 @@ export function otherAgentsGoingIn({ listed, }: { readonly listed: string },): n
   if (written === '') {
     return 0;
   }
-  if (!isWholeNumber(written,)) {
+  /**
+   What this value was read as, or why it could not be read.
+   */
+  const reading = wholeNumberIn(written,);
+  if (!reading.read) {
+    if (reading.problem === 'too-large-to-hold-exactly') {
+      throw new MachineCapError(
+        `${OTHER_AGENTS_GOING_VARIABLE} holds "${listed}", which is a whole number too large for a number to hold exactly, so it would count as every agent there is. Set it to at most ${String(LARGEST_EXACTLY_HELD_WHOLE_NUMBER,)} agents.`,
+      );
+    }
     throw new MachineCapError(
       `${OTHER_AGENTS_GOING_VARIABLE} holds "${listed}", which is no whole number of agents. Set it to how many agents you have going that this gate cannot see, and leave it unset when you have none.`,
     );
   }
-  return Number(written,);
+  return reading.value;
 }
 
 /**
  Counts the agents going on the machine now: every Pi run the gate found, and the agents its caller says it has going besides.
 
- @param runs - every Pi run going now, in a pool or in none
+ @param runs - every Pi run going now, in a pool or in none, each saying how many agents it stands for
 
  @param otherAgentsGoing - how many agents the caller has going which are no Pi run
 
@@ -165,7 +187,14 @@ export function agentsGoingOf({
   readonly runs: readonly GoingRun[];
   readonly otherAgentsGoing: number;
 },): number {
-  return runs.length + otherAgentsGoing;
+  /**
+   Every agent the runs stand for, which is more than their number when two of them share one name.
+   */
+  let agents = otherAgentsGoing;
+  for (const run of runs) {
+    agents += run.agents;
+  }
+  return agents;
 }
 
 /**

@@ -6,6 +6,10 @@
  gone still names its provider and model on its own command line, so it is read from there; counting every such unit in one
  fallback pool, as the scratch launcher did before 2026-11-11, let runs sit on standard Neuralwatt while it read empty.
 
+ The entries are one per run name, which is what a pool counts and what a second start of one name is refused against; each
+ entry also says how many agents the name stands for, because the machine's cap counts agents and two runs that share a name are
+ two agents.
+
  @module
  */
 
@@ -88,13 +92,20 @@ export const REPLACED_LAUNCHER_ENTRY_NAMES: readonly string[] = [
 ];
 
 /**
- One Pi run that is going now, and the pool it holds a slot in.
+ One Pi run that is going now, the pool it holds a slot in, and how many agents it stands for.
  */
 export type GoingRun = {
   /**
    The run's name, which is also the start of its run folder's name.
    */
   readonly name: string;
+
+  /**
+   How many agents this run name stands for: one for a launcher or for a unit, one when a launcher and the unit it made share
+   the name, and two when two launchers are going under one name, which an audit name may do and a race can leave for a moment.
+   A pool counts the entry once; the machine's cap counts these agents, so two runs sharing a name are never one agent.
+   */
+  readonly agents: number;
 
   /**
    The pool this run holds a slot in; a membership that is in no pool claims no slot anywhere.
@@ -244,6 +255,7 @@ export async function launcherRunsIn({
     }
     runs.push({
       name,
+      agents: 1,
       membership: membershipOfCommandLine({
         commandLine,
         pools,
@@ -331,7 +343,7 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
 
  @param onProblem - told about a unit whose own command line could not be read
 
- @returns one entry per run going now
+ @returns one entry per run name going now, each saying how many agents it stands for
 
  @throws PiUnitsUnreadableError when systemd could not list the units
 
@@ -362,14 +374,26 @@ export async function goingRunsNow({
     pools,
   },);
   /**
-   The runs the launchers already account for.
+   The runs the launchers already account for, one entry per name, each with the agents going under that name: two launchers of
+   one name are two agents, while a launcher and the unit it made are one, and the unit is folded into the entry the launcher
+   already holds.
    */
-  const runs = new Map(launchers.map(function keyed(launcher,) {
-    return [
+  const runs = new Map<string, GoingRun>();
+  for (const launcher of launchers) {
+    /**
+     The entry this name already holds, when a launcher of it was seen.
+     */
+    const held = runs.get(launcher.name,);
+    runs.set(
       launcher.name,
-      launcher,
-    ] as const;
-  },),);
+      (held === undefined)
+        ? launcher
+        : {
+          ...held,
+          agents: held.agents + 1,
+        },
+    );
+  }
   /**
    What systemd said about the Pi units.
    */
@@ -418,6 +442,7 @@ export async function goingRunsNow({
       name,
       {
         name,
+        agents: 1,
         membership: (shown.status === 0)
           ? poolOfExecStart({ shown: shown.stdout, },)
           : membershipOf({

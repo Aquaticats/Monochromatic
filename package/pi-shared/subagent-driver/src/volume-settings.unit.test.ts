@@ -13,6 +13,7 @@ import {
 import {
   BYTES_IN_A_GIBIBYTE,
   FOLDER_VOLUMES_VARIABLE,
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
   VOLUME_FREE_SPACE_BYTES_VARIABLE,
   VolumeSettingsError,
   givenFolderVolumes,
@@ -62,6 +63,30 @@ await describe({
               return;
             }
             throw new Error('a room that is no whole number of bytes was read instead of refused',);
+          },
+        },),
+        it({
+          name: 'reads the largest whole number of bytes a number holds exactly, and refuses the first one it does not and a value of hundreds of digits',
+          fn: async () => {
+            /**
+             The largest whole number a number holds exactly, and the first one above it.
+             */
+            const largest = LARGEST_EXACTLY_HELD_WHOLE_NUMBER;
+            const firstNotHeld = String(BigInt(largest,) + 1n,);
+            expect(givenVolumeFreeSpaceBytes({ listed: `/a-volume=${String(largest,)}`, },).get('/a-volume',),).toBe(largest,);
+            for (const bytes of [firstNotHeld, '9'.repeat(String(largest,).length * 20,),]) {
+              try {
+                givenVolumeFreeSpaceBytes({ listed: `/a-volume=${bytes}`, },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(VolumeSettingsError,);
+                expect(String(error,),).toContain(VOLUME_FREE_SPACE_BYTES_VARIABLE,);
+                expect(String(error,),).toContain('too large',);
+                expect(String(error,),).toContain(bytes,);
+                continue;
+              }
+              throw new Error(`the room read "${bytes.slice(0, 30,)}" instead of refusing it`,);
+            }
           },
         },),
         it({

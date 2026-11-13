@@ -347,6 +347,7 @@ function theShippedCap(): MachineCap {
 function aRunIn(pool: ProviderPool, name: string,): GoingRun {
   return {
     name,
+    agents: 1,
     membership: {
       holds: 'a-pool',
       pool,
@@ -1347,6 +1348,106 @@ await describe({
             },),).toEqual(['with-launcher', 'no-launcher',],);
             expect(poolNamesOf(going[1] ?? aRunOutsideEveryPool(),),).toEqual(['neuralwatt-kimi-flex',],);
             expect(asked,).toHaveLength(2,);
+          },
+        },),
+        it({
+          name: 'counts two launchers going under one audit name as two agents in one entry, because an audit name may go twice',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding two launchers of one audit name.
+             */
+            const processes = join(folder.path, 'proc',);
+            for (const pid of ['31', '32',]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher file after another; see doc/lint/sequential-awaits.md
+              await writeProcess({
+                folder: processes,
+                pid,
+                words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+              },);
+            }
+            /**
+             The runs going now, with no unit at all.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd() {
+                return answered(0, '',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a machine with no unit reported a problem',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.name,).toBe('sol-audit',);
+            expect(going[0]?.agents,).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts two launchers going under one name that is no audit as two agents, because a race can leave that name twice',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding two launchers of one name a second start is refused for.
+             */
+            const processes = join(folder.path, 'proc',);
+            for (const pid of ['33', '34',]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher file after another; see doc/lint/sequential-awaits.md
+              await writeProcess({
+                folder: processes,
+                pid,
+                words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=copy-route',],
+              },);
+            }
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd() {
+                return answered(0, '',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a machine with no unit reported a problem',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts a launcher and the unit it made as one agent, because the unit is the launcher own run',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '35',
+              words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=copy-route',],
+            },);
+            /**
+             The runs going now, with the unit that launcher made listed by systemd.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-copy-route.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=neuralwatt --model=deepseek-v4.1-flash-flex ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.name,).toBe('copy-route',);
+            expect(going[0]?.agents,).toBe(1,);
           },
         },),
         it({

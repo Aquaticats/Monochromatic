@@ -9,7 +9,10 @@
  @module
  */
 
-import { isWholeNumber, } from './is-whole-number.ts';
+import {
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
+  wholeNumberIn,
+} from './whole-number-setting.ts';
 
 /**
  The variable that gives a volume's room in bytes instead of reading it, as `<volume>=<bytes>` pairs separated by commas.
@@ -121,14 +124,23 @@ export function givenVolumeFreeSpaceBytes({ listed, }: { readonly listed: string
     listed,
     variable: VOLUME_FREE_SPACE_BYTES_VARIABLE,
   },)) {
-    if (!isWholeNumber(bytes,)) {
+    /**
+     What this room was read as, or why it could not be read.
+     */
+    const reading = wholeNumberIn(bytes,);
+    if (!reading.read) {
+      if (reading.problem === 'too-large-to-hold-exactly') {
+        throw new VolumeSettingsError(
+          `${VOLUME_FREE_SPACE_BYTES_VARIABLE} holds "${volume}=${bytes}", which gives that volume a whole number of bytes too large for a number to hold exactly, so no floor would ever see it full. Set it to at most ${String(LARGEST_EXACTLY_HELD_WHOLE_NUMBER,)} bytes.`,
+        );
+      }
       throw new VolumeSettingsError(
         `${VOLUME_FREE_SPACE_BYTES_VARIABLE} holds "${volume}=${bytes}", which gives that volume no whole number of bytes.`,
       );
     }
     rows.set(
       volume,
-      Number(bytes,),
+      reading.value,
     );
   }
   return rows;

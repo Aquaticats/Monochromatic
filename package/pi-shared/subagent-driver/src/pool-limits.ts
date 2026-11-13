@@ -12,7 +12,10 @@
  @module
  */
 
-import { isWholeNumber, } from './is-whole-number.ts';
+import {
+  LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
+  wholeNumberIn,
+} from './whole-number-setting.ts';
 
 /**
  One provider pool: the provider and model that share an account's room, how many runs it takes at once, and how long a run on
@@ -268,9 +271,24 @@ export function limitsIn({ listed, }: { readonly listed: string },): ReadonlyMap
      */
     const written = (split === (-1)) ? '' : pair.slice(split + 1,)
       .trim();
-    if ((!PROVIDER_POOLS.some(function isNamed(pool,) {
+    if (!PROVIDER_POOLS.some(function isNamed(pool,) {
       return pool.name === name;
-    },)) || (!isWholeNumber(written,))) {
+    },)) {
+      throw new PoolLimitsError(`${POOL_LIMITS_VARIABLE} holds "${pair}", which is no <pool name>=<whole number> of this table: ${PROVIDER_POOLS.map(function nameOf(pool,) {
+        return pool.name;
+      },)
+        .join(', ',)}`);
+    }
+    /**
+     What this limit was read as, or why it could not be read.
+     */
+    const reading = wholeNumberIn(written,);
+    if (!reading.read) {
+      if (reading.problem === 'too-large-to-hold-exactly') {
+        throw new PoolLimitsError(
+          `${POOL_LIMITS_VARIABLE} holds "${pair}", whose limit is a whole number too large for a number to hold exactly. Set it to at most ${String(LARGEST_EXACTLY_HELD_WHOLE_NUMBER,)} runs.`,
+        );
+      }
       throw new PoolLimitsError(`${POOL_LIMITS_VARIABLE} holds "${pair}", which is no <pool name>=<whole number> of this table: ${PROVIDER_POOLS.map(function nameOf(pool,) {
         return pool.name;
       },)
@@ -278,7 +296,7 @@ export function limitsIn({ listed, }: { readonly listed: string },): ReadonlyMap
     }
     limits.set(
       name,
-      Number(written,),
+      reading.value,
     );
   }
   return limits;

@@ -223,7 +223,10 @@ never slots.
   including a run no pool holds
   (an audit whose name begins `sol-`,
   a Kimi run on a provider outside the table),
-  and every launcher that has not made its unit yet;
+  and every launcher that has not made its unit yet.
+  Two runs that share a name are two agents, never one:
+  an audit name may go twice,
+  and a launcher and the unit it made are one agent because they are one run;
 - the agents a caller says it has going which are no Pi run,
   such as subagents of its own session,
   which the gate cannot see.
@@ -366,8 +369,12 @@ Five environment variables exist so the gate's own tests read nothing of the mac
 `PI_RUNS_VOLUME_FREE_SPACE_BYTES` gives each volume's room as `<volume>=<bytes>` pairs,
 and `PI_RUNS_FOLDER_VOLUMES` says which volume each folder is on as `<folder>=<volume>` pairs.
 A caller starting real runs sets none of them.
-Either of the last two can only make the gate start a run it would otherwise refuse,
-never refuse one it would start.
+Each of the last two replaces a reading of this machine with one the test gives,
+so either can start a run the machine would refuse or refuse one it would start:
+a room larger than the drive holds, or a volume with more room than the folder's own,
+lets a start through;
+a room smaller than the drive holds, or a folder mapped onto a volume that is under its floor,
+refuses a start the folder's own volume would allow.
 The cap and the agents a caller has going are the two variables above.
 
 ### `start-pi-run-in-a-worktree`
