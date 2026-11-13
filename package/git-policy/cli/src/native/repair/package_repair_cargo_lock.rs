@@ -303,6 +303,126 @@ fn copies_directory(kept_in: &Path, lock: &Path) -> PathBuf {
 }
 
 /// What:
+///  What placing a resolution's bytes at a workspace's lock path came to.
+/// Why:
+///   The placement is the one step of the repair that writes the person's file,
+///  so its answer says either that the write found exactly the bytes the filling read at its start,
+///  or why nothing was written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Placed = { kind: 'placed' } | { kind: 'gave-way'; reason: string };
+/// ```
+#[derive(Debug)]
+pub enum Placed {
+    /// The resolution's bytes stand at the lock path,
+    /// and whatever stood there first was the bytes the filling read before it began.
+    Placed,
+    /// Nothing was written there,
+    /// because the steps that would prove what they displaced cannot run,
+    /// or because the bytes there are a person's.
+    GaveWay(String),
+}
+
+/// What:
+///  Put a resolution's bytes at the workspace's `Cargo.lock` without replacing anything a person wrote,
+///  and answer what became of the file that stood there.
+/// Why:
+///   The resolution is made in a mirror of the workspace, so the person's file is untouched until this step;
+/// this is the only write to it,
+/// and it is an exchange (`RENAME_EXCHANGE`),
+///  which puts the resolution's bytes there and hands back the file that stood there in one step:
+/// whatever a person wrote at any moment before it is returned here and not truncated,
+///  which is the one thing a write-by-write comparison cannot promise.
+/// The file handed back is compared with the bytes the filling read before its clean began:
+/// they are the same when nobody wrote,
+/// and anything else is a person's and is put back by the second exchange,
+///  so the repair gives way and their file is exactly as they left it.
+/// A lock the checkout does not have is created with `create_new`,
+/// so a file a person created in the meantime is never written over.
+///  A filesystem that cannot exchange two names gives way here rather than fall back to a plain write:
+/// a plain write would replace a write made a moment earlier,
+/// and giving the workspace up costs only the prewarm of it.
+///
+/// # Errors
+///
+/// `Placed::GaveWay` names what could not be done and what became of every byte.
+pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]>, kept_in: Option<&Path>) -> Placed {
+    let path: PathBuf = root.join(LOCK_FILE);
+    let Some(directory) = kept_in else {
+        return Placed::GaveWay(format!(
+            "the {LOCK_FILE} of {} would have to be resolved, and no Git directory was named to place the resolution from",
+            path.display()
+        ));
+    };
+    let staged: PathBuf = match stage_the_checkout(directory, path.as_path(), resolution) {
+        Ok(staged) => staged,
+        Err(reason) => return Placed::GaveWay(reason),
+    };
+    let Some(standing) = before else {
+        // Nothing stood at the lock path when the filling began, so the resolution is created there and never written over a file
+        //  a person made meanwhile.
+        return match crate::rename_that_never_replaces::rename_noreplace(staged.as_path(), path.as_path()) {
+            Ok(()) => Placed::Placed,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let _kept = std::fs::remove_file(staged.as_path());
+                Placed::GaveWay(format!(
+                    "the {LOCK_FILE} of {} was created while the repair resolved it, so it is left exactly as it is found",
+                    path.display()
+                ))
+            }
+            Err(error) => {
+                let _kept = std::fs::remove_file(staged.as_path());
+                Placed::GaveWay(format!("the {LOCK_FILE} of {} could not be written ({error})", path.display()))
+            }
+        };
+    };
+    if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path.as_path()) {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            // The file went away since the filling read it: the resolution is created where nothing stands, and a person's new
+            //  file is never written over.
+            return match crate::rename_that_never_replaces::rename_noreplace(staged.as_path(), path.as_path()) {
+                Ok(()) => Placed::Placed,
+                Err(refusal) => {
+                    let _kept = std::fs::remove_file(staged.as_path());
+                    Placed::GaveWay(format!(
+                        "the {LOCK_FILE} of {} was removed while the repair resolved it and could not be written back ({refusal}), so nothing was \
+                         replaced and the resolution is at {}",
+                        path.display(),
+                        staged.display()
+                    ))
+                }
+            };
+        }
+        let _kept = std::fs::remove_file(staged.as_path());
+        return Placed::GaveWay(format!(
+            "the {LOCK_FILE} of {} could not be replaced without losing a write ({error}), so the repair gives way and the file is exactly as it is \
+             found",
+            path.display()
+        ));
+    }
+    // The exchange hands back the file that stood there, judged here and not from a reading taken earlier.
+    let handed_back: Option<Vec<u8>> = std::fs::read(staged.as_path()).ok();
+    if handed_back.as_deref() == Some(standing) {
+        let _dropped = std::fs::remove_file(staged.as_path());
+        return Placed::Placed;
+    }
+    if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path.as_path()) {
+        return Placed::GaveWay(format!(
+            "the {LOCK_FILE} of {} was written while the repair resolved it, and putting those bytes back failed ({error}), so they are kept at {}",
+            path.display(),
+            staged.display()
+        ));
+    }
+    // Their file is back where they wrote it; the kept name is gone with the exchange.
+    let _dropped = std::fs::remove_file(staged.as_path());
+    return Placed::GaveWay(format!(
+        "the {LOCK_FILE} of {} was written while the repair resolved it, so it is left exactly as it is found and the repair gives way",
+        path.display()
+    ));
+}
+
+/// What:
 ///  What putting the checked-out lock back did with the bytes that stood there.
 /// Why:
 ///   The reading that judged those bytes is a moment of its own,

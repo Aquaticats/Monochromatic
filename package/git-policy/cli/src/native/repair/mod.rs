@@ -63,6 +63,11 @@ pub mod package_repair_prewarm_job;
 #[cfg(target_os = "linux")]
 pub mod package_repair_prewarm_marker;
 
+/// The lease one filling holds on one build directory's names,
+/// so a filling that is still at work is never taken for a dead one.
+#[cfg(target_os = "linux")]
+pub mod package_repair_prewarm_claim;
+
 /// The hand-over of a new worktree's copied package state to the commit service,
 /// so the add does not wait for pnpm's relink or the toolchain install.
 #[cfg(target_os = "linux")]

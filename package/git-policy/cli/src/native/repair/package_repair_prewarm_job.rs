@@ -42,9 +42,10 @@ use crate::diagnostic_log::debug;
 use crate::package_repair_cargo::{locked_clean_arguments, manual_command};
 /// The lock file the filling's report names,
 /// and the faces that read it and put the checked-out bytes back over a resolution's.
-use crate::package_repair_cargo_lock::{LOCK_FILE, read_lock, restore_only_the_cleans_own};
+use crate::package_repair_cargo_lock::{LOCK_FILE, Placed, place_the_resolution, read_lock, restore_only_the_cleans_own};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE, decode};
+use crate::package_repair_prewarm_claim::{TheClaim, TheLease, claim_the_names};
 use crate::package_repair_request::RepairEnvironment;
 // The marker's own vocabulary, reading and writing live beside this job
 // (`package_repair_prewarm_marker.rs`), and this module names what it uses so its controls reach them too.
@@ -78,7 +79,7 @@ const OWN_CARGO_LINK: &str = ".cache/toolchain-bin/cargo";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Fill = { cargo: string; limits: ToolLimits };
+/// type Fill = { cargo: string; limits: ToolLimits; keptIn?: string; worktree: string };
 /// ```
 pub(crate) struct Fill {
     /// The Cargo that cleans the staging copy.
@@ -89,6 +90,9 @@ pub(crate) struct Fill {
     /// or nothing when no Git directory is known,
     /// in which case a lock the clean changed is left as it is found.
     pub(crate) kept_in: Option<PathBuf>,
+    /// The worktree every workspace of one record sits in,
+    /// which is the root a resolution's mirror of a workspace is laid out below.
+    pub(crate) worktree: PathBuf,
 }
 
 /// What:
@@ -167,7 +171,7 @@ const TARGET_SUFFIX: &str = ".target";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TheNames = { staging: string; target: string; marker?: string };
+/// type TheNames = { staging: string; target: string; marker?: string; lease?: TheLease };
 /// ```
 struct TheNames {
     /// The directory the source's build state is cloned into,
@@ -178,6 +182,9 @@ struct TheNames {
     /// The marker that says the two names are this job's,
     /// when this run claimed the usual ones.
     marker: Option<PathBuf>,
+    /// The lease that proves this filling is the one at work on these names,
+    /// when this run took the usual ones.
+    lease: Option<TheLease>,
 }
 
 /// What:
@@ -207,12 +214,25 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
     let usual: PathBuf = staging_of(destination);
     let usual_target: PathBuf = target_of(usual.as_path());
     let marker: PathBuf = marker_of(usual.as_path());
+    // The lease is taken before the names are read, and it is what tells a filling that is still at work from one that was
+    //  killed: a marker says a filling wrote these names, and only the kernel can say whether it is still writing them.
+    let lease: TheLease = match claim_the_names(usual.as_path()) {
+        TheClaim::Held(lease) => lease,
+        // A filling of this very build directory holds the names and has not finished: this run touches none of them and
+        //  stages under names of its own, so it can never delete a live filling's copy.
+        TheClaim::Taken => return Ok(names_of_this_runs_own(usual.as_path())),
+        // Nothing proves who holds the names, so nothing here may be removed for a dead filling.
+        TheClaim::Refused(reason) => {
+            debug(TAG, format!("{reason}; this run stages under names of its own rather than remove what it cannot prove is a dead filling's").as_str());
+            return Ok(names_of_this_runs_own(usual.as_path()));
+        }
+    };
     let standing: TheMarkerThere = the_marker_there(marker.as_path());
     if matches!(&standing, TheMarkerThere::ThisJobs(claim) if claim.to == destination) {
         // An earlier filling of this same workspace was interrupted, so what it left under these names is this job's.
         remove_if_any(usual.as_path())?;
         remove_if_any(usual_target.as_path())?;
-        return Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) });
+        return Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker), lease: Some(lease) });
     }
     if matches!(&standing, TheMarkerThere::ThisJobs(claim) if claim.to != destination) {
         // A copy carried another worktree's claim here, and it says nothing about this one's names, so it goes and this
@@ -224,7 +244,7 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
         return Ok(names_of_this_runs_own(usual.as_path()));
     }
     return match write_marker(marker.as_path(), destination)? {
-        TheMarkersAnswer::WrittenByThisRun => Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) }),
+        TheMarkersAnswer::WrittenByThisRun => Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker), lease: Some(lease) }),
         // Another command has the name: what is there is not this run's to remove, and this run stages
         //  under names of its own.
         TheMarkersAnswer::WrittenByAnother => Ok(names_of_this_runs_own(usual.as_path())),
@@ -249,7 +269,7 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
 fn names_of_this_runs_own(usual: &Path) -> TheNames {
     let own: PathBuf = a_name_of_this_runs_own(usual);
     let own_target: PathBuf = target_of(own.as_path());
-    return TheNames { staging: own, target: own_target, marker: None };
+    return TheNames { staging: own, target: own_target, marker: None, lease: None };
 }
 
 /// What:
@@ -295,11 +315,21 @@ fn give_back(names: &TheNames) {
         //  workspace clears it.
         debug(TAG, format!("{reason}; the filling is done and the directory stays for the next one").as_str());
     }
-    let Some(marker) = names.marker.as_ref() else { return };
-    match std::fs::remove_file(marker.as_path()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => debug(TAG, format!("{} could not be removed after the filling ({error})", marker.display()).as_str()),
+    if let Some(marker) = names.marker.as_ref() {
+        match std::fs::remove_file(marker.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => debug(TAG, format!("{} could not be removed after the filling ({error})", marker.display()).as_str()),
+        }
+    }
+    // The lease goes last, while this filling still holds it: a filling that takes the names after this point makes its own
+    //  lease file, so the name it finds gone is nobody's. A lease file that cannot be removed is a debug line only: the next
+    //  filling creates the name again and locks it.
+    if let Some(lease) = names.lease.as_ref()
+        && let Err(error) = std::fs::remove_file(lease.path())
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        debug(TAG, format!("{} could not be removed after the filling ({error})", lease.path().display()).as_str());
     }
 }
 
@@ -402,26 +432,162 @@ async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> 
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
 }
 
+/// The manifest a workspace is read from,
+/// which the mirror of a workspace copies rather than links.
+const MANIFEST_FILE: &str = "Cargo.toml";
+
+/// The directory under the Git directory that holds one resolution's mirror of one workspace.
+const RESOLUTIONS_DIRECTORY: &str = "monochromatic-git-policy-cli-lock-resolutions";
+
 /// What:
-///  Ask Cargo to resolve the worktree's workspace,
-/// which is what writes the `Cargo.lock` the clean itself must not write.
+///  The bytes Cargo resolves for a workspace whose `Cargo.lock` a `--locked` clean refused,
+///  made in a mirror of that workspace instead of in the worktree.
 /// Why:
-///   `cargo clean` resolves the workspace,
-/// and for a lock that no longer matches its manifest that rewrite is part of the clean;
-///  `--locked` keeps it out of the clean,
-/// so the resolution is asked for as a step of its own.
-/// The bytes it writes are Cargo's own,
-/// which is what lets the caller tell Cargo's rewrite from a person's newer write
-/// (`package_repair_cargo_lock.rs`).
+///   A `--locked` clean refuses a lock that no longer matches its manifest,
+/// and the resolution that makes it match is a write to `Cargo.lock`,
+/// which is the person's file:
+/// a write of theirs made at any moment before Cargo's own would be truncated by it,
+/// and no step taken from outside the writer can bring those bytes back.
+///  So the resolution is made where the person's file is not:
+/// a mirror of the workspace below the worktree root,
+/// whose directories on the way are this job's and whose every other entry is a link to the real one,
+/// with the workspace's manifest and lock copied into it.
+/// Cargo resolves the same manifests with the same lock bytes and writes `Cargo.lock` in the mirror,
+/// whether or not there is any to read,
+/// and the bytes placed in the worktree afterwards are the ones the workspace itself would have
+/// resolved (`place_the_resolution`).
+/// A mirror that cannot be made,
+/// a resolution that fails,
+/// and a resolution that writes no lock all answer an error,
+/// and the caller gives that workspace up rather than touch the person's file.
+///
+/// # Errors
+///
+/// No Git directory to keep a mirror under,
+/// a workspace outside the worktree,
+/// a mirror that cannot be made or read,
+/// and a Cargo that failed or wrote no lock.
+async fn resolve_the_workspace_elsewhere(fill: &Fill, entry: &PrewarmEntry) -> Result<Vec<u8>, String> {
+    let Some(kept_in) = fill.kept_in.as_ref() else {
+        return Err(format!(
+            "the {LOCK_FILE} of {} would have to be resolved, and no Git directory was named to resolve it outside the worktree",
+            entry.root.display()
+        ));
+    };
+    let root: PathBuf = the_resolutions_mirror_root(kept_in, entry.root.as_path());
+    // A mirror a killed resolution left is this job's own, and it is rebuilt rather than trusted.
+    let _cleared = std::fs::remove_dir_all(root.as_path());
+    let mirrored: PathBuf = match mirror_the_workspace(fill.worktree.as_path(), entry.root.as_path(), root.as_path()) {
+        Ok(mirrored) => mirrored,
+        Err(reason) => {
+            let _cleared = std::fs::remove_dir_all(root.as_path());
+            return Err(reason);
+        }
+    };
+    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
+    let command: ToolCommand = ToolCommand { arguments, directory: mirrored.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
+    let resolved: Option<Vec<u8>> = read_lock(mirrored.as_path());
+    let _cleared = std::fs::remove_dir_all(root.as_path());
+    return match (run.end, resolved) {
+        (ToolEnd::Succeeded, Some(bytes)) => Ok(bytes),
+        (ToolEnd::Succeeded, None) => Err(format!("Cargo resolved the workspace of {} and wrote no {LOCK_FILE} in the mirror it was given", entry.root.display())),
+        (end, _) => Err(format!("the workspace of {} could not be resolved outside the worktree ({})", entry.root.display(), end_reason(&end))),
+    };
+}
+
+/// The most bytes of one workspace path's hexadecimal form that go into one directory name.
+/// Why:
+///   A file system refuses a name longer than 255 bytes,
+/// and a workspace path of ordinary depth is longer than that once it is written in hexadecimal,
+///  so the text is split into names that each fit and that read back as one path when they are joined.
+const NAME_BYTES: usize = 200;
+
+/// What:
+///  The directory under the Git directory that holds one workspace's resolution mirror.
+/// Why:
+///   The workspace's own path decides it,
+/// so two workspaces of one worktree never write over each other,
+/// and the path survives as bytes whatever the text encoding of a name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runTool(cargo, { arguments: ['metadata', '--offline', '--format-version', '1'], directory: entry.root });
+/// const root = chunk(hexOfPath(workspace), 200).reduce((path, piece) => join(path, piece), join(keptIn, RESOLUTIONS_DIRECTORY));
 /// ```
-async fn resolve_the_lock(fill: &Fill, entry: &PrewarmEntry) -> ToolRun {
-    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
-    let command: ToolCommand = ToolCommand { arguments, directory: entry.root.clone(), set: Vec::new() };
-    return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
+fn the_resolutions_mirror_root(kept_in: &Path, workspace: &Path) -> PathBuf {
+    let hex: String = crate::path_bytes_in_records::hex_of_path(workspace);
+    let mut directory: PathBuf = kept_in.join(RESOLUTIONS_DIRECTORY);
+    for piece in hex.as_bytes().chunks(NAME_BYTES) {
+        directory = directory.join(String::from_utf8_lossy(piece).into_owned());
+    }
+    return directory;
+}
+
+/// What:
+///  Lay out a mirror of one workspace below a root of this job's own,
+///  and answer the mirror's own directory.
+/// Why:
+///   A path dependency is written relative to the manifest that names it,
+/// and workspaces of this repository climb out of their own root,
+/// so the mirror keeps the same place below the worktree root:
+/// every directory on the way is this job's and every other entry is a link to the real one.
+/// The workspace's own manifest and lock are copies,
+/// which is what makes Cargo write its resolution into the mirror.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mirrored = mirrorTheWorkspace(worktree, workspace, root); // links for every sibling, copies at the leaf
+/// ```
+fn mirror_the_workspace(worktree: &Path, workspace: &Path, root: &Path) -> Result<PathBuf, String> {
+    let Some(relative) = workspace.strip_prefix(worktree).ok() else {
+        return Err(format!("{} is not inside the worktree {}", workspace.display(), worktree.display()));
+    };
+    let steps: Vec<std::ffi::OsString> = relative.iter().map(std::ffi::OsStr::to_os_string).collect();
+    let mut real: PathBuf = worktree.to_path_buf();
+    let mut mirrored: PathBuf = root.to_path_buf();
+    for depth in 0..=steps.len() {
+        let leaf: bool = depth == steps.len();
+        if let Err(error) = std::fs::create_dir_all(mirrored.as_path()) {
+            return Err(format!("{} could not be made ({error})", mirrored.display()));
+        }
+        let listing = match std::fs::read_dir(real.as_path()) {
+            Ok(listing) => listing,
+            Err(error) => return Err(format!("{} could not be read ({error})", real.display())),
+        };
+        for entry in listing.flatten() {
+            let name: std::ffi::OsString = entry.file_name();
+            // The entry the mirror walks into is the directory this step made, and the leaf's manifest and lock are copies.
+            if !leaf && Some(name.as_os_str()) == Some(steps[depth].as_os_str()) {
+                continue;
+            }
+            if name == std::ffi::OsStr::new(".git") {
+                continue;
+            }
+            if leaf && (name == std::ffi::OsStr::new(MANIFEST_FILE) || name == std::ffi::OsStr::new(LOCK_FILE)) {
+                continue;
+            }
+            let named: PathBuf = mirrored.join(name.as_os_str());
+            if let Err(error) = std::os::unix::fs::symlink(entry.path(), named.as_path()) {
+                return Err(format!("{} could not be linked into the mirror ({error})", named.display()));
+            }
+        }
+        if leaf {
+            for name in [MANIFEST_FILE, LOCK_FILE] {
+                let from: PathBuf = real.join(name);
+                if !from.is_file() {
+                    continue;
+                }
+                let to: PathBuf = mirrored.join(name);
+                if let Err(error) = std::fs::copy(from.as_path(), to.as_path()) {
+                    return Err(format!("{} could not be copied into the mirror ({error})", to.display()));
+                }
+            }
+            break;
+        }
+        real = real.join(steps[depth].as_os_str());
+        mirrored = mirrored.join(steps[depth].as_os_str());
+    }
+    return Ok(mirrored);
 }
 
 /// What:
@@ -515,12 +681,22 @@ fn staged_names(staging: &Path, destination: &Path) -> Result<Option<TheNames>, 
     if !staging.exists() {
         return Ok(None);
     }
+    // The add staged this state and no filling of this worktree is at work on it yet; a second record naming the same
+    //  staging is the case where one is, and then this run leaves it to that filling.
+    let lease: Option<TheLease> = match claim_the_names(staging) {
+        TheClaim::Held(lease) => Some(lease),
+        TheClaim::Taken => return Ok(None),
+        TheClaim::Refused(reason) => {
+            debug(TAG, format!("{reason}; this run leaves the staged state to whichever filling holds it").as_str());
+            return Ok(None);
+        }
+    };
     let marker: PathBuf = marker_of(staging);
     if !marker_claims(marker.as_path(), destination) {
         return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
     }
     let target: PathBuf = target_of(staging);
-    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker) }));
+    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker), lease }));
 }
 
 /// What:
@@ -555,6 +731,27 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     // btrfs refuses to rename a directory out of a subvolume, and a worktree of this repository is one.
     let staging: PathBuf = staging_of(destination);
     let marker: PathBuf = marker_of(staging.as_path());
+    // The lease is taken before anything here is removed or renamed, and it is what tells a filling that is still at work from
+    //  one that was killed. Without it this add would take a live filling's marker for a dead one's.
+    let _lease: TheLease = match claim_the_names(staging.as_path()) {
+        TheClaim::Held(lease) => lease,
+        TheClaim::Taken => {
+            return Err(format!(
+                "a filling of {} is still at work on the names beside it, so the copied build state is left where it is; run \
+                 `cargo clean --offline --package <member>` in {} instead",
+                destination.display(),
+                destination.display()
+            ));
+        }
+        TheClaim::Refused(reason) => {
+            return Err(format!(
+                "{reason}, so nothing proves who holds the names beside {}, and the copied build state is left where it is; run \
+                 `cargo clean --offline --package <member>` in {} instead",
+                destination.display(),
+                destination.display()
+            ));
+        }
+    };
     let standing: TheMarkerThere = the_marker_there(marker.as_path());
     if standing == TheMarkerThere::SomebodyElses {
         return Err(format!(
@@ -626,7 +823,8 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
 ///
 /// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
 /// because the names stand beside the build directory they take, inside the worktree.
-pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 3] = ["*.monochromatic-prewarm/", "*.monochromatic-prewarm.target/", "*.monochromatic-prewarm.owner"];
+pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 4] =
+    ["*.monochromatic-prewarm/", "*.monochromatic-prewarm.target/", "*.monochromatic-prewarm.owner", "*.monochromatic-prewarm.claim"];
 
 /// What:
 ///  Name this job's staging patterns in the repository's exclude file,
@@ -742,7 +940,17 @@ fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
     if !marker_claims(marker.as_path(), entry.to.as_path()) {
         return;
     }
-    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker) };
+    // The marker names this build directory, and only the lease can say the filling that wrote it is gone: a filling that is
+    //  still cleaning or publishing this staging holds it, and then nothing here is removed.
+    let lease: TheLease = match claim_the_names(staging.as_path()) {
+        TheClaim::Held(lease) => lease,
+        TheClaim::Taken => return,
+        TheClaim::Refused(reason) => {
+            debug(TAG, format!("{reason}; the names a killed filling left are left for the next filling").as_str());
+            return;
+        }
+    };
+    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker), lease: Some(lease) };
     if let Err(reason) = remove_if_any(names.staging.as_path()) {
         // Nothing of the worktree depends on this directory; the next filling of the same workspace tries again.
         debug(TAG, format!("{reason}; a staging copy a killed filling left stays for the next one").as_str());
@@ -814,15 +1022,35 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
     let lock_before: Option<Vec<u8>> = read_lock(entry.root.as_path());
     let mut run: ToolRun = clean_the_copy(fill, entry, names).await;
     if !matches!(run.end, ToolEnd::Succeeded) {
-        let resolved: ToolRun = resolve_the_lock(fill, entry).await;
-        if matches!(resolved.end, ToolEnd::Succeeded) {
-            let the_cleans_own: Option<Vec<u8>> = read_lock(entry.root.as_path());
-            run = clean_the_copy(fill, entry, names).await;
-            if let Some(written) = the_cleans_own.as_deref() {
-                match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), written) {
+        // A `--locked` clean refuses a lock that no longer matches its manifest, and making it match means writing that lock.
+        //  The resolution is made where the person's file is not, and its bytes are placed with a step that hands back whatever
+        //  stood there, so a write of theirs made at any moment before the placement is in this run's hands and not under it.
+        let resolution: Vec<u8> = match resolve_the_workspace_elsewhere(fill, entry).await {
+            Ok(bytes) => bytes,
+            Err(reason) => {
+                let _removed = remove_if_any(names.staging.as_path());
+                return Err(format!(
+                    "{reason}, so nothing of this workspace was cleaned and the copy of it was removed. {} A write of yours to that file is \
+                     never replaced: one the repair meets while it resolves is handed back and the repair gives way.",
+                    what_to_do_next(entry, LOCK_FILE),
+                ));
+            }
+        };
+        match place_the_resolution(entry.root.as_path(), &resolution, lock_before.as_deref(), fill.kept_in.as_deref()) {
+            Placed::Placed => {
+                run = clean_the_copy(fill, entry, names).await;
+                match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), resolution.as_slice()) {
                     None => {}
                     Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
                 }
+            }
+            Placed::GaveWay(reason) => {
+                let _removed = remove_if_any(names.staging.as_path());
+                return Err(format!(
+                    "{reason}, so nothing of this workspace was cleaned and the copy of it was removed. {} The repair gave way rather than \
+                     replace a write of yours: the file is exactly as you left it.",
+                    what_to_do_next(entry, LOCK_FILE),
+                ));
             }
         }
     }
@@ -831,8 +1059,8 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
         let reason: String = end_reason(&run.end);
         return Err(format!(
             "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The clean itself \
-             never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved by Cargo first, and the checked-out bytes go \
-             back over bytes only that resolution wrote, so a write of yours stays yours. {}",
+             never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved in a mirror of the workspace, and the resolution's \
+             bytes are placed with the step that hands back whatever stood there, so a write of yours is never replaced. {}",
             entry.from.as_deref().unwrap_or(names.staging.as_path()).display(),
             what_to_do_next(entry, reason.as_str()),
         ));
@@ -894,7 +1122,7 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
     let Some(cargo) = cargo_for(item.repository.as_path(), environment) else {
         return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
     };
-    let fill: Fill = Fill { cargo, limits: environment.limits(), kept_in: Some(item.git_dir.clone()) };
+    let fill: Fill = Fill { cargo, limits: environment.limits(), kept_in: Some(item.git_dir.clone()), worktree: item.repository.clone() };
     let mut published: usize = 0;
     let mut kept: usize = 0;
     let mut failures: Vec<String> = Vec::new();

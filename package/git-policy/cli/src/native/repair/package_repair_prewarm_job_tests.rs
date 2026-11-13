@@ -13,7 +13,7 @@ const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";
 
 /// What a control fills with when it expects the clean to stop it.
 fn fill_of_nowhere() -> Fill {
-    return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+    return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: PathBuf::from("/nonexistent/worktree") };
 }
 
 /// One workspace whose source build directory holds one dependency build,
@@ -169,7 +169,7 @@ fn a_staged_state_the_add_moved_aside_is_cleaned_and_published() {
     let working: PrewarmEntry = PrewarmEntry { staged_in: Some(staged_in.clone()), from: None, ..entry.clone() };
     let cargo: PathBuf = root.join("cargo");
     crate::test_support::executable(cargo.as_path(), b"#!/bin/sh\nexit 0\n");
-    let fill: Fill = Fill { cargo, limits: ToolLimits { window: std::time::Duration::from_millis(500), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+    let fill: Fill = Fill { cargo, limits: ToolLimits { window: std::time::Duration::from_millis(500), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
     let filled: Filled = super::fill_one_in_a_control(&fill, &working).expect("the staged state is cleaned and published");
     assert_eq!(filled, Filled::Published);
     assert!(entry.to.join("debug/copied").is_file(), "the cleaned copy is published under the worktree's build directory name");
@@ -408,7 +408,9 @@ fn a_build_directory_beside_a_folder_that_is_not_there_yet_is_still_filled() {
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     let Err(reason) = filled else { panic!("a clean that cannot run is reported: {filled:?}") };
-    assert!(reason.starts_with("the copy of"), "the filing got as far as the clean, so the marker and the staging copy were made: {reason}");
+    // The clean could not run, so the repair gives way before it ever resolves the lock (there is no Git directory here), and the
+    //  message says nothing of this workspace was cleaned: the marker and the staging copy were made, and nothing was published.
+    assert!(reason.contains("nothing of this workspace was cleaned"), "the filing got as far as the clean, so the marker and the staging copy were made: {reason}");
     assert!(!entry.to.exists(), "a clean that failed publishes nothing");
     remove(root.as_path());
 }
@@ -729,7 +731,7 @@ fn a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it(
             std::fs::write(lock.as_path(), b"# a lock that no longer matches its manifest\n").expect("the checked-out lock");
         }
         let program: PathBuf = cargo_that_takes_the_persons_lock_as_it_runs(root.as_path());
-        let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")) };
+        let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")), worktree: root.clone() };
         let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
         assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({state})");
         let after: Option<Vec<u8>> = std::fs::read(lock.as_path()).ok();
@@ -763,7 +765,7 @@ fn a_lock_that_is_current_costs_no_resolution_and_is_never_written() {
     let program: PathBuf = root.join("cargo-that-cleans-once");
     let body: String = format!("#!/bin/sh\necho \"$*\" >> '{record}'\nexit 0\n", record = record.display());
     crate::test_support::executable(program.as_path(), body.as_bytes());
-    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")) };
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")), worktree: root.clone() };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(THE_RESOLUTIONS_LOCK.as_bytes()), "a current lock is left exactly as it was");
@@ -811,7 +813,7 @@ fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed()
             // A file at the marker name that does not hold this job's text claims nothing.
             std::fs::write(marker.as_path(), b"a person's own note").expect("a file this filling did not make");
         }
-        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
         let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
         assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({stranger})");
         assert_eq!(std::fs::read(staged.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
@@ -840,7 +842,7 @@ fn a_published_filling_leaves_no_target_directory_of_its_own() {
         program.as_path(),
         b"#!/bin/sh\nmkdir --parents \"$CARGO_TARGET_DIR/debug\"\necho cleaned > \"$CARGO_TARGET_DIR/debug/state\"\nexit 0\n",
     );
-    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is cleaned and published");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     let staged: PathBuf = staging_of(entry.to.as_path());
@@ -874,7 +876,7 @@ fn a_build_directory_below_directories_that_do_not_exist_yet_is_filled() {
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     std::fs::create_dir_all(root.join("cargo-build")).expect("the root the person's configuration names");
     assert!(!entry.to.parent().expect("the destination has a directory").exists(), "the destination's own directory is not there before the filling");
-    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     assert_eq!(std::fs::read(entry.to.join("debug/deps/libserde.rlib")).expect("the published copy"), b"a dependency build");
@@ -974,7 +976,7 @@ fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
     named_pipe_at(marker.as_path());
     let covered: PathBuf = root.clone();
     let waiting: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
-        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None, worktree: root.clone() };
         return super::fill_one_in_a_control(&fill, &entry);
     });
     let filled: Result<Filled, String> = waiting.expect("the filling must not wait on a named pipe at the marker name");
@@ -1012,7 +1014,7 @@ fn a_file_that_wins_the_race_to_the_marker_name_is_never_removed() {
         }));
     });
     let covered: PathBuf = root.clone();
-    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None, worktree: root.clone() };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
     crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
     assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under names of this run's own");
@@ -1044,5 +1046,269 @@ fn a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock() {
     assert!(!elsewhere.contains("cargo update"), "a failure that names no lock is not answered with one: {elsewhere}");
     assert!(!elsewhere.contains(own_clean.as_str()), "a failure that names no lock is not answered with the clean: {elsewhere}");
     assert!(elsewhere.contains("the next add fills the copy"), "a failure that names no lock still says the copy is filled next time: {elsewhere}");
+    remove(root.as_path());
+}
+
+
+/// What:
+///  A write a person made to the lock while the repair resolved it is handed back,
+///  and the repair gives way instead of replacing it.
+/// Why:
+///   The resolution is made in a mirror of the workspace, and the only write to the person's file is the
+///  exchange that hands back whatever stood there:
+/// a write made at any moment before that exchange is in this run's hands,
+/// and it is put back rather than truncated.
+/// The stand-in Cargo writes the person's bytes into the worktree while its resolution runs,
+/// which is the moment no write-by-write comparison can see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeDuringTheResolution(personsBytes); const filled = fillOne(fill, entry); expect(filled).toBeFailed(); expect(read(lock)).toBe(personsBytes)
+/// ```
+#[test]
+fn a_write_the_resolution_meets_is_handed_back_and_the_repair_gives_way() {
+    let root: PathBuf = fixture("prewarm-lock-write-during-the-resolution");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    let checked_out: &str = "# the checked-out stale lock\n";
+    let persons: &str = "# the person wrote this while the repair resolved\n";
+    let resolution: &str = "# what the resolution wrote\n";
+    std::fs::write(lock.as_path(), checked_out.as_bytes()).expect("the checked-out lock");
+    let program: PathBuf = root.join("cargo-that-resolves-while-a-person-writes");
+    let body: String = format!(
+        "#!/bin/sh\nDIR='{dir}'\nif [ \"$1\" = clean ]; then\n  if [ ! -e \"$DIR/refused-once\" ]; then : > \"$DIR/refused-once\"; echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2; exit 101; fi\n  exit 0\nfi\nif [ \"$1\" = metadata ]; then\n  printf '%s' '{persons}' > '{lock}'\n  printf '%s' '{resolution}' > Cargo.lock\n  exit 0\nfi\nexit 0\n",
+        dir = root.display(),
+        persons = persons.trim_end(),
+        lock = lock.display(),
+        resolution = resolution.trim_end(),
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    let fill: Fill = Fill {
+        cargo: program,
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(10) },
+        kept_in: Some(root.join("git-dir")),
+        worktree: root.clone(),
+    };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    let Err(reason) = filled else { panic!("the repair gives way rather than replace the write: {filled:?}") };
+    assert!(reason.contains("gives way"), "the message says the repair gave way: {reason}");
+    assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(persons.trim_end().as_bytes()), "the person's bytes stand in their file");
+    assert!(!entry.to.exists(), "nothing is published");
+    assert!(!staging_of(entry.to.as_path()).exists(), "and the staging copy is removed");
+    remove(root.as_path());
+}
+
+/// What:
+///  A lock a person creates while the repair resolves one the checkout does not have is never written over.
+/// Why:
+///   With no lock at the start the resolution is created with `create_new`,
+///  which refuses rather than replaces the file a person made in the meantime;
+/// the repair gives way and their file stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filled = fillOne(fill, entry); expect(filled).toBeFailed(); expect(read(lock)).toBe(personsBytes)
+/// ```
+#[test]
+fn a_lock_a_person_creates_while_the_repair_resolves_one_is_never_written_over() {
+    let root: PathBuf = fixture("prewarm-lock-created-while-resolving");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    let persons: &str = "# the person created this while the repair resolved\n";
+    let program: PathBuf = root.join("cargo-that-resolves-while-a-person-creates");
+    let body: String = format!(
+        "#!/bin/sh\nDIR='{dir}'\nif [ \"$1\" = clean ]; then\n  if [ ! -e \"$DIR/refused-once\" ]; then : > \"$DIR/refused-once\"; echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2; exit 101; fi\n  exit 0\nfi\nif [ \"$1\" = metadata ]; then\n  printf '%s' '{persons}' > '{lock}'\n  printf '%s' '# what the resolution wrote' > Cargo.lock\n  exit 0\nfi\nexit 0\n",
+        dir = root.display(),
+        persons = persons.trim_end(),
+        lock = lock.display(),
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    let fill: Fill = Fill {
+        cargo: program,
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(10) },
+        kept_in: Some(root.join("git-dir")),
+        worktree: root.clone(),
+    };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    assert!(filled.is_err(), "the repair gives way rather than write over the file a person made: {filled:?}");
+    assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(persons.trim_end().as_bytes()), "the file the person created stands as they left it");
+    assert!(!entry.to.exists(), "nothing is published");
+    remove(root.as_path());
+}
+
+/// What:
+///  The resolution is made in a mirror below the Git directory,
+///  and the worktree's own lock is untouched while it runs.
+/// Why:
+///   A resolution that runs in the worktree is a write of Cargo's to the person's file,
+/// and a write of theirs made a moment earlier is truncated by it with no copy kept;
+/// the mirror is what takes that write out of their file altogether.
+/// The stand-in records the directory it resolved in and what the lock held at that moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filled = fillOne(fill, entry); expect(filled).toBePublished(); expect(recorded.cwd).not.toBe(entry.root); expect(recorded.lockWhileResolving).toBe(checkedOut)
+/// ```
+#[test]
+fn the_resolution_is_made_in_a_mirror_and_never_in_the_worktrees_lock() {
+    let root: PathBuf = fixture("prewarm-resolution-in-a-mirror");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    let checked_out: &str = "# the checked-out stale lock\n";
+    std::fs::write(lock.as_path(), checked_out.as_bytes()).expect("the checked-out lock");
+    let record: PathBuf = root.join("the-resolution-record");
+    let git_dir: PathBuf = root.join("git-dir");
+    let program: PathBuf = root.join("cargo-that-records-where-it-resolves");
+    let body: String = format!(
+        "#!/bin/sh\nDIR='{dir}'\nif [ \"$1\" = clean ]; then\n  if [ ! -e \"$DIR/refused-once\" ]; then : > \"$DIR/refused-once\"; echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2; exit 101; fi\n  exit 0\nfi\nif [ \"$1\" = metadata ]; then\n  printf '%s\\n%s\\n' \"$(pwd)\" \"$(cat '{lock}')\" >> '{record}'\n  printf '%s' '# what the resolution wrote' > Cargo.lock\n  exit 0\nfi\nexit 0\n",
+        dir = root.display(),
+        lock = lock.display(),
+        record = record.display(),
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    let fill: Fill = Fill {
+        cargo: program,
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(10) },
+        kept_in: Some(git_dir.clone()),
+        worktree: root.clone(),
+    };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is cleaned and published");
+    assert_eq!(filled, Filled::Published);
+    let recorded: String = std::fs::read_to_string(record.as_path()).expect("the resolution recorded itself");
+    let mut lines = recorded.lines();
+    let resolved_in: &str = lines.next().expect("the directory the resolution ran in");
+    let standing_then: &str = lines.next().expect("what the lock held while it resolved");
+    assert_ne!(resolved_in, entry.root.to_str().expect("the workspace path"), "the resolution did not run in the worktree");
+    assert!(resolved_in.starts_with(git_dir.to_str().expect("the Git directory")), "it ran in a mirror under the Git directory: {resolved_in}");
+    assert_eq!(standing_then, checked_out.trim_end(), "the person's lock was untouched while the resolution ran");
+    assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(checked_out.as_bytes()), "and the checked-out bytes are back after the filling");
+    remove(root.as_path());
+}
+
+/// What:
+///  A filling that is still at work keeps its names:
+///  the next filling stages under names of its own and removes nothing of the live one's.
+/// Why:
+///   The marker alone says a filling wrote the names,
+/// and a killed filling leaves the same marker a live one holds,
+/// so the lease is what tells them apart:
+/// a second filling that finds it taken never takes the names for a dead filling's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const live = claimTheNames(staging); const filled = fillOne(fill, entry); expect(filled).toBePublished(); expect(stagedByTheLiveFilling).toExist()
+/// ```
+#[test]
+fn a_filling_that_is_alive_keeps_its_names_from_the_next_one() {
+    let root: PathBuf = fixture("prewarm-live-filling-keeps-its-names");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(usual.as_path());
+    let live: super::TheLease = match super::claim_the_names(usual.as_path()) {
+        super::TheClaim::Held(lease) => lease,
+        other => panic!("the first filling takes the lease: {other:?}"),
+    };
+    std::fs::create_dir_all(usual.join("debug")).expect("the live filling's staging copy");
+    std::fs::write(usual.join("debug/the-live-fillings-state"), b"held\n").expect("a file of the live filling's copy");
+    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the live filling's marker");
+    let fill: Fill = Fill {
+        cargo: cargo_that_succeeds(root.as_path()),
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+        kept_in: Some(root.join("git-dir")),
+        worktree: root.clone(),
+    };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the second filling fills under names of its own");
+    assert_eq!(filled, Filled::Published, "the worktree's build directory is filled");
+    assert!(usual.join("debug/the-live-fillings-state").is_file(), "the live filling's staging copy is not removed");
+    assert!(marker.is_file(), "nor its marker");
+    drop(live);
+    remove(root.as_path());
+}
+
+/// What:
+///  The same leftovers with no filling holding them are a dead filling's,
+///  and the next filling takes the names and removes them.
+/// Why:
+///   This is the state a kill leaves,
+/// and a proof that never lets the names be taken would strand every killed filling's copy for ever.
+/// The pair with `a_filling_that_is_alive_keeps_its_names_from_the_next_one` is what shows the lease, and
+///  not the marker, decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantLeftoversWithoutALease(); const filled = fillOne(fill, entry); expect(filled).toBePublished(); expect(staging).not.toExist()
+/// ```
+#[test]
+fn a_filling_a_kill_left_has_its_names_taken_and_its_leftovers_removed() {
+    let root: PathBuf = fixture("prewarm-dead-filling-loses-its-names");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(usual.as_path());
+    std::fs::create_dir_all(usual.join("debug")).expect("a killed filling's staging copy");
+    std::fs::write(usual.join("debug/the-killed-fillings-state"), b"left behind\n").expect("a file of the killed filling's copy");
+    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the killed filling's marker");
+    let fill: Fill = Fill {
+        cargo: cargo_that_succeeds(root.as_path()),
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+        kept_in: Some(root.join("git-dir")),
+        worktree: root.clone(),
+    };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("a lease nobody holds is the next filling's");
+    assert_eq!(filled, Filled::Published, "the worktree's build directory is filled");
+    assert!(!usual.exists(), "the killed filling's staging copy is removed with the names it held");
+    assert!(!marker.exists(), "and its marker goes with it");
+    assert!(!crate::package_repair_prewarm_claim::lease_of(usual.as_path()).exists(), "and no lease is left behind");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add never takes the names of a filling that is alive:
+///  the copied build state stays where it is and the add says why.
+/// Why:
+///   The add runs while the service may be filling the same build directory,
+/// and the add deletes leftovers a marker claims;
+/// with the lease held by a live filling, taking its marker for a dead one's would remove a copy in use,
+/// so the add gives way and the test shows it happening.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const live = claimTheNames(staging); expect(stageTheWorktreesOwnState(destination)).toBeRefused(); expect(copiedState).toExist()
+/// ```
+#[test]
+fn an_add_never_takes_the_names_of_a_filling_that_is_alive() {
+    let root: PathBuf = fixture("prewarm-add-meets-a-live-filling");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(usual.as_path());
+    let live: super::TheLease = match super::claim_the_names(usual.as_path()) {
+        super::TheClaim::Held(lease) => lease,
+        other => panic!("the filling takes the lease: {other:?}"),
+    };
+    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the live filling's marker");
+    let git_directory: PathBuf = root.join("git-directory");
+    let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
+    assert!(staged.is_err(), "the add gives way rather than take a live filling's names: {staged:?}");
+    let Err(reason) = staged else { unreachable!() };
+    assert!(reason.contains("still at work"), "the refusal names the filling that is at work: {reason}");
+    assert!(entry.to.join("debug/copied").is_file(), "the copied state stays where it is");
+    assert!(marker.is_file(), "and the live filling's marker stands");
+    drop(live);
     remove(root.as_path());
 }
