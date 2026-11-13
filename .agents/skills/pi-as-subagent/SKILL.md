@@ -92,6 +92,22 @@ On going higher the owner said:
 "no,
 that's definitely going to blow up."
 A run on another provider's account is outside it.
+Since 2026-11-13 the machine also has a ceiling of its own,
+apart from every pool:
+at most the level of agents recorded in `doc/handover/agents-at-once-on-this-machine.md` run at once,
+every Pi run on the machine counted,
+in a pool or in none,
+plus the subagents a session counts as its own.
+Read that file for the number now,
+and for how the level is raised.
+The level is not a reason to stop work that is going;
+it says when not to start one more,
+and the launcher's start gate refuses a start at it with exit `3`.
+`PI_RUNS_MACHINE_CAP=<n>` sets the cap for one command without a code change.
+A session states the agents the gate cannot see,
+the subagents of its own session that are no Pi run,
+as `PI_RUNS_OTHER_AGENTS_GOING=<n>`;
+a session that passes nothing is counted as having none of them.
 The owner on 2026-11-10:
 "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
 The owner the same day:

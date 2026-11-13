@@ -50,10 +50,26 @@ So:
 A batch list handed to `start-pi-runs-from-a-batch-list` starts every entry the provider pools have room for,
 and the pools together take far more than the cap,
 so hand it no more entries than there are free places.
-The change that makes the launcher's start gate hold the cap itself is in work
-(branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`);
-when it is on `main`,
-step 1 and step 3 are the gate's and this section says so.
+The launcher's start gate holds the cap itself:
+`start-pi-run-when-a-pool-has-room` counts every Pi run going,
+in a pool or in none,
+whoever started it and whichever provider it is on,
+and every launcher that has not made its unit yet.
+It refuses a start at the cap with exit `3`,
+naming the count,
+the cap and the run it did not start.
+Two runs that share a name are two agents;
+a launcher and the unit it made are one.
+What the gate cannot see is the caller's to state:
+the subagents of its own session,
+counted by step 2 above,
+are passed as `PI_RUNS_OTHER_AGENTS_GOING=<n>`,
+and a session that passes none is counted as having none.
+`PI_RUNS_MACHINE_CAP=<n>` sets the cap for one command,
+which is how a level is raised or lowered between readings;
+the number under "The cap now" remains the level the search stands at.
+The gate refuses starts and stops nothing:
+a count above the cap is a reading at that higher count.
 
 ## What counts as the ceiling
 
