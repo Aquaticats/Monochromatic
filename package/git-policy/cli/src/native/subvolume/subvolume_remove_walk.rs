@@ -697,7 +697,7 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let baseline: u64 = device_of(top)?;
     let top_mode: u32 = mode_of(top)?;
-    let _widened = widen_directory(top);
+    let _top_opened_to_its_owner = widen_directory(top);
     let mut stack: Vec<AroundFrame> = vec![AroundFrame {
         directory: top.try_clone()?,
         name: None,
@@ -779,7 +779,7 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
             Ok(child) => child,
             Err(error) => return Err(std::io::Error::new(error.kind(), format!("{} cannot be read ({error})", path.display()))),
         };
-        let _widened = widen_directory(&child);
+        let _child_opened_to_its_owner = widen_directory(&child);
         let pending: Vec<(OsString, bool)> = list(&child, false)?;
         #[cfg(test)]
         let just_listed: PathBuf = path.clone();

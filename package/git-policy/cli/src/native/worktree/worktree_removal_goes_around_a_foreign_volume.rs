@@ -526,11 +526,11 @@ pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
 /// const notice = noticeAt(claimed); // Notice | undefined
 /// ```
 fn notice_at(claimed: &Path) -> Option<Notice> {
-    let text: String = std::fs::read_to_string(claimed).ok()?;
-    let record: LeftRecord = parse_record(text.as_str())?;
+    let read: String = std::fs::read_to_string(claimed).ok()?;
+    let record: LeftRecord = parse_record(read.as_str())?;
     let original: PathBuf = claimed.with_file_name(record_of_claim(claimed.file_name()?.to_string_lossy().as_ref())?);
-    let text: String = left_in_place_words(record.worktree.as_path(), record.branch.as_str(), record.left.as_slice());
-    return Some(Notice { record: original, claim: claimed.to_path_buf(), text });
+    let words: String = left_in_place_words(record.worktree.as_path(), record.branch.as_str(), record.left.as_slice());
+    return Some(Notice { record: original, claim: claimed.to_path_buf(), text: words });
 }
 
 /// What:

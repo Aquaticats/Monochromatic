@@ -970,9 +970,10 @@ Read-only commands,
      Git's own line says only that it exists,
      and the wrapper adds one line naming each volume a removal left and what frees the path.
   The words are the same ones the automatic removal prints,
-     and a removal it performed is recorded in
+     and an automatic removal is recorded in
    `<common Git directory>/monochromatic-git-policy-cli/left-in-place-notices`,
-     which the next wrapper command of any worktree of that repository shows once.
+     which the next wrapper command of any worktree of that repository shows once,
+     because a merge's own output is easily missed and the path it names is still taken.
   A forced removal is served without the cleanliness proof,
      because Git's own `--force` removal deletes a worktree that holds changes whatever it holds
      (`builtin/worktree.c`:

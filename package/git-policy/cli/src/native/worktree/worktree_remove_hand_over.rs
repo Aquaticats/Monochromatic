@@ -1044,7 +1044,7 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
     let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
     match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
-        RemoveOutcome::Removed => Verdict::Done,
+        RemoveOutcome::Removed => return Verdict::Done,
         RemoveOutcome::RemovedAround(left) => {
             let branch: String = branch_of_registration(registration.admin.as_path()).unwrap_or_else(|| return String::from("a head with no branch"));
             if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(item.git_dir.as_path(), target, branch.as_str(), left.as_slice()) {
