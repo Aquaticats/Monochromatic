@@ -488,6 +488,26 @@ Not reviewed and not approved by anyone. By its own report (`keep/report.md` in 
 Next for it: its qwen4 review, then the next integration pass.
 The place it freed went to the start gate's author answering its review, started 12:16:51.
 
+#### The review of the launcher's scratch-folder change: four defects reproduced, all to be fixed before any merge (2026-11-13T12:21:24-05:00)
+
+The review ran from 11:57 to 12:21:24 on commit `c0a18005c2`;
+`~/temp/agent/change-reviews/pi-shared-subagent-driver-launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep/review.md`,
+with five reproduction scripts beside it. It says another reviewer checked it; the run's record shows none, so the findings stand on the scripts.
+Weighed by this session: all four are fixed before this code deletes anything for real, because each one discards or touches what is still someone's.
+
+- **The end step empties the folder while the run's own work still runs in it.**
+  The check for running work is only made on an `idle` end, and the scratch folder is not among the folders that count as the run's own,
+  in the launcher and in the driver. The author's report had said the folder is kept in that case; the code does not keep it.
+- **An earlier attempt's end step can empty the folder of a new attempt of the same name**, because the folder is named by the run's name
+  and ownership is not proven again before the emptying, which can come half an hour after the readings it relies on.
+- **A deletion ended by its own bound is retried at full disk priority for a second whole bound**, and no line says the first try was ended.
+- **Making the folder follows a symbolic link at its path**: it changed the mode of the link's target and made `keep/` inside it; a link to nothing ends the start with a raw `ENOENT`.
+- Found sound by the review: `keep/` survived every reproduction, the emptying follows no link and crosses no mount, and nothing in the change touches a commit.
+
+The brief that answers it, `~/temp/agent/pi-runs/launcher-scratch-folder-change-answers-its-review-of-2026-11-13-prompt.md`, resumes the author in its own session and is the first entry of the resume queue.
+Until that is fixed, reviewed again and merged, a run's scratch is emptied by hand by the session that started it, as rule `1SF` says, and by nothing automatic.
+The place this review freed went to the qwen4 review of `fix/git-policy-cli-commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`, started about 12:21:30.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
