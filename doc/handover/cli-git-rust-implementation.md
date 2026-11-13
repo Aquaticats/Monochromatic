@@ -670,6 +670,29 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The index-lock fix's review removed a live Git's lock with the built wrapper (2026-11-13T13:24:49-05:00)
+
+Not complete: the branch goes back to its author.
+Read from the run's report and the review file by the coordinating session.
+
+- **Review of `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`** (commit `d4a0803231`), ended before 13:24:49, file
+  `~/temp/agent/change-reviews/git-policy-cli-index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone/review.md`.
+  It built the commit's binary and reproduced two defects:
+  a real `git commit --all` waiting in its editor lost its `index.lock` and its PID file to a wrapper command,
+  because a record of an earlier, dead process carried the same PID number (the proof shows the recorded process gone, never the PID file's writer);
+  the Git then ended with status 128 and Git's words that the index needs recovery.
+  And the scan for holders takes a process of this account whose descriptors cannot be read for one of another account, and removed a lock such a process held open.
+  A third, found by reading: the PID file is unlinked after the lock.
+  The feature's own control asserts the rule that causes the first.
+  Its run is marked `driver-failed` by issue 6295 after the review was written; the review is whole.
+  **The branch is not fit for an integration pass.**
+  Not in `main` or `0.6.1-alpha.16`.
+  The author answers it: brief `~/temp/agent/pi-runs/index-lock-fix-answers-its-review-of-2026-11-13-prompt.md`, first in the queue.
+- The jam fix's author started at 13:24:50.
+- Every first review of a branch that ended on 2026-11-13 up to 13:24:49 and ran something reproduced a defect
+  (the start gate, the launcher's scratch folder, commit-is-made, the reload fix, the jam fix, commit-does-not-list, the index-lock fix);
+  the one that ran nothing (`add-never-skips`) found none, and is being done again.
+
 #### The jam fix's review found a commit that lands after its command said it was not made; two more runs ended (2026-11-13T13:22:37-05:00)
 
 Not complete: both reviewed branches go back to their authors, and the third waits for its review.
