@@ -231,7 +231,7 @@ fn retire(socket: &Path) {
     let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 5));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
     let _greeted: bool = greeted(&mut reader);
-    let mut line: String = encode_client(&ClientMessage::Retire);
+    let mut line: String = encode_client(&ClientMessage::Retire { version: crate::service_protocol::PROTOCOL_VERSION });
     line.push('\n');
     (&stream).write_all(line.as_bytes()).expect("the retire reaches the service");
 }

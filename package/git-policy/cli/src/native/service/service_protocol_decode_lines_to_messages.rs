@@ -35,16 +35,22 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         return Err(String::from("line is too long"));
     }
     let value: Value = serde_json::from_str(line).map_err(error_text)?;
-    // A request to retire carries no data a version could change the meaning of, and it is the one message a client of
-    //  another protocol version must still be able to send, so that service can be replaced.
+    // What: A request to retire carries no data a version could change the meaning of, and it is the one message a client of
+    //       another protocol version must still be able to send, so that a service can be replaced.
+    // Why:  The version it announces is read, because a service refuses a second ask and says whose ask it refused; a client
+    //       that names none is read as one of this protocol, which is what every client of this protocol sends.
     if field(&value, "type")? == "retire" {
-        return Ok(ClientMessage::Retire);
+        let announced: u32 = match value.get("version").and_then(Value::as_u64) {
+            Some(number) => u32::try_from(number).unwrap_or(PROTOCOL_VERSION),
+            None => PROTOCOL_VERSION,
+        };
+        return Ok(ClientMessage::Retire { version: announced });
     }
     if value.get("version").and_then(Value::as_u64) != Some(u64::from(PROTOCOL_VERSION)) {
         return Err(String::from("unsupported version"));
     }
     match field(&value, "type")? {
-        "retire" => return Ok(ClientMessage::Retire),
+        "retire" => return Ok(ClientMessage::Retire { version: PROTOCOL_VERSION }),
         "withdraw" => {
             let id: &str = field(&value, "id")?;
             if id.is_empty() || id.len() > MAX_ID_BYTES {

@@ -170,7 +170,7 @@ pub fn encode_retire(version: u32) -> String {
 /// ```
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
-        ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
+        ClientMessage::Retire { version } => encode_retire(*version),
         ClientMessage::Withdraw { id } => object(vec![
             ("type", Value::from("withdraw")),
             ("version", Value::from(PROTOCOL_VERSION)),

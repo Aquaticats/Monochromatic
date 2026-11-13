@@ -49,6 +49,16 @@ const IN_THE_INSTANCE_READ: &str = "in-the-instance-read";
 #[cfg(test)]
 const IN_THE_NOTE_READ: &str = "in-the-note-read";
 
+/// What:
+///  Whether a client of any release has already asked this service to leave.
+/// Why:
+///  One service is one process,
+/// so a fact of its whole life belongs in the process and not in a connection:
+///  a second ask queues nothing, however many connections ask
+/// (`answer_request`,
+/// and `service_release_order.rs` for the client's half).
+static RETIRE_ASKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// What every connection of one service run shares:
 /// the queues to the landing and the work loop,
 /// the count of work in flight,
@@ -308,7 +318,20 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             None => tell_unavailable(write_half).await,
         },
         Ok(ClientMessage::Withdraw { id }) => withdraw(id, write_half, shared).await,
-        Ok(ClientMessage::Retire) => {
+        Ok(ClientMessage::Retire { version }) => {
+            // What: The first ask is honoured, and a second is refused and remembered; nothing queues a second retire for the rest
+            //       of this service's life.
+            // Why:  A client of another release asks again and again until its own deadline, and the audit of 2026-08-... measured
+            //       one hundred asks in ten seconds from a single client. Each one queued a job of its own, and the service that
+            //       honoured the first was replaced by the account's manager with the very program it had left, which is the cycle
+            //       a changeover used to spend a commit on. The client now keeps a newer service instead of asking
+            //       (`service_release_order.rs`); this is the other half, for every client of every release: one ask, one answer.
+            if RETIRE_ASKED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                crate::service_warn!(
+                    "a client read as protocol {version} asked this service to leave a second time; the first ask is already being honoured, so this one is refused and nothing is queued for it"
+                );
+                return;
+            }
             log(retire_line(shared.release.as_str()).as_str());
             let _queued = shared.queue.send(Job::Retire);
         }

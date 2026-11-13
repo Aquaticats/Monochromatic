@@ -1146,7 +1146,7 @@ fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
     let asked: Vec<String> = acceptor.join().expect("acceptor");
     // The connection the client gave up on says nothing; every other line is the request to retire.
     let spoken: Vec<&String> = asked.iter().filter(|line| { return !line.is_empty(); }).collect();
-    assert!(!spoken.is_empty() && spoken.iter().all(|line| { return **line == encode_client(&ClientMessage::Retire); }), "{asked:?}");
+    assert!(!spoken.is_empty() && spoken.iter().all(|line| { return **line == encode_client(&ClientMessage::Retire { version: PROTOCOL_VERSION }); }), "{asked:?}");
     git(&fixture, &repo, &["status", "--short"]);
     remove_settled(&fixture);
 }

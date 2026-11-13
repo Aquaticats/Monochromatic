@@ -250,17 +250,25 @@ fn a_commit_request_carries_the_version_that_names_its_tree() {
     assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
 }
 
-/// The retire message round trips,
-/// and is accepted from a client of another protocol version,
-/// which is how a service of
-///  another protocol is replaced;
-/// a commit from that client is still refused.
+/// What:
+///  The retire message round trips with the version it announces,
+///  is accepted from a client of another protocol version,
+///  which is how a service of another protocol is replaced,
+///  and reads the announced version,
+///  which is what a service says it refused;
+///  a retire that names none is one of this protocol.
+/// Why:
+///   The version on the wire is the only thing a service learns about who asked,
+/// and a second ask is refused by name
+/// (`service_server_connection_handling.rs`).
 #[test]
 fn retire_round_trips_and_crosses_protocol_versions() {
-    let line: String = encode_client(&ClientMessage::Retire);
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
+    let line: String = encode_client(&ClientMessage::Retire { version: PROTOCOL_VERSION });
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire { version: PROTOCOL_VERSION }));
     let other: String = line.replace(&format!("\"version\":{PROTOCOL_VERSION}"), "\"version\":999");
-    assert_eq!(decode_client(other.as_str()), Ok(ClientMessage::Retire));
+    assert_eq!(decode_client(other.as_str()), Ok(ClientMessage::Retire { version: 999 }), "the announced version is read");
+    let nameless: &str = "{\"type\":\"retire\"}";
+    assert_eq!(decode_client(nameless), Ok(ClientMessage::Retire { version: PROTOCOL_VERSION }), "a client that names no version is one of this protocol");
 }
 
 /// A retire written for a service of another protocol version carries that version,
@@ -272,8 +280,8 @@ fn retire_is_written_in_the_version_the_service_announced() {
     let earlier: u32 = PROTOCOL_VERSION - 1;
     let line: String = encode_retire(earlier);
     assert!(line.contains(&format!("\"version\":{earlier}")), "{line}");
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
-    assert_eq!(encode_retire(PROTOCOL_VERSION), encode_client(&ClientMessage::Retire));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire { version: earlier }));
+    assert_eq!(encode_retire(PROTOCOL_VERSION), encode_client(&ClientMessage::Retire { version: PROTOCOL_VERSION }));
 }
 
 /// A welcome without a release,

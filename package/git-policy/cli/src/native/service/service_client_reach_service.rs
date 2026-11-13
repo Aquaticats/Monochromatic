@@ -212,9 +212,26 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
     let mut give_up_at: Option<Instant> = None;
     loop {
         let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
-        if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
-            trace.answered_by = release;
-            return Ok(reader);
+        if version == PROTOCOL_VERSION {
+            // What: A service of this protocol serves this command, whatever release it announces; one of an older release is
+            //       asked to leave so this release's own program replaces it.
+            // Why:  The protocol is the contract between the two programs, and the release check existed because the service
+            //       manager started the unit's program, which an upgrade could have removed. With the wrapper starting its own
+            //       service there is nothing else to check, and asking a *newer* service to leave is what made a changeover cost
+            //       a commit: it exits, the manager starts the newer program again, and the older client asks again
+            //       (`service_release_order.rs`).
+            let newer_or_equal: bool = match release.as_deref() {
+                Some(theirs) => matches!(crate::service_release_order::compare(theirs, RELEASE), Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)),
+                // A service that announces no release is this build's own, as every service this release starts is.
+                None => true,
+            };
+            if newer_or_equal {
+                if release.as_deref() != Some(RELEASE) {
+                    let _written = writeln!(notices, "{}", other_release_notice(release.as_deref()));
+                }
+                trace.answered_by = release;
+                return Ok(reader);
+            }
         }
         if version > PROTOCOL_VERSION {
             return Err(ClientFailure::NoCommonVersion);
@@ -241,6 +258,23 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
         // replaces it, which is a start this wrapper makes and never a call to a manager.
         std::thread::sleep(CONNECT_PAUSE * 4);
     }
+}
+
+/// What:
+///  The line a command prints when a service of another release serves it.
+/// Why:
+///  A person reading a test's log or a slow commit should know which program served it;
+/// the line is one, on standard error, and it asks nothing of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// otherReleaseNotice('0.6.1-alpha.99') // '... served by release 0.6.1-alpha.99 ...'
+/// ```
+fn other_release_notice(release: Option<&str>) -> String {
+    return match release {
+        Some(theirs) => format!("this commit was served by the commit service of release {theirs}, which speaks the same protocol as this git wrapper ({RELEASE})"),
+        None => String::from("this commit was served by a commit service that announces no release"),
+    };
 }
 
 /// Controls of the wait stay out of the release executable.

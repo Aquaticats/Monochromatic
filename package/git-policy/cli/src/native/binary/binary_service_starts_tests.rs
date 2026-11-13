@@ -274,3 +274,40 @@ fn with_a_manager_that_does_not_answer_in_time_the_base_starts_the_service() {
     assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the address is the base's");
     finish(&fixture, runtime.as_path());
 }
+
+/// What:
+///  A client keeps a service of a newer release, serves every command through it, and asks it to leave not once.
+/// Why:
+///  The audit of 2026-08-... measured one client sending `retire` a hundred times in ten seconds to a healthy service of a
+/// newer release, and failing after ten seconds with the edit still staged. Each ask made the newer service leave and the
+///  account's manager start the newer program again, which is a changeover spending a commit on a program that was there
+///  and better. `service_release_order.rs` is the client's half of the fix and the service's one-ask rule the other.
+/// The count is the service's own log, which is where an ask that was honoured leaves its line.
+#[test]
+fn a_client_keeps_a_service_of_a_newer_release_and_asks_it_to_leave_not_once() {
+    let (fixture, repo, runtime) = prepared("starts-newer-release-kept");
+    let mut newer: super::service_commit::Running = super::service_commit::start_in_release(fixture.root.as_path(), runtime.as_path(), Some("0.6.1-alpha.99"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let note: PathBuf = pid_note(runtime.join(git_policy_cli::service_instance::SOCKET_DIRECTORY).as_path(), instance.as_str());
+    let served = read_note(note.as_path()).expect("the newer service wrote its note");
+    // Three commands, each of which must be served by the service that was already there.
+    for round in 1..=3 {
+        std::fs::write(repo.join("a.txt"), format!("base\nmore\n{round}\n")).expect("an edit");
+        let committed: Output = commit(&fixture, repo.as_path(), runtime.as_path());
+        let said: String = String::from_utf8_lossy(committed.stderr.as_slice()).into_owned();
+        assert!(committed.status.success(), "command {round} is served by the newer service: {said}");
+        assert!(
+            said.contains("served by the commit service of release 0.6.1-alpha.99"),
+            "command {round} says which release served it: {said}"
+        );
+    }
+    let after = read_note(note.as_path()).expect("the newer service is still the one serving this worktree");
+    assert_eq!(after.pid, served.pid, "not one command replaced the newer service");
+    let log: PathBuf = runtime.join(git_policy_cli::service_instance::SOCKET_DIRECTORY).join(format!("{instance}.log"));
+    let written: String = std::fs::read_to_string(log.as_path()).unwrap_or_default();
+    assert!(!written.contains("retire requested"), "no command asked the newer service to leave: {written}");
+    // The service this control started is the control's own to end, and its runtime folder goes with it.
+    let _ended = newer.kill();
+    drop(newer);
+    finish(&fixture, runtime.as_path());
+}

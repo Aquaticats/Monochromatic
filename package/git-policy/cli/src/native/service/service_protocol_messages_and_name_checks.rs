@@ -371,7 +371,11 @@ pub enum ClientMessage {
     Commit(Box<CommitRequest>),
     /// Finish the queue and exit,
     /// so the manager starts the current binary.
-    Retire,
+    Retire {
+        /// The protocol version the asking client announced,
+        /// which is all the wire carries about who asked.
+        version: u32,
+    },
     /// The sender stopped waiting for the commit of this identity (its ceiling passed):
     /// the service answers `Landed` when the
     ///  commit is on the branch,
