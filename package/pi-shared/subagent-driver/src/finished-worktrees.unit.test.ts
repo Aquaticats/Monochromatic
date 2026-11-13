@@ -343,9 +343,15 @@ await describe({
               ...readings,
               apply: true,
               run: async function theEmptying(words,) {
+                /**
+                 The words the emptying was given, which name the run and the root.
+                 */
+                const given = words.words.filter(function namesTheRun(word,) {
+                  return word.startsWith('--run-name=',);
+                },);
                 return {
                   status: 0,
-                  stdout: `scratch: copy-route: emptied ${words.words.at(-1,) ?? ''}\n`,
+                  stdout: `scratch: copy-route: emptied ${given.join(' ',)}\n`,
                   stderr: '',
                 };
               },

@@ -41,7 +41,7 @@ import { usageWasAsked, } from './usage-of-a-command.ts';
  The command's command line, for the error message.
  */
 const USAGE =
-  'empty-the-scratch-folder-of-a-run --run-name=<name> [--scratch-root=<folder>]';
+  'empty-the-scratch-folder-of-a-run --run-name=<name> [--scratch-root=<folder>] [--asking-pid=<number>]';
 
 /**
  The option that names the run whose folder is emptied.
@@ -52,6 +52,11 @@ const RUN_NAME_OPTION = '--run-name=';
  The option that names the root every run's scratch folder lives under.
  */
 const SCRATCH_ROOT_OPTION = '--scratch-root=';
+
+/**
+ The option that names the process that asked for the emptying, which the proof does not read as a later attempt of that name.
+ */
+const ASKING_PID_OPTION = '--asking-pid=';
 
 /**
  The status this command exits with when it refused the folder it was asked for, which is not a deletion that failed but one it
@@ -122,6 +127,14 @@ const scratchRootGiven = optionIn({
   option: SCRATCH_ROOT_OPTION,
 },);
 /**
+ The process that asked for the emptying, as the caller wrote it, which is empty when nobody names one.
+ */
+const askingPidGiven = optionIn({
+  commandLine: words,
+  option: ASKING_PID_OPTION,
+},);
+
+/**
  The root this run of the command empties a folder under.
  */
 const scratchRoot = (scratchRootGiven === '')
@@ -145,6 +158,9 @@ const emptying: ScratchFolderEmptiness = await emptyTheFolderItsRunStillOwns({
   runName,
   run: runCommandWithChildProcess,
   processFolder: env.PI_RUNS_PROCESS_FOLDER ?? '/proc',
+  ...((askingPidGiven === '')
+    ? {}
+    : { askingPids: [Number(askingPidGiven,),], }),
 },);
 
 stdout.write(`${scratchEmptyingLinesOf({

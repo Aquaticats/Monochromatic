@@ -335,6 +335,12 @@ export {
 } from './stand-in-runs-folder-for-tests.ts';
 
 /**
+ The code a failure carries, exported so a test can tell a missing program from a process that had gone.
+ @internal
+ */
+export { errorCodeOf, } from './error-code-of.ts';
+
+/**
  Exported so a test can hand the splitter the chunks it chooses, instead of hoping a scheduler splits a record.
  @internal
  */

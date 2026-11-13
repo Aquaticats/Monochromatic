@@ -122,6 +122,12 @@ export type ScratchEmptyingRequest = {
   readonly scratchRoot: string;
 
   /**
+   When the proof that the run still owned the folder was taken, which an entry written since then is not deleted for. A caller that
+   took no proof gets this call's own moment, to the end of that millisecond, so everything already in the folder is its to delete.
+   */
+  readonly notBefore?: number;
+
+  /**
    The run the folder is said to belong to.
    */
   readonly runName: string;
@@ -243,6 +249,7 @@ async function emptyTheFolderThatIsThere({
     folder: request.folder,
     referenceDevice: atTheFolder.dev,
     mountPoints,
+    notBefore: request.notBefore ?? (Date.now() + 1),
     tally,
   },);
   /**
@@ -377,6 +384,12 @@ export type OwnedScratchEmptyingRequest = ScratchEmptyingRequest & {
    The folder holding one entry per process, `/proc` here.
    */
   readonly processFolder: string;
+
+  /**
+   The processes that asked for this emptying, which the proof does not read as later attempts: the launcher whose end step this is,
+   which is alive until the emptying finishes. This process is always excluded as well.
+   */
+  readonly askingPids?: readonly number[];
 };
 
 /**
@@ -398,6 +411,12 @@ export type OwnedScratchEmptyingRequest = ScratchEmptyingRequest & {
  ```
  */
 export async function emptyTheFolderItsRunStillOwns(request: OwnedScratchEmptyingRequest,): Promise<ScratchFolderEmptiness> {
+  // The moment the proof is asked, which is the horizon the walk deletes up to: anything written into the folder after it may belong
+  // to a later attempt of the same name and is left where it is.
+  /**
+   When this emptying was proven the ended run's own, as the walk counts from it.
+   */
+  const notBefore = Date.now();
   /**
    Why this folder is not provably the ended run's own, when it is not.
    */
@@ -406,7 +425,10 @@ export async function emptyTheFolderItsRunStillOwns(request: OwnedScratchEmptyin
     runName: request.runName,
     folder: request.folder,
     processFolder: request.processFolder,
-    excludingPid: process.pid,
+    excludingPids: [
+      process.pid,
+      ...(request.askingPids ?? []),
+    ],
   },);
   if (ownership.problem !== undefined) {
     return {
@@ -414,5 +436,8 @@ export async function emptyTheFolderItsRunStillOwns(request: OwnedScratchEmptyin
       reason: ownership.problem,
     };
   }
-  return await emptyTheFolderIn(request,);
+  return await emptyTheFolderIn({
+    ...request,
+    notBefore,
+  },);
 }

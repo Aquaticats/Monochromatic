@@ -218,7 +218,12 @@ export {
 export {
   type ShownCommandEnding,
   runCommandShowingItsOutput,
+  runCommandShowingItsOutputWithin,
 } from './run-command.ts';
+export {
+  CLEAN_COMMAND_BOUND_SECONDS,
+  cleanTheWorktreeIn,
+} from './cleaning-a-worktree-before-it-is-removed.ts';
 export {
   CommandAnswerMissingError,
   requiredOutputOf,

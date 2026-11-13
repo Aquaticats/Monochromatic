@@ -5,11 +5,27 @@
  */
 
 import {
+  mkdtemp,
+  readFile,
+  rm,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { runCommandWithChildProcess, } from '../dist/final/node/index.mjs';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import {
+  errorCodeOf,
+  runCommandShowingItsOutputWithin,
+  runCommandWithChildProcess,
+} from '../dist/final/node/index.mjs';
+
+/**
+ The code the kernel gives a signal sent to a process that is not there, which is the answer this reads as "it has gone".
+ */
+const NO_SUCH_PROCESS_CODE = 'ESRCH';
 
 /**
  Milliseconds a stand-in question is given, which is far less than the sleep it is asked to run.
@@ -20,6 +36,109 @@ const SHORT_BOUND_MILLISECONDS = 100;
  Seconds the command asked to sleep, so a question with no bound would still be sleeping when the test ends.
  */
 const LONG_SLEEP_SECONDS = 30;
+
+/**
+ A folder one test's files go in, removed when the test ends.
+
+ @returns the folder's path, and the disposer that removes it
+
+ @example
+ ```ts
+ await using folder = await makeFolder();
+ ```
+ */
+async function makeFolder(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  const path = await mkdtemp(join(scratchRoot(), 'pi-shown-command-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
+/**
+ Says whether a process is still there, which a process its group was killed for is not.
+
+ @param pid - the process number
+
+ @returns whether the kernel still has that process
+
+ @example
+ ```ts
+ const there = await processIsThere(4242);
+ ```
+ */
+async function processIsThere(pid: number,): Promise<boolean> {
+  try {
+    process.kill(pid, 0,);
+    return true;
+  }
+  catch (error) {
+    // A process the kernel no longer has is exactly what this asks about; any other failure is one this cannot answer for.
+    if (errorCodeOf(error,) !== NO_SUCH_PROCESS_CODE) {
+      throw error;
+    }
+    return false;
+  }
+}
+
+await describe({
+  name: runCommandShowingItsOutputWithin.name,
+  children: [
+    it({
+      name: 'ends a command that blocks at its bound, and ends the children it started with it, so nothing of it is left running',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the blocking command writes the numbers of itself and of the child it started.
+         */
+        const numbers = join(
+          folder.path,
+          'numbers.txt',
+        );
+        /**
+         What the bounded run answered.
+         */
+        const ended = await runCommandShowingItsOutputWithin({
+          command: 'sh',
+          words: [
+            '-c',
+            `sleep 30 & printf '%s %s\n' "$$" "$!" > '${numbers}'; wait`,
+          ],
+          timeoutMilliseconds: 300,
+        },);
+        expect(ended.givenUp,).toBe(true,);
+        /**
+         The shell's number and its child's, as the shell wrote them before it blocked.
+         */
+        const [shell, child,] = (await readFile(
+          numbers,
+          'utf8',
+        )).trim()
+          .split(' ',)
+          .map(Number,);
+        // The group is what the bound ends: the shell and the child it started are both gone, not just the process this named.
+        expect(await processIsThere(shell ?? 0,),).toBe(false,);
+        expect(await processIsThere(child ?? 0,),).toBe(false,);
+      },
+      timeout: 30_000,
+    },),
+    it({
+      name: 'answers with the status of a command that ends inside its bound, and never calls it given up',
+      fn: async () => {
+        expect(await runCommandShowingItsOutputWithin({
+          command: 'sh',
+          words: ['-c', 'exit 3',],
+          timeoutMilliseconds: 30_000,
+        },),).toEqual({ status: 3, },);
+      },
+    },),
+  ],
+},);
 
 await describe({
   name: runCommandWithChildProcess.name,

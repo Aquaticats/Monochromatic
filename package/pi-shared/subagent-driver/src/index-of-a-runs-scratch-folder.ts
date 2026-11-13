@@ -38,6 +38,7 @@ export {
   emptyTheFolderOfRun,
 } from './emptying-a-scratch-folder.ts';
 export {
+  launchersStillRunningFor,
   ownershipProblemNow,
   ownershipProblemOf,
 } from './owner-of-a-scratch-folder.ts';

@@ -439,11 +439,21 @@ What the deletion refuses or leaves, and why:
   The proof is taken in the process that deletes,
   immediately before the first entry goes:
   no unit `pi-<the run's name>.service` is going,
-  and no process of the account works in the folder.
+  no process of the account works in the folder,
+  and no launcher of that name is still running,
+  which a later attempt of the same name always has from before it makes the folder until after its own end step.
   A reading nobody could take,
   such as a manager that answers nothing,
   is no proof either,
   and the line says which reading failed;
+- an entry written into the folder after that proof was taken is left where it is and named,
+  because it may be a later attempt's,
+  and a folder holding one is left too:
+  the deletion does not read a file's presence as the ended run's own.
+  So a run that starts after the proof,
+  or a process of the ended run that is still writing from somewhere outside the folder,
+  loses nothing,
+  and what it wrote is named in the line for the next end of a run of that name to take;
 - a folder that is a symbolic link is refused rather than followed,
   because emptying it would delete whatever it points at;
 - a folder that is itself a mount point is refused,
@@ -496,6 +506,9 @@ empty-the-scratch-folder-of-a-run --run-name=copy-route
 
 It computes the folder from the run's name and the root,
 so no caller can point it at a folder that is not a run's own,
+and `--asking-pid` names the process that asked for the emptying,
+which the proof does not read as a later attempt of that name
+(the launcher whose end step is the emptying is alive until it finishes),
 and it prints the lines a run's end carries:
 what it removed, how much room the volume gained, how much `keep/` holds,
 and every entry it left where it is with the reason.
@@ -864,6 +877,16 @@ and each line says which one did not:
   not in any of its run folders,
   and not in its review folder;
 - `git status` holds nothing uncommitted.
+
+Its clean command is bounded at `CLEAN_COMMAND_BOUND_SECONDS`,
+four seconds,
+and the process group it started is ended when that bound is reached:
+a clean that waits on Cargo's package-cache lock,
+measured at ten minutes and more on this machine on 2026-11-13,
+no longer holds the sweep,
+and the line for that worktree says the clean was given up and the sweep went on.
+What that costs is the space the clean would have freed early,
+since the worktree removal after it frees the same tree.
 
 It also empties the scratch folder of each run its launcher never got to,
 by the same readings,

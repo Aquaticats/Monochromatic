@@ -36,10 +36,20 @@ and the tests use one per wait inside a polling loop.
   The count of a kept folder takes the same shape for the same reason.
 - Counting what a bound-ended deletion left (`src/deleting-what-a-run-left-in-its-scratch-folder.ts`): one folder at a time, for
   the same reason as the deletion it reports on.
-- The same deletion in a test (`src/emptying-a-scratch-folder.unit.test.ts`):
+- The same deletion in a test (`src/emptying-a-scratch-folder.unit.test.ts`),
+  including a folder of many files written one at a time before a walk is timed against it,
+  and a look at that walk between writes so a write lands in the middle of it:
   one run name at a time,
   each folder made, filled, emptied and read before the next one,
   so a failure names the name it belongs to.
+- The proof that a folder is still its run's own (`src/owner-of-a-scratch-folder.ts`):
+  one process after another in the process folder,
+  each command line read once while its process lives,
+  and a launcher's line is gone as soon as it ends,
+  so they are read in order rather than all at once.
+- The bound on a clean command (`src/cleaning-a-worktree-before-it-is-removed.unit.test.ts`):
+  one look at the processes it ended, then another until the bound,
+  so a killed process is not read as alive for ever.
 - The end step's own cases (`src/finish-a-run.unit.test.ts`):
   one run at a time, each made, ended, emptied and read before the next, so a failure names the case it belongs to,
   and one process entry at a time while a process table is written.

@@ -68,6 +68,12 @@ const SCRATCH_ROOT_OPTION = '--scratch-root=';
 const RUN_NAME_OPTION = '--run-name=';
 
 /**
+ The option that names the process that asked for the emptying, which the proof does not read as a later attempt of that name: the
+ launcher whose end step this is is alive until the empty finishes.
+ */
+const ASKING_PID_OPTION = '--asking-pid=';
+
+/**
  Reads the lines a command printed, which is how the emptying's own words reach the run's end.
 
  @param shown - what the command printed
@@ -159,6 +165,7 @@ export async function emptyTheScratchFolderAtTheLowestDiskPriority({
     entry,
     `${SCRATCH_ROOT_OPTION}${scratchRoot}`,
     `${RUN_NAME_OPTION}${runName}`,
+    `${ASKING_PID_OPTION}${String(process.pid,)}`,
   ];
   /**
    What the emptying printed.

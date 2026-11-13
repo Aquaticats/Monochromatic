@@ -6,6 +6,7 @@
  */
 
 import {
+  type ChildProcess,
   execFile,
   spawn,
 } from 'node:child_process';
@@ -327,81 +328,10 @@ export async function runCommandWithChildProcess({
 }
 
 /**
- What a command that showed its own output ended with.
+ Running one command with the caller's own streams, so what it prints reaches the terminal, with a bound or without one.
  */
-export type ShownCommandEnding = {
-  /**
-   The status it exited with, or nothing when a signal ended it.
-   */
-  readonly status?: number;
-
-  /**
-   Why it could not be started, when it could not be.
-   */
-  readonly startProblem?: string;
-};
-
-/**
- Runs one command with the caller's own streams, so what it prints reaches the terminal as it prints it, and answers with how it
- ended.
-
- This is the shape a launcher needs: a run's progress must show while it runs, and its status is what the caller answers with.
-
- @param command - the program, found on `PATH`
-
- @param words - its arguments, each kept whole
-
- @param folder - the folder it runs in, which is this process's own when it names none
-
- @param environment - the environment it gets, which is this process's own when it names none
-
- @returns how it ended, which never throws for a failure of the command itself
-
- @example
- ```ts
- const ended = await runCommandShowingItsOutput({ command: 'systemd-run', words: ['--user', '--wait', '--unit=pi-a', 'true',], },);
- ```
- */
-export async function runCommandShowingItsOutput({
-  command,
-  words,
-  folder,
-  environment,
-}: {
-  readonly command: string;
-  readonly words: readonly string[];
-  readonly folder?: string;
-  readonly environment?: NodeJS.ProcessEnv;
-},): Promise<ShownCommandEnding> {
-  /**
-   The command's process.
-   */
-  const child = spawn(
-    command,
-    [...words,],
-    {
-      stdio: 'inherit',
-      ...(folder === undefined ? {} : { cwd: folder, }),
-      ...(environment === undefined ? {} : { env: environment, }),
-    },
-  );
-  try {
-    /**
-     What the process reported when it closed, which is its status or the signal that ended it.
-     */
-    const closed: readonly unknown[] = await once(
-      child,
-      'close',
-    );
-    /**
-     The status the process exited with, or nothing when a signal ended it.
-     */
-    const [status,] = closed;
-    return ((typeof status) === 'number') ? { status, } : {};
-  }
-  catch (error) {
-    // `once` rejects when the process could not be started at all, and that is the one failure a caller reports rather than reads
-    // as an exit.
-    return { startProblem: String(error,) };
-  }
-}
+export {
+  type ShownCommandEnding,
+  runCommandShowingItsOutput,
+  runCommandShowingItsOutputWithin,
+} from './running-a-command-with-the-callers-streams.ts';

@@ -276,6 +276,9 @@ export function leftWhereItIsIn({
 
  @param mountPoints - every mount point of the machine, which an entry at one of them is left for
 
+ @param notBefore - the moment the proof that the run still owned the folder was taken: an entry written since then is not this run's
+ to delete
+
  @param tally - the counts to fill
 
  @example
@@ -287,11 +290,13 @@ export async function removeInto({
   folder,
   referenceDevice,
   mountPoints,
+  notBefore,
   tally,
 }: {
   readonly folder: string;
   readonly referenceDevice: number;
   readonly mountPoints: ReadonlySet<string>;
+  readonly notBefore: number;
   readonly tally: ScratchRemovalTally;
 },): Promise<void> {
   /**
@@ -355,6 +360,7 @@ export async function removeInto({
           },);
         continue;
       }
+
       /**
        Why that entry is another filesystem's, when it is.
        */
@@ -375,8 +381,22 @@ export async function removeInto({
       }
       if (entry.info
         .isDirectory()) {
+        // A folder is walked even when it was written into after the proof, so the ended run's own files inside it are still deleted;
+        // it is removed only when nothing newer is left in it, which a later attempt's file makes fail and the line names.
         foldersToRemove.push(path,);
         pending.push(path,);
+        continue;
+      }
+      // A file written since the proof was taken is not the ended run's: a later attempt of the same name reuses this folder, and its
+      // work is nobody else's to delete. Nothing is deleted on a guess about whose a newer file is.
+      if (entry.info
+        .mtimeMs
+        >= notBefore) {
+        tally.leftBehind
+          .push({
+            path,
+            reason: 'it was written after this deletion proved the folder was the ended run\'s own, so it may be a later attempt\'s and it was left as it is',
+          },);
         continue;
       }
       // A symbolic link is removed as a link, never followed: what it points at is outside this folder, whether it names a file

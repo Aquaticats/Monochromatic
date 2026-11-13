@@ -41,9 +41,9 @@ import { optionIn, } from './option-in.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import {
   type ShownCommandEnding,
-  runCommandShowingItsOutput,
   runCommandWithChildProcess,
 } from './run-command.ts';
+import { cleanTheWorktreeIn, } from './cleaning-a-worktree-before-it-is-removed.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 import { unitStateOf, } from './wait-for-a-unit-to-end.ts';
 import { scratchFolderLinesOf, } from './scratch-folders-of-finished-runs.ts';
@@ -426,36 +426,18 @@ for (const worktree of runWorktreesIn({
     continue;
   }
   /**
-   What the clean command freed, when the caller named one.
-   */
-  /**
    The words of the clean command the caller named.
    */
   const { cleanWords, } = options;
   /**
-   Whether the caller named a clean command at all.
+   What the clean command freed, as the line says it, which is asked within a bound so a clean that waits cannot hold the sweep.
    */
-  const hasCleanCommand = !((options.cleanFolder === '')
-    || (cleanWords
-      .length === 0));
-  /**
-   What the clean command answered, when the caller named one.
-   */
-  const cleaned = (!hasCleanCommand)
-    ? undefined
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one clean command per worktree, in the folder the caller named inside it; see doc/lint/sequential-awaits.md
-    : await runCommandShowingItsOutput({
-      command: cleanWords[0] ?? '',
-      words: cleanWords.slice(1,),
-      folder: join(
-        worktree.path,
-        options.cleanFolder,
-      ),
-    },);
-  /**
-   What the clean command freed, as the line says it.
-   */
-  const freed = (cleaned === undefined) ? 'no clean command' : `clean ended with status ${String(cleaned.status,)}`;
+  // oxlint-disable-next-line eslint/no-await-in-loop -- one clean command per worktree, in the folder the caller named inside it; see doc/lint/sequential-awaits.md
+  const freed = await cleanTheWorktreeIn({
+    cleanWords,
+    cleanFolder: options.cleanFolder,
+    worktreeFolder: worktree.path,
+  },);
   /**
    What git answered about removing the worktree.
    */

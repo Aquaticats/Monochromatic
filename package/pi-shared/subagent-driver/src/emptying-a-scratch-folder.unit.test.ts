@@ -37,6 +37,8 @@ import {
   type ScratchFolderEmptiness,
   emptyTheFolderItsRunStillOwns,
   emptyTheScratchFolderAtTheLowestDiskPriority,
+  errorCodeOf,
+  launchersStillRunningFor,
   ownershipProblemOf,
   bytesTextOf,
   emptyTheFolderIn,
@@ -188,11 +190,13 @@ async function emptyWithoutTheMachine({
   runName,
   leftBehindMounts = [],
   freeBytes = [1_000, 5_000],
+  notBefore,
 }: {
   readonly scratch: { readonly scratchRoot: string; readonly folder: string };
   readonly runName: string;
   readonly leftBehindMounts?: readonly string[];
   readonly freeBytes?: readonly [number, number];
+  readonly notBefore?: number;
 },): Promise<ScratchFolderEmptiness> {
   /**
    How many times the room was read, so the two readings answer differently.
@@ -202,6 +206,7 @@ async function emptyWithoutTheMachine({
     folder: scratch.folder,
     scratchRoot: scratch.scratchRoot,
     runName,
+    ...((notBefore === undefined) ? {} : { notBefore, }),
     mountsOf: async function mounts() {
       return leftBehindMounts;
     },
@@ -291,6 +296,65 @@ async function processTableWorkingIn({
     ),
   );
   return processFolder;
+}
+
+/**
+ Writes one process into a process table a test owns, with the command line the kernel would hold for it.
+
+ @param request - the process folder, the process number, and the words of its command line
+
+ @returns nothing
+
+ @example
+ ```ts
+ await writeProcessEntry({ folder: '/proc', pid: 4242, words: ['node', '/pkg/start-pi-run-in-a-worktree.ts', '--name=a'], },);
+ ```
+ */
+async function writeProcessEntry({
+  folder,
+  pid,
+  words,
+}: {
+  readonly folder: string;
+  readonly pid: number;
+  readonly words: readonly string[];
+},): Promise<void> {
+  /**
+   That process's own entry.
+   */
+  const entry = join(
+    folder,
+    String(pid,),
+  );
+  await mkdir(entry, { recursive: true, },);
+  await writeFile(join(
+    entry,
+    'cmdline',
+  ), `${words.join('\0',)}\0`,);
+}
+
+/**
+ Everything a folder holds, by name, or nothing when the folder is already gone, which the walk makes of it.
+
+ @param folder - the folder to list
+
+ @returns its entries' names, or none
+
+ @example
+ ```ts
+ const names = await namesInFolderOrNothing('/home/a/temp/agent/a-scratch/build');
+ ```
+ */
+async function namesInFolderOrNothing(folder: string,): Promise<readonly string[]> {
+  try {
+    return await namesInFolder(folder,);
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== 'ENOENT') {
+      throw error;
+    }
+    return [];
+  }
 }
 
 /**
@@ -922,6 +986,177 @@ await describe({
           },
         },),
         it({
+          name: 'deletes nothing written after the moment the run was proven to own the folder, and says what it left, so a later attempt of the same name loses nothing',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's scratch folder, holding what the ended run left in a folder of its own and a report.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            /**
+             A folder the ended run wrote, which a later attempt writes into as well.
+             */
+            const shared = join(
+              scratch.folder,
+              'a-build-tree',
+            );
+            await mkdir(shared, { recursive: true, },);
+            await writeFile(join(
+              shared,
+              'the-ended-runs-object.bin',
+            ), 'an object\n',);
+            await writeFile(join(
+              scratch.folder,
+              'the-ended-runs-log.txt',
+            ), 'a log\n',);
+            // The clock is given a millisecond or two on each side of the horizon, because a file's own time is finer than the
+            // millisecond a wall clock reports: without the gap a file written in the horizon's own millisecond reads as newer.
+            await new Promise(function waitForTheClock(resolve,) {
+              setTimeout(resolve, 20,);
+            },);
+            /**
+             The moment the ownership was proven, which this test takes as its horizon.
+             */
+            const proofTakenAt = Date.now();
+            // A later attempt of the same name writes after the proof: its files are its own, in a folder the ended run also used.
+            await new Promise(function waitForTheClock(resolve,) {
+              setTimeout(resolve, 20,);
+            },);
+            await writeFile(join(
+              scratch.folder,
+              'the-later-attempts-log.txt',
+            ), 'the later attempt\n',);
+            await writeFile(join(
+              shared,
+              'the-later-attempts-object.bin',
+            ), 'the later attempt\n',);
+            /**
+             What the emptying answered.
+             */
+            const emptied = doneOf(await emptyWithoutTheMachine({
+              scratch,
+              runName: 'a',
+              notBefore: proofTakenAt,
+            },),);
+            // The ended run's two files are gone, and the later attempt's two are there and named, with the folder that holds one of them.
+            expect(emptied.removedFiles,).toBe(2,);
+            expect(emptied.leftBehind
+              .map(function pathOf(entry,) {
+                return entry.path;
+              },),).toEqual([
+                join(scratch.folder, 'the-later-attempts-log.txt',),
+                join(shared, 'the-later-attempts-object.bin',),
+                shared,
+              ],);
+            // What the ended run left is gone, what the later attempt wrote is there, and keep/ is untouched.
+            expect(await namesInFolder(scratch.folder,),).toEqual([
+              'a-build-tree',
+              KEEP_FOLDER,
+              'the-later-attempts-log.txt',
+            ],);
+            expect(await namesInFolder(shared,),).toEqual(['the-later-attempts-object.bin',],);
+          },
+        },),
+        it({
+          name: 'keeps every file a later attempt writes into the folder while the walk is running, wherever the walk has got to',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's scratch folder, with enough in it that the walk is still going when a later attempt writes.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            /**
+             A folder of many files, which the walk spends its time in, and one the walk reads later.
+             */
+            const many = join(
+              scratch.folder,
+              'a-build-tree',
+            );
+            const later = join(
+              scratch.folder,
+              'a-later-folder',
+            );
+            await mkdir(many, { recursive: true, },);
+            await mkdir(later, { recursive: true, },);
+            /**
+             How many files the walk has to get through before a later attempt writes.
+             */
+            const MANY_FILES = 3_000;
+            /* oxlint-disable eslint/no-await-in-loop -- one file at a time, so the walk has a tree of many entries to spend its time
+               in; see doc/lint/sequential-awaits.md. */
+            for (let index = 0; index < MANY_FILES; index += 1) {
+              await writeFile(join(
+                many,
+                `object-${String(index,)}.bin`,
+              ), 'x',);
+            }
+            /* oxlint-enable eslint/no-await-in-loop */
+            await writeFile(join(
+              later,
+              'the-ended-runs-file.txt',
+            ), 'the ended run\n',);
+            // A gap on each side of the horizon, because a file's own time is finer than the millisecond a wall clock reports.
+            await new Promise(function waitForTheClock(resolve,) {
+              setTimeout(resolve, 20,);
+            },);
+            /**
+             The moment the ownership would have been proven.
+             */
+            const proofTakenAt = Date.now();
+            /**
+             What the emptying answered.
+             */
+            const emptying = emptyWithoutTheMachine({
+              scratch,
+              runName: 'a',
+              notBefore: proofTakenAt,
+            },);
+            /**
+             The later attempt's file, which is written once the walk is inside the folder of many files.
+             */
+            const laterAttemptsFile = join(
+              later,
+              'the-later-attempts-file.txt',
+            );
+            // Writing while the walk runs is what this test is about: it waits until the walk has deleted half of the many files, so the
+            // write lands in the middle of the walk rather than before it. The wait has a deadline of its own, so a walk that never
+            // starts fails this test with what happened rather than holding it.
+            /**
+             When this wait gives up on the walk.
+             */
+            const deadline = Date.now() + 60_000;
+            /* oxlint-disable eslint/no-await-in-loop -- one look at the walk at a time, each read before the next, so the write lands
+               in the middle of the walk rather than after it; see doc/lint/sequential-awaits.md. */
+            for (;;) {
+              /**
+               What is left in the folder of many files, or nothing when the walk has emptied it.
+               */
+              const left = await namesInFolderOrNothing(many,);
+              if (left.length < (MANY_FILES / 2)) {
+                await writeFile(laterAttemptsFile, 'the later attempt\n',);
+                break;
+              }
+              if (Date.now() > deadline) {
+                throw new Error(`the walk had not reached half of ${String(MANY_FILES,)} files after a minute: ${String(left.length,)} were still there`,);
+              }
+              await new Promise(function waitForTheWalk(resolve,) {
+                setTimeout(resolve, 5,);
+              },);
+            }
+            /* oxlint-enable eslint/no-await-in-loop */
+            expect(await emptying,).toMatchObject({ emptied: 'done', },);
+            expect(await namesInFolder(later,),).toEqual(['the-later-attempts-file.txt',],);
+            expect(await readFile(laterAttemptsFile, 'utf8',),).toBe('the later attempt\n',);
+          },
+          timeout: 120_000,
+        },),
+        it({
           name: 'says the room the volume gained from the two readings, and says so instead when it could not be read',
           fn: async () => {
             await using folder = await makeFolder();
@@ -1000,8 +1235,9 @@ await describe({
               runName: 'copy-route',
               unitState: 'inactive',
               processes: [],
+              launchers: [],
               folder: '/home/a/temp/agent/copy-route-scratch',
-              excludingPid: 1,
+              excludingPids: [1,],
             },),).toEqual({},);
           },
         },),
@@ -1013,17 +1249,32 @@ await describe({
                 runName: 'copy-route',
                 unitState,
                 processes: [],
+                launchers: [],
                 folder: '/home/a/temp/agent/copy-route-scratch',
-                excludingPid: 1,
+                excludingPids: [1,],
               },).problem,).toContain('a run of that name is going now',);
             }
             expect(ownershipProblemOf({
               runName: 'copy-route',
               unitState: '',
               processes: [],
+              launchers: [],
               folder: '/home/a/temp/agent/copy-route-scratch',
-              excludingPid: 1,
+              excludingPids: [1,],
             },).problem,).toContain('is in no state anybody could read',);
+          },
+        },),
+        it({
+          name: 'refuses while a launcher of that name is still running, which is a later attempt of the same name already started',
+          fn: async () => {
+            expect(ownershipProblemOf({
+              runName: 'copy-route',
+              unitState: 'inactive',
+              processes: [],
+              launchers: [4_001,],
+              folder: '/home/a/temp/agent/copy-route-scratch',
+              excludingPids: [1,],
+            },).problem,).toContain('a launcher of a run named copy-route is still running (4001)',);
           },
         },),
         it({
@@ -1036,16 +1287,18 @@ await describe({
                 { pid: 9_001, folder: '/home/a/temp/agent/copy-route-scratch/build', command: 'bash', },
                 { pid: 9_002, folder: '/elsewhere', command: 'node', },
               ],
+              launchers: [],
               folder: '/home/a/temp/agent/copy-route-scratch',
-              excludingPid: 1,
+              excludingPids: [1,],
             },).problem,).toContain('a process still works in /home/a/temp/agent/copy-route-scratch/build (9001 bash)',);
             // The process doing the emptying is not the run's work, wherever it was started.
             expect(ownershipProblemOf({
               runName: 'copy-route',
               unitState: 'inactive',
               processes: [{ pid: 9_003, folder: '/home/a/temp/agent/copy-route-scratch', command: 'node', },],
+              launchers: [],
               folder: '/home/a/temp/agent/copy-route-scratch',
-              excludingPid: 9_003,
+              excludingPids: [9_003,],
             },),).toEqual({},);
           },
         },),
@@ -1054,6 +1307,60 @@ await describe({
     describe({
       name: emptyTheFolderItsRunStillOwns.name,
       children: [
+        it({
+          name: 'deletes nothing while a launcher of that name is still running, which is a later attempt that already started',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the earlier attempt left, which a later attempt of the same name now uses.
+             */
+            const scratch = await makeScratch({
+              base: folder.path,
+              runName: 'a',
+            },);
+            /**
+             What the later attempt wrote in it.
+             */
+            const laterAttemptsFile = join(
+              scratch.folder,
+              'a-later-attempts-output.txt',
+            );
+            await writeFile(laterAttemptsFile, 'the later attempt is writing this\n',);
+            /**
+             The process table holding that later attempt's launcher.
+             */
+            const processes = join(
+              folder.path,
+              'proc',
+            );
+            await writeProcessEntry({
+              folder: processes,
+              pid: 4_101,
+              words: ['node', '/pkg/start-pi-run-in-a-worktree.ts', '--name=a',],
+            },);
+            /**
+             What the emptying answered.
+             */
+            const emptied = await emptyTheFolderItsRunStillOwns({
+              folder: scratch.folder,
+              scratchRoot: scratch.scratchRoot,
+              runName: 'a',
+              run: async function theManager() {
+                return { status: 0, stdout: 'inactive\n', stderr: '', };
+              },
+              processFolder: processes,
+              mountsOf: async function mounts() {
+                return [];
+              },
+              freeBytesOf: async function room() {
+                return 0;
+              },
+            },);
+            expect(emptied.emptied,).toBe('refused',);
+            expect((emptied as { readonly reason: string }).reason,).toContain('a launcher of a run named a is still running',);
+            expect(await readFile(laterAttemptsFile, 'utf8',),).toBe('the later attempt is writing this\n',);
+          },
+        },),
         it({
           name: 'empties the folder when the run that ended is proven to still own it, and deletes nothing while a run of that name is going',
           fn: async () => {
@@ -1149,6 +1456,69 @@ await describe({
             },);
             expect(emptied.emptied,).toBe('done',);
             expect(await namesInFolder(scratch.folder,),).toEqual([KEEP_FOLDER,],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: launchersStillRunningFor.name,
+      children: [
+        it({
+          name: 'names the launchers of that run name still running, and no process of another name, of another program, or the one doing the emptying',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process table this test writes.
+             */
+            const processes = join(
+              folder.path,
+              'proc',
+            );
+            await writeProcessEntry({
+              folder: processes,
+              pid: 4_001,
+              words: ['node', '/pkg/start-pi-run-in-a-worktree.ts', '--name=copy-route', '--branch=feat/x',],
+            },);
+            await writeProcessEntry({
+              folder: processes,
+              pid: 4_002,
+              words: ['node', '/pkg/start-pi-run-in-a-worktree.ts', '--name=another-run',],
+            },);
+            await writeProcessEntry({
+              folder: processes,
+              pid: 4_003,
+              words: ['node', '/pkg/start-pi-run-when-a-pool-has-room.ts', '--name=copy-route',],
+            },);
+            await writeProcessEntry({
+              folder: processes,
+              pid: 4_004,
+              words: ['node', '/pkg/start-pi-run-in-a-worktree.mjs', '--name=copy-route',],
+            },);
+            expect(await launchersStillRunningFor({
+              processFolder: processes,
+              runName: 'copy-route',
+              excludingPids: [9_999,],
+            },),).toEqual([4_001, 4_004,],);
+            // The launcher asking is the one that ended the run, so it is not a later attempt.
+            expect(await launchersStillRunningFor({
+              processFolder: processes,
+              runName: 'copy-route',
+              excludingPids: [4_001,],
+            },),).toEqual([4_004,],);
+          },
+        },),
+        it({
+          name: 'answers no launcher for a process folder that is not there, which is a machine whose launchers cannot be read as none running',
+          fn: async () => {
+            await using folder = await makeFolder();
+            expect(await launchersStillRunningFor({
+              processFolder: join(
+                folder.path,
+                'no-such-folder',
+              ),
+              runName: 'copy-route',
+              excludingPids: [1,],
+            },),).toEqual([],);
           },
         },),
       ],
