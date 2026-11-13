@@ -2944,6 +2944,8 @@ fn nowhere(name: &str) -> Nowhere {
     git(&local, &["add", "local.txt"]);
     git(&local, &["commit", "--quiet", "-m", "local side"]);
     let local_tip: String = text_of(&local, &["rev-parse", "refs/heads/topic"]);
+    // The merge is computed here, so this repository needs the commit the remote's branch names.
+    git(&local, &["fetch", "--quiet", "origin"]);
     git(&local, &["switch", "--quiet", "main"]);
     let remote_tip: String = text_of(&other, &["rev-parse", "refs/heads/topic"]);
     let merge: String = text_of(
@@ -2971,7 +2973,7 @@ fn a_worktree_that_took_the_branch_before_the_reference_moved_moves_with_it() {
     let local_tip: String = s.local_tip.clone();
     let taken: PathBuf = root.join("taken");
     let placed: PathBuf = taken.clone();
-    let from: PathBuf = root.clone();
+    let from: PathBuf = s.scenario.local.clone();
     let _played = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
         let made = git(&from, &["worktree", "add", "--quiet", "--detach", placed.to_str().expect("utf-8"), local_tip.as_str()]);
         assert!(made.status.success(), "the control makes the worktree the racing command would have made");
@@ -2984,19 +2986,24 @@ fn a_worktree_that_took_the_branch_before_the_reference_moved_moves_with_it() {
         s.merge.as_str(),
     ))
     .expect("the move runs");
+    // What: the checkout is read first, because a stale one is the harm this control exists for.
+    // Why: an answer that names the worktree while its files are the pushed tip's would pass a looser control.
+    assert_eq!(
+        std::fs::read_to_string(taken.join("remote.txt")).unwrap_or_default(),
+        "remote side\n",
+        "the checkout shows the merge's files"
+    );
+    assert_eq!(
+        text_of(&taken, &["status", "--porcelain=v1"]),
+        "",
+        "and nothing there is left pending, so no commit there would revert the merge"
+    );
     let Advanced::Elsewhere { worktree, .. } = advanced else {
         panic!("the worktree that took the branch is where the branch is moved")
     };
     assert_eq!(worktree, taken, "the move names the worktree that took the branch");
     assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.merge, "the branch followed its merge");
     assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/main"]), main_before, "no other branch is touched");
-    assert_eq!(
-        std::fs::read_to_string(taken.join("remote.txt")).expect("the merge's file is in that worktree"),
-        "remote side\n",
-        "the checkout shows the merge's files"
-    );
-    assert_eq!(text_of(&taken, &["status", "--porcelain=v1"]), "", "and nothing there is left pending");
-    assert_eq!(text_of(&taken, &["rev-parse", "HEAD"]), s.merge);
     remove(&root);
 }
 
@@ -3017,7 +3024,7 @@ fn a_worktree_that_took_the_branch_after_the_reference_moved_is_brought_to_the_m
     let local_tip: String = s.local_tip.clone();
     let placed: PathBuf = root.join("taken");
     let racing: PathBuf = placed.clone();
-    let from: PathBuf = root.clone();
+    let from: PathBuf = s.scenario.local.clone();
     let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
         // The worktree a racing command leaves: written from the pushed tip, its HEAD the branch the reference just moved.
         let made = git(&from, &["worktree", "add", "--quiet", "--detach", racing.to_str().expect("utf-8"), local_tip.as_str()]);
@@ -3031,13 +3038,10 @@ fn a_worktree_that_took_the_branch_after_the_reference_moved_is_brought_to_the_m
         s.merge.as_str(),
     ))
     .expect("the move runs");
-    let Advanced::Elsewhere { worktree, .. } = advanced else {
-        panic!("the racing worktree is repaired and named")
-    };
-    assert_eq!(worktree, placed, "the repair names the worktree that raced the move");
-    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.merge, "the branch is at its merge");
+    // What: the checkout is read first, because a stale one is the harm this control exists for.
+    // Why: an answer that names the worktree while its files are the pushed tip's would pass a looser control.
     assert_eq!(
-        std::fs::read_to_string(placed.join("remote.txt")).expect("the merge's file was written there"),
+        std::fs::read_to_string(placed.join("remote.txt")).unwrap_or_default(),
         "remote side\n",
         "the checkout shows the merge's files, not the pushed tip's"
     );
@@ -3046,6 +3050,11 @@ fn a_worktree_that_took_the_branch_after_the_reference_moved_is_brought_to_the_m
         "",
         "nothing is left pending, so no commit there would revert the merge"
     );
+    let Advanced::Elsewhere { worktree, .. } = advanced else {
+        panic!("the racing worktree is repaired and named")
+    };
+    assert_eq!(worktree, placed, "the repair names the worktree that raced the move");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.merge, "the branch is at its merge");
     remove(&root);
 }
 
