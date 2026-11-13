@@ -689,6 +689,12 @@ because the thread moved:
    it reports a measurement of the pull request.
 - The input-trace cost has its own document and a checked patch,
    `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+- Revised 2026-11-13T13:57:35-05:00:
+   fixes for the two copies behind the trace's were prototyped and rechecked that day,
+   as that document records under "Prototypes for the two further copies".
+   The draft now says what came of each.
+   Whether the second patch is offered to upstream at all is the owner's choice,
+   and the draft's sentences about it are there to be cut.
 
 Decided by the owner on 2026-11-13,
 in answer to questions put that morning:
@@ -738,14 +744,20 @@ On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on 
 What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
 both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
-input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
+input, 8,000 positional arguments and one option, it took a parse from 1,130 ms to 140 ms in that run. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
-to main as of that merge. It does not make the parse linear: a profile of the patched build shows two smaller
-per-argument copies behind it, in `multiple()` (the state array) and `argument()` (the buffer slice); 32,000
-arguments take 29 s unpatched and 5.7 s patched. The write-up and the patch: [commit permalink to
+to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
+`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice); in a later run on
+Deno, 32,000 arguments took 30.6 s on main and 7.3 s patched. I tried both. A second patch removes the state copy by making a
+state of more than 1,024 items an array-shaped view over an immutable vector: 32,000 arguments then take 1.4 s, and
+the core suite passes on Deno, Node and Bun. Its cost is that such a state is a `Proxy`, which prints as an empty
+array and throws on `structuredClone()`, `Object.freeze()` and in-place edits. For the buffer I have nothing to
+offer: a view cut in `argument()` alone made a line that alternates options and arguments about ten times slower.
+The write-up and both patches: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
-The patch was written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for it?
+Both patches were written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for
+the first, and is a proxy-backed state something you would want at all?
 
 One thing that is still true of 1.3.6: the default path collects the option names and searches them on every
 mismatch, and a profile puts about three quarters of the parse there. The length check skips a name only when its

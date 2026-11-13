@@ -125,17 +125,23 @@ In the order a run that names no model of its own takes them:
 
 - `qwen-plan-deepseek`:
   the qwen plan's DeepSeek model (`deepseek-v4.1-flash-1017`),
-  18 runs,
-  which a run that names no model of its own takes first.
+  closed to new runs (limit 0) since 2026-11-13.
+  The owner:
+  "Remove Qwen hosted Deepseek from the pool."
+  It took 18 runs before.
+  The runs already on it are still counted there and finish there.
 - `neuralwatt`:
   standard DeepSeek,
   closed to new runs (limit 0),
-  because `qwen-plan-deepseek` replaced it.
+  because `qwen-plan-deepseek` replaced it on 2026-11-11;
+  nothing was said about it when that pool was taken out,
+  so it stays closed.
   Its runs are still counted there,
   and a run naming the launcher's own default provider and model still reads as a default run.
 - `neuralwatt-flex`:
   DeepSeek flex,
-  20 runs.
+  20 runs,
+  which a run that names no model of its own takes first now.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
 - `opencode-go`:

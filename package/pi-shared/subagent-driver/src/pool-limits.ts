@@ -63,8 +63,8 @@ export type ProviderPool = {
 };
 
 /**
- The limit a pool carries while it takes no new run, which two of them do: one the owner replaced, and one they closed while its
- week is used up.
+ The limit a pool carries while it takes no new run, which three of them do: one the owner replaced, the one that replaced it
+ and was then taken out, and one they closed while its week is used up.
 
  A closed pool keeps its place in the table because its runs are still counted where they are, and because a run that names the
  launcher's default provider and model is still read as a default run, which the first pool with room then takes.
@@ -72,14 +72,18 @@ export type ProviderPool = {
 export const CLOSED_POOL_LIMIT = 0;
 
 /**
- The qwen plan's DeepSeek pool, which a run that names no model of its own takes first.
+ The qwen plan's DeepSeek pool, which no new run takes since the owner took it out of the pools on 2026-11-13.
 
- The owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen itself. Please replace the
- neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So default runs go here first,
- where they went to standard Neuralwatt, with the 18 slots that pool had. The plan's own concurrency limit is neither stated nor
- measured: a 429 that names one sets the real number, as it did for Neuralwatt.
+ The owner, 2026-11-13T14:5x-05:00: "Remove Qwen hosted Deepseek from the pool." So the limit is {@link CLOSED_POOL_LIMIT},
+ and it was 18. The same plan answers the reviews on `qwen4-max-preview`, and that afternoon it had answered four of them
+ "429 ... Allocated quota exceeded", which its documentation gives as a limit on tokens per second or minute; the runs of this
+ pool drew on the same plan. The entry stays so that the runs already on it are counted where they are and finish there.
 
- Those 18 are the size the owner had just given the pool this replaced, 2026-11-11T17:0x-05:00: "Change flex concurrency to
+ What it was before: the owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen
+ itself. Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So
+ default runs went here first, where they had gone to standard Neuralwatt, with the 18 slots that pool had.
+
+ Those 18 were the size the owner had just given the pool this replaced, 2026-11-11T17:0x-05:00: "Change flex concurrency to
  22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot
  frees up a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"."
  Neuralwatt's 429 of 2026-11-11T01:19Z, "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
@@ -90,17 +94,22 @@ export const QWEN_PLAN_DEEPSEEK: ProviderPool = {
   name: 'qwen-plan-deepseek',
   provider: 'qwen-token-plan-individual',
   model: 'deepseek-v4.1-flash-1017',
-  limit: 18,
+  limit: CLOSED_POOL_LIMIT,
   wallFactor: 1,
   takesDefaultRuns: true,
+  closed: {
+    reason: 'the owner took the qwen plan\'s DeepSeek model out of the pools on 2026-11-13',
+  },
 };
 
 /**
  Neuralwatt's standard DeepSeek pool, which no new run takes since the qwen plan replaced it.
 
- The owner's words beside {@link QWEN_PLAN_DEEPSEEK} are the replacement, so the limit is {@link CLOSED_POOL_LIMIT} and it was
- 18. The entry stays so that the runs already on standard Neuralwatt are counted where they are, and so a run that names the
- launcher's default provider and model is still read as a default run and placed on the first pool with room.
+ The owner's words of 2026-11-11 beside {@link QWEN_PLAN_DEEPSEEK} are the replacement, so the limit is
+ {@link CLOSED_POOL_LIMIT} and it was 18. The entry stays so that the runs already on standard Neuralwatt are counted where
+ they are, and so a run that names the launcher's default provider and model is still read as a default run and placed on the
+ first pool with room. The pool that replaced it was itself taken out on 2026-11-13, and nothing was said then about this one,
+ so it stays as it was: closed.
 
  The owner, 2026-11-09 kept the account's own limit at 20: "Try 20, and if it doesn't blow up (in terms of api rate limits),
  we're permanently raising the practical limit to 20." Historical 429s that lowered it for a few hours are void: the owner wrote
@@ -116,7 +125,8 @@ export const NEURALWATT_STANDARD: ProviderPool = {
 };
 
 /**
- Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes once the qwen plan's pool is full.
+ Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes first, the two pools before it in the table
+ being closed.
 
  The owner, 2026-11-10: "You can use -flex postfix on neuralwatt models. They have their own separate pool of 22 slots. They're
  around 100% slower than standard in practice." A flex run therefore gets twice the wall clock, which is what `wallFactor` is

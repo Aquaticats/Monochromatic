@@ -155,6 +155,11 @@ pub mod service_land_git_steps_and_import_stream;
 /// and what the landing does with a commit whose reference it could not prove.
 pub mod service_land_side_reference_write;
 
+/// The batch whose own scratch reference the write did not prove:
+/// it lands as real Git lands a commit,
+/// and the person is told once that the extra protection was not in place.
+pub mod service_land_without_its_scratch_reference;
+
 /// The objects a batch lands:
 /// the commit Git built,
 /// or the commits made from the requests' changes.

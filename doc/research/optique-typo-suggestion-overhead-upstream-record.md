@@ -811,7 +811,6 @@ That is the behavior change commit `1e53f52e02` announced.
 The owner's instruction on 2026-11-12 was to resolve what analysis,
 measurement and source reading can resolve before any question goes to the maintainer.
 This section holds those answers.
-An audit of `passThrough()` was still running when it was last updated.
 
 The second round of measurement,
 on 2026-11-12 from 16:41:27Z to 16:56:17Z,
