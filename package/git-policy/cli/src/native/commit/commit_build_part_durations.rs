@@ -15,6 +15,10 @@
 //!  Each stretch is measured from one clock read at each seam to the next,
 //!  and the Git children that ran inside it are taken out,
 //!  because those are recorded apart and a stretch that holds one is not waiting.
+//!  Their time is kept beside the stretch's own under its name,
+//!  because a child can take all of a stretch:
+//!  the shadow ref snapshot of one commit of 2026-11-12 took 13.9 s inside `git for-each-ref`
+//!  and its stretch stated 2 ms.
 //!  A name is one of a fixed set compiled into the wrapper,
 //!  never a path,
 //!  a message or an option value.
@@ -82,9 +86,9 @@ static DROPPED: Mutex<usize> = Mutex::new(0);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// noteBuildPart('shadow links', 12);
+/// noteBuildPart('shadow links', 12, 480);
 /// ```
-pub fn note_build_part(name: &str, took: Duration) {
+pub fn note_build_part(name: &str, took: Duration, children: Duration) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of stretches.
     let mut parts = PARTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if parts.len() >= MAX_BUILD_PARTS {
@@ -92,7 +96,7 @@ pub fn note_build_part(name: &str, took: Duration) {
         *dropped += 1;
         return;
     }
-    parts.push(PreparePart { name: String::from(name), took });
+    parts.push(PreparePart { name: String::from(name), took, children });
 }
 
 /// What:
@@ -173,12 +177,12 @@ impl BuildPartClock {
     }
 
     /// Ends the running stretch,
-    /// keeping what it spent without a Git child.
+    /// keeping what it spent without a Git child and what those children took.
     fn close(&mut self) {
         let ended: Instant = Instant::now();
         let whole: Duration = ended.saturating_duration_since(self.began);
         let children: Duration = step_time_between(self.began, ended);
-        note_build_part(self.name, whole.saturating_sub(children));
+        note_build_part(self.name, whole.saturating_sub(children), children);
         self.began = ended;
     }
 }

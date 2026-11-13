@@ -161,7 +161,7 @@ pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
 /// ```ts
 /// poolKey(commonDir, gitDir) // 'main' or 'worktree-<name>'
 /// ```
-fn pool_key(common_dir: &Path, git_dir: &Path) -> String {
+pub(crate) fn pool_key(common_dir: &Path, git_dir: &Path) -> String {
     return match git_dir == common_dir {
         true => String::from(MAIN_KEY),
         false => format!("{WORKTREE_KEY_PREFIX}{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
@@ -310,7 +310,7 @@ fn remove_claim(path: &Path) {
 /// noteRefusal(name, reason); // build part + debug line, no warning
 /// ```
 fn note_refusal(name: &str, reason: &str) {
-    note_build_part(REFUSED_PART, Duration::ZERO);
+    note_build_part(REFUSED_PART, Duration::ZERO, Duration::ZERO);
     crate::diagnostic_log::debug("shadowPool", format!("refused the pooled shadow {name}: {reason}").as_str());
 }
 

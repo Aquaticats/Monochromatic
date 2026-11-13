@@ -372,6 +372,20 @@ mod catalog_specifiers;
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
+/// What a record of an interrupted copy does to the next command when a crash left it empty or cut short:
+/// it is moved aside,
+/// and the command runs.
+#[path = "binary_worktree_copy_unreadable_record_tests.rs"]
+mod worktree_copy_unreadable_record;
+
+/// A measurement for the handover,
+/// not a control:
+/// what one flush of each record costs on this host,
+/// with the same arm measured twice as the control,
+/// and what an add of 2,000 ignored files costs beside it.
+#[path = "binary_worktree_copy_flush_measurement_tests.rs"]
+mod worktree_copy_flush_measurement;
+
 /// Worktree commands beside an add whose real Git still runs:
 /// none waits,
 /// and each new worktree gets exactly its own copy.
@@ -535,6 +549,15 @@ mod fault_stream;
 /// Remote trouble met by the push after a commit and by an explicit push.
 #[path = "binary_fault_remote_tests.rs"]
 mod fault_remote;
+
+/// Controls for the least traffic a push's connection must carry and still count as progress:
+/// a hung hook kept alive by keepalives,
+/// a dripped answer,
+/// a slowly read upload,
+/// an honest slow push,
+/// and a silent phase after the upload.
+#[path = "binary_push_minimum_rate_tests.rs"]
+mod push_minimum_rate;
 
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]

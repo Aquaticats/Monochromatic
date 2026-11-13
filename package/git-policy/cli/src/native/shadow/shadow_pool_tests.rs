@@ -214,7 +214,9 @@ fn a_link_at_a_members_name_is_refused_and_removed() {
     let scratch: PathBuf = root.join("scratch");
     std::fs::create_dir(scratch.as_path()).expect("scratch");
     let mut clock: BuildPartClock = BuildPartClock::begin("test");
-    take_or_create_shadow(&git_context(), repo.as_path(), &capture, destination.as_path(), scratch.as_path(), false, &mut clock)
+    // A socket nothing listens on is no service, so this control makes the commit's own shadow rather than asking for one.
+    let nowhere: crate::service_server_socket_binding::Bind = crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
+    take_or_create_shadow(&git_context(), repo.as_path(), &capture, destination.as_path(), scratch.as_path(), false, &mut clock, &nowhere)
         .expect("the commit's own shadow");
     assert!(
         std::fs::symlink_metadata(destination.as_path()).expect("the claim's path").is_dir(),
@@ -406,7 +408,10 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
             }
             let shadow: PathBuf = scratch.join("shadow");
             let mut clock: BuildPartClock = BuildPartClock::begin("test");
-            take_or_create_shadow(&context, repo.as_path(), &capture, shadow.as_path(), scratch.as_path(), false, &mut clock)
+            // A socket nothing listens on is no service, so these controls take the pool's member and make their own
+            //  creation exactly as they did before the service could draw one ahead.
+            let nowhere: crate::service_server_socket_binding::Bind = crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
+            take_or_create_shadow(&context, repo.as_path(), &capture, shadow.as_path(), scratch.as_path(), false, &mut clock, &nowhere)
                 .expect("shadow");
             if pooled {
                 assert!(

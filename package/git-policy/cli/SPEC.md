@@ -2672,9 +2672,18 @@ on standard error at the ordinary level
 (no `MONOCHROMATIC_VERBOSE` is needed,
 and `--quiet` does not suppress it),
 and the recovery runs before every command that takes the linked-worktree lifecycle:
-any command in a linked worktree or a bare repository,
+any command a linked worktree or a bare repository forwards,
 and a creating or served `git worktree` command in the main checkout,
 and the records go in the command that finds the worktree whole or gone.
+`git commit` is the wrapper's own command and not a forwarded one:
+the resident service lands it,
+and neither the client nor the service reads these records,
+so a record settles on the next command that forwards
+(`worktree_copying/worktree_copy_unreadable_records.rs`,
+"A record that cannot be read" below).
+The exception is deliberate:
+a commit is the one command that must not fail for the wrapper's own bookkeeping,
+and what the recovery adds there is a notice the next forwarded command prints anyway.
 The proof is what the two directories say,
 without running Git:
 the destination is gone,
@@ -3829,8 +3838,10 @@ A reader takes the bytes line only as the first line or the line after the text 
 and requires those two lines to name one path when both are there,
 because the release installed before the bytes line wrote a container path verbatim:
 a destination parent holding a line break then spelled lines of the record itself.
-A claim of any other shape is refused and kept,
-never acted on.
+A claim of any other shape is a record this release cannot read:
+the command that finds it moves it aside and writes it again where the records beside it name its stage
+("A record that cannot be read" below),
+so the shape check of an earlier release names the same case a reader now settles.
 The record of the object a stage's creation made is `<identifier>.made` beside the claim:
 the container's bytes,
 the object's identity and the instant after which nothing of the wrapper's is written into that folder,
@@ -4243,10 +4254,15 @@ and of the two callers,
 not a check beside them,
 and it is not done in this round.
 
-Malformed or unsafe journal,
-install-log,
+A journal,
 stage claim,
-or stage state fails closed without deleting the journal or a path outside the validated private stage.
+record of an unfilled worktree,
+or stage binding whose bytes are not the record this release writes is the mark of an interrupted copy
+and is settled ("A record that cannot be read" below);
+a file at one of those names that is not this account's private plain file,
+an install-log line whose bytes are not UTF-8,
+and every path relation no writer writes fail closed without deleting the journal or a path outside the validated private
+stage.
 
 After the destination settles successfully,
 write exactly one human summary line to stderr.
@@ -4298,6 +4314,79 @@ and
 `a_git_child_of_a_command_that_is_not_run_again_keeps_its_signal`,
 and
 `a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal`.
+
+### A record that cannot be read
+
+A copy publishes every record whole by one rename and flushes none of them,
+so a filesystem that commits a name before its bytes can leave a record empty or cut short
+(`fs/btrfs/inode.c` writes a renamed inode's data only when it replaces a non-empty regular file,
+and `fs/btrfs/transaction.c` waits for buffered data only under `flushoncommit`,
+which is off;
+the mount option's own documentation says "the filesystem is consistent but buffered writes may last more than one
+transaction commit").
+Such a record is the mark of a copy that was interrupted,
+never a reason to stop a command:
+every forwarded command in a linked worktree or bare repository reads these records before Git runs,
+so one of them would otherwise stop every command of the repository,
+in every worktree,
+until a person removed the file.
+`git commit` reads none of them,
+since the wrapper implements it and the resident service lands it:
+a commit misses only the notices a forwarded command would have printed,
+never its own outcome.
+
+The command that meets one settles it in the pass that runs before every forwarded command
+(`worktree_copying/worktree_copy_unreadable_records.rs`):
+
+- The writer is judged first,
+  as every item of a copy is judged:
+  a journal whose name carries a live owner,
+  and a stage record whose journal or claim names one,
+  are that owner's and are left whole with no wait.
+  A claim's and an unfilled record's name carries no owner,
+  and a record whose bytes do not read cannot name one either,
+  so such a record has none to wait for,
+  which is what an interrupted copy is.
+- A record whose writer is gone is renamed into `<common git dir>/monochromatic-git-policy-cli-worktree-copy/v1/unreadable`,
+  never deleted,
+  and never over a record an earlier command kept there.
+  One line names the record,
+  the folder it went to,
+  and what may still stand on disk because of it.
+  The folder is not work:
+  a command does not sweep for it.
+- A stage claim is written again under its own name from the records beside it where they name the folder,
+  the record of the object that folder's creation made (`<identifier>.made`) or the destination record
+  (`<identifier>.add`) whose worktree parent holds it.
+  The claim written again names no owner,
+  so the same pass settles the stage and,
+  where the add still owes a copy,
+  makes it.
+  A claim whose folder nothing names is moved aside with the words that say what may stand.
+- A destination record whose claim was moved is still read:
+  the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
+  naming the worktree it describes with the two commands that settle it,
+  and removing the record and its marker once the worktree is gone or replaced.
+  A marker whose claim and record are both gone says nothing and is removed.
+- The registration inside a stage (`registration`) that cannot be read is moved aside under a name that keeps its
+  container,
+  and the copy it belongs to proves its destination from that destination's own registration,
+  which is what a stage an earlier release made does.
+- A record of an unfilled worktree that cannot be read is moved aside,
+  and its line names the worktree the copy was filling where a journal or destination record of the same copy still
+  says it,
+  because no command names that worktree as one holding less than its source ignores any more.
+
+Nothing a person made is removed on the strength of a record that cannot be read:
+the pass settles the wrapper's own records only,
+and a stage folder,
+a worktree and a file are touched exactly as the policy above allows when a record does read.
+What it cannot settle it names once,
+in the same line that says where the record went,
+and then goes on:
+a stage folder whose name only the lost journal held,
+and a worktree that only the lost record of an unfilled copy named,
+are named there and nowhere else.
 
 ### Package-manager repair of a new worktree
 
@@ -4394,6 +4483,31 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
+  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  state a build could reuse:
+  Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
+  so a worktree that starts without one rebuilds its own crates by itself,
+  and a copied `target/` alone is no reason to clean.
+  Measured on 2026-11-12 on this repository:
+  a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
+  build, which named the copy's own path,
+  while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
+  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
+  Where the worktree's build directory does hold that state,
+  the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
+  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  so no build that starts at once finds artifacts Cargo would call fresh:
+  it finds no build directory and compiles everything itself, which is correct and only slower.
+  The filling then cleans that staged copy and publishes it back with the rename that never replaces,
+  so a worktree that built in the meantime keeps what it made.
+  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
+  Where the state cannot be moved aside at all (a staging name another writer holds,
+  or a directory that cannot be renamed),
+  the add cleans it where it stands as every release before this one did,
+  the finding names the clean to run by hand when that fails,
+  and the tool's own window applies to that case.
   The workspaces are repaired side by side on as many threads as the host's available parallelism (the standard library reads the
   CPU quota of the control group,
   so a capped session gets its own share),
@@ -4552,9 +4666,17 @@ the ceiling and the notice below are all read from a clock the run has not reach
 (`src/native/repair/package_repair_start.rs`,
 `start_within`).
 The start runs on a job of the blocking pool,
-so a fork that does not answer holds no worker of the runtime,
-and a child that appears after the bound is stopped with its whole process group and collected by a reaper,
+so a start that does not answer holds no worker of the runtime.
+The child reports itself through a pipe before its own `exec` and waits there for the run to let it go,
+so a start that reaches the bound has run nothing of the tool:
+the run closes that gate when it answers,
+and a child the kernel only forks after that bound leaves before its `exec`,
 because the finding has already said the tool did not start and named the command to run by hand.
+A child that was let go and whose own `exec` then gives no answer within the same bound is the one case a start cannot
+promise that nothing ran:
+it is stopped through the descriptor the kernel made at its report,
+and the finding says it was stopped,
+because what it wrote before that stands.
 A tool that shows no sign of work for the quiet window (600 seconds;
 the longest quiet gap measured is 30.3 s,
 see "The quiet
@@ -4576,6 +4698,15 @@ and both bounds that end it
 That line is a notice and not a bound:
 nothing ends at it,
 and the quiet window and the ceiling above it are what end a tool.
+Its own write is bounded:
+a standard error whose reader has stopped draining waits in the kernel,
+and a write that waited there would hold the thread that reads the quiet window and the ceiling,
+so neither would ever end the tool.
+The line is given up at `REPAIR_NOTICE_WRITE_CEILING`
+(the 250 ms the commit's optional warning takes,
+`src/native/service/wait_ceilings.rs`),
+which is logged,
+and the bounds that end the tool go on being read.
 It exists because an add whose `pnpm` never ended printed its last line at two seconds
 and nothing for the next 613 s,
 which a person cannot tell from a hang
@@ -4588,6 +4719,11 @@ When all repairs worked,
 one line on standard error names the worktree,
 each tool's detail and its time,
 unless `--quiet` was given.
+The detail of work the add handed over names where its progress shows:
+the queue's own states,
+`<git-common-dir>/monochromatic-git-policy-cli/work/{pending,claimed,done,failed}`,
+and the commit service's journal,
+so a person who reads that a filling happens after the add returns is told where to look for what became of it.
 A repair that did not finish,
 including a missing tool,
 prints one line per failure,
@@ -6466,6 +6602,23 @@ The line goes straight to the diagnostics rather than through the blocking pool,
 because the refusal means no task may be reachable;
 it is one line per step.
 
+Two questions about the process's workers are read as one
+(`the_worker_answers` in `src/native/foundation/lazy_runtime.rs`):
+whether a task can run now,
+and whether a build that outlasted `BUILD_DEADLINE` is still on its way.
+Asked one after the other they can describe two moments,
+and a build that arrived between them answered both with the worse one:
+a caller that cannot do its work without a worker gave up while one was there,
+and the commit service ended with status 4 in the middle of a start
+(the review of 2026-11-12T09:34-05:00,
+its first finding).
+The runtime such a build finished with is handed over in one moment with the caller's last read of its channel and
+its closing of it (`THE_HANDOFF_OF_A_LATE_RUNTIME`):
+a send that landed between them succeeded into a channel that was then dropped,
+and the process believed for the rest of its life that a build was still coming,
+so every task that cannot do without a worker spent the whole patience before it gave up
+(the same review's second finding).
+
 The read of a step that is ended at its ceiling ends with the step,
 not with the last program that holds its pipes open.
 A step's output is read whole through two pipes
@@ -6977,6 +7130,64 @@ on the commit path:
   and ends with the existing "Another program is using this repository's index"
   failure;
   the command to run again is the commit.
+- A lock the index cannot be taken for is not always another program's:
+  a Git directory that turned read-only,
+  a permission this process does not have,
+  a disk with no room left and a stale lock nothing can remove refuse it too.
+  Every refusal withdraws the batch and keeps the commit it built on `refs/cli-git/kept/<batch>`,
+  with the words a refused lock gets,
+  because the commit is on no branch whichever reason refused the lock
+  (`src/native/landing/service_land_take_index_lock.rs`).
+  The reference the batch held that commit on (`refs/worktree/cli-git-service/<batch>`)
+  is let go of only once the kept reference is proven to name the commit,
+  and only while it still names it:
+  the removal is `git update-ref -d <ref> <old>` with the value that was read,
+  so a reference another command wrote between the read and the removal is never removed.
+  A kept reference that cannot be written (a lock standing on it,
+  a name that already holds another batch's commit,
+  a directory that refuses the write)
+  leaves the batch's own reference where it is,
+  and the person is told the commit's name and that reference,
+  so a built commit is never one no reference names
+  (`src/native/landing/service_land_side_reference_write.rs`).
+  A batch whose own reference the write did not put the commit on is not withdrawn:
+  it lands as real Git lands a commit,
+  the branch naming the commit a step later,
+  and the command that made the commit says so once on standard error
+  (`src/native/landing/service_land_without_its_scratch_reference.rs`,
+  and "What names a commit between its objects and its branch" below).
+  That line says the commit was made,
+  names the reference that was not written and Git's own words for it,
+  and says what names the commit now:
+  a landed batch's branch names it,
+  while a batch held behind a reference lock says the branch has not moved yet and that it names
+  the commit as soon as the lock goes,
+  because that ending has not moved the branch
+  (`the_line`).
+  An import whose update of the batch's own reference the repository refused is the same ending,
+  reached without a reference that was ever written,
+  and three things hold it to a batch that is real
+  (`src/native/landing/service_land_objects_of_batch.rs`):
+  the marks it reads were written by its own import
+  (the file an earlier attempt left is removed before the import starts,
+  and a file that cannot be proven gone is not read at all),
+  only an import that exited with a status and wrote every commit of the batch is taken as one
+  (a child a signal ended writes no marks,
+  and one that stopped inside the stream writes fewer or none),
+  and its first commit must stand on the base the attempt found,
+  which is the check the path that takes a commit Git built already made.
+  A batch any of the three refuses fails and keeps nothing,
+  because its commits are not the commits its requests make together.
+  A write the service's stop ended,
+  and a Git that cannot be started at all,
+  still answer the batch as not made:
+  the branch write that would name the commit cannot run either,
+  so the commit is kept on `refs/cli-git/kept/<batch>` and named to the person,
+  and where the write of that reference is refused as well the commit's own object name and
+  the command that makes a reference of it are said,
+  because by then no reference names the commit
+  (`keep_what_a_side_reference_write_left`,
+  `src/native/landing/service_land_side_reference_write.rs`).
 - A client whose wait passes `ANSWER_CEILING` asks the service,
   on a new connection,
   to withdraw its request (protocol version 7:
@@ -7040,6 +7251,11 @@ on the commit path:
   and an open
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
+  That keep follows the rule a withdrawal behind the index lock follows:
+  a kept reference that cannot be written leaves the batch's own reference where it is,
+  the person is told the commit's name and that reference,
+  and the batch's own reference is let go of only after the kept reference names the commit,
+  and only while it still does.
   A step of the landing never ends a hook of the person:
   every Git it starts carries the hooks-off options,
   and the one place a hook of the person runs below a step of the wrapper is a push to a local path
@@ -7058,6 +7274,10 @@ on the commit path:
   (the landing sweeps its own batch when it fails,
   the restart when it drops one;
   `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+  Every other path that stops naming a built commit follows that one rule:
+  the reference a batch holds its commit on is removed only after another reference is proven to name the commit,
+  and only while it still names it (`git update-ref -d <ref> <old>`),
+  so a commit nothing else names is never the reason a reference goes.
 - A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
   intent to settle it,
   and a service instance is a hash of its worktree's Git directory,
@@ -8332,6 +8552,39 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
+  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  and never the newest work record the round claimed:
+  a commit that lands after that claim is what the push sends,
+  so a record named for the claimed commit would replace an unread account of that commit with words about another one and
+  label them as its,
+  and nothing makes the replaced account say itself again.
+  A record replaces an earlier record of the same commit in one rename,
+  so a kill in that write leaves one of the two accounts rather than none.
+  A push the retry plan makes leaves the same record as a push of a round,
+  by the same words and under the same name.
+  A record the storage refuses is said in the service journal with every line the push chose to show,
+  and the work record is settled as failed rather than done,
+  because a push settled as done with no record tells the person nothing and leaves nothing that could be told later.
+  The account of a push that landed keeps every line,
+  because nothing makes such a push say it again;
+  the display cap of a notice stays on a push that did not finish,
+  which a later try says the same thing about.
+- A record that could not be written never leaves its work items settled as if it existed:
+  the words it would have carried go to the service journal, every line of them,
+  and what the items become follows what a later try can say.
+  A push that landed,
+  whose account the storage refused,
+  is settled failed:
+  its words cannot be said again,
+  and a record settled as done would leave the person nothing and nothing that could be said later.
+  A refusal or a skip whose record could not be written leaves the claims to their lease,
+  so the service asks the server again,
+  and the next try records what it says then;
+  settling it would end the work with its reason said to nobody.
+  A push a retry plan carries may settle either way,
+  because the plan says the same words on its next try.
+  A notice replaces the notice of its commit in one rename,
+  so a kill in that write leaves one of the two records rather than none.
 - The reconcile is one loop,
   and it is awaited
   (`integrate_and_push_awaiting` in `src/native/push/auto_push_reconcile_awaiting.rs`);
@@ -8790,6 +9043,192 @@ in-process reader can) gives every value of the multi-valued keys.
   a stopped or unfinished push says only that it did not finish and that the remote may or may
   not have taken the commit,
   and the retry is what settles it.
+- The plan of a branch whose last try a server refused is removed only after that refusal is recorded,
+  and a record the storage refused leaves the plan,
+  planned again after a pause,
+  because the plan is the only durable record that the branch waits for a person:
+  a plan removed before its refusal is written would leave neither the plan nor the notice,
+  nothing would try the branch again,
+  and the refusal would be said to nobody.
+
+#### The least traffic that counts as progress
+
+The owner's answer of 2026-11-12
+(`doc/handover/cli-git-rust-implementation.md`,
+"A slow server and a typed push") is "Minimum rate":
+progress means at least a stated number of bytes within a stated window,
+and under that the run stops with a message.
+It joins "Stop only on no progress" to "nothing should ever wait forever or indefinitely",
+because a server that keeps a connection open and moves a byte every few seconds
+was progress to every window the wrapper had.
+Before this rule such a server held a push for ever:
+the audit of `0.6.1-alpha.12` recorded it as F14 for a server that drips its answer,
+and the audit of `0.6.1-alpha.14` recorded it as F3 for a server whose `pre-receive` hook never
+returns while its keepalive moves five bytes every five seconds
+(`/home/user/temp/agent/sonnet-audits/alpha-14-commit-landing-service-push-and-changeover/report.md`,
+`src/native/push/push_minimum_rate.rs`).
+
+What is counted:
+the bytes of the transport,
+in both directions,
+which are the traffic the remote really moved.
+Over a URL they are the connected socket's `tcpi_bytes_acked` plus `tcpi_bytes_received`
+(`src/native/push/tcp_sockets.rs`).
+Over a path they are the bytes the run's own processes read and wrote,
+because the pipe to `receive-pack` is the whole transport there:
+the pack goes down it,
+and the server's sideband comes back up it,
+which is why a local-path push is covered by the same floor.
+Not counted:
+the bytes of a process that holds the connection,
+which are its own polling and the account it prints of its own waiting
+(`git-lfs` writes fourteen of them about every ten seconds),
+and everything the run writes to files of its own.
+Processor time and a task able to run or waiting for the disk are work as they always were,
+so the pack a push is making and the delta search it runs never need to pass the floor:
+they show as work while they work.
+
+What the floor is:
+`DEFAULT_PUSH_MINIMUM_RATE_BYTES`,
+1024 bytes,
+which a person sets with `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`
+(a positive whole number of bytes;
+zero,
+negative,
+fractional,
+empty or non-numeric is no setting at all,
+so a typo cannot remove the rule,
+as with every value of this kind).
+What the window is:
+the window that bounds silence in the state the run is in,
+which is the connected window (`CONNECTED_PUSH_QUIET_WINDOW`,
+150 seconds,
+which is fixed for every shipped run and is the window a control shortens with
+`CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`.
+The two are one rule and not two bounds,
+and the window is the silence window on purpose:
+see "A window that carries no bytes" below.
+
+What a window below the floor means:
+not progress.
+A run whose connection carried fewer bytes than the floor in a window is judged as a run that showed
+nothing,
+so the rule that already bounds silence ends it,
+with the words of the window that fired:
+the connected window while a connection is open,
+and the stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
+30 seconds by default) for a run that holds
+no connection.
+That is the whole mechanism:
+the floor does not add a bound of its own,
+it decides which bytes count as progress,
+and the two rules together leave no state that lasts for ever.
+Every window of a connected run either carries the floor,
+which is progress and resets the connected window,
+or carries less,
+in which case the connected window runs out at the latest one window after the last window that met
+the floor.
+A run with no connection carries no transport bytes at all,
+so the stall window bounds it exactly as before.
+The one cost that is unchanged is the one the signs always had:
+a process that sits in state `D` for good shows a sign of work for ever,
+and nothing the code can observe tells that from work.
+
+A window that carries no bytes:
+a server that resolves the deltas of a large push,
+or runs a hook after the upload,
+moves nothing at all for a while,
+and so does a client that compresses the pack before it sends it.
+Such a phase carried zero bytes,
+so the floor never touches it,
+and it is bounded by the connected window exactly as it was before this rule
+(the audit's control:
+with `receive.keepAlive` at 0 the same hung hook ended at 30.5 seconds of the 150 second window).
+Telling a phase of no bytes from a trickle is therefore the number of bytes and nothing else:
+zero bytes is a silent phase and is bounded by the silence window;
+more than zero but fewer than the floor is a trickle,
+and it is bounded by the same window,
+with a stop that says how many bytes it carried.
+Git's keepalive is what a real server sends in that phase,
+so the floor is above it:
+`receive.keepAlive` defaults to 5 seconds and sends five bytes (`builtin/receive-pack.c`,
+`copy_to_sideband`),
+which is one byte per second,
+150 bytes in the connected window and 30 bytes in the stall window,
+and never more than 750 bytes in the connected window at the chattiest setting the option allows
+(one second).
+A server that keeps the connection alive and does nothing else is thus ended by the window its state
+has,
+which is what a server that sends nothing at all gets,
+and that is the F3 defect closed:
+the audit's F3 was a push to a local path,
+whose keepalive packets arrive on the pipe the floor now judges,
+and it ended at 30.5 seconds with `receive.keepAlive` at 0;
+with the keepalive on it now ends at the same 30 seconds.
+
+The measurement the two values rest on
+(read-only records,
+and loopback servers this package's tests can build):
+the timing records of this repository's Git directory carry durations and no byte counts,
+so the bytes were measured with real pushes of this repository's own sizes to a loopback server
+offering Git's own `git http-backend`,
+and the durations were read from the commit service's journal,
+which records `push_ms` per landed push:
+p50 3.5 s,
+p99 26.4 s and 72.4 s at most over the 794 pushes that landed between 2026-10-20 and 2026-11-03.
+One push of this repository's own commits packs to 0.35 MB for one commit,
+0.72 MB for ten and 5.5 MB for a hundred (`git pack-objects` on this checkout),
+and shaped to 66 KB/s such a push lands.
+The slowest honest line the floor still lets through is therefore 1024 bytes per window,
+about 7 bytes per second over a connection and 34 over a path,
+and the 5.5 MB push would take days on it and still land:
+no line a person has is that slow,
+the floor sits seven times above the chattiest keepalive a server can be configured to send,
+and eight orders of magnitude below a transfer measured here.
+Those two records are why the value is 1024 and not a larger number:
+a floor judged over the connected window needs nothing more,
+because the window itself is what bounds the phase a floor would otherwise have to.
+
+What a stop says:
+`limit=connected`,
+which is the window that fired,
+with `carried_bytes=<n>` and `minimum_bytes_per_window=<n>`,
+the rate those stand for in bytes per second,
+the sentence that a server's own keepalive packets are that kind of traffic,
+`CLI_GIT_PUSH_DEADLINE_SECONDS` named as the setting that does not move this window,
+and `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` named as the one that does,
+with the direction (a smaller number lets a slower line through).
+A connection that carried nothing keeps the older wording,
+which is the true one there:
+nothing moved.
+A stop ended as before:
+the push is asked to end,
+killed after the grace,
+reported with exit code 124,
+its locks swept,
+nothing local changed,
+and the commit stays saved
+(`src/native/push/stop_cause_and_words.rs`,
+`src/native/lfs/lfs_upload_explanations.rs`).
+
+Where the rule applies:
+the push,
+the reconcile fetch that a refused push runs,
+and the Git LFS upload,
+which are the run's three network faces
+(`src/native/push/bounded_push.rs`,
+`run_bounded_push_awaiting`,
+`src/native/lfs/lfs_upload.rs`,
+`await_upload`).
+Each takes the floor from the environment the run was given,
+so the commit service's pushes are judged by the floor of the environment the service was started
+with,
+as every other push limit is.
+The wrapper's other waits keep the floor at zero and are unchanged:
+a Git step of a commit,
+a read-only query,
+and a repair tool read the same meter through `Clock::start`,
+which counts every transport byte unless a wait sets a floor.
 
 ### Manual push
 
@@ -9407,10 +9846,25 @@ a heading with the count,
 then one line per record naming the branch,
 the commit and the lock,
 with the exact `rm --` that clears it when no Git process uses the repository.
+The line names the locks that stand when it is printed,
+not the ones the record names from the instant the commit was held:
+one of those is often gone by the time the next command reads the record,
+and a message names what really stops the command at the moment it is printed.
 A command whose output a program reads prints nothing and settles the same.
 The first command that finds the locks gone settles them,
 and so does the service before its next batch and at its start
 (`src/native/landing/held_commit_settle.rs`).
+
+A settlement asks about the locks that can refuse its own branch write and no others:
+the branch it moves,
+the reference its transaction deletes beside it,
+`packed-refs.lock` and the reftable backend's list of tables
+(`src/native/landing/held_commit_settle.rs`).
+A lock on another reference can refuse neither the move nor the delete,
+and native Git commits on a branch while another branch's lock stands,
+so a held commit is never kept held behind a lock that is not in its way.
+The landing's own wait for a reference lock is unchanged,
+and still looks at every reference lock of the repository.
 
 The settlement reads the branch and moves it by one compare-and-swap,
 with the side reference removed in the same transaction.
@@ -13172,6 +13626,65 @@ It uses:
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
 
+#### What names a commit between its objects and its branch
+
+Preparation writes a commit's objects into the real object store,
+and nothing names them yet:
+no reference does,
+and the index names blobs,
+never the commit.
+Real Git writes a commit's objects and moves the branch in one command,
+so the objects of a commit it makes are named the instant they exist:
+on this host,
+six commits made by `/usr/bin/git` left the commit object and the branch's file
+0 to 1.3 ms apart.
+
+A wrapper commit's objects exist earlier than the branch that will name them,
+and `refs/worktree/cli-git-service/<batch>`,
+the batch's scratch reference,
+is what names them until the branch does
+(`src/native/landing/service_land_objects_of_batch.rs`).
+That reference is written as soon as the landing has the batch:
+over six commits whose write it proved,
+the window from the commit object's own file time to that write was 4,
+5,
+9,
+11,
+15 and 93 ms,
+and the branch write removes the reference in the same transaction that names the commit,
+so the objects are named from that write onwards without a gap.
+
+That protection is the reference and nothing else.
+`git gc --prune=now`,
+`git prune --expire=now` and `git repack -a -d` that read the references
+while a batch's objects exist and no reference names them take those objects;
+Git's default maintenance keeps unreachable objects younger than `gc.pruneExpire` (two weeks),
+so a repository that leaves that setting alone cannot lose a landing commit to its own maintenance,
+and a maintenance that runs `--prune=now`,
+or one whose `gc.pruneExpire` is `now`,
+is the case the reference covers.
+A batch whose own reference the write cannot prove leaves that window open until its branch write,
+which is the landing's own remaining steps and every wait inside it:
+over six such commits the window measured 3.5,
+4,
+4,
+5,
+167 and 17,760 ms,
+the last spent in the landing's reads of what its batch owed (`reads_owed_ms` 16,023)
+on a host other sessions had filled.
+The window is longer than real Git's by exactly that wait:
+the commit is prepared in the person's own process,
+before the request reaches the service,
+and the branch moves only after the service has landed the batch.
+The batch is nevertheless made,
+as real Git would make it,
+and the command says that the extra protection was not in place for it
+(`doc/handover/cli-git-rust-implementation.md`,
+the section of 2026-11-12T10:27:45-05:00,
+item 1.5,
+"Commit and say so";
+`src/native/landing/service_land_without_its_scratch_reference.rs`).
+
 The `git add` prediction copies the real index into
 `<git-dir>/cli-git-add-policy-<pid>-<nanoseconds>-<count>`,
 `0700`,
@@ -13978,13 +14491,107 @@ the links and the copied `config.worktree`.
 It holds no ref store and no conclusion state,
 which a commit adds after it takes one,
 from this invocation's own capture.
+The skeleton is the directory itself,
+`objects`,
+`objects/info` and `refs`:
+`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+which makes the loose object's own directory and the loose ref it writes,
+and the check answers "no pack and no ref" with one question about each absent directory
+(`shadow_skeleton.rs`,
+`shadow_pool_member.rs`).
+A member that holds one of the three is refused, which is what a shadow a commit has used holds.
 
+#### A shadow handed out from the drawn folder
+
+The service draws a finished shadow out of the pool before a commit asks for one,
+and hands it over:
+this is the option of
+`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
+that the owner decided for on 2026-11-11,
+in its checked form, so every question a claim asks is asked of the tree that is handed out.
+
+- The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
+  one entry per tree named `drawn-<identity>`,
+  beside the pool's folder and never inside it
+  (`SHADOW_DRAWN_FOLDER` in `wrapper_names_old_and_new.rs`):
+  a claim takes a member out of the pool's folder,
+  and the removal of a removed worktree takes that folder out of its name with one rename,
+  while a drawn tree is used where it stands and is left alone while a commit holds it.
+- The draw is one `rename` of a pool member into that folder and the same check a claim makes,
+  and it runs beside the landing loop on a thread of its own,
+  after the landing it follows
+  (`service_shadow_draw.rs`),
+  and makes a pool member itself when the pool holds none:
+  a draw that ran beside the fill of its own landing found a pool the fill had not filled yet and drew nothing.
+  so what it can delay is the next draw and nothing else:
+  a draw that stalls for the 5,606 ms the slowest measured rename took costs the commits in that window
+  the pool's member and no wait of their own.
+- A commit asks on a connection of its own,
+  `{"type":"shadow"}` with its own Git directory and its scratch tree,
+  and the answer is written by that connection's own task and never by the landing thread
+  (`service_server_connection_handling.rs`,
+  `answer_the_shadow_question`):
+  a commit's wait for its tree does not grow while another commit lands.
+  The service keeps the trees it drew in memory and hands one out with each answer,
+  so two commits that ask at once never get one tree;
+  a restarted service hands out nothing it did not draw,
+  and a tree an earlier one drew is left to the sweep by its age.
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+  which is a hundred and fifty times the largest answer measured over 3,000 round trips
+  (`service_client_shadow_hand_out.rs`).
+  A socket nobody listens on, a service that does not answer, an empty stock,
+  and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
+  it takes the pool's member or makes its creation, within the bounds it has today,
+  and says nothing.
+- A commit that is handed a tree runs `refusal` on it,
+  which is the same check a claim runs and is all reads,
+  then writes the ref store into it as it does into a claimed member.
+  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  which the landing that concludes compares at the path its own scratch tree holds.
+  A tree this invocation refuses is released in the background and the commit takes the other routes.
+- The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
+  exactly as the commit's own scratch tree is,
+  so no lock is written and none can be left held:
+  a client killed at any instruction stops renewing,
+  and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
+  `sweep_drawn` runs beside every wrapped command,
+  beside the service's own draw,
+  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and the service removes that tree with the scratch tree once that landing is over.
+  A request the service answered as not landed, or never took,
+  leaves the tree to the command, which releases it beside itself in the background.
+- A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
+  their commit makes its creation, and it asks nothing.
+- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  and takes the pool's member or makes its creation as it did before:
+  the landing that concludes compares the state Git left in the shadow with the copy it kept,
+  reading the shadow at the path the commit's own scratch tree holds
+  (`conclusion_state_copy.rs`,
+  `remove_conclusion_state`),
+  which a tree used where it stands does not occupy
+  (`may_be_handed_a_tree` in `shadow_create.rs`).
+- `buildParts` names the ask and the check `shadow hand-out`:
+  a build that took a drawn tree names no `shadow pool` and no creation stretch,
+  so a reading of a slow commit tells the three routes apart.
+
+- A commit first asks the service for a finished shadow the service drew ahead of it,
+  and takes the pool's member by one `rename` only when the service holds none.
+  The drawn route is the one taken when the service answers:
+  the tree is a member the service already renamed out of the pool
+  (`shadow_drawn.rs`),
+  and every check below is still made of it.
 - A claim is one `rename` of a member onto the commit's `<scratch>/shadow`,
   which fails for the second claimant,
   so no lock is taken and no commit waits for another
   (`AGENTS.md`,
   `NLK`).
-- A claimed member is checked before it is used,
+  It is the service's `rename` that the drawn route moves off the commit's wait:
+  `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
+  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+  "The cost, over 330 commits").
+- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,
@@ -14069,10 +14676,11 @@ from this invocation's own capture.
   and then the member it took is not in the tree the deletion was given,
   or it finds no pool and the commit makes its own shadow.
 
-`buildParts` names the claim `shadow pool`:
+`buildParts` names the claim `shadow pool` and the hand-out `shadow hand-out`:
 a build that took a member names no `shadow skeleton`,
 `shadow config` or `shadow links` stretch,
-so a reading of the record can tell the one route from the other,
+so a reading of the record can tell the three routes apart,
+a build that was handed a drawn tree names `shadow hand-out` and no `shadow pool` either,
 and a claim that refused a member names `shadow pool refused` beside them.
 
 #### Private `HEAD` shape
@@ -16218,16 +16826,22 @@ each of them lies inside whichever phase it fell in,
 and inside `otherMs` when no phase covers it),
 and `prepareParts`
 (the preparation's stretches by name,
-`{"layout":{"ms":12,"calls":1},...}`,
-each figure the time the stretch spent without a Git child,
+`{"layout":{"ms":12,"calls":1,"childrenMs":480},...}`,
+`ms` the time the stretch spent without a Git child,
 because the steps are recorded apart,
+`childrenMs` the time the Git steps that began inside it took,
+clipped to its end,
+so a stretch a child dominated states that child's time under the stretch's own name rather than nothing,
 a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
 at most 64 entries with the rest counted in `preparePartsDropped`),
 `buildParts`
 (the build phase's stretches by name,
 in the same shape as `prepareParts` and with the same rule,
 its own list and its own bound stated in `buildPartsDropped`:
-a build's name is never read as a preparation's),
+a build's name is never read as a preparation's,
+and a stretch whose own Git child took all of it,
+such as `shadow refs` around the ref snapshot's `git for-each-ref`,
+states that child's time in `childrenMs`),
 `buildPartsDropped`
 `indexBuilds`
 (one entry per build of the private commit index,
@@ -16287,7 +16901,9 @@ The record carries two accounts of the preparation,
 and they answer different questions:
 `prepareSpans` names the work a site in the wrapper measured around itself,
 `prepareParts` and `buildParts` name the stretches no Git child covered,
-and a Git child that a span started is inside that span and outside every part.
+and a Git child that a span started is inside that span and outside every part;
+the time of the Git children that began inside a stretch is stated beside it in `childrenMs`,
+so a stretch a child dominated is read as that child's time and not as an empty stretch.
 The build phase's names are `branch`,
 `message`,
 `amend tree`,
@@ -16558,8 +17174,15 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 11,
-the first whose landing answers `held`
+The commit request speaks protocol version 12,
+the first whose client asks the service for a finished shadow drawn ahead of it
+(`{"type":"shadow"}`,
+answered `{"type":"drawn","tree":...}` or `{"type":"no-shadow"}`),
+and whose request names the tree it was handed in a `shadow` field.
+A service of version 11 refuses the question as a message it does not know,
+which the client reads as no tree and answers by taking the pool's member or making its own creation:
+the question is an offer and never a step a commit needs.
+It was 11 because a landing answers `held`
 when a reference lock keeps a commit off its branch:
 the answer carries the commit and the words the command prints,
 and a client of version 10 reads a message type it does not know as a line it cannot read,
