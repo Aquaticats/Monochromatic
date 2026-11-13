@@ -16,8 +16,17 @@ On 2026-11-13 the owner pointed out that this machine is shared and no timing st
 and the timing figures here,
 the reply draft's among them,
 were rewritten as ratios between versions run in the same round,
-with absolute times kept only as scale;
-that rewrite is not reviewed either.
+with absolute times kept only as scale.
+A model from another vendor reviewed that rewrite as of commit `ce2cc36df5`,
+and its one finding on this document,
+a comparison described as one run each that was seven rounds,
+is corrected.
+The figures on pull request 1121 in the reply draft were measured again on Node and Bun after that,
+and that change has had no review.
+The timings in this document ran on Node.
+Deno appears only as one of the runtimes the reproduction scripts were run on;
+its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
+with no new feature work.
 
 Status,
 2026-11-12:
@@ -272,7 +281,8 @@ and the profile of `1.4.0-dev.2971` shows what that costs with the suggestion wo
    "Short-path default/callback runs showed no improvement."
    On this repository's parser,
    a thousand tokens of one to three characters took 0.62 times as long on 1.3.2 as on 1.3.1,
-   in one comparison of one run each.
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
    The length check in step 4 rejects this parser's long option names against a short token;
    that explanation was read from the code and not tested on its own.
 
@@ -556,7 +566,8 @@ Tradeoffs:
    This was read from the source and not timed.
 - Shorter paths on 1.3.1 or earlier.
    A thousand tokens of one to three characters still took 1.6 times as long on 1.3.1 as on 1.3.2,
-   in one comparison of one run each.
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
 
 ## Upstream filing artifact
 
@@ -838,3 +849,4 @@ put a commit permalink there on the day of posting.
 [no-match 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/primitives.ts#L1302-L1347
 [search 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/suggestion.ts#L184-L192
 [deferred failure]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/internal/failure.ts#L16-L39
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027

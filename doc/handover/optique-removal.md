@@ -1092,11 +1092,23 @@ to settle before a reply:
   Times that remain in milliseconds are labelled as scale,
   quote upstream or commit `4879a44e6a`,
   or sit beside upstream's own estimate of "less than 1ms".
-  A sixth review pass reads the recast as of commit `ce2cc36df5`
+  A sixth review pass by the same model read the recast as of commit `ce2cc36df5`
   (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-sixth-pass-prompt.md`,
   run folder `optique-input-trace-and-reply-claim-check-6`,
-  report to `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-6.md`).
-  Its findings are still to be weighed.
+  20 turns,
+  report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-6.md`).
+  It traced every ratio,
+  growth factor,
+  share and exponent of the recast to the archive and found them to match,
+  found every remaining absolute time labelled,
+  and found the fifth pass's two wording findings resolved.
+  It raised three things,
+  all folded in:
+  the typo-suggestion document called a comparison of short paths "one run each" where it was seven rounds;
+  the note on Deno's state was missing from the research record and the typo-suggestion document;
+  and "about 2,600 times" in the research record divides two separate measurements and carried no scale label.
+  It could not confirm that the two sides of the agent's 323 shared a process,
+  and the research record now says that its report does not say.
 - One timing was still on Deno alone after that:
   upstream's pull request 1121,
   which both drafts report.
@@ -1118,7 +1130,8 @@ to settle before a reply:
   (two unlabelled times in the research record,
   its figures for the sweep over token length recomputed from the fit record,
   Deno's row and the arms' provenance added beside the buffer view's ratios,
-  and the note on Deno's state in the research record).
+  the note on Deno's state in the research record,
+  and the corrections from the sixth pass).
   A review pass of its own is to read them,
   by a fresh reviewer session.
 - Asked the same day which of the recheck's results the reply draft should carry,
