@@ -42,7 +42,8 @@ use std::process::Output;
 ///  whether the commit's timing record was written,
 ///  and what the service's journal holds.
 /// Why:
-///   "No commit, no reference and no record" is one statement about all of these,
+///   "No commit,
+/// no reference and no record" is one statement about all of these,
 ///  and a refusal that staged a path or reached the service would move one of them.
 #[derive(Debug, Eq, PartialEq)]
 struct State {
@@ -145,7 +146,8 @@ fn refuses_as_git_does(fixture_name: &str, arguments: &[&str]) {
     remove_settled(&fixture);
 }
 
-/// `-i` with `-o`: the row the review of the commit-argument fixes found.
+/// `-i` with `-o`:
+/// the row the review of the commit-argument fixes found.
 #[test]
 fn include_with_only_is_refused() {
     refuses_as_git_does("commit-form-include-only", &["commit", "-i", "-o", "-m", "x", "--", "a.txt"]);
@@ -161,13 +163,15 @@ fn include_with_only_is_refused_in_long_spellings() {
     );
 }
 
-/// `-i` with `-a`: one of the rows the audit found.
+/// `-i` with `-a`:
+/// one of the rows the audit found.
 #[test]
 fn include_with_all_is_refused() {
     refuses_as_git_does("commit-form-include-all", &["commit", "-i", "-a", "-m", "x", "--", "a.txt"]);
 }
 
-/// `-i`, `-o` and `-a` together:
+/// `-i`,
+/// `-o` and `-a` together:
 ///  Git names all three,
 ///  so the wrapper must print that whole sentence.
 #[test]
@@ -227,7 +231,8 @@ fn a_pathspec_file_with_paths_is_refused() {
 ///  where real Git refuses the pathspec.
 /// Why:
 ///  `doc/decision/cli-git-policies-platform.md`,
-///  "Transactional commit gate", records the selection of untracked paths as chosen,
+///  "Transactional commit gate",
+/// records the selection of untracked paths as chosen,
 ///  and the owner's answer of 2026-11-12 keeps it.
 ///  A refusal here would take away what an explicit-path commit is for.
 #[test]

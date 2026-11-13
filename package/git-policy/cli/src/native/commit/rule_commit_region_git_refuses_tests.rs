@@ -44,7 +44,9 @@ fn naming_a_path() -> CommitRegion {
 }
 
 /// What:
-///  Two or more of `-i`, `-o`, `-a` and `--interactive`/`-p` is the form Git refuses,
+///  Two or more of `-i`,
+/// `-o`,
+/// `-a` and `--interactive`/`-p` is the form Git refuses,
 ///  and one of them is not.
 /// Why:
 ///   Git's `die_for_incompatible_opt4` counts exactly these four,
@@ -83,7 +85,8 @@ fn two_or_more_selection_options_are_refused_and_one_is_not() {
 ///  while the plain and `amend:` forms accept both.
 /// Why:
 ///   Git's `check_fixup_reword_options` turns on `--only` itself and refuses exactly these,
-///  and `--fixup=amend:` allows an empty change, which is a different form.
+///  and `--fixup=amend:` allows an empty change,
+/// which is a different form.
 #[test]
 fn rewording_refuses_a_path_or_a_selection_and_the_other_fixups_do_not() {
     let mut with_path: CommitRegion = naming_a_path();

@@ -19,7 +19,8 @@
 //!  printing its own message.
 //!  `--dry-run` makes Git roll its index lock back and return before it looks
 //!  for a commit to make
-//!  (measured: no index file changes and no reference moves for `-a`,
+//!  (measured:
+//! no index file changes and no reference moves for `-a`,
 //!  `-i` and `-o`),
 //!  so the question leaves the repository as it was.
 //!  Only a form already known to be refused is asked about
@@ -101,6 +102,20 @@ pub struct Refusal {
 }
 
 /// What:
+///  Whether one token is the separator that ends a commit's options.
+/// Why:
+///   `position` takes the test as a function of one token,
+///  and only the token written `--` after every option ends them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTheSeparator = (token) => token === '--';
+/// ```
+fn is_the_separator(token: &OsString) -> bool {
+    return token == PATHSPEC_SEPARATOR;
+}
+
+/// What:
 ///  The commit arguments with `--dry-run` in option position.
 /// Why:
 ///   A `--dry-run` written after the separators `--` would be a path to Git,
@@ -112,7 +127,7 @@ pub struct Refusal {
 /// ```
 pub fn with_dry_run(arguments: &[OsString]) -> Vec<OsString> {
     // The first `--` is the one Git reads as the end of options, because everything before it is an option and its value.
-    let separator: Option<usize> = arguments.iter().position(|token| { return token == PATHSPEC_SEPARATOR; });
+    let separator: Option<usize> = arguments.iter().position(is_the_separator);
     let mut asked: Vec<OsString> = Vec::with_capacity(arguments.len() + 1);
     match separator {
         Some(at) => {
@@ -134,7 +149,8 @@ pub fn with_dry_run(arguments: &[OsString]) -> Vec<OsString> {
 /// Why:
 ///   The answer is Git's own status and wording,
 ///  so no message is maintained here.
-///  An answer that is not a refusal (status 0, or any status but `die`'s)
+///  An answer that is not a refusal (status 0,
+/// or any status but `die`'s)
 ///  means Git accepts the form,
 ///  and the command goes on to the transaction.
 ///

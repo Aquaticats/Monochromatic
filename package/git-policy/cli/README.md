@@ -3838,6 +3838,40 @@ none is waited out or retried on the moved head yet:
   issue 6283).
   The twenty commits that stopped inside that staging on 2026-11-10 are measured in
   `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
+- The command's own options are a form real Git refuses (owner,
+  2026-11-12:
+  "Refuse as Git does (Recommended)").
+  The wrapper answers with Git's own status and Git's own words,
+  because preparation removes the very tokens Git validates before it commits
+  (`-a`,
+  the selection controls and the pathspecs the private index already holds),
+  so a mistyped command would otherwise make a commit real Git refuses.
+  The forms are `-i` with `-o`,
+  `-i` with `-a`,
+  `-a` with `--interactive` or `--patch`,
+  any two of the four options Git's compatibility check counts,
+  `--fixup=reword:` with a path or with any of those four,
+  `--pathspec-from-file` with path arguments,
+  with `-a` or with `--interactive`,
+  `-a` with paths,
+  a pathless `-i` or `-o` where Git allows no empty change,
+  and `--pathspec-file-nul` without `--pathspec-from-file`
+  (`src/native/commit/rule_commit_region_git_refuses.rs`).
+  The words are never kept here:
+  the same command line is given to the installed Git with `--dry-run`,
+  which runs Git's own validation,
+  rolls its index lock back and never looks for a commit
+  (`src/native/commit/commit_form_refusal_from_git.rs`),
+  so a release that rewords a message changes nothing in the wrapper.
+  Nothing is staged,
+  no reference moves and the commit service is not reached,
+  and a commit that is fine costs one comparison of the parsed options and no process
+  (measured:
+  20 paired plain commits,
+  a median of 0.7 ms apart,
+  with the run-to-run spread itself of 12 ms either way).
+  A machine whose real Git will not start still refuses the form,
+  in one sentence that names it and says the words are the wrapper's.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:

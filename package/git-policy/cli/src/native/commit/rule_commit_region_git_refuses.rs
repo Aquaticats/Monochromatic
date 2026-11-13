@@ -84,15 +84,15 @@ impl GitRefusedForm {
     pub const fn name(&self) -> &'static str {
         // `match` on `&self` reads the variant without taking it.
         match self {
-            Self::SelectionConflict => "selection-conflict",
-            Self::RewordWithPath => "reword-with-path",
-            Self::RewordWithSelection => "reword-with-selection",
-            Self::PathspecFromFileWithPaths => "pathspec-from-file-with-paths",
-            Self::PathspecFromFileWithAll => "pathspec-from-file-with-all",
-            Self::PathspecFromFileWithInteractive => "pathspec-from-file-with-interactive",
-            Self::NoPathsWithSelection => "no-paths-with-selection",
-            Self::AllWithPaths => "all-with-paths",
-            Self::PathspecFileNulWithoutFromFile => "pathspec-file-nul-without-from-file",
+            Self::SelectionConflict => return "selection-conflict",
+            Self::RewordWithPath => return "reword-with-path",
+            Self::RewordWithSelection => return "reword-with-selection",
+            Self::PathspecFromFileWithPaths => return "pathspec-from-file-with-paths",
+            Self::PathspecFromFileWithAll => return "pathspec-from-file-with-all",
+            Self::PathspecFromFileWithInteractive => return "pathspec-from-file-with-interactive",
+            Self::NoPathsWithSelection => return "no-paths-with-selection",
+            Self::AllWithPaths => return "all-with-paths",
+            Self::PathspecFileNulWithoutFromFile => return "pathspec-file-nul-without-from-file",
         }
     }
 }

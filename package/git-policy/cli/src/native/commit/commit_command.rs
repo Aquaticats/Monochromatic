@@ -242,7 +242,8 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 ///  Nothing is created first:
 ///  the question is a `--dry-run` of the same command line,
 ///  which rolls its index lock back and never looks for a commit,
-///  so a refused command leaves no staged path, no reference and no record.
+///  so a refused command leaves no staged path,
+/// no reference and no record.
 ///  A command Git accepts costs one token comparison here and no process.
 ///
 /// In TS you'd write (pseudocode):
@@ -251,7 +252,7 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 /// ```
 fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding> {
     let form: GitRefusedForm = form_git_refuses(command.region)?;
-    let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return PathBuf::from("."); });
+    let start: PathBuf = std::env::current_dir().unwrap_or(PathBuf::from("."));
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
     let asked: &[OsString] = &command.arguments[command.subcommand_index + 1..];
     // The answer is Git's, so its status and its bytes are handed on as they came.

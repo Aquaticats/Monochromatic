@@ -13221,6 +13221,42 @@ A commit that was not built again prints no note.
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
 A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
+A form of `git commit` that real Git refuses is refused with Git's own status and words
+(owner,
+2026-11-12:
+"Refuse as Git does (Recommended)").
+Preparation removes exactly the tokens Git validates before it commits,
+so a command whose options are such a form would otherwise reach the private `git commit`
+as an ordinary one and make a commit real Git refuses:
+`-i`/`--include` with `-o`/`--only`,
+`-i` with `-a`,
+`-a` with `--interactive` or `--patch`,
+any two of the four options Git's own compatibility check counts
+(`-i/--include`,
+`-o/--only`,
+`-a/--all`,
+`--interactive/-p/--patch`,
+with `--patch` counted as `--interactive`),
+`--fixup=reword:` with a path or with any of those four,
+`--pathspec-from-file` with pathspec arguments,
+with `-a` or with `--interactive`,
+`-a` with pathspec arguments,
+a pathless `-i` or `-o` where Git allows no empty change,
+and `--pathspec-file-nul` without `--pathspec-from-file`
+(`src/native/commit/rule_commit_region_git_refuses.rs`).
+No message is kept in the wrapper:
+the same command line is given to the installed Git with `--dry-run` added,
+which runs Git's own validation,
+rolls its index lock back and never looks for a commit,
+and the status and the bytes Git printed are handed on unchanged
+(`src/native/commit/commit_form_refusal_from_git.rs`),
+so a release that rewords a message changes nothing here.
+The refusal comes before the transaction,
+so nothing is staged,
+no reference moves and the commit service is not reached,
+and a command Git accepts costs one comparison of the parsed region and no process.
+Only when real Git cannot be started at all is the sentence the wrapper's own,
+and it then names the form and says so.
 A pathspec commit during a revert or a cherry-pick,
 which Git accepts,
 behaves as real Git does,
