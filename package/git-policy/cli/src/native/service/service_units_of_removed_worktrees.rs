@@ -426,14 +426,18 @@ pub fn stop_units(folders: &UnitFolders<'_>, instance: &str) -> Result<(), Strin
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!serviceIsGone(dir, instance)) return; unlink(socket); unlink(note);
+/// if (!serviceIsGone(dir, instance) || accepts(socket)) return; unlink(socket); unlink(note);
 /// ```
 fn remove_what_a_stopped_instance_left(runtime_dir: &Path, instance: &str) {
     let directory: PathBuf = runtime_dir.join(SOCKET_DIRECTORY);
-    if !service_is_gone(directory.as_path(), instance) {
+    let socket: PathBuf = socket_path(runtime_dir, instance);
+    // What: The note's death and the kernel's refusal are both required before either file goes.
+    // Why:  A note can be stale while a server is alive (a service whose note another process removed, or one killed and
+    //       started again between the two), and the address is then the only proof that a process holds it: the review of
+    //       53726ade2d showed a live service whose note was gone, and unlinking its address would have left it unreachable.
+    if !service_is_gone(directory.as_path(), instance) || crate::service_server_start_by_the_wrapper::accepts(socket.as_path()) {
         return;
     }
-    let socket: PathBuf = socket_path(runtime_dir, instance);
     let _removed = std::fs::remove_file(socket);
     remove_pid_note(pid_note_path(directory.as_path(), instance).as_path());
 }
@@ -520,12 +524,28 @@ fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
     return journal.display().to_string();
 }
 
-/// Removes the socket file and the note of one instance this process serves,
-/// after the pushes it kept for a repository that is gone have ended.
+/// What:
+///  Removes the socket file and the note of one instance this process serves,
+///  and only while the note still names this process.
+/// Why:
+///  A note that names another process is another server's, and its address is not this process's to unlink:
+///  the review of 53726ade2d found a service's exit unlinking a later server's address and note by their paths.
+/// A note that cannot be read names nobody, so nothing is removed and the sweep finishes the instance later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (readNote(note)?.pid !== process.pid) return; unlink(socket); unlink(note)
+/// ```
 fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
+    use crate::service_server_pid_note_of_an_instance::{is_still_the_process, read as read_note};
     let directory: PathBuf = folders.runtime_dir.join(SOCKET_DIRECTORY);
+    let note: PathBuf = pid_note_path(directory.as_path(), instance);
+    let mine: bool = matches!(read_note(note.as_path()), Some(server) if server.pid == i32::try_from(std::process::id()).unwrap_or(0) && is_still_the_process(&server));
+    if !mine {
+        return;
+    }
     let _removed = std::fs::remove_file(socket_path(folders.runtime_dir, instance));
-    remove_pid_note(pid_note_path(directory.as_path(), instance).as_path());
+    remove_pid_note(note.as_path());
 }
 
 /// What:
@@ -610,3 +630,8 @@ pub fn stop_units_of_gone_worktrees(folders: &UnitFolders<'_>) -> SweepOutcome {
     }
     return outcome;
 }
+
+/// Controls of the sweep and of a service's own files stay out of the release executable.
+#[cfg(test)]
+#[path = "service_units_of_removed_worktrees_tests.rs"]
+mod tests;
