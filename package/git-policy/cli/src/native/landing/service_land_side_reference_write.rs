@@ -179,7 +179,7 @@ pub(crate) async fn answering_awaiting(git: &GitContext, request: GitRequest) ->
 /// ```ts
 /// const theReferenceItselfNames = (git, repository, name, tip) => valueOf(git, repository, name).names === tip
 /// ```
-fn the_reference_itself_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+pub(crate) fn the_batch_reference_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
     return matches!(value_of(git, repository, name), RefValue::Names(named) if named == tip);
 }
 
@@ -214,7 +214,7 @@ fn the_reference_itself_names(git: &GitContext, repository: &Path, name: &str, t
 ///  because the commit that name holds may be the only thing naming it
 ///  (the owner's rule "never discard user data").
 ///  A reference whose own value is the name of another reference is not this write's either,
-///  because every attempt follows none (`the_reference_itself_names`).
+///  because every attempt follows none (`the_batch_reference_names`).
 ///  An ending that is a stop or a ceiling keeps its own code,
 ///  because the landing's answer for such a step is the step's own sentence and the commit it keeps beside it.
 ///  Limit:
@@ -240,7 +240,7 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
         }
         // The reference says whether a write finished, whatever the wait for it said, and its own value is what is asked for: what a
         //  symbolic reference leads to is another command's to move.
-        if the_reference_itself_names(git, repository, name, tip) {
+        if the_batch_reference_names(git, repository, name, tip) {
             return ASideRefWrite::Written;
         }
         match made {
@@ -292,7 +292,7 @@ async fn write_until_the_reference_names_awaiting(git: &GitContext, repository: 
 }
 
 /// What:
-///  `the_reference_itself_names` with its read awaited on the runtime.
+///  `the_batch_reference_names` with its read awaited on the runtime.
 /// Why:
 ///  A task of the runtime cannot enter it to wait for a child,
 /// and the answer a write rests on is the reference's own value,
@@ -481,6 +481,31 @@ pub(crate) async fn keep_on_a_side_ref_awaiting(git: &GitContext, repository: &P
 }
 
 /// What:
+///  The one line of what Git said when a step refused,
+///  for a sentence a person reads.
+/// Why:
+///  `fast-import` follows its refusal with its whole statistics report,
+///  and a line that told the person the reference was not written would carry twenty lines of it:
+///  the first line is the one that names the refusal,
+///  and a step that said nothing falls back to the status it ended with
+///  (`refused_words_of`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theRefusalLineOf = (output) => output.stderr.split('\n').map((line) => line.trim()).find((line) => line.length > 0) ?? refusedWordsOf(output)
+/// ```
+pub(crate) fn the_refusal_line_of(output: &GitOutput) -> String {
+    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).to_string();
+    for line in words.lines() {
+        let trimmed: &str = line.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    return refused_words_of(output);
+}
+
+/// What:
 ///  Git's own words for a write it refused,
 /// in one sentence.
 /// Why:
@@ -492,7 +517,7 @@ pub(crate) async fn keep_on_a_side_ref_awaiting(git: &GitContext, repository: &P
 /// ```ts
 /// const refusedWordsOf = (output) => output.stderr.trim() || `git update-ref ended with ${output.code ?? 'no exit status'}`
 /// ```
-fn refused_words_of(output: &GitOutput) -> String {
+pub(crate) fn refused_words_of(output: &GitOutput) -> String {
     let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
     if !words.is_empty() {
         return words;
@@ -539,6 +564,9 @@ pub(crate) struct AKeptCommit {
 ///  A keep Git refused leaves the batch's own scratch reference as the only name the commit has,
 ///  so the person is told the commit's name and that reference:
 ///  a sentence that named a recoverable commit without saying where it is would read as a commit that was lost.
+///  A batch whose own reference was never written has no name either,
+///  and then the person is told the object's own name and how to make a reference of it
+///  (`the_words_for_a_commit_no_reference_names`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -554,10 +582,14 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, held:
             ),
         };
     };
+    let stays: String = match the_batch_reference_names(git, repository, held, tip) {
+        true => format!("so it stays at {held} (see it with `git log {held}`)"),
+        false => crate::service_land_without_its_scratch_reference::the_words_for_a_commit_no_reference_names(tip),
+    };
     return AKeptCommit {
         named: false,
         line: format!(
-            "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side ref ({words}), so it stays at {held} (see it with `git log {held}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+            "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side ref ({words}), {stays}; nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
         ),
     };
 }
@@ -588,10 +620,14 @@ pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, 
             ),
         };
     };
+    let stays: String = match the_reference_itself_names_awaiting(git, repository, held, tip).await {
+        true => format!("so it stays at {held} (see it with `git log {held}`)"),
+        false => crate::service_land_without_its_scratch_reference::the_words_for_a_commit_no_reference_names(tip),
+    };
     return AKeptCommit {
         named: false,
         line: format!(
-            "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side ref ({words}), so it stays at {held} (see it with `git log {held}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+            "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side ref ({words}), {stays}; nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
         ),
     };
 }

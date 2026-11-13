@@ -97,23 +97,34 @@ fn the_landing_writes_the_batchs_reference_where_git_writes_it() {
 }
 
 /// What:
-///  A written reference is overwritten by the next write of the same batch,
-///  which is what a retry of the same batch does.
+///  A reference that already stands is left to Git and is never replaced here,
+///  and the lock of that write is given back.
 /// Why:
-///   A landing may build one batch again,
-///  and a reference that already names an earlier attempt must take the new commit.
+///   The reference that stands may be the only thing naming another command's commit,
+///  so a write that replaced it would make that commit one `git gc --prune=now` takes
+///  (the owner's rule "never discard user data").
+///  The caller then asks Git for the same create-only write,
+///  whose refusal in its own words is what the person reads
+///  (`keep_on_the_scratch_reference`),
+///  and a batch whose reference another command wrote still lands as real Git lands it
+///  (`service_land_without_its_scratch_reference.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeSideReference(gitDir, name, first, 'none'); await writeSideReference(gitDir, name, second, 'none'); assert.equal(await revParse(name), second)
+/// await writeSideReference(gitDir, name, first, 'none'); assert.equal(await writeSideReference(gitDir, name, second, 'none'), 'left-to-git'); assert.equal(await revParse(name), first)
 /// ```
 #[test]
-fn a_reference_that_already_stands_takes_the_new_commit() {
+fn a_reference_that_already_stands_is_left_to_git_and_never_replaced() {
     let (_root, git_dir, tip) = a_repository("a-side-reference-written-twice");
     assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None), SideReferenceWrite::Written);
     let other: String = "1".repeat(tip.len());
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), other.as_str(), LockMark::None), SideReferenceWrite::Written);
-    assert_eq!(bytes_of(git_dir.join(the_name()).as_path()), Some(format!("{other}\n").into_bytes()), "the second write is what the reference holds");
+    assert_eq!(
+        write_side_reference(git_dir.as_path(), the_name().as_str(), other.as_str(), LockMark::None),
+        SideReferenceWrite::LeftToGit,
+        "a name that already stands is Git's to refuse, and this writer does not replace it"
+    );
+    assert_eq!(bytes_of(git_dir.join(the_name()).as_path()), Some(format!("{tip}\n").into_bytes()), "the reference still holds the commit it held");
+    assert!(!git_dir.join(format!("{PREFIX}{THE_BATCH}.lock")).exists(), "no lock of this write is left behind");
 }
 
 /// What:

@@ -7015,20 +7015,44 @@ on the commit path:
   and the person is told the commit's name and that reference,
   so a built commit is never one no reference names
   (`src/native/landing/service_land_side_reference_write.rs`).
-  A batch whose own reference the write did not put the commit on has nothing to leave there:
-  the landing keeps it on `refs/cli-git/kept/<batch>` and names that reference,
-  and where the write of that reference is refused as well it names the commit object itself
-  and the command that makes a reference of it,
-  because by then nothing names the commit
+  A batch whose own reference the write did not put the commit on is not withdrawn:
+  it lands as real Git lands a commit,
+  the branch naming the commit a step later,
+  and the command that made the commit says so once on standard error
+  (`src/native/landing/service_land_without_its_scratch_reference.rs`,
+  and "What names a commit between its objects and its branch" below).
+  That line says the commit was made,
+  names the reference that was not written and Git's own words for it,
+  and says what names the commit now:
+  a landed batch's branch names it,
+  while a batch held behind a reference lock says the branch has not moved yet and that it names
+  the commit as soon as the lock goes,
+  because that ending has not moved the branch
+  (`the_line`).
+  An import whose update of the batch's own reference the repository refused is the same ending,
+  reached without a reference that was ever written,
+  and three things hold it to a batch that is real
+  (`src/native/landing/service_land_objects_of_batch.rs`):
+  the marks it reads were written by its own import
+  (the file an earlier attempt left is removed before the import starts,
+  and a file that cannot be proven gone is not read at all),
+  only an import that exited with a status and wrote every commit of the batch is taken as one
+  (a child a signal ended writes no marks,
+  and one that stopped inside the stream writes fewer or none),
+  and its first commit must stand on the base the attempt found,
+  which is the check the path that takes a commit Git built already made.
+  A batch any of the three refuses fails and keeps nothing,
+  because its commits are not the commits its requests make together.
+  A write the service's stop ended,
+  and a Git that cannot be started at all,
+  still answer the batch as not made:
+  the branch write that would name the commit cannot run either,
+  so the commit is kept on `refs/cli-git/kept/<batch>` and named to the person,
+  and where the write of that reference is refused as well the commit's own object name and
+  the command that makes a reference of it are said,
+  because by then no reference names the commit
   (`keep_what_a_side_reference_write_left`,
   `src/native/landing/service_land_side_reference_write.rs`).
-  An import whose update of the batch's own reference the repository refused is the same ending,
-  reached without a reference that was ever written:
-  the marks `fast-import` exported name every commit of a batch it read to its end,
-  so that batch's tip is kept on `refs/cli-git/kept/<batch>` and named to the person,
-  and a batch the import stopped inside keeps nothing,
-  because the commit its marks name is not the commit its requests make together
-  (`src/native/landing/service_land_objects_of_batch.rs`).
 - A client whose wait passes `ANSWER_CEILING` asks the service,
   on a new connection,
   to withdraw its request (protocol version 7:
@@ -13287,6 +13311,65 @@ It uses:
   the service then answers that the content is unavailable,
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
+
+#### What names a commit between its objects and its branch
+
+Preparation writes a commit's objects into the real object store,
+and nothing names them yet:
+no reference does,
+and the index names blobs,
+never the commit.
+Real Git writes a commit's objects and moves the branch in one command,
+so the objects of a commit it makes are named the instant they exist:
+on this host,
+six commits made by `/usr/bin/git` left the commit object and the branch's file
+0 to 1.3 ms apart.
+
+A wrapper commit's objects exist earlier than the branch that will name them,
+and `refs/worktree/cli-git-service/<batch>`,
+the batch's scratch reference,
+is what names them until the branch does
+(`src/native/landing/service_land_objects_of_batch.rs`).
+That reference is written as soon as the landing has the batch:
+over six commits whose write it proved,
+the window from the commit object's own file time to that write was 4,
+5,
+9,
+11,
+15 and 93 ms,
+and the branch write removes the reference in the same transaction that names the commit,
+so the objects are named from that write onwards without a gap.
+
+That protection is the reference and nothing else.
+`git gc --prune=now`,
+`git prune --expire=now` and `git repack -a -d` that read the references
+while a batch's objects exist and no reference names them take those objects;
+Git's default maintenance keeps unreachable objects younger than `gc.pruneExpire` (two weeks),
+so a repository that leaves that setting alone cannot lose a landing commit to its own maintenance,
+and a maintenance that runs `--prune=now`,
+or one whose `gc.pruneExpire` is `now`,
+is the case the reference covers.
+A batch whose own reference the write cannot prove leaves that window open until its branch write,
+which is the landing's own remaining steps and every wait inside it:
+over six such commits the window measured 3.5,
+4,
+4,
+5,
+167 and 17,760 ms,
+the last spent in the landing's reads of what its batch owed (`reads_owed_ms` 16,023)
+on a host other sessions had filled.
+The window is longer than real Git's by exactly that wait:
+the commit is prepared in the person's own process,
+before the request reaches the service,
+and the branch moves only after the service has landed the batch.
+The batch is nevertheless made,
+as real Git would make it,
+and the command says that the extra protection was not in place for it
+(`doc/handover/cli-git-rust-implementation.md`,
+the section of 2026-11-12T10:27:45-05:00,
+item 1.5,
+"Commit and say so";
+`src/native/landing/service_land_without_its_scratch_reference.rs`).
 
 The `git add` prediction copies the real index into
 `<git-dir>/cli-git-add-policy-<pid>-<nanoseconds>-<count>`,
