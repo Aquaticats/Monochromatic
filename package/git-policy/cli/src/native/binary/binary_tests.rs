@@ -24,6 +24,12 @@ mod support;
 #[path = "binary_hold_at_prepare_support.rs"]
 mod hold_at_prepare;
 
+/// What a removal does to a worktree a process works in,
+/// to the files Git ignores,
+/// and to a worktree nested inside it.
+#[path = "binary_removal_refusals_and_deletions_tests.rs"]
+mod removal_refusals_and_deletions;
+
 /// The names of the two programs a control starts and the time bound every wrapped command runs under.
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
