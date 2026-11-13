@@ -9,9 +9,11 @@ answering "Should we replace agent-browser with kitesurf.dev?".
 It used vendor pages,
 the installed `agent-browser --help`,
 and searches of this repository.
-It did not clone,
-build,
-or run Kitesurf.
+It did not build or run Kitesurf.
+At 2026-11-13T17:04:07-05:00 it read Kitesurf's source from a shallow clone at commit
+`4a2903813a22b08d4f3cc64a4b35339d0293a5d1`,
+to settle questions the vendor pages leave open;
+the section "What the source shows" holds the result.
 The same session corrected it at 2026-11-13T16:56:35-05:00,
 after a second pass by the advisor model,
 which comes from the same vendor and so is not an independent review.
@@ -103,6 +105,8 @@ Its layout and style engines are not Chromium's,
 so a check that passes on Kitesurf does not show how Chromium-based browsers render the page.
 Kitesurf cannot take over this job,
 and that alone rules out the replacement.
+Its source makes the gap concrete for color schemes and forced colors
+(section "What the source shows").
 
 ### Hosted forms cannot reach the pages being checked
 
@@ -122,6 +126,53 @@ Node 22 or newer,
 and pnpm 9.15.4,
 and its first build compiles the Rust core.
 This repository's `toolchain.plan.jsonc` has `pnpm` and `wrangler` entries but no Bazel or Bazelisk entry.
+
+## What the source shows
+
+These are readings of the Kitesurf source at commit `4a2903813a22b08d4f3cc64a4b35339d0293a5d1`,
+not runs.
+
+### Color scheme cannot be set over CDP
+
+`packages/engine/src/cdp/dispatch.ts:278` answers `Emulation.setEmulatedMedia`
+by reading only its `media` value (print or screen),
+and ignores `features`,
+the parameter that carries `prefers-color-scheme` in that call
+([protocol reference][cdp-set-emulated-media]).
+The page's `prefers-color-scheme` follows `state.darkColorScheme`
+(`packages/page-script/src/globals.ts:2562`),
+which only a `ks_color_scheme` query parameter on the navigation URL sets
+(`packages/engine/src/tty/nav-params.ts:31`).
+So a client that emulates dark mode through `features` leaves the page light.
+
+### Forced colors stay off
+
+`packages/page-script/src/globals.ts` starts `forcedColors` at `none`,
+and no code under `packages/` assigns it
+(searched with `rg 'forcedColors *='`).
+
+### No text-fragment support
+
+No code under `packages/` handles `fragmentDirective` or the `:~:` delimiter
+(searched with `rg 'fragmentDirective|:~:'`),
+so Kitesurf cannot confirm a `#:~:text=` link.
+
+### A self-run engine can open loopback pages
+
+`packages/engine/src/eval/outbound.ts` exempts the document the client asked to open from its private-network check,
+and `packages/engine/src/eval/private-network.ts:53` lets a page reach addresses of its own rank or wider,
+so a loopback page's own loopback subresources pass;
+`KITESURF_ALLOW_PRIVATE_NETWORK=1` lifts the check entirely.
+This narrows the "Hosted forms cannot reach the pages being checked" finding to the hosted forms.
+
+### `file://` has no loader of its own
+
+A navigation is an outbound Workers fetch,
+made by `walkRedirects` (`packages/engine/src/eval/redirect-walk.ts:89`),
+called from `packages/engine/src/cdp/page.ts:853`;
+no Kitesurf code reads files.
+Whether a `file://` page loads therefore depends on whether `workerd`'s `fetch` serves that scheme,
+which only a run would show.
 
 ## What Kitesurf would offer
 
@@ -189,17 +240,17 @@ and it also replaces the command-line driver the repository's rules and runbooks
 - Broad discovery:
   not run,
   because the candidates were the named one and the incumbent.
-- Clone,
-  source audit,
+- Full source audit,
   maintenance audit,
   and execution:
   not run,
   because Kitesurf exits on limits its vendor documents.
-  No third-party code ran.
-- Unverified:
-  whether Kitesurf loads `file://` pages,
-  honors `#:~:text=` fragments,
-  or emulates `prefers-color-scheme`,
+  Only the source paths named in the section "What the source shows" were read,
+  and no third-party code ran.
+- Still open,
+  because each needs a run or vendor terms this record did not reach:
+  whether `workerd`'s `fetch` serves `file://`,
+  whether `agent-browser` 0.43.0 drives Kitesurf's partial Chrome DevTools Protocol,
   and whether Browser Run retains page content.
 
 ## Follow-up vet declined
@@ -224,6 +275,7 @@ Sources accessed 2026-11-13.
 [kitesurf-readme-bazel]: https://github.com/cloudflare/kitesurf#:~:text=Bazel%20builds%20everything
 [kitesurf-open-source]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=open%20source%20on%20GitHub%20under%20the%20Apache%202.0%20license
 [kitesurf-heavy-development]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=under%20heavy%20development
+[cdp-set-emulated-media]: https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#:~:text=Media%20features%20to%20emulate
 [kitesurf-boa-fallback]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=as%20the%20last%20resort
 [kitesurf-playground-no-account]: https://kitesurf.dev/#:~:text=without%20an%20account
 [kitesurf-pixel-perfect]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=pixel%2Dperfect%20rendering
