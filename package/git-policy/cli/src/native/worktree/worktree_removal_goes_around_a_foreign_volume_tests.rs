@@ -71,8 +71,13 @@ fn the_refusal_beside_a_volume_names_both_ways_on() {
     let root: PathBuf = fixture("around-refusal");
     let target: PathBuf = root.join("wt");
     let left: Vec<Boundary> = two_volumes(target.as_path());
-    let report: String = refused_beside_a_volume_report(target.as_path(), "../wt", left.as_slice(), "notes.txt is untracked and not ignored");
-    assert!(report.contains("nothing was removed"), "the report says so: {report}");
+    let report: String = refused_beside_a_volume_report(
+        target.as_path(),
+        "../wt",
+        left.as_slice(),
+        BesideAVolume { reason: "notes.txt is untracked and not ignored", begun: false, only_deletions: false },
+    );
+
     for found in &left {
         assert!(report.contains(found.path.to_str().expect("UTF-8")), "and names {}: {report}", found.path.display());
     }
@@ -80,6 +85,63 @@ fn the_refusal_beside_a_volume_names_both_ways_on() {
     assert!(report.contains("git worktree remove --force ../wt"), "and the forced command as the person typed the worktree: {report}");
     assert!(report.contains("leaves what is named above exactly as it is"), "saying what that command keeps: {report}");
     assert!(report.contains("move what is named above out and run it again"), "and that moving the volume out is the other way on: {report}");
+    assert!(report.contains("this removal changed nothing"), "and says what the command itself did: {report}");
+    assert!(!report.contains("nothing was removed"), "and never claims nothing was removed, which a half-emptied tree makes false: {report}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A refusal of a worktree whose entries are only missing,
+///  with no record of this program behind it,
+///  says so and names `--force`,
+///  because moving the volume out cannot finish a tree whose tracked entries are gone.
+/// Why:
+///   A removal killed in its pass leaves tracked entries deleted and writes a record before it;
+/// a state with the
+///  same shape and no record is nothing this program can prove it made,
+/// and the report that offered "move the
+///  volume out first" sent a person to a step that cannot help.
+#[test]
+fn a_refusal_beside_a_volume_over_missing_entries_names_force_and_no_move() {
+    let root: PathBuf = fixture("around-refusal-missing");
+    let target: PathBuf = root.join("wt");
+    let left: Vec<Boundary> = two_volumes(target.as_path());
+    let report: String = refused_beside_a_volume_report(
+        target.as_path(),
+        "wt",
+        left.as_slice(),
+        BesideAVolume { reason: "tracked.txt is missing from the worktree", begun: false, only_deletions: true },
+    );
+    assert!(report.contains("Git reports nothing about the worktree but entries missing from it"), "the report names the state it found: {report}");
+    assert!(report.contains("No record of this program says a removal of this worktree removed them"), "and that nothing proves the deletions are this program's: {report}");
+    assert!(report.contains("git worktree remove --force wt"), "and the one command that finishes it: {report}");
+    assert!(report.contains("Moving what is named above out would not finish it"), "and that moving the volume out cannot help: {report}");
+    assert!(!report.contains("move that out first"), "no remedy is offered that cannot work: {report}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A refusal beside a volume over a tree whose entries the record of an earlier pass proves,
+///  but which holds something else now,
+///  says that the record exists and that `--force` finishes it.
+/// Why:
+///   The record is the proof a person's own state never has,
+/// and the report must not read as the one a state
+///  with no record gets.
+#[test]
+fn a_refusal_beside_a_volume_with_a_record_names_the_record() {
+    let root: PathBuf = fixture("around-refusal-begun");
+    let target: PathBuf = root.join("wt");
+    let left: Vec<Boundary> = two_volumes(target.as_path());
+    let report: String = refused_beside_a_volume_report(
+        target.as_path(),
+        "wt",
+        left.as_slice(),
+        BesideAVolume { reason: "notes.txt is untracked and not ignored", begun: true, only_deletions: false },
+    );
+    assert!(report.contains("A record of this program says an earlier removal of this worktree was cut short"), "the record is named: {report}");
+    assert!(report.contains("what stands there now is more than the entries it removed"), "and what stands there now: {report}");
+    assert!(report.contains("git worktree remove --force wt"), "and what finishes it: {report}");
     remove(root.as_path());
 }
 

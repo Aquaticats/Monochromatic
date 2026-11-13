@@ -29,7 +29,7 @@
 //! await emptyDirectory(top); // checks again at every directory, then unlinks everything below
 //! ```
 
-use crate::fs_beneath::{device_of, handle_directory_at, handle_path, open_directory_at, open_directory_widening, remove_at, widen_directory};
+use crate::fs_beneath::{device_of, handle_directory_at, handle_path, open_directory_at, open_directory_widening, remove_at, widen_directory, widen_through_a_handle};
 use std::os::unix::fs::MetadataExt;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -567,15 +567,18 @@ pub fn look_for_boundaries(top: &File, shown: &Path) -> BoundaryLook {
             if !is_directory {
                 continue;
             }
-            let handle: File = match handle_directory_at(&directory, name.as_os_str()) {
-                Ok(handle) => handle,
+            // The directory is opened once, and what it is is asked of the descriptor that is then read: a name the kernel
+            // resolves twice can lead to another object the second time, and a look that judged one object and read another
+            // would miss a volume that took the name in between.
+            let inner: File = match open_directory_at(&directory, name.as_os_str()) {
+                Ok(inner) => inner,
                 Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
                     found.push(Boundary { path: below, what: A_MOUNT_POINT });
                     continue;
                 }
-                Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be opened without following a link ({error})", below.display())) },
+                Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be read ({error})", below.display())) },
             };
-            let facts: std::fs::Metadata = match handle.metadata() {
+            let facts: std::fs::Metadata = match inner.metadata() {
                 Ok(facts) => facts,
                 Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be examined ({error})", below.display())) },
             };
@@ -583,10 +586,6 @@ pub fn look_for_boundaries(top: &File, shown: &Path) -> BoundaryLook {
                 found.push(Boundary { path: below, what: ANOTHER_FILESYSTEM });
                 continue;
             }
-            let inner: File = match open_directory_at(&directory, name.as_os_str()) {
-                Ok(inner) => inner,
-                Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be read ({error})", below.display())) },
-            };
             let listed: Vec<(OsString, bool)> = match list(&inner, false) {
                 Ok(listed) => listed,
                 Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be listed ({error})", below.display())) },
@@ -775,13 +774,30 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
             continue;
         }
         let mode: u32 = facts.mode() & 0o7777;
+        // The owner's access is given through the handle that was judged, never through the name: a volume that takes the
+        // name in the moment between cannot be the object whose mode changes.
+        let _opened_to_its_owner = widen_through_a_handle(&handle);
         #[cfg(test)]
         crate::subvolume_remove_listing_test_support::after_check(path.as_path());
-        let child: File = match open_directory_widening(&stack[index].directory, name.as_os_str()) {
+        // The directory is opened for reading, and the name is proved to lead to the object that was checked: the kernel
+        // resolves the name a second time here, so what it returns is compared with the handle before anything of it is
+        // read, widened or removed.
+        let child: File = match open_directory_at(&stack[index].directory, name.as_os_str()) {
             Ok(child) => child,
+            Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
+                keep_this_and_every_frame_above(&mut stack, index);
+                continue;
+            }
             Err(error) => return Err(std::io::Error::new(error.kind(), format!("{} cannot be read ({error})", path.display()))),
         };
-        let _child_opened_to_its_owner = widen_directory(&child);
+        let read_facts: std::fs::Metadata = child.metadata()?;
+        if read_facts.dev() != facts.dev() || read_facts.ino() != facts.ino() {
+            // Another object stands at that name now, which is nobody's to empty here: it and the directories that lead to
+            // it stay where they stand.
+            keep_this_and_every_frame_above(&mut stack, index);
+            continue;
+        }
+        let _widened = widen_directory(&child);
         let pending: Vec<(OsString, bool)> = list(&child, false)?;
         #[cfg(test)]
         let just_listed: PathBuf = path.clone();

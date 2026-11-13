@@ -187,37 +187,98 @@ pub fn around_removal_report(target: &Path, left: &[Boundary]) -> String {
 }
 
 /// What:
+///  What Git says the worktree holds that a removal without `--force` would have to delete,
+///  as the refusal of a removal beside a volume words it.
+/// Why:
+///   The report must not tell a person that nothing was removed when a tree in front of it is half gone,
+/// and it must not offer a
+///  remedy that cannot work:
+/// what Git reports decides which of the three states the tree is in,
+/// and each has its own
+///  way on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BesideAVolume = { why: string; begun: boolean; onlyDeletions: boolean };
+/// ```
+#[derive(Clone, Copy)]
+pub struct BesideAVolume<'a> {
+    /// What Git refuses to delete without `--force`,
+    /// as the clean proof worded it.
+    pub reason: &'a str,
+    /// Whether a record of this program says an earlier removal of this very worktree emptied it and was cut
+    /// short.
+    pub begun: bool,
+    /// Whether everything Git reports about the tree is an entry missing from it.
+    pub only_deletions: bool,
+}
+
+/// What:
 ///  The refusal of a person's removal that would have to delete more than Git does without `--force`,
 ///  while a volume someone else put there stands below it.
 /// Why:
 ///   A tree holding such a volume is never given to Git,
 /// whose own removal would delete what is mounted at one,
 ///  so Git's own refusal cannot be the answer here.
-/// The report says that nothing was removed and why,
+/// The report says what this command did,
 /// names the volumes once,
-///  and gives both ways on:
-/// `--force`, which removes the rest around them exactly as this command does with a clean tree,
-/// and clearing or
-///  moving what Git refuses to delete.
+///  and words the way on by
+/// what the tree in front of it is:
+/// an earlier pass of this program that was cut short is finished by the same command once
+///  its record proves it,
+/// and a tree whose entries are only missing is finished by `--force` because
+///  nothing else can prove those deletions.
 ///  It never claims to be Git's sentence,
-/// because the reason it refuses may be one Git does not judge.
+/// because the reason it refuses may be one Git does not judge,
+/// and it never says
+///  nothing was removed when the tree shows otherwise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const report = refusedBesideAVolumeReport({ target, operand: '../wt', left, reason });
+/// const report = refusedBesideAVolumeReport({ target, operand: '../wt', left, beside });
 /// ```
-pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boundary], reason: &str) -> String {
+pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boundary], beside: BesideAVolume<'_>) -> String {
+    let way_on: String = match (beside.begun, beside.only_deletions) {
+        // A record of this program proves the missing entries are its own, and the removal then finishes without a word
+        // about them; this branch is unreachable while that record is read, and is worded for a record that went away
+        // between the two readings.
+        (true, true) => format!(
+            "A record of this program says an earlier removal of this worktree was cut short, and the entries Git reports \
+             missing are the ones it removed: running this removal again finishes it, and what is named above stays exactly \
+             as it is.",
+        ),
+        (true, false) => format!(
+            "A record of this program says an earlier removal of this worktree was cut short, and what stands there now is \
+             more than the entries it removed: {reason}. `git worktree remove --force {operand}` finishes this removal, and \
+             what is named above stays exactly as it is.",
+            reason = beside.reason,
+            operand = operand
+        ),
+        (false, true) => format!(
+            "Git reports nothing about the worktree but entries missing from it, apart from what stands inside the volumes \
+             named above: {reason}. No record of this program says a removal of this worktree removed them, so nothing here \
+             proves they are not yours: `git worktree remove --force {operand}` finishes this state, and what is named above \
+             stays exactly as it is. Moving what is named above out would not finish it, because the missing entries would \
+             still be missing.",
+            reason = beside.reason,
+            operand = operand
+        ),
+        (false, false) => format!(
+            "What Git refuses to delete without `--force` stands there too: {reason}. `git worktree remove --force {operand}` \
+             removes every other entry of the worktree and leaves what is named above exactly as it is. To keep what Git would \
+             delete as well, move that out first and run this removal again; to keep everything, move what is named above out \
+             and run it again.",
+            reason = beside.reason,
+            operand = operand
+        ),
+    };
     return format!(
-        "{PREFIX}nothing was removed, and nothing of what is named here was deleted. The worktree {target} holds what someone \
-         else put inside it, so no removal of it may be handed to Git, whose own removal would delete what is mounted at a mount \
-         point and cannot destroy a subvolume that contains one:\n{items}\nWhat Git refuses to delete without `--force` is there \
-         too: {reason}.\n`git worktree remove --force {operand}` removes every other entry of the worktree and leaves what is \
-         named above exactly as it is. To keep what Git would delete as well, move that out first and run this removal again; to \
-         keep everything, move what is named above out and run it again.",
+        "{PREFIX}this removal changed nothing. The worktree {target} holds what someone else put inside it, so no removal of \
+         it may be handed to Git, whose own removal would delete what is mounted at a mount point and cannot destroy a subvolume \
+         that contains one:\n{items}\n{way_on}",
         target = target.display(),
         items = items(left),
-        reason = reason,
-        operand = operand
+        way_on = way_on
     );
 }
 
@@ -244,6 +305,40 @@ pub fn stopped_around_report(target: &Path, reason: &str) -> String {
          where this one stopped.",
         target = target.display(),
         reason = reason
+    );
+}
+
+/// What:
+///  The report of a removal that emptied the worktree around the volumes it did not make and could not finish:
+///  the worktree still holds what was left,
+///  and Git still lists it.
+/// Why:
+///   The report for a removal whose files a destroy took says the subvolume was destroyed and the directory is
+///   already gone,
+/// and neither is true here:
+/// the path still stands with what was left in it,
+/// and the
+///  worktree is the one Git lists.
+/// A person who read those words would look for a directory that is there and for
+///  a registration no command of theirs explains.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = aroundIncompleteReport({ target, admin, commonDir, left, reason });
+/// ```
+pub fn around_incomplete_report(target: &Path, admin: &Path, common_dir: &Path, left: &[Boundary], reason: &str) -> String {
+    let prune: String = crate::worktree_remove_reports::prune_command(common_dir);
+    return format!(
+        "{PREFIX}the worktree {target} was emptied around what someone else put inside it, and every entry of the worktree \
+         except these was removed, but its registration {admin} was not: {reason}\n{items}\nGit still lists the worktree, \
+         and the path still holds what is listed above. To finish, run `{prune}`; it forgets every registration whose \
+         directory is missing, and `{prune} --dry-run --verbose` lists them first. Running this removal again finishes it \
+         too, and what is listed above stays exactly as it is.",
+        target = target.display(),
+        admin = admin.display(),
+        reason = reason,
+        items = items(left),
+        prune = prune
     );
 }
 

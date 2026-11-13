@@ -827,45 +827,6 @@ fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
 }
 
 /// What:
-///  Whether everything Git reports about this worktree is a deletion,
-///  which is the state a removal that died in the middle leaves.
-/// Why:
-///  A removal that began and was cut short may be finished with `--force`,
-///  and `--force` deletes every file Git would keep:
-///  a modified file or an untracked one makes this answer false,
-///  so nothing of the person's goes with a half-deleted tree.
-///  A staged deletion and a working-tree deletion are both deletions;
-///  anything else Git names is not.
-///  A Git that cannot answer proves nothing, and the answer is false.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const onlyDeletions = gitStatusIsOnlyDeletions(context, worktree, admin);
-/// ```
-fn only_deletions(context: &GitContext, worktree: &Path, admin: &Path) -> bool {
-    let request: GitRequest = GitRequest {
-        cwd: worktree.to_path_buf(),
-        arguments: ["status", "--porcelain", "-z", "--untracked-files=normal"].map(OsString::from).to_vec(),
-        without_prefix: true,
-        environment: crate::worktree_ladder_target::checkout_environment(admin, worktree),
-        ..GitRequest::default()
-    };
-    let Ok(output) = run_git(context, &request) else { return false };
-    if output.code != Some(0) {
-        return false;
-    }
-    for entry in output.stdout.split(|byte: &u8| return *byte == 0).filter(|entry: &&[u8]| return !entry.is_empty()) {
-        // `XY path`: a removal deletes from the working tree, so ` D` is what it leaves, and `D ` is the same
-        // deletion staged by somebody.
-        let deleted: bool = entry.len() >= 2 && (&entry[..2] == b" D" || &entry[..2] == b"D ");
-        if !deleted {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
 ///  The service's own removal of one landed worktree a command handed over,
 ///  with Git's own words as the verdict.
 /// Why:
@@ -978,7 +939,7 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         if before != identity {
             return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), "a removal of another worktree at this path began and was cut short, so nothing here is this record's to finish", kept.said.as_slice());
         }
-        if !only_deletions(&context, target.as_path(), registration.admin.as_path()) {
+        if !crate::worktree_removal_only_deletions::only_deletions(&context, target.as_path(), registration.admin.as_path()) {
             return keep_the_worktree(
                 item,
                 target.as_path(),
@@ -1044,7 +1005,12 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
     let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
     match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
-        RemoveOutcome::Removed => return Verdict::Done,
+        RemoveOutcome::Removed => {
+            // The record that says which worktree a half-done removal of this id was belongs to that removal, and the
+            // worktree is gone: a later attempt for the name must not read it as its own.
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
         RemoveOutcome::RemovedAround(left) => {
             let branch: String = branch_of_registration(registration.admin.as_path()).unwrap_or_else(|| return String::from("a head with no branch"));
             if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(item.git_dir.as_path(), target, branch.as_str(), left.as_slice()) {

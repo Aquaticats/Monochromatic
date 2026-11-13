@@ -321,7 +321,7 @@ fn a_volume_the_ignore_rules_do_not_cover_refuses_without_force_and_is_left_with
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
     let said: String = stderr_of(&refused);
     assert_eq!(refused.code, Some(1), "a refusal changes nothing: {said}");
-    assert!(said.contains("nothing was removed"), "the refusal says so: {said}");
+    assert!(said.contains("this removal changed nothing"), "the refusal says what the command did: {said}");
     assert!(said.contains(volume.to_str().expect("a UTF-8 fixture path")), "and names the volume: {said}");
     assert!(said.contains("--force"), "and gives the way on: {said}");
     assert!(target.join("tracked.txt").is_file(), "nothing of the worktree was removed");
@@ -519,5 +519,148 @@ fn an_ordinary_worktree_removal_behaves_as_it_did() {
     if git_policy_cli::fs_mount_options::read_mount_facts(fixture.root.as_path()).ok().flatten().is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); }) {
         assert!(said.contains(DESTROY_NOTICE), "the one-call destroy is stated: {said}");
     }
+    remove(&fixture);
+}
+
+/// What:
+///  The state a command killed inside the pass leaves:
+///  the worktree's own tracked entries deleted,
+///  the volume standing,
+///  the registration kept,
+///  and the record the pass wrote before it deleted anything.
+/// Why:
+///  The review's repro built that state by deleting the files,
+/// and a control that wrote the two other parts by hand
+///  is the same state without a kill the run cannot time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = killedInThePass(fixture, repo, topic); // record written, tracked files gone
+/// ```
+fn killed_in_the_pass(fixture: &Fixture, repo: &Path, target: &Path) -> PathBuf {
+    let registration: PathBuf = the_registration_of(repo, target);
+    let id: std::ffi::OsString = registration.file_name().expect("the registration has a name").to_os_string();
+    let admin: String = identity_text(registration.as_path());
+    let worktree: String = identity_text(target);
+    let folder: PathBuf = repo.join(".git/monochromatic-git-policy-cli/around-removals-begun");
+    std::fs::create_dir_all(folder.as_path()).expect("the records' folder");
+    let record: PathBuf = folder.join(id);
+    let hex: String = hex_of(target);
+    let text: String = format!("around-removal-begun=1\nadmin={admin}\nworktree={worktree}\ntargetHex={hex}\n");
+    std::fs::write(record.as_path(), text.as_bytes()).expect("the record a killed pass leaves");
+    // The pass deletes the worktree's own entries before the registration goes, so these are what it left gone.
+    for name in ["tracked.txt", ".gitignore"] {
+        let path: PathBuf = target.join(name);
+        if path.is_file() {
+            std::fs::remove_file(path.as_path()).expect("the entry the pass removed");
+        }
+    }
+    let _ = fixture;
+    return record;
+}
+
+/// The registration directory of the worktree at `target` in the repository at `repo`.
+fn the_registration_of(repo: &Path, target: &Path) -> PathBuf {
+    let listed = std::fs::read_dir(repo.join(".git/worktrees")).expect("the registrations");
+    for found in listed.flatten() {
+        let text: String = std::fs::read_to_string(found.path().join("gitdir")).expect("a registration's back-link");
+        if text.trim_end().starts_with(target.join(".git").to_str().expect("a UTF-8 fixture path")) {
+            return found.path();
+        }
+    }
+    panic!("the worktree is registered: {}", target.display());
+}
+
+/// The identity of a directory as the removal records it.
+fn identity_text(path: &Path) -> String {
+    let held = git_policy_cli::fs_beneath::open_root(path).expect("the directory opens");
+    return git_policy_cli::fs_beneath::identity_of(&held).expect("the directory has an identity").encode();
+}
+
+/// A path in the hexadecimal form a record keeps it.
+fn hex_of(path: &Path) -> String {
+    return git_policy_cli::path_bytes_in_records::hex_of_path(path);
+}
+
+/// What:
+///  A removal that was cut short inside its pass is finished by the same unforced command,
+///  and what was left stands exactly as it was.
+/// Why:
+///   The pass deletes the worktree's own entries before it forgets the worktree,
+/// so a kill in between leaves a tree Git
+///  reports as changed;
+/// without the record the same command refuses and only `--force` finishes it,
+/// which
+///  is the promise the stopped report makes and did not keep (the review's finding 2).
+#[test]
+fn a_removal_cut_short_in_the_pass_is_finished_by_the_same_unforced_command() {
+    let fixture: Fixture = fixture("removal-around-resumed");
+    if !on_btrfs_or_acknowledged(&fixture, "removal-around-resumed") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = a_repository_with_rules(&fixture, "snap/\n");
+    let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
+    let volume: PathBuf = a_volume_at(target.as_path(), "snap", "kept through the resume");
+    let before: Vec<String> = tree_of(volume.as_path());
+    let mode_before: u32 = std::fs::metadata(volume.as_path()).expect("the volume").mode() & 0o7777;
+    let record: PathBuf = killed_in_the_pass(&fixture, repo.as_path(), target.as_path());
+    assert!(record.is_file(), "the state a killed pass leaves names its record");
+
+    let resumed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_the_report_of_a_removal_that_went_around(&resumed, target.as_path(), &[volume.as_path()]);
+    assert_eq!(tree_of(volume.as_path()), before, "the volume is untouched");
+    assert_eq!(std::fs::metadata(volume.as_path()).expect("the volume").mode() & 0o7777, mode_before, "and its mode is what it was");
+    assert!(!record.exists(), "the record of the pass that finished goes with the removal");
+    assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "Git no longer lists the worktree");
+    remove(&fixture);
+}
+
+/// What:
+///  A worktree whose tracked entries are missing and which has no record of this program says so,
+///  names `--force`,
+///  and never says nothing was removed.
+/// Why:
+///   The review's repro of finding 2:
+/// a tree with the shape a killed pass leaves and no record is nothing this program can
+///  prove it made,
+/// and the words "nothing was removed" are false about it.
+#[test]
+fn a_removal_over_missing_entries_without_a_record_says_what_is_true() {
+    let fixture: Fixture = fixture("removal-around-unrecorded");
+    if !on_btrfs_or_acknowledged(&fixture, "removal-around-unrecorded") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = a_repository_with_rules(&fixture, "snap/\n");
+    let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let target: PathBuf = fixture.root.join("topic");
+    age_tracked_files(&fixture, target.as_path());
+    let volume: PathBuf = a_volume_at(target.as_path(), "snap", "still mine");
+    let before: Vec<String> = tree_of(volume.as_path());
+    // The entries the pass deletes, and no record of a pass: a state this program cannot prove it made.
+    for name in ["tracked.txt", ".gitignore"] {
+        std::fs::remove_file(target.join(name).as_path()).expect("the entry that is gone");
+    }
+
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the removal refuses: {said}");
+    assert!(said.contains("this removal changed nothing"), "the report says what the command itself did: {said}");
+    assert!(!said.contains("nothing was removed"), "and never claims nothing was removed, which the tree makes false: {said}");
+    assert!(said.contains("Git reports nothing about the worktree but entries missing from it"), "and names the state it found: {said}");
+    assert!(said.contains("No record of this program says a removal of this worktree removed them"), "and that nothing proves the deletions are this program's: {said}");
+    assert!(said.contains("git worktree remove --force ../topic"), "and the command that finishes it: {said}");
+    assert!(said.contains("Moving what is named above out would not finish it"), "and that moving the volume out cannot help: {said}");
+    assert_eq!(tree_of(volume.as_path()), before, "the volume is untouched");
+    assert!(listing(&fixture, repo.as_path()).contains("/topic\n"), "Git still lists the worktree");
+
+    let forced: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "--force", "../topic"]);
+    assert_the_report_of_a_removal_that_went_around(&forced, target.as_path(), &[volume.as_path()]);
+    assert_eq!(tree_of(volume.as_path()), before, "the volume survives the forced finish too");
     remove(&fixture);
 }
