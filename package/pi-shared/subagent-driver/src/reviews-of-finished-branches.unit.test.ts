@@ -16,9 +16,11 @@ import {
   BATCH_STAGGER_MILLISECONDS,
   REVIEWING_MODEL,
   REVIEWING_PROVIDER,
+  LONGEST_MEASURED_REVIEW_TURNS,
   REVIEW_START_DEADLINE_SECONDS,
   REVIEW_TURN_CAP,
   REVIEW_WALL_SECONDS,
+  TURN_CAP_MARGIN,
   type BriefOfOneReview,
   entryLineOf,
   type ReviewStartingSeams,
@@ -161,6 +163,7 @@ type Asked = {
   readonly saves: string[];
   readonly waits: number[];
   readonly briefs: { readonly review: string; readonly commit: string; readonly range: string }[];
+  readonly shown: string[];
 };
 
 /**
@@ -196,15 +199,20 @@ function seamsAnswering({
     saves: string[];
     waits: number[];
     briefs: { review: string; commit: string; range: string }[];
+    shown: string[];
   } = {
     starts: [],
     saves: [],
     waits: [],
     briefs: [],
+    shown: [],
   };
   return {
     asked,
     seams: {
+      report: function report(line,) {
+        asked.shown.push(line,);
+      },
       reviewIsWritten: async function reviewIsWritten({ review, },) {
         return written.includes(review,);
       },
@@ -322,6 +330,20 @@ await describe({
       ],
     },),
     describe({
+      name: 'the cap a review gets',
+      children: [
+        it({
+          name: 'is a quarter above the longest finished review measured, so a cap that cut reviews off mid-reading fails this',
+          fn: async () => {
+            expect(REVIEW_TURN_CAP,).toBe(Math.ceil(LONGEST_MEASURED_REVIEW_TURNS * TURN_CAP_MARGIN),);
+            // Forty-seven cut off reviews that ended at 147, 153 and 156 turns on 2026-11-11.
+            expect(REVIEW_TURN_CAP,).toBeGreaterThan(LONGEST_MEASURED_REVIEW_TURNS,);
+            expect(REVIEW_TURN_CAP,).toBeGreaterThan(47,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: startReviews.name,
       children: [
         it({
@@ -344,6 +366,8 @@ await describe({
             expect(started.lines,).toEqual([`${runNameOfAReview({ review: aChange(), },)}: already reviewed`,],);
             expect(started.statuses,).toEqual([],);
             expect(asked.starts,).toEqual([],);
+            // Every line is also shown as it happens, so a reader sees a review that is already done without waiting for the rest.
+            expect(asked.shown,).toEqual(started.lines,);
           },
         },),
         it({

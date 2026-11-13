@@ -3,7 +3,30 @@
 ## Research status
 
 - Status:
-   complete
+   not approved by the owner as complete.
+   An AI session wrote it on 2026-11-12 and marked it "complete" on its own word,
+   which the owner rejected on 2026-11-13:
+   "No.
+   It was not complete.
+   At the very least it should have said I haven't approved it as complete."
+   What was done:
+   the source reading and measurement dated in this list,
+   one independent review recorded under "Independent review",
+   and two in-place notes of 2026-11-13.
+   What is known to be open:
+   the questions under "Questions" that only upstream can answer,
+   and the further measurements in the two troubleshooting documents this one points to.
+   What the word may have cost:
+   upstream's issue 1120 cites this document at commit `249bbf19ea`,
+   where this line read "complete".
+   The owner,
+   2026-11-13:
+   "You marking it Status:
+   complete probably caused dahlia to pre-emptively work more than what the information at that time called for.
+   And it might have also created extra work for dahlia."
+   Whether it did is not known here;
+   the findings were still moving that day,
+   as the two notes of 2026-11-13 in this document show.
 - Source reading recorded:
    2026-11-12T09:11:13-05:00
 - Measurement recorded:
@@ -279,9 +302,13 @@ At tag `1.3.1`,
 the last release before the patch,
 a search of `packages/core/src/*.test.ts` for a thousand-element input,
 `performance`,
-`throughput` or `scaling` found no test of parse cost;
-the hits are timeouts,
-numeric literals and unrelated names.
+`throughput` or `scaling` found no test of parse cost.
+The hits are timeouts,
+numeric literals,
+unrelated names,
+and one block in `dependency-extra.test.ts` named "Performance and stress tests":
+eight tests that check the `dependency()` combinator gives correct results under repeated or large use,
+none of which times anything or asserts how much work was done.
 
 ### How long it shipped
 
@@ -313,7 +340,8 @@ nobody reported it".
 This project measured the cost on 2026-07-15 and replaced the parser the same day.
 It recorded the finding in its commit messages and,
 from 2026-08-14,
-in `doc/handover/cli-git-cac-migration.md`;
+in `doc/handover/cli-git-cac-migration.md`
+and `doc/audit/tech-cli-git-command-line-argument-parser-replac-vet-2026-08-14.md`;
 no file under `doc/troubleshooting/` described it until 2026-11-12.
 
 Upstream found it by reading this repository.
@@ -470,12 +498,12 @@ Upstream treats a known performance defect as a bug worth fast work:
    asking for a reassessment and a reproducer.
 
 Upstream does not treat performance as a property to be guarded before a report:
-the 2025 design note estimated cost without measuring it,
+the 2025 design note gives an estimate and records no measurement,
 the measurement scripts for both fixes were not kept,
 and the one maintained benchmark excludes parsing.
 
 The fair summary is that performance is a concern upstream responds to,
-not a goal it designs or tests for.
+not a goal it measures or tests for.
 
 ## The owned parser is not a like-for-like comparison
 
@@ -532,7 +560,8 @@ This is the measurement the [maintainer comment][] says upstream has not made.
    The installed files confirm what the JSR version strings say:
    `1.4.0-dev.2664` has no `dist/internal/failure.js`,
    the other three have it,
-   and `1.4.0-dev.2665` and `1.4.0-dev.2667` differ only in their `version` field.
+   and `1.4.0-dev.2665` and `1.4.0-dev.2667` differ only inside `package.json`,
+   in the `version` field and the pinned version of `@optique/env`.
 - Floor:
    the owned parser from commit `4879a44e6a`,
    under the limit the section "The owned parser is not a like-for-like comparison" states.
@@ -551,7 +580,9 @@ This is the measurement the [maintainer comment][] says upstream has not made.
    a container from `docker.io/cachyos/cachyos-v4:latest` with Node v26.13.1,
    no mounts,
    `--cpus 2 --memory 4g --pids-limit 512 --blkio-weight 10`,
-   on a host whose load average stayed between 29 and 42.
+   on a host whose one-minute load average,
+   recorded with every run,
+   ranged from 29 to 56.
 
 A Pi agent built and ran the harness.
 Its medians for the thousand-path input were recomputed here from its raw records and match,
@@ -654,9 +685,10 @@ The likely reason is that this parser's option names are long,
 so the new length check rejects them against a token of one to three characters;
 that reading comes from the patch's code and was not tested separately.
 
-On 1.3.2 and later,
+From 1.3.2 through 1.3.6,
 short and long paths cost the same,
-about 0.18 ms each.
+about 0.18 ms each,
+and on the pre-releases with [pull request 997][] about 0.09 ms each.
 What remains no longer depends on the token's length.
 
 ### Upstream's own reproduction
@@ -683,16 +715,20 @@ thirty options and a thousand long paths:
 
 Upstream reported 1,736 ms to 167 ms for [pull request 992][] and 112 ms to 65 ms for [pull request 997][].
 The ratios here,
-8.6 and 1.8,
+8.6 from 1.3.1 to 1.3.2 and 1.8 from `1.4.0-dev.2664` to `1.4.0-dev.2665`,
 are close to upstream's 10.4 and 1.7;
 the absolute values differ with the machine and the two-CPU cap.
 
 ### Control: paths after the separator
 
 With `['--message', 'x', '--', ...paths]`,
-`parseCommitRegion` hands Optique three tokens.
-Every Optique arm took 0.52 to 0.74 ms whatever the path count,
-and the owned parser 0.03 to 0.05 ms.
+`parseCommitRegion` cuts the list at the separator and hands Optique two tokens,
+`--message` and `x`.
+Across every path count and both path lists,
+the Optique arms' medians ran from 0.39 to 0.97 ms,
+with no version standing apart.
+The owned parser took 0.03 to 0.05 ms up to a hundred paths and 0.16 to 0.17 ms at a thousand,
+since it reads the paths itself.
 No version changes that fixed cost.
 
 ### Where the remaining time goes
@@ -762,8 +798,11 @@ That is the behavior change commit `1e53f52e02` announced.
 - It does not rank Optique against the owned parser.
    The 0.18 ms shows that reading a thousand paths needs almost no work;
    the two parsers do different things.
-- The harness lives in `${HOME}/temp/agent/optique-measure-2026-11-12/`,
-   which is scratch and not kept.
+- The harness,
+   the check scripts,
+   the baked inputs and every raw record of both rounds are in
+   `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`.
+   The archive as committed predates the last two check runs named under "Answered here before asking upstream".
    `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` holds a standalone script
    that shows the same effect with nothing but `@optique/core`.
 
@@ -772,9 +811,15 @@ That is the behavior change commit `1e53f52e02` announced.
 The owner's instruction on 2026-11-12 was to resolve what analysis,
 measurement and source reading can resolve before any question goes to the maintainer.
 This section holds those answers.
-Scaling experiments,
-the attribution of the 1.4 line's extra time,
-and an audit of `passThrough()` were still running when it was written.
+
+The second round of measurement,
+on 2026-11-12 from 16:41:27Z to 16:56:17Z,
+ran while the host's one-minute load average was between 69 and 130,
+higher than in the first round.
+Its results are given as counts,
+ratios and exponents;
+where milliseconds appear they are the lowest of the rounds and serve only to show shape.
+Each result named here was either recomputed from the raw records or repeated with a separate script.
 
 ### The differences, with each process as one observation
 
@@ -884,6 +929,200 @@ The gaps between earlier minor releases (63,
 35 and 56 days) say nothing more:
 58 days have already passed.
 
+### How the cost grows
+
+Derived from the source first,
+then measured.
+The parser was an `object()` of P optional options,
+each with one twelve-character name,
+beside `multiple(argument(string()))`;
+N distinct positional tokens of length L were parsed,
+one factor varied at a time.
+
+Counting comes first because it has no noise.
+A function-valued `errors.noMatch` that increments a counter recorded,
+at all twenty measured points,
+exactly N times P mismatches on 1.1.1,
+1.3.6 and `1.4.0-dev.2664`,
+and none on `1.4.0-dev.2971`.
+At 5,000 tokens and 16 options that is 80,000 against none.
+
+Prediction and result,
+per version:
+
+- 1.1.1.
+   Predicted:
+   linear in tokens,
+   quadratic in options since each of P parsers searches P names,
+   linear in token length.
+   Measured:
+   doubling the options from 4 to 128 multiplied the time by 2.9,
+   2.9,
+   3.8,
+   3.8 and 4.1,
+   approaching the 4 a square gives;
+   from 4 to 256 characters the time rose in a straight line,
+   about 4.3 ms per character at 500 tokens and 16 options;
+   the exponent in tokens was 1.13.
+   The prediction held,
+   so the experiment can see these shapes.
+- 1.3.6.
+   Predicted:
+   the same in tokens and options,
+   flat in token length.
+   Measured:
+   the same doubling ratios in options (2.6,
+   2.9,
+   3.7,
+   4.0,
+   3.9) and the same exponent in tokens (1.14);
+   flat in length at about 20 ms,
+   with one exception at twelve characters,
+   where it took 77 ms.
+   The length check of [pull request 992][] skips a name only when its length differs from the token's by more than three
+   characters or by more than half the token's length,
+   so a token about as long as the option names still pays for every edit distance.
+   That is the likely reason upstream's own short-path benchmark "showed no improvement":
+   short paths are about as long as option names.
+- `1.4.0-dev.2971`.
+   Predicted:
+   no search,
+   linear in tokens,
+   flat in length,
+   and the open point was options.
+   Measured:
+   doubling the options multiplied the time by 1.4,
+   1.4,
+   2.1,
+   1.7 and 1.9,
+   approaching 2,
+   so the work per mismatch does not grow with the grammar;
+   flat in length;
+   but the exponent in tokens was 1.34,
+   above 1,
+   which the section "A cost that grows with the square of the token count" explains.
+
+At 128 options and 100 tokens,
+1.3.6 took about 34 times as long as `1.4.0-dev.2971`.
+The 1.3 line remains quadratic in the number of options.
+
+### What one search costs, and what one mistyped option costs
+
+[Issue 38][] estimated "less than 1ms" for "a typical CLI with 50 options".
+Measured on 0.7.0,
+the first release with the feature,
+with 50 options whose names are 20 characters long:
+
+- One call of the search function took 0.061 ms,
+   about a sixteenth of the estimate.
+   The cost model in the evidence archive predicted 0.07 to 0.095 ms from the first round's profile before this was run.
+- One failing parse of one mistyped option took 3.1 to 3.4 ms,
+   against 0.011 ms for a parse that succeeds,
+   in two separate measurements.
+   Each of the 50 option parsers rejects the token and each runs its own search,
+   so one typo is about 55 searches.
+- One successful parse of a thousand paths made 50,000 searches,
+   counted,
+   and took 8.7 s.
+
+So the estimate was right for the unit it priced and off by the number of times that unit runs:
+about 50 times for a single typo,
+and tokens times options for a parse that succeeds.
+
+### What the 1.4 line added
+
+The first round found `1.4.0-dev.2664` slower than 1.3.2,
+which it contains.
+A function-by-function comparison of profiles attributes it:
+of 33.6 ms added per parse,
+`short-option.js` accounts for 32.0 ms,
+and that file does not exist in 1.3.2.
+
+Its source,
+`packages/core/src/short-option.ts`,
+came with upstream pull request 981,
+"Support attached short-option values",
+merged on 2026-09-27.
+From it,
+every time a parser is offered a token,
+`withParserOptionScope()` builds a new context object and a new set that copies the inherited one,
+and `forkOptionScope()` copies a map,
+work the 1.3 line does not do.
+
+The effect is clearest where no suggestion work hides it.
+With `--` before a thousand paths,
+passed straight to the library,
+seven rounds paired by round gave,
+later arm over earlier:
+
+- 1.1.1 to 1.3.6:
+   1.05 (0.92 to 1.26),
+   four rounds slower and three faster.
+   No difference.
+- 1.3.6 to `1.4.0-dev.2664`:
+   1.80 (1.36 to 1.91),
+   all seven slower.
+- 1.3.6 to `1.4.0-dev.2971`:
+   1.73 (1.51 to 2.12),
+   all seven slower.
+- `1.4.0-dev.2664` to `1.4.0-dev.2971`:
+   1.06 (0.96 to 1.16),
+   six slower and one faster,
+   which seven rounds cannot tell from no difference.
+
+So on this input the unreleased 1.4 line takes about 1.7 to 1.8 times as long as 1.3.6,
+and the versions change places:
+without the separator the pre-release is about twice as fast as 1.3.6,
+with it about 1.8 times slower.
+Nothing on upstream's tracker mentions this cost;
+a search of issues and pull requests for the scope functions' names returns the feature's own pull request and no report.
+That was so on 2026-11-12.
+On 2026-11-13 upstream's maintainer opened issue 1120 for it,
+citing this document,
+and pull request 1121;
+`doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md` has what followed.
+
+### A cost that grows with the square of the token count
+
+Every version measured,
+1.1.1,
+1.3.6 and `1.4.0-dev.2971`,
+takes time close to the square of the number of positional tokens once other costs are small.
+With one option parser,
+a separate script written for this check gave exponents from 1.75 to 1.97 between 1,000 and 8,000 tokens:
+about 30 ms at 1,000 and 1.4 to 1.7 s at 8,000,
+on all three.
+
+The cause is in `packages/core/src/input-trace.ts`,
+unchanged at line 141 from 1.1.1 to `main`:
+
+```ts
+// packages/core/src/input-trace.ts at commit 1d6e4594 on main
+  set(path: readonly PropertyKey[], entry: TraceEntry): InputTrace {
+    const copy = new Map(this.#entries);
+    copy.set(serializePath(path), entry);
+    return new InputTraceImpl(copy);
+  }
+```
+
+`packages/core/src/primitives.ts` calls it once for each input it records,
+so recording N tokens copies 1 + 2 + ... + N entries.
+On 1.3.6 with paths after the separator,
+the profile put 51.6% of the parse in `input-trace.js` at 1,000 tokens and 78.6% at 4,000.
+
+Neither [pull request 992][] nor [pull request 997][] touches it,
+and no issue or pull request on upstream's tracker reports it:
+a search for `InputTrace` returns only the work that introduced it in March 2026.
+At the sizes most command lines have it is invisible,
+which is how it went unnoticed here too until suggestion work stopped dominating.
+
+Measured further on 2026-11-13,
+in `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`:
+across three runtimes and the release lines from 1.0 to 1.3 the exponent ranged from 1.56 to 1.93,
+wider than the 1.75 to 1.97 given here from one script on one machine;
+a patch for the copy was checked;
+and two smaller copies per token were found behind it.
+
 ### Facts read from source and record
 
 - `object()` already tried each field parser for each token when the feature was written.
@@ -919,6 +1158,40 @@ The gaps between earlier minor releases (63,
    A GitHub-wide issue search for `optique Levenshtein` returns nothing,
    but the same words scoped to upstream's repository find issues 38 and 989,
    so the wide search returns less than exists and its silence means nothing.
+
+## Independent review
+
+A reviewer from another model vendor,
+qwen4-max-preview run through Pi,
+checked this document and the troubleshooting document against their sources on 2026-11-12,
+reading them as they stood at commit `b104ae74cd`.
+It recomputed every figure from the raw records and reread every quoted source.
+
+It reported every quotation verbatim,
+every code excerpt matching its tag and lines,
+and every millisecond figure in the measurement lists reproducing from the raw records.
+It found seventeen points in the prose around them,
+none in the data.
+Each was checked against the records before being acted on.
+The ones that were errors of fact and are now corrected:
+the load range,
+the token count and ranges of the control with paths after the separator,
+what the duplicate search returns,
+the mention of Optique under `.out-of-scope/`,
+a test block named for performance at tag 1.3.1,
+the second field in which two pre-release builds differ,
+which pushes publish a pre-release,
+and a second document that had recorded the cost in August.
+Four were over-wide wordings and are narrowed.
+One,
+that a ratio of 8.6 should read 8.7,
+compared a different pair of versions from the one meant;
+the text now names the pair.
+The remaining four were matters of wording:
+three are reworded,
+and one sat in a line of the draft reply that had already been removed.
+
+The sections "Answered here before asking upstream" and everything dated after that commit were not part of that review.
 
 ## What the record cannot answer
 

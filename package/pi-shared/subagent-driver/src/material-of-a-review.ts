@@ -8,6 +8,7 @@
  @module
  */
 
+import { isRecord, } from './read-pi-fields.ts';
 import type { CommandOutput, } from './run-command.ts';
 
 /**
@@ -109,6 +110,115 @@ export async function outputOfGit({
     );
   }
   return answered.stdout;
+}
+
+/**
+ What a review read, kept beside its own files so a fix that answers it knows where to start.
+
+ A review reads a commit, the ranges that named the change, and the source folder under it. The branch a review read moves on as
+ soon as anyone commits to it, and a fix started at the branch would answer a change nobody reviewed, so the commit itself is
+ what is kept.
+ */
+export type ReviewReading = {
+  /**
+   The change the review read.
+   */
+  readonly review: string;
+
+  /**
+   The commit under review, which a fix that answers it starts at.
+   */
+  readonly commit: string;
+
+  /**
+   What changed, each as `git diff` takes a range.
+   */
+  readonly ranges: readonly string[];
+
+  /**
+   The folder whose changes were reviewed, from the top of the checkout.
+   */
+  readonly source: string;
+};
+
+/**
+ A record of what a review read that cannot be read as one.
+ */
+export class ReviewReadingError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'ReviewReadingError';
+}
+
+/**
+ Reads what a review recorded it read.
+
+ @param shown - the record as it was written
+
+ @param file - the file the record came from, for the message
+
+ @returns what the review read
+
+ @throws ReviewReadingError when the record does not name a commit, its ranges and its source folder
+
+ @example
+ ```ts
+ const reading = readingIn({ shown: '{"review":"a","commit":"abc","ranges":["main...fix/a"],"source":"package/a/src"}', file: 'a/what-the-review-read.json', },);
+ ```
+ */
+export function readingIn({
+  shown,
+  file,
+}: {
+  readonly shown: string;
+  readonly file: string;
+}): ReviewReading {
+  /**
+   The record, of any shape.
+   */
+  const kept: unknown = JSON.parse(shown,);
+  if (!isRecord(kept,)) {
+    throw new ReviewReadingError(`${file} holds no JSON object naming what the review read`,);
+  }
+  /**
+   The fields the record was written with, kept as the record holds them.
+   */
+  const fields = {
+    review: kept.review,
+    commit: kept.commit,
+    source: kept.source,
+    ranges: kept.ranges,
+  };
+  if (
+    ((typeof fields.review) !== 'string') || ((typeof fields.commit) !== 'string')
+      || ((typeof fields.source) !== 'string')
+      || (!Array.isArray(fields.ranges,))
+  ) {
+    throw new ReviewReadingError(
+      `${file} names no review, commit, ranges and source folder, so where a fix for it would start cannot be read`,
+    );
+  }
+  /**
+   The ranges the record kept, which a fix reads the review against.
+   */
+  const ranges = fields.ranges
+    .filter(function isARange(range,): range is string {
+      return (typeof range) === 'string';
+    },);
+  if (ranges.length
+    !== fields.ranges
+      .length) {
+    throw new ReviewReadingError(
+      `${file} names a range that is no text, so where a fix for it would start cannot be read`,
+    );
+  }
+  return {
+    review: fields.review,
+    commit: fields.commit,
+    ranges,
+    source: fields.source,
+  };
 }
 
 /**

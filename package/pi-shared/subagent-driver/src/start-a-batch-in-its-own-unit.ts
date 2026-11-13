@@ -17,6 +17,7 @@ import {
 import {
   BATCH_DEFAULT_DEADLINE_SECONDS,
 } from './batch-list.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import {
   batchOutputFileOf,
   batchUnitCommandOf,
@@ -33,12 +34,24 @@ import {
 } from './required-option-values.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
  */
 const USAGE =
   'start-a-batch-in-its-own-unit --batch-file=<file> [--deadline-seconds=<n>] [--output-file=<file>]';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The option that names the batch list.
@@ -150,6 +163,7 @@ const command = batchUnitCommandOf({
     folder: import.meta.dirname,
     command: 'start-pi-runs-from-a-batch-list',
   },),
+  checkoutFolder: await checkoutFolderOf({ from: process.cwd(), },),
 },);
 
 /**

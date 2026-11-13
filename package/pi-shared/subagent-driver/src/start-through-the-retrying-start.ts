@@ -53,10 +53,12 @@ export async function startThroughTheRetryingStart({
   entry,
   words,
   environment,
+  report,
 }: {
   readonly entry: string;
   readonly words: readonly string[];
   readonly environment: NodeJS.ProcessEnv;
+  readonly report: (line: string) => void;
 }): Promise<StartedEntry> {
   /**
    The retrying start's process.
@@ -80,10 +82,23 @@ export async function startThroughTheRetryingStart({
    The end of what it printed, on either stream.
    */
   const printed = tailKeeper({ characters: ENTRY_OUTPUT_KEPT_CHARACTERS, },);
+  /**
+   What the retrying start said on its standard output and has not yet been passed on, which a line is cut out of.
+   */
+  const partial: { text: string } = { text: '', };
   child.stdout
     .on(
     'data',
-    printed.keep,
+    function keepAndSay(chunk: Buffer,) {
+      printed.keep(chunk,);
+      // An entry whose start waits for a slot says so as it happens: keeping only the end of what it printed left a coordinator
+      // watching a batch's output file with nothing in it while the run waited.
+      passOnLines({
+        partial,
+        chunk,
+        report,
+      },);
+    },
     );
   child.stderr
     .on(
@@ -115,5 +130,38 @@ export async function startThroughTheRetryingStart({
       output: printed.text(),
       startProblem: String(error,),
     };
+  }
+}
+
+/**
+ Passes on each whole line of what a command printed, keeping the unfinished end for the next read.
+
+ @param partial - the text that has not been passed on yet, which this extends and then shortens to the unfinished end
+
+ @param chunk - what arrived this time
+
+ @param report - where each whole line goes
+
+ @example
+ ```ts
+ passOnLines({ partial, chunk, report: process.stdout.write.bind(process.stdout) },);
+ ```
+ */
+function passOnLines({
+  partial,
+  chunk,
+  report,
+}: {
+  readonly partial: { text: string };
+  readonly chunk: Buffer;
+  readonly report: (line: string) => void;
+},): void {
+  /**
+   The lines this read finished, and the unfinished end it leaves.
+   */
+  const lines = `${partial.text}${chunk.toString()}`.split('\n',);
+  partial.text = lines.pop() ?? '';
+  for (const line of lines) {
+    report(`${line}\n`,);
   }
 }

@@ -30,98 +30,137 @@ export const FIX_BRIEF_PLACEHOLDERS: readonly string[] = [
   'WORKTREE',
   'BRANCH',
   'BASE',
+  'REVIEW_SUBJECT',
   'REVIEW_FILE',
   'DIFF_FILE',
   'REPRODUCTIONS_FOLDER',
 ];
 
 /**
- The middle of a review's name that says which round wrote it, which is not part of the change it reviewed.
+ A fix run's name that repeats a segment of the branch prefix it lives under.
  */
-const ROUND_MARKER = '-round-';
-
-/**
- Reads whether text is one or more digits and nothing else.
-
- @param text - the text to read
-
- @returns whether it is digits alone
-
- @example
- ```ts
- const digits = isDigits('133');
- ```
- */
-function isDigits(text: string,): boolean {
-  if (text === '') {
-    return false;
-  }
-  for (const character of text) {
-    if ((character < '0') || (character > '9')) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- Reads the change a review read, which is the review's name without the round that wrote it.
-
- @param review - the review's name, as `fix-the-gate-round-133` or `fix-the-gate`
-
- @returns the change's name, which a fix agent's run and branch are named after
-
- @example
- ```ts
- const change = changeNameOfAFixFor({ review: 'fix-the-gate-round-133', },);
- ```
- */
-export function changeNameOfAFixFor({ review, }: { readonly review: string },): string {
+export class DoubledBranchSegmentError extends Error {
   /**
-   Where the round marker starts, or minus one when the name carries none.
+   The name printed with the message.
    */
-  const marker = review.lastIndexOf(ROUND_MARKER,);
-  if ((marker === (-1)) || (!isDigits(review.slice(marker + ROUND_MARKER.length,)))) {
-    return review;
-  }
-  return review.slice(
-    0,
-    marker,
-  );
+  override readonly name = 'DoubledBranchSegmentError';
 }
 
 /**
- Reads the branch a fix agent's work goes on.
+ The word that ends one segment of a branch name, which a run name repeating a segment also repeats.
+ */
+const SEGMENT_SEPARATOR = '-';
 
- @param review - the review whose defects the fix answers
+/**
+ The word that separates a branch's namespaces.
+ */
+const BRANCH_SEPARATOR = '/';
 
- @param branchPrefix - the namespace the fix branches of this package live under, such as `fix/`
+/**
+ Reads the branch a fix agent's work goes on: the namespace the fixes of this package live under, then the run's own name.
+
+ The name comes from the caller, so the branch says what the fix fixes rather than which review round found it. A prefix whose own
+ last segment the name begins with is refused: `fix/git-policy-cli-review-findings-` with the name
+ `review-findings-a-late-runtime` reads `fix/git-policy-cli-review-findings-review-findings-a-late-runtime`, which says the same
+ thing twice.
+
+ @param name - the fix run's own name, as the caller gave it
+
+ @param branchPrefix - the namespace the fix branches of this package live under, such as `fix/git-policy-cli-`
 
  @returns the branch's name
 
+ @throws DoubledBranchSegmentError when the name repeats the last segment of the prefix
+
  @example
  ```ts
- const branch = branchOfAFixFor({ review: 'fix-the-gate-round-133', branchPrefix: 'fix/', },);
+ const branch = branchOfAFixFor({ name: 'a-late-runtime', branchPrefix: 'fix/git-policy-cli-', },);
  ```
  */
 export function branchOfAFixFor({
-  review,
+  name,
   branchPrefix,
 }: {
-  readonly review: string;
+  readonly name: string;
   readonly branchPrefix: string;
 }): string {
-  return `${branchPrefix}${changeNameOfAFixFor({ review, },)}`;
+  /**
+   The prefix's own last segment, which is the part a repeated name would double.
+   */
+  const segments = branchPrefix.split(BRANCH_SEPARATOR,);
+  /**
+   The prefix's own last segment.
+   */
+  const segment = segments.at(-1,) ?? '';
+  /**
+   The segment's words, which are what a repeated run is counted in.
+   */
+  const segmentWords = segment.split(SEGMENT_SEPARATOR,)
+    .filter(function isAWord(word,) {
+      return word !== '';
+    },);
+  /**
+   The longest run of the prefix's words that the name begins with, which is the run it would repeat.
+   */
+  const repeated = longestRepeatedRun({
+    name,
+    segmentWords,
+  },);
+  if (repeated !== '') {
+    throw new DoubledBranchSegmentError(
+      `the branch ${branchPrefix}${name} says "${repeated}" twice, because the name begins with the prefix's own last words: `
+        + `name the fix run for what it fixes, as the branch ${branchPrefix}<what it fixes>`,
+    );
+  }
+  return `${branchPrefix}${name}`;
+}
+
+/**
+ Reads the longest run of a prefix's words that a run name begins with.
+
+ @param name - the run's own name
+
+ @param segmentWords - the words of the prefix's last segment, in order
+
+ @returns the repeated run with its own trailing separator, or empty text when the name repeats none of it
+
+ @example
+ ```ts
+ const repeated = longestRepeatedRun({ name: 'review-findings-a', segmentWords: ['cli', 'review', 'findings'], },);
+ ```
+ */
+function longestRepeatedRun({
+  name,
+  segmentWords,
+}: {
+  readonly name: string;
+  readonly segmentWords: readonly string[];
+},): string {
+  for (let taken = segmentWords.length; taken > 0; taken -= 1) {
+    /**
+     The run of the prefix's last words, with the separator that ends one word.
+     */
+    const run = `${segmentWords.slice(-taken,)
+      .join(SEGMENT_SEPARATOR,)}${SEGMENT_SEPARATOR}`;
+    if (name.startsWith(run,)) {
+      return run;
+    }
+  }
+  return '';
 }
 
 /**
  Builds the value of every placeholder the fix brief carries.
 
+ @param name - the fix run's own name
+
  @param review - the review whose defects the fix answers
 
  @param branch - the branch the fix's work goes on
 
- @param base - the commit or branch the fix starts at
+ @param base - the commit the review read, which the fix starts at
+
+ @param subject - what the review read, in the review's own words, so the brief names the change it answers
 
  @param packageFolder - the package the fix changes, from the top of the checkout
 
@@ -135,21 +174,25 @@ export function branchOfAFixFor({
 
  @example
  ```ts
- const values = fixBriefValues({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate', base: 'abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const values = fixBriefValues({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate-round-133', base: 'abc123', subject: 'main...fix/fix-the-gate at commit abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function fixBriefValues({
+  name,
   review,
   branch,
   base,
+  subject,
   packageFolder,
   reviewsFolder,
   checkoutFolder,
   rulesFile,
 }: {
+  readonly name: string;
   readonly review: string;
   readonly branch: string;
   readonly base: string;
+  readonly subject: string;
   readonly packageFolder: string;
   readonly reviewsFolder: string;
   readonly checkoutFolder: string;
@@ -160,10 +203,11 @@ export function fixBriefValues({
     PACKAGE: packageFolder,
     WORKTREE: worktreeFolderOf({
       checkoutFolder,
-      runName: changeNameOfAFixFor({ review, },),
+      runName: name,
     },),
     BRANCH: branch,
     BASE: base,
+    REVIEW_SUBJECT: subject,
     REVIEW_FILE: reviewFileOfAReview({
       reviewsFolder,
       review,
@@ -182,11 +226,15 @@ export function fixBriefValues({
 /**
  Fills the brief of one fix agent.
 
+ @param name - the fix run's own name
+
  @param review - the review whose defects the fix answers
 
  @param branch - the branch the fix's work goes on
 
- @param base - the commit or branch the fix starts at
+ @param base - the commit the review read, which the fix starts at
+
+ @param subject - what the review read, as its brief words it
 
  @param packageFolder - the package the fix changes, from the top of the checkout
 
@@ -202,21 +250,25 @@ export function fixBriefValues({
 
  @example
  ```ts
- const brief = briefOfAFix({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate', base: 'abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const brief = briefOfAFix({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate-round-133', base: 'abc123', subject: 'main...fix/fix-the-gate at commit abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function briefOfAFix({
+  name,
   review,
   branch,
   base,
+  subject,
   packageFolder,
   reviewsFolder,
   checkoutFolder,
   rulesFile,
 }: {
+  readonly name: string;
   readonly review: string;
   readonly branch: string;
   readonly base: string;
+  readonly subject: string;
   readonly packageFolder: string;
   readonly reviewsFolder: string;
   readonly checkoutFolder: string;
@@ -225,9 +277,11 @@ export function briefOfAFix({
   return filledTemplate({
     template: FIX_THE_DEFECTS_A_REVIEW_FOUND_TEMPLATE,
     values: fixBriefValues({
+      name,
       review,
       branch,
       base,
+      subject,
       packageFolder,
       reviewsFolder,
       checkoutFolder,

@@ -92,6 +92,12 @@ export type BatchUnitRequest = {
    The batch command's entry.
    */
   readonly batchEntry: string;
+
+  /**
+   The checkout the batch starts its runs in, which is the folder its unit works in: a launcher started from a folder outside the
+   checkout cannot read which repository a run's worktree belongs to, and the folder a batch list lives in is outside it.
+   */
+  readonly checkoutFolder: string;
 };
 
 /**
@@ -148,7 +154,7 @@ export function batchOutputFileOf({ batchFile, }: { readonly batchFile: string }
 
  @example
  ```ts
- const command = batchUnitCommandOf({ batchFile: '/runs/b.json', deadlineSeconds: 7_200, outputFile: '/runs/b.out', pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', batchEntry: '/pkg/src/start-pi-runs-from-a-batch-list.ts', },);
+ const command = batchUnitCommandOf({ batchFile: '/runs/b.json', deadlineSeconds: 7_200, outputFile: '/runs/b.out', pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', batchEntry: '/pkg/src/start-pi-runs-from-a-batch-list.ts', checkoutFolder: '/repo', },);
  ```
  */
 export function batchUnitCommandOf(request: BatchUnitRequest,): {
@@ -170,7 +176,7 @@ export function batchUnitCommandOf(request: BatchUnitRequest,): {
       `--property=StandardError=append:${request.outputFile}`,
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
-      `--working-directory=${dirname(request.batchFile,)}`,
+      `--working-directory=${request.checkoutFolder}`,
       request.node,
       request.batchEntry,
       `--batch-file=${request.batchFile}`,

@@ -416,9 +416,13 @@ Read-only commands,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
   a program whose connection to the server is open is waited for while it works,
-  and one that keeps it open with nothing moving for the connected window (150 seconds)
-   is stopped,
-  with `git lfs push --all <remote>` named as its way forward.
+  and one that keeps it open for the connected window (150 seconds) while the connection carries fewer
+   bytes than the minimum rate (`CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+  1024 bytes in that window,
+  about 7 bytes per second) is stopped,
+  with `git lfs push --all <remote>` and a smaller floor as its ways forward.
+  A connection that only moves a byte now and then is what the floor exists for:
+  it is judged as a connection that moved nothing (see "The least traffic that counts as progress" in the SPEC).
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -692,6 +696,14 @@ Read-only commands,
   and is named
    on one line.
   A file that cannot be copied at all fails the copy with its own path in the message.
+  A record of that copy that a crash left empty or cut short is not a reason to stop a command:
+  the command that meets it moves it aside into the journal root's `unreadable` folder,
+  never over another record and never deleting one,
+  writes a stage claim again where the records beside it name the stage folder so the copies that settle it still
+  run,
+  and goes on,
+  with one line naming what may stand on disk because of it.
+  Nothing you made is removed on the strength of a record that cannot be read.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,
@@ -980,14 +992,17 @@ Read-only commands,
      and returns;
      that service deletes the
    subvolume in its own time,
-   normally within a second,
+   in the next round the service runs for that repository,
      so a busy volume's btrfs transaction or cleaner does not hold your
-   command.
+   command,
+     and a volume no add is copying to is not the next round's wait either.
      The path you named is gone the moment the command returns;
      the files are gone when the service has run.
      A
-   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
-   service did not delete it yet:
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory,
+   or in the repository's
+   `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
+   means the service did not delete it yet:
      while a record for it is still queued,
      the next command of that repository wakes the service that reads the
    record,
@@ -1151,6 +1166,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and a volume it did not make refuses the removal while every file of the worktree is still there;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
+
+A worktree that fails one of those is kept and the report says why.
+A nested worktree of this repository inside it is named with the branch it is on,
+or with the fact that it is on a detached `HEAD`,
+and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
+ uncommitted.
+A subvolume or a mount point that is no worktree of this repository is named with what it is,
+with the move or the unmount that keep every file of it first,
+and with a `btrfs subvolume delete` last and for what it destroys,
+ because a subvolume there may be another repository's worktree.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -2051,9 +2076,13 @@ and
  name it:
 its content is not part of the tree.
  Move it out,
-delete it with `btrfs subvolume delete`,
-or unmount it,
-then run the deletion again.
+which keeps every file of it,
+or unmount a mount point,
+which keeps its contents,
+then run the deletion again;
+`btrfs subvolume delete` comes after those and is named for what it does,
+because it destroys everything inside that subvolume,
+which the deletion that refused cannot see.
 A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
 with the same reason and the same ways forward;
 the entries the deletion had already removed from that directory stay removed,
@@ -3611,6 +3640,36 @@ the rules:
 `SPEC.md`,
 "Word-level second merge pass".
 
+### A commit made without the reference that would have protected it
+
+A commit is written to the object store before any reference names it,
+and `refs/worktree/cli-git-service/<batch>` is what keeps its objects out of a
+`git gc --prune=now` until the branch write names them.
+Real Git needs no such reference:
+one `git commit` writes the objects and moves the branch itself.
+When the write of that reference cannot be proven
+(Git refuses it,
+or the wait for it ended before it did),
+the commit is made as real Git makes it and the command exits `0`,
+with one line on standard error that says the commit was made,
+naming the reference that was not written and Git's own words for why,
+and saying what names the commit now:
+the branch,
+for a commit that landed,
+or that the branch has not moved yet and will name it when the lock in its way goes,
+for a commit that is held.
+A batch whose commits `fast-import` builds lands this way only when its own import wrote the marks
+the landing reads,
+when that import exited rather than being ended by a signal,
+and when its first commit stands on the base the attempt found:
+the marks an earlier attempt left are removed before the next import starts,
+because a killed import leaves the earlier file as it was,
+and a batch built on another base would carry the branch past a commit another command landed.
+Nothing changes for a commit whose reference the write proved.
+`SPEC.md`,
+"What names a commit between its objects and its branch",
+measures the window this leaves open.
+
 ### A commit held behind a reference lock
 
 The owner,
@@ -4405,10 +4464,17 @@ fractional or non-numeric value is ignored.
   A run whose connection to the remote is open (the push,
   the fetch that follows a refused push,
   and the Git LFS upload)
-   is waiting for the remote and is ended only when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
+   is waiting for the remote and is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
    seconds,
-   unmeasured);
+   unmeasured),
+   or when the connection carried fewer than `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` in that window,
+   which is what a server that keeps the connection alive with keepalive packets alone does
+   (over a URL those bytes are the socket's,
+  and over a path they are the pipe's);
   the service's retry plan keeps the push and tries it again.
+  A connection that carries a byte now and then therefore no longer holds a push for ever,
+  and the stop says how many bytes it carried,
+  because "nothing moved" would not be true there.
   The owner's answer of 2026-11-03,
   "Bound it,
   keep retrying (Recommended)",
@@ -4447,6 +4513,28 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push are ended by the same stall window when they show no sign of work;
    a query that works is never ended for being slow.
+- `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+   default `1024`.
+  The least traffic the push's connection to the remote must carry in one window and still count as progress:
+  the connected window (150 seconds) while a connection is open,
+   which is about 7 bytes per second,
+   and the stall window (30 seconds) for a remote that is a path,
+   where the keepalive arrives on the pipe,
+   which is about 34 bytes per second.
+  Bytes below it are not progress,
+  so a connection that only sends keepalive packets,
+   or a server that drips its answer a byte at a time,
+   is judged as a silent one and ended at the connected window rather than kept alive for ever.
+  The window is the connected one and is not a setting;
+  this number is,
+  and a smaller one lets a slower line through
+   (Git's own keepalive is at most five bytes per second,
+   and the slowest line this default lets through moves 1024 bytes in the window).
+  A zero,
+  negative,
+  fractional or non-numeric value is no setting at all,
+  so a typo cannot remove the rule.
+  See "The least traffic that counts as progress" in the SPEC for the measurement.
 - `CLI_GIT_PUSH_RETRY_SECONDS`,
    default `10`.
   The pause before the commit service tries a stopped or failed auto-push again on its own.
@@ -7224,16 +7312,19 @@ all durations in whole milliseconds taken from the monotonic clock:
   They were added for the reading in
   `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `prepareParts` splits the preparation by the stretch of work it was in,
-  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  as `{"layout": {"ms": 12, "calls": 1, "childrenMs": 480}, ...}`:
   the seams are one line each in `src/native/landing/service_prepare.rs`,
-  each figure is the time that stretch spent without a Git child
+  `ms` is the time that stretch spent without a Git child
   (the steps are listed apart in `steps`),
+  `childrenMs` is the time of the Git steps that began inside it,
+  clipped to its end,
+  so a stretch a child dominated states that child's time rather than nothing,
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `buildParts` is the same shape for the build phase:
-  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
-  with a name for every stretch that held no Git child.
+  `{"branch": {"ms": 1, "calls": 1, "childrenMs": 0}, "shadow skeleton": {"ms": 3, "calls": 1, "childrenMs": 0}, ...}`,
+  with a name for every stretch and the time of the Git children that began inside it.
   The shadow repository's creation is the one this was added for:
   it is in-process filesystem work,
   so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
