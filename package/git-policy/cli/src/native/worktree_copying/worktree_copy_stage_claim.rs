@@ -194,6 +194,9 @@ impl StageClaim {
     /// await claim.releaseUnsynced();
     /// ```
     pub fn release_unsynced(self) -> Result<(), WorktreeCopyError> {
+        if self.stage_folder_may_still_stand() {
+            return Ok(());
+        }
         // The same order as the durable release: the record of the object made, the record, the marker, then the claim.
         remove_made(self.path.as_path())?;
         if let Some(record) = self.destination_record.as_deref() {
@@ -202,6 +205,59 @@ impl StageClaim {
         remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
         remove_file_if_present(self.path.as_path())?;
         return Ok(());
+    }
+
+    /// What:
+    ///  Whether the stage folder this claim names still stands with nothing else to settle it,
+    /// answering "it may" when that cannot be read.
+    /// Why:
+    ///   While such a folder stands, nothing of the claim is removed:
+    /// a kill at any instruction of a release then leaves a claim whose records still say the folder is an add's,
+    /// and the next command keeps it and names it instead of taking it for a copy's own folder and removing what a
+    /// person put in it (issue 6296).
+    /// A pending journal is the exception, and it is why this is not simply "the folder is gone":
+    /// from the moment a copy exists its journal names the folder and settles it,
+    /// so a claim released at that point is the journal's to finish,
+    /// which is what the copy's own rung does while it stages.
+    /// Once neither stands, every record proves nothing and can be removed in any order.
+    /// An answer that could not be read is not an answer of absence.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const unnamed = !aJournalNames(claim) && (stillThere(claim.container) ?? true);
+    /// ```
+    fn stage_folder_may_still_stand(&self) -> bool {
+        if self.a_journal_names_the_stage() {
+            return false;
+        }
+        return crate::worktree_copy_stage_reaping_proof_and_words::still_there(self.container.as_path()).unwrap_or(true);
+    }
+
+    /// What:
+    ///  Whether a pending journal in this claim's journal root names the stage folder this claim names,
+    /// answering "yes" when the journals cannot be read.
+    /// Why:
+    ///   The journal is the record that settles the folder once it exists,
+    /// so the claim may be released while the folder stands only when one names it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const named = pendingJournals(common).some((journal) => journal.stageContainer === claim.container);
+    /// ```
+    fn a_journal_names_the_stage(&self) -> bool {
+        // The journal root is `<common>/<parent>/<version>`, so the common directory is two parents up.
+        let Some(common) = self.path.parent().and_then(Path::parent).and_then(Path::parent) else {
+            return true;
+        };
+        let Ok(listed) = crate::worktree_copy_journal::read_listed_journals(common) else { return true };
+        for journal in listed {
+            if let crate::worktree_copy_journal::JournalFile::Pending(pending) = journal
+                && pending.journal.stage_container.as_path() == self.container.as_path()
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// What:
@@ -323,9 +379,13 @@ impl StageClaim {
     /// await claim.release();
     /// ```
     pub fn release(self) -> Result<(), WorktreeCopyError> {
-        // The record of the object the stage's creation made goes first, so a kill in between leaves a claim whose stage
-        // a later command reports rather than removes; then the destination record goes before the marker, and the marker
-        // before the claim.
+        // While the stage folder stands, nothing of the claim is removed, for the reason `stage_folder_may_still_stand`
+        // gives: a kill at any instruction then leaves the proofs of that folder, and the next command keeps it.
+        if self.stage_folder_may_still_stand() {
+            return Ok(());
+        }
+        // Once the folder is gone the records, the marker and the claim go in that order, and a kill anywhere in it
+        // leaves records that prove nothing.
         remove_made(self.path.as_path())?;
         if let Some(record) = self.destination_record.as_deref() {
             remove_file_if_present(record)?;

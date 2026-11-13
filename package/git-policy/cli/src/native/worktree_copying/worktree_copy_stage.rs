@@ -40,7 +40,7 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// join(stageContainer, 'payload')
 /// ```
-const PAYLOAD_NAME: &str = "payload";
+pub(crate) const PAYLOAD_NAME: &str = "payload";
 
 /// What:
 ///  The validated private snapshot of one source,

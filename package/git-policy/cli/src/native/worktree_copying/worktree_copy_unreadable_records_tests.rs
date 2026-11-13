@@ -205,22 +205,23 @@ fn claim_path_of(common: &Path, claim: &crate::worktree_copy_stage_claim::StageC
 }
 
 /// What:
-///  Every event the kernel reported for one file while `run` took its course.
+///  Every event the kernel reported in one directory while `run` took its course,
+/// as the mask and the name the event names.
 /// Why:
 ///   The claim's own name must never be absent while a command settles it,
-///  and the end state is the same whether the name was taken away and written again or never moved,
+///  and the end state is the same whether the name was taken away and written again or replaced in place,
 ///  so only the events of the call tell the two apart:
-///  a rename of the watched file reports `IN_MOVE_SELF`,
-///  a link to it and a rename over it report its link count changing (`IN_ATTRIB`).
+///  a rename of the claim into the folder beside the records reports `IN_MOVED_FROM` for its name,
+///  while a copy of its bytes and one rename over it report `IN_MOVED_TO` for that name and nothing else.
 ///  The watch is read once the call is done,
 ///  because the kernel queues the events whether or not anybody reads them in between.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const masks = watchEvents(claimPath, () => settleUnreadableRecords(common, verdicts));
+/// const events = watchEvents(journalRoot, () => settleUnreadableRecords(common, verdicts));
 /// ```
 #[cfg(target_os = "linux")]
-fn watch_events<F: FnOnce()>(file: &Path, run: F) -> Vec<u32> {
+fn watch_events<F: FnOnce()>(folder: &Path, run: F) -> Vec<(u32, String)> {
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
     use std::os::unix::ffi::OsStrExt;
     // SAFETY: the call takes no arguments and answers a new descriptor or a negative number.
@@ -228,12 +229,13 @@ fn watch_events<F: FnOnce()>(file: &Path, run: F) -> Vec<u32> {
     assert!(raw >= 0, "a watch is opened: {}", std::io::Error::last_os_error());
     // SAFETY: `raw` is a descriptor this call alone owns, and it is closed when `fd` drops.
     let fd: OwnedFd = unsafe { OwnedFd::from_raw_fd(raw) };
-    let name: std::ffi::CString = std::ffi::CString::new(file.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let name: std::ffi::CString = std::ffi::CString::new(folder.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let watched: u32 = libc::IN_MOVED_FROM | libc::IN_MOVED_TO | libc::IN_CREATE | libc::IN_DELETE;
     // SAFETY: `name` is a NUL-terminated path that outlives the call, and the descriptor is open.
-    let watch: libc::c_int = unsafe { libc::inotify_add_watch(fd.as_raw_fd(), name.as_ptr(), libc::IN_MOVE_SELF | libc::IN_DELETE_SELF | libc::IN_ATTRIB) };
-    assert!(watch >= 0, "the file is watched: {}", std::io::Error::last_os_error());
+    let watch: libc::c_int = unsafe { libc::inotify_add_watch(fd.as_raw_fd(), name.as_ptr(), watched) };
+    assert!(watch >= 0, "the folder is watched: {}", std::io::Error::last_os_error());
     run();
-    let mut masks: Vec<u32> = Vec::new();
+    let mut events: Vec<(u32, String)> = Vec::new();
     let mut buffer: [u8; 4096] = [0; 4096];
     loop {
         // SAFETY: the descriptor is open, and the buffer is the length handed to the call.
@@ -245,22 +247,24 @@ fn watch_events<F: FnOnce()>(file: &Path, run: F) -> Vec<u32> {
         while at + 16 <= read as usize {
             let mask: [u8; 4] = buffer[at + 4..at + 8].try_into().expect("four bytes of a mask");
             let name_length: [u8; 4] = buffer[at + 12..at + 16].try_into().expect("four bytes of a name length");
-            masks.push(u32::from_ne_bytes(mask));
-            at += 16 + u32::from_ne_bytes(name_length) as usize;
+            let length: usize = u32::from_ne_bytes(name_length) as usize;
+            let named: String = String::from_utf8_lossy(&buffer[at + 16..at + 16 + length]).trim_end_matches('\0').to_string();
+            events.push((u32::from_ne_bytes(mask), named));
+            at += 16 + length;
         }
     }
-    return masks;
+    return events;
 }
 
-/// Whether the watched file was taken away from its own name.
+/// Whether any event took `name` away from the folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const movedAway = (masks) => masks.some((mask) => (mask & (IN_MOVE_SELF | IN_DELETE_SELF)) !== 0);
+/// const takenAway = (events, name) => events.some(([mask, named]) => named === name && (mask & (IN_MOVED_FROM | IN_DELETE)) !== 0);
 /// ```
 #[cfg(target_os = "linux")]
-fn was_taken_away(masks: &[u32]) -> bool {
-    return masks.iter().any(|mask: &u32| { return mask & (libc::IN_MOVE_SELF | libc::IN_DELETE_SELF) != 0; });
+fn was_taken_away(events: &[(u32, String)], name: &str) -> bool {
+    return events.iter().any(|(mask, named): &(u32, String)| { return named == name && mask & (libc::IN_MOVED_FROM | libc::IN_DELETE) != 0; });
 }
 
 /// An unreadable claim is settled without its own name ever being taken away,
@@ -284,10 +288,11 @@ fn settling_an_unreadable_claim_never_takes_its_own_name_away() {
     std::fs::write(claim_path.as_path(), b"").expect("the claim loses what it said");
     std::fs::set_permissions(claim_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("private claim");
     let mut verdicts: StageVerdicts = StageVerdicts::default();
-    let masks: Vec<u32> = watch_events(claim_path.as_path(), || {
+    let events: Vec<(u32, String)> = watch_events(journal_root(common.as_path()).as_path(), || {
         settle_unreadable_records(common.as_path(), &mut verdicts).expect("settled");
     });
-    assert!(!was_taken_away(masks.as_slice()), "the claim's name was never taken away: {masks:?}");
+    let claim_name: String = claim_path.file_name().expect("a name").to_string_lossy().into_owned();
+    assert!(!was_taken_away(events.as_slice(), claim_name.as_str()), "the claim's name was never taken away: {events:?}");
     // The positive control: a claim whose folder nothing beside it names is moved, and this watch sees that.
     let other: PathBuf = scratch("claim-name-lost");
     let other_common: PathBuf = other.join("common");
@@ -298,10 +303,11 @@ fn settling_an_unreadable_claim_never_takes_its_own_name_away() {
     std::fs::write(lost_path.as_path(), b"").expect("the claim loses what it said");
     std::fs::set_permissions(lost_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("private claim");
     let mut other_verdicts: StageVerdicts = StageVerdicts::default();
-    let seen: Vec<u32> = watch_events(lost_path.as_path(), || {
+    let seen: Vec<(u32, String)> = watch_events(journal_root(other_common.as_path()).as_path(), || {
         settle_unreadable_records(other_common.as_path(), &mut other_verdicts).expect("settled");
     });
-    assert!(was_taken_away(seen.as_slice()), "the watch sees a claim that is moved aside, so the control above could have seen one: {seen:?}");
+    let lost_name: String = lost_path.file_name().expect("a name").to_string_lossy().into_owned();
+    assert!(was_taken_away(seen.as_slice(), lost_name.as_str()), "the watch sees a claim that is moved aside, so the control above could have seen one: {seen:?}");
     std::fs::remove_dir_all(base.as_path()).expect("the fixture");
     std::fs::remove_dir_all(other.as_path()).expect("the fixture");
 }

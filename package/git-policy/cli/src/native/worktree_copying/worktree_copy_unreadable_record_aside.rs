@@ -3,7 +3,7 @@
 //!  and how it gets there:
 //!  one step into a folder of its own under the journal root,
 //!  never deleting it and never over another record,
-//!  a link that leaves the record at its own name where a reader of the name comes between the two steps,
+//!  a copy of the bytes that leaves the record at its own name where a reader of the name comes between the two steps,
 //!  and a rename where the name is the copy's to take.
 //! Why:
 //!  The record is the only trace of what the interrupted copy was doing,
@@ -141,11 +141,13 @@ pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Resul
 ///   A claim's name must never be absent while its writer's records still stand:
 /// the sweeps read an absent claim as "no add stands behind these records",
 /// remove the record that proves the stage folder,
-/// and the stage is then taken for a copy's own and removed with
-///  whatever a person put in it.
-/// A link is one step that never replaces a name and never takes the name it links,
-/// so the bytes stand where a person reads them and at the name every reader uses,
-/// until one rename replaces the record with its readable form.
+/// and the stage is then taken for a copy's own and removed with whatever a person put in it.
+/// A second *name* for the claim is not the way to keep it:
+/// `assert_private_path` requires a journal file to have one name,
+/// every recovery reads every claim before it does anything,
+/// and a claim with two names stops every command of the repository until a person deletes one of them.
+/// So the bytes are copied, never linked,
+/// and the claim keeps one name from the first step to the last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,48 +156,32 @@ pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Resul
 pub fn keep_aside(common_dir: &Path, record: &Path, kept_name: &OsStr) -> Result<Option<PathBuf>, WorktreeCopyError> {
     let folder: PathBuf = unreadable_folder(common_dir)?;
     let target: PathBuf = folder.join(kept_name);
-    // `match` on the one link: a vanished record is another command's work, and a name already taken holds these bytes
-    // already, so neither needs a second name.
-    match std::fs::hard_link(record, target.as_path()) {
-        Ok(()) => return Ok(Some(target)),
+    // `match` on the shape: a record that is no plain file cannot be copied, and one already kept keeps the first copy.
+    let shape: std::fs::Metadata = match std::fs::symlink_metadata(record) {
+        Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(Some(target)),
-        // A record that is no plain file, or a filesystem without links, is kept the way this pass kept every record
-        // before: one rename, which takes the name it moves. The sweeps that follow read an absent claim as a stage
-        // nothing proves only while this record is the only name that folder has, and a folder a claim can name again
-        // is settled by the next pass.
-        Err(error) if is_unlinkable(&error) => return move_aside(common_dir, record, kept_name),
-        Err(error) => {
-            return Err(failure_with_cause(
-                format!(
-                    "monochromatic-git-policy-cli: the worktree-copy record {} could not be kept in {}.",
-                    quote(record.to_string_lossy().as_ref()),
-                    quote(folder.to_string_lossy().as_ref())
-                )
-                .as_str(),
-                Some(&error),
-            ));
-        }
+        Err(error) => return Err(raw_failure(&error)),
+    };
+    if !shape.file_type().is_file() {
+        // A directory, a pipe or a link: one rename, which takes the name it moves, as this pass always did. Nothing
+        // writes one of those at a claim's name, and the record whose folder still stands keeps its stage.
+        return move_aside(common_dir, record, kept_name);
     }
-}
-
-/// What:
-///  Whether a refused link means the record cannot be kept by a link at all,
-/// rather than that something else went wrong.
-/// Why:
-///   A directory has no second name (`EPERM`),
-/// a filesystem may refuse links (`ENOSYS`,
-/// `EPERM`,
-/// `EXDEV`),
-/// and one record may have no more (`EMLINK`);
-/// every other refusal is a fault the person reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unlinkable = (error) => [EPERM, EISDIR, ENOSYS, EXDEV, EMLINK].includes(error.code);
-/// ```
-fn is_unlinkable(error: &std::io::Error) -> bool {
-    return matches!(error.raw_os_error(), Some(libc::EPERM) | Some(libc::EISDIR) | Some(libc::ENOSYS) | Some(libc::EXDEV) | Some(libc::EMLINK));
+    if std::fs::symlink_metadata(target.as_path()).is_ok() {
+        return Ok(Some(target));
+    }
+    let bytes: Vec<u8> = match std::fs::read(record) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        // A record that cannot be read here cannot be kept here; the rename this pass always used keeps what it can.
+        Err(_unreadable) => return move_aside(common_dir, record, kept_name),
+    };
+    // A copy that cannot be written must not stop the command: the claim's own bytes are still at its name, and the
+    // next pass keeps them.
+    if crate::worktree_copy_journal::write_atomic_unsynced(target.as_path(), bytes.as_slice(), "unreadable worktree-copy record").is_err() {
+        return move_aside(common_dir, record, kept_name);
+    }
+    return Ok(Some(target));
 }
 
 /// What:

@@ -31,10 +31,11 @@ use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
+use crate::worktree_copy_stage::PAYLOAD_NAME;
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
 use crate::worktree_copy_stage_claim_owed_copy_elsewhere::copy_owed_to_another_worktree;
 use crate::worktree_copy_stage_made_object::remove_made;
-use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
+use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_copy_stage_words, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
 // The sweeps that remove files rather than stages live beside this file, so this one stays under the line limit.
 pub use crate::worktree_copy_stage_claim_swept_files::remove_dead_temporaries;
 pub(crate) use crate::worktree_copy_stage_claim_swept_files::remove_records_nothing_claims;
@@ -65,6 +66,64 @@ struct ClaimFields<'a> {
     /// The owner token,
     /// when the record names one.
     owner: Option<String>,
+}
+
+/// What:
+///  Whether any of these files stands,
+/// answering yes when one cannot be looked up for any reason but absence.
+/// Why:
+///   Every one of them is a proof that a stage folder is an add's,
+/// and a proof that could not be read is not an absence of one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standsAnyOf = (paths) => paths.some((path) => existsOrUnknown(path));
+/// ```
+fn stands_any_of(paths: &[&Path]) -> bool {
+    for path in paths {
+        if !matches!(std::fs::symlink_metadata(path), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The first top-level entry of a stage folder that the wrapper's own stage does not hold,
+/// or nothing when every entry is one this wrapper makes there.
+/// Why:
+///   A dead claim with no record proves nothing about the folder it names:
+/// a copy's stage holds the payload of the source's ignored state,
+/// the registration of the worktree it fills,
+/// and temporaries of those writes,
+/// so a folder holding anything else may be a person's and is kept and named instead of removed.
+/// Only the top level is read:
+/// what a copy wrote inside its payload is the copy's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unexplained = readdir(container).find((name) => !isTheWrappersOwn(name));
+/// ```
+fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Option<String>, WorktreeCopyError> {
+    let listing = match std::fs::read_dir(container) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(raw_failure(&error)),
+    };
+    let mut names: Vec<String> = Vec::new();
+    for listed in listing {
+        names.push(listed.map_err(raw_failure_of)?.file_name().to_string_lossy().into_owned());
+    }
+    names.sort();
+    for name in names {
+        let own: bool = name == PAYLOAD_NAME
+            || name == crate::worktree_copy_stage_binding::STAGE_BINDING_NAME
+            || name.starts_with(format!("{}.", crate::worktree_copy_stage_binding::STAGE_BINDING_NAME).as_str());
+        if !own {
+            return Ok(Some(name));
+        }
+    }
+    return Ok(None);
 }
 
 /// What:
@@ -181,6 +240,13 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
         Ok(_) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(raw_failure(&error)),
+    }
+    // A claim with a second name is the half-done keep of a release before this one: its bytes were linked into the
+    // folder beside the records before the claim was written again, and every command then refused the claim for ever
+    // after. It is answered as unreadable here, so the pass that settles a claim it cannot read finishes that keep
+    // (issue 6297 covers the link; the release that wrote it is 0.6.1-alpha.15's).
+    if std::fs::symlink_metadata(claim).is_ok_and(|found: std::fs::Metadata| { return std::os::unix::fs::MetadataExt::nlink(&found) > 1; }) {
+        return Ok(Some(ClaimFile::Unreadable { reason: String::from("it has a second name, and a claim of this release has one") }));
     }
     assert_private_path(claim, Role::JournalFile)?;
     // `match` on the read: the claim can vanish between the lookup and the read, and bytes that are not text are damage.
@@ -493,11 +559,19 @@ pub fn reap_judged_stages(
             let present: bool = still_there(container.as_path())?;
             let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
             // A record that cannot be looked up counts as one: when in doubt the stage is kept. The record of the object a
-            // stage's creation made says the same thing on its own, and a sweep that removed the destination record of an
-            // interrupted add must not leave its stage to be taken for a copy's own: that branch removes a folder without
-            //  asking whether a person put anything in it.
-            let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound)
-                || !matches!(std::fs::symlink_metadata(crate::worktree_copy_stage_made_object::made_record_beside_claim(claim.as_path()).as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
+            // stage's creation made and the completion marker say the same thing on their own, and a sweep that removed
+            // the destination record of an interrupted add must not leave its stage to be taken for a copy's own: that
+            // branch removes a folder without asking whether a person put anything in it. The marker is written by an
+            // add and by nothing else, and a release of an earlier release removed both records before it, so a kill
+            // inside that release leaves this claim with no record at all (issue 6296).
+            let of_an_add: bool = stands_any_of(
+                [
+                    record.as_path(),
+                    crate::worktree_copy_stage_made_object::made_record_beside_claim(claim.as_path()).as_path(),
+                    claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path(),
+                ]
+                .as_slice(),
+            );
             let mut stage_stays: bool = false;
             // The exchange a kill interrupted left the directory Git made at the stage name, which the proof below
             // cannot account for; settling it is one empty folder and a few identity checks, never a copy, so every
@@ -525,12 +599,20 @@ pub fn reap_judged_stages(
                     }
                 } else {
                     // A copy's stage is a private directory this wrapper made; one another command removed in between is
-                    // nobody's failure.
+                    // nobody's failure. A folder holding an entry the wrapper's own stage does not explain proves
+                    // nothing either way, so it is kept and named rather than removed: it may be a person's, and the
+                    // removal is recursive.
                     match assert_private_path(container.as_path(), Role::PrivateStage) {
-                        Ok(()) => {
-                            remove_stage(container.as_path())?;
-                            notices.push(removed_copy_stage_words(container.as_path()));
-                        }
+                        Ok(()) => match an_entry_the_wrappers_stage_does_not_explain(container.as_path())? {
+                            Some(entry) => {
+                                notices.push(kept_copy_stage_words(container.as_path(), format!("it holds {entry}, which the wrapper's own stage does not hold").as_str()));
+                                stage_stays = true;
+                            }
+                            None => {
+                                remove_stage(container.as_path())?;
+                                notices.push(removed_copy_stage_words(container.as_path()));
+                            }
+                        },
                         Err(_) if !still_there(container.as_path())? => {}
                         Err(error) => return Err(error),
                     }

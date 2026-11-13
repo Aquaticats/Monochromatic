@@ -200,6 +200,27 @@ pub(crate) fn removed_stage_words(container: &Path) -> String {
 }
 
 /// What:
+///  The words for a stage a copy left that the reaping keeps,
+/// with the reason it was kept.
+/// Why:
+///   A copy's stage is removed without asking what it holds,
+/// so the one folder that rule does not cover is the one holding something the wrapper's own stage does not:
+/// the person reads which folder stands,
+/// what in it is not the copy's,
+/// and how to remove it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the stage ${path} that an interrupted ignored-state copy left behind was not changed: ${reason}; remove it yourself once nothing needs it (...)`
+/// ```
+pub(crate) fn kept_copy_stage_words(container: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the stage {} that an interrupted ignored-state copy left behind was not changed: {reason}; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
+        quote(container.to_string_lossy().as_ref())
+    );
+}
+
+/// What:
 ///  The words for a stage container a copy left that the reaping removed.
 /// Why:
 ///   The same line the incumbent says,

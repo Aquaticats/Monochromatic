@@ -1801,9 +1801,12 @@ fn recording_the_object_writes_the_container_the_identity_and_the_instant() {
         Some(Some(object)),
         "a raised cut-off keeps the object the record proves"
     );
+    // The folder is settled before a claim is released, which is what a release reads: while it stands, nothing of the
+    // claim goes (issue 6296).
+    make_removable(container.as_path());
+    std::fs::remove_dir_all(container.as_path()).expect("the folder the claim named is settled");
     claim.release().expect("release");
     assert!(!record.exists(), "the release takes the record with the claim");
-    make_removable(container.as_path());
     remove(root.as_path());
 }
 
@@ -2242,9 +2245,12 @@ fn a_record_written_before_the_container_exists_names_no_object() {
         "a record an earlier release wrote names the container and the instant, and no object"
     );
     let record: PathBuf = made_record_beside_claim(claim.path.as_path());
+    // The folder is settled before a claim is released, which is what a release reads: while it stands, nothing of the
+    // claim goes (issue 6296).
+    make_removable(container.as_path());
+    std::fs::remove_dir_all(container.as_path()).expect("the folder the claim named is settled");
     claim.release().expect("release");
     assert!(!record.exists(), "the release takes the record with the claim");
-    make_removable(container.as_path());
     remove(root.as_path());
 }
 
@@ -2668,11 +2674,10 @@ fn the_orphan_state_a_kill_inside_the_release_left(name: &str, mode: u32) -> AnA
     create_private_directory(container.as_path()).expect("the folder Git made");
     std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(mode)).expect("the folder's mode");
     std::fs::write(container.join("person-keep.txt"), b"a person's only copy").expect("a person's file");
-    // The release removed both records and then the marker, and the kill came before the claim.
+    // The release of an earlier release removed both records, and the kill came before the marker and the claim.
     claim.mark_complete_unsynced().expect("the add completed");
     crate::worktree_copy_stage_made_object::remove_made(claim.path.as_path()).expect("the record of the object went");
     crate::worktree_copy_journal_removal::remove_file_if_present(claim.path.with_extension("add").as_path()).expect("the destination record went");
-    crate::worktree_copy_journal_removal::remove_file_if_present(claim.path.with_extension("done").as_path()).expect("the marker went");
     let made: PathBuf = made_record_beside_claim(claim.path.as_path());
     let record: PathBuf = claim.path.with_extension("add");
     let marker: PathBuf = claim.path.with_extension("done");
@@ -2705,4 +2710,107 @@ fn the_same_state_with_a_folder_that_is_not_private_does_not_stop_the_command() 
     assert!(left.container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
     make_removable(left.container.as_path());
     remove(left.root.as_path());
+}
+
+/// What:
+///  A dead copy's claim whose folder holds a file the wrapper's own stage does not,
+/// which is the state the review's end-to-end script plants:
+/// a readable claim naming a private folder,
+/// no record beside it,
+/// and a person's file inside.
+/// Why:
+///   The copy branch of the reaping removes a private folder recursively without asking what it holds,
+/// so a folder holding anything but the copy's own layout is a person's and is kept and named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = aDeadCopysStageHoldingAPersonsFile('...');
+/// ```
+fn a_dead_copy_stage_holding_a_persons_file(name: &str) -> (PathBuf, PathBuf, StageClaim) {
+    let (root, common, destination) = scene(name);
+    // A copy's claim names its stage and writes no destination record beside it.
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("a claim of a dead owner");
+    let container: PathBuf = claim.container().to_path_buf();
+    // A copy's stage is an empty private directory or holds its payload; this one holds a person's file.
+    create_private_directory(container.as_path()).expect("the folder the copy made");
+    std::fs::write(container.join("person-keep.txt"), b"a person's only copy").expect("a person's file");
+    // The claim file stands where a kill would leave it; nothing of this control releases it.
+    return (root, common, claim);
+}
+
+/// A dead claim's folder that holds a file the wrapper's own stage does not is kept and named,
+/// and the line names the file that kept it.
+/// Why the control reads this way:
+///  the copy branch removes a private folder recursively,
+///  so without this rule a person's file goes with the folder and the command says only that a copy's stage went.
+#[test]
+fn a_dead_copys_stage_holding_a_persons_file_is_kept_and_named() {
+    let (root, common, claim) = a_dead_copy_stage_holding_a_persons_file("claim-copy-holds-person");
+    let container: PathBuf = claim.container().to_path_buf();
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the command goes on");
+    assert!(container.join("person-keep.txt").exists(), "the person's file survives: {notices:?}");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("person-keep.txt"); }), "the folder is kept and the line names the file: {notices:?}");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// How many times one arm of the release measurement runs.
+const RELEASE_ARMS: usize = 200;
+
+/// The middle of `micros`,
+/// the slowest sample within the slowest hundredth,
+/// and the slowest sample of all.
+fn spread_of(mut micros: Vec<u128>) -> (u128, u128, u128) {
+    micros.sort_unstable();
+    let middle: u128 = micros[micros.len() / 2];
+    let p99: u128 = micros[(micros.len() * 99 / 100).min(micros.len() - 1)];
+    let largest: u128 = micros[micros.len() - 1];
+    return (middle, p99, largest);
+}
+
+/// What the release reads before it removes anything costs on an add's path,
+/// beside what the removals it skips cost,
+/// with one arm measured twice as the control for this host's spread.
+/// Run:
+/// `mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture
+/// measure_what_the_release_check_costs`.
+#[test]
+#[ignore = "a measurement for the report, not a control"]
+fn measure_what_the_release_check_costs() {
+    let (root, common, destination) = scene("claim-release-cost");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("a claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    create_private_directory(container.as_path()).expect("the folder Git made");
+    let claim_path: PathBuf = claim.path.clone();
+    let record: PathBuf = claim_path.with_extension("add");
+    let made: PathBuf = made_record_beside_claim(claim_path.as_path());
+    let marker: PathBuf = claim_path.with_extension("done");
+    let mut checked: Vec<u128> = Vec::new();
+    let mut removed: Vec<u128> = Vec::new();
+    let mut again: Vec<u128> = Vec::new();
+    for _sample in 0..RELEASE_ARMS {
+        // What the release reads now: the journals of this repository and the folder the claim names.
+        let check_started: std::time::Instant = std::time::Instant::now();
+        let named: bool = claim.a_journal_names_the_stage();
+        let stands: bool = crate::worktree_copy_stage_reaping_proof_and_words::still_there(container.as_path()).unwrap_or(true);
+        checked.push(check_started.elapsed().as_micros());
+        assert!(!named && stands, "the fixture is the ordinary add: no journal names the folder and it stands");
+        // What the release looked at before it removed anything: the four names it removes.
+        let names_started: std::time::Instant = std::time::Instant::now();
+        for path in [claim_path.as_path(), record.as_path(), made.as_path(), marker.as_path()] {
+            let _ = std::fs::symlink_metadata(path);
+        }
+        removed.push(names_started.elapsed().as_micros());
+        // The same read as the first arm, as the control for the spread.
+        let again_started: std::time::Instant = std::time::Instant::now();
+        let _ = claim.a_journal_names_the_stage();
+        let _ = crate::worktree_copy_stage_reaping_proof_and_words::still_there(container.as_path());
+        again.push(again_started.elapsed().as_micros());
+    }
+    for (arm, samples) in [("the check as released", checked), ("four name lookups", removed), ("the check again", again)] {
+        let (middle, p99, largest) = spread_of(samples);
+        println!("{arm}: median {middle} us, p99 {p99} us, max {largest} us");
+    }
+    make_removable(container.as_path());
+    remove(root.as_path());
 }
