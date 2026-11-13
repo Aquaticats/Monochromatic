@@ -273,6 +273,18 @@ fn is_a_per_worktree_name(name: &str) -> bool {
     return false;
 }
 
+/// How many symbolic refs one listing follows before it leaves the name out.
+///
+/// Git's own bound is `SYMREF_MAXDEPTH` (5) in `refs/files-backend.c`,
+/// and it counts the ref being listed as the first level:
+///  `refs/heads/link-2` pointing through four links at `refs/heads/main` is printed,
+/// and `refs/heads/link-1` pointing through five is not
+/// (measured with Git 2.56.0 on a fixture of five and of six links,
+///  `the_reader_answers_every_kind_of_store_as_git_does_or_declines`).
+/// So four links are followed here,
+/// and a name whose chain needs a fifth is dropped as Git drops it.
+pub const SYMBOLIC_REF_DEPTH_IN_A_LISTING: usize = 4;
+
 /// What:
 ///  The direct ref a symbolic ref's chain ends at,
 ///  as its name and its object,
@@ -281,7 +293,7 @@ fn is_a_per_worktree_name(name: &str) -> bool {
 ///  `for-each-ref` prints neither a ref that points at a name that does not exist nor one that points back into its own chain,
 /// and the name it prints beside a symbolic ref is the end of the chain,
 ///  so a two-step chain is printed with the ref it finally names.
-///  The depth is Git's own `SYMREF_MAXDEPTH` (5),
+///  The depth is Git's own, counted as Git counts it (`SYMBOLIC_REF_DEPTH_IN_A_LISTING`),
 /// so a chain Git refuses to follow is dropped here too.
 ///
 /// In TS you'd write (pseudocode):
@@ -316,7 +328,7 @@ fn find_by_name(entries: &[RefSnapshotEntry], name: &[u8]) -> Option<usize> {
 
 fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
     let mut current: Vec<u8> = target.to_vec();
-    for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
+    for _step in 0..SYMBOLIC_REF_DEPTH_IN_A_LISTING {
         // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
         let found: usize = find_by_name(entries, current.as_slice())?;
         if entries[found].symref.is_empty() {

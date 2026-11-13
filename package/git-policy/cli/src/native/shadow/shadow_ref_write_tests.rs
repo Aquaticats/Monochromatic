@@ -724,12 +724,14 @@ struct StoreKind {
 /// "the reader is not Git on input the fixtures never held",
 /// so every kind of store a repository can hold is named here,
 /// and the ones no fixture can build on this machine are named in the report instead.
-const STORE_KINDS: [StoreKind; 17] = [
+const STORE_KINDS: [StoreKind; 21] = [
     StoreKind { name: "packed", reading: Reading::InProcess },
     StoreKind { name: "loose-over-packed", reading: Reading::InProcess },
     StoreKind { name: "peeled-annotated-tag", reading: Reading::InProcess },
     StoreKind { name: "symbolic-ref", reading: Reading::InProcess },
     StoreKind { name: "symbolic-chain", reading: Reading::InProcess },
+    StoreKind { name: "symbolic-chain-of-five", reading: Reading::InProcess },
+    StoreKind { name: "symbolic-chain-of-six", reading: Reading::InProcess },
     StoreKind { name: "symbolic-to-a-missing-object", reading: Reading::InProcess },
     StoreKind { name: "symbolic-ending-nowhere", reading: Reading::InProcess },
     StoreKind { name: "worktree-namespaces-of-the-main-worktree", reading: Reading::InProcess },
@@ -742,6 +744,8 @@ const STORE_KINDS: [StoreKind; 17] = [
     StoreKind { name: "value-with-a-carriage-return", reading: Reading::ByGit },
     StoreKind { name: "damaged-packed-refs", reading: Reading::Refused },
     StoreKind { name: "reftable", reading: Reading::ByGit },
+    StoreKind { name: "sha256-object-format", reading: Reading::InProcess },
+    StoreKind { name: "ref-file-that-is-a-symlink", reading: Reading::ByGit },
 ];
 
 /// What:
@@ -784,6 +788,15 @@ fn build_store(root: &Path, kind: &StoreKind) -> (PathBuf, SnapshotSources, Read
         "symbolic-chain" => {
             git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
             git(repo.as_path(), &["symbolic-ref", "refs/heads/alias-again", "refs/heads/alias"]);
+        }
+        // Git follows at most five symbolic refs (`SYMREF_MAXDEPTH`), and the reader has to make the same cut:
+        //  the five-link chain ends at `main` and the six-link one does not end at a ref Git will follow.
+        "symbolic-chain-of-five" | "symbolic-chain-of-six" => {
+            let links: usize = if kind.name == "symbolic-chain-of-five" { 5 } else { 6 };
+            for step in 1..=links {
+                let target: String = if step == links { String::from("refs/heads/main") } else { format!("refs/heads/link-{}", step + 1) };
+                git(repo.as_path(), &["symbolic-ref", format!("refs/heads/link-{step}").as_str(), target.as_str()]);
+            }
         }
         "symbolic-to-a-missing-object" => {
             write_loose(repo.as_path(), "refs/heads/ghost", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n");
@@ -849,6 +862,24 @@ fn build_store(root: &Path, kind: &StoreKind) -> (PathBuf, SnapshotSources, Read
             ref_format = RefFormat::Reftable;
             let git_dir: PathBuf = own.join(".git");
             return (own, SnapshotSources::of(git_dir.clone(), git_dir, ref_format, "sha1"), kind.reading);
+        }
+        // A repository whose object names are 64 hexadecimal digits: the reader is given that width by its sources.
+        "sha256-object-format" => {
+            let own: PathBuf = root.join("sha256-repository");
+            std::fs::create_dir_all(own.as_path()).expect("a fixture directory");
+            git(own.as_path(), &["init", "--quiet", "--object-format=sha256", "--initial-branch=main"]);
+            std::fs::write(own.join("a.txt"), "a\n").expect("a file");
+            git(own.as_path(), &["add", "a.txt"]);
+            git(own.as_path(), &["commit", "--quiet", "--message=one"]);
+            let git_dir: PathBuf = own.join(".git");
+            return (own, SnapshotSources::of(git_dir.clone(), git_dir, RefFormat::Files, "sha256"), kind.reading);
+        }
+        // A loose ref that is a symbolic link is not a ref file Git wrote, so the reader declines and Git answers.
+        "ref-file-that-is-a-symlink" => {
+            let elsewhere: PathBuf = repo.join("elsewhere");
+            std::fs::write(elsewhere.as_path(), format!("{head}\n")).expect("a file to point at");
+            let path: PathBuf = repo.join(".git").join("refs/heads/linked");
+            std::os::unix::fs::symlink(elsewhere.as_path(), path.as_path()).expect("a linked ref file");
         }
         other => panic!("the sweep names a kind it does not build: {other}"),
     }
