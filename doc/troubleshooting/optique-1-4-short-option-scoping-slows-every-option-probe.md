@@ -15,8 +15,9 @@ and the timing figures here were rewritten as ratios between versions run in the
 with absolute times kept only as scale;
 that rewrite is not reviewed either.
 Upstream merged pull request 1121 on 2026-11-13,
-after the measurements here were taken of its branch;
-`main` has not been measured again since.
+after the first measurement here was taken of its branch.
+The merge itself was then measured on Node and Bun the same day;
+that second measurement and what is written from it have had no review.
 
 Status,
 2026-11-12:
@@ -291,14 +292,14 @@ Its figure is kept because upstream supports it.
 
 ### Upstream's pull request 1121 as measured here
 
-Seven rounds with the order of the arms rotated,
+Two measurements,
+each of seven rounds with the order of the arms rotated,
+a thousand paths after `--`,
+paired by round.
+
+The first ran on Deno 2.9.8,
 1.3.6 from npm and the other arms from source:
 `main` at `84f95710` and the pull request's head `a175cdb7`.
-It was measured on Deno 2.9.8 only,
-because the source arms run there without a build,
-and was not repeated on Node or Bun.
-A thousand paths after `--`,
-paired by round:
 
 - `main` before the merge over 1.3.6:
    1.87 (1.79 to 1.92).
@@ -307,28 +308,65 @@ paired by round:
 - Pull request 1121 over 1.3.6:
    1.37 (1.34 to 1.42).
 
-Every round went the same way in each comparison.
+The second ran on Node 26.13.1 and Bun 1.4.4 with every arm a built package,
+after the owner asked on 2026-11-13 why a timing was on Deno only.
+`main` before the merge is `84f95710`,
+the first parent of the merge `d26f1a24`,
+and the pull request is that merge,
+whose tree is the tree of `a175cdb7`.
+One more arm linked the merge's package a second time,
+to show how far the same code differs from itself.
+
+- `main` before the merge over 1.3.6:
+   Node 1.89 (1.67 to 2.29),
+   Bun 2.53 (2.11 to 3.00).
+- Pull request 1121 over that `main`:
+   Node 0.72 (0.62 to 0.77),
+   Bun 0.73 (0.66 to 0.79).
+- Pull request 1121 over 1.3.6:
+   Node 1.37 (1.27 to 1.63),
+   Bun 1.95 (1.62 to 1.99).
+- The merge's package over itself:
+   Node 1.00 (0.96 to 1.03),
+   Bun 1.06 (0.95 to 1.09).
+
+Every round went the same way in each of the first three comparisons,
+on each runtime.
 The pull request's own figures,
 on Node and another machine,
 come to 0.70 times `main` and 1.47 times 1.3.6;
 it says
 "the separator case remains slower than 1.3.6".
-The two measurements agree on the direction and roughly on the size.
+The measurements agree on the direction and roughly on the size.
+On Bun the pull request leaves about twice the time of 1.3.6,
+where on Node and Deno it leaves about 1.4 times.
 For scale only:
-the medians here were 30.8 ms for 1.3.6,
+the medians on Deno were 30.8 ms for 1.3.6,
 56.5 for `main` and 42.0 for the pull request,
 and the pull request's own were 37.0,
 77.6 and 54.3.
 
-With no separator the pull request took 0.80 times as long as `main` (0.79 to 0.81).
+With no separator the pull request over `main` was 0.80 on Deno (0.79 to 0.81),
+0.78 on Node (0.70 to 0.84) and 0.69 on Bun (0.61 to 0.89).
 
 What remains after it is still option-scope work,
 since 1.3.6 carries every other cost of this parse too.
-A separate cost that both carry happens to be about as large:
-with the input-trace patch of
+On Node and Deno a separate cost that both carry happens to be about as large.
+With the input-trace patch of
 `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md` on top of the pull request,
-the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07,
-two of seven rounds slower).
+the same parse over 1.3.6 was 0.94 on Deno (0.86 to 1.07,
+two of seven rounds slower)
+and 0.92 on Node (0.84 to 1.05,
+one of seven slower).
+On Bun it was 1.92 (1.84 to 2.28),
+slower in all seven:
+at a thousand paths that patch changes nothing measurable there,
+the patched merge over the merge being 1.07 (0.95 to 1.22),
+no further from 1 than the merge's package over itself.
+
+The records of the second measurement are in
+`doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
+folder `pull-request-1121-on-node-and-bun-2026-11-13`.
 
 ## Verified workarounds
 

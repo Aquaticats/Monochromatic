@@ -42,6 +42,10 @@
    a time in milliseconds stays only where it is labelled as scale,
    where it quotes upstream or commit `4879a44e6a`,
    or where upstream's own estimate is an absolute time.
+   Every measurement in this document ran on Node.
+   None ran on Deno,
+   whose maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
+   with no new feature work.
    No reviewer has read this rewrite yet.
 - Scope:
    how the eager "did you mean" cost entered `@optique/core`,
@@ -711,7 +715,7 @@ that reading comes from the patch's code and was not tested separately.
 
 From 1.3.2 through 1.3.6,
 short and long paths cost the same
-(the two medians of 1.3.6 differ by 0.3 ms in 184),
+(the two medians of 1.3.6 differ by under 0.2%),
 and on the pre-releases with [pull request 997][] about half of that.
 What remains no longer depends on the token's length.
 
@@ -998,8 +1002,9 @@ per version:
    approaching the 4 a square gives;
    from 4 to 256 characters the time rose in a straight line,
    and fitted as a power of the length its exponent was 0.82 (standard deviation 0.01 over five rounds);
+   256 characters took 27 to 30 times as long as 4 in each of the five rounds;
    the slope,
-   about 4.3 ms per character at 500 tokens and 16 options,
+   4.6 to 4.8 ms per character by round at 500 tokens and 16 options,
    is for scale only;
    the exponent in tokens was 1.13.
    The prediction held,
@@ -1017,8 +1022,9 @@ per version:
    flat in length,
    with an exponent of -0.07 (standard deviation 0.04),
    and one exception at twelve characters,
-   where it took close to four times as long as at the other lengths
-   (77 ms against about 20,
+   where its median was 3.8 times that of the other lengths,
+   and in single rounds 3.3 to 5.6 times that of eight or sixteen characters
+   (84 ms against about 22 by the medians,
    for scale only).
    The length check of [pull request 992][] skips a name only when its length differs from the token's by more than three
    characters or by more than half the token's length,
@@ -1084,7 +1090,8 @@ which it contains.
 A function-by-function comparison of profiles attributes it:
 of the time added per parse,
 `short-option.js` accounts for 95%
-(32.0 of 33.6 ms in the two profiles),
+(32.0 of 33.6 ms in the two profiles,
+for scale only),
 and that file does not exist in 1.3.2.
 
 Its source,
@@ -1268,3 +1275,4 @@ These need the maintainer's own account:
 [issue 1083]: https://github.com/dahlia/optique/issues/1083
 [issue 1084]: https://github.com/dahlia/optique/issues/1084
 [paired differences]: #the-differences-with-each-process-as-one-observation
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027

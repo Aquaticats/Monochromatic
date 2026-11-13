@@ -1092,7 +1092,35 @@ to settle before a reply:
   Times that remain in milliseconds are labelled as scale,
   quote upstream or commit `4879a44e6a`,
   or sit beside upstream's own estimate of "less than 1ms".
-  No reviewer has read the recast.
+  A sixth review pass reads the recast as of commit `ce2cc36df5`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-sixth-pass-prompt.md`,
+  run folder `optique-input-trace-and-reply-claim-check-6`,
+  report to `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-6.md`).
+  Its findings are still to be weighed.
+- One timing was still on Deno alone after that:
+  upstream's pull request 1121,
+  which both drafts report.
+  It was repeated on 2026-11-13 on Node 26.13.1 and Bun 1.4.4 with every arm a built package,
+  seven rounds,
+  with the merge's package linked twice as a same-code control.
+  A thousand paths after `--`:
+  the pull request over `main` before it was 0.72 on Node and 0.73 on Bun,
+  and over 1.3.6 it was 1.37 on Node and 1.95 on Bun.
+  The input-trace patch on top brings it level with 1.3.6 on Node (0.92) and changes nothing on Bun at that size (1.92),
+  so the drafts no longer say the patch closes that gap without naming the runtime.
+  The figures are in the short-option and input-trace documents,
+  the records in the evidence archive,
+  folder `pull-request-1121-on-node-and-bun-2026-11-13`.
+  Not reviewed by anyone:
+  that measurement,
+  what is written from it,
+  and the corrections made to the recast after commit `ce2cc36df5`
+  (two unlabelled times in the research record,
+  its figures for the sweep over token length recomputed from the fit record,
+  Deno's row and the arms' provenance added beside the buffer view's ratios,
+  and the note on Deno's state in the research record).
+  A review pass of its own is to read them,
+  by a fresh reviewer session.
 - Asked the same day which of the recheck's results the reply draft should carry,
   the owner chose the second patch with its costs and the buffer finding,
   and not the note about `concat`.
@@ -1155,6 +1183,13 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
   the archive records the research record's ratios were computed from,
   the lint and publish logs of the recast,
   and the browser check of the published README.
+- `optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/`:
+  the runner,
+  image recipe and records of the Node and Bun timing of pull request 1121;
+  its `keep/` folder holds the records,
+  which are also in the evidence archive.
+  It built the image `localhost/optique-pull-request-1121-on-node-and-bun:2026-11-13`,
+  kept until its review is folded in.
 
 Container images `localhost/optique-cross-runtime:2026-11-13`,
 `localhost/optique-upstream-arms:2026-11-13`,
