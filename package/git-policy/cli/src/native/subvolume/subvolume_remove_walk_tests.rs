@@ -284,3 +284,43 @@ fn a_link_is_unlinked_and_its_target_kept_by_the_pass_that_goes_around() {
     assert_eq!(std::fs::read(parent.join("outside")).expect("kept"), b"keep", "its target is not touched");
     remove(parent.as_path());
 }
+
+/// What:
+///  A volume put at the name of a directory the pass has just asked about is kept,
+///  and nothing inside it is removed.
+/// Why:
+///  The pass asks what an entry is and then opens it for reading,
+/// and the two are not one step:
+/// a subvolume renamed over a plain directory between them was opened,
+/// emptied and removed,
+///  which is exactly what a removal that "goes around" a volume promises never to do.
+///  The control states the exchange at that moment, so it is the same window every time rather than a race.
+#[test]
+fn btrfs_a_volume_put_at_the_name_after_the_check_is_kept() {
+    let Some(root) = btrfs_fixture("walk-around-swap") else { return };
+    let tree: PathBuf = root.join("tree");
+    std::fs::create_dir_all(tree.join("d")).expect("the directory the swap takes");
+    std::fs::write(tree.join("d/beside.txt"), b"removed").expect("a file of the worktree");
+    subvolume_create_at(tree.join("racer").as_path()).expect("a volume the pass did not make");
+    std::fs::write(tree.join("racer/precious.txt"), b"RACER PRECIOUS\n").expect("a file the person put there");
+    let held: File = open_root(tree.as_path()).expect("open the top");
+    let swapped: File = held.try_clone().expect("a handle of the top");
+    let at: PathBuf = tree.join("d");
+    let once: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    crate::subvolume_remove_listing_test_support::act_after_each_check(move |checked: &Path| {
+        if checked != at.as_path() || once.replace(true) {
+            return;
+        }
+        // The volume takes the name of the plain directory the pass has just judged, and the directory takes the volume's
+        //  name: the pass's next open of that name reaches the volume.
+        crate::fs_beneath::exchange_at(&swapped, std::ffi::OsStr::new("d"), std::ffi::OsStr::new("racer")).expect("exchange the two");
+    });
+    let passed: std::io::Result<()> = empty_directory_around(&held, tree.as_path());
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    passed.expect("the pass finishes");
+    let survived: bool = tree.join("d/precious.txt").is_file() || tree.join("racer/precious.txt").is_file();
+    assert!(survived, "the volume and the file the person put there are where they stand: {:?}", std::fs::read_dir(tree.as_path()).expect("the tree").flatten().map(|found| return found.file_name()).collect::<Vec<_>>());
+    let bytes: Vec<u8> = std::fs::read(tree.join("d/precious.txt")).or_else(|_| return std::fs::read(tree.join("racer/precious.txt"))).expect("the file the person put there");
+    assert_eq!(bytes, b"RACER PRECIOUS\n", "and hold the bytes they held");
+    remove(root.as_path());
+}

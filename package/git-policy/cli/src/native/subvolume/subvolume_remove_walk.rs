@@ -775,6 +775,8 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
             continue;
         }
         let mode: u32 = facts.mode() & 0o7777;
+        #[cfg(test)]
+        crate::subvolume_remove_listing_test_support::after_check(path.as_path());
         let child: File = match open_directory_widening(&stack[index].directory, name.as_os_str()) {
             Ok(child) => child,
             Err(error) => return Err(std::io::Error::new(error.kind(), format!("{} cannot be read ({error})", path.display()))),
