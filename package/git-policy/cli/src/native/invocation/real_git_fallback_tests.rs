@@ -61,8 +61,7 @@ fn only_the_wrapper(root: &Path) -> ResolutionInputs {
 /// naming `git`.
 fn write_unit(root: &Path, git: &Path) {
     // The record is the note the wrapper writes beside its sockets: one line, the path of the real Git.
-    std::fs::write(root.join("unit"), format!("{}
-", git.display())).expect("the record");
+    std::fs::write(root.join("unit"), format!("{}\n", git.display())).expect("the record");
 }
 
 /// A Git that `PATH` does not show,
@@ -204,7 +203,7 @@ fn a_record_naming_a_missing_or_non_executable_file_is_refused_and_a_relative_on
     remove(root.as_path());
 }
 
-/// The inputs of a process look for the unit below an absolute runtime directory only.
+/// The inputs of a process look for the record beside the sockets below an absolute runtime directory only.
 #[test]
 fn process_inputs_name_the_unit_below_an_absolute_runtime_directory_only() {
     let named = |value: Option<&str>| -> Option<PathBuf> {
@@ -214,7 +213,7 @@ fn process_inputs_name_the_unit_below_an_absolute_runtime_directory_only() {
         }
         return process_resolution_inputs(environment.as_slice()).expect("process inputs").service_unit;
     };
-    assert_eq!(named(Some("/run/user/7")), Some(PathBuf::from("/run/user/7/systemd/user/monochromatic-git-policy-cli@.service")));
+    assert_eq!(named(Some("/run/user/7")), Some(PathBuf::from("/run/user/7/monochromatic-git-policy-cli/real-git")));
     assert_eq!(named(None), None);
     assert_eq!(named(Some("")), None);
     assert_eq!(named(Some("run/user/7")), None);
