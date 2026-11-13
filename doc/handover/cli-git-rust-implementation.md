@@ -685,6 +685,33 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The owner: one agent, one thing; pass 20 started with the first branch whose review found nothing (2026-11-13T15:38:11-05:00)
+
+Not complete, and written by the coordinating session: pass 20 is queued and has merged nothing yet.
+
+- The owner, between 15:35 and 15:37, as the brief for integration pass 20 was being written with a merge, a test fix and a possible second branch in it:
+  "Avoid giving any one agent 2 things at once, or giving them one different thing after another."
+  It is rule `A1T` in `AGENTS.md` (`1d826d9b38`): a brief holds a single task, and a different task goes to a fresh agent, never into a running or resumed one.
+  A resumed author answering the review of its own change is the same thing going on.
+- What was changed at once:
+  - pass 20's brief holds the merge alone;
+    the two tests its source review says fail on `main` (`service_journal_restored_at_start`, a plan read from a pipe) have a run of their own, queued;
+  - the briefs of two author runs that had not started (the LFS URL and the LFS push programs) lost what they asked beside their review's findings;
+  - the run on the cargo lock was told its task is the fetch alone:
+    a long holder of the lock, if its reading of the recorder's log shows one, is reported and taken by another run.
+- Not changed: runs already going whose briefs hold more than one thing
+  (issue 6293's two decisions, the abort-and-skip answer with the main-worktree decision, review answers with a paragraph that widens the finding).
+  Taking a task from a run in the middle of it was weighed as worse than letting it finish.
+- **Pass 20** (`integrate/git-policy-cli-pass-20-for-alpha-18`, brief `~/temp/agent/pi-runs/integration-pass-20-for-alpha-18-prompt.md`):
+  the finished-records branch, tip `999a5d4080`.
+  Its review went on from its session after the rate limit ended it twice and finished at 15:31:41:
+  the lib controls, five end-to-end retention controls and twenty-nine for the stopped-instance sweep and the ceiling derivation ran and passed, and it found no defect.
+  That is also the first review seen to finish after being gone on with from its session; the snapshot's was the second.
+- The queue now starts reviews before authors: at 15:35:06 fifteen agents were going and only two of them were reviews,
+  because author entries stood first and took every free place, while the pool for the reviewer's model had three places free.
+- No run ended on the rate limit between the hold's first round (15:18:02) and 15:31:41, the last ending listed
+  (`list-runs-that-ended-since`, five endings from 15:21:30, none of them a model error).
+
 #### Four more runs ended by 15:31:30; the upstream project already has the rate-limit classification reported (2026-11-13T15:34:05-05:00)
 
 Not complete, and written by the coordinating session: every branch named here waits for a review or for its author.
