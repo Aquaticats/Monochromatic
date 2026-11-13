@@ -390,6 +390,29 @@ What the release is built to do, read from its source:
 - With pass 18 released, the condition this document set on 2026-11-12 for starting the runs of rounds 310 to 313 again is met;
   they are in the resume queue with the rest.
 
+#### The launcher's scratch-folder change is finished and waits for its review (2026-11-13T11:38:30-05:00)
+
+The run `launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep` ended `idle` at about 11:38 after 231 turns and 47 minutes.
+Its branch `feat/pi-shared-subagent-driver-launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep` is at `c0a18005c2` on the remote, six commits ahead of `main`.
+Not reviewed and not approved by anyone. By the run's own report (its whole text is `lastAssistantText` in `~/temp/agent/pi-runs/launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep-2/summary.json`):
+
+- The launcher makes `<run name>-scratch` with `keep/` under the scratch root, tells the run, and empties it except `keep/` at the run's end.
+  Its real proof ran the package's own end-of-run step on a made-up ended run inside its own scratch: three files and two folders removed, `keep/` and the target of a link pointing outside both untouched.
+  With the refusal of links taken out, the deletion walked through a link and deleted the target's file, which is what the guard prevents; the saved outputs are in its `keep/guard-proofs/`.
+- The end-of-run line gives the sum of the sizes of the files removed and, beside it, the room of the volume before and after, and never calls the sum freed.
+- Three readings of the brief it made itself, each one condition to change if read otherwise:
+  the deletion is done before the launcher lets go, so the run's pool place is held until it is over (it measured 2.0 GiB and 22,000 entries in 1.38 s, and bounded the step at 1800 s);
+  a folder a process of the run still works in is kept, as its worktree is, and left to `remove-finished-worktrees`;
+  the unreadable-folder case is modelled as a mode-000 folder that holds entries.
+- Not done, and said so: a command that lists scratch folders by size with which belong to a going run (rule `SZR` still needs `du`),
+  and noticing files a run left outside its folder.
+- Found by it and not in its scope: the run folders `pi-runs/<name>-<n>` and the reviews folder are never emptied by anything.
+- Its own `du` of `~/temp/agent` at 11:24: 112,941 MiB.
+
+Its own scratch folder held 36 KiB, all of it `keep/`, so there was nothing to remove by hand.
+Next for it: the qwen4 review in a worktree of its own, started when a place is free, then the merge.
+The place it freed went to the resume of `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager` at 11:38:36.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
