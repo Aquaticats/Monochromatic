@@ -278,11 +278,30 @@ so a run that meets them is not meeting a change of this file.
   so its `[profile.dev] panic = "unwind"` and its build override are unaffected.
   There is no `*.mutation` or `*.bench` sidecar beside this package,
   and mutation campaigns are paused.
-- `native-test-base.Containerfile` only installs tools;
-  the gate compiles this package inside the container
-  from a bind mount of the worktree,
-  so the gate builds with these settings too and its build gets cheaper.
-  The image itself does not change.
+- `native-test-base.Containerfile` only installs tools,
+  and the image the gate builds is made from a copy of the sources:
+  `bin/test-native-container.ts` copies them into a disposable build context
+  (`copySourceSnapshot`)
+  and `bin/native-test-containerfile.ts` copies that into the image with `COPY`,
+  so nothing of the worktree is mounted.
+  Two environment settings of that test image override this manifest's profile for every step it runs:
+  `CARGO_PROFILE_DEV_DEBUG=0` and `CARGO_INCREMENTAL=0`
+  (`bin/native-test-containerfile.ts`,
+  in the `environment` list of the one `ENV` line that
+  `builderPreludeLines` emits in `bin/native-layered-build.ts`).
+  They predate this change,
+  so the gate already compiled without debug information and without incremental data,
+  and this change leaves its build as it was.
+  Measured 2026-11-13 on a dep-free crate whose integration test panics,
+  by the `.debug*` sections of the test binary:
+  Cargo's defaults leave 5.97 MiB,
+  this package's new `[profile.dev]` alone leaves 5.92 MiB,
+  the gate's two variables with Cargo's defaults leave 0.00 MiB,
+  and they leave 0.00 MiB with this package's new `[profile.dev]` as well,
+  writing a binary with the same name as the arm before it.
+  So a backtrace inside the gate names frames and gives no file and line,
+  because `debug = 0` leaves no line tables to read,
+  whatever this package's development profile says.
 - `cargo-shadow`'s clean build folders pass reads the profile directories
   `build`,
   `deps`,
@@ -290,7 +309,10 @@ so a run that meets them is not meeting a change of this file.
   `.fingerprint` and `examples`
   (`package/cargo-shadow/cli/src/lean_build_trees.rs`),
   and lists each with a reader that treats a missing directory as no entries.
-  With `incremental = false` the `incremental` directory is simply never created,
+  With `incremental = false` Cargo still creates the `incremental` directory and leaves it empty
+  (measured 2026-11-13 in this package's own build directory:
+  no entries,
+  no bytes),
   which that pass already handles,
   and no other directory changes shape.
 
