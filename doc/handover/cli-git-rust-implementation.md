@@ -508,6 +508,21 @@ The brief that answers it, `~/temp/agent/pi-runs/launcher-scratch-folder-change-
 Until that is fixed, reviewed again and merged, a run's scratch is emptied by hand by the session that started it, as rule `1SF` says, and by nothing automatic.
 The place this review freed went to the qwen4 review of `fix/git-policy-cli-commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`, started about 12:21:30.
 
+#### Issue 6295: the Pi driver records a finished run as failed (2026-11-13T12:29:40-05:00)
+
+A run of the other session ended `driver-failed` 120 seconds after its agent had given its report and settled:
+"SyntaxError: Unterminated string in JSON at position 509".
+Read from the source, not reproduced: `workTheToolReportedIn` in `package/pi-shared/subagent-driver/src/work-the-run-left-running.ts` (line 131)
+parses a `process` tool result out of the feed with nothing around it, and the feed cuts long results short.
+Filed as issue 6295 with the feed's last lines; the other session was told its run's report stands.
+It can meet any run that used the `process` tool with a long answer, this work's runs included, so each ended run's `endReason` is read beside its last message before it is called failed.
+A fix has no brief yet; it belongs with the two launcher changes now being answered, in the same package, and is briefed when one of them is merged so the three do not edit the same files at once.
+
+The place that run freed went to the launcher's scratch-folder author answering its review, started 12:30:02 through
+`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/start-the-next-entry-of-the-resume-queue.ts`,
+which takes the first entry of the queue that may start, starts it and takes it off the list, and starts nothing at or above the level it is given.
+A watcher now runs it each time a place comes free. Eighteen entries are left.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,

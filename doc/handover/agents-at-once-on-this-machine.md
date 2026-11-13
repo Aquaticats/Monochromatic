@@ -147,3 +147,9 @@ one line a minute:
   A lock held by another agent's build is a wait on a neighbour,
   not on a drive;
   it is written here because it grows with the count.
+- One run ended at this level with `endReason: driver-failed` (12:29:40,
+  a run of the other session).
+  It is no disk symptom:
+  its agent had given its report and settled,
+  and the driver then failed to parse a result the feed had cut short
+  (issue 6295).
