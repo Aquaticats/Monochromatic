@@ -214,8 +214,21 @@ one line a minute:
 - A sizing walk of the scratch folders on the build volume
   (`btrfs filesystem du`,
   disk weight 1)
-  was started at 13:04 by the session doing the search;
-  a slow build-volume reading while it goes is read against it.
+  was started between 13:02 and 13:05 by the session doing the search and ended at 13:15:18;
+  a slow build-volume reading in that time is read against it.
+  It read 62.7 GiB as the scratch folders' own data
+  (largest: `kimi-trials` 15.3 GiB,
+  `pkgrepair-repair-off-the-path` 13.1 GiB,
+  `module-test-logs` 9.8 GiB,
+  `cli-git-btrfs-fixtures` 5.6 GiB),
+  with some fixture files it could not read left out.
+- Free room at 13:15:18: `/var/home` 517 GiB,
+  the build volume 1,616 GiB
+  (519 GiB and 1,640 GiB at 10:27:50,
+  so the build volume took 24 GiB in two hours and forty-seven minutes;
+  what took it is not measured,
+  and it is not the scratch folders by this reading,
+  whose own data read 63.5 GiB earlier in the day).
 - Ten entries are left in the resume queue,
   one of them waiting for the branch it builds on.
   Whether thirty-two can be reached with real work is not settled by that count:
