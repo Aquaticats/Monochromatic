@@ -2847,7 +2847,8 @@ Each alternative is run through the built executable by `src/native/binary/binar
    and the `--skip` forms of `rebase`,
    `cherry-pick`,
    `revert` and `am`:
-   the command runs while its own operation waits, and is refused when it would discard work standing nowhere else
+   the command runs while its own operation waits,
+  and is refused when it would discard work standing nowhere else
    (see above);
    the same command with `--quit` stops the operation and keeps the index and files,
    `--continue` finishes it after resolving conflicts,

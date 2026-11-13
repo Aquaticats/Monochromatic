@@ -20,7 +20,8 @@
 
 /// Import the sibling modules the decision combines.
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
-/// The second measurement of an abort or a skip, owed immediately before Git starts.
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
 use crate::abort_recheck::recheck_before_the_command;
 use crate::announced_query::printable_after;
 #[cfg(unix)]

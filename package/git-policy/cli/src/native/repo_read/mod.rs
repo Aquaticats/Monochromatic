@@ -51,6 +51,15 @@ pub mod repository_facts_staged_entries;
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
 
+/// The record of the commit an abort restores,
+/// read in bounded time from a regular file only,
+///  read beside the reading that asks for it.
+pub mod repository_facts_abort_discard_record;
+
+/// Whether the worktree still holds an entry at a path a listing named,
+///  read beside the reading that asks for it.
+pub mod repository_facts_abort_discard_worktree_entries;
+
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 

@@ -14,12 +14,15 @@
 //!  a command that could destroy work which exists nowhere else is refused,
 //!  and the person who means it runs the command with the guard's opt-out
 //!  (`doc/handover/cli-git-rust-implementation.md`,
-//!  the answers of 2026-11-12T10:35:07, "Refuse with opt-out").
+//!  the answers of 2026-11-12T10:35:07,
+//! "Refuse with opt-out").
 //!  So this carve-out gives three answers and no copies:
 //!  a form whose own operation is absent is Git's to refuse and discards nothing,
 //!  a form whose only state is the operation's own runs as Git runs it,
 //!  and a form that would discard the person's own work is refused,
-//!  naming each path, what stands there, the quit form that keeps the work and the opt-out.
+//!  naming each path,
+//! what stands there,
+//! the quit form that keeps the work and the opt-out.
 //!  The state is read per command,
 //!  because an abort form can end another operation's state:
 //!  a `git rebase --rebase-merges` merge step,

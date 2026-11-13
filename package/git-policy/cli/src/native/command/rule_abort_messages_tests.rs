@@ -9,7 +9,8 @@
 //!  each path's own kind and the count past the bound,
 //!  and the two readings that answer for Git itself.
 //!  A skip is told apart from an abort:
-//!  one restores the state before the operation, the other goes on with the next commit.
+//!  one restores the state before the operation,
+//! the other goes on with the next commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -73,8 +74,12 @@ fn every_operation_names_its_quit_form() {
 }
 
 /// A path is described by the listing that named it:
-///  an edit in the worktree, a staged edit, a staged deletion,
-///  and, for a merge, a staged resolution whose content stands nowhere else.
+///  an edit in the worktree,
+/// a staged edit,
+/// a staged deletion,
+///  and,
+/// for a merge,
+/// a staged resolution whose content stands nowhere else.
 #[test]
 fn each_path_carries_the_kind_of_work_standing_there() {
     assert_eq!(
@@ -113,7 +118,9 @@ fn the_list_is_bounded_and_counts_the_rest() {
     assert_eq!(listed.matches("an edit you made since the operation began").count(), SHARED_PATHS_NAMED, "{listed}");
 }
 
-/// A refusal names the command, each path, the quit form and the opt-out,
+/// A refusal names the command,
+/// each path,
+/// the quit form and the opt-out,
 ///  and never claims a copy was made.
 #[test]
 fn the_refusal_names_both_ways_out_and_promises_no_copy() {
@@ -195,7 +202,8 @@ fn the_ignored_file_refusal_names_the_waiting_operation() {
     assert!(text.contains("The rebase in progress still waits, and nothing was changed."), "{text}");
 }
 
-/// A reading that failed says which command is refused, why,
+/// A reading that failed says which command is refused,
+/// why,
 ///  and gives the quit form as the advice rather than the opt-out,
 ///  because the command and its opt-out both send Git to the path that could not be read.
 #[test]

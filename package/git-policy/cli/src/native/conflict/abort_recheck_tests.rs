@@ -19,7 +19,8 @@ use crate::transaction_git::GitContext;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::PathBuf;
 
-/// The context a plan carries: no Git is started for a form outside this carve-out.
+/// The context a plan carries:
+/// no Git is started for a form outside this carve-out.
 fn context() -> GitContext {
     return GitContext {
         real_git: PathBuf::from("/usr/bin/git"),

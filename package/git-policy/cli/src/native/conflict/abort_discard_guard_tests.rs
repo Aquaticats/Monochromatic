@@ -9,7 +9,8 @@
 //!  and a refusal is the whole answer now that nothing is copied:
 //!  a sentence that named no path,
 //!  no way out or no opt-out would leave the person guessing.
-//!  Nothing here touches a repository, because nothing is written any more.
+//!  Nothing here touches a repository,
+//! because nothing is written any more.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,7 +38,8 @@ fn waiting(operation: AbortOperation, worktree: Vec<Vec<u8>>, staged: Vec<Vec<u8
     };
 }
 
-/// A waiting operation read the way a rebase, a pick or an `am` is read:
+/// A waiting operation read the way a rebase,
+/// a pick or an `am` is read:
 ///  the worktree against the index and the index against `HEAD`,
 ///  because none of them records a result.
 fn waiting_from_the_operation_start(operation: AbortOperation, ends: OperationEnd, worktree: Vec<Vec<u8>>, staged: Vec<Vec<u8>>) -> AbortDiscard {
@@ -103,7 +105,8 @@ fn the_operations_own_state_alone_runs_without_a_line() {
 }
 
 /// A resolution written by hand during a merge is refused,
-///  and the refusal names the path, what stands there and the two ways out.
+///  and the refusal names the path,
+/// what stands there and the two ways out.
 #[test]
 fn a_hand_resolution_is_refused_and_named() {
     let mut facts: ScriptedFacts = scripted_facts();
@@ -147,7 +150,8 @@ fn a_staged_resolution_beside_a_later_worktree_edit_names_both() {
     }
 }
 
-/// A rebase records no result, so an edit in the worktree is named as one since the operation began.
+/// A rebase records no result,
+/// so an edit in the worktree is named as one since the operation began.
 #[test]
 fn an_edit_since_a_rebase_began_is_named_that_way() {
     let mut facts: ScriptedFacts = scripted_facts();
@@ -169,7 +173,8 @@ fn an_edit_since_a_rebase_began_is_named_that_way() {
 }
 
 /// An edit that was staged is content the index holds,
-///  and the worktree holds it too, which the refusal may not deny.
+///  and the worktree holds it too,
+/// which the refusal may not deny.
 #[test]
 fn a_staged_edit_is_named_as_staged_content() {
     let mut facts: ScriptedFacts = scripted_facts();

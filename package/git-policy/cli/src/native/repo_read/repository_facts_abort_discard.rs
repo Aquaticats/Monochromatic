@@ -25,15 +25,14 @@
 //! ```
 
 /// `use` brings the names this file needs from the sibling modules that own them.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes};
-use crate::repository_facts::{GitFacts, RepositoryFacts};
+use crate::git_metadata::MetadataOutput;
+use crate::repository_facts::GitFacts;
 use crate::rule_abort_operation::{
     AbortOperation, OPERATION_STATE_NAMES, OperationEnd, RESTORED_REVISION_NAMES, RestoredRevision, SEQUENCER_DIRECTORY, SKIP_RESTORES, OperationState,
     abort_is_live, ended_operation, in_progress_operation, restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::nul_separated_paths;
-use crate::worktree_identity::worktree_root;
 use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -94,7 +93,8 @@ pub enum AbortDiscard {
 ///  so a path that still holds that result was never touched by the person.
 ///  A path whose worktree file still holds the recorded result and whose index entry differs
 ///  is content that stands only in the index.
-///  Where Git recorded no result (an older Git, a state it does not write for),
+///  Where Git recorded no result (an older Git,
+/// a state it does not write for),
 ///  the listings compare each side with the other,
 ///  and a staged path's content is in the worktree as well.
 ///  A refusal that named the wrong one would tell the person the wrong place to look.
@@ -304,10 +304,12 @@ pub fn merge_result_queries(global_prefix: &[OsString]) -> [Vec<OsString>; 2] {
 ///  and the index against `HEAD`.
 ///  `&[OsString]` borrows the caller's global options.
 /// Why:
-///   Without a recorded result, everything uncommitted is at risk;
+///   Without a recorded result,
+/// everything uncommitted is at risk;
 ///  the index side drops the unmerged entries (`--diff-filter=ACDMRTB` keeps every status but `U`),
 ///  because a path the operation is still stopped at is the operation's own state and not the person's work.
-///  The worktree side names such a path too, and the caller asks for the unresolved paths separately.
+///  The worktree side names such a path too,
+/// and the caller asks for the unresolved paths separately.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -355,8 +357,11 @@ pub fn listed_paths(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
 ///  `&[OsString]` borrows the caller's global options.
 /// Why:
 ///   `--diff-filter=U` selects exactly the unmerged entries
-///  (measured with Git 2.56.0: the worktree listing names such a path twice, once with the status `U`
-///  and once as a modification, so no other filter separates them),
+///  (measured with Git 2.56.0:
+/// the worktree listing names such a path twice,
+/// once with the status `U`
+///  and once as a modification,
+/// so no other filter separates them),
 ///  and this is the only reading that does.
 ///
 /// In TS you'd write (pseudocode):
@@ -376,7 +381,8 @@ pub fn unresolved_query(global_prefix: &[OsString]) -> Vec<OsString> {
 ///  or why Git could not name them.
 /// Why:
 ///   The reading that compares each side with the other cannot tell an untouched conflicted path
-///  from an edit, and these paths are exactly the operation's own state;
+///  from an edit,
+/// and these paths are exactly the operation's own state;
 ///  a listing that failed is a failure and never an empty answer.
 ///
 /// In TS you'd write (pseudocode):
@@ -413,7 +419,8 @@ pub fn both_listings(worktree: Vec<Vec<u8>>, index: Vec<Vec<u8>>) -> Vec<Vec<u8>
 /// Why:
 ///   Every operation that stops at a conflict with the merge machinery records that result,
 ///  not only a merge:
-///  a rebase, a pick and an `am` leave `AUTO_MERGE` behind too (measured with Git 2.56.0),
+///  a rebase,
+/// a pick and an `am` leave `AUTO_MERGE` behind too (measured with Git 2.56.0),
 ///  and a path that still holds it was never touched by the person.
 ///  A repository without the ref (an older Git)
 ///  has no recorded result to compare with,
@@ -430,112 +437,6 @@ fn merge_result_readable(facts: &mut GitFacts) -> Result<bool, String> {
     }
     let output: MetadataOutput = facts.query(arguments, "the merge result")?;
     return Ok(output.success);
-}
-
-/// What:
-///  How many bytes of a record the wrapper reads.
-/// Why:
-///   A record holds one commit id, which is 40 hexadecimal bytes for SHA-1 and 64 for SHA-256;
-///  nothing Git writes there is longer,
-///  and a read that obeyed the file's own length would let whatever stands at that path decide
-///  how much this command spends.
-///  One page is room for either id, its newline and any trailing blank the writer left.
-pub const RECORD_BYTES_READ: u64 = 4096;
-
-/// What:
-///  The record of the commit an abort restores opened for reading,
-///  or the system's own reason for not opening it.
-/// Why:
-///   A record that is a pipe, a socket, a device or a directory is not something Git writes,
-///  and opening one without `O_NONBLOCK` waits for a writer that may never come:
-///  a `git rebase --abort` whose `rebase-merge/orig-head` is a pipe hung there, with nothing able to end it.
-///  `O_NONBLOCK` returns at once for every kind of entry,
-///  `O_NOFOLLOW` refuses a link some other process left at the name,
-///  and the caller refuses whatever is not a regular file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const opened = openTheRecord(path); // never waits
-/// ```
-fn open_the_record(path: &Path) -> std::io::Result<std::fs::File> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        return std::fs::OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
-            .open(path);
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    {
-        return std::fs::File::open(path);
-    }
-}
-
-/// What:
-///  The text of a record of the commit an abort restores,
-///  read from a regular file and never more than `RECORD_BYTES_READ` of it,
-///  or why that cannot be read.
-/// Why:
-///   A record that is not a regular file,
-///  one longer than any commit id,
-///  one that cannot be opened,
-///  and one whose bytes are not text are all failures with their own words,
-///  because the person has to be told which path stands in the way and what is wrong with it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const text = readTheRecord(path); // throws
-/// ```
-fn read_the_record(path: &Path) -> Result<String, String> {
-    use std::io::Read;
-    let file: std::fs::File = match open_the_record(path) {
-        Ok(opened) => opened,
-        Err(error) => {
-            return Err(format!(
-                "could not read the commit this abort restores: Git records it in {} and the file could not be opened ({error}).",
-                path.display()
-            ));
-        }
-    };
-    let kind: std::io::Result<std::fs::Metadata> = file.metadata();
-    let metadata: std::fs::Metadata = match kind {
-        Ok(read) => read,
-        Err(error) => {
-            return Err(format!(
-                "could not read the commit this abort restores: Git records it in {} and that path could not be read ({error}).",
-                path.display()
-            ));
-        }
-    };
-    if !metadata.file_type().is_file() {
-        return Err(format!(
-            "could not read the commit this abort restores: Git records it in {}, which is not a regular file, so the wrapper did not read it.",
-            path.display()
-        ));
-    }
-    let mut bytes: Vec<u8> = Vec::<u8>::new();
-    let mut bounded = file.take(RECORD_BYTES_READ + 1);
-    if let Err(error) = bounded.read_to_end(&mut bytes) {
-        return Err(format!(
-            "could not read the commit this abort restores: Git records it in {} and the file could not be read ({error}).",
-            path.display()
-        ));
-    }
-    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > RECORD_BYTES_READ {
-        return Err(format!(
-            "could not read the commit this abort restores: Git records it in {} and the file holds more than {RECORD_BYTES_READ} bytes, so it holds no commit id.",
-            path.display()
-        ));
-    }
-    return match String::from_utf8(bytes) {
-        Ok(text) => Ok(text),
-        Err(error) => Err(format!(
-            "could not read the commit this abort restores: Git records it in {} and the file is not text ({error}).",
-            path.display()
-        )),
-    };
 }
 
 /// What:
@@ -569,7 +470,7 @@ fn recorded_commit(answer: &StateAnswer, record: &OsStr) -> Result<OsString, Str
             record.to_string_lossy()
         ));
     };
-    let text: String = read_the_record(path)?;
+    let text: String = crate::repository_facts_abort_discard_record::read_the_record(path)?;
     let commit: &str = text.trim();
     if commit.is_empty() || !commit.bytes().all(is_hex_digit) {
         return Err(format!(
@@ -584,54 +485,6 @@ fn recorded_commit(answer: &StateAnswer, record: &OsStr) -> Result<OsString, Str
 ///  which every commit id's bytes are.
 fn is_hex_digit(byte: u8) -> bool {
     return byte.is_ascii_hexdigit();
-}
-
-/// What:
-///  Whether the worktree holds any entry at a repository-relative path.
-///  `Option<&Path>` is the top of the worktree, when Git named one.
-/// Why:
-///   A path the listing names because the worktree file is gone holds nothing of the person's:
-///  the reset writes the tree back over that path and puts the file there again,
-///  so an abort undoes such a removal and loses no content.
-///  Moving a file out of the way is exactly the way out this refusal's own advice names,
-///  and a refusal that read the removal as work would refuse the command the advice promised.
-///  A directory, a link or a pipe standing there does hold something the reset would replace,
-///  so only a path with no entry at all is left out.
-///  A worktree Git did not name, and a path that is not one path below it, are read as holding an entry:
-///  a reading that cannot tell refuses rather than lets a loss through.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holdsAnEntry({ root, relative: 'a.txt' }); // false when nothing stands there
-/// ```
-fn holds_an_entry(root: Option<&Path>, relative: &[u8]) -> bool {
-    let Some(top) = root else {
-        return true;
-    };
-    let Some(native) = path_from_git_bytes(relative) else {
-        return true;
-    };
-    if native.is_absolute() {
-        return true;
-    }
-    return std::fs::symlink_metadata(top.join(native)).is_ok();
-}
-
-/// What:
-///  The top of the worktree this command runs in,
-///  when Git named one.
-/// Why:
-///   The presence of the worktree's own entries is read from the filesystem,
-///  and the answer Git gave for the repository location is already remembered by the provider,
-///  so asking for it again costs no start of Git.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const top = worktreeTop(facts); // '/repo' | undefined
-/// ```
-fn worktree_top(facts: &mut GitFacts) -> Option<PathBuf> {
-    let location = facts.location().ok()?;
-    return worktree_root(&location.identity).map(Path::to_path_buf);
 }
 
 /// What:
@@ -695,12 +548,24 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
         //  and those paths are the operation's own state: the listing is read against the other side, not against
         //  what Git wrote into the worktree. They are asked for on their own and left out.
         let unresolved: Vec<Vec<u8>> = unresolved_paths(facts)?;
-        worktree_paths.retain(|path| { return !unresolved.contains(path); });
+        let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(worktree_paths.len());
+        for path in worktree_paths {
+            if !unresolved.contains(&path) {
+                kept.push(path);
+            }
+        }
+        worktree_paths = kept;
     }
     // A path the worktree no longer holds is no work of the person's: the reset writes the tree back over it.
     //  The answer is read from the filesystem, after the location Git already named.
-    let top: Option<PathBuf> = worktree_top(facts);
-    worktree_paths.retain(|path| { return holds_an_entry(top.as_deref(), path.as_slice()); });
+    let top: Option<PathBuf> = crate::repository_facts_abort_discard_worktree_entries::worktree_top(facts);
+    let mut held: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(worktree_paths.len());
+    for path in worktree_paths {
+        if crate::repository_facts_abort_discard_worktree_entries::holds_an_entry(top.as_deref(), path.as_slice()) {
+            held.push(path);
+        }
+    }
+    worktree_paths = held;
     // The content a whole index entry holds is work the command would discard;
     //  a path whose index entry was erased holds none, and the reset writes the tree back over it,
     //  so it is no reason to refuse the command.

@@ -54,7 +54,8 @@ use crate::policy_audited::record_audited;
 /// the operation's own state is what the command lets go,
 /// and the person's own work is what it may not.
 use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
-/// The second measurement of an abort or a skip, owed immediately before Git starts.
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
 use crate::abort_recheck::{AbortRecheckPlan, plan_the_second_look};
 /// What a guarded form does to the operation it finds waiting.
 use crate::rule_abort_operation::{OperationEnd, ended_operation};

@@ -43,7 +43,8 @@ pub mod conflict_side_guard;
 /// The linked-worktree policy's carve-out for the abort and skip forms during an operation.
 pub mod abort_discard_guard;
 
-/// The second measurement of an abort or a skip, owed immediately before Git starts.
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
 pub mod abort_recheck;
 
 /// The append-only record of every command form that can discard uncommitted state.

@@ -9,14 +9,16 @@
 //! Why:
 //!  The owner's rule is that a command which would discard work standing nowhere else is refused,
 //!  and that the person who means it runs it with the guard's opt-out
-//!  (`doc/handover/cli-git-rust-implementation.md`, the answers of 2026-11-12T10:35:07).
+//!  (`doc/handover/cli-git-rust-implementation.md`,
+//! the answers of 2026-11-12T10:35:07).
 //!  An operation that stops with conflicts makes `git status` unclean by itself,
 //!  so a guard that read only that status refused every abort form for as long as the
 //!  operation waited,
 //! which is exactly when a person reaches for one.
 //!  Here the abort runs when the only changes are the operation's own,
 //!  it is refused before anything is changed when the person's own work would go,
-//!  the refusal names that work, the quit form that keeps it and the opt-out,
+//!  the refusal names that work,
+//! the quit form that keeps it and the opt-out,
 //!  the opt-out leaves the same state real Git leaves,
 //!  and nothing is ever copied.
 //!
@@ -48,7 +50,7 @@ fn plain(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
     command.current_dir(directory).args(arguments);
     let output = command.output().expect("native Git starts");
     return String::from_utf8_lossy(output.stdout.as_slice()).into_owned()
-        + &String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+        + &String::from_utf8_lossy(output.stderr.as_slice());
 }
 
 /// The common Git directory of the repository a directory belongs to.
@@ -57,7 +59,8 @@ fn common_dir(fixture: &Fixture, directory: &Path) -> PathBuf {
     return PathBuf::from(text.trim());
 }
 
-/// Every file the wrapper's copy folder holds, by its path below that folder.
+/// Every file the wrapper's copy folder holds,
+/// by its path below that folder.
 /// Why:
 ///   Nothing is copied any more,
 ///  so every control that could have earned a copy asserts this list is empty.
@@ -115,7 +118,8 @@ fn rejected(observed: &Observed) -> bool {
     return observed.code == Some(1) && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
 }
 
-/// What a directory holds, as a person reads it:
+/// What a directory holds,
+/// as a person reads it:
 ///  the porcelain status,
 ///  the tree `HEAD` names,
 ///  and the bytes of the files the caller names.
@@ -174,7 +178,9 @@ fn a_merge_abort_runs_when_the_merge_s_own_changes_are_all_there_is() {
 
 /// A conflict resolved by hand is the person's work,
 ///  so the abort is refused before anything is changed,
-///  and the refusal names the file, the kind of work, the quit form and the opt-out.
+///  and the refusal names the file,
+/// the kind of work,
+/// the quit form and the opt-out.
 #[test]
 fn a_merge_abort_refuses_a_hand_resolution_and_names_it() {
     let fixture: Fixture = fixture("abort-merge-hand");
@@ -201,7 +207,8 @@ fn a_merge_abort_refuses_a_hand_resolution_and_names_it() {
     remove(&fixture);
 }
 
-/// The opt-out runs the abort, and the state it leaves is the state real Git leaves
+/// The opt-out runs the abort,
+/// and the state it leaves is the state real Git leaves
 ///  in a repository built the same way.
 #[test]
 fn the_opt_out_leaves_the_state_real_git_leaves() {
@@ -231,7 +238,8 @@ fn the_opt_out_leaves_the_state_real_git_leaves() {
 }
 
 /// The advice to stop the operation and keep the work gets the person out:
-///  the quit form is allowed, and it keeps the resolution and the files.
+///  the quit form is allowed,
+/// and it keeps the resolution and the files.
 #[test]
 fn the_advice_to_quit_keeps_the_work_and_ends_the_operation() {
     let fixture: Fixture = fixture("abort-merge-quit");
@@ -594,7 +602,8 @@ fn a_rebase_abort_checks_the_ignored_files_of_the_original_head_it_restores() {
 }
 
 /// A skip drops the hand resolution of the conflict it stops at,
-///  so it is refused, and the opt-out runs the skip as real Git runs it.
+///  so it is refused,
+/// and the opt-out runs the skip as real Git runs it.
 #[test]
 fn a_rebase_skip_refuses_the_hand_resolution() {
     let fixture: Fixture = fixture("skip-rebase");
@@ -623,7 +632,8 @@ fn a_rebase_skip_refuses_the_hand_resolution() {
     remove(&fixture);
 }
 
-/// A skip that discards nothing a person made runs, in the main worktree as in a linked one:
+/// A skip that discards nothing a person made runs,
+/// in the main worktree as in a linked one:
 ///  the operation's own state is all there is.
 #[test]
 fn a_skip_that_discards_nothing_runs_in_the_main_worktree() {
@@ -657,7 +667,8 @@ fn a_skip_that_discards_nothing_runs_in_the_main_worktree() {
 ///  and nothing else makes it deterministically reachable:
 ///  the marker is the audit line the policy pass writes once it has decided the command may run,
 ///  so the paused start is the first one of the second measurement itself.
-///  Every other invocation is real Git, unchanged.
+///  Every other invocation is real Git,
+/// unchanged.
 fn pausing_real_git(fixture: &Fixture, marker: &Path, paused: &Path, release: &Path) -> PathBuf {
     let directory: PathBuf = fixture.root.join("shim");
     std::fs::create_dir(directory.as_path()).expect("shim directory");
@@ -687,10 +698,12 @@ fn pausing_real_git(fixture: &Fixture, marker: &Path, paused: &Path, release: &P
 }
 
 /// The bound the control that pauses a forwarded command gives it:
-///  the command waits for the control's own release, so the shared five-second bound is not a limit on it.
+///  the command waits for the control's own release,
+/// so the shared five-second bound is not a limit on it.
 const PAUSED_COMMAND_SECONDS: &str = "60";
 
-/// The wrapper of `fixture`, with the pausing stand-in for real Git and no `/usr/bin` before it.
+/// The wrapper of `fixture`,
+/// with the pausing stand-in for real Git and no `/usr/bin` before it.
 fn wrapper_paused_at_real_git(fixture: &Fixture, shim: &Path) -> Command {
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
@@ -701,7 +714,8 @@ fn wrapper_paused_at_real_git(fixture: &Fixture, shim: &Path) -> Command {
 
 /// Starts the paused wrapper for `git merge --abort` in `linked`
 ///  and hands back the child once its stand-in for real Git has paused.
-///  `&Path` borrows the marker, the pause file and the release file.
+///  `&Path` borrows the marker,
+/// the pause file and the release file.
 /// Why:
 ///   Both controls of the window need the same steps,
 ///  and a control that waited differently could reach the pause after it had released it.
@@ -838,7 +852,8 @@ fn worktree_stopped_at_an_edit_step(fixture: &Fixture, local_env: bool) -> PathB
 }
 
 /// A merge that stops inside an edit step of an interactive rebase leaves two operations' state at once,
-///  and `git rebase --abort` is a word Git acts on: the hand resolution and the unstaged edit are both refused.
+///  and `git rebase --abort` is a word Git acts on:
+/// the hand resolution and the unstaged edit are both refused.
 #[test]
 fn a_rebase_abort_inside_an_edit_step_refuses_the_hand_resolution_and_the_unstaged_edit() {
     let fixture: Fixture = fixture("abort-rebase-edit-step-merge");
@@ -996,7 +1011,8 @@ fn a_skip_is_refused_for_an_untracked_file_gits_own_reset_will_not_write_over() 
 
 /// The `--quit` a rebase's refusal names ends that rebase and keeps the hand resolution.
 /// Why:
-///  A refusal's advice is a promise, and this is the one the refusal gives first.
+///  A refusal's advice is a promise,
+/// and this is the one the refusal gives first.
 #[test]
 fn the_advice_to_quit_ends_a_rebase_and_keeps_the_work() {
     let fixture: Fixture = fixture("abort-rebase-quit");

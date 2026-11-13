@@ -13,9 +13,11 @@
 
 /// The reading under test.
 use super::untracked_files_the_tree_tracks;
-/// The provider, built on a fixture repository.
+/// The provider,
+/// built on a fixture repository.
 use crate::repository_facts::{GitFacts, git_facts};
-/// A disposable repository, its real Git and its removal.
+/// A disposable repository,
+/// its real Git and its removal.
 use crate::command_test_support::{REAL_GIT, fixture, git, remove, repository};
 /// The file operations the controls make.
 use std::ffi::{OsStr, OsString};

@@ -79,7 +79,8 @@ pub fn hatch_command_text(operation: AbortOperation, ends: OperationEnd) -> &'st
 ///   Every operation has a quit form and none of them is a guarded form,
 ///  so a person who wants their resolution and their edits more than they want the operation gone
 ///  has one command to type and nothing to lose
-///  (measured for every operation with Git 2.56.0: the hand resolution stays in the index and the file).
+///  (measured for every operation with Git 2.56.0:
+/// the hand resolution stays in the index and the file).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,7 +96,8 @@ pub fn quit_command_text(operation: AbortOperation) -> &'static str {
 }
 
 /// What:
-///  The paths a sentence names, the first few and how many more there are.
+///  The paths a sentence names,
+/// the first few and how many more there are.
 ///  `&[String]` borrows the paths Git printed.
 /// Why:
 ///   A sentence that named a thousand paths would bury its remedy,
@@ -132,14 +134,20 @@ fn named_items(items: &[String]) -> String {
 ///  Whether this listing named the path.
 /// Why:
 ///   A path's kind comes from which of the two listings named it,
-///  and comparing the bytes Git printed keeps a name with a tab, a newline or a backslash intact.
+///  and comparing the bytes Git printed keeps a name with a tab,
+/// a newline or a backslash intact.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const named = (listing: string[], path: string): boolean => listing.some((each) => each === path);
 /// ```
 fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
-    return listing.iter().any(|each| { return each.as_slice() == path; });
+    for each in listing {
+        if each.as_slice() == path {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -160,9 +168,11 @@ fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
 ///  an edit in the worktree,
 ///  a staged edit,
 ///  a staged deletion,
-///  and, where Git recorded the result of the conflict it stopped at,
+///  and,
+/// where Git recorded the result of the conflict it stopped at,
 ///  a staged resolution whose content stands nowhere else.
-///  Where no result is recorded, the listings compare the worktree with the index,
+///  Where no result is recorded,
+/// the listings compare the worktree with the index,
 ///  so a path only the index listing names is content the worktree holds too:
 ///  a sentence claiming it stood only in the index would be false.
 ///
@@ -190,7 +200,9 @@ fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool) -> 
 }
 
 /// What:
-///  Each path the command would discard, with what stands there, as one sentence fragment,
+///  Each path the command would discard,
+/// with what stands there,
+/// as one sentence fragment,
 ///  bounded to the paths a sentence names.
 ///  `&[Vec<u8>]` borrows the two listings and the staged entry paths.
 /// Why:
@@ -222,7 +234,8 @@ pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &
 ///  so the refusal is written as two routes out and not as a wall:
 ///  the quit form stops the operation and keeps the index and the files,
 ///  and the opt-out runs the command exactly as real Git runs it.
-///  Nothing is copied, so nothing here says a copy was made.
+///  Nothing is copied,
+/// so nothing here says a copy was made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -283,9 +296,11 @@ fn as_a_sentence(message: &str) -> String {
 ///  which names the path and the defect.
 ///  The quit form is the advice because it needs nothing of what could not be read,
 ///  while the command itself and its opt-out both send Git to that same path
-///  (measured with Git 2.56.0: with `rebase-merge/orig-head` gone,
+///  (measured with Git 2.56.0:
+/// with `rebase-merge/orig-head` gone,
 ///  `git rebase --abort` fails and `git rebase --quit` stops the rebase),
-///  so a person is told that, rather than sent into a read that cannot end.
+///  so a person is told that,
+/// rather than sent into a read that cannot end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -310,7 +325,9 @@ pub fn unreadable_refusal_text(command: AbortOperation, ends: OperationEnd, in_p
 /// Why:
 ///   Git refuses the reset itself and names the files,
 ///  for an abort and for a skip alike
-///  (measured with Git 2.56.0 for `merge --abort`, `rebase --abort`, `rebase --skip`,
+///  (measured with Git 2.56.0 for `merge --abort`,
+/// `rebase --abort`,
+/// `rebase --skip`,
 ///  `cherry-pick --skip` and `am --skip`:
 ///  `Untracked working tree file 'victim.txt' would be overwritten by merge`),
 ///  so nothing is lost and nothing is owed.

@@ -18,9 +18,11 @@
 //! ```
 
 use super::{
-    AbortDiscard, RECORD_BYTES_READ, StateAnswer, both_listings, holds_an_entry, merge_result_queries, read_the_record, recorded_commit,
-    state_answer, state_from_presence, state_query_arguments, uncommitted_queries, unresolved_query,
+    AbortDiscard, StateAnswer, both_listings, merge_result_queries, recorded_commit, state_answer, state_from_presence, state_query_arguments,
+    uncommitted_queries, unresolved_query,
 };
+use crate::repository_facts_abort_discard_record::{RECORD_BYTES_READ, read_the_record};
+use crate::repository_facts_abort_discard_worktree_entries::holds_an_entry;
 use crate::rule_abort_operation::{RESTORED_REVISION_NAMES, SEQUENCER_DIRECTORY};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_abort_operation::OPERATION_STATE_NAMES;
@@ -34,7 +36,8 @@ fn words(arguments: &[OsString]) -> Vec<String> {
     return arguments.iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
 }
 
-/// Every name the state query asks about, in the order it asks.
+/// Every name the state query asks about,
+/// in the order it asks.
 fn asked_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = OPERATION_STATE_NAMES.to_vec();
     names.push(SEQUENCER_DIRECTORY);
@@ -245,7 +248,9 @@ fn a_form_that_aborts_no_operation_asks_nothing() {
 }
 
 /// What stands at a path decides whether the path is work the command would discard:
-///  nothing at all is not, and a directory, a link or a pipe is.
+///  nothing at all is not,
+/// and a directory,
+/// a link or a pipe is.
 #[test]
 fn only_a_path_the_worktree_still_holds_is_work() {
     let root: PathBuf = fixture("abort-entry-here");

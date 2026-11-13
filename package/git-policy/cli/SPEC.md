@@ -16626,7 +16626,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16663,13 +16664,15 @@ the command is refused before anything is changed,
 and the refusal gives both routes out:
 the quit form stops the operation and keeps the index and the files,
 and the guard's opt-out runs the command exactly as real Git runs it.
-That is the owner's answer of 2026-11-12T10:35:07, "Refuse with opt-out",
+That is the owner's answer of 2026-11-12T10:35:07,
+"Refuse with opt-out",
 which replaced the saving this rule described before it.
 Nothing is copied,
 and no sentence of a refusal says a copy was made.
 A skip is decided the same way and is refused or let through wherever it is,
 in the main worktree and in a linked one alike:
-the rule is about the work, not about which worktree the command runs in.
+the rule is about the work,
+not about which worktree the command runs in.
 Where the answer cannot be read,
 the command is refused and the refusal names what could not be read,
 which loses nothing.
@@ -16721,7 +16724,8 @@ The kinds are
 `content only the index holds`,
 `a staged resolution` (beside an edit in the worktree),
 `a staged edit`,
-and, where no result is recorded,
+and,
+where no result is recorded,
 `an edit you made since the operation began` and `content the index holds`.
 A refusal names at most five paths and counts the rest.
 The quit form is `git merge --quit`,
@@ -16729,7 +16733,8 @@ The quit form is `git merge --quit`,
 `git cherry-pick --quit` or `git revert --quit`,
 `git am --quit`:
 each stops the operation and keeps the index and the files
-(measured with Git 2.56.0 in every stopped state, a hand resolution kept in all of them),
+(measured with Git 2.56.0 in every stopped state,
+a hand resolution kept in all of them),
 and none of them is a guarded form.
 The opt-out is `--no-enforce-worktree` written directly after the subcommand,
 which is where the wrapper strips it:
@@ -16778,7 +16783,8 @@ an untracked file whose content is the tree's own included,
 Git refused and named the file:
 `git merge --abort` printed
 `Untracked working tree file 'victim.txt' would be overwritten by merge`,
-and `git rebase --skip`, `git cherry-pick --skip` and `git am --skip`
+and `git rebase --skip`,
+`git cherry-pick --skip` and `git am --skip`
 failed with `The following untracked working tree files would be overwritten by reset`.
 A plain `git reset --hard` writes such a file over without a word,
 which is why each command's own behaviour is measured here and a reset's is not.
@@ -16788,7 +16794,8 @@ and the rejection says that it is Git that refuses the command,
 names each file,
 says Git will not write that tree while the file is there,
 and gives moving or copying the file away as the way forward.
-Nothing is lost, so no copy is owed and no notice may claim the command ran.
+Nothing is lost,
+so no copy is owed and no notice may claim the command ran.
 
 The main worktree and a directory outside a worktree keep the rejection for an abort,
 because the rule above refuses a form there always;

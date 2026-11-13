@@ -42,7 +42,8 @@ use std::sync::Mutex;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AbortRecheckPlan {
-    /// The real Git, its global options and its overlay,
+    /// The real Git,
+    /// its global options and its overlay,
     ///  which the same question is asked with.
     pub context: GitContext,
     /// The abort or skip form the person's command is.
@@ -64,6 +65,25 @@ pub struct AbortRecheckPlan {
 static PENDING: Mutex<Option<AbortRecheckPlan>> = Mutex::new(None);
 
 /// What:
+///  The slot,
+/// with a lock another thread panicked under read as a free one.
+/// Why:
+///   A poisoned lock means a thread panicked while holding it,
+///  and what it held is a plan one command recorded for one start:
+///  reading it as absent loses nothing an abort could not measure again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slot = () => pendingLock(); // never throws
+/// ```
+fn slot() -> std::sync::MutexGuard<'static, Option<AbortRecheckPlan>> {
+    return match PENDING.lock() {
+        Ok(free) => free,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+}
+
+/// What:
 ///  Record the second measurement this command owes before Git starts.
 /// Why:
 ///   The policy pass has no way to run code after it returns,
@@ -74,12 +94,13 @@ static PENDING: Mutex<Option<AbortRecheckPlan>> = Mutex::new(None);
 /// function planTheSecondLook(plan: AbortRecheckPlan): void;
 /// ```
 pub fn plan_the_second_look(plan: AbortRecheckPlan) {
-    let mut pending: std::sync::MutexGuard<'_, Option<AbortRecheckPlan>> = PENDING.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); });
+    let mut pending: std::sync::MutexGuard<'_, Option<AbortRecheckPlan>> = slot();
     *pending = Some(plan);
 }
 
 /// What:
-///  Take the pending plan, if there is one.
+///  Take the pending plan,
+/// if there is one.
 /// Why:
 ///   Only the first start of the person's command may measure:
 ///  a command the wrapper starts again reads the same repository and would ask twice.
@@ -89,7 +110,7 @@ pub fn plan_the_second_look(plan: AbortRecheckPlan) {
 /// const plan = takeTheSecondLook();
 /// ```
 fn take_the_second_look() -> Option<AbortRecheckPlan> {
-    let mut pending: std::sync::MutexGuard<'_, Option<AbortRecheckPlan>> = PENDING.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); });
+    let mut pending: std::sync::MutexGuard<'_, Option<AbortRecheckPlan>> = slot();
     return pending.take();
 }
 
@@ -98,7 +119,8 @@ fn take_the_second_look() -> Option<AbortRecheckPlan> {
 /// Why:
 ///   A person who read the wrapper's decision a moment ago has to know the state moved since,
 ///  or the refusal reads as if the first measurement had missed something it could not have seen.
-///  It stands on its own line after the refusal, because the refusal's own last sentence is its advice
+///  It stands on its own line after the refusal,
+/// because the refusal's own last sentence is its advice
 ///  and a clause inside a sentence would separate advice from the reason.
 ///
 /// In TS you'd write (pseudocode):
@@ -117,16 +139,16 @@ pub const LATE_WORK: &str = "This work appeared between the wrapper's measuremen
 ///  A refusal here names the work and the two ways forward,
 ///  and the record says `rejected`,
 ///  because the command did not run.
-///  A plan that is not there means no abort or skip decided to run, and nothing is done.
+///  A plan that is not there means no abort or skip decided to run,
+/// and nothing is done.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const refusal = recheckBeforeTheCommand(); // one line for stderr, or nothing
 /// ```
 pub fn recheck_before_the_command() -> Option<String> {
-    let Some(plan) = take_the_second_look() else {
-        return None;
-    };
+    // `?` ends this function with `None` when the slot is empty, which is the same answer as an empty plan.
+    let plan: AbortRecheckPlan = take_the_second_look()?;
     let mut facts = git_facts(
         plan.context.real_git.as_path(),
         plan.context.global_prefix.as_slice(),

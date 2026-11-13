@@ -32,7 +32,8 @@ use crate::service_hold_retry::{may_run_again, run_again_while_service_holds};
 /// Running real Git,
 /// settling the linked-worktree copy around it when one applies.
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
-/// The second measurement of an abort or a skip, owed immediately before Git starts.
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
 use crate::abort_recheck::recheck_before_the_command;
 /// The resolved forwarded command.
 use crate::forwarded_command::ResolvedCommand;

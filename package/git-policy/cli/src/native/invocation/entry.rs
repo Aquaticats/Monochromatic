@@ -21,7 +21,8 @@ use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
 use crate::exit_report_written::write_exit;
 use crate::entry_run_forwarded_actions::{finish_forwarded, run_announced, run_coordinated_action, write_stream};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, REJECTED_EXIT_CODE, failure, with_leading_notice};
-/// The second measurement of an abort or a skip, owed immediately before Git starts.
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
 use crate::abort_recheck::recheck_before_the_command;
 use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement};
 use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
