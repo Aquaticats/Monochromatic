@@ -758,8 +758,9 @@ The batch list is `<reviews folder>/<change>/restart-<n>-batch.json`, one entry,
 which `start-a-batch-in-its-own-unit` or `start-pi-runs-from-a-batch-list` takes as any other.
 
 Nothing is ever written over:
-a brief, a diff, a reading or a batch list holding other text refuses the whole restart
-and names the file,
+a brief, a diff, a reading or a batch list that already holds other text refuses the whole restart,
+and the refusal names the file;
+a file that already holds exactly the restart's own text is left alone,
 and a restart whose review file is already there is refused as one that already ran.
 A restart already written and not yet ended holds back the next one,
 so the command says which run is pending rather than writing a third;
