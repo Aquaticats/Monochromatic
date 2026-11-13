@@ -213,9 +213,20 @@ So, as the project's own rules until the owner changes them:
   The hourly loop is not set up again before whatever fills free slots reads the cap.
 - Steps: four, then double (eight, sixteen, ...) until a level fails, then halve the gap between the last level that held and the one that failed.
   Only real queued work is run; no load is made for the test.
-- What counts as a level failing, how long a level is held, and whether other sessions' runs count against the four are asked of the owner
-  (question of 2026-11-13, answer to be recorded here).
-  At every reading the count of all agent runs on the machine, this session's and others', is written beside the figures, because the ceiling is the disk's.
+- The owner's answers through the question tool, 2026-11-13 after 10:34:
+  - Whose runs count: "Every agent on the machine (Recommended)". So the four are every Pi run on the machine, whoever started it,
+    plus this session's Sonnet subagents; with one run of another session going, this session starts three.
+  - What counts as hitting the ceiling: "Measured symptoms, but \"a commit through the wrapper takes longer than your rule\"
+    is obviously a bad \"symptom\" since that might just say the wrapper is bad."
+    So a level fails on the first of two things: a Pi run gets no answer to its first prompt in 120 s or ends on a disk error;
+    or a 4 KiB write-and-sync probe on either drive takes over 5 s twice in a row (the 5 s is this session's figure, offered in the question and not objected to).
+    A level is held at least an hour and until its runs have each built once.
+    The wrapper's commit time is written beside each reading and fails no level; nor do the kernel's stall figures.
+  - When a run's scratch is deleted: "At run end, all but keep/ . Oh and I forgot to say all the dir names were extremely cryptic and shouldn't have been."
+    So the launcher gives each run one scratch folder and deletes it when the run ends, except a `keep/` subfolder for its report, logs and measurements;
+    a subagent's brief names one folder the same way and its starter deletes it on return;
+    and every scratch folder's name says what is in it to someone who was not there.
+- At every reading the count of all agent runs on the machine is written beside the figures, because the ceiling is the disk's.
 
 #### Next, in order
 
