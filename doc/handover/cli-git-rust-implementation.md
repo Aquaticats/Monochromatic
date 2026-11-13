@@ -670,6 +670,141 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Integration pass 19 started; the discarding-commands resume finished (2026-11-13T13:53:09-05:00)
+
+Not complete: the pass is going; the branch waits for its review.
+Read from the run's own report by the coordinating session; nothing here was run again by it.
+
+- **Pass 19** (`integration-pass-19-for-alpha-17`) started at 13:52:38 with commit-is-made and push-stops.
+- **`discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file`** ended before 13:52:36, tip `26834c0f32`.
+  By its report a form that would write over or delete a file nothing else holds
+  (`reset --hard`, `checkout --force`, `switch --force` and `--discard-changes`, `checkout <tree> -- <path>`, `restore --source`, three `read-tree` forms, `mv --force`, `checkout-index --force`, both pathspec-file forms)
+  is refused before Git runs, names the file, and runs exactly as real Git with `--no-enforce-worktree`;
+  each such claim is asserted as an equality with a direct Git run in the same state.
+  The check costs about 45 ms by its measurement, against 145 for its base and 195 to 200 for the installed release.
+  Limits it states: no submodule form; `git merge` itself unguarded; a shell alias whose value names a global option goes unjudged;
+  and the refusal over an **ignored** file is a choice of its brief that the owner has not restated.
+  Two binary tests outside its paths did not pass in its run and were not run at `main`.
+  Fit to merge by its report; its review is first in the queue.
+
+#### The push-stops branch passed its review; integration pass 19 for `0.6.1-alpha.17` is queued with two branches (2026-11-13T13:50:07-05:00)
+
+Not complete: the pass has not started; nothing is released.
+Read from the review's own report by the coordinating session.
+
+- **Review of `push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window`** (commit `f56257b9e1`), ended before 13:49:37: no defect.
+  It built the change and ran its controls under `cargo nextest`
+  (the eight of the library, the six through the built wrapper, and the twenty-one of the meter the change was taken out of),
+  and reasons that with a floor of zero the new condition is the old one, so waits that are not a push are unchanged.
+  It notes that the binary test program run directly, outside `nextest`, fails every fixture at the service's teardown, `main`'s unchanged controls included: a matter of the harness.
+- **Pass 19** takes the two branches that a review which built and ran them found clean:
+  commit-is-made at `159fa32a47` and push-stops at `f56257b9e1`.
+  Brief `~/temp/agent/pi-runs/integration-pass-19-for-alpha-17-prompt.md`; branch `integrate/git-policy-cli-pass-19-for-alpha-17` from `main`;
+  first in the queue, it starts as a place frees.
+  Every other branch is named in the brief as left out, each with a review today that reproduced a defect or a review still going.
+- The scratch-folder change's author started at 13:49:38 on its second review's findings.
+
+#### The installed release deletes a stage folder whose claim lost its records, a person's file with it: issue 6296 (2026-11-13T13:46:59-05:00)
+
+Not complete: how a person reaches the state without building it by hand is not shown against the release; the fix is with the snapshot branch's author.
+Run and read by the coordinating session.
+
+- The second finding of the snapshot branch's review was run against the released binary `0.6.1-alpha.16`, between 13:45:04 and 13:46:42,
+  in a disposable repository with a `HOME` and an `XDG_RUNTIME_DIR` of its own, with the review's own build on the same state as the control.
+  The state: a `.stage` claim of an owner that is gone, the stage folder beside the repository holding one file, and neither the `.made` nor the `.add` record.
+  Both binaries, on a forwarded `git add` in a linked worktree: status 0, the line "removed the stage … that an interrupted ignored-state copy left behind",
+  the folder and the file gone.
+  Script and outputs: `~/temp/agent/snapshot-review-file-deletion-checked-against-the-installed-release-2026-11-13/`.
+- Read in `main` at `2613d85910`: `release_unsynced` (`worktree_copying/worktree_copy_stage_claim.rs`, lines 196 to 205) removes the `.made` record and the add's record before the claim,
+  and its comment says the durable release uses the same order.
+  So the order that leaves that state after a kill is in `main`; the guard the branch adds (`of_an_add`) is not, and the review shows the guard is defeated by the same kill.
+- Not shown: the whole sequence, from a real `git worktree add` served by a snapshot whose displaced directory holds a person's file, and a kill at that instruction, against the release.
+  It needs both a file written into the new worktree while the add runs and a kill inside the release of the claim.
+- Filed as issue 6296. The snapshot branch's author, started at 13:46:32, was told by a note in its inbox (taken by its run) and names the issue in the commit that closes the window.
+- **Review of the launcher's scratch-folder fixes** (`c0a18005c2...a0dff71830`), ended before 13:46:31: two defects, both reproduced.
+  The sweep that removes finished worktrees runs its clean command with no deadline, so a clean that blocks holds the whole sweep;
+  and the proof that a scratch folder is its run's own is taken once before a walk of up to 1800 s, in which a new attempt of the same name can start and lose what it writes.
+  The second is the same harm as the first review's second finding through another window; the author is asked to remove the class.
+  Brief `~/temp/agent/pi-runs/launcher-scratch-folder-change-answers-its-second-review-of-2026-11-13-prompt.md`, first in the queue.
+  **Nothing deletes scratch automatically until this is answered, reviewed and merged.**
+
+#### The snapshot branch's review deleted a person's file through the built wrapper; the guards branch's advice loses what it tells a person to back up (2026-11-13T13:44:04-05:00)
+
+Not complete: both branches go back to their authors.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **Review of `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`** (commit `568365a2b0`), file
+  `~/temp/agent/change-reviews/git-policy-cli-snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own/review.md`.
+  Two defects, each reproduced in a harness on the library and through the built wrapper:
+  keeping an unreadable claim by a hard link (new in the branch) leaves, after a kill between two steps, a claim with two links that every later recovery refuses,
+  so every forwarded command in the repository fails before Git runs (a wrapper `git add` ended with status 2 where plain Git succeeded);
+  and a kill inside the release of a claim, after its `.add` record is removed and before its stage, lets the reaping take an add's stage for a copy's and delete it,
+  a person's file with it (a wrapper `git add` deleted the file and ended with status 0).
+  **The branch is not fit for an integration pass.**
+  Whether the second is the branch's or stands in `main` and `0.6.1-alpha.16` is not established; the author is asked to run the review's script against a wrapper built from `main` and say.
+  Brief `~/temp/agent/pi-runs/snapshot-of-a-person-answers-its-review-of-2026-11-13-prompt.md`, first in the queue.
+- **Review of `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`** (commit `c3d3dec271`): it built the wrapper and found the refusal itself safe
+  (it only refuses; every decline of the in-process reader falls back to the earlier check, which keeps the file).
+  One defect, reproduced: the refusal advises `git diff -- <path> > backup.patch` as the backup before the opt-out,
+  which on an unmerged path writes a combined diff that `git apply` refuses, so the advised backup cannot bring the resolution back.
+  It also reads, without running it, that the advised `git commit -- <paths>` depends on the wrapper's own commit path.
+  The author fixes the advice and runs every piece of advice in its refusals to its end:
+  brief `~/temp/agent/pi-runs/guards-refuse-answers-its-review-of-2026-11-13-prompt.md`, second in the queue.
+- Started 13:43:12 and 13:43:32: the reviews of `push-of-a-branch` and `removal-refuses`.
+- **The next integration pass** still has one branch (commit-is-made).
+  It is started when the review of push-stops, going since 13:21:48, has ended, with what is clean then.
+
+#### The commit-is-made branch passed its second review, the first branch of the day ready for a pass; two more resumes finished (2026-11-13T13:40:41-05:00)
+
+Not complete: no pass is started; two branches wait for review.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **Second review of `commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`** (`c9758832c4...159fa32a47`): no defect.
+  It built the change and ran its controls (ten of ten, and the seventy-eight of the landing, built and objects modules),
+  reproduced the Git behaviour the new check rests on, and traced and dismissed five candidates with file and line.
+  Two things it notes as older than the change and outside it: the held batch's line can promise too much if the branch moved, and a marks file can outlive a failed attempt that is not tried again.
+  Its run is marked `driver-failed` by issue 6295 after the review was written.
+  **The branch at `159fa32a47` is reviewed and ready for the next integration pass**
+  (file `~/temp/agent/change-reviews/git-policy-cli-commit-is-made-fixes-after-its-first-review/review.md`).
+- **`push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch`** finished, tip `98de70959d`.
+  By its report a typed push of a branch other than the one checked out is merged as that branch and named so, and only that branch moves;
+  it reproduced, before the change, a case where `main` and its worktree were moved by a push of another branch (the branch pushed to another name while `main` stood at the pushed tip).
+  A branch checked out in another worktree follows only when that worktree's work survives.
+  Twelve controls through the built wrapper; fit to merge by its report.
+  Its review is first in the queue.
+- **`removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`** finished, tip `408f5808f6`.
+  By its report a removal is refused while a process has its working folder, its executable or an open file inside the worktree
+  (a scan that reaches its ceiling refuses too), and each removal that deleted ignored entries writes one line to
+  `monochromatic-git-policy-cli-worktree-deletions.jsonl` in the common Git directory.
+  A clean removal costs about 60 ms more (one Git start for the listing: 17 ms before, about 80 ms after).
+  Fit to merge by its report; it overlaps three files the landed-removal work also rewrites.
+  Its review is second in the queue.
+- **The next integration pass** is started when the reviews of the snapshot, guards-refuse and push-stops branches (going since 13:13 to 13:22) have ended,
+  with every branch that is reviewed clean by then.
+  It is not started now for one branch because a pass takes a place for more than an hour and a release, and would be followed at once by another.
+- The reviews of `removal-goes-around` and `abort-and-skip`, and the review of the start gate's one fix, started between 13:39:14 and 13:40:02.
+
+#### The start gate's author answered its second review; the removal that goes around a foreign volume finished (2026-11-13T13:36:42-05:00)
+
+Not complete: both wait for a review.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **The start gate's author**, ended before 13:35:51, tip `4bffbba7c6` (`main` merged in), fix `d8169d8c0c`.
+  It ran the review's scripts on the reviewed commit and saw the wrong count.
+  The fix: a unit is joined to a launcher only by proof, a live `systemd-run` client whose command line names that unit and whose parent is that launcher;
+  a unit no launcher is shown waiting on counts as another agent, so the doubtful case refuses one start for a moment and never passes the cap.
+  It measured the premise on this machine (three such clients, each with a launcher as parent).
+  A review of the one fix, over `5643dde10d...4bffbba7c6`, is first in the queue; then the merge.
+- **`removal-goes-around-a-subvolume-or-mount-it-did-not-make`**, ended before 13:35:51, tip `6fabdc8690`.
+  By its report a removal empties the tree around a nested subvolume or a mount, keeps the volume and the directories that lead to it with their modes,
+  drops the registration, and says in one message what is left and what frees the path;
+  an unforced removal over an untracked volume is refused; a tree holding a volume is never handed to Git; the service route makes the same look.
+  Every control compares the volume before and after by listing, mode, owner and digest.
+  Untested by its own account: mounts that need privileges, FUSE, overlay and network filesystems.
+  It calls itself fit to merge; one red unit control is `main`'s own.
+  Its review is second in the queue.
+- Started at 13:35:51 and 13:36:12: the no-manager service's continuation and the author of `commit-does-not-list`.
+
 #### The commit service that needs no manager: three things done, one control missing; issue 6293 no longer waits for it (2026-11-13T13:33:48-05:00)
 
 Not complete: the branch is "not yet" fit to merge by its own report, and goes on.
