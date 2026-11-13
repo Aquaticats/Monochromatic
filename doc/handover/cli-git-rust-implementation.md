@@ -685,6 +685,30 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Issue 6293's author finished; the reload fix's review found nothing and ran nothing, so it is started again (2026-11-13T15:55:55-05:00)
+
+Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
+
+- **Issue 6293**, tip `3d5c1a0d8c` on `fix/git-policy-cli-issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once`,
+  eleven commits on top of `2fb2e61d90` (the no-manager branch as it stood). By its report:
+  - a run given a runtime directory of its own keeps its journal, retry plans and scratch files inside it and makes no call to the account's manager
+    (a container proof with a bus of its own: the base fails four checks, this tree passes three cases);
+  - a push ends its plan at once for an empty address, exactly `DISABLED`, an address beginning with a dash and one beginning with `://`,
+    and keeps its retries for every address Git answers "does not appear to be a git repository" for, read from Git 2.56.0's own answers;
+  - its last container gate: 8,340 of 8,366 tests passed; it puts the 26 failures down to fixtures pinning Git 2.56.0 against the image's 2.56.1,
+    failures the inherited branch has of its own, and controls sensitive to load. Not checked here.
+  Its review is queued over `2fb2e61d90...3d5c1a0d8c`, its own commits; it cannot land before the no-manager branch it stands on, whose author is answering a reproduced defect.
+  Its run's end reason reads `driver-failed` (issue 6299, the sixth such ending today, the first of an author's run); its work is whole.
+- **The reload fix** (issue 6286), review of its answer at `575c585373`: "no concrete defect found", and by its own words "no build, test run, or reproduction was performed",
+  because the change is a conversation with a user service manager and one may not be started on this machine.
+  By the owner's rule of 12:26:24 a review that ran nothing is started again:
+  `review-git-policy-cli-reload-fix-answers-reviewed-again-with-its-code-built-and-run-in-a-container`,
+  whose brief is the package's own with one paragraph added: build it and run it inside a container that has a manager of its own,
+  as the package's `service-manager-*` scripts do, with the three failures of the first review and a kill after each state change.
+  The review noted one thing by reading that it does not stand behind: two provisions at once of a worktree whose record is missing could let one be refused wrongly.
+- The index-lock review ended on the rate limit a fourth time (15:54) and was put back by the filling unit within the same round; nobody had to notice.
+- Free room at 15:55:55: `/var/home` 510 GiB, the build volume 1,521 GiB (513 and 1,529 at 15:24:13).
+
 #### Retracted: five reviews at once does not prevent the rate limit; ended reviews now go back to the queue by themselves (2026-11-13T15:45:14-05:00)
 
 Not complete, and written by the coordinating session: the fix that lets a run live through the answer is still being written.
