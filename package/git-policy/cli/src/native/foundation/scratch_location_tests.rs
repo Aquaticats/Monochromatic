@@ -134,6 +134,48 @@ fn the_state_directory_follows_the_xdg_rules() {
     );
 }
 
+/// What:
+///  A run given a runtime directory of its own keeps its scratch files inside that directory.
+/// Why:
+///  Issue 6293's decision ("Private runtime dir is the boundary") is that nothing of such a run is written under the
+///  account's real state directory, and the scratch files of every command are part of that.
+///  A session whose own bus lives in its runtime directory is unaffected, and so is an account that named no runtime
+///  directory at all.
+#[test]
+fn a_run_given_a_runtime_directory_of_its_own_keeps_its_scratch_inside_it() {
+    let account: &[(&str, &Path)] = &[("XDG_STATE_HOME", Path::new("/state")), ("HOME", Path::new("/home/u"))];
+    let mut private: Vec<(&str, &Path)> = account.to_vec();
+    private.push(("XDG_RUNTIME_DIR", Path::new("/run/private")));
+    private.push(("DBUS_SESSION_BUS_ADDRESS", Path::new("unix:path=/run/user/1000/bus")));
+    assert_eq!(
+        state_directory(&environment(private.as_slice())),
+        Some(PathBuf::from("/run/private/monochromatic-git-policy-cli")),
+        "a runtime directory of the run's own holds its scratch files, whatever the account's state directory is"
+    );
+    let mut own_session: Vec<(&str, &Path)> = account.to_vec();
+    own_session.push(("XDG_RUNTIME_DIR", Path::new("/run/user/1000")));
+    own_session.push(("DBUS_SESSION_BUS_ADDRESS", Path::new("unix:path=/run/user/1000/bus")));
+    assert_eq!(
+        state_directory(&environment(own_session.as_slice())),
+        Some(PathBuf::from("/state/monochromatic-git-policy-cli")),
+        "the session whose own bus this is keeps the account's state directory"
+    );
+    let mut inherited_bus_only: Vec<(&str, &Path)> = account.to_vec();
+    inherited_bus_only.push(("XDG_RUNTIME_DIR", Path::new("/run/private")));
+    assert_eq!(
+        state_directory(&environment(inherited_bus_only.as_slice())),
+        Some(PathBuf::from("/run/private/monochromatic-git-policy-cli")),
+        "a runtime directory of the run's own with no bus inherited is still the run's own"
+    );
+    let mut fell_back: Vec<(&str, &Path)> = account.to_vec();
+    fell_back.push(("DBUS_SESSION_BUS_ADDRESS", Path::new("unix:path=/run/user/1000/bus")));
+    assert_eq!(
+        state_directory(&environment(fell_back.as_slice())),
+        Some(PathBuf::from("/state/monochromatic-git-policy-cli")),
+        "an account that named no runtime directory keeps the account's state directory"
+    );
+}
+
 /// Without an absolute `XDG_STATE_HOME` and without a non-empty `HOME` there is no directory,
 /// and the sentence names
 /// both variables and says the system temporary directory is not a fallback.
