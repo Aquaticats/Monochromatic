@@ -147,7 +147,7 @@ pub(crate) fn say_what_it_cost_and_keep_a_held_commit(
 ) {
     let Some(why) = on_the_landing_state((), take_the_reason) else { return };
     let Some(made) = made_of(outcomes) else { return };
-    announce.announce(Announce::Waiting(the_line(why.as_str())));
+    announce.announce(Announce::Waiting(the_line(why.as_str(), made.1)));
     if made.1 {
         return;
     }
@@ -225,19 +225,28 @@ pub(crate) fn the_words_for_a_commit_no_reference_names(tip: &str) -> String {
 ///  and what there is to say has three parts:
 ///  the commit was made,
 ///  the reference that would have kept a `git gc` off its objects while it was landing was not written and why,
-///  and no later maintenance can take it now.
+///  and what names the commit now.
 ///  The words name the reference and Git's own refusal,
 ///  because the person's next question is what refused it,
 ///  and they never say the commit failed.
+///  What names the commit is not the same for both endings a batch can have:
+///  a landed batch's branch names it,
+///  while a batch held behind a reference lock has not moved the branch,
+///  and the commit is kept where that ending says until the lock goes.
+///  A line that said the branch named it would assert a landing that has not happened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: your commit was made, and ... was not written (${why}), so ... The branch names the commit now ...`
+/// `monochromatic-git-policy-cli: your commit was made, and ... was not written (${why}), so ... ${branchNamesIt ? 'The branch names the commit now ...' : 'The branch has not moved yet ...'}`
 /// ```
-fn the_line(why: &str) -> String {
+fn the_line(why: &str, branch_names_it: bool) -> String {
+    let named: &str = match branch_names_it {
+        true => "The branch names the commit now, so no later maintenance takes it.",
+        false => "The branch has not moved yet: a reference lock stands in the way of its write, and it names the commit as soon as the lock goes. Until then the commit is kept where this command says.",
+    };
     return format!(
         "monochromatic-git-policy-cli: your commit was made, and the reference that keeps a commit out of a `git gc` started while it is \
 being landed was not written for it ({why}), so a `git gc --prune=now` or `git prune --expire=now` running in that window could have taken \
-its objects. The branch names the commit now, so no later maintenance takes it.\n"
+its objects. {named}\n"
     );
 }
