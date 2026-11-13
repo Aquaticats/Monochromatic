@@ -3182,12 +3182,24 @@ Now the merge runs and the person's work is carried across it:
 - A binary file,
   a symbolic link,
   a mode the pass cannot take,
-  a mode the person set at a path the merge deletes,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named,
   and the naming is true:
   nothing was written to it before the check that found it changed.
+- What the merge writes ends at the mode Git writes:
+  the entry Git records for that path decides whether the file is executable,
+  and the file system decides the rest from the process's umask and the directory's default ACL,
+  exactly as Git's own checkout of the same entry does.
+  A permission bit Git does not record, like the `0600` of a `chmod 0600` on a tracked `0644` file,
+  follows the same rule, so a merge that changes such a file writes Git's mode over it
+  (owner's decision of 2026-11-12T12:26:24-05:00,
+  "As real Git, both cases";
+  `SPEC.md`,
+  "Merges and commits never fail").
+  The one place your own bits are written is a path the merge deletes while your file stays,
+  which is a deletion against an edit you made:
+  nothing of the merge's stands there, so your entry goes back with every bit the capture read.
 - A merge killed after it cleared those paths puts the captured bytes back
   when it turns out the merge never landed,
   and carries them when it did.

@@ -53,13 +53,25 @@ pub(crate) enum IndexWrite {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string } | { kind: 'remove' };
+/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string; thePersonsBits?: number } | { kind: 'remove' };
 /// ```
 pub(crate) enum FileWrite {
     /// The layer already holds it.
     Leave,
-    /// The file form and the mode to write.
-    Bytes(Vec<u8>, String),
+    /// One entry's file form,
+    /// the mode Git records for it,
+    /// and the permission bits it is given when the mode is not Git's own checkout of it.
+    Bytes {
+        /// The bytes of the entry: a file's content or a link's target text.
+        bytes: Vec<u8>,
+        /// The mode Git records,
+        /// which says the kind of the entry and whether its owner may run it.
+        mode: String,
+        /// Every permission bit the person's own entry carried,
+        /// when the bytes are theirs and the merge wrote nothing at the path;
+        /// nothing when Git's own checkout decides the mode of the file.
+        the_persons_bits: Option<u32>,
+    },
     /// Nothing stands at the path.
     Remove,
 }
