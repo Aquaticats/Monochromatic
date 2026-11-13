@@ -34,6 +34,19 @@ use std::path::{Path, PathBuf};
 const CHILD_VARIABLE: &str = "CLI_GIT_MERGE_MODE_CHILD";
 
 /// What:
+///  This test process's own executable,
+///  for the child process the umask controls start from the test binary.
+/// Why:
+///  A control starts the test binary,
+///  never the wrapper:
+///  the ban on `std::env::current_exe` (`clippy.toml`) is about the wrapper starting itself,
+///  so this is this module's one place the lint is excused.
+#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it under another umask; the wrapper is never started this way")]
+fn the_test_binary() -> std::io::Result<PathBuf> {
+    return std::env::current_exe();
+}
+
+/// What:
 ///  Whether this call ran the test in a child process under `mask`,
 ///  and asserted that the child passed;
 ///  `false` in the child itself,
@@ -43,7 +56,8 @@ const CHILD_VARIABLE: &str = "CLI_GIT_MERGE_MODE_CHILD";
 ///  and this harness runs many controls on the threads of one process,
 ///  so a control that set it would decide the mode every other control's writes get.
 ///  The child is the same test binary run with one test name,
-///  which is why this answer is `true` in the parent: the parent's assertion is the child's result.
+///  which is why this answer is `true` in the parent:
+///  the parent's assertion is the child's result.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,7 +70,7 @@ fn ran_in_child(module: &str, name: &str, mask: u32) -> bool {
     // The crate's own name is the first segment of `module_path!()` and is not part of the name libtest answers to,
     //  so it is dropped here as the library's own helper does.
     let path: String = format!("{}::{name}", module.split_once("::").map_or(module, |(_, rest)| { return rest }));
-    let mut command: std::process::Command = std::process::Command::new(std::env::current_exe().expect("the test binary's own path"));
+    let mut command: std::process::Command = std::process::Command::new(the_test_binary().expect("the test binary's own path"));
     command.args(["--exact", path.as_str(), "--nocapture"]).env(CHILD_VARIABLE, "1");
     // SAFETY: `umask` only sets the file creation mask of the child between its fork and its exec, and it is async-signal-safe.
     unsafe {
@@ -90,9 +104,11 @@ enum WhatTheMergeDoes {
     Delete,
     /// `feature` moves the file to another name.
     Rename,
-    /// Both sides write different bytes into the file, so the merge leaves markers in it.
+    /// Both sides write different bytes into the file,
+    /// so the merge leaves markers in it.
     Conflict,
-    /// `feature` writes another file, and this one is not the merge's business.
+    /// `feature` writes another file,
+    /// and this one is not the merge's business.
     AnotherPath,
 }
 
@@ -117,7 +133,8 @@ const THE_FILE: &str = "victim.txt";
 ///  and `main` one commit ahead so the merge is a true merge.
 /// Why:
 ///  Every control needs the same shape and differs only in what the merge does to the file and in the person's own
-///  state, so the shape is built once.
+///  state,
+///  so the shape is built once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -161,7 +178,8 @@ fn diverged(fixture: &Fixture, name: &str, what_the_merge_does: WhatTheMergeDoes
 /// Why:
 ///  The shared hang guard bounds a command by its own progress and the harness's short bound is meant for one Git
 ///  start;
-///  a merge carries files and writes records, so it gets the same bound a wrapped commit gets.
+///  a merge carries files and writes records,
+///  so it gets the same bound a wrapped commit gets.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -317,7 +335,8 @@ fn a_merge_under_a_private_umask_writes_the_mode_git_writes() {
 
 /// What:
 ///  A mode that makes a plain entry runnable on the worktree alone is not a mode a merge keeps:
-///  the entry Git records is not executable, so the merge writes it as Git writes it.
+///  the entry Git records is not executable,
+///  so the merge writes it as Git writes it.
 /// Why:
 ///  `git status` compares the executable bit alone,
 ///  so a `chmod 0700` on a tracked `0644` file is work Git refuses to merge over and a merge writes the file with
@@ -391,7 +410,8 @@ fn a_merge_that_moves_a_file_deletes_the_old_path_and_writes_the_mode_git_writes
 ///  A merge that deletes the file the person set a mode on deletes it,
 ///  and the file keeps no mode because it is not there.
 /// Why:
-///  Real Git deletes such a file: a mode it does not record is no change at all to its own update,
+///  Real Git deletes such a file:
+///  a mode it does not record is no change at all to its own update,
 ///  so the deletion takes the file and the mode with it.
 ///
 ///  The person's staged edit at another path is what puts the merge on the route where this command completes it

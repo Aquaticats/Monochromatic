@@ -60,9 +60,10 @@ pub(crate) enum FileWrite {
     Leave,
     /// One entry's file form,
     /// the mode Git records for it,
-    /// and the permission bits it is given when the mode is not Git's own checkout of it.
+    /// and the permission bits it is given when the mode is not the one a checkout of Git decides.
     Bytes {
-        /// The bytes of the entry: a file's content or a link's target text.
+        /// The bytes of the entry:
+        /// a file's content or a link's target text.
         bytes: Vec<u8>,
         /// The mode Git records,
         /// which says the kind of the entry and whether its owner may run it.

@@ -831,7 +831,8 @@ fn a_symbolic_link_the_person_has_where_the_merge_adds_a_path_stays_a_link() {
 /// Why:
 ///   Real Git compares the executable bit of a worktree file against the index and refuses a merge over such a file,
 ///  so it writes no answer here;
-///  this command completes the merge, and it writes the file as Git's own checkout of the entry writes it:
+///  this command completes the merge,
+///  and it writes the file as Git's own checkout of the entry writes it:
 ///  `0666` narrowed by the process's umask,
 ///  with no executable bit,
 ///  because the entry the merge ends with is `100644`
@@ -875,7 +876,8 @@ fn a_mode_change_on_a_path_the_merge_changes_ends_at_the_mode_git_writes() {
 /// What:
 ///  The same change of the executable bit alone,
 /// on a path the merge deletes:
-/// the path goes, with no byte and no mode of the person's left behind.
+/// the path goes,
+/// with no byte and no mode of the person's left behind.
 /// Why:
 ///   A mode change alone is no change of the bytes,
 /// and Git's own update deletes the file,
@@ -955,7 +957,8 @@ fn a_staged_mode_change_on_a_path_the_merge_deletes_keeps_its_entry() {
 ///  A change of a private file's read and write bits alone,
 /// with the blob and the executable bit untouched,
 /// on a path the merge deletes:
-/// the path goes, as it does after real Git's own update.
+/// the path goes,
+/// as it does after real Git's own update.
 /// Why:
 ///  `git status` compares the executable bit alone,
 /// so `chmod 0600 gone.txt` is no change Git's own update sees,
