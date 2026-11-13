@@ -340,8 +340,9 @@ Not approved by anyone; what the run did and checked itself:
   branch 8's `ToolStart::LetGoWithoutAnAnswer` and the line a person reads for it are in this release with wording still open;
   the `HOME`-dependent control of branch 9 fails under a `HOME` too long for a socket name, to be fixed as a control or kept as a fixture limit.
 
-The trial merge into `main` with `git merge-tree` at about 11:14 was clean (165 files).
-It is merged with `--no-ff` and dispatched from 0.6.1-alpha.15 to 0.6.1-alpha.16 with no gate (an alpha).
+The trial merge into `main` with `git merge-tree` was clean (165 files),
+and `main` took the branch with `--no-ff` as `71276cb10f` at 11:11:55 (the merge ran 0.76 s on `0.6.1-alpha.15`).
+It is dispatched from 0.6.1-alpha.15 to 0.6.1-alpha.16 with no gate (an alpha).
 No commit goes to `main` between the dispatch and the publication; the other session is told.
 
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
