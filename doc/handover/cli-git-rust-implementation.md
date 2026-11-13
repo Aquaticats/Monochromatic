@@ -729,7 +729,43 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
-- none yet.
+- Two folders owned by root stand in what is left of `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-11`
+  (`3d/ff5cdb8b411452/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-sweep-real-1626078`
+  and `b6/f40fb50bf1a32c/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-watch-stop-397956`,
+  12 KiB in all).
+  This account can neither open nor remove them.
+  Removing them takes the owner's `sudo`;
+  whether a test of `wg-quicker-exempt` may leave root-owned files in a build folder at all is a question for that package.
+
+##### The deletion ended at 18:49:59
+
+- Both folders,
+  512 shards,
+  in 19 minutes and 27 seconds from 18:30:32.
+  The folder of 2026-11-10 is gone;
+  of 2026-11-11 two shards stand with the two root-owned folders named under "Questions kept".
+- Free on the build volume: 1,439 GiB when it began,
+  2,299 GiB when it ended.
+- Readings it took before each shard:
+  six of the build volume over five seconds
+  (9,650 ms,
+  15,201 ms,
+  12,186 ms,
+  7,881 ms,
+  9,018 ms and 6,104 ms),
+  never two in a row,
+  so it never stopped itself;
+  the home drive's slowest was 98 ms.
+- Six shards held test fixtures without permissions that a first removal could not enter;
+  opening their permissions and removing again took four of them,
+  and the two with root-owned folders stayed.
+- The brief of the cargo-shadow cleanup run,
+  which had not started,
+  now carries these measurements:
+  deleting is quick here where a read-only walk was not,
+  and a cleaner has to report an entry it cannot remove and go on.
+- The hour that judges the level of agents started at 18:51
+  (unit `disk-ceiling-probe-level-32-the-hour-that-judges-20261113T1851`).
 
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
