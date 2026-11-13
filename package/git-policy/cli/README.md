@@ -571,7 +571,11 @@ Read-only commands,
    and the report says the work was left as it is;
   a pushed branch that is checked out in another worktree follows there,
   under that worktree's own uncommitted work,
-  and one that no worktree has checked out moves as a ref alone.
+   and one that no worktree has checked out moves as a ref alone,
+  which looks at the worktree listing on either side of that write,
+  so a checkout made at that moment is not left showing the older files.
+  A worktree whose folder was deleted still lists its branch but holds no files,
+  so it is not a worktree to move and the branch moves as a ref.
    Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;
@@ -649,9 +653,12 @@ Read-only commands,
   after the same second pass.
   The branch your push sent follows the published merge under the same conditions as after a commit,
   in whichever worktree has it checked out,
-  and no other branch moves:
-  a push of a branch that is not checked out is named, reported and followed as that branch,
+  and no other branch moves.
+  A push of a branch that is not checked out is named, reported and followed as that branch,
   and a detached HEAD stays where it is with the report saying that no local branch follows the merge.
+  A merge that was published is never reported as a failed push,
+  even where the move of the branch could not be attempted at all:
+  the report says the branch is not at the merge and names the step that finishes it.
   Forced,
   deleting,
   mirroring,

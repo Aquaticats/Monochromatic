@@ -8409,6 +8409,18 @@ in-process reader can) gives every value of the multi-valued keys.
   A pushed branch that no worktree has checked out moves as a ref alone,
   by `update-ref` from the tip the push sent,
   and no file is written.
+  A worktree whose folder is gone still appears in that listing
+  (Git marks it prunable) and holds no branch a person can commit in:
+  it is not a worktree to move,
+  so a branch it still names moves as a ref and no Git is started in the folder that is gone
+  (a review of commit `98de70959d`,
+  finding 1).
+  The reference's own move reads the listing again on either side of its compare-and-swap:
+  a worktree that took the branch before the write has its files written by that worktree's own move,
+  and one that took it inside the window was written from the pushed tip,
+  so its index and files are brought to the merge by the two-way `read-tree -u -m`,
+  which leaves a path a person has changed with their bytes
+  (`advance_pushed_branch_awaiting` in `src/native/push/auto_push_reconcile_branch_advance_elsewhere.rs`).
   An empty status passes trivially;
   uncommitted work in files the move does not write is left exactly as it was,
   and the report says so,
@@ -8441,6 +8453,11 @@ in-process reader can) gives every value of the multi-valued keys.
   When the pushed branch could not follow the merge it stays where it is,
   and the last line names the reason and `git merge --ff-only <merge>`,
   for the worktree that has the branch checked out.
+  A move that cannot even be asked after the merge was published
+  (a worktree whose folder went as the push ran, a program the system refused)
+  is that report and never a failed push:
+  the merge is published,
+  so the exit status is `0` and the line says the branch is not at it and which step finishes the move.
   The report reaches the person through a record of the worktree's notice directory,
   shown once by the next command (`record_push_report` in `push_failure_notice.rs`),
   because the command that ran the push returned before the push ended:
