@@ -8,15 +8,21 @@
 //! Git removes the userinfo of what it prints itself,
 //! and leaves the path and the query as they were typed,
 //! so a push whose streams are the caller's printed those secrets
-//! (audit `alpha-12-lfs`, finding "A typed push relays URL path and query secrets without the wrapper's mask").
-//!  Both streams are therefore read by this module and relayed through the mask of `lfs_output_mask`,
+//! (audit `alpha-12-lfs`,
+//! finding "A typed push relays URL path and query secrets without the wrapper's mask").
+//!  Both streams are therefore read by this module,
+//! and relayed through the mask of `lfs_output_mask`,
 //! a word at a time,
 //! so a URL the kernel split between two reads is still one URL when it is masked
 //! (`UrlMaskingStream`).
 //! What a person still sees:
 //! every line as it is written,
-//! the server and the port of every URL,
-//! the shape of its path and query,
+//! the server,
+//! the port and the path of every URL,
+//! with only the parts a rule recognizes as a secret replaced by `<credentials>`
+//! (owner,
+//! "Mask recognised secrets only",
+//! item 1.9 of `doc/handover/cli-git-rust-implementation.md`),
 //! and the summary of which refs moved.
 //! What is lost:
 //! a progress meter,
@@ -141,9 +147,10 @@ pub fn relay_masked(reader: &mut impl Read, writer: &mut impl Write) {
 /// and report how Git ended.
 /// Why:
 ///   A push is the forwarded command whose own output names a destination,
-/// and the destination can carry a token,
+/// and the destination can carry a token in its path or in its query,
 /// so neither stream is handed to the caller as Git wrote it.
-///  `out` and `err` are the caller's own streams; a control hands in buffers.
+///  `out` and `err` are the caller's own streams;
+/// a control hands in buffers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
