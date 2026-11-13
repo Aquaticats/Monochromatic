@@ -302,6 +302,15 @@ WDQ:
 Intended behavior that could confuse gets documented where its users meet it,
  so they are not confused.
 
+HLD:
+ A precaution that makes work wait (a hold,
+ a freeze,
+ a serial order,
+ a stopped run) names the recorded failure it prevents;
+ none on record:
+ read the source,
+ then drop it or file the defect.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
