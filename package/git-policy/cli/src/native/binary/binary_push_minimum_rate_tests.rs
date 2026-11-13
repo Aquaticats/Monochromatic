@@ -787,7 +787,7 @@ fn a_push_to_a_path_whose_hook_never_answers_is_ended_although_the_keepalive_mov
     // The stall window is the one that judges a remote that is a path, and a control cannot wait the shipped thirty seconds
     //  twice over.
     give_service_environment(&root, "CLI_GIT_PUSH_DEADLINE_SECONDS", WINDOW_SECONDS.to_string().as_str());
-    let (landed, commit, _tripwire): (std::process::Output, String, Tripwire) =
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
         commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES, WINDOW_SECONDS);
     let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
     assert!(landed.status.success(), "the commit itself succeeds: {report}");
@@ -798,6 +798,7 @@ fn a_push_to_a_path_whose_hook_never_answers_is_ended_although_the_keepalive_mov
         "the window that judged the path's silence is named as the setting that moves it: {report}"
     );
     assert_eq!(git_text(&root, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2", "the commit is saved locally");
+    assert!(tripwire.released(), "a process the push started was still running after the command returned: {report}");
     remove_settled(&root);
 }
 
