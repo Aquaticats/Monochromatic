@@ -62,7 +62,7 @@ fn each_reason_says_whether_the_commit_was_lost() {
     let reached: String = line_of(&a_pruning(WhyPruned::ReachedABranch), 1_791_500_000_000, the_limits());
     assert!(reached.contains("so nothing was lost"), "{reached}");
     let too_much: String = line_of(&a_pruning(WhyPruned::TooMuchKept), 1_791_500_000_000, the_limits());
-    assert!(too_much.contains("weighs more than"), "{too_much}");
+    assert!(too_much.contains("weighed more than"), "{too_much}");
 }
 
 /// The log lives in the common Git directory, beside the wrapper's other logs.

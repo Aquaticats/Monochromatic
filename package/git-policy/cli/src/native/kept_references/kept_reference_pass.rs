@@ -256,7 +256,10 @@ pub fn common_directory_of_this_repository(git_dir: &Path) -> PathBuf {
 /// ```
 pub async fn prune_after_a_commit(git: &GitContext, git_dir: &Path) {
     let common_dir: PathBuf = common_directory_of_this_repository(git_dir);
-    return match run_the_pass(git, common_dir.as_path(), false).await {
+    // The questions of the pass carry their revisions on standard input, which Git is fed from a private file in the
+    //  repository's own scratch directory: the service's context names none, so the pass names the one it is about.
+    let about_the_repository: GitContext = GitContext { common_dir: Some(common_dir.clone()), ..git.clone() };
+    return match run_the_pass(&about_the_repository, common_dir.as_path(), false).await {
         Ok(pass) => crate::service_log!(
             "kept references: {} pruned of {}, {} bytes held before and {} after",
             pass.pruned.len(),

@@ -126,7 +126,7 @@ pub fn read_record(common_dir: &Path, reference: &str) -> Option<KeptReferenceRe
         return None;
     }
     let batch: u64 = object.get("batch")?.as_u64()?;
-    let kept_at_ms: u128 = u128::try_from(object.get("kept_at_ms")?.as_u64()?).ok()?;
+    let kept_at_ms: u128 = u128::from(object.get("kept_at_ms")?.as_u64()?);
     return Some(KeptReferenceRecord {
         reference: String::from(object.get("reference")?.as_str()?),
         commit: String::from(object.get("commit")?.as_str()?),

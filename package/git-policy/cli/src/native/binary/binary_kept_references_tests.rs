@@ -47,6 +47,12 @@ const COMMAND: &str = "monochromatic-git-policy-cli";
 /// longer than the one-second age a control sets, and short enough that a control stays quick.
 const A_MOMENT: Duration = Duration::from_millis(1_200);
 
+/// How long a control waits for the commit service's upkeep to reach the pass it runs by itself.
+const UPKEEP_PATIENCE: Duration = Duration::from_secs(120);
+
+/// How often a control looks for what the upkeep did.
+const UPKEEP_POLL: Duration = Duration::from_millis(100);
+
 /// How long a control waits for a paused pass to reach its marker.
 const MARKER_PATIENCE: Duration = Duration::from_secs(60);
 
@@ -148,10 +154,10 @@ fn names_the_listing_prunes(text: &str) -> Vec<String> {
     for line in text.lines() {
         if line.starts_with("refs/") {
             current = Some(String::from(line));
-        } else if line.trim_start().starts_with(PRUNED_NEXT) {
-            if let Some(name) = current.take() {
-                pruned.push(name);
-            }
+        } else if line.trim_start().starts_with(PRUNED_NEXT)
+            && let Some(name) = current.take()
+        {
+            pruned.push(name);
         }
     }
     return pruned;
@@ -162,10 +168,10 @@ fn names_the_listing_prunes(text: &str) -> Vec<String> {
 fn names_the_report_prunes(text: &str) -> Vec<String> {
     let mut pruned: Vec<String> = Vec::new();
     for line in text.lines() {
-        if let Some(rest) = line.strip_prefix("pruned ") {
-            if let Some((name, _why)) = rest.split_once(' ') {
-                pruned.push(String::from(name));
-            }
+        if let Some(rest) = line.strip_prefix("pruned ")
+            && let Some((name, _why)) = rest.split_once(' ')
+        {
+            pruned.push(String::from(name));
         }
     }
     return pruned;
@@ -227,6 +233,37 @@ impl Paused {
         std::fs::write(self.markers.join("kept-references-listed.release"), b"").expect("the release file");
         return self.child.wait_with_output().expect("the pass ends");
     }
+}
+
+/// The commit service prunes a kept reference by itself, in the upkeep that runs after a landed commit,
+/// with no command asking for a pass.
+#[test]
+fn the_upkeep_prunes_with_no_command_asking_for_a_pass() {
+    let world: World = world("kept-references-upkeep");
+    // The service reads the limits from its own environment, which the fixture gives it.
+    world
+        .fixture
+        .service_environment
+        .lock()
+        .expect("the fixture's service environment")
+        .push((std::ffi::OsString::from(MAX_AGE_VARIABLE), std::ffi::OsString::from("1")));
+    let commit: String = a_commit_no_branch_names(&world, "a commit the upkeep prunes");
+    reference(&world, "refs/cli-git/kept/1794071191963960", commit.as_str());
+    // A command of the wrapper dates the reference at that moment; the service's own limit then finds it past the age.
+    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    std::thread::sleep(A_MOMENT);
+    // A person's commit is what brings the service to its upkeep, and the upkeep is where the pass runs by itself.
+    let landed: Observed = super::commit::run_commit(&world.fixture, world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message", "a commit that wakes the upkeep"]);
+    assert_eq!(landed.code, Some(0), "the commit landed: {}", String::from_utf8_lossy(landed.stderr.as_slice()));
+    let began: Instant = Instant::now();
+    while names(&world, "refs/cli-git/kept/1794071191963960").is_some() {
+        assert!(began.elapsed() < UPKEEP_PATIENCE, "the upkeep pruned the reference within {} seconds", UPKEEP_PATIENCE.as_secs());
+        std::thread::sleep(UPKEEP_POLL);
+    }
+    let lines: Vec<String> = log_lines(&world);
+    assert_eq!(lines.len(), 1, "the upkeep wrote the line about what it pruned: {lines:?}");
+    assert!(lines[0].contains("too-old"), "{lines:?}");
+    remove(&world.fixture);
 }
 
 /// That fixture's wrapper gets the fixture's own home and runtime directory,
