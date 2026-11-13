@@ -1408,6 +1408,186 @@ await describe({
           },
         },),
         it({
+          name: 'counts one launcher that has made nothing yet as one agent',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding one launcher only.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '61',
+              words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=copy-route',],
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd() {
+                return answered(0, '',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a machine with no unit reported a problem',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'counts a unit whose launcher is gone, and whose client is gone with it, as one agent',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A process folder holding no process at all.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-copy-route.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=neuralwatt --model=deepseek-v4.1-flash-flex ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'counts a unit as one agent when its only client was started by no launcher going, because that client proves nothing',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding the orphaned client of a launcher that has gone.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '62',
+              parentPid: '1',
+              unitName: 'pi-copy-route.service',
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-copy-route.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=neuralwatt --model=deepseek-v4.1-flash-flex ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'counts two launchers of one name beside the unit one of them made as two agents',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes: two launchers of one audit name, and the waiting client of the first.
+             */
+            const processes = join(folder.path, 'proc',);
+            for (const pid of ['63', '64',]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher file after another; see doc/lint/sequential-awaits.md
+              await writeProcess({
+                folder: processes,
+                pid,
+                words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+              },);
+            }
+            await writeWaitingClient({
+              folder: processes,
+              pid: '65',
+              parentPid: '63',
+              unitName: 'pi-sol-audit.service',
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-sol-audit.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=synthetic --model=gpt-audit ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts two launchers of one name beside a unit that two clients name as three agents, refusing a start rather than joining them',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes: two launchers of one audit name, and a client of each naming the same unit, one of
+             which the manager is about to refuse.
+             */
+            const processes = join(folder.path, 'proc',);
+            for (const pid of ['66', '67',]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher file after another; see doc/lint/sequential-awaits.md
+              await writeProcess({
+                folder: processes,
+                pid,
+                words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+              },);
+            }
+            await writeWaitingClient({
+              folder: processes,
+              pid: '68',
+              parentPid: '66',
+              unitName: 'pi-sol-audit.service',
+            },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '69',
+              parentPid: '67',
+              unitName: 'pi-sol-audit.service',
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-sol-audit.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=synthetic --model=gpt-audit ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.agents,).toBe(3,);
+          },
+        },),
+        it({
           name: 'counts two launchers going under one audit name as two agents in one entry, because an audit name may go twice',
           fn: async () => {
             await using folder = await makeFolder();
@@ -1526,6 +1706,52 @@ await describe({
               folder: processes,
               pid: '41',
               words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: async function systemd({ words, },) {
+                return words.includes('list-units',)
+                  ? answered(0, 'pi-sol-audit.service x\n',)
+                  : answered(0, '{ argv[]=node x.ts --provider=synthetic --model=gpt-audit ; }',);
+              },
+              processFolder: processes,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem() {
+                throw new Error('a unit that answered was reported as unreadable',);
+              },
+            },);
+            expect(going.length,).toBe(1,);
+            expect(going[0]?.name,).toBe('sol-audit',);
+            expect(going[0]?.agents,).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts a unit as another agent when two clients name it, because the one that made it cannot be told from the one the manager refused',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes: one launcher, the waiting client of the run that made the unit (its launcher gone,
+             so the client is the parentless one), and the about-to-be-refused client of a second start of the same audit name.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '46',
+              words: ['/usr/bin/node', `/runs/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`, '--name=sol-audit',],
+            },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '47',
+              parentPid: '1',
+              unitName: 'pi-sol-audit.service',
+            },);
+            await writeWaitingClient({
+              folder: processes,
+              pid: '48',
+              parentPid: '46',
+              unitName: 'pi-sol-audit.service',
             },);
             /**
              The runs going now.

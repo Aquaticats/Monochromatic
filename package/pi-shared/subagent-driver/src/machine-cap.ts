@@ -11,7 +11,8 @@
  yet. It never stops a run that is going. A count above the cap, because another session started a run or the cap was lowered, is a
  reading at that higher count, said on the counts line as it is; the next start is refused and nothing else happens. Owner,
  2026-11-13, when a session stopped a run of its own to bring the machine back to the number: "\"Forced you stop yours\"? Didn't I
- say bisect up until there's a problem?" The canonical record of the level is `doc/handover/agents-at-once-on-this-machine.md`.
+ say bisect up until there's a problem?" The canonical record of the level is `doc/handover/agents-at-once-on-this-machine.md`,
+ which names `src/machine-agent-cap.json` as where the number lives and says which number it holds.
 
  The cap counts every agent going on the machine, never a slot of a pool: every Pi run, in a pool or in none, whoever started it,
  a run whose name begins `sol-` as much as one on a provider no pool holds, and every launcher that has not made its unit yet. Two

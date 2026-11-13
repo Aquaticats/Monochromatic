@@ -542,6 +542,138 @@ await describe({
       },
     },),
     it({
+      name: 'refuses a start whose unit name was taken after the first check, before it spawns the systemd-run client that would be refused',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run would work in.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         Where the manager stand-in records every question it was asked.
+         */
+        const managerLog = join(
+          folder.path,
+          'manager.log',
+        );
+        /**
+         The marker a unit start would leave, which must never appear: the unit name was taken after the first check, and a
+         `systemd-run` client naming an existing unit is refused by the manager after the fact.
+         */
+        const unitMarker = join(
+          folder.path,
+          'unit-started',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses, which resolves the base and the checkout's root.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node'*)\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The manager: it answers that the unit's name is free on the first question, and that the unit is there on the next, as
+         another run of the name making its unit between the two questions would leave it.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `printf '%s\\n' "$*" >> '${managerLog}'\ncase "$*" in\n  *--property=LoadState*)\n    asked=$(wc -l < '${managerLog}')\n    if [ "$asked" -eq 1 ]; then\n      printf '%s\\n' 'not-found'\n    else\n      printf '%s\\n' 'loaded'\n    fi\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The unit manager, which must never be asked to start a unit.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `printf '%s\\n' "$*" > '${unitMarker}'\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which loads its extensions and prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+        },);
+        expect(ended.code,).toBe(1,);
+        expect(ended.stderr,).toContain('refused: refusing to start',);
+        expect(ended.stderr,).toContain('pi-refused.service is already there',);
+        // The manager was asked about the name twice: once before anything was made, and once after the run folder was made.
+        expect((await logIn(managerLog,)).trim()
+          .split('\n',),).toHaveLength(2,);
+        // The unit start that would have been refused was never spawned.
+        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+      },
+    },),
+    it({
       name: 'says what Pi printed when Pi left before the run started, so the batch names the cause and not the unit memory line',
       fn: async () => {
         await using folder = await makeFolder();

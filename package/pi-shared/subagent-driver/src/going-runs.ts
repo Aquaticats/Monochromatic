@@ -207,9 +207,14 @@ function unitAwaitedBy({ words }: { readonly words: readonly string[] }): string
  Reads the unit each launcher is waiting on, which is what proves a listed unit is that launcher's own run.
 
  The launcher starts its unit as `systemd-run --user --wait --unit=pi-<name>.service` and stays that client's parent until the
- unit ends, so a live client naming a unit whose parent is a launcher of that name proves the unit is that launcher's run. A unit
- no launcher proves is another agent: a unit of one run and a launcher of another run may share a name, because an audit name may
- go twice.
+ unit ends, so a live client naming a unit whose parent is a launcher of that name says the unit is that launcher's run.
+
+ Only a unit that exactly one live client names can be that client's: a second client naming an existing unit was refused by the
+ manager (`Unit pi-<name>.service was already loaded or has a fragment file`), and while it lives it names the unit and has the
+ second launcher as its parent without having made anything. With two clients naming one unit, the one that made it cannot be told
+ from the one that was refused, so the unit is counted as another agent for the moment both live: an overcount refuses one start,
+ where joining them would let one through. A unit no launcher proves is another agent, because a unit of one run and a launcher of
+ another may share a name: an audit name may go twice.
 
  @param processes - every process of the folder
 
@@ -234,9 +239,12 @@ async function unitsLaunchersWaitOn({
   readonly processFolder: string;
 },): Promise<ReadonlySet<string>> {
   /**
-   The units proved to be a launcher's own run.
+   Every live `systemd-run` client: the unit it waits on, and the process that started it.
    */
-  const proved = new Set<string>();
+  const clients: {
+    readonly unitName: string;
+    readonly parent: number;
+  }[] = [];
   for (const process of processes) {
     /**
      The unit this process waits on, when it is a `systemd-run` client.
@@ -246,15 +254,44 @@ async function unitsLaunchersWaitOn({
       continue;
     }
     /**
-     The process that started this client.
+     The process that started this client, or {@link NO_PROCESS} when that cannot be read.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one waiting client after another, and a parent is read only while the client lives; see doc/lint/sequential-awaits.md
     const parent = await parentPidOf({
       processFolder,
       pid: process.pid,
     },);
+    clients.push({
+      unitName,
+      parent,
+    },);
+  }
+  /**
+   The units proved to be a launcher's own run.
+   */
+  const proved = new Set<string>();
+  for (const unitName of new Set(clients.map(function unitOf(client,) {
+    return client.unitName;
+  },))) {
     /**
-     The launcher that started this client, when one of that name did.
+     The processes that started the clients naming this unit.
+     */
+    const parents = clients.filter(function waitsOn(client,) {
+      return client.unitName === unitName;
+    },)
+      .map(function startedBy(client,) {
+        return client.parent;
+      },);
+    if (parents.length !== 1) {
+      // Two clients name one unit: one of them was refused, and which made the unit cannot be told from here.
+      continue;
+    }
+    /**
+     The process that started the one client naming this unit.
+     */
+    const [parent,] = parents;
+    /**
+     The launcher that started it, when one of that name did.
      */
     const launcher = launchers.find(function startedIt(candidate,) {
       /**

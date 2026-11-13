@@ -233,9 +233,30 @@ never slots.
   an audit name may go twice,
   and a launcher and the unit it made are one agent only while the launcher's own `systemd-run` client waits on that unit;
   a unit no launcher is waiting on is another agent.
+
+The gate joins a listed unit to a launcher only by proof:
+exactly one live `systemd-run` client names that unit,
+and that client's parent is the launcher whose name makes the unit's name.
+A second client naming an existing unit is one the manager refuses,
+and while it lives it names the unit without having made anything,
+so a unit two clients name is counted as another agent:
+an overcount refuses one start for a moment,
+where joining them would let one through.
+The states one name can be in and the count each gives:
 - the agents a caller says it has going which are no Pi run,
   such as subagents of its own session,
   which the gate cannot see.
+
+- one launcher and nothing else gives one agent;
+- two launchers of one name and no unit gives two agents;
+- a unit alone with its launcher and its client gone gives one agent;
+- a unit whose only client was started by no launcher going gives one agent;
+- a launcher with the unit it made and its own client waiting gives one agent;
+- a launcher and a unit of its name whose client is gone gives two agents;
+- a launcher and a unit of its name whose single client waits on another unit gives two agents;
+- a unit named by two clients with one of them refused gives two agents;
+- two launchers of one name with the unit one of them made gives two agents;
+- two launchers of one name beside a unit that two clients name gives three agents.
 
 A run at the number is refused the way a full pool is:
 exit `3`,
@@ -486,7 +507,14 @@ because a line that read `unit the-unit-ended with status 1`
 was taken for the run's end while the run it had started was alive and working.
 
 Nothing is made before five checks pass,
-the first of which is the one above:
+and the unit's name is asked once more just before the unit is started,
+because making the worktree and linking its dependencies take minutes,
+and another run of the same name may have made that unit in between:
+a start refused there spawns no `systemd-run` client at all,
+so the manager is spared a call that is known to fail,
+and the worktree the launcher made is left as any other later refusal leaves it.
+The five checks come first.
+The first of them is the one above:
 the `git` the session would run is this repository's policy wrapper,
 the prompt file exists and can be read,
 the base names a commit,

@@ -69,7 +69,10 @@ It refuses a start at the cap with exit `3`,
 naming the count,
 the cap and the run it did not start.
 Two runs that share a name are two agents;
-a launcher and the unit it made are one.
+a launcher and the unit it made are one only while exactly one live `systemd-run` client names that unit and that launcher started
+it.
+A unit no launcher proves that way is counted as another agent,
+because a unit of one run and a launcher of another may share a name.
 What the gate cannot see is the caller's to state:
 the subagents of its own session,
 counted by step 2 above,

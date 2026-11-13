@@ -24,6 +24,7 @@ import { setTimeout as wait, } from 'node:timers/promises';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import {
   StartRefusedError,
+  nameProblemIn,
   startRefusalsIn,
 } from './checks-before-a-start.ts';
 import { finishTheRun, } from './finish-a-run.ts';
@@ -310,6 +311,24 @@ const unit = unitCommandOf({
   turnCap,
   ...(options.session === undefined ? {} : { session: options.session, }),
 },);
+
+/**
+ The unit's name, asked once more just before the unit is started.
+
+ Making the worktree and linking its dependencies take minutes, and the first check of that name ran before they began: another
+ run of the same name may have made its unit in between. Starting on that name would spawn a `systemd-run` client that the manager
+ refuses, and while that client lives it names the unit and has this launcher as its parent, which is what makes a count of agents
+ unable to tell the run that made the unit from the run that was refused. So the start stops here instead: it spawns no client,
+ and the manager is spared a call that is known to fail. The worktree it made and the dependencies it linked are left as they are.
+ */
+const lateNameProblem = await nameProblemIn({
+  run: runCommandWithChildProcess,
+  runName: options.name,
+},);
+if (lateNameProblem.problem !== undefined) {
+  console.error(`${options.name}: refusing to start: ${lateNameProblem.problem}`,);
+  process.exit(1,);
+}
 
 /**
  The process that follows the unit, which this launcher ends once the unit has ended rather than waiting on the manager's own
