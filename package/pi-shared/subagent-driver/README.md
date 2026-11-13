@@ -169,8 +169,12 @@ PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --c
 
 A pair naming no pool,
 or holding anything but a whole number,
+or holding a number too large for one to hold exactly,
 is refused rather than counted,
-because a mistyped name would otherwise close nothing and read as though it had.
+because a mistyped name would otherwise close nothing and read as though it had,
+and a limit past 9007199254740992 would read as another number,
+or as `Infinity`,
+which closes nothing.
 A run that names a model only one pool takes stays on that pool.
 A run that resumes a session stays on the pool it named while that pool takes new runs,
 with no wall factor;
@@ -224,7 +228,8 @@ never slots.
   (an audit whose name begins `sol-`,
   a Kimi run on a provider outside the table),
   and every launcher that has not made its unit yet.
-  Two runs that share a name are two agents, never one:
+  Two runs that share a name are two agents,
+  never one:
   an audit name may go twice,
   and a launcher and the unit it made are one agent because they are one run;
 - the agents a caller says it has going which are no Pi run,
@@ -259,10 +264,15 @@ as `PI_RUNS_POOL_LIMITS` sets a pool's limit:
 PI_RUNS_OTHER_AGENTS_GOING=1 PI_RUNS_MACHINE_CAP=4 start-pi-run-when-a-pool-has-room --counts-only
 ```
 
-A value that is no whole number is refused rather than counted,
+A value that is no whole number,
+or one too large for a number to hold exactly (past 9007199254740992),
+is refused rather than counted,
 because a mistyped number would start more agents than the machine carries,
 or stop every start,
-with no line saying which.
+with no line saying which,
+and a cap read as another number or as `Infinity` would refuse the wrong starts,
+or none at all,
+without a word.
 
 ### The room a new run needs
 
@@ -371,9 +381,11 @@ and `PI_RUNS_FOLDER_VOLUMES` says which volume each folder is on as `<folder>=<v
 A caller starting real runs sets none of them.
 Each of the last two replaces a reading of this machine with one the test gives,
 so either can start a run the machine would refuse or refuse one it would start:
-a room larger than the drive holds, or a volume with more room than the folder's own,
+a room larger than the drive holds,
+or a volume with more room than the folder's own,
 lets a start through;
-a room smaller than the drive holds, or a folder mapped onto a volume that is under its floor,
+a room smaller than the drive holds,
+or a folder mapped onto a volume that is under its floor,
 refuses a start the folder's own volume would allow.
 The cap and the agents a caller has going are the two variables above.
 
