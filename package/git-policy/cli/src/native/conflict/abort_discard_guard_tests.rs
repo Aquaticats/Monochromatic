@@ -26,14 +26,13 @@ use std::ffi::OsString;
 /// A waiting abort whose restored tree is `HEAD`,
 ///  with the person's own work at these paths,
 ///  read against the merge result Git recorded.
-fn waiting(operation: AbortOperation, worktree: Vec<Vec<u8>>, index: Vec<Vec<u8>>, staged: Vec<Vec<u8>>) -> AbortDiscard {
+fn waiting(operation: AbortOperation, worktree: Vec<Vec<u8>>, staged: Vec<Vec<u8>>) -> AbortDiscard {
     return AbortDiscard::Waiting {
         in_progress: operation,
         ends: OperationEnd::Abort,
         restored: OsString::from("HEAD"),
         baseline: DiscardBaseline::RecordedResult,
         worktree,
-        index,
         staged,
     };
 }
@@ -41,15 +40,14 @@ fn waiting(operation: AbortOperation, worktree: Vec<Vec<u8>>, index: Vec<Vec<u8>
 /// A waiting operation read the way a rebase, a pick or an `am` is read:
 ///  the worktree against the index and the index against `HEAD`,
 ///  because none of them records a result.
-fn waiting_from_the_operation_start(operation: AbortOperation, ends: OperationEnd, worktree: Vec<Vec<u8>>, index: Vec<Vec<u8>>) -> AbortDiscard {
+fn waiting_from_the_operation_start(operation: AbortOperation, ends: OperationEnd, worktree: Vec<Vec<u8>>, staged: Vec<Vec<u8>>) -> AbortDiscard {
     return AbortDiscard::Waiting {
         in_progress: operation,
         ends,
         restored: OsString::from("HEAD"),
         baseline: DiscardBaseline::OperationStart,
         worktree,
-        staged: index.clone(),
-        index,
+        staged,
     };
 }
 
@@ -57,7 +55,7 @@ fn waiting_from_the_operation_start(operation: AbortOperation, ends: OperationEn
 #[test]
 fn every_other_guarded_form_is_not_applicable() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()], Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()], Vec::new()));
     for command in [
         GuardedCommand::Stash,
         GuardedCommand::Clean,
@@ -100,7 +98,7 @@ fn an_unreadable_answer_is_refused_naming_the_reason() {
 #[test]
 fn the_operations_own_state_alone_runs_without_a_line() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), Vec::new()));
     assert_eq!(judge_abort_discard(&mut facts, GuardedCommand::AbortMerge), AbortVerdict::Allowed);
 }
 
@@ -109,7 +107,7 @@ fn the_operations_own_state_alone_runs_without_a_line() {
 #[test]
 fn a_hand_resolution_is_refused_and_named() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()], Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()], Vec::new()));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
         AbortVerdict::Refused(text) => {
             assert!(text.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{text}");
@@ -127,7 +125,7 @@ fn a_hand_resolution_is_refused_and_named() {
 #[test]
 fn content_only_the_index_holds_is_named_that_way() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), vec![b"new.txt".to_vec()], vec![b"new.txt".to_vec()]));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), vec![b"new.txt".to_vec()]));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
         AbortVerdict::Refused(text) => assert!(text.contains("new.txt (content only the index holds)"), "{text}"),
         other => panic!("expected a refusal, got {other:?}"),
@@ -139,7 +137,7 @@ fn content_only_the_index_holds_is_named_that_way() {
 #[test]
 fn a_staged_resolution_beside_a_later_worktree_edit_names_both() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()], vec![b"a.txt".to_vec()], vec![b"a.txt".to_vec()]));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, vec![b"a.txt".to_vec()], vec![b"a.txt".to_vec()]));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
         AbortVerdict::Refused(text) => assert!(
             text.contains("a.txt (a resolution or edit you made since Git stopped at the conflict; a staged resolution)"),
@@ -191,15 +189,13 @@ fn a_staged_edit_is_named_as_staged_content() {
 }
 
 /// A path whose index entry was erased holds no content,
-///  and the refusal says the deletion is the work at risk.
+///  so nothing of the person's is there to lose and the command runs:
+///  the reset writes that path back from the tree it restores.
 #[test]
-fn a_staged_deletion_is_named_as_a_deletion() {
+fn a_staged_deletion_is_no_reason_to_refuse() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), vec![b"gone.txt".to_vec()], Vec::new()));
-    match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
-        AbortVerdict::Refused(text) => assert!(text.contains("gone.txt (a deletion you staged)"), "{text}"),
-        other => panic!("expected a refusal, got {other:?}"),
-    }
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), Vec::new()));
+    assert_eq!(judge_abort_discard(&mut facts, GuardedCommand::AbortMerge), AbortVerdict::Allowed);
 }
 
 /// A refusal names a bounded number of paths and counts the rest.
@@ -211,7 +207,7 @@ fn every_path_beyond_the_bound_is_counted() {
         paths.push(format!("p{number}.txt").into_bytes());
     }
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, paths, Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, paths, Vec::new()));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
         AbortVerdict::Refused(text) => {
             assert!(text.contains("p0.txt"), "the first paths are named: {text}");
@@ -249,7 +245,7 @@ fn a_skip_names_the_quit_form_of_its_own_operation() {
 #[test]
 fn an_ignored_file_the_restored_tree_tracks_is_refused_and_named() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Merge, Vec::new(), Vec::new()));
     facts.ignored_and_tracked = Ok(vec![String::from(".env")]);
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
         AbortVerdict::Refused(text) => {
@@ -264,7 +260,7 @@ fn an_ignored_file_the_restored_tree_tracks_is_refused_and_named() {
 #[test]
 fn an_unreadable_ignored_file_answer_is_refused() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Am, Vec::new(), Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Am, Vec::new(), Vec::new()));
     facts.ignored_and_tracked = Err(String::from("the tree of HEAD could not be read"));
     match judge_abort_discard(&mut facts, GuardedCommand::AbortAm) {
         AbortVerdict::Refused(text) => {
@@ -287,7 +283,6 @@ fn the_ignored_file_question_reads_the_restored_revision() {
         restored: OsString::from(record),
         baseline: DiscardBaseline::OperationStart,
         worktree: Vec::<Vec<u8>>::new(),
-        index: Vec::<Vec<u8>>::new(),
         staged: Vec::<Vec<u8>>::new(),
     });
     facts.ignored_and_tracked = Ok(Vec::<String>::new());
@@ -350,7 +345,7 @@ fn a_skip_is_refused_for_the_untracked_file_its_reset_will_not_write_over() {
 #[test]
 fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting(AbortOperation::Rebase, Vec::new(), Vec::new(), Vec::new()));
+    facts.abort_discard = Ok(waiting(AbortOperation::Rebase, Vec::new(), Vec::new()));
     facts.ignored_and_tracked = Ok(vec![String::from(".env")]);
     match judge_abort_discard(&mut facts, GuardedCommand::AbortAm) {
         AbortVerdict::Refused(text) => {

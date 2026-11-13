@@ -2437,13 +2437,14 @@ The rule is:
 - The abort forms of `git merge`,
   `git rebase`,
   `git cherry-pick`,
-  `git revert` and `git am` are decided by the operation in progress,
+  `git revert`,
+  `git am` and the `--skip` forms of the last three operations are decided by the operation in progress,
   not by the status,
   because an operation that stopped with conflicts makes the status dirty by itself:
-  in a linked worktree one that undoes the waiting operation runs
-  after the wrapper saves every change that is not the operation's own,
+  in a linked worktree one whose only changes are the operation's own runs exactly as Git runs it,
+  one that would discard your own work is refused (nothing is copied),
   one whose operation is not waiting is left to Git (which refuses it and discards nothing),
-  and the main worktree keeps the rejection.
+  and the main worktree keeps the rejection for an abort.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -2611,42 +2612,70 @@ The abort forms of the same operations are decided the same way.
 `git merge --abort`,
 `git rebase --abort`,
 `git cherry-pick --abort`,
-`git revert --abort` and `git am --abort` in a linked worktree run while the operation they undo waits,
+`git revert --abort`,
+`git am --abort` and the `--skip` forms of `rebase`,
+`cherry-pick`,
+`revert` and `am` in a linked worktree run while the operation they undo waits,
 because that operation's own state is what `git status` reports and what the abort exists to let go.
-The wrapper saves the changes that are not the operation's own first,
-into the same `discarded/<UTC time>/` folder,
-and prints where each went before Git runs:
+What decides them is the work that is not the operation's own:
+
+- Where the operation's own state is all there is,
+  the command runs exactly as Git runs it,
+  and the wrapper adds no line.
+- Where your own work would go with it,
+  the command is refused before anything is changed,
+  and nothing is copied.
+  The refusal names the command,
+  each path with what stands there
+  (`a resolution or edit you made since Git stopped at the conflict`,
+  `content only the index holds`,
+  `a staged resolution`,
+  `a staged edit`),
+  at most five paths with the rest counted,
+  and both ways out.
+- Where no operation of that kind waits,
+  Git refuses the command itself (`There is no merge to abort`),
+  which discards nothing,
+  so the wrapper leaves it to Git.
+
+Your own work is what differs from the result Git recorded for the conflict it stopped at
+(`AUTO_MERGE`),
+in the worktree or in the index,
+and that ref is there for a rebase,
+a cherry-pick and an `am` as well as for a merge:
+a path that still holds the recorded result was never touched by you,
+a resolution you wrote over it is named,
+and one you staged over it is named as content only the index holds.
+The refusal looks like this:
 
 ```text
-monochromatic-git-policy-cli: this worktree holds changes besides the merge in progress, and git merge --abort discards them; the wrapper saved them first, so nothing you wrote is lost.
-  copies are under /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-11T14-01-07
-  a.rs => /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-11T14-01-07/a.rs
-  git merge --abort runs now and restores the state before the merge.
+monochromatic-git-policy-cli: git merge --abort is refused: it would discard work that stands nowhere else, and the merge in progress still waits. Nothing was changed, and nothing was copied. It would discard a.txt (a resolution or edit you made since Git stopped at the conflict). To keep that work, stop the operation and keep your index and files with git merge --quit (that command is allowed), then commit or save what you want to keep; git merge --abort restores the state before it. To discard the work on purpose, run git merge --no-enforce-worktree --abort: the guard steps aside and Git does exactly what it does on its own.
 ```
 
-For a merge,
-a path that still holds the result Git recorded in `AUTO_MERGE`,
-in the file or in the index,
-is the merge's own state and is not copied;
-a resolution you wrote or staged over it is.
-A rebase,
-a cherry-pick,
-a revert and an `am` return with a hard reset that keeps nothing,
-so every uncommitted tracked change is copied.
-Where the operation's own state is all there is,
-the abort runs with no copy and no notice.
-Where no operation of that kind waits,
-Git refuses the command itself (`There is no merge to abort`),
-which discards nothing,
-so the wrapper leaves it to Git.
+Both pieces of advice work as printed in the state they were printed in:
+the quit form stops the operation and keeps the index and the files,
+and the opt-out runs the command as real Git runs it,
+leaving the state real Git leaves.
+An untracked file at a path the tree the command writes back tracks is Git's own refusal,
+and the words say so:
+Git will not write that tree over the file,
+so the wrapper names the file and says to move or copy it away and run the command again,
+which then goes through.
+
 Two things keep the rejection:
 the main worktree,
-where a form of this policy is always rejected (`git merge --quit` and its siblings stop the operation
-and keep the index and files),
+where an abort is always rejected (`git merge --quit` and its siblings stop the operation
+and keep the index and files,
+and the opt-out runs the abort),
 and an ignored file at a path the tree the abort writes back tracks,
 which is named because the abort replaces that file just as a hard reset would.
-When a copy cannot be written,
-the command is rejected and says which path and why.
+A `--skip` is not refused in the main worktree for being there:
+it is refused exactly when it would discard your work.
+An edit that lands between the wrapper's measurement and Git's start is caught by a second measurement made
+immediately before Git starts;
+one that lands after it goes with the command,
+and nothing of the wrapper's holds the version before,
+because nothing is copied.
 
 The folder is bounded,
 because it would otherwise grow for as long as the repository lives,
@@ -2814,13 +2843,16 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git rebase --abort`,
    `git cherry-pick --abort`,
    `git revert --abort`,
-   `git am --abort`:
-   in a linked worktree the abort runs while its own operation waits,
-   after the wrapper saves the work that is not the operation's own (see above),
-   and the main worktree keeps the rejection;
+   `git am --abort`,
+   and the `--skip` forms of `rebase`,
+   `cherry-pick`,
+   `revert` and `am`:
+   the command runs while its own operation waits, and is refused when it would discard work standing nowhere else
+   (see above);
    the same command with `--quit` stops the operation and keeps the index and files,
    `--continue` finishes it after resolving conflicts,
    and `--skip` drops the current commit or patch.
+   An abort in the main worktree keeps the rejection.
 
 The forms are read with Git's own option grammar,
  so abbreviations,

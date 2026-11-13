@@ -16652,66 +16652,92 @@ and discards nothing,
 so the command is left to Git and the record says `allowed`
 with `dirty` null,
 because no status was read.
+
 While a form is live,
-the work that is not the operation's own is copied first and the command runs
-(the owner's "save,
-then allow",
-2026-11-02,
-which the conflicted-path carve-out below already follows).
-A skip is decided the same way and runs wherever it is,
-in the main worktree and in a linked one:
-the copy is the protection,
-and a refusal is only for the case where no copy can be made.
+what decides it is the work that is not the operation's own.
+Where the only change is the operation's own state,
+the command runs exactly as Git runs it and no line is added to standard error,
+and the record says `allowed` with `dirty` null.
+Where the person's own work is there,
+the command is refused before anything is changed,
+and the refusal gives both routes out:
+the quit form stops the operation and keeps the index and the files,
+and the guard's opt-out runs the command exactly as real Git runs it.
+That is the owner's answer of 2026-11-12T10:35:07, "Refuse with opt-out",
+which replaced the saving this rule described before it.
+Nothing is copied,
+and no sentence of a refusal says a copy was made.
+A skip is decided the same way and is refused or let through wherever it is,
+in the main worktree and in a linked one alike:
+the rule is about the work, not about which worktree the command runs in.
 Where the answer cannot be read,
-the rejection above stands,
+the command is refused and the refusal names what could not be read,
 which loses nothing.
 
-That work is read from Git's own listings.
-For a merge whose `AUTO_MERGE` ref resolves,
-it is the paths where the worktree differs from the result Git recorded
-(`git diff --name-only -z AUTO_MERGE`)
-or where the index does,
-unmerged entries left out
-(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`):
-an untouched conflicted path holds the recorded result and unmerged index entries,
-so it is not named,
-and a resolution written or staged over it is.
-For a merge without `AUTO_MERGE`,
+That work is read from Git's own listings against the result Git recorded for the conflict.
+`AUTO_MERGE` holds the result Git computed and wrote into the worktree,
+and measured with Git 2.56.0 that ref is there for a merge,
 a rebase,
-a cherry-pick,
-a revert and an `am`,
-every uncommitted tracked change is named
-(`git diff --name-only -z` and `git diff --cached --name-only -z`),
-because those aborts return with a hard reset that keeps nothing.
+a cherry-pick and an `am` alike,
+not only for a merge,
+so every form is read against it:
+the worktree against it
+(`git diff --name-only -z AUTO_MERGE`)
+and the index against it
+(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`,
+whose unmerged entries are the operation's own state and are left out).
+A path that still holds the recorded result was never touched by the person,
+so an untouched conflicted path is not named;
+a resolution written over it is,
+and a resolution staged over it is named as content only the index holds,
+because the worktree still holds the recorded result.
+Where Git recorded no result (a Git older than the ref,
+or a state none is written for),
+the listings compare each side with the other
+(`git diff --name-only -z` and `git diff --cached --name-only -z --diff-filter=ACDMRTB`),
+and the paths the operation is still stopped at are asked for on their own
+(`git diff --name-only -z --diff-filter=U`) and left out of the worktree listing:
+measured with Git 2.56.0,
+the worktree listing names each of them twice,
+once with the status `U` and once as a modification,
+so no other filter separates the operation's state from the person's work.
 A listing that fails is a rejection,
 never an empty list.
 A listed path whose index holds a whole entry is content the command would drop,
-because the abort resets the index too,
-and no copy of a worktree file holds it whatever that file says:
-a resolution staged and then edited again leaves two things a person made,
-and the abort drops the staged one.
-The listing is `git ls-files --stage -z` over the listed paths with `:(top,literal)` names,
-read over the one listing that already named the path,
-and it keeps stage zero only:
-an unresolved conflict's own stages are the operation's state and not the person's work.
-That content is copied from the index itself,
-because a copy makes the command safe:
-`git checkout-index --stdin -z --prefix=<folder>/<index-stage-0>/` writes exactly the blob the index held,
-the copied path is named `<path> (index-stage-0)` in the notice and the record,
-and only a copy Git cannot write refuses the command,
-with Git's own reason.
-A path the worktree lost is named once, by its staged copy alone:
-the notice drops the "nothing to copy" line when the index's copy of the same path is listed.
-The copies are written by the same saver,
-into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
-with the same bound,
-and the notice names the command,
-the folder and each copy before Git runs;
-a path with nothing to copy is named as such,
-and a copy that cannot be written rejects the command with the reason.
-The record is `saved-abort` with the copies when something was saved,
-`saved-skip` when the command was a `--skip`,
-and `allowed` with `dirty` null when the operation's own state was all there was.
+because the reset drops the index too,
+and `git ls-files --stage --full-name -z` over the listed paths with `:(top,literal)` names answers which they are;
+`--full-name` keeps a path below the top of the worktree spelled as the two listings spell it,
+so a command run below the top compares one spelling with itself.
+A listed path whose index entry was erased holds no content,
+and the tree the reset writes back holds that path and its content,
+so a staged deletion is no reason to refuse the command:
+an abort undoes the deletion and loses nothing of the person's.
+
+The refusal names the command as typed,
+each path with what stands there,
+and both ways out.
+The kinds are
+`a resolution or edit you made since Git stopped at the conflict`,
+`content only the index holds`,
+`a staged resolution` (beside an edit in the worktree),
+`a staged edit`,
+and, where no result is recorded,
+`an edit you made since the operation began` and `content the index holds`.
+A refusal names at most five paths and counts the rest.
+The quit form is `git merge --quit`,
+`git rebase --quit`,
+`git cherry-pick --quit` or `git revert --quit`,
+`git am --quit`:
+each stops the operation and keeps the index and the files
+(measured with Git 2.56.0 in every stopped state, a hand resolution kept in all of them),
+and none of them is a guarded form.
+The opt-out is `--no-enforce-worktree` written directly after the subcommand,
+which is where the wrapper strips it:
+`git merge --no-enforce-worktree --abort`,
+`git rebase --no-enforce-worktree --skip`.
+It is the spelling `linked-worktree-only` already reads,
+because this refusal is part of that policy,
+so no control of its own was added.
 
 The ignored-file question a hard reset gets is asked here too,
 because the abort writes a tree back over the worktree,
@@ -16728,9 +16754,14 @@ and the commit in `sequencer/head` for a sequence;
 also when it ends a rebase that applies patches.
 A recorded commit is read from the file Git wrote in the same start that read the state,
 and a record that cannot be read,
+that is not a regular file,
 or that holds no commit id,
 is a rejection and never a quiet fall back to `HEAD`,
 because the ignored-file refusal it earns must not read as clean.
+The record is opened with `O_NONBLOCK` and `O_NOFOLLOW` and refused unless it is a regular file,
+and it is read to at most one page (`RECORD_BYTES_READ`):
+a `git rebase --abort` whose `rebase-merge/orig-head` was a pipe hung there for good before this bound,
+with nothing able to end it.
 An ignored file at one of those paths keeps the rejection and is named,
 as for a forced `checkout` and a hard `reset`.
 
@@ -16740,68 +16771,55 @@ measured with Git 2.56.0:
 an ignored file at a path `HEAD` tracks is replaced by the tree's content,
 and one at a path only the operation's original head tracks survives the skip.
 
-An untracked file at a path the restored tree tracks is where Git's own reset refuses the abort,
-naming the files
-(`The following untracked working tree files would be overwritten by reset`,
-`Untracked working tree file 'victim.txt' would be overwritten by merge`),
-measured with Git 2.56.0 for every abort form,
-an untracked file whose content is the tree's own included:
-nothing is lost,
-Git does not abort,
-so no copy is owed and no notice may claim the abort runs.
+An untracked file at a path the restored tree tracks is where Git itself refuses the command.
+Git's own reset will not write a tree over an untracked file,
+and measured with Git 2.56.0 for every abort form and every skip form,
+an untracked file whose content is the tree's own included,
+Git refused and named the file:
+`git merge --abort` printed
+`Untracked working tree file 'victim.txt' would be overwritten by merge`,
+and `git rebase --skip`, `git cherry-pick --skip` and `git am --skip`
+failed with `The following untracked working tree files would be overwritten by reset`.
+A plain `git reset --hard` writes such a file over without a word,
+which is why each command's own behaviour is measured here and a reset's is not.
 The question is `git ls-files --others --exclude-standard -z` over the restored tree's paths
 (`repository_facts_untracked_files.rs`),
-and the rejection names each file,
-says Git will not restore that tree while it is there,
-and gives moving the file out of the way or deleting it as the ways forward.
-A skip is the other case:
-its reset writes that same tree without a word
-(measured: `git reset --hard` replaces an untracked file at a tracked path silently),
-so the untracked file is the person's own work the skip would discard and it is copied with the rest,
-not refused.
+and the rejection says that it is Git that refuses the command,
+names each file,
+says Git will not write that tree while the file is there,
+and gives moving or copying the file away as the way forward.
+Nothing is lost, so no copy is owed and no notice may claim the command ran.
 
 The main worktree and a directory outside a worktree keep the rejection for an abort,
 because the rule above refuses a form there always;
-`git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+`git merge --quit` and its siblings stop the operation and keep the index and files,
 and the hatch runs the abort anyway.
-A skip is not refused there, because its copy protects what the refusal would:
-the copy is the protection, and only the case where no copy can be made refuses.
+A skip is not refused there,
+because the work is what this rule decides about and a skip that would discard the person's work is refused anywhere.
 The check runs after the allowlisted tool cache has answered `exempt`,
-so a repository no guard reads gets no copy either.
+so a repository no guard reads gets no refusal either.
 
-#### The comparison immediately before Git starts
+#### The second measurement, immediately before Git starts
 
-The copy is made when the policy decides,
-and Git discards later,
-so a file can be written in between and go with no copy.
-One comparison narrows that window to the instant before the command starts:
-each saved source is compared with the copy that was made of it,
-by the object,
-size,
-both times and mode the copy proved,
-and whatever no longer matches is copied again
-(`abort_save.rs`).
-A source that changed is copied into a numbered folder beside the first copy
-(`again-<n>` from the first save,
-`later-<n>` from this comparison),
-so a copy is never overwritten and the person is told of both.
-A path the worktree held no file at is a source too:
-a file that appeared there is work the command would discard, and it is copied.
-The comparison runs where the wrapper starts the command the person typed,
-in the same process that made the copies,
-and the plan it needs is taken once,
-so a start the system refused and the wrapper repeats does not compare twice.
-A source that changed again while it was being copied is copied again,
-up to three rounds;
-a source that keeps changing through them refuses the command,
-which names the file and the copies already made,
-because a file another program writes in a loop must not hold the abort for good.
-The copies of content that stands only in the index are not compared again:
-they are the blobs the index held,
-copied by Git itself,
-and the index's later entries are not what the abort would have discarded.
-
+The measurement above happens when the policy decides,
+and Git changes files later,
+so a file can be edited in between and go with the abort unseen.
+A command the measurement let through is measured again immediately before the process becomes Git,
+in the plain forward and in the coordinated one,
+by the same reading and with the same words,
+and a refusal there is a plain line on standard error
+(`abort_recheck.rs`).
+The plan the second measurement needs is held in one place and taken once,
+so a start the system refused and the wrapper repeats measures once.
+A difference the second measurement finds refuses the command,
+names the work that appeared,
+adds `This work appeared between the wrapper's measurement and Git's start.`,
+and appends a `rejected` record;
+the record the first measurement wrote still says `allowed`,
+which is what that measurement decided.
+One round is all a refusal needs:
+any difference ends the command,
+so a second round could only find the same difference again.
 #### The window between the measurement and the command
 
 The rule above is a statement about the state the wrapper measured,
@@ -16824,10 +16842,11 @@ A write that lands inside that window is not seen,
 and nothing in the wrapper can close it:
 only the process that changes files can decide,
 against the state it is about to change.
-For the abort and skip forms the window is the instant between that last comparison and Git's own reset,
+For the abort and skip forms the window is the instant between the second measurement and Git's own reset,
 which is as small as a separate process can make it and is still not zero:
-a write that lands after it is discarded while the copy holds the version before,
-and the notice says so in plain words before the command runs.
+a write that lands after it goes with the abort,
+and nothing of the wrapper's holds the version before,
+because nothing is copied.
 
 Where Git itself has such a check,
 the wrapper hands the decision to Git instead of measuring,
@@ -17290,9 +17309,8 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict`,
-`saved-nested-repository`,
-`saved-abort` or `saved-skip`),
+`saved-conflict` or
+`saved-nested-repository`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -17305,10 +17323,12 @@ the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so do a `saved-nested-repository` line,
-whose places hold the repositories a clean would have deleted,
-a `saved-abort` line,
-and a `saved-skip` line.
+and so does a `saved-nested-repository` line,
+whose places hold the repositories a clean would have deleted.
+No outcome of this release copies anything before an abort or a skip:
+those forms are refused instead.
+A file an earlier release wrote may still hold `saved-abort` and `saved-skip` lines with their own `copies`,
+because the record is append-only.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,

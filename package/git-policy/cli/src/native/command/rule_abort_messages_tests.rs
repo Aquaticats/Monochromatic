@@ -78,32 +78,23 @@ fn every_operation_names_its_quit_form() {
 #[test]
 fn each_path_carries_the_kind_of_work_standing_there() {
     assert_eq!(
-        discarded_list(
-            DiscardBaseline::RecordedResult,
-            &[b"a.txt".to_vec()],
-            &[b"a.txt".to_vec()],
-            &[b"a.txt".to_vec()]
-        ),
+        discarded_list(DiscardBaseline::RecordedResult, &[b"a.txt".to_vec()], &[b"a.txt".to_vec()]),
         "a.txt (a resolution or edit you made since Git stopped at the conflict; a staged resolution)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::RecordedResult, &[], &[b"new.txt".to_vec()], &[b"new.txt".to_vec()]),
+        discarded_list(DiscardBaseline::RecordedResult, &[], &[b"new.txt".to_vec()]),
         "new.txt (content only the index holds)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::RecordedResult, &[], &[b"gone.txt".to_vec()], &[]),
-        "gone.txt (a deletion you staged)"
-    );
-    assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"a.txt".to_vec()], &[], &[]),
+        discarded_list(DiscardBaseline::OperationStart, &[b"a.txt".to_vec()], &[]),
         "a.txt (an edit you made since the operation began)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[], &[b"b.txt".to_vec()], &[b"b.txt".to_vec()]),
+        discarded_list(DiscardBaseline::OperationStart, &[], &[b"b.txt".to_vec()]),
         "b.txt (content the index holds)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"c.txt".to_vec()], &[b"c.txt".to_vec()], &[b"c.txt".to_vec()]),
+        discarded_list(DiscardBaseline::OperationStart, &[b"c.txt".to_vec()], &[b"c.txt".to_vec()]),
         "c.txt (an edit you made since the operation began; a staged edit)"
     );
 }
@@ -115,7 +106,7 @@ fn the_list_is_bounded_and_counts_the_rest() {
     for number in 0..SHARED_PATHS_NAMED + 3 {
         paths.push(format!("p{number}.txt").into_bytes());
     }
-    let listed: String = discarded_list(DiscardBaseline::OperationStart, paths.as_slice(), &[], &[]);
+    let listed: String = discarded_list(DiscardBaseline::OperationStart, paths.as_slice(), &[]);
     assert!(listed.contains("p0.txt"), "{listed}");
     assert!(listed.contains(&format!("and {} more paths", 3)), "{listed}");
     assert!(!listed.contains(&format!("p{}.txt", SHARED_PATHS_NAMED + 2)), "{listed}");
@@ -132,7 +123,6 @@ fn the_refusal_names_both_ways_out_and_promises_no_copy() {
         AbortOperation::Rebase,
         DiscardBaseline::OperationStart,
         &[b"a.txt".to_vec()],
-        &[],
         &[],
     );
     assert!(text.starts_with("monochromatic-git-policy-cli: git rebase --abort is refused"), "{text}");
@@ -154,7 +144,6 @@ fn a_skip_says_it_goes_on() {
         AbortOperation::Am,
         DiscardBaseline::OperationStart,
         &[b"a.txt".to_vec()],
-        &[],
         &[],
     );
     assert!(text.contains("git am --skip goes on without the commit or patch it stopped at"), "{text}");
@@ -206,9 +195,11 @@ fn the_ignored_file_refusal_names_the_waiting_operation() {
     assert!(text.contains("The rebase in progress still waits, and nothing was changed."), "{text}");
 }
 
-/// A reading that failed says which command is refused, why, and how to run it as Git would.
+/// A reading that failed says which command is refused, why,
+///  and gives the quit form as the advice rather than the opt-out,
+///  because the command and its opt-out both send Git to the path that could not be read.
 #[test]
-fn an_unreadable_reading_names_the_reason_and_the_opt_out() {
+fn an_unreadable_reading_names_the_reason_and_the_way_out_that_holds() {
     let text: String = unreadable_refusal_text(
         AbortOperation::Rebase,
         OperationEnd::Abort,
@@ -217,5 +208,6 @@ fn an_unreadable_reading_names_the_reason_and_the_opt_out() {
     );
     assert!(text.contains("git rebase --abort is refused because the wrapper could not read what it would discard"), "{text}");
     assert!(text.contains("not a regular file"), "{text}");
-    assert!(text.contains("git rebase --no-enforce-worktree --abort"), "{text}");
+    assert!(text.contains("use git rebase --quit"), "the advice that needs nothing of that path: {text}");
+    assert!(text.contains("Git then reads that path itself"), "the opt-out is named with what it does: {text}");
 }

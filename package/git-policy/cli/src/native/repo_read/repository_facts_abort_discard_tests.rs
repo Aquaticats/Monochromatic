@@ -18,8 +18,8 @@
 //! ```
 
 use super::{
-    AbortDiscard, RECORD_BYTES_READ, StateAnswer, both_listings, merge_result_queries, read_the_record, recorded_commit, state_answer,
-    state_from_presence, state_query_arguments, uncommitted_queries, unresolved_query,
+    AbortDiscard, RECORD_BYTES_READ, StateAnswer, both_listings, holds_an_entry, merge_result_queries, read_the_record, recorded_commit,
+    state_answer, state_from_presence, state_query_arguments, uncommitted_queries, unresolved_query,
 };
 use crate::rule_abort_operation::{RESTORED_REVISION_NAMES, SEQUENCER_DIRECTORY};
 use crate::rule_linked_worktree::GuardedCommand;
@@ -242,4 +242,28 @@ fn a_form_that_aborts_no_operation_asks_nothing() {
     let answer = crate::repository_facts_abort_discard::abort_discard(&mut facts, GuardedCommand::Stash).expect("nothing is asked");
     assert_eq!(answer, AbortDiscard::NothingWaiting);
     assert_eq!(facts.queries, 0, "no Git starts");
+}
+
+/// What stands at a path decides whether the path is work the command would discard:
+///  nothing at all is not, and a directory, a link or a pipe is.
+#[test]
+fn only_a_path_the_worktree_still_holds_is_work() {
+    let root: PathBuf = fixture("abort-entry-here");
+    let file: PathBuf = root.join("file.txt");
+    std::fs::write(file.as_path(), b"content\n").expect("a file");
+    let directory: PathBuf = root.join("directory");
+    std::fs::create_dir(directory.as_path()).expect("a directory");
+    let link: PathBuf = root.join("link.txt");
+    std::os::unix::fs::symlink(file.as_path(), link.as_path()).expect("a link");
+    let pipe: PathBuf = root.join("pipe.txt");
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(pipe.as_path()).status().expect("mkfifo runs");
+    assert!(made.success(), "mkfifo must create {}", pipe.display());
+    assert!(holds_an_entry(Some(root.as_path()), b"file.txt"), "a file is work the reset would replace");
+    assert!(holds_an_entry(Some(root.as_path()), b"directory"), "a directory is work the reset would need");
+    assert!(holds_an_entry(Some(root.as_path()), b"link.txt"), "a link is work the reset would replace");
+    assert!(holds_an_entry(Some(root.as_path()), b"pipe.txt"), "a pipe is an entry the reset would replace");
+    assert!(!holds_an_entry(Some(root.as_path()), b"gone.txt"), "nothing at all is nothing to lose");
+    assert!(!holds_an_entry(Some(root.as_path()), b"below/gone.txt"), "nothing at all below the top either");
+    assert!(holds_an_entry(None, b"gone.txt"), "a worktree Git did not name refuses rather than lets a loss through");
+    remove(root.as_path());
 }

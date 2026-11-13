@@ -168,14 +168,9 @@ fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// describePath('a.txt', { baseline: 'recorded-result', inWorktree: true, inIndex: true, staged: true });
+/// describePath('a.txt', { baseline: 'recorded-result', inWorktree: true, staged: true });
 /// ```
-fn describe_path(
-    baseline: DiscardBaseline,
-    in_worktree: bool,
-    in_index: bool,
-    staged: bool,
-) -> String {
+fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool) -> String {
     let mut facts: Vec<&str> = Vec::<&str>::new();
     if in_worktree {
         facts.push(match baseline {
@@ -183,11 +178,7 @@ fn describe_path(
             DiscardBaseline::OperationStart => "an edit you made since the operation began",
         });
     }
-    if in_index {
-        if !staged {
-            facts.push("a deletion you staged");
-            return facts.join("; ");
-        }
+    if staged {
         facts.push(match (baseline, in_worktree) {
             (DiscardBaseline::RecordedResult, false) => "content only the index holds",
             (DiscardBaseline::RecordedResult, true) => "a staged resolution",
@@ -209,18 +200,13 @@ fn describe_path(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// discardedList({ baseline, worktree, index, staged }) // 'a.txt (an edit you made since ...), b.txt (content the index holds)'
+/// discardedList({ baseline, worktree, staged }) // 'a.txt (an edit you made since ...), b.txt (content the index holds)'
 /// ```
-pub fn discarded_list(
-    baseline: DiscardBaseline,
-    worktree: &[Vec<u8>],
-    index: &[Vec<u8>],
-    staged: &[Vec<u8>],
-) -> String {
-    let union: Vec<Vec<u8>> = crate::repository_facts_abort_discard::both_listings(worktree.to_vec(), index.to_vec());
+pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &[Vec<u8>]) -> String {
+    let union: Vec<Vec<u8>> = crate::repository_facts_abort_discard::both_listings(worktree.to_vec(), staged.to_vec());
     let mut items: Vec<String> = Vec::<String>::with_capacity(union.len());
     for path in &union {
-        let facts: String = describe_path(baseline, named(worktree, path.as_slice()), named(index, path.as_slice()), named(staged, path.as_slice()));
+        let facts: String = describe_path(baseline, named(worktree, path.as_slice()), named(staged, path.as_slice()));
         items.push(format!("{} ({facts})", String::from_utf8_lossy(path.as_slice())));
     }
     return named_items(items.as_slice());
@@ -240,7 +226,7 @@ pub fn discarded_list(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function discardRefusalText({ operation, ends, inProgress, baseline, worktree, index, staged }): string;
+/// function discardRefusalText({ operation, ends, inProgress, baseline, worktree, staged }): string;
 /// ```
 pub fn discard_refusal_text(
     operation: AbortOperation,
@@ -248,7 +234,6 @@ pub fn discard_refusal_text(
     in_progress: AbortOperation,
     baseline: DiscardBaseline,
     worktree: &[Vec<u8>],
-    index: &[Vec<u8>],
     staged: &[Vec<u8>],
 ) -> String {
     let command: &str = abort_command_text(operation, ends);
@@ -262,7 +247,7 @@ pub fn discard_refusal_text(
          Nothing was changed, and nothing was copied. It would discard {}. To keep that work, stop the operation and keep your index and files with \
          {quit} (that command is allowed), then commit or save what you want to keep; {command} {halt}. To discard the work on purpose, run {hatch}: \
          the guard steps aside and Git does exactly what it does on its own.",
-        discarded_list(baseline, worktree, index, staged),
+        discarded_list(baseline, worktree, staged),
         quit = quit_command_text(in_progress),
         hatch = hatch_command_text(operation, ends)
     );
@@ -290,13 +275,17 @@ fn as_a_sentence(message: &str) -> String {
 
 /// What:
 ///  The refusal of an abort or a skip whose own reading failed,
-///  naming what could not be read and the opt-out.
+///  naming what could not be read and the two ways out that hold there.
 /// Why:
 ///   A measurement that failed cannot say the command is safe,
 ///  so the command is refused;
 ///  the reason is the one the reading gave,
-///  which names the path and the defect,
-///  and the opt-out is the way to run the command as Git would.
+///  which names the path and the defect.
+///  The quit form is the advice because it needs nothing of what could not be read,
+///  while the command itself and its opt-out both send Git to that same path
+///  (measured with Git 2.56.0: with `rebase-merge/orig-head` gone,
+///  `git rebase --abort` fails and `git rebase --quit` stops the rebase),
+///  so a person is told that, rather than sent into a read that cannot end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -305,10 +294,12 @@ fn as_a_sentence(message: &str) -> String {
 pub fn unreadable_refusal_text(command: AbortOperation, ends: OperationEnd, in_progress: AbortOperation, message: &str) -> String {
     return format!(
         "monochromatic-git-policy-cli: {} is refused because the wrapper could not read what it would discard, and it changes nothing it cannot \
-         see: {} The {} in progress still waits. To run the command as Git would, pass the guard's opt-out directly after the subcommand: {}.",
+         see: {} The {} in progress still waits. To stop the operation and keep your index and files, use {} (that command is allowed). The guard \
+         steps aside with {} and Git then reads that path itself, so the command can wait there.",
         abort_command_text(command, ends),
         as_a_sentence(message),
         operation_name(in_progress),
+        quit_command_text(in_progress),
         hatch_command_text(command, ends)
     );
 }

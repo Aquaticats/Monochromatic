@@ -25,14 +25,15 @@
 //! ```
 
 /// `use` brings the names this file needs from the sibling modules that own them.
-use crate::git_metadata::MetadataOutput;
-use crate::repository_facts::GitFacts;
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes};
+use crate::repository_facts::{GitFacts, RepositoryFacts};
 use crate::rule_abort_operation::{
     AbortOperation, OPERATION_STATE_NAMES, OperationEnd, RESTORED_REVISION_NAMES, RestoredRevision, SEQUENCER_DIRECTORY, SKIP_RESTORES, OperationState,
     abort_is_live, ended_operation, in_progress_operation, restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::nul_separated_paths;
+use crate::worktree_identity::worktree_root;
 use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -48,7 +49,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; inProgress: AbortOperation; restored: string; worktree: string[]; index: string[] };
+/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; inProgress: AbortOperation; restored: string; worktree: string[]; staged: string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AbortDiscard {
@@ -74,12 +75,12 @@ pub enum AbortDiscard {
         /// The repository-relative paths where the worktree differs from that baseline,
         ///  in a settled order and each once.
         worktree: Vec<Vec<u8>>,
-        /// The repository-relative paths where the index differs from it,
-        ///  in a settled order and each once.
-        index: Vec<Vec<u8>>,
-        /// The listed paths whose index holds a whole entry (stage 0):
-        ///  that is content the command's reset drops from the index itself,
-        ///  as opposed to a staged deletion, which holds no content at all.
+        /// The listed paths whose index holds a whole entry (stage 0),
+        ///  in a settled order and each once:
+        ///  that is content the command's reset drops from the index itself.
+        ///  A path whose index entry was erased is not among them and is no reason to refuse,
+        ///  because the tree the reset writes back holds that path and its content:
+        ///  an abort undoes the deletion and loses nothing of the person's.
         staged: Vec<Vec<u8>>,
     },
 }
@@ -586,6 +587,54 @@ fn is_hex_digit(byte: u8) -> bool {
 }
 
 /// What:
+///  Whether the worktree holds any entry at a repository-relative path.
+///  `Option<&Path>` is the top of the worktree, when Git named one.
+/// Why:
+///   A path the listing names because the worktree file is gone holds nothing of the person's:
+///  the reset writes the tree back over that path and puts the file there again,
+///  so an abort undoes such a removal and loses no content.
+///  Moving a file out of the way is exactly the way out this refusal's own advice names,
+///  and a refusal that read the removal as work would refuse the command the advice promised.
+///  A directory, a link or a pipe standing there does hold something the reset would replace,
+///  so only a path with no entry at all is left out.
+///  A worktree Git did not name, and a path that is not one path below it, are read as holding an entry:
+///  a reading that cannot tell refuses rather than lets a loss through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsAnEntry({ root, relative: 'a.txt' }); // false when nothing stands there
+/// ```
+fn holds_an_entry(root: Option<&Path>, relative: &[u8]) -> bool {
+    let Some(top) = root else {
+        return true;
+    };
+    let Some(native) = path_from_git_bytes(relative) else {
+        return true;
+    };
+    if native.is_absolute() {
+        return true;
+    }
+    return std::fs::symlink_metadata(top.join(native)).is_ok();
+}
+
+/// What:
+///  The top of the worktree this command runs in,
+///  when Git named one.
+/// Why:
+///   The presence of the worktree's own entries is read from the filesystem,
+///  and the answer Git gave for the repository location is already remembered by the provider,
+///  so asking for it again costs no start of Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const top = worktreeTop(facts); // '/repo' | undefined
+/// ```
+fn worktree_top(facts: &mut GitFacts) -> Option<PathBuf> {
+    let location = facts.location().ok()?;
+    return worktree_root(&location.identity).map(Path::to_path_buf);
+}
+
+/// What:
 ///  Which paths the abort of `command` would discard besides the operation's own state,
 ///  and the revision whose tree it writes back.
 ///  `Result<A, B>` is "either success `A` or failure `B`".
@@ -648,8 +697,13 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
         let unresolved: Vec<Vec<u8>> = unresolved_paths(facts)?;
         worktree_paths.retain(|path| { return !unresolved.contains(path); });
     }
-    // The content a whole index entry holds is work the command would discard,
-    //  and the refusal has to tell it apart from a staged deletion, which holds none.
+    // A path the worktree no longer holds is no work of the person's: the reset writes the tree back over it.
+    //  The answer is read from the filesystem, after the location Git already named.
+    let top: Option<PathBuf> = worktree_top(facts);
+    worktree_paths.retain(|path| { return holds_an_entry(top.as_deref(), path.as_slice()); });
+    // The content a whole index entry holds is work the command would discard;
+    //  a path whose index entry was erased holds none, and the reset writes the tree back over it,
+    //  so it is no reason to refuse the command.
     let staged: Vec<Vec<u8>> = crate::repository_facts_staged_entries::staged_entries(facts, index_paths.as_slice())?;
     return Ok(AbortDiscard::Waiting {
         in_progress: in_progress_operation(aborted, state),
@@ -657,7 +711,6 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
         restored,
         baseline,
         worktree: both_listings(worktree_paths, Vec::new()),
-        index: both_listings(index_paths, Vec::new()),
         staged,
     });
 }

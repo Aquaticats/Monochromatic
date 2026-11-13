@@ -993,3 +993,155 @@ fn a_skip_is_refused_for_an_untracked_file_gits_own_reset_will_not_write_over() 
     );
     remove(&fixture);
 }
+
+/// The `--quit` a rebase's refusal names ends that rebase and keeps the hand resolution.
+/// Why:
+///  A refusal's advice is a promise, and this is the one the refusal gives first.
+#[test]
+fn the_advice_to_quit_ends_a_rebase_and_keeps_the_work() {
+    let fixture: Fixture = fixture("abort-rebase-quit");
+    let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
+    attempt(&fixture, linked.as_path(), &["rebase", "side"]);
+    let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
+    assert!(during.contains("UU a.txt"), "the rebase stopped: {during}");
+    std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
+    let said: String = stderr_of(&refused);
+    assert!(rejected(&refused), "{said}");
+    assert!(said.contains("git rebase --quit"), "the refusal names the quit form: {said}");
+    let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--quit"]);
+    let quit_said: String = stderr_of(&quit);
+    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {quit_said}");
+    assert_eq!(
+        std::fs::read(linked.join("a.txt")).expect("the file"),
+        b"resolved by hand\n",
+        "the quit keeps the resolution: {quit_said}"
+    );
+    remove(&fixture);
+}
+
+/// The `--quit` an `am` abort's refusal names ends that `am` and keeps the hand resolution.
+#[test]
+fn the_advice_to_quit_ends_an_am_and_keeps_the_work() {
+    let fixture: Fixture = fixture("abort-am-quit");
+    let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
+    let patches: PathBuf = fixture.root.join("patches");
+    std::fs::create_dir_all(patches.as_path()).expect("patch directory");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["format-patch", "--full-index", "--output-directory", patches.to_str().expect("UTF-8 path"), "side", "--max-count=1"],
+    );
+    let patch: PathBuf = std::fs::read_dir(patches.as_path())
+        .expect("patch directory")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .next()
+        .expect("one patch");
+    attempt(&fixture, linked.as_path(), &["am", "--3way", patch.to_str().expect("UTF-8 path")]);
+    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-apply/applying"), "the am waits");
+    std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--abort"]);
+    let said: String = stderr_of(&refused);
+    assert!(rejected(&refused), "{said}");
+    assert!(said.contains("git am --quit"), "the refusal names the quit form: {said}");
+    let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--quit"]);
+    let quit_said: String = stderr_of(&quit);
+    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-apply/applying"), "the am is over: {quit_said}");
+    assert_eq!(
+        std::fs::read(linked.join("a.txt")).expect("the file"),
+        b"resolved by hand\n",
+        "the quit keeps the resolution: {quit_said}"
+    );
+    remove(&fixture);
+}
+
+/// The advice to move the untracked file out of the way gets the person out:
+///  the command the refusal named then goes through.
+#[test]
+fn the_advice_to_move_the_untracked_file_away_gets_the_person_out() {
+    let fixture: Fixture = fixture("abort-untracked-moved-away");
+    let linked: PathBuf = linked_worktree_at_a_conflicted_merge(&fixture);
+    git(&fixture, linked.as_path(), &["rm", "--cached", "--quiet", "--", "victim.txt"]);
+    std::fs::write(linked.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
+    let said: String = stderr_of(&refused);
+    assert!(rejected(&refused), "{said}");
+    assert!(said.contains("victim.txt"), "the refusal names the file: {said}");
+    assert!(said.contains("mv <path> <somewhere else>"), "the refusal gives the move as the way out: {said}");
+    // The advice, run as printed: the file leaves the worktree and keeps its content.
+    let elsewhere: PathBuf = fixture.root.join("victim.moved-away");
+    std::fs::rename(linked.join("victim.txt"), elsewhere.as_path()).expect("the file moves out of the worktree");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
+    let after: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "the abort goes through once the file is out of the way: {after}");
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is gone: {after}");
+    assert_eq!(
+        std::fs::read(elsewhere.as_path()).expect("the moved file"),
+        b"the person's own file\n",
+        "the content the person kept: {after}"
+    );
+    remove(&fixture);
+}
+
+/// The advice a skip's refusal gives about the untracked file works as printed:
+///  with the file out of the way the skip goes on.
+#[test]
+fn the_advice_to_move_the_untracked_file_away_lets_a_skip_go_on() {
+    let fixture: Fixture = fixture("skip-untracked-moved-away");
+    let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
+    attempt(&fixture, linked.as_path(), &["rebase", "side"]);
+    git(&fixture, linked.as_path(), &["rm", "--cached", "--quiet", "--", "victim.txt"]);
+    std::fs::write(linked.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--skip"]);
+    let said: String = stderr_of(&refused);
+    assert!(rejected(&refused), "{said}");
+    assert!(said.contains("mv <path> <somewhere else>"), "the refusal gives the move as the way out: {said}");
+    let elsewhere: PathBuf = fixture.root.join("victim.moved-away");
+    std::fs::rename(linked.join("victim.txt"), elsewhere.as_path()).expect("the file moves out of the worktree");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--skip"]);
+    let after: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "the skip goes on once the file is out of the way: {after}");
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {after}");
+    assert_eq!(
+        std::fs::read(elsewhere.as_path()).expect("the moved file"),
+        b"the person's own file\n",
+        "the content the person kept: {after}"
+    );
+    remove(&fixture);
+}
+
+/// A record of the commit an abort restores that is a pipe is not read:
+///  the command answers instead of waiting for a writer that never comes,
+///  and the advice it prints ends the operation.
+/// Why:
+///   `git rebase --abort` read `rebase-merge/orig-head` until end of file,
+///  and a `mkfifo` at that path held the command for good with nothing able to end it.
+#[test]
+fn a_rebase_abort_whose_record_is_a_pipe_answers_and_the_advice_ends_it() {
+    let fixture: Fixture = fixture("abort-record-is-a-pipe");
+    let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
+    attempt(&fixture, linked.as_path(), &["rebase", "side"]);
+    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase waits");
+    let record: PathBuf = PathBuf::from(
+        plain(&fixture, linked.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", "rebase-merge/orig-head"]).trim(),
+    );
+    std::fs::remove_file(record.as_path()).expect("the record goes");
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(record.as_path()).status().expect("mkfifo runs");
+    assert!(made.success(), "mkfifo must create {}", record.display());
+    // The shared bound of every fixture command ends a command that waits, so an answer is the only way to pass.
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "the pipe is named rather than read: {said}");
+    assert!(said.contains("not a regular file"), "the refusal says what stands at the path: {said}");
+    assert!(said.contains("rebase-merge/orig-head"), "the refusal names the path: {said}");
+    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    // The advice it printed, run as printed.
+    let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--quit"]);
+    let quit_said: String = stderr_of(&quit);
+    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {quit_said}");
+    remove(&fixture);
+}
