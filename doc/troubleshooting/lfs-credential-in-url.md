@@ -128,8 +128,9 @@ which are the reason this file is still open:
   32 letters and digits with a digit,
   or 24 base64 characters with both cases and a digit,
   is printed unless its name or its place says what it is;
-- a secret made of ordinary words that names nothing
-  (a branch-like value under `ref`, for example) is printed,
+- a secret made of ordinary words that names nothing,
+  such as a branch-like value under `ref`,
+  is printed,
   because no rule can tell it from the label it reads as;
 - a secret in a host name is printed:
   the host stays readable on purpose,
