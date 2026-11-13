@@ -1125,3 +1125,328 @@ fn the_cost_of_both_arms_is_printed_over_a_store_of_the_repository_s_size() {
     );
     remove(root.as_path());
 }
+
+/// How many names one chain of the ordering control is spelled with.
+///
+/// Five links plus the direct ref they end at,
+/// which is the shortest chain Git's own depth bound can cut inside:
+/// a listed name is the first of its own chain's levels,
+/// so four links are printed and a fifth is not.
+const ORDERED_CHAIN_NAMES: usize = 6;
+
+/// How many orders of those names one store of the ordering control holds.
+///
+/// The chains of one store never share a name,
+/// so each is answered on its own,
+/// and Git is asked once for the whole store instead of once per order:
+/// 720 orders at about four milliseconds a question would be three seconds of a control,
+/// and 36 questions are a fifth of a second.
+const ORDERS_PER_STORE: usize = 20;
+
+/// What:
+///  The next order of a list of indices,
+///  the way a person counting would find them,
+///  or `false` when the last order has been handed out.
+/// Why:
+///   A control that must see every order of a chain's names needs each of them once,
+/// and next-permutation does that without keeping a table of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nextOrder = (order) => { let i = order.length - 2; while (i >= 0 && order[i] >= order[i + 1]) i--; if (i < 0) return false; let j = order.length - 1; while (order[j] <= order[i]) j--; [order[i], order[j]] = [order[j], order[i]]; order.slice(i + 1).reverse(); return true }
+/// ```
+fn next_order(order: &mut [usize]) -> bool {
+    let Some(pivot_at) = (0..order.len().saturating_sub(1)).rev().find(|at| { return order[*at] < order[at + 1]; }) else {
+        return false;
+    };
+    let Some(swap_at) = (pivot_at + 1..order.len()).rev().find(|at| { return order[*at] > order[pivot_at]; }) else {
+        return false;
+    };
+    order.swap(pivot_at, swap_at);
+    order[pivot_at + 1..].reverse();
+    return true;
+}
+
+/// What:
+///  Writes one chain of `ORDERED_CHAIN_NAMES` names in the order `order` gives,
+///  under `refs/heads/<prefix>/`,
+///  its last name a direct ref at `oid`.
+/// Why:
+///   The order of a chain's names is the whole variable of the control that follows,
+/// so the writer takes it as a parameter and names nothing else:
+/// a chain never shares a name with another,
+///  so one store can hold many orders of it side by side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeOrderedChain = (repo, prefix, order, oid) => order.forEach((drawn, at) => writeLoose(repo, `refs/heads/${prefix}/p${drawn}`, at + 1 === order.length ? `${oid}\n` : `ref: refs/heads/${prefix}/p${order[at + 1]}\n`))
+/// ```
+fn write_ordered_chain(repo: &Path, prefix: &str, order: &[usize], oid: &str) {
+    for (at, drawn) in order.iter().enumerate() {
+        let value: String = match order.get(at + 1) {
+            Some(next) => format!("ref: refs/heads/{prefix}/p{next}\n"),
+            None => format!("{oid}\n"),
+        };
+        write_loose(repo, format!("refs/heads/{prefix}/p{drawn}").as_str(), value.as_str());
+    }
+}
+
+/// What:
+///  A symbolic chain is read as Git reads it in every order of the chain's own names.
+/// Why:
+///  Git counts a chain's depth from the targets as they are stored,
+/// so one name's answer never depends on which other name was answered first.
+/// The reader once rewrote each entry in place as it resolved it,
+///  so a chain that passed through a shorter chain sorting before it was counted shorter than it is:
+/// `zz` pointing at `aa`,
+///  with `aa` already collapsed to the end of its own chain,
+/// reached that end in two steps instead of five,
+/// and Git's listing drops `zz` while the snapshot kept it.
+///  The fixture is a chain of six names whose last is a direct ref,
+/// so the source is five links from it and Git drops the source;
+///  every one of the 720 orders of those six names is spelled in one store,
+/// and Git answers each store the snapshot must match byte for byte.
+#[cfg(unix)]
+#[test]
+fn a_symbolic_chain_is_read_as_git_reads_it_in_every_order_of_its_names() {
+    let root: PathBuf = fixture("shadow-refs-every-order-of-a-chain");
+    let repo: PathBuf = store_of_kind(root.as_path(), "orders");
+    let head: String = head_of(repo.as_path());
+    let sources: SnapshotSources = sources_of(repo.as_path(), RefFormat::Files);
+    let recording: PathBuf = root.join("recording");
+    std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
+    let (context, log) = recording_context(recording.as_path());
+    let mut order: Vec<usize> = (0..ORDERED_CHAIN_NAMES).collect();
+    let mut orders: usize = 0;
+    let mut stores: usize = 0;
+    loop {
+        // One store holds `ORDERS_PER_STORE` orders, each chain with names of its own.
+        let mut drawn: Vec<Vec<usize>> = Vec::with_capacity(ORDERS_PER_STORE);
+        loop {
+            drawn.push(order.clone());
+            orders = orders.saturating_add(1);
+            if drawn.len() >= ORDERS_PER_STORE || !next_order(order.as_mut_slice()) {
+                break;
+            }
+        }
+        // The inner loop leaves `order` on the last permutation it took, so the next store starts at the following one.
+        stores = stores.saturating_add(1);
+        for (at, chain) in drawn.iter().enumerate() {
+            write_ordered_chain(repo.as_path(), format!("s{stores}c{at}").as_str(), chain.as_slice(), head.as_str());
+        }
+        let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, repo.as_path(), &sources).expect("the snapshot");
+        let snapshot: Vec<u8> = snapshot_listing(entries.as_slice());
+        let printed: Vec<u8> = git_listing(repo.as_path());
+        assert!(
+            snapshot == printed,
+            "a store of {} orders reads differently from Git: {drawn:?}\n  snapshot: {}\n  Git:      {}",
+            drawn.len(),
+            rendered(snapshot.as_slice()),
+            rendered(printed.as_slice())
+        );
+        if !next_order(order.as_mut_slice()) {
+            break;
+        }
+    }
+    assert_eq!(orders, 720, "every order of six names was seen");
+    assert_eq!(stores, 36, "and Git was asked once per store of {ORDERS_PER_STORE}");
+    assert_no_start(log.as_path());
+    remove(root.as_path());
+}
+
+/// The seed the drawn stores start from.
+///
+/// A fixed seed is what makes a failure reproducible:
+/// the control draws the same stores every run,
+///  and a store that shows a divergence can be built again from its number.
+/// The number itself is arbitrary and carries nothing.
+const DRAWN_STORES_SEED: u64 = 0x2026_1113_1a2b_3c4d;
+
+/// How many stores the seeded control draws and asks Git about.
+///
+/// Each store is thirteen refs at most and one `git for-each-ref`,
+/// so forty stores are about a quarter of a second of a control:
+/// enough draws to cover chains of every depth in many name orders,
+/// and few enough that a suite of thousands of controls is not slowed by it.
+const DRAWN_STORES: usize = 40;
+
+/// How many names the seeded control may spend on one store.
+const DRAWN_NAMES: usize = 13;
+
+/// What:
+///  The next number of a seeded draw.
+/// Why:
+///   The stores have to be reproducible from their seed and independent of the machine,
+/// so the draw is written here rather than taken from a library's generator.
+///  This is xorshift64*, chosen for being four lines a reader can check:
+/// every seed but zero reaches every value,
+///  and nothing here is a cryptographic claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const next = (state) => { let x = state; x ^= x >> 12n; x ^= (x << 25n) & MASK; x ^= x >> 27n; return [x, (x * 0x2545F4914F6CDD1Dn) & MASK] }
+/// ```
+fn next_draw(state: &mut u64) -> u64 {
+    let mut value: u64 = *state;
+    value ^= value >> 12;
+    value ^= value << 25;
+    value ^= value >> 27;
+    *state = value;
+    return value.wrapping_mul(0x2545_F491_4F6C_DD1D);
+}
+
+/// What:
+///  A number from `0` up to but not including `bound`,
+///  drawn from `state`.
+/// Why:
+///   Every choice of the seeded control is one of a few alternatives,
+/// and the modulo is taken over a bound no machine makes unsafe here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const below = (state, bound) => Number(next(state) % BigInt(bound))
+/// ```
+fn below(state: &mut u64, bound: usize) -> usize {
+    let bound: u64 = u64::try_from(bound).expect("a small bound");
+    return usize::try_from(next_draw(state) % bound).expect("a small draw");
+}
+
+/// What:
+///  One store the seeded control draws:
+///  its name order and the chain, plus the names that are not in it.
+/// Why:
+///   The draw's shape is what the control then builds and asks Git about,
+/// so a failure can be read as the numbers it was drawn from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DrawnStore = { order: usize[]; chain: usize; extras: ('direct' | 'dangling' | 'cycle')[] }
+/// ```
+#[derive(Debug)]
+struct DrawnStore {
+    /// The order the chain's names appear in,
+    ///  as indices into the store's sorted name list.
+    order: Vec<usize>,
+    /// The other names' values.
+    extras: Vec<DrawnExtra>,
+}
+
+/// What one name outside the chain holds.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DrawnExtra {
+    /// A direct ref at the repository's head.
+    Direct,
+    /// A symbolic ref to a name no ref has.
+    Dangling,
+    /// A symbolic ref to itself,
+    ///  which is a chain that never ends.
+    Cycle,
+}
+
+/// What:
+///  Draws one store from `state`.
+/// Why:
+///  The control's breadth is this function:
+/// it draws how many names there are,
+/// how long the chain is,
+///  the order the chain's names sort in,
+/// and what the names outside it hold,
+///  so chains inside and beyond Git's depth arrive in orders no fixture names by hand.
+///  A chain longer than Git's depth whose prefix sorts before it is exactly the store
+/// the ordering control proves,
+///  and drawing it here is what keeps a relation between names from going untested.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const draw = (state) => { const names = 2 + below(state, DRAWN_NAMES - 1); const chain = 2 + below(state, names - 1); const order = shuffle(range(names), state).slice(0, chain); const extras = ...; return { order, extras } }
+/// ```
+fn draw_store(state: &mut u64) -> DrawnStore {
+    let names: usize = 2usize.saturating_add(below(state, DRAWN_NAMES.saturating_sub(1)));
+    // A chain is at least two names and at most all but none of them, so a store always has a direct ref at its end.
+    let chain: usize = 2usize.saturating_add(below(state, names.saturating_sub(1)));
+    // The chain's names are drawn without replacement, so its order among them is whatever the draw produced.
+    let mut spare: Vec<usize> = (0..names).collect();
+    let mut order: Vec<usize> = Vec::with_capacity(chain);
+    for _step in 0..chain {
+        let at: usize = below(state, spare.len());
+        order.push(spare[at]);
+        spare.remove(at);
+    }
+    let mut extras: Vec<DrawnExtra> = Vec::with_capacity(spare.len());
+    for _name in spare {
+        extras.push(match below(state, 3) {
+            0 => DrawnExtra::Direct,
+            1 => DrawnExtra::Dangling,
+            _ => DrawnExtra::Cycle,
+        });
+    }
+    return DrawnStore { order, extras };
+}
+
+/// What:
+///  Writes one drawn store into the repository,
+///  under a prefix of its own.
+/// Why:
+///   The store's names are its own, so the control can put many draws in one repository,
+/// and each draw's chain is written exactly as drawn.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeDrawn = (repo, prefix, store, oid) => { writeOrderedChain(repo, prefix, store.order, oid); store.extras.forEach((extra, at) => writeLoose(repo, `refs/heads/${prefix}/x${at}`, extra === 'direct' ? `${oid}\n` : extra === 'dangling' ? `ref: refs/heads/${prefix}/absent${at}\n` : `ref: refs/heads/${prefix}/x${at}\n`)) }
+/// ```
+fn write_drawn_store(repo: &Path, prefix: &str, store: &DrawnStore, oid: &str) {
+    write_ordered_chain(repo, prefix, store.order.as_slice(), oid);
+    for (at, extra) in store.extras.iter().enumerate() {
+        let value: String = match extra {
+            DrawnExtra::Direct => format!("{oid}\n"),
+            DrawnExtra::Dangling => format!("ref: refs/heads/{prefix}/absent{at}\n"),
+            DrawnExtra::Cycle => format!("ref: refs/heads/{prefix}/x{at}\n"),
+        };
+        write_loose(repo, format!("refs/heads/{prefix}/x{at}").as_str(), value.as_str());
+    }
+}
+
+/// What:
+///  Stores drawn from a seed are read as Git reads them.
+/// Why:
+///  The guard of this reader was written from fixtures named by hand,
+/// and two reviews in a row found a store those fixtures never built:
+/// the order of a chain's names was the second,
+///  and no hand-named fixture can promise it named the orders that matter.
+/// A draw that varies the count of names,
+/// the depth of the chain,
+///  the order its names sort in,
+/// and what the other names hold is what turns "the fixtures happened to agree" into
+///  "these stores agree, and the seed says which".
+///  Git answers every store, and the snapshot must be that answer byte for byte,
+/// or decline and let Git answer.
+///  A seed whose draw finds a divergence fails the control with the store printed,
+/// and the same store is drawn again on the next run.
+#[cfg(unix)]
+#[test]
+fn stores_drawn_from_a_seed_are_read_as_git_reads_them() {
+    let root: PathBuf = fixture("shadow-refs-drawn-stores");
+    let repo: PathBuf = store_of_kind(root.as_path(), "drawn");
+    let head: String = head_of(repo.as_path());
+    let sources: SnapshotSources = sources_of(repo.as_path(), RefFormat::Files);
+    let recording: PathBuf = root.join("recording");
+    std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
+    let (context, log) = recording_context(recording.as_path());
+    let mut state: u64 = DRAWN_STORES_SEED;
+    for drawn in 0..DRAWN_STORES {
+        let store: DrawnStore = draw_store(&mut state);
+        let prefix: String = format!("seed{drawn}");
+        write_drawn_store(repo.as_path(), prefix.as_str(), &store, head.as_str());
+        let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, repo.as_path(), &sources).expect("the snapshot");
+        let snapshot: Vec<u8> = snapshot_listing(entries.as_slice());
+        let printed: Vec<u8> = git_listing(repo.as_path());
+        assert!(
+            snapshot == printed,
+            "store {drawn} of seed {DRAWN_STORES_SEED:#x} reads differently from Git: {store:?}\n  snapshot: {}\n  Git:      {}",
+            rendered(snapshot.as_slice()),
+            rendered(printed.as_slice())
+        );
+    }
+    assert_no_start(log.as_path());
+    remove(root.as_path());
+}
