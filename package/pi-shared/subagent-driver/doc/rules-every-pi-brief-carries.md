@@ -10,6 +10,28 @@ Each rule is the project's own requirement.
 - Rule `ATH`:
   scratch goes in `${HOME}/temp/agent`,
   never `/tmp`.
+- The run has one scratch folder,
+  `${HOME}/temp/agent/<the run's name>-scratch`,
+  and everything it writes outside its worktree goes there.
+  That folder is deleted when the run ends,
+  except its `keep/` subfolder:
+  put the report,
+  the logs and the measurements a reader of the report needs in `keep/`,
+  and nothing that a build or a clone recreates
+  (build folders,
+  checkouts,
+  fixture repositories,
+  binaries,
+  dependency folders).
+  Name every folder inside it for what it holds,
+  so someone who was not there needs no context
+  (`twenty-commits-timed-against-real-git`,
+  never `runs` or `r3-before`).
+  Make one fixture repository and reuse it,
+  or make a copy-on-write copy (`cp --reflink=always`),
+  instead of a full copy for each round.
+  On 2026-11-13 the scratch folder held 232 GiB from two days of runs,
+  and a full home drive had ended twenty runs the day before.
 - Never generate synthetic host load in any session or subagent:
   no `stress-ng`,
   busy loops,
