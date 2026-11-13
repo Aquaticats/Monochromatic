@@ -697,9 +697,39 @@ Run this whenever the user asks whether a draft is ready,
     Link at least two runs,
    read each step's conclusion and the log lines that show the reason,
    and confirm the failure is on the asserting step and not the setup.
-    Create the repository private,
-   and make it public only when the user says so,
-   because the repository carries the poster's name.
+    Create the repository in the poster's own account,
+   named for what it reproduces (`<tool>-<symptom>-reproduction`),
+   and create it private:
+   private is the state for checking it,
+   never the state it is delivered in,
+   since a maintainer can read nothing in a private repository and its runs cannot be linked.
+    Make it public once three things hold.
+   First,
+   the user has allowed reproduction repositories,
+   for this report or as a standing permission;
+   permission to create them covers making them public,
+   because being read by the maintainer is what a reproduction is for.
+   With no such permission,
+   ask in the question tool,
+   giving the private repository's link.
+   Second,
+   two runs fail on the asserting step.
+   Third,
+   every file,
+   every commit message,
+   and the author name and email of every commit have been read,
+   and hold only the reproduction:
+   none of this repository's code,
+   no local path,
+   no account name beyond the poster's,
+   no token,
+   and the account's noreply address as the commit email.
+    Do that reading before the switch:
+   the repository carries the poster's name,
+   and deleting it later does not recall the copies and caches made while it was public.
+    Record the repository's link,
+   its visibility and the date of each change in the doc,
+   and have its README name the report it supports.
 8. State the verdict with its evidence.
     When posting is technically allowed
    (no rule,

@@ -41,7 +41,7 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::auto_push_branch_key::encode_branch_key;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
 /// One record as a command holds it before it shows it,
 /// with the claim it was taken under and the step that removes that claim.
 pub use crate::push_failure_notice_shown_then_removed::Notice;
@@ -143,8 +143,8 @@ fn branch_prefix(branch_ref: &str) -> String {
     return format!("push{NAME_SEPARATOR}{shown}{NAME_SEPARATOR}");
 }
 
-/// Git's words as a record keeps them, and the longest such text.
-pub use crate::push_failure_notice_reason::clean_reason;
+/// Git's words as a record keeps them: bounded for a failure, every line for a push that landed.
+pub use crate::push_failure_notice_reason::{clean_reason, clean_words};
 
 /// The file name of the record of one failed push.
 pub fn record_name(branch_ref: &str, commit: &str) -> String {
@@ -162,6 +162,9 @@ pub fn record_name(branch_ref: &str, commit: &str) -> String {
 /// The name is the failure record's,
 /// so a later successful push of the branch removes
 ///  it with the failures.
+/// The record is replaced in one rename,
+/// so a kill between one try and the next leaves the record that was there
+///  rather than none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,9 +176,8 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
-    let _removed = std::fs::remove_file(path.as_path());
     let text: String = format!("{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };
@@ -189,6 +191,9 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 /// so a push that is tried again and fails again leaves one record.
 ///  The reason is cleaned before it is written,
 /// so no credential reaches the disk.
+/// The record is replaced in one rename,
+/// so a kill while a second try writes its record leaves the first record whole
+///  rather than none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -200,15 +205,13 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outco
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
-    // A repeat of the same failure replaces its record.
-    let _removed = std::fs::remove_file(path.as_path());
     let magic: &str = match outcome {
         PushOutcome::Refused => RECORD_MAGIC,
         PushOutcome::Unfinished => UNFINISHED_MAGIC,
         PushOutcome::UnfinishedWithNoRetry => UNFINISHED_NO_RETRY_MAGIC,
     };
     let text: String = format!("{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };

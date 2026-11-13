@@ -30,6 +30,11 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 use crate::lfs_pre_push::{failed_message, login_needed_message, missing_program_message, reads_as_a_login_failure};
 /// The masks and the hosts a destination or a failure names.
 use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
+/// What a stop says the connection carried.
+use crate::stop_cause_and_words::traffic_clause;
+/// The variable that sets the floor,
+/// which is how a person on a slower line gets through.
+use crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE;
 
 /// The most standard error text one run keeps and relays;
 /// the rest is dropped,
@@ -43,10 +48,12 @@ pub const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 /// so the explanation says which limit came first and what the person can do about a
 ///  slow line,
 /// as the auto-push's upload does.
-///  Only the stall window is a setting,
-/// so only a stop by it names `CLI_GIT_PUSH_DEADLINE_SECONDS` as the way to allow longer;
-/// a stop by the
-///  connected window says that window is fixed and names a remedy that exists.
+///  The stall window and the least traffic a connection must carry are settings,
+/// and the connected window is not,
+/// so a stop by the stall window names the deadline
+/// and a stop by the connected window says that window is fixed,
+/// says what the connection carried,
+/// and names every way a person can act on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,14 +70,18 @@ pub fn stopped_upload_words(cause: &StopCause) -> String {
                 crate::push_deadline_advice::extend_clause()
             ),
             StopWindow::Connected => format!(
-                "held its connection to the remote open with nothing moving for {} seconds and was stopped (bytes_moved={}); {} does \
-                 not change this window, which is fixed at {} seconds. Ways forward: run the upload by hand with `git lfs push --all \
-                 <remote>`, which has no such window, and push again, because objects the server already has are not sent twice; or \
-                 push again in case the remote answers this time",
+                "held its connection to the remote open for {} seconds {} and was stopped (carried_bytes={}, \
+                 minimum_bytes_per_window={}); {} does not change this window, which is fixed at {} seconds. Ways forward: set \
+                 {} to a smaller number to let a line slower than this one through; or run the upload by hand with `git lfs push \
+                 --all <remote>`, which has no such window, and push again, because objects the server already has are not sent \
+                 twice; or push again in case the remote answers this time",
                 report.limit.as_secs(),
-                report.moved,
+                traffic_clause(report),
+                report.carried,
+                report.minimum,
                 PUSH_DEADLINE_VARIABLE,
-                report.limit.as_secs()
+                report.limit.as_secs(),
+                PUSH_MINIMUM_RATE_VARIABLE
             ),
         },
         StopCause::Flood => format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"),
