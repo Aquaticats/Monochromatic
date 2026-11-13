@@ -252,7 +252,7 @@ fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntr
             None if entry.symref.is_empty() => kept.push(entry),
             // A chain that ends nowhere, or beyond Git's depth, is not a ref Git prints.
             None => {}
-            Some((end, oid)) => kept.push(RefSnapshotEntry { name: entry.name, symref: end, oid }),
+            Some((ends_at, oid)) => kept.push(RefSnapshotEntry { name: entry.name, symref: ends_at, oid }),
         }
     }
     return Some(kept);

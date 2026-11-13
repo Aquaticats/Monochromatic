@@ -1289,7 +1289,8 @@ const DRAWN_NAMES: usize = 13;
 /// Why:
 ///   The stores have to be reproducible from their seed and independent of the machine,
 /// so the draw is written here rather than taken from a library's generator.
-///  This is xorshift64*, chosen for being four lines a reader can check:
+///  This is xorshift64*,
+///  chosen for being four lines a reader can check:
 /// every seed but zero reaches every value,
 ///  and nothing here is a cryptographic claim.
 ///
@@ -1318,13 +1319,14 @@ fn next_draw(state: &mut u64) -> u64 {
 /// const below = (state, bound) => Number(next(state) % BigInt(bound))
 /// ```
 fn below(state: &mut u64, bound: usize) -> usize {
-    let bound: u64 = u64::try_from(bound).expect("a small bound");
-    return usize::try_from(next_draw(state) % bound).expect("a small draw");
+    let choices: u64 = u64::try_from(bound).expect("a small bound");
+    return usize::try_from(next_draw(state) % choices).expect("a small draw");
 }
 
 /// What:
 ///  One store the seeded control draws:
-///  its name order and the chain, plus the names that are not in it.
+///  its name order and the chain,
+///  plus the names that are not in it.
 /// Why:
 ///   The draw's shape is what the control then builds and asks Git about,
 /// so a failure can be read as the numbers it was drawn from.
@@ -1398,7 +1400,8 @@ fn draw_store(state: &mut u64) -> DrawnStore {
 ///  Writes one drawn store into the repository,
 ///  under a prefix of its own.
 /// Why:
-///   The store's names are its own, so the control can put many draws in one repository,
+///  The store's names are its own,
+///  so the control can put many draws in one repository,
 /// and each draw's chain is written exactly as drawn.
 ///
 /// In TS you'd write (pseudocode):
@@ -1430,8 +1433,10 @@ fn write_drawn_store(repo: &Path, prefix: &str, store: &DrawnStore, oid: &str) {
 /// the depth of the chain,
 ///  the order its names sort in,
 /// and what the other names hold is what turns "the fixtures happened to agree" into
-///  "these stores agree, and the seed says which".
-///  Git answers every store, and the snapshot must be that answer byte for byte,
+///  "these stores agree,
+///  and the seed says which".
+///  Git answers every store,
+///  and the snapshot must be that answer byte for byte,
 /// or decline and let Git answer.
 ///  A seed whose draw finds a divergence fails the control with the store printed,
 /// and the same store is drawn again on the next run.
