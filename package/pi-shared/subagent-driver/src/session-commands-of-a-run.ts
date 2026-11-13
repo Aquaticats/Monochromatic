@@ -216,9 +216,19 @@ export async function sessionTextIn({
   readonly limitBytes?: number;
 },): Promise<string> {
   /**
-   What the file's own record says about its size, which is read before its text so a huge one is refused rather than loaded.
+   What the file's own record says about it, which is read before its text so a huge one is refused rather than loaded and a
+   named pipe is never opened.
    */
-  const {size} = (await stat(file,));
+  const details = await stat(file,);
+  /**
+   How many bytes the file holds.
+   */
+  const {size} = details;
+  if (!details.isFile()) {
+    throw new SessionRecordError(
+      `${file} is no regular file, so nothing that reads it can wait for a writer and what that run ran cannot be compared`,
+    );
+  }
   if (size > limitBytes) {
     throw new SessionRecordError(
       `${file} holds ${String(size,)} bytes, more than the ${String(limitBytes,)} this reader takes, so what that run ran `

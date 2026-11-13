@@ -8,6 +8,7 @@
  @module
  */
 
+import { execFile, } from 'node:child_process';
 import {
   mkdir,
   mkdtemp,
@@ -476,6 +477,33 @@ function aSection(statement: Readonly<Record<string, unknown>>,): string {
   )}\n\`\`\``;
 }
 
+
+/**
+ Makes a named pipe at a path, which is what a reader must never open.
+
+ @param path - where the pipe goes
+
+ @example
+ ```ts
+ await makeANamedPipe('/reviews/a/review.md');
+ ```
+ */
+async function makeANamedPipe(path: string,): Promise<void> {
+  await new Promise<void>(function pipeAt(resolve, reject,) {
+    execFile(
+      'mkfifo',
+      [path,],
+      function done(error,) {
+        if (error === null) {
+          resolve();
+          return;
+        }
+        reject(Error.isError(error,) ? error : new Error(String(error,)),);
+      },
+    );
+  },);
+}
+
 await describe({
   name: '',
   children: [
@@ -871,6 +899,54 @@ await describe({
             },);
             expect(other.verdict,).toBe('statement missing or not matching its session',);
             expect(other.reasons.join('\n',),).toContain('the statement names commit ffffffff');
+          },
+        },),
+        it({
+          name: 'refuses a review file whose path holds a named pipe at once, naming it, rather than waiting for a writer',
+          skip: process.platform === 'win32',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            await writeTheReading({ fixture, },);
+            await writeARun({
+              fixture,
+              endReason: 'idle',
+              calls: [{ id: 'call-build', },],
+            },);
+            await makeANamedPipe(join(fixture.reviewFolder, REVIEW_FILE_NAME,),);
+            const check = await checkAReview({
+              review: aReview(),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+            },);
+            expect(check.verdict,).toBe('statement missing or not matching its session',);
+            expect(check.reasons[0],).toContain('cannot be read as a statement');
+            expect(check.reasons[0],).toContain('no regular file');
+          },
+        },),
+        it({
+          name: 'refuses a diff whose path holds a named pipe at once, rather than waiting for a writer',
+          skip: process.platform === 'win32',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            await writeTheReading({ fixture, },);
+            await writeARun({
+              fixture,
+              endReason: 'idle',
+              calls: [{ id: 'call-build', },],
+            },);
+            await writeTheReview({
+              fixture,
+              section: aSection(aStatement(),),
+            },);
+            await rm(join(fixture.reviewFolder, CHANGE_DIFF_FILE_NAME,),);
+            await makeANamedPipe(join(fixture.reviewFolder, CHANGE_DIFF_FILE_NAME,),);
+            const check = await checkAReview({
+              review: aReview(),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+            },);
+            expect(check.verdict,).toBe('statement missing or not matching its session',);
+            expect(check.reasons.join('\n',),).toContain('no regular file');
           },
         },),
         it({

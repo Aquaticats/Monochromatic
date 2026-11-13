@@ -28,10 +28,7 @@ import {
   NO_FINISHED_RUN_OF_THAT_NAME,
   newestFinishedRunOf,
 } from './newest-finished-run-of-a-name.ts';
-import {
-  NO_TEXT_AT_THAT_PATH,
-  textAtAPath,
-} from './review-check-reading.ts';
+import { textAtAPath, } from './review-check-reading.ts';
 import {
   type RestartPlan,
   restartPlanOf,
@@ -176,7 +173,7 @@ export async function aRestartIsPending({
     reviewsFolder,
     review: restartReview,
   },);
-  if ((await textAtAPath(reviewFile,)) !== NO_TEXT_AT_THAT_PATH) {
+  if ((await textAtAPath({ path: reviewFile, },)).kind !== 'no file') {
     return false;
   }
   /**
@@ -186,7 +183,7 @@ export async function aRestartIsPending({
     reviewsFolder,
     review: restartReview,
   },);
-  if ((await textAtAPath(briefFile,)) === NO_TEXT_AT_THAT_PATH) {
+  if ((await textAtAPath({ path: briefFile, },)).kind !== 'the text') {
     return false;
   }
   /**
@@ -228,8 +225,14 @@ async function refusalOfATarget({
   /**
    What is at the target's path now.
    */
-  const there = await textAtAPath(target.path,);
-  if ((there === NO_TEXT_AT_THAT_PATH) || (there === target.text)) {
+  const there = await textAtAPath({ path: target.path, },);
+  if (there.kind === 'no file') {
+    return NO_REFUSAL;
+  }
+  if (there.kind === 'not a file this reader reads') {
+    return `${restartReview}: ${target.path} cannot be read (${there.reason}), so it was not replaced`;
+  }
+  if (there.text === target.text) {
     return NO_REFUSAL;
   }
   return `${restartReview}: ${target.path} is already there with other text, so it was not replaced; give this restart room by `
@@ -261,7 +264,7 @@ export async function writeRestartPlan({ plan, }: { readonly plan: RestartPlan }
     dirname(plan.briefFile,),
     REVIEW_FILE_NAME,
   );
-  if ((await textAtAPath(reviewFile,)) !== NO_TEXT_AT_THAT_PATH) {
+  if ((await textAtAPath({ path: reviewFile, },)).kind !== 'no file') {
     return {
       refused: `${plan.restartReview}: ${reviewFile} is already there, so this restart already ran and was not written again`,
     };
@@ -290,8 +293,8 @@ export async function writeRestartPlan({ plan, }: { readonly plan: RestartPlan }
     /**
      What is at the target's path now, which is its own text when an earlier write of it was interrupted.
      */
-      const there = await textAtAPath(target.path,);
-      if (there === target.text) {
+      const there = await textAtAPath({ path: target.path, },);
+      if ((there.kind === 'the text') && (there.text === target.text)) {
         return;
       }
       await mkdir(

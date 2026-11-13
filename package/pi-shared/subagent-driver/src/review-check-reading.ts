@@ -8,7 +8,10 @@
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
+import {
+  readFile,
+  stat,
+} from 'node:fs/promises';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   type ReviewReading,
@@ -42,9 +45,38 @@ import type { SessionReadings, } from './session-commands-of-a-run.ts';
 const MISSING_PATH_CODE = 'ENOENT';
 
 /**
- No file at a path, as a symbol so that no text can stand for it.
+ Mebibytes of one review file this reader takes: a review file, a diff or a record larger than this is not one a reviewer wrote.
+
+ Measured: the diff of the review of 2026-11-12T10:21:26Z was 58,970 bytes and the review file 16,552 bytes; 64 MiB is about a
+ thousand times the largest review file measured.
  */
-export const NO_TEXT_AT_THAT_PATH: unique symbol = Symbol('review file path holds no text',);
+const REVIEW_TEXT_LIMIT_MEBIBYTES = 64;
+
+/**
+ Bytes in one mebibyte.
+ */
+const BYTES_PER_MEBIBYTE = 1_048_576;
+
+/**
+ The most text one review file may hold for this reader to read it.
+ */
+export const REVIEW_TEXT_LIMIT_BYTES: number = REVIEW_TEXT_LIMIT_MEBIBYTES * BYTES_PER_MEBIBYTE;
+
+/**
+ What is at a path one review's file is read from.
+ */
+export type TextAtAPath =
+  | {
+    readonly kind: 'the text';
+    readonly text: string;
+  }
+    | {
+      readonly kind: 'no file';
+    }
+    | {
+      readonly kind: 'not a file this reader reads';
+      readonly reason: string;
+    };
 
 /**
  Which files of the diff a review read whole, and which it did not.
@@ -99,30 +131,60 @@ export type ReadingAtAPath =
     };
 
 /**
- Reads a file, or answers nothing when it is not there.
+ Reads one review file, or says what is at its path when it is not a file this reader reads.
+
+ The path's own record is read before its text: a named pipe at a review file's path would block a reader that opened it, and a
+ file larger than a review file could be is refused rather than held in memory.
 
  @param path - the file to read
 
- @returns its text, or {@link NO_TEXT_AT_THAT_PATH}
+ @param limitBytes - the most bytes the file may hold
 
- @throws the error a read gave for a path that is there and cannot be read
+ @returns the file's text, or the fact that it is no file or no file this reader reads
+
+ @throws the error a read gave for a regular file this reader should have been able to read
 
  @example
  ```ts
- const shown = await textAtAPath('/reviews/a/review.md');
+ const read = await textAtAPath({ path: '/reviews/a/review.md' });
  ```
  */
-export async function textAtAPath(path: string,): Promise<string | typeof NO_TEXT_AT_THAT_PATH> {
+export async function textAtAPath({
+  path,
+  limitBytes = REVIEW_TEXT_LIMIT_BYTES,
+}: {
+  readonly path: string;
+  readonly limitBytes?: number;
+},): Promise<TextAtAPath> {
   try {
-    return await readFile(
-      path,
-      'utf8',
-    );
+    /**
+     The path's own record, which says whether it is a regular file and how large it is.
+     */
+    const details = await stat(path,);
+    if (!details.isFile()) {
+      return {
+        kind: 'not a file this reader reads',
+        reason: `${path} is no regular file, so nothing that reads it can wait for a writer`,
+      };
+    }
+    if (details.size > limitBytes) {
+      return {
+        kind: 'not a file this reader reads',
+        reason: `${path} holds ${String(details.size,)} bytes, more than the ${String(limitBytes,)} this reader takes`,
+      };
+    }
+    return {
+      kind: 'the text',
+      text: await readFile(
+        path,
+        'utf8',
+      ),
+    };
   }
   catch (error) {
     // A file that is not there is a fact each caller turns into its own verdict.
     if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return NO_TEXT_AT_THAT_PATH;
+      return { kind: 'no file', };
     }
     throw error;
   }
@@ -144,15 +206,15 @@ export async function readingAtAPath(file: string,): Promise<ReadingAtAPath> {
   /**
    What the file holds.
    */
-  const shown = await textAtAPath(file,);
-  if (shown === NO_TEXT_AT_THAT_PATH) {
+  const shown = await textAtAPath({ path: file, },);
+  if (shown.kind !== 'the text') {
     return { kind: 'unreadable', };
   }
   try {
     return {
       kind: 'read',
       reading: readingIn({
-        shown,
+        shown: shown.text,
         file,
       },),
     };
@@ -333,13 +395,19 @@ export async function readingOfAStatement({
   /**
    What the review file holds.
    */
-  const shown = await textAtAPath(reviewFile,);
+  const shown = await textAtAPath({ path: reviewFile, },);
+  if (shown.kind === 'not a file this reader reads') {
+    return {
+      kind: 'unreadable',
+      reasons: [`${reviewFile} cannot be read as a statement: ${shown.reason}`,],
+    };
+  }
   try {
     /**
      The statement the review wrote.
      */
     const statement = statementInReview({
-      shown: (shown === NO_TEXT_AT_THAT_PATH) ? '' : shown,
+      shown: (shown.kind === 'the text') ? shown.text : '',
       file: reviewFile,
     },);
     /**
@@ -352,17 +420,21 @@ export async function readingOfAStatement({
     /**
      What the diff file holds.
      */
-    const diffShown = await textAtAPath(diffFile,);
-    if (diffShown === NO_TEXT_AT_THAT_PATH) {
+    const diffShown = await textAtAPath({ path: diffFile, },);
+    if (diffShown.kind !== 'the text') {
       return {
         kind: 'unreadable',
-        reasons: [`${diffFile} is not there, so the files and lines the statement names cannot be compared`,],
+        reasons: [
+          (diffShown.kind === 'no file')
+            ? `${diffFile} is not there, so the files and lines the statement names cannot be compared`
+            : `${diffShown.reason}, so the files and lines the statement names cannot be compared`,
+        ],
       };
     }
     /**
      The files the diff touches.
      */
-    const diff = filesInDiff({ diff: diffShown, },);
+    const diff = filesInDiff({ diff: diffShown.text, },);
     return {
       kind: 'read',
       statement,

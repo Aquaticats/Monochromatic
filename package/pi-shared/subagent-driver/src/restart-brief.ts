@@ -18,7 +18,6 @@ import {
 } from './batch-list.ts';
 import type { ReviewCheck, } from './checking-a-review.ts';
 import {
-  NO_TEXT_AT_THAT_PATH,
   readingAtAPath,
   textAtAPath,
 } from './review-check-reading.ts';
@@ -189,8 +188,15 @@ async function notesSentenceOf({
     reviewsFolder,
     review,
   },);
-  if ((await textAtAPath(reviewFile,)) === NO_TEXT_AT_THAT_PATH) {
+  /**
+   What is at the earlier run's review file's path.
+   */
+  const notes = await textAtAPath({ path: reviewFile, },);
+  if (notes.kind === 'no file') {
     return 'It wrote no review file, so its findings were not saved.';
+  }
+  if (notes.kind === 'not a file this reader reads') {
+    return `Its review file is at \`${reviewFile}\` and cannot be read: ${notes.reason}.`;
   }
   return `Its own review file is at \`${reviewFile}\`; read it before you begin, and do not repeat a finding it makes unless `
     + `what you read shows that finding is wrong. Its reproduction scripts are under `
@@ -402,28 +408,34 @@ export async function restartPlanOf({
   /**
    What that diff holds.
    */
-  const earlierDiff = await textAtAPath(earlierDiffFile,);
-  if (earlierDiff === NO_TEXT_AT_THAT_PATH) {
+  const earlierDiff = await textAtAPath({ path: earlierDiffFile, },);
+  if (earlierDiff.kind !== 'the text') {
     return {
-      cannot: `${restartReview}: ${earlierDiffFile} is not there, so what a restart would read cannot be read`,
+      cannot: `${restartReview}: ${earlierDiffFile} is `
+        + `${(earlierDiff.kind === 'no file') ? 'not there' : `no file this reader reads (${earlierDiff.reason})`}, so what a `
+        + 'restart would read cannot be read',
     };
   }
+  /**
+   The diff's own text.
+   */
+  const earlierDiffText = earlierDiff.text;
   /**
    The files the restart reads.
    */
   const files = filesForARestart({
     check,
-    diff: earlierDiff,
+    diff: earlierDiffText,
   },);
   /**
    The diff the restart reads, which is only those files' part when the earlier review left files unread whole.
    */
   const diff = leftFilesUnread({ check, },)
     ? diffOfOnlyFiles({
-      diff: earlierDiff,
+      diff: earlierDiffText,
       files,
     },)
-    : earlierDiff;
+    : earlierDiffText;
   /**
    The brief's path.
    */
