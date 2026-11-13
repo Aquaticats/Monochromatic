@@ -670,6 +670,32 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The snapshot branch's review deleted a person's file through the built wrapper; the guards branch's advice loses what it tells a person to back up (2026-11-13T13:44:04-05:00)
+
+Not complete: both branches go back to their authors.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **Review of `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`** (commit `568365a2b0`), file
+  `~/temp/agent/change-reviews/git-policy-cli-snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own/review.md`.
+  Two defects, each reproduced in a harness on the library and through the built wrapper:
+  keeping an unreadable claim by a hard link (new in the branch) leaves, after a kill between two steps, a claim with two links that every later recovery refuses,
+  so every forwarded command in the repository fails before Git runs (a wrapper `git add` ended with status 2 where plain Git succeeded);
+  and a kill inside the release of a claim, after its `.add` record is removed and before its stage, lets the reaping take an add's stage for a copy's and delete it,
+  a person's file with it (a wrapper `git add` deleted the file and ended with status 0).
+  **The branch is not fit for an integration pass.**
+  Whether the second is the branch's or stands in `main` and `0.6.1-alpha.16` is not established; the author is asked to run the review's script against a wrapper built from `main` and say.
+  Brief `~/temp/agent/pi-runs/snapshot-of-a-person-answers-its-review-of-2026-11-13-prompt.md`, first in the queue.
+- **Review of `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`** (commit `c3d3dec271`): it built the wrapper and found the refusal itself safe
+  (it only refuses; every decline of the in-process reader falls back to the earlier check, which keeps the file).
+  One defect, reproduced: the refusal advises `git diff -- <path> > backup.patch` as the backup before the opt-out,
+  which on an unmerged path writes a combined diff that `git apply` refuses, so the advised backup cannot bring the resolution back.
+  It also reads, without running it, that the advised `git commit -- <paths>` depends on the wrapper's own commit path.
+  The author fixes the advice and runs every piece of advice in its refusals to its end:
+  brief `~/temp/agent/pi-runs/guards-refuse-answers-its-review-of-2026-11-13-prompt.md`, second in the queue.
+- Started 13:43:12 and 13:43:32: the reviews of `push-of-a-branch` and `removal-refuses`.
+- **The next integration pass** still has one branch (commit-is-made).
+  It is started when the review of push-stops, going since 13:21:48, has ended, with what is clean then.
+
 #### The commit-is-made branch passed its second review, the first branch of the day ready for a pass; two more resumes finished (2026-11-13T13:40:41-05:00)
 
 Not complete: no pass is started; two branches wait for review.
