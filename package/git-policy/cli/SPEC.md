@@ -504,6 +504,7 @@ git [<git-global-options>] monochromatic-git-policy-cli check [--policy <id>]...
 git [<git-global-options>] monochromatic-git-policy-cli fix [--policy <id>]... --all
 git [<git-global-options>] monochromatic-git-policy-cli fix [--policy <id>]... -- <pathspec>...
 git [<git-global-options>] monochromatic-git-policy-cli doctor
+git [<git-global-options>] monochromatic-git-policy-cli kept-references [--prune]
 ```
 
 The retired forms `trust [--yes]`,
@@ -532,6 +533,11 @@ Rules:
 - `doctor` takes no options,
   scope or policy;
   any extra token is a usage error with exit `2`.
+- `kept-references` takes no scope or policy:
+  no argument lists the references the wrapper keeps commits on,
+  and `--prune` runs one pruning of them;
+  any other token is a usage error with exit `2`.
+  It runs no policy and reads no configuration.
 - `check` and `fix` load config after grammar and scope validation.
 - `fix` changes selected worktree files and verifies every real index blob is unchanged.
 
@@ -3146,7 +3152,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  exactly as a failed push's record does.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
- The hand-over writes, beside the registration,
+ The hand-over writes,
+beside the registration,
  in the file `monochromatic-git-policy-cli-removal-identity`,
  the device and the inode of the registration and of the worktree root,
  and the service compares them with the two directories standing there before it removes anything.
@@ -3162,7 +3169,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  A record whose hand-over wrote no such identity,
  which is every record an earlier release queued,
  is compared with the name it was keyed by,
- which is the name the release before this one computed from the path and the registration's device, inode and
+ which is the name the release before this one computed from the path and the registration's device,
+inode and
  change time:
  a match proves the registration is untouched since the hand-over,
  and a mismatch leaves the worktree and names it.
@@ -3179,8 +3187,11 @@ A queue outlives the program that writes to it,
  and a version above this build's,
  are left in `pending` and looked at again,
  which is one read per record per round;
- a field this build does not know is ignored, and the record is this build's work when its kind and version are;
- and a record that is not a record at all, which no release can ever read, is settled in `failed`
+ a field this build does not know is ignored,
+and the record is this build's work when its kind and version are;
+ and a record that is not a record at all,
+which no release can ever read,
+is settled in `failed`
  (`record_of_a_later_release` in `src/native/landing/work_item.rs`).
  A whole-worktree removal that a commit service of an earlier release refused is queued once more by the next command
  of the repository,
@@ -3449,6 +3460,129 @@ and which lock file stands there with the command that removes a lock nothing ho
 A merge run again never finishes that removal:
 a branch that already landed makes the merge up to date,
 so it looks at no worktree.
+
+The wrapper prunes the references it keeps commits on,
+by age and by size
+(the owner's answer of 2026-11-12:
+"Keep the reference,
+auto prune by size and age"),
+because nothing else removes them and the objects only they reach would accumulate without end.
+
+A reference is a kept reference when its name is `refs/cli-git/kept/<number>` or
+`refs/cli-git/kept/<number>-rescue`;
+nothing else under `refs/cli-git/` is touched,
+so `refs/cli-git/carried/<number>` (the carried work of an isolated merge)
+and `refs/cli-git/auto-push/fetch-<pid>` (a private fetch of a push) are left where they are.
+
+A kept reference goes in three cases,
+judged in this order.
+Its commit has been reached by a local branch,
+a remote-tracking branch or a tag
+(and by none of the holders that go away by themselves:
+a landing's `refs/worktree/cli-git-service/<batch>`,
+the carried work of an isolated merge,
+a private fetch of a push,
+a person's stash,
+each of which is a holder in flight and not a branch):
+the question is asked again immediately before such a reference goes,
+because a branch can move off the commit while the reference's own value stays the same;
+the reference holds nothing any more and goes at the pass that reads it,
+whatever its age.
+It is older than thirty days and no branch reaches its commit:
+it goes,
+because a person who would recover that commit has had the time.
+Or the objects reachable only through kept references weigh more than 64 MiB:
+the oldest references go first,
+one at a time,
+each removal followed by a fresh reading of what the survivors reach,
+until the survivors are under the limit or none of them is older than one hour,
+which is the floor under which no reference is ever pruned for its size.
+Every pass plans at most sixteen removals and stops planning and removing after twenty seconds,
+leaving the rest to the next pass,
+which runs after the next landed commit.
+
+The size is measured over the objects reachable from a kept reference and from no reference outside
+`refs/cli-git/kept/`,
+in bytes on disk as `%(objectsize:disk)` reports each of them.
+That is the space a repository gives back when the reference goes,
+and it is what the passage of time makes grow;
+the objects before compression are not counted,
+because they are not what the disk holds.
+
+A reference carries no time of its own:
+the wrapper writes no reflog for one,
+so it records when it wrote each in
+`<common Git directory>/monochromatic-git-policy-cli/kept-references/<number>[-rescue].json`,
+with the worktree the commit was built in when the writer knew it.
+A removal writes that record,
+and a reference an earlier release wrote has none,
+so the first pass that lists it writes one dated at that moment:
+such a reference is never pruned before it has been listed for the whole age limit,
+which loses no commit and lets every reference this release and the earlier ones wrote be bounded.
+
+Before a reference whose commit no branch reaches is removed,
+and before every other removal of a reference too,
+the wrapper appends one line to
+`<common Git directory>/monochromatic-git-policy-cli-kept-references.jsonl`
+that carries the time,
+the reference,
+the commit,
+the batch and its two forms,
+the worktree the commit was built in,
+its age and the reason it went.
+That line is the only account of the commit afterwards,
+because the reference was its only handle,
+and `git gc` takes the objects once it is gone,
+so the line is written before the reference goes and never after:
+a crash between the two must not leave the repository without either.
+A removal Git then refuses
+(because another pass took the reference first,
+or another command moved it)
+appends a second line about the same reference with `"outcome":"refused"`,
+so what the log says is what became of each removal.
+A line that cannot be written never stops the removal:
+the rule against unbounded growth decides,
+and the service's log names the failure.
+
+The pass runs off the path any command waits for:
+in the commit service's after-commit upkeep,
+in the record that also runs `git maintenance run --auto`,
+once per repository per round,
+and through `git monochromatic-git-policy-cli kept-references --prune`
+when a person asks.
+It takes no repository-wide lock:
+each removal is `git update-ref -d <ref> <old value>`,
+so a reference another command wrote after the pass listed it is not removed by that pass,
+a reference another pass removed makes this removal refuse,
+and two passes that run at once leave the repository where one of them leaves it.
+Every Git start it makes carries the step ceiling every other start of the wrapper carries.
+
+`git monochromatic-git-policy-cli kept-references` lists every kept reference with its commit,
+its age,
+the worktree and batch it came from,
+and what the next pass will do with it,
+and its last line says how many the next pass prunes and what the survivors weigh.
+The listing is the pass with the removals left out,
+so what it says the next pass takes is what that pass takes.
+
+The three limits are named in
+`src/native/kept_references/kept_reference_limits.rs`,
+each with the measurement it rests on,
+and a run changes any of them with
+`CLI_GIT_KEPT_REFERENCE_MAX_AGE_SECONDS`,
+`CLI_GIT_KEPT_REFERENCE_MAX_BYTES` and
+`CLI_GIT_KEPT_REFERENCE_FLOOR_SECONDS`;
+a value that is not a positive whole number keeps the shipped one,
+so a typo never removes a bound.
+Measured on this repository on 2026-11-12:
+five kept references,
+the oldest 6.5 days old and none of them reached by a branch,
+holding 27 objects that weigh 7,573 bytes on disk (258,055 bytes before compression),
+so thirty days is about five times the oldest age ever reached here and 64 MiB is about 43,000 of
+them at that weight;
+a repository with ten times this activity would bound the folder at about 250 references and the same
+ages,
+and one whose kept commits carry ten times the content would reach the size limit on most passes.
 
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
@@ -12543,7 +12677,8 @@ and the append is one whole-entry write on an append-mode descriptor with no loc
 (`log_lines_appended_without_a_lock.rs`),
 so two reviews of one repository may run beside each other and every other kind.
 Reviews run after the pushes and before the steps that free space:
-a push is the person's backup, and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
+a push is the person's backup,
+and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
 On 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round emptied the trashes of removed worktrees ahead of them,
 one of which can run for many minutes (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 
@@ -14329,10 +14464,13 @@ the commit then fails where real Git's own filter would have made the directory 
 and no step of the wrapper can close that window,
 because a link cannot make the directory it names.
 The shadow's store link is what a filter of a wrapped commit writes through only when that commit both stages
-tracked changes at commit time (`--all`) and is built by real Git (an editor, a signature, a hook):
+tracked changes at commit time (`--all`) and is built by real Git (an editor,
+a signature,
+a hook):
 the staging of every other shape runs in the real repository,
 where `git-lfs` writes into the real store.
-What the repository holds at that name is the person's, in every form,
+What the repository holds at that name is the person's,
+in every form,
 and the creation never replaces,
 moves or deletes it:
 a directory,

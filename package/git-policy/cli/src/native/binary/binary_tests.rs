@@ -872,7 +872,14 @@ mod service_stop_ends_its_gits;
 #[path = "binary_package_repair_tests.rs"]
 mod package_repair;
 
+/// The references the wrapper keeps commits on,
+/// listed by `git monochromatic-git-policy-cli kept-references`
+/// and pruned by the pass that follows them.
+#[path = "binary_kept_references_tests.rs"]
+mod kept_references;
+
 /// A commit and its push made while the service is inside a batch of the repository's own housekeeping records:
-/// how long each waited, measured for the record and not asserted as a control.
+/// how long each waited,
+/// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
