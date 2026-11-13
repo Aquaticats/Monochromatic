@@ -1128,11 +1128,13 @@ fn the_cost_of_both_arms_is_printed_over_a_store_of_the_repository_s_size() {
 
 /// How many names one chain of the ordering control is spelled with.
 ///
-/// Five links plus the direct ref they end at,
-/// which is the shortest chain Git's own depth bound can cut inside:
-/// a listed name is the first of its own chain's levels,
-/// so four links are printed and a fifth is not.
-const ORDERED_CHAIN_NAMES: usize = 6;
+/// The shortest chain Git's own depth bound can cut inside needs five links,
+/// because a listed name is the first of its own chain's levels and four links are printed:
+/// these five names are the links,
+/// and the repository's own `main` is the direct ref the last of them reaches.
+///  So five names are 120 orders rather than the 720 six names would be,
+/// and every one of them is still a five-link chain whose prefix sorts in every way a prefix can.
+const ORDERED_CHAIN_NAMES: usize = 5;
 
 /// How many orders of those names one store of the ordering control holds.
 ///
@@ -1170,7 +1172,8 @@ fn next_order(order: &mut [usize]) -> bool {
 /// What:
 ///  Writes one chain of `ORDERED_CHAIN_NAMES` names in the order `order` gives,
 ///  under `refs/heads/<prefix>/`,
-///  its last name a direct ref at `oid`.
+///  its last name pointing at `tail`,
+///  which is a direct ref the caller already wrote.
 /// Why:
 ///   The order of a chain's names is the whole variable of the control that follows,
 /// so the writer takes it as a parameter and names nothing else:
@@ -1179,15 +1182,23 @@ fn next_order(order: &mut [usize]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeOrderedChain = (repo, prefix, order, oid) => order.forEach((drawn, at) => writeLoose(repo, `refs/heads/${prefix}/p${drawn}`, at + 1 === order.length ? `${oid}\n` : `ref: refs/heads/${prefix}/p${order[at + 1]}\n`))
+/// const writeOrderedChain = (repo, prefix, order, tail) => order.forEach((drawn, at) => writeLoose(repo, `refs/heads/${prefix}/p${drawn}`, at + 1 === order.length ? `ref: ${tail}\n` : `ref: refs/heads/${prefix}/p${order[at + 1]}\n`))
 /// ```
-fn write_ordered_chain(repo: &Path, prefix: &str, order: &[usize], oid: &str) {
+fn write_ordered_chain(repo: &Path, prefix: &str, order: &[usize], tail: &str) {
+    // What:
+    //  The chain's own directory is made once and its refs are written into it.
+    // Why:
+    //  `write_loose` makes every parent of every name,
+    // and a control that spells thousands of ref names spent seconds doing it:
+    //  one directory per chain and one write per ref is the same store for a tenth of the time.
+    let directory: PathBuf = repo.join(".git").join("refs").join("heads").join(prefix);
+    std::fs::create_dir_all(directory.as_path()).expect("the chain's directory");
     for (at, drawn) in order.iter().enumerate() {
         let value: String = match order.get(at + 1) {
             Some(next) => format!("ref: refs/heads/{prefix}/p{next}\n"),
-            None => format!("{oid}\n"),
+            None => format!("ref: {tail}\n"),
         };
-        write_loose(repo, format!("refs/heads/{prefix}/p{drawn}").as_str(), value.as_str());
+        std::fs::write(directory.join(format!("p{drawn}")).as_path(), value.as_bytes()).expect("a ref of the chain");
     }
 }
 
@@ -1202,16 +1213,16 @@ fn write_ordered_chain(repo: &Path, prefix: &str, order: &[usize], oid: &str) {
 ///  with `aa` already collapsed to the end of its own chain,
 /// reached that end in two steps instead of five,
 /// and Git's listing drops `zz` while the snapshot kept it.
-///  The fixture is a chain of six names whose last is a direct ref,
-/// so the source is five links from it and Git drops the source;
-///  every one of the 720 orders of those six names is spelled in one store,
+///  The fixture is a chain of five names reaching the repository's own `main`,
+/// so the source is five links from a direct ref and Git drops the source;
+///  every one of the 120 orders of those five names is spelled in one store,
 /// and Git answers each store the snapshot must match byte for byte.
 #[cfg(unix)]
 #[test]
 fn a_symbolic_chain_is_read_as_git_reads_it_in_every_order_of_its_names() {
     let root: PathBuf = fixture("shadow-refs-every-order-of-a-chain");
     let repo: PathBuf = store_of_kind(root.as_path(), "orders");
-    let head: String = head_of(repo.as_path());
+
     let sources: SnapshotSources = sources_of(repo.as_path(), RefFormat::Files);
     let recording: PathBuf = root.join("recording");
     std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
@@ -1232,7 +1243,7 @@ fn a_symbolic_chain_is_read_as_git_reads_it_in_every_order_of_its_names() {
         // The inner loop leaves `order` on the last permutation it took, so the next store starts at the following one.
         stores = stores.saturating_add(1);
         for (at, chain) in drawn.iter().enumerate() {
-            write_ordered_chain(repo.as_path(), format!("s{stores}c{at}").as_str(), chain.as_slice(), head.as_str());
+            write_ordered_chain(repo.as_path(), format!("s{stores}c{at}").as_str(), chain.as_slice(), "refs/heads/main");
         }
         let entries: Vec<RefSnapshotEntry> = list_real_refs_from(&context, repo.as_path(), &sources).expect("the snapshot");
         let snapshot: Vec<u8> = snapshot_listing(entries.as_slice());
@@ -1248,8 +1259,8 @@ fn a_symbolic_chain_is_read_as_git_reads_it_in_every_order_of_its_names() {
             break;
         }
     }
-    assert_eq!(orders, 720, "every order of six names was seen");
-    assert_eq!(stores, 36, "and Git was asked once per store of {ORDERS_PER_STORE}");
+    assert_eq!(orders, 120, "every order of five names was seen");
+    assert_eq!(stores, 6, "and Git was asked once per store of {ORDERS_PER_STORE}");
     assert_no_start(log.as_path());
     remove(root.as_path());
 }
@@ -1395,14 +1406,16 @@ fn draw_store(state: &mut u64) -> DrawnStore {
 /// const writeDrawn = (repo, prefix, store, oid) => { writeOrderedChain(repo, prefix, store.order, oid); store.extras.forEach((extra, at) => writeLoose(repo, `refs/heads/${prefix}/x${at}`, extra === 'direct' ? `${oid}\n` : extra === 'dangling' ? `ref: refs/heads/${prefix}/absent${at}\n` : `ref: refs/heads/${prefix}/x${at}\n`)) }
 /// ```
 fn write_drawn_store(repo: &Path, prefix: &str, store: &DrawnStore, oid: &str) {
-    write_ordered_chain(repo, prefix, store.order.as_slice(), oid);
+    // The chain's last name reaches the repository's own direct ref, so every drawn chain ends at an object.
+    write_ordered_chain(repo, prefix, store.order.as_slice(), "refs/heads/main");
+    let directory: PathBuf = repo.join(".git").join("refs").join("heads").join(prefix);
     for (at, extra) in store.extras.iter().enumerate() {
         let value: String = match extra {
             DrawnExtra::Direct => format!("{oid}\n"),
             DrawnExtra::Dangling => format!("ref: refs/heads/{prefix}/absent{at}\n"),
             DrawnExtra::Cycle => format!("ref: refs/heads/{prefix}/x{at}\n"),
         };
-        write_loose(repo, format!("refs/heads/{prefix}/x{at}").as_str(), value.as_str());
+        std::fs::write(directory.join(format!("x{at}")).as_path(), value.as_bytes()).expect("a drawn ref");
     }
 }
 
