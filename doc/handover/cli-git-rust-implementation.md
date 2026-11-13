@@ -685,6 +685,52 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The owner is away for six to ten hours from 2026-11-13T18:48:09-05:00
+
+The owner,
+in the terminal at about 18:47:
+"I'm going to be away for 6 to 10h.
+You keep working."
+
+What that means for the coordinating session until the owner writes again,
+by the rules that already stand:
+
+- The queue goes on:
+  each run that ends is read and routed
+  (a review for an author's answer,
+  the findings back to the author,
+  a pass for a branch whose review found nothing),
+  and each pass that reports fit is merged into `main`,
+  released,
+  installed and sample-committed,
+  in the order they finish.
+  Publishing alpha releases of the wrapper stands authorized from earlier in the effort.
+- Nothing is asked through the question tool while nobody is there to answer.
+  A choice that a recorded decision settles is adopted,
+  written under "Adopted while the owner was away" in the section it belongs to,
+  and is open to veto.
+  A choice no record and no measurement settles is not made:
+  the work that needs it waits,
+  everything else goes on,
+  and the question is kept in the list at the end of this section for the owner's return.
+- Nothing destructive beyond what the owner already ordered
+  (the deletion of the two old toolchains' build folders,
+  going since 18:30:32),
+  nothing sent outside this repository other than its own issues and releases,
+  and no change to the pools:
+  about twenty-five agents stays the most.
+- The units this depends on and when each ends by itself:
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`
+  (started 17:12:16 for eight hours,
+  so it is started again by 01:12 on 2026-11-14),
+  and the waiter of the moment
+  (eight hours from its start,
+  started again each time it reports).
+
+Questions kept for the owner's return:
+
+- none yet.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
