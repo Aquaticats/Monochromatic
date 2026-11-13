@@ -49,21 +49,32 @@ The session reports `XDG_CURRENT_DESKTOP=KDE` and `XDG_SESSION_TYPE=wayland`.
 
 Successful read-only command catalog:
 
-- `kscreen-doctor --help`: brightness syntax is present; dimming syntax is absent.
-- `kscreen-doctor --outputs`: the center portrait monitor is `DP-2`,
+- `kscreen-doctor --help`:
+  brightness syntax is present;
+  dimming syntax is absent.
+- `kscreen-doctor --outputs`:
+  the center portrait monitor is `DP-2`,
   with logical geometry `1080,0 1080x1920`,
   brightness `50%`,
   and dimming `100%`.
-- `kscreen-doctor --outputs`: the lower landscape monitor is `HDMI-A-2`,
+- `kscreen-doctor --outputs`:
+  the lower landscape monitor is `HDMI-A-2`,
   with logical geometry `976,1920 1280x720`.
 
 Source revisions inspected in fresh upstream clones:
 
-- libkscreen: `e2665b4677b9855709ea8ce7d00fc6a3b47f64cc`.
-- KWin: `75175b104504748aacd3d6a955a79d19751f8310`.
+- libkscreen:
+  `e2665b4677b9855709ea8ce7d00fc6a3b47f64cc`.
+- KWin:
+  `75175b104504748aacd3d6a955a79d19751f8310`.
 
 Both source-selection links were opened in `agent-browser`.
 Browser evaluation confirmed their URL fragments and quoted source lines.
+The scoped `mise run format:monochromatic-lint` check completed successfully.
+Pandoc's rendered HTML showed the expected headings,
+source links,
+lists,
+and command blocks.
 
 Unsuccessful diagnostic catalog:
 
@@ -117,12 +128,18 @@ Nothing to file for the requested dimming behavior:
 the capability exists,
 and no failure of a valid dimming command was reproduced.
 
-- Upstream fault: no malfunction of the requested operation established.
-- Fix feasibility: no behavioral fix required by the evidence.
-- Supported use case: the dimming parser and DDC/CI source branch cover per-output dimming.
-- Contribution policy: not evaluated because no filing is proposed.
-- Maintainer willingness: not evaluated because no filing is proposed.
-- Fix prototype: not applicable without a reproduced behavioral defect.
+- Upstream fault:
+  no malfunction of the requested operation established.
+- Fix feasibility:
+  no behavioral fix required by the evidence.
+- Supported use case:
+  the dimming parser and DDC/CI source branch cover per-output dimming.
+- Contribution policy:
+  not evaluated because no filing is proposed.
+- Maintainer willingness:
+  not evaluated because no filing is proposed.
+- Fix prototype:
+  not applicable without a reproduced behavioral defect.
 
 No duplicate search,
 filing-readiness audit,
