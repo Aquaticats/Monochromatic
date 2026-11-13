@@ -358,9 +358,13 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
     //  that environment, and nothing in the crate changes the wrapper's own environment, so a command started with another
     //  `HOME` reads that home here. No service chooses a route (a service start goes to `service_main` before any command's
     //  route is picked), so this read never answers with a manager's home while serving.
-    let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
+    let named: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
     let state_home: Option<PathBuf> = non_empty_path_variable("XDG_STATE_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
+    // What: An account with no `XDG_RUNTIME_DIR` — a container, a service's own child, a cron job — keeps its sockets in a
+    //       folder of its own, so a commit lands there as real Git's does.
+    // Why:  Real Git commits on such a machine, so this wrapper must; a command that refused would fail where Git succeeds.
+    let runtime: Option<PathBuf> = crate::service_host_of_a_worktree::runtime_directory(named.as_deref(), home.as_deref());
     return choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         state_home: state_home.as_deref(),

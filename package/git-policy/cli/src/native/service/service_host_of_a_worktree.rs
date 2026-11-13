@@ -102,6 +102,35 @@ pub fn state_dir_of(state_home: Option<&Path>, home: Option<&Path>) -> Option<Pa
     return Some(named.join(".local").join("state"));
 }
 
+/// What:
+///  The folder this account's commit services keep their sockets in when the environment names no runtime folder:
+///  `.run` in the home directory.
+/// Why:
+///   A machine with no login session sets no `XDG_RUNTIME_DIR` (a container,
+/// a service's own child, a cron job), and a commit must land there as it does anywhere else:
+/// real Git commits there, so this wrapper does.
+/// The home is the one place an account has of its own that survives a reboot,
+/// and `.run` is four characters, which leaves a socket address the room it needs.
+/// A folder the wrapper makes is private (0700);
+/// `ensure_private` sets that at every start.
+/// An account with neither a named folder nor a home has nowhere of its own to put a socket,
+/// and says so instead of guessing a folder that is not its.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runtimeDirectory({ named: process.env.XDG_RUNTIME_DIR, home: process.env.HOME }) // `${home}/.run` or undefined
+/// ```
+pub fn runtime_directory(named: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+    if let Some(directory) = named
+        && !directory.as_os_str().is_empty()
+    {
+        return Some(directory.to_path_buf());
+    }
+    // The home is the only folder an account certainly has; a folder named by nothing would be anyone's.
+    let place: &Path = home?;
+    return Some(place.join(".run"));
+}
+
 /// Controls of the derived paths stay out of the release executable.
 #[cfg(test)]
 #[path = "service_host_of_a_worktree_tests.rs"]

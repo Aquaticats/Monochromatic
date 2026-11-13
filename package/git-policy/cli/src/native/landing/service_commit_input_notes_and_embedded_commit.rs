@@ -240,9 +240,12 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
     // The environment read here is the invocation's own, on the same terms as `route_from_environment` reads it: `main`
     //  hands the entry `std::env::vars_os()` and nothing changes the wrapper's own environment, so the home this commit was
     //  started with is the home its service route is chosen from.
-    let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
+    let named: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
     let state_home: Option<PathBuf> = non_empty_path_variable("XDG_STATE_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
+    // An account with no `XDG_RUNTIME_DIR` keeps its sockets in a folder of its own (`runtime_directory`), so a commit lands on a
+    //  machine with no login session as it does on one with.
+    let runtime: Option<PathBuf> = crate::service_host_of_a_worktree::runtime_directory(named.as_deref(), home.as_deref());
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
     let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
     let route: Option<Route> = choose_route(&RouteInputs {

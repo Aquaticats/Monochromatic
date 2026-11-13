@@ -14,11 +14,11 @@ fn folder(name: &str) -> PathBuf {
 fn one_taker_of_the_marker_wins() {
     let root = folder("marker");
     let marker = root.join("3f9a.starting");
-    let first = StarterMarker::take(marker.as_path()).expect("the first command takes the marker");
-    assert!(StarterMarker::take(marker.as_path()).is_none(), "the second command finds it held");
+    let first = StarterMarker::take(marker.as_path()).expect("the marker is created").expect("the first command takes the marker");
+    assert!(StarterMarker::take(marker.as_path()).expect("the marker is there").is_none(), "the second command finds it held");
     drop(first);
     assert!(!marker.exists(), "the marker goes when the start is over");
-    assert!(StarterMarker::take(marker.as_path()).is_some(), "and the next start takes it again");
+    assert!(StarterMarker::take(marker.as_path()).expect("the marker is created").is_some(), "and the next start takes it again");
 }
 
 /// What: A marker whose owner is gone is nobody's and is taken over.
@@ -29,7 +29,7 @@ fn a_marker_whose_owner_is_gone_is_taken_over() {
     let marker = root.join("3f9a.starting");
     std::fs::write(marker.as_path(), "1 linux:000000\n").expect("a killed command's marker");
     assert!(!holder_is_alive(marker.as_path()), "the marker names no living process");
-    assert!(StarterMarker::take(marker.as_path()).is_some(), "the next start takes it");
+    assert!(StarterMarker::take(marker.as_path()).expect("the marker is created").is_some(), "the next start takes it");
 }
 
 /// What: Nothing at an address answers, and a service that greets does.
