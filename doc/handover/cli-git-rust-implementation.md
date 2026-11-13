@@ -135,6 +135,50 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The finished records of the commit service are pruned by age and count together (2026-11-13T13:34:00-05:00)
+
+- Branch `fix/git-policy-cli-finished-records-of-the-commit-service-are-pruned-only-when-old-and-beyond-a-count`,
+  four commits from `main` (`31260af3b1`):
+  `88759e42e3` the binary controls,
+  `1475725556` the rule and both documents,
+  `7c8aba14ac` and `8c3bce9551` the controls' own repairs.
+  Not merged: the coordinating agent merges it.
+- What it does now:
+  `prune_done` skips the newest `DONE_RETAINED` (1024) records and removes one only when
+  `a_client_may_still_read_finished_batch` says no client of it may still read it.
+  The removal still runs only at a service's start (`service_server.rs` for an instance's own journal,
+  `service_main.rs` for an earlier release's shared one).
+- The age, `A_FINISHED_RECORD_IS_READ` (`service/wait_ceilings.rs`),
+  is now `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus `LOOKING_FOR_A_LANDED_COMMIT`,
+  30 minutes 17 seconds.
+  The withdrawal is in it because the answer to it is decided from the same record
+  (`service_busy.rs`, `naming`).
+  The count is still 1024, for the other half of the rule:
+  it is what a repository that lands rarely keeps for ever.
+- Measured on 2026-11-13, both from the branch's debug wrapper:
+  an average finished record is 1267 bytes,
+  so 1024 records weigh 1.30 MB and 10,240 weigh 13.0 MB;
+  the first answer after a start took a median 50 to 76 ms with 1024 records and 579 to 640 ms with 10,240
+  (seven runs each, two rounds),
+  while later answers took 6 to 13 ms at both sizes,
+  so a start's read grows with the records and the landing's lookup does not.
+  The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.
+- Reproduced at `main` and refuted on the branch, by the audit's own steps
+  (one wrapped commit, 1024 further landings, a restart, the same identity again):
+  at `main` the restart logged `removed the records of 1 old finished batches`,
+  the record was 103 s old, and the resend landed a second `one-request` commit;
+  on the branch the record survived the restart and the resend was answered `already: true` with the first commit.
+- Limits now stated in `README.md` and `SPEC.md`:
+  a client stalled past the age is recognised only while fewer than 1024 batches landed since it;
+  a service that keeps landing keeps its records until its next start, and that start reads them all;
+  two services of one worktree each remember only what landed before they started, so a request resent to the
+  other one lands twice (nothing in the journal prevents it, and one service per worktree is what does);
+  and a service of an earlier release on the same journal still removes by count alone.
+- Two tests of `service_journal_restored_at_start` were already red on `main` and are not this branch's:
+  their pipes are refused at once as not regular files
+  (`the read was given its ceiling: 460.459µs`), and neither they nor the product code they cover touch
+  `prune_done`, `landed_commits` or the record's age.
+
 ### The owner's answers of 2026-11-12T12:11:18-05:00, through the question tool: a slow push, finished records, a way back, a foreign subvolume
 
 The answers were read before 12:11:18.
