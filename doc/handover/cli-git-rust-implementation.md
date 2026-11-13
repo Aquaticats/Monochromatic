@@ -314,6 +314,36 @@ The brief is `~/temp/agent/pi-runs/issue-6293-private-runtime-directory-is-the-b
 The first part rests on the branch `refactor/git-policy-cli-commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`,
 cut off on 2026-11-12 and in the resume queue, so that resume goes before this run, and the brief tells the run to build on it and write no second service starter.
 
+#### Integration pass 18 is finished and goes out as 0.6.1-alpha.16 (2026-11-13T11:10:25-05:00)
+
+The third run of the pass worked from 10:44:29 to 11:10:20 (145 turns, ended `idle` with its report) and made one commit,
+the merge of `main` as `9373ceea9e` (5.93 s through the installed wrapper, push included). The branch's tip is that commit, on the remote.
+Its whole report is `~/temp/agent/integration-pass-18/report.md`; the logs are in `~/temp/agent/integration-pass-18-for-alpha-16-scratch/keep/`.
+Not approved by anyone; what the run did and checked itself:
+
+- All nine branches are in at the tips the first brief names, with the three repair commits of 2026-11-12; this run needed none.
+- At the tip: `native:build` 32.33 s, `native:test:host -- --no-run` 66.20 s, `native:test:binary:host -- --no-run` 9.94 s,
+  `native:clippy` 36.42 s with no finding, `native:build:release` 111.40 s; every one exit 0 on the first attempt.
+  (On 2026-11-12, while a drive filled, `native:check` alone took 15 to 46 minutes.)
+- The tests each merged branch adds, run by name: 116 runs from 115 names, all passed.
+  The two controls that failed the gate of `0.6.1-alpha.12` pass.
+- Through a wrapper built from the worktree, each fixture with its own `HOME` and `XDG_RUNTIME_DIR` and a service started by hand:
+  a `git worktree add` in a repository with package-manager state answered in 480 ms while the relink (25 s by the fixture) and the build-state fill ran on in the service;
+  the commit that concludes a merge took 54, 31 and 29 ms against real Git's 5, 5 and 5 ms, the same commit object from both;
+  `git worktree remove --force` of a worktree holding a link into a pool took 26 ms and followed no link,
+  and a worktree holding a nested subvolume is refused in about 10 ms with the path and four ways forward.
+- The question about branch 7: the repair of a new worktree's package-manager state runs in the service's slow lane, which a landing and its push do not stand behind;
+  with nineteen prewarm records queued and the service inside a clone, a commit took 45 ms and its push 15 ms.
+  Not measured: contention on the disk between a large clone and a landing in one process, which is the mechanism the 2026-11-12 diagnosis never established.
+- Left by the report for the owner:
+  the unfinished performance-judge branch (`0efb4bcb4d`) needs a decision on a report recorded before `rawPairedDirectMilliseconds` existed;
+  branch 8's `ToolStart::LetGoWithoutAnAnswer` and the line a person reads for it are in this release with wording still open;
+  the `HOME`-dependent control of branch 9 fails under a `HOME` too long for a socket name, to be fixed as a control or kept as a fixture limit.
+
+The trial merge into `main` with `git merge-tree` at about 11:14 was clean (165 files).
+It is merged with `--no-ff` and dispatched from 0.6.1-alpha.15 to 0.6.1-alpha.16 with no gate (an alpha).
+No commit goes to `main` between the dispatch and the publication; the other session is told.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
