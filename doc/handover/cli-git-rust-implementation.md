@@ -670,7 +670,7 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
-#### Two resumes finished and the start gate's second review found one defect (2026-11-13T13:12:00-05:00)
+#### Two resumes finished and the start gate's second review found one defect (2026-11-13T13:11:00-05:00)
 
 Not complete: none of the three is merged; each waits for what its bullet names.
 Read from each run's own report by the coordinating session; nothing here was run again by it.
@@ -681,7 +681,9 @@ Read from each run's own report by the coordinating session; nothing here was ru
   It calls itself fit to merge on two conditions: `main` moved 191 commits since its merge, so the merge and its gate are done again;
   and one binary control of `main` (the copy line must be the first line of stderr) fails beside `main`'s standing notice.
   Report and logs: `~/temp/agent/snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own-scratch/keep/`.
-  Its review was asked for at 13:10.
+  Its review was asked for at 13:09:41 and did not start:
+  the coordinating session gave the review command a report's path where it takes the reviewed folder of the repository.
+  The entry is back in the queue with `package/git-policy/cli`.
 - **`guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`** ended between 13:06:45 and 13:09:29, branch tip `c3d3dec271`
   (`refactor/git-policy-cli-guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`).
   It converted one case (taking a side of a conflict with `checkout` or `restore` is refused, with the opt-out) and listed the others with their owners
@@ -698,7 +700,7 @@ Read from each run's own report by the coordinating session; nothing here was ru
   `~/temp/agent/pi-runs/start-gate-change-answers-its-second-review-of-2026-11-13-prompt.md`;
   a review of that one fix follows, then the merge.
 
-#### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies`; builds do not wait on each other (2026-11-13T13:10:00-05:00)
+#### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies`; builds do not wait on each other (2026-11-13T13:08:25-05:00)
 
 Not complete: the cause of the one long wait is not found and no remedy is chosen.
 Read and measured by the coordinating session.
@@ -718,7 +720,7 @@ Read and measured by the coordinating session.
   One whole pass of the task with sixteen agents going: 22.1 s, with two waits on the lock (one reading, 13:06:45 to 13:07:07).
 - Not explained: the wait of 529 s one run reported at 12:16.
   Twenty-two seconds a pass does not make it unless many passes queue or one holder kept the lock for minutes.
-  A recorder writes who holds and who waits on the lock every fifteen seconds until about 17:10
+  A recorder, started at 13:07:58, writes who holds and who waits on the lock every fifteen seconds for four hours
   (unit `record-who-holds-the-cargo-package-cache-lock-20261113`,
   log `~/temp/agent/cargo-package-cache-lock-measured-with-a-cargo-home-of-its-own-2026-11-13/keep/who-held-and-who-waited-from-2026-11-13T1310.jsonl`).
 - The earlier plan (a cargo home for each run) is not shown to be needed for builds;
