@@ -50,19 +50,29 @@ export const BYTES_IN_A_GIBIBYTE: number = BYTES_IN_A_KIBIBYTE
 export const BUILD_VOLUME_FLOOR_BYTES: number = 100 * BYTES_IN_A_GIBIBYTE;
 
 /**
- The room a new run needs on the volume that holds Pi's session files: about two hours of the container images one session took
- there on 2026-11-13, and well above the 1 GiB at which twenty runs ended on 2026-11-12. A run's scratch is not on that drive, so
- this floor is not sized from scratch, and the drive it guards is the one whose fill a run cannot see coming.
+ The room a new run needs on the volume that holds Pi's session files, in whole gibibytes: about two hours of the container images
+ one session took there on 2026-11-13, and well above the 1 GiB at which twenty runs ended on 2026-11-12. A run's scratch is not on
+ that drive, so this floor is not sized from scratch, and the drive it guards is the one whose fill a run cannot see coming.
  */
-export const SESSION_FILES_FLOOR_BYTES: number = 50 * BYTES_IN_A_GIBIBYTE;
+const SESSION_FILES_FLOOR_GIBIBYTES = 50;
 
 /**
- The room a new run needs on the volume that holds the runs folder: about three of the largest scratch folder one run of
- 2026-11-12 left, at the 16.7 GiB a btrfs reading of that folder gave on 2026-11-13. `du` read that folder as 65,984 MiB by
- counting the data its copy-on-write copies share once for each of them, so the floor follows the btrfs measurement and is not
+ {@link SESSION_FILES_FLOOR_GIBIBYTES} in the bytes a room and a floor are counted in.
+ */
+export const SESSION_FILES_FLOOR_BYTES: number = SESSION_FILES_FLOOR_GIBIBYTES * BYTES_IN_A_GIBIBYTE;
+
+/**
+ The room a new run needs on the volume that holds the runs folder, in whole gibibytes: about three of the largest scratch folder
+ one run of 2026-11-12 left, at the 16.7 GiB a btrfs reading of that folder gave on 2026-11-13. `du` read that folder as 65,984 MiB
+ by counting the data its copy-on-write copies share once for each of them, so the floor follows the btrfs measurement and is not
  raised on a number that counted the same bytes many times.
  */
-export const RUNS_FOLDER_FLOOR_BYTES: number = 50 * BYTES_IN_A_GIBIBYTE;
+const RUNS_FOLDER_FLOOR_GIBIBYTES = 50;
+
+/**
+ {@link RUNS_FOLDER_FLOOR_GIBIBYTES} in the bytes a room and a floor are counted in.
+ */
+export const RUNS_FOLDER_FLOOR_BYTES: number = RUNS_FOLDER_FLOOR_GIBIBYTES * BYTES_IN_A_GIBIBYTE;
 
 /**
  How much room one volume has, and which volume that room is on.

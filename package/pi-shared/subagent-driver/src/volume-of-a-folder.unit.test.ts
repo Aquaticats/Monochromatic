@@ -78,7 +78,7 @@ function folderOn({
  ```
  */
 function answerAboutIn({ folders, }: { readonly folders: ReadonlyMap<string, FolderAnswer> },): AnswerAboutAFolder {
-  return function answerAbout(folder,) {
+  return async function answerAbout(folder,) {
     /**
      What the test's file system holds under this path.
      */
@@ -128,7 +128,7 @@ await describe({
              The volume the folder is on, which is the folder whose parent is on another device.
              */
             const volume = '/var/home';
-            expect(volumeOfFolder({
+            expect(await volumeOfFolder({
               folder: `${volume}/user/temp/agent/pi-runs`,
               answerAbout: answerAboutIn({
                 folders: new Map([
@@ -151,7 +151,7 @@ await describe({
              The volume the newest folder that is there sits on.
              */
             const volume = '/a-volume-of-the-test';
-            expect(volumeOfFolder({
+            expect(await volumeOfFolder({
               folder: `${volume}/agent/temp/pi-runs`,
               answerAbout: answerAboutIn({
                 folders: new Map([
@@ -175,7 +175,7 @@ await describe({
              The drive the link points at, which is the volume the folder's writes fill.
              */
             const really = '/mnt/encrypted/temp/agent/pi-runs';
-            expect(volumeOfFolder({
+            expect(await volumeOfFolder({
               folder: throughTheLink,
               answerAbout: answerAboutIn({
                 folders: new Map([
@@ -199,7 +199,7 @@ await describe({
         it({
           name: 'names the root itself as the volume when every folder above a folder is on one device, which is a machine with no other mount',
           fn: async () => {
-            expect(volumeOfFolder({
+            expect(await volumeOfFolder({
               folder: '/runs/pi-runs',
               answerAbout: answerAboutIn({
                 folders: new Map([
@@ -215,7 +215,7 @@ await describe({
           name: 'answers a folder it cannot place at all, which is one no folder above it on the way to the root is there',
           fn: async () => {
             try {
-              volumeOfFolder({
+              await volumeOfFolder({
                 folder: '/nowhere/at/all',
                 answerAbout: answerAboutIn({ folders: new Map(), },),
               },);
@@ -251,7 +251,7 @@ await describe({
               ],),
             },);
             try {
-              volumeOfFolder({
+              await volumeOfFolder({
                 folder,
                 answerAbout: function answerAbout(asked,) {
                   if (asked === folder) {
@@ -291,7 +291,7 @@ await describe({
             /**
              What the reading answered for a folder several levels into that volume.
              */
-            const freeSpace = freeSpaceOfTheFolder({
+            const freeSpace = await freeSpaceOfTheFolder({
               folder: `${volume}/user/temp/agent/pi-runs`,
               answerAbout: answerAboutIn({
                 folders: new Map([

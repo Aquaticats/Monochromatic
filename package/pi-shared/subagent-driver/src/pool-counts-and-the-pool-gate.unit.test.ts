@@ -1476,7 +1476,7 @@ await describe({
             const runs = [
               aRun('sol-audit-1',),
               aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-own-provider`,),
-          ];
+            ];
             /**
              A cap of the number of those runs, so the count against it is what a pool count would never see.
              */

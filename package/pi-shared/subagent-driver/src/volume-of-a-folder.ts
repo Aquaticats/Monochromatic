@@ -11,11 +11,11 @@
 
 import { dirname, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
-import type {
-  FreeBlocksOfAVolume,
-  FreeSpace,
+import {
+  type FreeBlocksOfAVolume,
+  type FreeSpace,
+  freeSpaceOnVolume,
 } from './free-space-floor.ts';
-import { freeSpaceOnVolume, } from './free-space-floor.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -27,10 +27,10 @@ const MISSING_PATH_CODE = 'ENOENT';
  resolved, and the device whose volume holds it. Two folders whose answers carry the same device are on one volume, and the
  folder at the top of that run of folders is the volume's own path.
  */
-export type AnswerAboutAFolder = (folder: string) => {
+export type AnswerAboutAFolder = (folder: string) => Promise<{
   readonly realPath: string;
   readonly device: number;
-};
+}>;
 
 /**
  Reads what the nearest folder at or above one answers, for a folder that has not been made yet.
@@ -49,38 +49,80 @@ export type AnswerAboutAFolder = (folder: string) => {
 
  @example
  ```ts
- const answer = nearestFolderThatIsThere({ folder: '/runs/pi-runs', answerAbout, },);
+ const answer = await nearestFolderThatIsThere({ folder: '/runs/pi-runs', answerAbout, },);
  ```
  */
-function nearestFolderThatIsThere({
+async function nearestFolderThatIsThere({
   folder,
   answerAbout,
 }: {
   readonly folder: string;
   readonly answerAbout: AnswerAboutAFolder;
-},): ReturnType<AnswerAboutAFolder> {
-  /**
-   The folder this look reads, which starts at the one given and moves up while it is not there.
-   */
-  let held = folder;
-  for (;;) {
-    try {
-      return answerAbout(held,);
-    }
-    catch (error) {
-      if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
-        throw error;
-      }
-      /**
-       The folder that holds the one that is not there.
-       */
-      const parent = dirname(held,);
-      if (parent === held) {
-        throw error;
-      }
-      held = parent;
-    }
+},): Promise<Awaited<ReturnType<AnswerAboutAFolder>>> {
+  try {
+    return await answerAbout(folder,);
   }
+  catch (error) {
+    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
+      throw error;
+    }
+    /**
+     The folder that holds the one that is not there.
+     */
+    const parent = dirname(folder,);
+    if (parent === folder) {
+      throw error;
+    }
+    return nearestFolderThatIsThere({
+      folder: parent,
+      answerAbout,
+    },);
+  }
+}
+
+/**
+ Reads the folder at the top of the run of folders on one device, which is the volume's own path.
+
+ @param volume - the folder whose volume is read, starting at the folder the caller named having every symbolic link resolved
+
+ @param device - the device each folder of that volume answers with
+
+ @param answerAbout - what a folder answers about itself, which a test replaces
+
+ @returns the volume's own path
+
+ @example
+ ```ts
+ const volume = await volumeAtTheTopOf({ volume: '/var/home/a/temp', device: 2, answerAbout, },);
+ ```
+ */
+async function volumeAtTheTopOf({
+  volume,
+  device,
+  answerAbout,
+}: {
+  readonly volume: string;
+  readonly device: number;
+  readonly answerAbout: AnswerAboutAFolder;
+},): Promise<string> {
+  /**
+   The folder that holds this one.
+   */
+  const parent = dirname(volume,);
+  if (parent === volume) {
+    return volume;
+  }
+  /**
+   What the folder above answers about itself.
+   */
+  const above = await answerAbout(parent,);
+  return (above.device === device)
+    ? await volumeAtTheTopOf({
+      volume: parent,
+      device,
+      answerAbout,
+    },)
+    : volume;
 }
 
 /**
@@ -99,40 +141,28 @@ function nearestFolderThatIsThere({
 
  @example
  ```ts
- const volume = volumeOfFolder({ folder: '/home/a/temp/agent/pi-runs', answerAbout, },);
+ const volume = await volumeOfFolder({ folder: '/home/a/temp/agent/pi-runs', answerAbout, },);
  ```
  */
-export function volumeOfFolder({
+export async function volumeOfFolder({
   folder,
   answerAbout,
 }: {
   readonly folder: string;
   readonly answerAbout: AnswerAboutAFolder;
-},): string {
+},): Promise<string> {
   /**
    What the nearest folder at or above the one given answers about itself.
    */
-  const answer = nearestFolderThatIsThere({
+  const answer = await nearestFolderThatIsThere({
     folder,
     answerAbout,
   },);
-  /**
-   The folder whose volume is read, which starts at the folder the caller named.
-   */
-  let volume = answer.realPath;
-  for (;;) {
-    /**
-     The folder that holds this one.
-     */
-    const parent = dirname(volume,);
-    if (parent === volume) {
-      return volume;
-    }
-    if (answerAbout(parent,).device !== answer.device) {
-      return volume;
-    }
-    volume = parent;
-  }
+  return volumeAtTheTopOf({
+    volume: answer.realPath,
+    device: answer.device,
+    answerAbout,
+  },);
 }
 
 /**
@@ -148,10 +178,10 @@ export function volumeOfFolder({
 
  @example
  ```ts
- const freeSpace = freeSpaceOfTheFolder({ folder: runsFolder, answerAbout, statfs: statfsSync, },);
+ const freeSpace = await freeSpaceOfTheFolder({ folder: runsFolder, answerAbout, statfs: statfsSync, },);
  ```
  */
-export function freeSpaceOfTheFolder({
+export async function freeSpaceOfTheFolder({
   folder,
   answerAbout,
   statfs,
@@ -159,9 +189,9 @@ export function freeSpaceOfTheFolder({
   readonly folder: string;
   readonly answerAbout: AnswerAboutAFolder;
   readonly statfs: FreeBlocksOfAVolume;
-},): FreeSpace {
+},): Promise<FreeSpace> {
   return freeSpaceOnVolume({
-    volume: volumeOfFolder({
+    volume: await volumeOfFolder({
       folder,
       answerAbout,
     },),

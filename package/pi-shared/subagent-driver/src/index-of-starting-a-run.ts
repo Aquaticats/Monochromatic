@@ -10,6 +10,7 @@
  the retrying start that waits for a slot. The commands are `start-pi-run-when-a-pool-has-room.ts`,
  `start-pi-run-in-a-worktree.ts`, `retry-pi-run-start-until-a-pool-has-room.ts` and `start-pi-runs-from-a-batch-list.ts`.
  */
+export * from './index-of-what-a-start-needs.ts';
 export {
   AUDIT_RUN_PREFIX,
   CLOSED_POOL_LIMIT,
@@ -44,54 +45,6 @@ export {
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';
-export {
-  BUILD_VOLUME,
-  BUILD_VOLUME_FLOOR_BYTES,
-  BYTES_IN_A_GIBIBYTE,
-  BYTES_IN_A_KIBIBYTE,
-  type FreeBlocksOfAVolume,
-  type FreeSpace,
-  type FreeSpaceAgainstItsFloor,
-  RUNS_FOLDER_FLOOR_BYTES,
-  SESSION_FILES_FLOOR_BYTES,
-  type VolumeAgainstItsFloor,
-  freeSpaceFloorTextOf,
-  freeSpaceIsUnderTheFloor,
-  freeSpaceOnVolume,
-  freeSpaceTextOf,
-  freeSpaceUnderTheFloorTextOf,
-  strictestFloorPerVolume,
-  wholeGibibytesOf,
-} from './free-space-floor.ts';
-export {
-  type AnswerAboutAFolder,
-  freeSpaceOfTheFolder,
-  volumeOfFolder,
-} from './volume-of-a-folder.ts';
-export {
-  FOLDER_VOLUMES_VARIABLE,
-  VolumeSettingsError,
-  VOLUME_FREE_SPACE_BYTES_VARIABLE,
-  givenFolderVolumes,
-  givenVolumeFreeSpaceBytes,
-} from './volume-settings.ts';
-export {
-  SESSION_FOLDER_VARIABLE,
-  sessionFolderOf,
-} from './pi-session-folder.ts';
-export {
-  MACHINE_CAP_DEFAULT,
-  MACHINE_CAP_VARIABLE,
-  type MachineCap,
-  MachineCapError,
-  OTHER_AGENTS_GOING_VARIABLE,
-  agentsGoingOf,
-  machineCapCountsTextOf,
-  machineCapIn,
-  machineCapRefusalTextOf,
-  machineTakesNoMoreAgents,
-  otherAgentsGoingIn,
-} from './machine-cap.ts';
 export {
   type GoingRun,
   LAUNCHER_ENTRY_NAMES,

@@ -30,7 +30,7 @@ export const FOLDER_VOLUMES_VARIABLE = 'PI_RUNS_FOLDER_VOLUMES';
  */
 export class VolumeSettingsError extends Error {
   /**
-   * The name printed with the message.
+   The name printed with the message.
    */
   override readonly name = 'VolumeSettingsError';
 }

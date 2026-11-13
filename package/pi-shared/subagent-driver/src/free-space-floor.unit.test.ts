@@ -242,9 +242,15 @@ await describe({
         it({
           name: 'says a room is under the floor only when it is smaller than the floor, so a room exactly at it still starts a run',
           fn: async () => {
-            expect(freeSpaceIsUnderTheFloor(roomAgainstItsFloor(SESSION_FILES_FLOOR_BYTES - 1, SESSION_FILES_FLOOR_BYTES,),),).toBe(true,);
-            expect(freeSpaceIsUnderTheFloor(roomAgainstItsFloor(SESSION_FILES_FLOOR_BYTES, SESSION_FILES_FLOOR_BYTES,),),).toBe(false,);
-            expect(freeSpaceIsUnderTheFloor(roomAgainstItsFloor(SESSION_FILES_FLOOR_BYTES + 1, SESSION_FILES_FLOOR_BYTES,),),).toBe(false,);
+            expect(freeSpaceIsUnderTheFloor(
+              roomAgainstItsFloor(SESSION_FILES_FLOOR_BYTES - 1, SESSION_FILES_FLOOR_BYTES,),
+            ),).toBe(true,);
+            expect(freeSpaceIsUnderTheFloor(
+              roomAgainstItsFloor(SESSION_FILES_FLOOR_BYTES, SESSION_FILES_FLOOR_BYTES,),
+            ),).toBe(false,);
+            expect(freeSpaceIsUnderTheFloor(
+              roomAgainstItsFloor(SESSION_FILES_FLOOR_BYTES + 1, SESSION_FILES_FLOOR_BYTES,),
+            ),).toBe(false,);
           },
         },),
       ],

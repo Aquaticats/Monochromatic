@@ -184,6 +184,8 @@ and from the unit's `ExecStart` once the launcher has gone,
 so a launcher that has not made its unit yet still holds its slot.
 An audit (`sol-`) is counted in no pool,
 because an audit runs on another account and competes for none of these slots.
+It is still one agent on the machine,
+and counts against the number of agents below.
 
 A run whose pool cannot be read holds a slot in every pool it could be running on,
 and the command names the unit it could not read on standard error:
@@ -195,20 +197,107 @@ a guessed single pool read that pool full while the others read empty,
 which is how runs sat on standard Neuralwatt while the count said it had room.
 A count can therefore read fuller than the runs really are.
 
+### The number of agents on the machine
+
+A pool is what one provider account answers at once,
+which is not the work a run does,
+and the pools added up allow far more runs than this machine's drives carry.
+So the gate also counts every agent going on the machine
+and refuses a start above the number it allows.
+
+Owner, 2026-11-13:
+"you set your max concurrent pi+sonnet subagents starting from 4,
+then bisecting up until we hit this disk's ceiling.
+We'll re-find the ceiling once the new disk arrives."
+Asked whose runs count: "Every agent on the machine".
+The number is the level a search for what the drives carry stands at,
+and the record of that search is `doc/handover/agents-at-once-on-this-machine.md`.
+
+It counts runs, never slots:
+
+- every Pi run going,
+  whoever started it and whichever provider it is on,
+  including a run no pool holds
+  (an audit whose name begins `sol-`, a Kimi run on a provider outside the table),
+  and every launcher that has not made its unit yet;
+- the agents a caller says it has going which are no Pi run,
+  such as subagents of its own session,
+  which the gate cannot see.
+
+A run at the number is refused the way a full pool is:
+exit `3`, and a line naming the count, the number and the run it did not start.
+A run its pool would refuse too says both.
+The number only says when not to start one more:
+it stops nothing that is going.
+A count above it, because another session started a run or the number was lowered,
+is a reading at that higher count,
+said on the counts line as it is.
+
+Two variables set it for one command, as `PI_RUNS_POOL_LIMITS` sets a pool's limit:
+
+- `PI_RUNS_MACHINE_CAP=<n>`:
+  the number of agents the machine may carry at once, 4 while it is unset.
+  Zero starts nothing at all.
+- `PI_RUNS_OTHER_AGENTS_GOING=<n>`:
+  how many agents of its own the caller has going which are no Pi run, none while it is unset.
+
+```sh
+# three Pi runs and one subagent of this session, the level of 2026-11-13
+PI_RUNS_OTHER_AGENTS_GOING=1 PI_RUNS_MACHINE_CAP=4 start-pi-run-when-a-pool-has-room --counts-only
+```
+
+A value that is no whole number is refused rather than counted,
+because a mistyped number would start more agents than the machine carries,
+or stop every start, with no line saying which.
+
 ### The room a new run needs
 
-No run starts while the volume that holds the repository,
-every agent worktree and every build folder
-has less than 100 GiB free.
-That volume filled on 2026-11-11 at 13:1x,
-6.5 MB of 3.7 TB,
-and every Pi driver exited at once with no summary.
-Measured that day:
-the pinned nightly's build folders held 372 GB for about 40 agent worktrees,
-so about 9 GB an agent,
-which makes the floor about eleven agents' builds.
-`src/free-space-floor.ts` holds the volume and the floor,
-and a refusal names the room it read and the floor it needed.
+No run starts while any volume it cannot work without has less room than its floor:
+
+- the volume that holds the repository,
+  every agent worktree and every build folder: 100 GiB.
+  That volume filled on 2026-11-11 at 13:1x,
+  6.5 MB of 3.7 TB,
+  and every Pi driver exited at once with no summary.
+  Measured that day:
+  the pinned nightly's build folders held 372 GB for about 40 agent worktrees,
+  so about 9 GB an agent,
+  which makes the floor about eleven agents' builds.
+- the volume that holds the runs folder,
+  with the scratch folders beside it: 50 GiB, about three of the largest scratch folder one run of 2026-11-12 left.
+  Measured on 2026-11-13 with `btrfs filesystem du --summarize --raw`,
+  that folder (`pkgrepair-repair-off-the-path`) holds 14,021,046,272 bytes of its own
+  and 3,934,998,528 shared inside it, 16.7 GiB together,
+  where `du` counted the shared data once for each copy-on-write copy and read 65,984 MiB.
+- the volume that holds Pi's own session files,
+  with the container images and the caches: 50 GiB.
+  That drive filled on 2026-11-12: 1 MiB free of 1906 GiB,
+  and twenty runs ended within four minutes,
+  every one on Pi's write of its session,
+  `ENOSPC: no space left on device, write`.
+  On 2026-11-13 one session's container images took about 20 GB of it in one hour
+  (nine images of 2.15 to 2.53 GB, `podman images`),
+  so the floor is about two hours of that with nobody looking.
+  A run's scratch is not on that drive, so the floor there is not sized from scratch.
+
+The last two volumes are found by resolving the real path of the folder each is read from,
+never from a path written into the code:
+the runs folder the command was given,
+and Pi's session folder,
+which is `~/.pi/agent/sessions` unless `PI_CODING_AGENT_SESSION_DIR` sends Pi elsewhere.
+Resolving the links matters here: `~/temp` is a symbolic link onto the build volume,
+so the drive that holds the runs folder is not the drive of the home directory.
+Where two needs are on one volume it is read and named once,
+at the strictest of their floors.
+
+`src/free-space-floor.ts` holds the floors,
+`src/volume-of-a-folder.ts` finds the volume a folder is on,
+and a refusal names each volume that is under its floor,
+the room it read, the floor it needed, and the run it did not start.
+
+The runs folder, and where Pi's session folder is, are read at the start of every ask.
+A `sessionDir` written in Pi's own settings file is not read here,
+so a session that sets it without the variable is guarded by the floor on the folder Pi would otherwise use.
 
 ### `start-pi-run-when-a-pool-has-room`
 
@@ -222,7 +311,8 @@ plus these:
   the folder the runs live in,
   `${HOME}/temp/agent/pi-runs` by default.
 - `--counts-only`:
-  print the counts and the room the build volume has,
+  print the counts, the count of every agent on the machine against its cap,
+  and the room of each distinct volume a run needs,
   and start nothing.
   It needs no name and never refuses because a run is already going.
 - `--session-of`:
@@ -233,20 +323,23 @@ Every other word is the launcher's and is passed on untouched.
 
 It answers one line,
 and exits `0` when it started a run,
-`3` when no pool has room or the build volume is under the floor,
+`3` when no pool has room, the machine is at its cap, or a volume is under its floor,
 and `4` when a run of that name is already going,
 which is what the retrying start reads.
 The counts line ends with `<n> GiB free on <volume>`,
-and a refusal under the floor names that room,
-the floor,
+once per distinct volume;
+a refusal names the count against the cap,
+or the volumes under their floors,
 and the run it did not start.
 
-Two environment variables exist so the gate's own tests read nothing of the machine they run on:
+Five environment variables exist so the gate's own tests read nothing of the machine they run on:
 `PI_RUNS_PROCESS_FOLDER` points the process table at a folder the test made,
-and `PI_RUNS_FREE_SPACE_BYTES` gives the build volume's room in bytes instead of reading the disk.
-A caller starting real runs sets neither.
-Either one can only make the gate count a run that is not there,
-or start a run it would refuse.
+`PI_RUNS_VOLUME_FREE_SPACE_BYTES` gives each volume's room as `<volume>=<bytes>` pairs,
+and `PI_RUNS_FOLDER_VOLUMES` says which volume each folder is on as `<folder>=<volume>` pairs.
+A caller starting real runs sets none of them.
+Either of the last two can only make the gate start a run it would otherwise refuse,
+never refuse one it would start.
+The cap and the agents a caller has going are the two variables above.
 
 ### `start-pi-run-in-a-worktree`
 
@@ -441,6 +534,9 @@ A `prompt` that is not a path is read under the runs folder,
 and an entry with none reads `<name>-prompt.md` there.
 Entries start twenty seconds apart,
 and the command prints one line per entry once every run it started has ended.
+An entry whose start finds no room waits for it,
+whether the pool is full or the machine is at its cap,
+and the retrying start's own deadline bounds that wait.
 What each entry's start says while it waits,
 such as the `WAITING:` line above,
 reaches the batch's own standard output as it arrives,

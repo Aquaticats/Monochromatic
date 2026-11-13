@@ -9,11 +9,11 @@
  @module
  */
 
+import { statfsSync, } from 'node:fs';
 import {
-  realpathSync,
-  statfsSync,
-  statSync,
-} from 'node:fs';
+  realpath,
+  stat,
+} from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import {
   argv,
@@ -115,17 +115,17 @@ const givenVolumesOfFolders = givenFolderVolumes({ listed: env[FOLDER_VOLUMES_VA
 
  @example
  ```ts
- const answer = answerAboutAFolder('/home/a/temp/agent/pi-runs',);
+ const answer = await answerAboutAFolder('/home/a/temp/agent/pi-runs',);
  ```
  */
-function answerAboutAFolder(folder: string,): ReturnType<AnswerAboutAFolder> {
+async function answerAboutAFolder(folder: string,): Promise<Awaited<ReturnType<AnswerAboutAFolder>>> {
   /**
    The folder with every symbolic link on the way to it resolved.
    */
-  const realPath = realpathSync(folder,);
+  const realPath = await realpath(folder,);
   return {
     realPath,
-    device: statSync(realPath,).dev,
+    device: (await stat(realPath,)).dev,
   };
 }
 
@@ -138,12 +138,12 @@ function answerAboutAFolder(folder: string,): ReturnType<AnswerAboutAFolder> {
 
  @example
  ```ts
- const volume = volumeOf('/home/a/temp/agent/pi-runs',);
+ const volume = await volumeOf('/home/a/temp/agent/pi-runs',);
  ```
  */
-function volumeOf(folder: string,): string {
+async function volumeOf(folder: string,): Promise<string> {
   return givenVolumesOfFolders.get(folder,)
-    ?? volumeOfFolder({
+    ?? await volumeOfFolder({
       folder,
       answerAbout: answerAboutAFolder,
     },);
@@ -200,11 +200,11 @@ const needs: readonly VolumeAgainstItsFloor[] = [
     floorBytes: BUILD_VOLUME_FLOOR_BYTES,
   },
   {
-    volume: volumeOf(options.runsFolder,),
+    volume: await volumeOf(options.runsFolder,),
     floorBytes: RUNS_FOLDER_FLOOR_BYTES,
   },
   {
-    volume: volumeOf(sessionFolder,),
+    volume: await volumeOf(sessionFolder,),
     floorBytes: SESSION_FILES_FLOOR_BYTES,
   },
 ];
