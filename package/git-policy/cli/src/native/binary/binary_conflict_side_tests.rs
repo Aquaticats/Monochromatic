@@ -308,7 +308,8 @@ fn without_an_operation_in_progress_no_conflict_is_named() {
 }
 
 /// What:
-///  The commands a sentence of a refusal gives, in order,
+///  The commands a sentence of a refusal gives,
+/// in order,
 ///  with the path placeholders filled in for one file.
 /// Why:
 ///   The control runs the words the person is given and not a paraphrase of them,
@@ -379,7 +380,8 @@ fn run_advice(fixture: &Fixture, directory: &Path, command: &str) -> Observed {
 }
 
 /// What:
-///  The refusal's own advice, run to its end on a real conflict:
+///  The refusal's own advice,
+/// run to its end on a real conflict:
 ///  the backup is made,
 ///  the opt-out replaces the file,
 ///  and the backup puts the person's bytes back.
@@ -426,12 +428,14 @@ fn the_refusals_own_backup_advice_restores_the_resolution_after_the_opt_out() {
 }
 
 /// What:
-///  Every command a refusal names, in the order it names them,
+///  Every command a refusal names,
+/// in the order it names them,
 ///  with the path placeholders filled in for one file.
 /// Why:
 ///   The controls run the words the person is given and not a paraphrase of them,
 ///  so a message and the behaviour it promises cannot drift apart.
-///  Every command a refusal names is in backticks, which is also how the person sees it.
+///  Every command a refusal names is in backticks,
+/// which is also how the person sees it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -453,9 +457,12 @@ fn commands_of_the_message(said: &str, path: &str, message: &str) -> Vec<String>
 }
 
 /// What:
-///  The commands of a message that start with `prefix`, in the order named.
+///  The commands of a message that start with `prefix`,
+/// in the order named.
 /// Why:
-///   A refusal names reads, a way to conclude, and a way to back the file up;
+///   A refusal names reads,
+/// a way to conclude,
+/// and a way to back the file up;
 ///  a control runs the ones of its own kind and leaves the others.
 ///
 /// In TS you'd write (pseudocode):
@@ -497,7 +504,8 @@ fn every_other_piece_of_advice_in_the_refusal_works_on_its_own_state() {
 }
 
 /// What:
-///  The refusal's advice for concluding the merge, run to its end through the wrapper,
+///  The refusal's advice for concluding the merge,
+/// run to its end through the wrapper,
 ///  with the fixture's own commit service:
 ///  the resolution is staged,
 ///  the commit is made,
@@ -508,7 +516,8 @@ fn every_other_piece_of_advice_in_the_refusal_works_on_its_own_state() {
 ///  in this wrapper,
 ///  commits the named path while the merge stays in progress
 ///  (the wrapper says so itself:
-/// "the merge is still in progress, because this commit took only the paths you named").
+/// "the merge is still in progress,
+/// because this commit took only the paths you named").
 /// Real Git refuses that form outright (`fatal: cannot do a partial commit during a merge`).
 /// So the control runs the message's own `git add` and `git commit` commands,
 /// in its order,

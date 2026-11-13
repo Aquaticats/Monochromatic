@@ -24,7 +24,8 @@
 use crate::rule_linked_worktree::GuardedCommand;
 /// The paths a message names before it counts the rest.
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
-/// The operation that is waiting for its conflicts, whose own state `git status` reports.
+/// The operation that is waiting for its conflicts,
+/// whose own state `git status` reports.
 use crate::conflict_sides::Operation;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -162,7 +163,9 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
 
 /// What:
 ///  The rejection text for a `git checkout` or `git restore` that would replace a path the index marks as unmerged
-///  while a merge, a rebase, a cherry-pick or a revert waits for its conflicts.
+///  while a merge,
+/// a rebase,
+/// a cherry-pick or a revert waits for its conflicts.
 ///  `&[String]` borrows the repository-relative paths the command would replace;
 ///  `bool` is whether the command runs in the main worktree.
 /// Why:
@@ -212,7 +215,8 @@ pub fn conflicted_files_message(command: GuardedCommand, operation: Operation, i
 /// What:
 ///  How a message names the operation that waits for its conflicts.
 /// Why:
-///   The person typed one of Git's own words, so the sentence uses that word.
+///   The person typed one of Git's own words,
+/// so the sentence uses that word.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
