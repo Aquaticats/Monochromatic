@@ -21,7 +21,9 @@
 #![cfg(unix)]
 
 use crate::auto_push_single_flight::PushAttempt;
-use crate::bounded_push::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, STOPPED_EXIT_CODE, push_patience, run_bounded_push};
+use crate::bounded_push::{
+    DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, PUSH_MINIMUM_RATE_VARIABLE, Patience, STOPPED_EXIT_CODE, push_patience, run_bounded_push,
+};
 use crate::push_progress::tests::disk_wait_command;
 use crate::test_support::{fixture, git, remove, repository, scratch_environment};
 use std::ffi::OsString;
@@ -148,9 +150,18 @@ fn push_command(stage: &Stage) -> Command {
 
 /// Run the push of a stage under a patience,
 /// with its time.
+/// Why the stage's own variables are handed over as well:
+///   The clock reads the least traffic a connection must carry from the environment the runner is given,
+/// not from
+///  the child's,
+/// so a control that sets a floor must give it here.
 fn run(stage: &Stage, patience: Patience) -> (PushAttempt, Duration) {
+    let mut environment: Vec<(OsString, OsString)> = scratch_environment();
+    for (name, value) in &stage.extra_environment {
+        environment.push((OsString::from(name), OsString::from(value)));
+    }
     let started: Instant = Instant::now();
-    let attempt: PushAttempt = run_bounded_push(push_command(stage), patience, GRACE, scratch_environment().as_slice()).expect("runs");
+    let attempt: PushAttempt = run_bounded_push(push_command(stage), patience, GRACE, environment.as_slice()).expect("runs");
     return (attempt, started.elapsed());
 }
 
@@ -164,6 +175,9 @@ fn run(stage: &Stage, patience: Patience) -> (PushAttempt, Duration) {
 fn a_push_that_keeps_moving_data_past_the_stall_window_is_not_stopped() {
     let mut stage: Stage = stage("patience-progress", Hook::ProgressThenAccept);
     hold_disk_wait_after_hook(&mut stage, POST_PHASE_HOLD);
+    // The hook prints a few bytes every quarter second, which is a trickle under the shipped floor; this control is about the
+    //  stall window alone, so its floor is one that traffic meets.
+    stage.extra_environment.push((String::from(PUSH_MINIMUM_RATE_VARIABLE), String::from("8")));
     let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: PROGRESS_STALL });
     assert!(elapsed > PROGRESS_STALL + POST_PHASE_HOLD, "both phases run, and the second is longer than the window alone: {elapsed:?}");
     assert_eq!(attempt.exit_code, 0, "a push that moves data finishes: {}", attempt.output);

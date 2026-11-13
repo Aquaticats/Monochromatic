@@ -326,9 +326,10 @@ impl Clock {
             self.looked = true;
             // What the transport carried is judged over the window that bounds silence in the state the run is in
             //  (`push_minimum_rate.rs`): the connected window while a connection is open, and the stall window while none is,
-            //  because the tally is cleared by every sign of progress and the window ends a run that shows none. Start over
-            //  when the connection closes, so a tally from one state is never read as traffic of the next.
-            self.carried = if connected { self.carried.saturating_add(carried) } else { 0 };
+            //  because the tally is cleared by every sign of progress and the window ends a run that shows none. The tally is
+            //  not cleared when the connection closes: what the pipe carried for a remote that is a path is the same traffic,
+            //  and only the state around the look changes.
+            self.carried = self.carried.saturating_add(carried);
             let met: bool = self.minimum_rate == 0 || self.carried >= self.minimum_rate;
             let progressed: bool = worked && (other || met);
             if progressed {
