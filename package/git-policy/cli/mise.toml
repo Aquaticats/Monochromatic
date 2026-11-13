@@ -244,6 +244,12 @@ flag "--cpus <count>" help="Container CPUs, from 0.01, fractions allowed (defaul
 '''
 run = "node bin/e2e-native-container.ts run"
 
+[tasks."native:proof:private-runtime"]
+description = "Run issue 6293's reproduction in a container whose session bus and service manager are its own: a run given a runtime directory of its own still commits, asks no manager anything and leaves nothing under the account's state directory, a push to an address that can never be a remote ends its retry plan at once with one notice, and the session whose runtime directory is its bus's and an account that named none are the controls; `-- --binary <path>` names the wrapper to copy into the image (the branch before the fix fails the proof), and `--memory`, `--cpus` and `--pids-limit` override this proof's 4g, 4 CPUs and 512 processes"
+# The two arms are this proof's own: one build of the executable each, copied into a Debian image with a `dbus-daemon`
+# and a stand-in `systemd-run`. Nothing here can reach this host's manager or session bus.
+run = "node bin/proof-private-runtime-directory.ts"
+
 [tasks."native:lock:scanner"]
 description = "Seed the native wrapper lockfile from the linked scanner's lockfile, then let Cargo add only the wrapper's own packages, so both lock the same registry versions"
 run = [
