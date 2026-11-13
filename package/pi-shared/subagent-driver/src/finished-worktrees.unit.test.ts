@@ -17,6 +17,7 @@ import {
   briefQueuedAfter,
   decideScratchRemoval,
   decideWorktree,
+  scratchFolderLinesOf,
   folderSomeProcessWorksIn,
   isInside,
   ownFoldersOf,
@@ -305,6 +306,53 @@ await describe({
           '/home/a/temp/agent/a-scratch',
         ],);
       },
+    },),
+    describe({
+      name: scratchFolderLinesOf.name,
+      children: [
+        it({
+          name: 'says why a folder is left alone, lists one it would empty, and answers with the emptying own lines when asked to do it',
+          fn: async () => {
+            /**
+             The readings every call below shares, which are a run that ended and a unit that has gone.
+             */
+            const readings = {
+              name: 'copy-route',
+              endReason: 'idle',
+              briefQueued: false,
+              unitState: 'inactive',
+              inUseFolder: '',
+              scratchRoot: '/home/a/temp/agent',
+            };
+            expect(await scratchFolderLinesOf({
+              ...readings,
+              apply: false,
+              run: async function noQuestion() {
+                throw new Error('a folder that is only listed is not emptied',);
+              },
+            },),).toEqual(['copy-route: would empty its scratch folder at /home/a/temp/agent/copy-route-scratch except keep/',],);
+            expect(await scratchFolderLinesOf({
+              ...readings,
+              unitState: 'active',
+              apply: true,
+              run: async function noQuestion() {
+                throw new Error('a folder whose unit runs is not emptied',);
+              },
+            },),).toEqual(['copy-route: scratch folder left alone, its unit still runs (active)',],);
+            expect(await scratchFolderLinesOf({
+              ...readings,
+              apply: true,
+              run: async function theEmptying(words,) {
+                return {
+                  status: 0,
+                  stdout: `scratch: copy-route: emptied ${words.words.at(-1,) ?? ''}\n`,
+                  stderr: '',
+                };
+              },
+            },),).toEqual(['scratch: copy-route: emptied --run-name=copy-route',],);
+          },
+        },),
+      ],
     },),
     describe({
       name: decideWorktree.name,
