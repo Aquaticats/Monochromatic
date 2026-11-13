@@ -397,15 +397,15 @@ pub(crate) fn deletions_line(worktree: &Path, command: &[OsString], deletions: &
     let mut line: String = String::with_capacity(512);
     line.push_str("{\"schemaVersion\":1");
     let stamp: i64 = i64::try_from(time_millis).unwrap_or(i64::MAX);
-    let _written = write!(line, ",\"time\":{},\"release\":{}", quote(format_iso_milliseconds(stamp).as_str()), quote(RELEASE));
-    let _written = write!(line, ",\"kind\":{},\"worktree\":{}", quote("worktree-removal"), quote(worktree.to_string_lossy().as_ref()));
-    let _written = write!(line, ",\"worktreeHex\":{}", quote(hex_of_path(worktree).as_str()));
+    let _ = write!(line, ",\"time\":{},\"release\":{}", quote(format_iso_milliseconds(stamp).as_str()), quote(RELEASE));
+    let _ = write!(line, ",\"kind\":{},\"worktree\":{}", quote("worktree-removal"), quote(worktree.to_string_lossy().as_ref()));
+    let _ = write!(line, ",\"worktreeHex\":{}", quote(hex_of_path(worktree).as_str()));
     let words: Vec<String> = command.iter().map(|one| return one.to_string_lossy().into_owned()).collect();
-    let _written = write!(line, ",\"command\":{}", string_array(words.as_slice()));
-    let _written = write!(line, ",\"ignored\":{},\"ignoredShown\":{},\"ignoredTotal\":{}", string_array(&deletions.ignored.shown), deletions.ignored.shown.len(), deletions.ignored.total);
-    let _written = write!(line, ",\"nested\":[{}]", nested_objects(&deletions.nested));
+    let _ = write!(line, ",\"command\":{}", string_array(words.as_slice()));
+    let _ = write!(line, ",\"ignored\":{},\"ignoredShown\":{},\"ignoredTotal\":{}", string_array(&deletions.ignored.shown), deletions.ignored.shown.len(), deletions.ignored.total);
+    let _ = write!(line, ",\"nested\":[{}]", nested_objects(&deletions.nested));
     if let Some(reason) = &deletions.ignored.unreadable {
-        let _written = write!(line, ",\"unreadable\":{}", quote(reason.as_str()));
+        let _ = write!(line, ",\"unreadable\":{}", quote(reason.as_str()));
     }
     line.push_str("}\n");
     return line;
@@ -426,7 +426,7 @@ fn nested_objects(nested: &[NestedWorktree]) -> String {
     let mut objects: Vec<String> = Vec::with_capacity(nested.len());
     for one in nested {
         let mut object: String = String::with_capacity(256);
-        let _written = write!(
+        let _ = write!(
             object,
             "{{\"worktree\":{},\"worktreeHex\":{},\"files\":{},\"filesShown\":{},\"filesTotal\":{}",
             quote(one.worktree.to_string_lossy().as_ref()),
@@ -436,7 +436,7 @@ fn nested_objects(nested: &[NestedWorktree]) -> String {
             one.entries.total
         );
         if let Some(reason) = &one.entries.unreadable {
-            let _written = write!(object, ",\"unreadable\":{}", quote(reason.as_str()));
+            let _ = write!(object, ",\"unreadable\":{}", quote(reason.as_str()));
         }
         object.push('}');
         objects.push(object);

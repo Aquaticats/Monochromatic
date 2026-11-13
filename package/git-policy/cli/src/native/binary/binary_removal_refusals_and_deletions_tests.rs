@@ -92,6 +92,17 @@ fn deletion_record(repo: &Path) -> Option<String> {
     return std::fs::read_to_string(common.join(DELETIONS_LOG)).ok();
 }
 
+/// The number of kept-worktree records one repository holds,
+/// and zero when the folder is not there at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keptRecords(commonDir) // the count of files in kept-landed-worktrees/
+/// ```
+fn kept_records(common: &Path) -> usize {
+    return std::fs::read_dir(common.join("monochromatic-git-policy-cli/kept-landed-worktrees")).map_or(0, |listing| return listing.count());
+}
+
 /// What:
 ///  A worktree a process works in is refused,
 ///  the words name the process and the one flag that runs the removal anyway,
@@ -116,6 +127,7 @@ fn a_removal_a_process_works_in_is_refused_and_the_escape_runs_it() {
     // The escape is the person's own decision, so the removal runs exactly as real Git runs it.
     let escaped: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "--no-enforce-worktree", "remove", "../topic"]);
     let _ended = child.kill();
+    let _waited = child.wait();
     assert_eq!(escaped.code, Some(0), "the escape runs the removal: {}", stderr_of(&escaped));
     assert!(!topic.exists(), "the worktree is gone");
     assert!(!String::from_utf8_lossy(&run_wrapped(&fixture, repo.as_path(), &["worktree", "list"]).stdout).contains(topic.display().to_string().as_str()), "and its registration");
@@ -137,6 +149,7 @@ fn a_refused_removal_writes_no_record() {
     let mut child: std::process::Child = a_process_working_in(&fixture, topic.as_path());
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
     let _ended = child.kill();
+    let _waited = child.wait();
     assert_ne!(refused.code, Some(0), "{}", stderr_of(&refused));
     assert_eq!(deletion_record(repo.as_path()), None, "a removal that did not happen records nothing");
     assert_eq!(std::fs::read(topic.join("build/only-copy.txt")).expect("the ignored file is still there"), b"the only copy\n");
@@ -236,10 +249,7 @@ fn a_landed_sweep_leaves_a_worktree_a_process_works_in_and_a_later_sweep_removes
     assert!(said.contains(format!("process {}", child.id()).as_str()), "and names the process: {said}");
     // The record of the kept worktree is what the later pass reads, and it waits in the common Git directory.
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
-    assert!(
-        std::fs::read_dir(common.join("monochromatic-git-policy-cli/kept-landed-worktrees")).map_or(false, |listing| return listing.count() > 0),
-        "the kept worktree is remembered for the next sweep"
-    );
+    assert!(kept_records(common.as_path()) > 0, "the kept worktree is remembered for the next sweep");
     let _ended = child.kill();
     let _waited = child.wait();
     // The later pass: another landing of this repository runs the sweep again, and nothing asks it to look at this
@@ -252,9 +262,6 @@ fn a_landed_sweep_leaves_a_worktree_a_process_works_in_and_a_later_sweep_removes
     assert_eq!(later.code, Some(0), "the later merge keeps going: {}", stderr_of(&later));
     settle_service_work(repo.as_path());
     assert!(!topic.exists(), "the later sweep removed the worktree nobody works in any more: {}", stderr_of(&later));
-    assert!(
-        std::fs::read_dir(common.join("monochromatic-git-policy-cli/kept-landed-worktrees")).map_or(true, |listing| return listing.count() == 0),
-        "and its record is gone with it"
-    );
+    assert_eq!(kept_records(common.as_path()), 0, "and its record is gone with it");
     remove(&fixture);
 }
