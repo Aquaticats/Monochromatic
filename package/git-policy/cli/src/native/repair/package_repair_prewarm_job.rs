@@ -210,10 +210,16 @@ struct TheNames {
 ///
 /// Leftovers this job's marker claims that cannot be removed,
 /// and a marker that cannot be written.
-fn names_for(destination: &Path) -> Result<TheNames, String> {
+fn names_for(destination: &Path, git_dir: Option<&Path>) -> Result<TheNames, String> {
     let usual: PathBuf = staging_of(destination);
     let usual_target: PathBuf = target_of(usual.as_path());
     let marker: PathBuf = marker_of(usual.as_path());
+    // The exclude file names the lease before the lease file exists, so a person's  never shows it.
+    if let Some(directory) = git_dir
+        && let Err(reason) = exclude_the_staging_names(directory)
+    {
+        return Err(format!("{reason}, so nothing of {} was filled", destination.display()));
+    }
     // The lease is taken before the names are read, and it is what tells a filling that is still at work from one that was
     //  killed: a marker says a filling wrote these names, and only the kernel can say whether it is still writing them.
     let lease: TheLease = match claim_the_names(usual.as_path()) {
@@ -656,7 +662,7 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
             Some(names) => names,
             None => return Ok(Filled::Kept),
         },
-        None => names_for(entry.to.as_path())?,
+        None => names_for(entry.to.as_path(), fill.kept_in.as_deref())?,
     };
     let filled: Result<Filled, String> = fill_the_staging(fill, entry, &names).await;
     give_back(&names);
@@ -731,6 +737,18 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     // btrfs refuses to rename a directory out of a subvolume, and a worktree of this repository is one.
     let staging: PathBuf = staging_of(destination);
     let marker: PathBuf = marker_of(staging.as_path());
+    let standing: TheMarkerThere = the_marker_there(marker.as_path());
+    if !destination.exists() && standing == TheMarkerThere::Nothing && !staging.exists() {
+        // Nothing stands at the names and the worktree holds nothing to move: no lease is taken and no exclude file is written for an
+        //  add that stages nothing.
+        return Ok(Staged::Nothing);
+    }
+    // The exclude file names the lease before the lease file exists, so a person's `git status` never shows it.
+    if let Some(directory) = git_dir
+        && let Err(reason) = exclude_the_staging_names(directory)
+    {
+        return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
+    }
     // The lease is taken before anything here is removed or renamed, and it is what tells a filling that is still at work from
     //  one that was killed. Without it this add would take a live filling's marker for a dead one's.
     let _lease: TheLease = match claim_the_names(staging.as_path()) {
@@ -752,7 +770,6 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
             ));
         }
     };
-    let standing: TheMarkerThere = the_marker_there(marker.as_path());
     if standing == TheMarkerThere::SomebodyElses {
         return Err(format!(
             "{} already holds something this wrapper did not stage, so the copied build state is left where it is; the worktree's first build would reuse it, so run `cargo clean --offline --package <member>` in {} instead",
