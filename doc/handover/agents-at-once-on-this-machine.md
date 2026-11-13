@@ -7,10 +7,10 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **8** agents run on this machine at once,
+At most **16** agents run on this machine at once,
 counted across every session
-(raised from 4 on 2026-11-13 at 11:57,
-when the level of four had held its hour).
+(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:58:50,
+each time when the level before had held its hour).
 
 The owner,
 2026-11-13,
@@ -41,8 +41,11 @@ So:
 
     ```sh
     # prints one line for each agent unit that is going
-    systemctl --user list-units --no-legend --plain --state=active 'pi-*'
+    systemctl --user list-units --no-legend --plain --state=active 'pi-*.service'
     ```
+
+    The pattern ends in `.service` because a run's own build scope may carry a name that starts with `pi-`
+    (`pi-review-build-cli.scope` was counted as an agent on 2026-11-13 until 13:12).
 
 2.  Add the subagents your own session has going that are no Pi run.
 3.  Start one only when the sum is under the cap.
@@ -163,3 +166,94 @@ one line a minute:
   A lock held by another agent's build is a wait on a neighbour,
   not on a drive;
   it is written here because it grows with the count.
+- **Held.** The reading after the 5,901 ms one,
+  at 12:58:07 with eight units going,
+  took 1 ms on the home drive:
+  one reading over the bound and not two in a row,
+  which is what the criterion asks for.
+  The session doing the search had first written "held for a second hour";
+  that extra hour was a precaution of its own with no failure behind it and was dropped after one reading
+  (rule `HLD` in `AGENTS.md`).
+  The 5.9 s stands recorded as the worst the home drive showed at eight.
+- Sixty readings from 11:57:29 to 12:56:31,
+  forty-six with eight units going,
+  ten with seven,
+  three with six and one with four.
+  Build volume: median 7 ms,
+  slowest 358 ms.
+  Home drive: median 1 ms,
+  and every reading under 100 ms but the last,
+  **5,901 ms at 12:56:31** with seven units going.
+  The bound is 5,000 ms twice in a row;
+  the probe's hour ended on that reading,
+  and the reading that followed it is in the bullet marked "Held".
+  What was writing to the home drive in that minute is not established;
+  two starts fell in the forty seconds before it
+  (a resume at 12:55:20 that started nothing and a review at 12:56:03).
+  `full avg60`: median 4.13,
+  highest 9.1.
+  One-minute load: median 11.2,
+  highest 38.1.
+- No run got no answer to its first prompt and none ended on a disk error in that hour.
+  Nine runs ended with their reports
+  (two of them marked `driver-failed` by issue 6295 after their agents had finished).
+- One run ended at this level with `endReason: driver-failed` (12:29:40,
+  a run of the other session).
+  It is no disk symptom:
+  its agent had given its report and settled,
+  and the driver then failed to parse a result the feed had cut short
+  (issue 6295).
+
+### Level 16, started 2026-11-13T12:58:50-05:00
+
+- Going when it started: eight runs of the session doing the search
+  (resumes of wrapper work,
+  two launcher authors answering reviews,
+  reviews).
+- Added between 12:58:51 and 13:01:21,
+  twenty seconds apart:
+  the reviews of the index-lock fix and of the commit that does not list every reference,
+  and resumes of the runs
+  `abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+  `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file`,
+  `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`,
+  `removal-goes-around-a-subvolume-or-mount-it-did-not-make`,
+  `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`
+  and `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`.
+  Sixteen units were going at 13:01:43.
+- Probe: unit `disk-ceiling-probe-level-16-20261113`,
+  the same file,
+  one hour from its first reading at 12:58:48,
+  which was taken with eight units going.
+  Its readings at 12:59:48 and 13:00:53 were taken with eleven and fourteen units,
+  so the hour holds fewer readings at sixteen than the hours of the levels before held at theirs.
+- A sizing walk of the scratch folders on the build volume
+  (`btrfs filesystem du`,
+  disk weight 1)
+  was started between 13:02 and 13:05 by the session doing the search and ended at 13:15:18;
+  a slow build-volume reading in that time is read against it.
+  It read 62.7 GiB as the scratch folders' own data
+  (largest: `kimi-trials` 15.3 GiB,
+  `pkgrepair-repair-off-the-path` 13.1 GiB,
+  `module-test-logs` 9.8 GiB,
+  `cli-git-btrfs-fixtures` 5.6 GiB),
+  with some fixture files it could not read left out.
+- A reading above the level: seventeen agents at 13:19:20.
+  The starter of the session doing the search read fifteen three times in a row,
+  because a run just started has no unit for some seconds,
+  and started three reviews into one free place (13:17:49 to 13:18:35).
+  Nothing was stopped;
+  the starter now counts the free places once before its first start.
+- A second sizing walk, of every worktree, was started at 13:16:06 at disk weight 1,
+  and one of the shared cargo build folder shortly after.
+- Free room at 13:15:18: `/var/home` 517 GiB,
+  the build volume 1,616 GiB
+  (519 GiB and 1,640 GiB at 10:27:50,
+  so the build volume took 24 GiB in two hours and forty-seven minutes;
+  what took it is not measured,
+  and it is not the scratch folders by this reading,
+  whose own data read 63.5 GiB earlier in the day).
+- Ten entries are left in the resume queue,
+  one of them waiting for the branch it builds on.
+  Whether thirty-two can be reached with real work is not settled by that count:
+  reviews of the branches that finish add entries.

@@ -508,6 +508,370 @@ The brief that answers it, `~/temp/agent/pi-runs/launcher-scratch-folder-change-
 Until that is fixed, reviewed again and merged, a run's scratch is emptied by hand by the session that started it, as rule `1SF` says, and by nothing automatic.
 The place this review freed went to the qwen4 review of `fix/git-policy-cli-commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`, started about 12:21:30.
 
+#### Issue 6295: the Pi driver records a finished run as failed (2026-11-13T12:29:40-05:00)
+
+A run of the other session ended `driver-failed` 120 seconds after its agent had given its report and settled:
+"SyntaxError: Unterminated string in JSON at position 509".
+`workTheToolReportedIn` in `package/pi-shared/subagent-driver/src/work-the-run-left-running.ts` (line 131)
+parses a `process` tool result out of the feed with nothing around it, and the feed keeps 500 characters of a result and a cut marker.
+Reproduced at about 12:35: that function, handed the run's real feed, throws the same message character for character;
+24 records of the feed hold such a result of 509 characters, the first at line 289
+(script and output in `~/temp/agent/issue-6295-driver-fails-on-a-cut-short-process-result-2026-11-13/keep/`).
+Filed as issue 6295 with the feed's last lines and the reproduction; the other session was told its run's report stands.
+It can meet any run that used the `process` tool with a long answer, this work's runs included, so each ended run's `endReason` is read beside its last message before it is called failed.
+A fix has no brief yet; it belongs with the two launcher changes now being answered, in the same package, and is briefed when one of them is merged so the three do not edit the same files at once.
+
+The place that run freed went to the launcher's scratch-folder author answering its review, started 12:30:02 through
+`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/start-the-next-entry-of-the-resume-queue.ts`,
+which takes the first entry of the queue that may start, starts it and takes it off the list, and starts nothing at or above the level it is given.
+A watcher now runs it each time a place comes free. Eighteen entries are left.
+
+#### The jam fix for a commit whose service does not answer is finished, and issue 6295 marked it failed (2026-11-13T12:33:43-05:00)
+
+`commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`, resumed at 11:10:39, ended at about 12:33 after 106 turns of the resume and an hour and twenty-two minutes.
+Its summary says `endReason: driver-failed` with the message of issue 6295; its agent had given its whole report first, so the run is read by that report.
+Branch `fix/git-policy-cli-` with that name on the remote. Not reviewed and not approved by anyone. By its own report (`keep/` of its scratch folder):
+
+- A commit that finds a stopped or silent service now ends within a bound and says what happened and that the staged work is safe:
+  seven controls pass, taking 3.6 to 33.2 s each; the connect is bounded at 5 s and proved by `getpeername`, the greeting is bounded,
+  and a line a full pipe cannot take is dropped where it used to hold a landing. Clippy with `-D warnings` clean.
+- One unit control fails and it says it is not its own: `the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add` reads a constant no code takes any more,
+  and the same assertion fails at the fork point. It belongs to the snapshot work and needs an owner.
+- **Measured against the rule of the larger of five seconds and twice real Git, three alternating rounds each:**
+  a commit of 1 path adds 139 ms over real Git's 34 ms; of 600 paths, 2,602 ms over 41 ms; of 1,600 paths, **6,083 ms over 68 ms, over the rule**,
+  and 7,123 ms at the fork point, so the cost is older than this branch and is in preparation, not in the exchange with the service.
+  That is the work of the queue entry `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`, which now has a measured case.
+- Its text names what it did not fix: the service's own 33-second shutdown when it is ended while workers are blocked, bounded here on the client's side only.
+- It calls the branch fit to merge, with the 1,600-path case and that shutdown for a merger to weigh.
+
+Issue 6295 has now marked two finished runs as failed, this one among them.
+Its fix was handed at 12:36, by a note, to the run already changing the same file (the launcher's scratch-folder author answering its review),
+with what the project requires of it: a result the driver cannot read never ends a run as failed, and the question whether the run's work still runs is still answered, "unknown" counting as work that may run.
+This run's scratch folder was emptied by hand to its `keep/` (its reproduction scripts moved in first, 113 MiB of fixtures removed).
+The place it freed went to the resume of `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried` at 12:33:44; seventeen entries are left.
+Waiting for a review place: this branch.
+
+#### The run that brings the fix for issue 6286 onto `main` is finished (2026-11-13T12:36:22-05:00)
+
+`reload-fix-brought-onto-main-where-a-program-link-already-is`, resumed at 12:10:58, ended `idle` after 64 turns and 23 minutes;
+branch `fix/git-policy-cli-` with that name at `1cb47223f8` on the remote. Its worktree was clean and was removed by the launcher at the run's end.
+It read the three files it had uncommitted when the drive filled, found them whole, and did again what the restart had lost (Clippy twice, the whole test set, both proof runs, four measurements, the gate image).
+Not reviewed and not approved by anyone. By its own report (`keep/` of its scratch folder):
+
+- Nothing of the wrapper asks the user manager for a manager-wide reload: no `Reload` member, and a guard that fails when any release line asks for one.
+  A release change moves the program link; a unit at an older text is dropped and started again, bounded at 5 s.
+- It goes through the manager's five recorded defects one by one with the test for each;
+  a manager that does not answer never fails the commit, and every wait says what it waits for after 2 s.
+- In its fixture the first commit after an install took 162 ms against `main`'s 557 ms and prints no "Updating the commit service...".
+- **Three things it wants a reader to know:** four test failures that `main` has too (it shows the files are byte-identical to `main` at the commit it merged);
+  a service that is truly wedged now costs up to 121 s where it cost about 3 s;
+  and a machine that installed `0.6.1-alpha.13` or `0.6.1-alpha.14` pays one unload and start of each worktree's unit on its first commit.
+- It says where the path without a manager takes over: nowhere, on this branch; that is the other run's change.
+- It calls the branch fit to merge and release.
+
+The 121 s for a wedged service is a cost this branch adds and is weighed at the review, with the jam fix beside it, which bounds the same wait from the client's side.
+The reviews of this branch and of the jam fix are the first two entries of the queue; the starter script now starts a review entry through the package's own command for reviews.
+The place this run freed went to the resume of `commit-does-not-list-every-reference-on-the-path-it-waits-on` at 12:36:23.
+The note about issue 6295 was published to its run at 12:34, not at 12:36 as the entry on the jam fix says.
+
+#### Two more resumed runs ended: the service that needs no manager says "not yet", and one run measured the cargo lock (2026-11-13T12:39:37-05:00)
+
+**`commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`**, resumed 11:38:36, ended `idle` after 130 turns and 58 minutes. Not reviewed. By its own report:
+
+- The base is in: a service started by the wrapper with no manager and no D-Bus, built on musl and glibc, twenty controls at the user boundary green with no manager at all, no time added that it could measure.
+  1,742 of 1,743 tests of the modules it changed pass; the one failure and seven more it names are in files its branch leaves byte-identical to its base.
+- **Its own answer on a merge: not yet, for three things.** The enhancement (a manager used where there is one) with its two controls is not built;
+  an older client retiring a healthy newer service again and again, which it says is its own defect, is not fixed; and the half of the proof that runs with a manager is not run.
+- Five choices between two behaviours a person would notice, each with its reason: a bind over a socket that greets nothing is taken over; with `XDG_RUNTIME_DIR` absent it uses `~/.run`;
+  `SERVICE_GREETING_SILENCE` is deleted; the whole-command lock is narrowed to one start; a failing start fails at `START_WAIT` with the log named.
+- It ended its turn with that list instead of going on. Its continuation is the first entry of the queue
+  (`~/temp/agent/pi-runs/commit-service-that-needs-no-service-manager-goes-on-with-what-keeps-it-from-a-merge-prompt.md`):
+  the three things, and a section saying what the branch already does for issue 6293's case, shown by a run, for the run that builds that fix on it.
+
+**`add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`**, resumed 12:33:44, ended `idle` after 16 turns and 5 minutes: it had been writing its last report when the drive filled.
+Branch `fix/git-policy-cli-` with that name on the remote; it calls it fit to merge; its review is the second entry of the queue.
+Two things from its report that reach past its branch:
+
+- **An add's reads have no deadline.** It held one `open` of a launcher record for 600 s with a preloaded shim and the add waited 90,008 ms until its script ended it,
+  printing "still copying the ignored files" while it was in the toolchain repair. Reproduced, not fixed, with its reason in `doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md` on its branch.
+- **Cargo's package-cache lock serializes every agent's cargo.** Its write-up is `doc/troubleshooting/cargo-package-cache-lock-holds-a-build-for-minutes.md` on its branch (not on `main` yet):
+  one exclusive lock for each `CARGO_HOME`, taken even with `--offline --locked`; on 2026-11-12 a `cargo check` waited 300 s, a debug build took 3,250 s of wall clock mostly in that wait,
+  and a selection of 37 tests took 256.6 s and lost two tests to the watchdog, against 2.9 s with a cargo home of its own whose `registry` and `git` are links to the shared ones.
+  Today's 529 s lint wait at the level of eight is the same lock.
+  This session's own try at 12:41 shows nothing either way and is no evidence: `cargo metadata --offline --locked --no-deps`, three times with each cargo home, alternating,
+  took 99 to 277 ms in both and never printed the lock's line.
+  That command was not shown to take the lock at all (with `--no-deps` it may not read the registry), and no other cargo was shown to hold it in those two seconds,
+  so the probe could not have shown a wait. A probe that can needs a control first: a cargo home whose lock is held on purpose, and a command proven to wait on it.
+  Not established: whether two cargos with cargo homes of their own can corrupt the shared registry when one of them unpacks a crate the other reads; with everything fetched beforehand nothing should be written, and that is the condition to prove before every run is given one.
+
+Both runs' scratch folders held only `keep/` at their end. The two places went to the reviews of the jam fix (12:39:37) and of the issue 6286 run (12:39:46); eight units were going at 12:40:29.
+
+#### The review of the commit made without a proven scratch reference: a way to lose another command's commit, opened by the change (2026-11-13T12:41:45-05:00)
+
+`~/temp/agent/change-reviews/git-policy-cli-commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so/review.md`, on commit `c9758832c4`, four reproduction scripts beside it.
+Weighed by this session: both findings are fixed, and the branch does not merge before the first is closed.
+
+- **A stale marks file lands an earlier attempt's commits on a new base.** The sequence: the scratch reference of attempt one is refused and the batch is taken from the marks `fast-import` exported;
+  the marks file stays; another command lands a commit and the branch move is refused, so the landing builds the batch again; the second `fast-import` is ended by a signal before it writes its marks;
+  the fallback reads the first attempt's marks, and `update-ref` moves the branch to commits that stand on the old base. The other command's commit is no longer in the branch's history.
+  Reproduced by the review in Git alone (marks exported after a refused reference, marks written only at exit, a branch moved to a commit whose parent is not the old value);
+  the landing's part is read from the code, not run end to end.
+- **Checked by this session against `main`:** on `main` and so in `0.6.1-alpha.16` that path fails the commit and keeps its tip beside the failure (`service_land_objects_of_batch.rs`, lines 168 to 171);
+  it is this branch that makes it land. The loss is not in the release.
+- **A held batch is told "The branch names the commit now"** while the branch has not moved; read from the code, with the control that checks only the start of the line.
+
+The brief that answers it (`~/temp/agent/pi-runs/commit-made-without-a-proven-scratch-reference-answers-its-review-of-2026-11-13-prompt.md`) resumes the author in its own session and is second in the queue:
+the marks an attempt reads are that attempt's own, an import ended by a signal is no batch, no batch reaches the branch move unless its first commit stands on the attempt's base,
+and the whole sequence is reproduced in the landing itself by a control that fails before the fix.
+
+#### The start gate's author answered its review, and the stale index lock fix is finished (2026-11-13T12:45:48-05:00)
+
+**The start gate's change**, resumed 12:16:51, ended `idle` after 158 turns and 27 minutes. By its own report:
+both of the review's scripts reproduced before its fixes and neither does after; two same-named runs count as two agents; a setting that cannot be held exactly is refused, not only one that reads as infinity;
+the README's sentence is corrected; the skill's "practical limit is 20" and the handover file's two sentences are changed on its branch.
+Its real `--counts-only` printed "every agent on the machine 8/4": eight going against the gate's own default of four.
+Left open by it: the default is 4 while the level is 8, so a session passes the level as `PI_RUNS_MACHINE_CAP=<n>` and one that passes nothing is held to 4
+(it kept the level a variable so that a change of level is no code edit);
+and the numbered steps of "How to count before a start" in `doc/handover/agents-at-once-on-this-machine.md` still describe the hand count.
+Its second review is the first entry of the queue. When that is back clean it is merged, and the queue is then handed to the batch command with the level as the cap, which ends the hand count.
+
+**`index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`**, resumed 11:57, ended `idle` after 111 turns and 46 minutes;
+branch `fix/git-policy-cli-` with that name on the remote. Not reviewed. By its own report:
+
+- A lock a killed wrapper left is cleared by the next command when, and only when, the wrapper's own record proves its holder gone
+  (a PID file born with the lock, a record naming that number, that birth identity judged gone on the same boot and namespace, a local file system, a complete scan finding no holder, the name still the judged inode).
+  No clock decides anything, and only the holder of an exclusive `flock` reaches the unlink.
+- Eight binary tests; with the pass taken out, six fail; the two that pass both ways assert keeping. 355 unit tests pass; Clippy clean.
+- Found beyond its brief and fixed: the forwarded-writer retry ran Git up to 50 times behind a hold that never ends, printing its notice each time; now one attempt and one notice.
+- **Its stated limit, which needs the owner:** a lock left by a real Git that was killed (a closed terminal, an IDE) is still reported and not repaired, because it carries no record of the wrapper's.
+- It calls the branch fit to merge. Its review is the second entry of the queue.
+
+The two places went to the author of the commit made without a proven scratch reference (12:45:48) and the review of the cargo repair fix (12:45:59).
+
+#### The reference listing is off the commit's waiting path; a second review has to be asked for by hand (2026-11-13T12:55:20-05:00)
+
+**`commit-does-not-list-every-reference-on-the-path-it-waits-on`**, resumed 12:36:23, ended `idle` after 67 turns and 19 minutes;
+branch `perf/git-policy-cli-` with that name on the remote. Not reviewed. By its own report:
+
+- From 2,286 timing records: `git for-each-ref` over every reference ran in 98.0% of commits, 7 ms at the median and 26,357 ms at the worst.
+  The set is now read from `packed-refs` and the loose files by the package's own reader, with one `git for-each-ref` left for what that reader cannot prove.
+  Children for each commit go from 13 to 12. 61 tests pass; Clippy clean.
+- The child's own work is milliseconds (220 system calls, 1.18 ms); a reader paced at 1,024 bytes every 25 ms stretches it to 3.34 s.
+  Why two recorded commits held it for 13.9 s and 26.4 s it did not reproduce and does not claim.
+- **Its own limit on what this buys:** it "does not fix today's 56 to 199 s commits": by the records most of that time is the wrapper's own index write (95 s and 82 s in two landings),
+  22.8 s inside the reference step, and waits of 17 to 65 s before a landing begins, none of which this branch touches and none of which has a paired measurement with real Git.
+  ("Today" in its text is 2026-11-12; its session is that day's.)
+- The paired measurement the changed rule asks for was not made: with a private `HOME` and `XDG_RUNTIME_DIR` and no bus the wrapper refuses a commit in 80 ms, the same wall issue 6293 is about from the other side.
+- It calls the branch fit to merge for what it changes. Its review is second in the queue.
+
+**A second review of a branch cannot be asked for with the branch's name.** `start-reviews-of-finished-branches` answered "already reviewed" for the start gate's branch and started nothing,
+while this session's starter script had already printed that it started and taken the entry off the queue.
+The script now says "asked for" and points at the command's own output, and it has a second kind of entry: a review over a range of its own under a name of its own
+(`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
+The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
+
+#### The index-lock fix's review removed a live Git's lock with the built wrapper (2026-11-13T13:24:49-05:00)
+
+Not complete: the branch goes back to its author.
+Read from the run's report and the review file by the coordinating session.
+
+- **Review of `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`** (commit `d4a0803231`), ended before 13:24:49, file
+  `~/temp/agent/change-reviews/git-policy-cli-index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone/review.md`.
+  It built the commit's binary and reproduced two defects:
+  a real `git commit --all` waiting in its editor lost its `index.lock` and its PID file to a wrapper command,
+  because a record of an earlier, dead process carried the same PID number (the proof shows the recorded process gone, never the PID file's writer);
+  the Git then ended with status 128 and Git's words that the index needs recovery.
+  And the scan for holders takes a process of this account whose descriptors cannot be read for one of another account, and removed a lock such a process held open.
+  A third, found by reading: the PID file is unlinked after the lock.
+  The feature's own control asserts the rule that causes the first.
+  Its run is marked `driver-failed` by issue 6295 after the review was written; the review is whole.
+  **The branch is not fit for an integration pass.**
+  Not in `main` or `0.6.1-alpha.16`.
+  The author answers it: brief `~/temp/agent/pi-runs/index-lock-fix-answers-its-review-of-2026-11-13-prompt.md`, first in the queue.
+- The jam fix's author started at 13:24:50.
+- Every first review of a branch that ended on 2026-11-13 up to 13:24:49 and ran something reproduced a defect
+  (the start gate, the launcher's scratch folder, commit-is-made, the reload fix, the jam fix, commit-does-not-list, the index-lock fix);
+  the one that ran nothing (`add-never-skips`) found none, and is being done again.
+
+#### The jam fix's review found a commit that lands after its command said it was not made; two more runs ended (2026-11-13T13:22:37-05:00)
+
+Not complete: both reviewed branches go back to their authors, and the third waits for its review.
+Read from each run's report and from the two review files by the coordinating session.
+
+- **Review of the jam fix** (`commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`, range `9d5a7b0ed7..f025b571c9`), file
+  `~/temp/agent/change-reviews/git-policy-cli-commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer/review.md`.
+  It built the wrapper and reproduced one defect against the real service binary:
+  the bounded write can give up with the whole JSON request delivered and only its framing newline unsent;
+  the client then says the service never took the request, tells the person the commit was not made and nothing of it can land later,
+  and removes the commit's scratch tree, while the service decodes the line at the end of the stream and lands the commit.
+  It landed a captured request so, and again after a full close, where the drop of a request whose client is gone lost a race with the heartbeat.
+  New with the change (the blocking write before it ended in "not known" with the tree kept).
+  The rest of the change (bounded connect, chunked read, status probe, journal fallback, ceilings) it found sound.
+  Its run is marked `driver-failed` by issue 6295 after the review was written; the review is whole.
+  **The jam fix is not fit for an integration pass.**
+  The author answers it: brief `~/temp/agent/pi-runs/commit-fails-within-a-bound-answers-its-review-of-2026-11-13-prompt.md`, first in the queue.
+- **Review of `commit-does-not-list-every-reference-on-the-path-it-waits-on`** (commit `7592e20235`): two places where the in-process reader answers differently from Git without declining.
+  In a linked worktree the snapshot holds the main worktree's `refs/bisect`, `refs/rewritten` and `refs/worktree`, which Git does not print there;
+  and it keeps symbolic references whose chain ends nowhere, which Git drops.
+  No data lost, no wait without a bound.
+  The review ran Git's side for real and the reader's side as a transcription; it did not compile the crate.
+  The author answers both, first showing each with the real reader:
+  brief `~/temp/agent/pi-runs/commit-does-not-list-every-reference-answers-its-review-of-2026-11-13-prompt.md`, second in the queue.
+- **`abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`** finished, tip `87cd3d1dfa`.
+  By its report an abort or a skip that would discard work is refused before anything changes, naming the files, with `--no-enforce-worktree` as the opt-out
+  and `--quit` as the way to keep the work; the saver and its four files are removed; a pipe at the record's path is refused within a bound.
+  It calls itself fit to merge, 377 commits behind `main`, and without `afc0545123`.
+  Its two questions for the owner: an abort in the main worktree is still always refused, even when it discards nothing;
+  and the second measurement before Git starts is one round.
+  Its review is third in the queue.
+- **Checked, no defect**: that report says the merge of `main` into its branch on 2026-11-12 (`d53e15d8f7`) "silently dropped" a handover section.
+  Git's own merge of the two parents (`git merge-tree --write-tree 7cd39662bf 9d5a7b0ed7`, run 13:24) gives the same handover blob as the merge commit (`400e4a78bc`),
+  and that blob differs from `main`'s side only by 47 lines more.
+  So the merge is Git's and holds every line `main` had; what the run restored afterwards was not lost by the wrapper.
+- **Seen in passing**: at 13:24 the wrapper printed, for three worktrees made today
+  (two reviews' and the reload fix's), that their package state "was not relinked after 3 tries".
+  That is the relink giving up that task 317's runs are about, still there in `0.6.1-alpha.16`.
+
+#### The push-stops resume finished; three second reviews and the reload fix's author are going (2026-11-13T13:19:20-05:00)
+
+Not complete: the branch waits for its review.
+Read from the run's own report by the coordinating session; nothing here was run again by it.
+
+- **`push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window`** ended before 13:17:46, branch tip `f56257b9e1`.
+  Its report: before the change any byte in a 500 ms sample reset both windows, so a server's keepalive (5 bytes every 5 s) kept a push going without end;
+  it reproduced that through a wrapper built from `main` (still running at 255 s behind a hook that never answers).
+  The rule it adds: fewer than 1,024 transport bytes in the window that already bounds silence (150 s connected, 30 s for a path) counts as silence;
+  the floor is settable by `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`, and a zero or mistyped value is no setting.
+  The slowest line the floor lets through carries about 6.8 bytes a second over a connection.
+  Four controls are shown failing with the floor taken out; three more guard against a false stop; each stop control asserts no process of the push is left.
+  Its review is in the queue.
+- Started since 13:14: the reload fix's author with its brief (13:14:36),
+  and the second reviews of the commit-is-made branch (13:17:49), the launcher's scratch-folder change (13:18:12)
+  and `add-never-skips` (13:18:35).
+  The last was sent a note in its inbox at 13:20 that a verdict counts only with what was built and run behind it.
+
+#### Four more runs ended by 13:11:05: two reviews and two authors' answers; a cargo home of its own took one run's compiles from minutes to seconds (2026-11-13T13:14:14-05:00)
+
+Not complete: nothing here is merged; each bullet names what it waits for.
+Read from each run's own report and one review file by the coordinating session; nothing here was run again by it.
+
+- **Review of the reload fix** (issue 6286, commit `1cb47223f8`), ended 13:10:13, file
+  `~/temp/agent/change-reviews/git-policy-cli-reload-fix-brought-onto-main-where-a-program-link-already-is/review.md`.
+  It built the library and a small crate that calls the real `provision_with`, with a healthy control, and reproduced three things of one family:
+  a manager that answers the stop and then stalls fails the commit with the false sentence that the account has no user service manager;
+  a service that is landing when the unload asks it to retire gets ten seconds where a landing may hold the index sixty, and the commit fails
+  (the first commit of every worktree after the upgrade takes that path);
+  and `point_program_link` fails a commit its own doc says it never fails.
+  No data loss, no double landing, no wait without a ceiling.
+  Weighed: all three are commits failing that the requirement says never fail, so the author answers them;
+  brief `~/temp/agent/pi-runs/reload-fix-answers-its-review-of-2026-11-13-prompt.md`, resume queued.
+  **The branch is not fit for an integration pass until then.**
+- **Review of `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`** (commit `a9423c5c88`), ended 13:10:16: no defect,
+  and by its own words "Found by reading; I did not build or run the code."
+  By the owner's rule of 2026-11-12T12:26:24 a review that ran nothing is started again; it is, under a name of its own.
+- **The launcher's scratch-folder change, its author's answer**, ended 13:10:42, tip `a0dff71830`
+  (`feat/pi-shared-subagent-driver-launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep`).
+  By its report all four findings reproduced before and none after, each with a test shown failing without its fix;
+  issue 6295 is fixed in `49c098ae38` (a cut `process` answer no longer ends a finished run as failed);
+  and one more defect it found is fixed (the resume of a run that left work running looked for its summary under a wrong path, so no such run was ever resumed).
+  It says plainly that the review's script for the second finding does not test the proof it is about.
+  One choice it asks about: a manager that answers nothing now refuses every emptying.
+  Adopted as it stands, open to veto: refusing is the direction the finding asked for, and the folder is tried again at the next end of a run of that name.
+  Its second review, over `c0a18005c2...a0dff71830`, is queued.
+- **`commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`, its author's answer**, ended 13:11:05, tip `159fa32a47`.
+  By its report the race that lost another command's commit is reproduced in the landing and closed at its cause and at a last door
+  (an earlier attempt's marks file is removed before an import; only an import that exited and wrote every commit counts;
+  the first commit must stand on the attempt's base), each with a control shown red without it;
+  and a held batch is no longer told its branch names the commit.
+  Fourteen failures in `landing::` are in files identical to `main`'s, by its account.
+  Its second review, over `c9758832c4...159fa32a47`, is queued.
+- **The cargo lock, measured by that run**: with a cargo home of its own in its scratch folder
+  (`registry` and `git` linked to the shared ones, `config.toml` copied) no command waited on the lock;
+  the whole-package lint that never started the round before (a wait of 529 s, killed) finished in 36.95 s,
+  and compiles took 11 to 29 s "against 8m49s–3250s under the shared lock".
+  This corrects the section of 13:08:25, whose heading said builds do not wait on each other:
+  compiling does not hold the exclusive lock, but every `cargo build` starts with a resolution that takes it,
+  so a build queues behind every fetch and resolution going.
+  What is not shown: that two cargo homes sharing one `registry` stay sound when both unpack a crate neither has yet.
+- **Counting**: a build scope of a review named `pi-review-build-cli.scope` matched the pattern `pi-*` the count used,
+  so the count read one too many while it existed (seen at 13:11:48: thirteen counted, twelve agents).
+  The scripts count `pi-*.service` from 13:12 on; the probe going reads the old pattern until it is started again.
+
+#### Two resumes finished and the start gate's second review found one defect (2026-11-13T13:11:00-05:00)
+
+Not complete: none of the three is merged; each waits for what its bullet names.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **`snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`** ended before 13:06:45, branch tip `568365a2b0`.
+  Its report: the old proof (a transaction compared) deleted a person's snapshot in its own control on every run once the fixture commits the filesystem;
+  the new proof records the snapshot's parent and an instant read before the snapshot exists, and compares no transaction.
+  It calls itself fit to merge on two conditions: `main` moved 191 commits since its merge, so the merge and its gate are done again;
+  and one binary control of `main` (the copy line must be the first line of stderr) fails beside `main`'s standing notice.
+  Report and logs: `~/temp/agent/snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own-scratch/keep/`.
+  Its review was asked for at 13:09:41 and did not start:
+  the coordinating session gave the review command a report's path where it takes the reviewed folder of the repository.
+  The entry is back in the queue with `package/git-policy/cli`.
+- **`guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`** ended between 13:06:45 and 13:09:29, branch tip `c3d3dec271`
+  (`refactor/git-policy-cli-guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`).
+  It converted one case (taking a side of a conflict with `checkout` or `restore` is refused, with the opt-out) and listed the others with their owners
+  in `doc/planning/cli-git-save-and-go-on-behaviours-and-their-refusals.md` on its branch.
+  It names documents that still state the old reading, and the two owner answers of 2026-11-02 that the carry's conversion would need amended.
+  Left undone by its own account: the repository-wide lint, whose fetch step waited on the cargo lock for ten minutes and again past twenty-five on 2026-11-12.
+  Its review is in the queue.
+- **The start gate's second review** (`~/temp/agent/change-reviews/pi-shared-subagent-driver-start-gate-fixes-after-its-first-review/review.md`)
+  reports the whole-number boundary and the waits clean, with what it ran, and one defect it reproduced:
+  when a first audit run has become a unit and its launcher is gone, and a second run of the same name is still a launcher,
+  the two count as one agent and the cap lets one more start.
+  Weighed: a narrow window and one start, but the count is what the cap rests on and the package's README states the opposite, so the author fixes it.
+  The author's resume is in the queue with
+  `~/temp/agent/pi-runs/start-gate-change-answers-its-second-review-of-2026-11-13-prompt.md`;
+  a review of that one fix follows, then the merge.
+
+#### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies` (2026-11-13T13:08:25-05:00)
+
+Not complete: the cause of the one long wait is not found and no remedy is chosen.
+Corrected at 13:14: this section first said builds do not wait on each other.
+Compiling holds only the shared lock, but each build starts with a resolution under the exclusive one, so builds do queue to start;
+a run's measurement is in the section of 13:14:14.
+Read and measured by the coordinating session.
+
+- Cargo's source (`src/util/cache_lock.rs` on its `master`) names two lock files in the cargo home.
+  `.package-cache` is taken exclusively "while downloading packages and doing resolution";
+  `.package-cache-mutate` is taken shared "while a build is running", and the exclusive one "does not interfere" with it.
+  So two builds compile side by side; only resolution, download and `cargo fetch` queue.
+- At 13:06:00 the kernel's lock table (`lslocks`) showed two cargo processes holding the shared lock at once and nobody on the exclusive one.
+- Every wait in the feeds of the runs of 2026-11-13 up to 13:05 (thirteen lines, in four runs) reads `Blocking waiting for file lock on package cache`,
+  which is the exclusive one.
+  Those read in context (the index-lock run's) were printed inside the root task `fetch:rust-dependencies`.
+- That task (`mise.toml`) runs `cargo fetch --locked` once for each tracked `Cargo.lock`, thirty-five of them at `9f6f8312c4`,
+  and `lint:monochromatic-lint` depends on it (decision of 2026-11-07, "Fetch then warn", in the comment beside the task).
+  So each lint in each worktree takes the exclusive lock thirty-five times.
+- One fetch of the wrapper's lock file with everything already downloaded: 0.89 s (one reading, 13:06).
+  One whole pass of the task with sixteen agents going: 22.1 s, with two waits on the lock (one reading, 13:06:45 to 13:07:07).
+- Not explained: the wait of 529 s one run reported at 12:16.
+  Twenty-two seconds a pass does not make it unless many passes queue or one holder kept the lock for minutes.
+  A recorder, started at 13:07:58, writes who holds and who waits on the lock every fifteen seconds for four hours
+  (unit `record-who-holds-the-cargo-package-cache-lock-20261113`,
+  log `~/temp/agent/cargo-package-cache-lock-measured-with-a-cargo-home-of-its-own-2026-11-13/keep/who-held-and-who-waited-from-2026-11-13T1310.jsonl`).
+- The earlier plan (a cargo home for each run) is not shown to be needed for builds;
+  one run made itself a cargo home in its scratch folder, which costs it a download of every crate.
+- Next: read the recorder's log for the longest holder, then choose between making the fetch skip a lock file whose packages are all unpacked
+  (read without the lock) and leaving the task as it is.
+  A change of order between fetch and lint is the owner's (the decision of 2026-11-07).
+
+#### The level of eight held and sixteen agents are going: one reading on the home drive took 5.9 s and the next 1 ms (2026-11-13T13:02:01-05:00)
+
+The hour's readings are in `doc/handover/agents-at-once-on-this-machine.md` under "Level 8".
+In short: the build volume never slower than 358 ms, the home drive 1 ms at the median and under 100 ms in every reading but the sixtieth, which took 5,901 ms at 12:56:31.
+One reading over the bound is not the criterion (two in a row), and the probe's hour ended on it.
+The probe was started again at once, and its next reading, at 12:58:07 with eight units going, took 1 ms on the home drive: not two in a row, so the level held.
+This session first wrote that it would hold at eight for a second hour; that was a precaution of its own with no failure behind it (rule `HLD`), and it was dropped.
+**The level went to sixteen**: the starts began at 12:58:50, twenty seconds apart (two reviews and six resumes), and sixteen units were going at 13:01:43.
+The probe runs as `disk-ceiling-probe-level-16-20261113`; its record is under "Level 16" in `doc/handover/agents-at-once-on-this-machine.md`.
+Ten entries are left in the resume queue, and a waiter starts the next ones as places free.
+The pnpm store is on the home drive (`~/.local/share/pnpm/store/v11`, with `virtualStoreType: global`, so a worktree's packages are links into it) and so are Pi's sessions and the caches;
+which of them, or what else, was writing in that minute is not established.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
