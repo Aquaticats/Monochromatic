@@ -15263,6 +15263,10 @@ Limit:
 a client that was stalled past the age is recognised only while the repository landed fewer than `DONE_RETAINED`
 batches since its own.
 Limit:
+a request replayed by a later command from a recording of an earlier one obeys no ceiling of this wrapper,
+so only its record keeps it from landing twice,
+and that record is kept only by the two conditions above.
+Limit:
 two services of one worktree at the same time hold a memory of the requests that landed before each of them started
 (`landed_commits` read at its start),
 so a request one of them landed and a client sends again to the other is landed twice;

@@ -6964,6 +6964,10 @@ Guard tests keep it so:
   a client that was stalled past that time is recognised only while the repository landed fewer than 1024
   batches in the meantime.
   Limit:
+  a request replayed by a later command from a recording of an earlier one obeys no ceiling of this wrapper,
+  so its record is the only thing that keeps it from landing twice,
+  and that record is kept only by the two conditions above.
+  Limit:
   a service that keeps landing keeps every record it writes until its next start,
   so its journal grows by the batches it lands while it runs,
   and the first commits after that start wait for it to read every record it kept.
