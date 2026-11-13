@@ -205,15 +205,18 @@ and the pools added up allow far more runs than this machine's drives carry.
 So the gate also counts every agent going on the machine
 and refuses a start above the number it allows.
 
-Owner, 2026-11-13:
+Owner,
+2026-11-13:
 "you set your max concurrent pi+sonnet subagents starting from 4,
 then bisecting up until we hit this disk's ceiling.
 We'll re-find the ceiling once the new disk arrives."
-Asked whose runs count: "Every agent on the machine".
+Asked whose runs count:
+"Every agent on the machine".
 The number is the level a search for what the drives carry stands at,
 and the record of that search is `doc/handover/agents-at-once-on-this-machine.md`.
 
-It counts runs, never slots.
+It counts runs,
+never slots.
 
 - every Pi run going,
   whoever started it and whichever provider it is on,
@@ -226,15 +229,19 @@ It counts runs, never slots.
   which the gate cannot see.
 
 A run at the number is refused the way a full pool is:
-exit `3`, and a line naming the count, the number and the run it did not start.
+exit `3`,
+and a line naming the count,
+the number and the run it did not start.
 A run its pool would refuse too says both.
 The number only says when not to start one more:
 it stops nothing that is going.
-A count above it, because another session started a run or the number was lowered,
+A count above it,
+because another session started a run or the number was lowered,
 is a reading at that higher count,
 said on the counts line as it is.
 
-Two variables set it for one command, as `PI_RUNS_POOL_LIMITS` sets a pool's limit:
+Two variables set it for one command,
+as `PI_RUNS_POOL_LIMITS` sets a pool's limit:
 
 - `PI_RUNS_MACHINE_CAP=<n>`:
   the number of agents the machine may carry at once,
@@ -251,14 +258,16 @@ PI_RUNS_OTHER_AGENTS_GOING=1 PI_RUNS_MACHINE_CAP=4 start-pi-run-when-a-pool-has-
 
 A value that is no whole number is refused rather than counted,
 because a mistyped number would start more agents than the machine carries,
-or stop every start, with no line saying which.
+or stop every start,
+with no line saying which.
 
 ### The room a new run needs
 
 No run starts while any volume it cannot work without has less room than its floor:
 
 - the volume that holds the repository,
-  every agent worktree and every build folder: 100 GiB.
+  every agent worktree and every build folder:
+  100 GiB.
   That volume filled on 2026-11-11 at 13:1x,
   6.5 MB of 3.7 TB,
   and every Pi driver exited at once with no summary.
@@ -267,7 +276,8 @@ No run starts while any volume it cannot work without has less room than its flo
   so about 9 GB an agent,
   which makes the floor about eleven agents' builds.
 - the volume that holds the runs folder,
-  with the scratch folders beside it: 50 GiB,
+  with the scratch folders beside it:
+  50 GiB,
   about three of the largest scratch folder one run of 2026-11-12 left.
   Measured on 2026-11-13 with `btrfs filesystem du --summarize --raw`,
   that folder (`pkgrepair-repair-off-the-path`) holds 14,021,046,272 bytes of its own
@@ -275,25 +285,29 @@ No run starts while any volume it cannot work without has less room than its flo
   16.7 GiB together,
   where `du` counted the shared data once for each copy-on-write copy and read 65,984 MiB.
 - the volume that holds Pi's own session files,
-  with the container images and the caches: 50 GiB.
+  with the container images and the caches:
+  50 GiB.
   That drive filled on 2026-11-12:
   1 MiB free of 1906 GiB,
   and twenty runs ended within four minutes,
   every one on Pi's write of its session,
   `ENOSPC: no space left on device, write`.
   On 2026-11-13 one session's container images took about 20 GB of it in one hour
-  (nine images of 2.15 to 2.53 GB, `podman images`),
+  (nine images of 2.15 to 2.53 GB,
+  `podman images`),
   so the floor is about two hours of that with nobody looking.
   A run's scratch is not on that drive,
   so the floor there is not sized from scratch.
 
-The volume of the runs folder, and the volume of Pi's session files,
+The volume of the runs folder,
+and the volume of Pi's session files,
 are found by resolving the real path of the folder each is read from,
 never from a path written into the code:
 the runs folder the command was given,
 and Pi's session folder,
 which is `~/.pi/agent/sessions` unless `PI_CODING_AGENT_SESSION_DIR` sends Pi elsewhere.
-Resolving the links matters here: `~/temp` is a symbolic link onto the build volume,
+Resolving the links matters here:
+`~/temp` is a symbolic link onto the build volume,
 so the drive that holds the runs folder is not the drive of the home directory.
 Where two needs are on one volume it is read and named once,
 at the strictest of their floors.
@@ -305,7 +319,8 @@ the room it read,
 the floor it needed,
 and the run it did not start.
 
-The runs folder, and where Pi's session folder is,
+The runs folder,
+and where Pi's session folder is,
 are read at the start of every ask.
 A `sessionDir` written in Pi's own settings file is not read here,
 so a session that sets it without the variable is guarded by the floor on the folder Pi would otherwise use.
