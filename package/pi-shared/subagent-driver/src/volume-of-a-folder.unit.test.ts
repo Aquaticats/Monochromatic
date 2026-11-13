@@ -231,17 +231,33 @@ await describe({
           name: 'answers a folder whose read failed for a reason other than not being there, rather than walking above it',
           fn: async () => {
             /**
-             The error a folder whose read the machine refused answers with.
+             The folder whose read the machine refused.
+             */
+            const folder = '/a-folder-of-the-test/inside';
+            /**
+             The error the machine gave for that read.
              */
             const refused = Object.assign(
               new Error('the machine refused this read',),
               { code: 'EACCES', },
             );
+            /**
+             What the folders above it answer, which a walk must never reach.
+             */
+            const above = answerAboutIn({
+              folders: new Map([
+                folderOn({ folder: '/', device: 1, }),
+                folderOn({ folder: '/a-folder-of-the-test', device: 1, }),
+              ],),
+            },);
             try {
               volumeOfFolder({
-                folder: '/a-folder-of-the-test',
-                answerAbout: function answerAbout() {
-                  throw refused;
+                folder,
+                answerAbout: function answerAbout(asked,) {
+                  if (asked === folder) {
+                    throw refused;
+                  }
+                  return above(asked,);
                 },
               },);
             }
