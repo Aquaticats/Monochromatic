@@ -34,7 +34,8 @@
 //! which is before its record is published and after the client sent its request,
 //! so the age this judges is never shorter than the wait the client is inside.
 //! Nothing here removes anything:
-//! it answers how long ago a record was written and whether a client may still read it.
+//! it answers how long ago a record was written and whether a client may still read it,
+//! from a reading of the clocks and from the record's own file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,11 +43,14 @@
 //! const stampOf = (text) => decode(lineValue(text, 'stamp'));
 //! const aClientMayStillRead = (stamp, modified, now) =>
 //!   stamp ? !now.isPastTheBootOf(stamp) && now.elapsedSince(stamp) < A_FINISHED_RECORD_IS_READ : withinTheTimeAClientLooks(modified);
+//! const aClientMayStillReadFinishedBatch = (path, now) =>
+//!   aClientMayStillRead(undefined, modifiedTimeOf(path), now) || aClientMayStillRead(stampOf(readText(path)), modifiedTimeOf(path), now);
 //! ```
 
 use crate::claim_time::ClaimTime;
 use crate::service_journal_intent_text_and_parse::intent_value;
 use crate::wait_ceilings::A_FINISHED_RECORD_IS_READ;
+use std::path::Path;
 use std::time::SystemTime;
 
 /// The key of the line a record carries the reading of the clocks it was written by under.
@@ -135,6 +139,61 @@ pub fn a_client_may_still_read(stamp: Option<&ClaimTime>, modified: std::io::Res
         return false;
     }
     return now.elapsed_since(written) < A_FINISHED_RECORD_IS_READ;
+}
+
+/// What:
+///  The time a path was last written,
+///  and the operating system's reason when it cannot say.
+/// Why:
+///   A journal's folder and the records in it are judged by their own times where no reading of the clocks is kept,
+///  and an unreadable time proves no age.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const modified = (path) => statSync(path).mtimeMs;
+/// ```
+pub fn modified_time_of(path: &Path) -> std::io::Result<SystemTime> {
+    let metadata = std::fs::metadata(path)?;
+    return metadata.modified();
+}
+
+/// The reading of the clocks the finished record at `path` carries,
+/// from the record's own text,
+/// and nothing when it carries none or cannot be read.
+fn reading_of_a_finished_record(path: &Path) -> Option<ClaimTime> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    return stamp_of(text.as_str());
+}
+
+/// What:
+///  Whether a client of the finished record at `path` may still read it.
+/// Why:
+///   A record whose modification time already says a client may still look costs no read,
+/// and one the wall clock calls old is asked about through the reading it carries,
+/// because a wall clock that stepped forward makes a record of this boot look old
+/// while the client of it is still inside a wait measured on the monotonic clock.
+/// The reading is only ever one more reason to keep a record:
+/// no client can look for a commit past `A_FINISHED_RECORD_IS_READ` of the clock it waits on,
+/// but a record the wall clock still keeps is kept whether its reading is old or not,
+/// so a clock that moved costs a journal that outlives its clients and never a record taken too soon.
+/// A record whose text cannot be read is therefore kept while its modification time is young and removed once that is old,
+/// which is the only answer its age proves;
+/// the sweep of a removed worktree's journal asks the same question and keeps the whole journal on a record it cannot read
+/// (`service_files_of_a_stopped_instance.rs`),
+/// because there it guards work a person may want rather than spending one record's memory.
+/// Two questions are asked of the modification time,
+/// so a record past its word is read and stated once per answer;
+/// nothing here removes anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aClientMayStillRead(finishedRecordReading(path), modifiedTimeOf(path), now)
+/// ```
+pub fn a_client_may_still_read_finished_batch(path: &Path, now: &ClaimTime) -> bool {
+    if a_client_may_still_read(None, modified_time_of(path), now) {
+        return true;
+    }
+    return a_client_may_still_read(reading_of_a_finished_record(path).as_ref(), modified_time_of(path), now);
 }
 
 /// Controls stay out of the release executable.

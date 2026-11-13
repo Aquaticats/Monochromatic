@@ -141,6 +141,11 @@ except opt-in session recordings (kept 30 days) and `/crawl` results (kept 14 da
 The kitesurf.dev playground is not Browser Run,
 and its page links only Cloudflare's general website terms and privacy policy,
 with no retention statement of its own.
+That privacy policy covers personal information,
+not page content,
+and says "[Cloudflare collects and stores Network Data][cloudflare-privacy-network-data]"
+derived from traffic in the course of its services,
+for as long as its business purposes need.
 Either way the page leaves this machine,
 which `CLAUDE.md` rules out.
 
@@ -330,8 +335,11 @@ and it also replaces the command-line driver the repository's rules and runbooks
 - Still open:
   whether a self-run engine refuses `file://` as the playground does,
   which needs the Bazel build,
-  and what the kitesurf.dev playground keeps,
-  because its page names no terms beyond Cloudflare's general ones.
+  and what the kitesurf.dev playground keeps of page content,
+  which no Cloudflare page read for this record states
+  (the playground page,
+  the Browser Run FAQ,
+  and the general privacy policy).
 
 ## Follow-up vet declined
 
@@ -356,6 +364,7 @@ Sources accessed 2026-11-13.
 [kitesurf-open-source]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=open%20source%20on%20GitHub%20under%20the%20Apache%202.0%20license
 [kitesurf-heavy-development]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=under%20heavy%20development
 [browser-run-faq-retention]: https://developers.cloudflare.com/browser-run/faq/#:~:text=does%20not%20retain%20customer%2Dsubmitted%20HTML
+[cloudflare-privacy-network-data]: https://www.cloudflare.com/privacypolicy/#:~:text=Cloudflare%20collects%20and%20stores%20Network%20Data
 [cdp-set-emulated-media]: https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#:~:text=Media%20features%20to%20emulate
 [kitesurf-boa-fallback]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=as%20the%20last%20resort
 [kitesurf-playground-no-account]: https://kitesurf.dev/#:~:text=without%20an%20account
