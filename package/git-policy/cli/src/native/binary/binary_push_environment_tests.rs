@@ -25,10 +25,6 @@ const MARKER_NAME: &str = "CLI_GIT_PUSH_ENVIRONMENT_MARKER";
 /// The marker's value.
 const MARKER_VALUE: &str = "carried-by-the-invocation";
 
-/// The per-user scratch directory relative to `HOME`,
-/// where the manual-push probe makes its private directory.
-const SCRATCH_RELATIVE: &str = ".local/state/monochromatic-git-policy-cli/scratch";
-
 /// One repository,
 /// its bare origin,
 /// and the shim's record.
@@ -69,10 +65,12 @@ struct Start {
 fn shim_source(record: &Path) -> String {
     return format!(
         "#!/bin/sh\n\
+         scratch=\"${{XDG_RUNTIME_DIR}}/monochromatic-git-policy-cli/scratch\"\n\
+         [ -n \"${{XDG_RUNTIME_DIR-}}\" ] || scratch=\"${{HOME}}/.local/state/monochromatic-git-policy-cli/scratch\"\n\
          printf 'service=%s|marker=%s|home=%s|path=%s|target=%s|count=%s|scratch=%s\\n' \
          \"$1\" \"${{{MARKER_NAME}-unset}}\" \"${{HOME-unset}}\" \"${{PATH-unset}}\" \
          \"${{CLI_GIT_NATIVE_FORWARD_TARGET-unset}}\" \"${{GIT_CONFIG_COUNT-unset}}\" \
-         \"$(ls \"${{HOME}}/{SCRATCH_RELATIVE}\" 2>/dev/null | tr '\\n' ',')\" >> '{record}'\n\
+         \"$(ls \"$scratch\" 2>/dev/null | tr '\\n' ',')\" >> '{record}'\n\
          [ \"${{{MARKER_NAME}-}}\" = '{MARKER_VALUE}' ] || {{ echo 'the push environment lost the marker' >&2; exit 1; }}\n\
          exec {REAL_GIT} \"${{1#git-}}\" \"$2\"\n",
         record = record.display(),
@@ -98,6 +96,17 @@ fn push_world(fixture: &Fixture) -> PushWorld {
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
     std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a.txt");
     return PushWorld { repo, bare, record };
+}
+
+/// What:
+///  The per-user scratch directory of the fixture's run.
+/// Why:
+///  It follows the runtime directory the wrapper is given
+/// (issue 6293: a run given a runtime directory of its own keeps nothing under the account's state directory),
+/// so a control that looks for what a command left there must look where this build puts it.
+fn user_scratch_of(fixture: &Fixture) -> PathBuf {
+    let runtime: PathBuf = super::support::service_runtime(fixture).expect("the fixture's runtime directory");
+    return runtime.join("monochromatic-git-policy-cli").join("scratch");
 }
 
 /// A wrapped command for the fixture's `bin/git` that also carries the marker in its environment.
@@ -198,7 +207,7 @@ fn an_auto_push_needs_no_system_temporary_directory() {
     assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
     let head: String = git_head(&fixture, world.repo.as_path());
     assert_eq!(git_head_of(&fixture, world.bare.as_path(), "refs/heads/main"), head, "the landed commit is on origin: {stderr}");
-    let directory: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
+    let directory: PathBuf = user_scratch_of(&fixture);
     // The service push makes no probe directory at all, so a missing directory is as empty as an empty one.
     assert_eq!(std::fs::read_dir(&directory).map_or(0, Iterator::count), 0);
     assert!(!unusable.exists(), "nothing created the unusable temporary directory");
@@ -260,7 +269,7 @@ fn a_manual_push_needs_no_system_temporary_directory_and_its_probe_creates_no_sc
         scratch.iter().all(|names| { return names.is_empty(); }),
         "no push child sees a probe directory: {started:?}"
     );
-    let directory: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
+    let directory: PathBuf = user_scratch_of(&fixture);
     let left: Vec<std::ffi::OsString> = std::fs::read_dir(&directory)
         .expect("the per-user scratch directory exists")
         .map(|entry| { return entry.expect("entry").file_name(); })
