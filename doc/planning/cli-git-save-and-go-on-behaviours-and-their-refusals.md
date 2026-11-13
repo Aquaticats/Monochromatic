@@ -931,38 +931,56 @@ and both lists are right:
 - the interactive clean gets `--no-force -f` as two inserted tokens,
   which is the audit's "appended".
 
-### The audit's finding 3, checked on this branch
+### The audit's finding 3: not on the base, real once `main` was merged, and fixed here
 
 The audit reported that a merge saved behind a live foreign `index.lock` leaves its two records and its two refs
 for ever,
 and that every later command repeats two notices.
 
-This branch does not touch the merge,
-so it neither removes nor introduces that state;
-the carry is unchanged here.
-Run against **this branch's build**,
+On this branch's base it is not there.
+Run against a build of the base,
 the audit's own reproduction
 (`merge_lock_save.ts`,
-copied and pointed at this worktree's executable,
+copied and pointed at the worktree's executable,
 inside the private process namespace its README asks for)
-does not leave the state:
-after the finishing command,
-`for-each-ref refs/cli-git` prints nothing,
-the two records are gone
-(the recovery reported `Completed` for the record with the side ref and `AlreadyLanded` for the other),
-and the third and fifth commands print no merge line at all.
-The one residue it shows is that the **finishing** command prints the carry line twice and
-"finished an interrupted merge" twice,
-once per record,
-because both records are settled in that one command
-(`recovery_interrupted_merges_awaiting` settles each record in turn).
-Nothing of that is left for a person to remove,
-and no later command repeats it.
-So the for-ever state must come from a change in `0.6.1-alpha.14` that this branch does not have;
-it is not reproducible on this base,
-and there is nothing here to fix.
-Whoever merges the carry into a tree that carries that change must run the audit's reproduction there,
-and the merge plan's step 1 (a refusal naming the paths) removes both records' reason to exist anyway.
+leaves nothing:
+the finishing command printed the carry line twice (once per record),
+the refs were gone,
+and the third and fifth commands said nothing.
+
+Merged with `main`,
+which carries `0.6.1-alpha.14`'s own change to that code,
+it is there.
+The control added in `33e994bc17` for exactly this state
+(one carried edit,
+a live holder,
+two records naming one capture,
+then the lock released)
+failed on the merged tree:
+
+```text
+assertion `left == right` failed: no record stays: monochromatic-git-policy-cli: a merge in this worktree is
+settled, and a ref its record keeps could not be removed yet, so the record .../458d919a-....json was kept and
+the next git command here tries again ... a2602b0d-....json was kept ...
+  left: [".../458d919a-....json", ".../a2602b0d-....json"]
+ right: []
+```
+
+Each record's finish skipped only itself,
+found the other still naming the capture,
+answered "the name stays",
+and kept itself,
+so neither could ever go.
+
+The fix (`b4b5aec55d`) makes that answer say what it means:
+a capture another record still names is settled as far as this record is concerned,
+because that other record's finish is what drops the name,
+and only a deletion this command attempted and could not make keeps the record for another try.
+The control passes,
+and the merge isolation library tests pass (161).
+
+The merge plan below still applies,
+and its step 1 removes both records' reason to exist anyway.
 
 Two findings of the same audit that touch this page's cases were routed elsewhere and are not repeated here:
 the opt-out does not lift the wrapper's own `--no-overwrite-ignore` on `checkout`/`switch` (finding 2),

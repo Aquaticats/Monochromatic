@@ -2646,12 +2646,14 @@ monochromatic-git-policy-cli: git checkout with paths, --force, --patch, --ours 
 rejected in the main git worktree: it overwrites files with other content, so your edits to them
 are gone. The merge in progress left `a.rs` with an unmerged index entry, and it holds the
 resolution you have written so far, which exists nowhere else: this command replaces its content,
-and it keeps no copy of it. To settle the conflict and keep what you wrote, edit the file and commit
-the result (git commit --message <message> -- <paths>); `git show :1:<path>`, `:2:<path>` and
-`:3:<path>` print the base and the two sides, and git diff prints the file as it stands. If you have
-decided to replace it on purpose, save a copy yourself (git diff -- <path> > backup.patch) and pass
---no-enforce-worktree directly after the subcommand: the command then runs exactly as real Git runs
-it, and no copy is kept.
+and it keeps no copy of it. To settle the conflict and keep what you wrote, edit the file, stage it
+(`git add -- <paths>`) and commit the result with no paths (`git commit --message <message>`);
+`git show :1:<path>`, `git show :2:<path>` and `git show :3:<path>` print the base and the two
+sides, and `git diff -- <path>` prints the file as it stands. If you have decided to replace it on
+purpose, copy the file first (`cp -- <path> <path>.before-the-opt-out`) and pass
+`--no-enforce-worktree` directly after the subcommand: the command then runs exactly as real Git
+runs it, and no copy is kept; `cp -- <path>.before-the-opt-out <path>` puts your file back
+afterwards, and you can delete the copy then.
 ```
 
 A path is named only when it is read as one plain file below the working directory.
@@ -2682,6 +2684,20 @@ noglob and literal forms)
  A `GIT_` variable the in-process reader does not tolerate (such as `GIT_CONFIG_GLOBAL`) keeps the refusal
  and names no file,
  because which file the line would replace cannot then be read.
+The advice in that message is checked by running it:
+`binary/binary_conflict_side_tests.rs` reads each command out of the refusal and runs it in a fixture
+(the backup,
+the opt-out and the restore;
+the three `git show` sides and `git diff`;
+and the `git add` with the `git commit` that concludes the merge,
+through the wrapper's own commit service).
+A backup it named earlier (`git diff -- <path> > backup.patch`) writes a combined diff on an unmerged path,
+which `git apply` refuses,
+so it named no way back;
+the copy above replaced it,
+and the concluding commit now stages first and passes no paths,
+because a commit that names paths while a merge waits leaves the merge in progress.
+
 This replaced the wrapper's earlier behaviour,
 which copied each conflicted file beside the audit log and
 then let the command run
