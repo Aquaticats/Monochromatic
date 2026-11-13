@@ -670,6 +670,53 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Four more runs ended by 13:11:05: two reviews and two authors' answers; a cargo home of its own took one run's compiles from minutes to seconds (2026-11-13T13:14:14-05:00)
+
+Not complete: nothing here is merged; each bullet names what it waits for.
+Read from each run's own report and one review file by the coordinating session; nothing here was run again by it.
+
+- **Review of the reload fix** (issue 6286, commit `1cb47223f8`), ended 13:10:13, file
+  `~/temp/agent/change-reviews/git-policy-cli-reload-fix-brought-onto-main-where-a-program-link-already-is/review.md`.
+  It built the library and a small crate that calls the real `provision_with`, with a healthy control, and reproduced three things of one family:
+  a manager that answers the stop and then stalls fails the commit with the false sentence that the account has no user service manager;
+  a service that is landing when the unload asks it to retire gets ten seconds where a landing may hold the index sixty, and the commit fails
+  (the first commit of every worktree after the upgrade takes that path);
+  and `point_program_link` fails a commit its own doc says it never fails.
+  No data loss, no double landing, no wait without a ceiling.
+  Weighed: all three are commits failing that the requirement says never fail, so the author answers them;
+  brief `~/temp/agent/pi-runs/reload-fix-answers-its-review-of-2026-11-13-prompt.md`, resume queued.
+  **The branch is not fit for an integration pass until then.**
+- **Review of `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`** (commit `a9423c5c88`), ended 13:10:16: no defect,
+  and by its own words "Found by reading; I did not build or run the code."
+  By the owner's rule of 2026-11-12T12:26:24 a review that ran nothing is started again; it is, under a name of its own.
+- **The launcher's scratch-folder change, its author's answer**, ended 13:10:42, tip `a0dff71830`
+  (`feat/pi-shared-subagent-driver-launcher-gives-a-run-one-scratch-folder-and-deletes-it-at-run-end-except-keep`).
+  By its report all four findings reproduced before and none after, each with a test shown failing without its fix;
+  issue 6295 is fixed in `49c098ae38` (a cut `process` answer no longer ends a finished run as failed);
+  and one more defect it found is fixed (the resume of a run that left work running looked for its summary under a wrong path, so no such run was ever resumed).
+  It says plainly that the review's script for the second finding does not test the proof it is about.
+  One choice it asks about: a manager that answers nothing now refuses every emptying.
+  Adopted as it stands, open to veto: refusing is the direction the finding asked for, and the folder is tried again at the next end of a run of that name.
+  Its second review, over `c0a18005c2...a0dff71830`, is queued.
+- **`commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`, its author's answer**, ended 13:11:05, tip `159fa32a47`.
+  By its report the race that lost another command's commit is reproduced in the landing and closed at its cause and at a last door
+  (an earlier attempt's marks file is removed before an import; only an import that exited and wrote every commit counts;
+  the first commit must stand on the attempt's base), each with a control shown red without it;
+  and a held batch is no longer told its branch names the commit.
+  Fourteen failures in `landing::` are in files identical to `main`'s, by its account.
+  Its second review, over `c9758832c4...159fa32a47`, is queued.
+- **The cargo lock, measured by that run**: with a cargo home of its own in its scratch folder
+  (`registry` and `git` linked to the shared ones, `config.toml` copied) no command waited on the lock;
+  the whole-package lint that never started the round before (a wait of 529 s, killed) finished in 36.95 s,
+  and compiles took 11 to 29 s "against 8m49s–3250s under the shared lock".
+  This corrects the section of 13:08:25, whose heading said builds do not wait on each other:
+  compiling does not hold the exclusive lock, but every `cargo build` starts with a resolution that takes it,
+  so a build queues behind every fetch and resolution going.
+  What is not shown: that two cargo homes sharing one `registry` stay sound when both unpack a crate neither has yet.
+- **Counting**: a build scope of a review named `pi-review-build-cli.scope` matched the pattern `pi-*` the count used,
+  so the count read one too many while it existed (seen at 13:11:48: thirteen counted, twelve agents).
+  The scripts count `pi-*.service` from 13:12 on; the probe going reads the old pattern until it is started again.
+
 #### Two resumes finished and the start gate's second review found one defect (2026-11-13T13:11:00-05:00)
 
 Not complete: none of the three is merged; each waits for what its bullet names.
@@ -700,9 +747,12 @@ Read from each run's own report by the coordinating session; nothing here was ru
   `~/temp/agent/pi-runs/start-gate-change-answers-its-second-review-of-2026-11-13-prompt.md`;
   a review of that one fix follows, then the merge.
 
-#### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies`; builds do not wait on each other (2026-11-13T13:08:25-05:00)
+#### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies` (2026-11-13T13:08:25-05:00)
 
 Not complete: the cause of the one long wait is not found and no remedy is chosen.
+Corrected at 13:14: this section first said builds do not wait on each other.
+Compiling holds only the shared lock, but each build starts with a resolution under the exclusive one, so builds do queue to start;
+a run's measurement is in the section of 13:14:14.
 Read and measured by the coordinating session.
 
 - Cargo's source (`src/util/cache_lock.rs` on its `master`) names two lock files in the cargo home.

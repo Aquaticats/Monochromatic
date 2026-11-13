@@ -41,8 +41,11 @@ So:
 
     ```sh
     # prints one line for each agent unit that is going
-    systemctl --user list-units --no-legend --plain --state=active 'pi-*'
+    systemctl --user list-units --no-legend --plain --state=active 'pi-*.service'
     ```
+
+    The pattern ends in `.service` because a run's own build scope may carry a name that starts with `pi-`
+    (`pi-review-build-cli.scope` was counted as an agent on 2026-11-13 until 13:12).
 
 2.  Add the subagents your own session has going that are no Pi run.
 3.  Start one only when the sum is under the cap.
