@@ -1527,11 +1527,11 @@ SBS:
 SGO:
  Only the owner declares work complete,
  final or approved.
-An agent must mark its docs,
- statuses and reports incomplete,
+An agent must mark its docs and reports incomplete,
  unapproved or non-final,
- stating what was done,
- checked and open.
+ stating what was done and checked,
+ by whom,
+ and what is open.
 
 ### Package completeness
 
