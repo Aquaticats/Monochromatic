@@ -435,6 +435,19 @@ Its scratch folder held 728 KiB, all of it `keep/`.
 Its review (qwen4, a worktree of its own) was started in the place it freed, at about 11:45;
 the review of the scratch-folder branch takes the place after that.
 
+#### The level of four held; the level of eight started (2026-11-13T11:57:30-05:00)
+
+The readings and the judgment are in `doc/handover/agents-at-once-on-this-machine.md` under "Level 4" and "Level 8".
+In short: sixty readings in the hour, the home drive never slower than 32 ms, the build volume 2 ms at the median and 2,157 ms once, no run lost.
+Started for the level of eight, with four going:
+the list `~/temp/agent/pi-runs/batch-2026-11-13-three-resumes-for-the-level-of-eight.json`
+(`push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window`,
+`commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`,
+`index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`, each resumed in its own session),
+and the qwen4 review of the launcher's scratch-folder change.
+The resume queue holds nineteen entries; issue 6293 is its first and waits for the run on the service that needs no manager, so the next free place goes to the entry after it
+(`reload-fix-brought-onto-main-where-a-program-link-already-is`, issue 6286).
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,

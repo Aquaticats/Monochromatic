@@ -7,8 +7,10 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **4** agents run on this machine at once,
-counted across every session.
+At most **8** agents run on this machine at once,
+counted across every session
+(raised from 4 on 2026-11-13 at 11:57,
+when the level of four had held its hour).
 
 The owner,
 2026-11-13,
@@ -108,3 +110,33 @@ one line a minute:
   write-and-sync 1 ms on the home drive and 2 ms on the build volume,
   `full avg60` 4.42).
   The hour of the level counts from there.
+- **Held.** Sixty readings from 10:56:44 to 11:55:48,
+  fifty-seven of them with four units going and three with three.
+  Write-and-sync on the home drive: median 1 ms,
+  slowest 32 ms.
+  On the build volume: median 2 ms,
+  slowest 2,157 ms (11:44:46) and 850 ms (11:10:44),
+  every other reading under 50 ms;
+  the bound is 5,000 ms twice in a row.
+  `full avg60`: median 4.2,
+  highest 15.6.
+- No run got no answer to its first prompt and none ended on a disk error:
+  three runs ended `idle` with their reports in that hour
+  (the third run of integration pass 18,
+  which built and tested Rust,
+  and the two launcher changes),
+  and the two resumes and the review that took their places made turns.
+- Both slow readings on the build volume fall within forty seconds after a run ended
+  (11:10:20 and about 11:44:07).
+  Whether a run's end (its worktree or its unit going) is what stalls the volume for a second or two is not established;
+  two cases are no measurement.
+
+### Level 8, started 2026-11-13T11:57:30-05:00
+
+- Going when it started: two resumes of wrapper work,
+  the review of the start gate's change,
+  and one run of another session.
+- Added: three more resumes of wrapper work and the review of the launcher's scratch-folder change.
+- Probe: unit `disk-ceiling-probe-level-8-20261113`,
+  the same file,
+  one hour.
