@@ -101,7 +101,20 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
     let Some(root) = worktree_root(&location.identity) else {
         return Ok(Vec::<String>::new());
     };
-    return Ok(entries_the_form_would_lose(kept, asked.as_slice(), root));
+    // Naming one entry asks the worktree whether it is a directory or a file, and a metadata lookup on a mount
+    //  whose server stopped answering waits in the kernel with no end, so the whole naming step runs on a thread
+    //  this process waits for only until the read ceiling.
+    let owned: PathBuf = root.to_path_buf();
+    let wanted: Vec<Vec<u8>> = asked.clone();
+    let Some(named) = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+        return entries_the_form_would_lose(kept, wanted.as_slice(), owned.as_path());
+    }) else {
+        return Err(format!(
+            "the worktree entries this command would write over did not answer within {} seconds, so the guard cannot tell which of them it would lose",
+            crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+        ));
+    };
+    return Ok(named);
 }
 
 /// What:
@@ -124,6 +137,8 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
 ///  and would hide which of the person's entries goes.
 ///  A directory holding nothing the form replaces loses nothing and is not named,
 ///  which is what keeps a tree adding files beside a person's own directory from being refused.
+///  It runs on the bounded thread its caller makes, so a lookup that never answers ends the wait at
+///  the ceiling instead of holding the command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

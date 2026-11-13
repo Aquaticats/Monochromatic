@@ -112,6 +112,22 @@ pub enum WrittenPaths {
         revision: Option<OsString>,
         /// Which entries at those paths Git writes over.
         entries: WrittenEntries,
+        /// What:
+        ///  Whether the command line leaves `checkout` and `switch` free to turn the name into
+        ///  the local branch a remote-tracking branch of that name stands for.
+        /// Why:
+        ///  `git ls-tree topic` fails while `git checkout -f topic` creates `topic` from
+        ///  `origin/topic` and writes that tree over the worktree
+        ///  (measured on this host with native Git 2.56.0,
+        ///  2026-11-13),
+        ///  so a reading that treats the failure as "nothing is written" lets the forced form
+        ///  overwrite an untracked file it never looked at.
+        ///  `reset`, `restore` and `read-tree` name no such branch
+        ///  (`fatal: ambiguous argument 'topic'`,
+        ///  `fatal: could not resolve 'topic'`,
+        ///  `fatal: Not a valid object name topic`),
+        ///  so they keep the flag false.
+        guesses_a_remote_branch: bool,
     },
     /// The paths of the revision's tree that the form's own pathspecs match.
     MatchingTree {
@@ -231,10 +247,17 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
             let parsed = parse_reset_region(region, &[]).ok()?;
             let revision: Option<OsString> = crate::command_discard::revision_before_paths(region, RESET_TABLE);
             return match parsed.mode {
-                Some(ResetMode::Hard) => Some(WrittenPaths::Tree { revision, entries: WrittenEntries::EveryEntry }),
-                Some(ResetMode::Merge) | Some(ResetMode::Keep) => {
-                    Some(WrittenPaths::Tree { revision, entries: WrittenEntries::OnlyIgnored })
-                }
+                Some(ResetMode::Hard) => Some(WrittenPaths::Tree {
+                    revision,
+                    entries: WrittenEntries::EveryEntry,
+                    // A reset resolves a revision and never the remote branch a short name stands for.
+                    guesses_a_remote_branch: false,
+                }),
+                Some(ResetMode::Merge) | Some(ResetMode::Keep) => Some(WrittenPaths::Tree {
+                    revision,
+                    entries: WrittenEntries::OnlyIgnored,
+                    guesses_a_remote_branch: false,
+                }),
                 _ => None,
             };
         }
@@ -243,6 +266,7 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
             return Some(WrittenPaths::Tree {
                 revision: first_positional(region, SWITCH_TABLE),
                 entries: WrittenEntries::EveryEntry,
+                guesses_a_remote_branch: guess_is_not_switched_off(region),
             });
         }
         GuardedCommand::RestoreWorktree => return restore_written_paths(region, shell_directory),
@@ -463,7 +487,43 @@ fn checkout_written_paths(region: &[OsString], shell_directory: Option<&Path>) -
     return Some(WrittenPaths::Tree {
         revision: names.first().map(|name| return (*name).clone()),
         entries: WrittenEntries::EveryEntry,
+        guesses_a_remote_branch: guess_is_not_switched_off(region),
     });
+}
+
+/// What:
+///  Whether a `checkout` or `switch` region leaves Git free to guess the remote branch a short
+///  name stands for.
+///  `&[OsString]` borrows the tokens after the subcommand.
+/// Why:
+///  `--no-guess` and `checkout.guess=false` both turn the guess off,
+///  and Git then refuses the name itself
+///  (`error: pathspec 'topic' did not match any file(s) known to git`, measured on this host with
+///  native Git 2.56.0, 2026-11-13);
+///  the guess the guard makes must follow the same switch,
+///  or it would resolve a branch Git never touches.
+///  `--guess` and `--gu` are the same option Git accepts by that prefix,
+///  and nothing else in the two tables starts with `guess`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const guesses = (region) => !region.some((word) => spellsLong(word, 'no-guess'));
+/// ```
+fn guess_is_not_switched_off(region: &[OsString]) -> bool {
+    for token in region {
+        let written: &[u8] = token.as_encoded_bytes();
+        if written == b"--" {
+            return true;
+        }
+        let Some(name) = written.strip_prefix(b"--") else {
+            continue;
+        };
+        if b"guess".starts_with(name) || b"no-guess".starts_with(name) && name.len() > b"no-".len() {
+            // `--guess` (any prefix) leaves the guess on; `--no-guess` (any prefix past `--no-`) turns it off.
+            return !name.starts_with(b"no-");
+        }
+    }
+    return true;
 }
 
 /// What:

@@ -361,8 +361,25 @@ fn differs_from_the_index(facts: &mut GitFacts, root: &Path, entry: &MarkedEntry
         return Ok(true);
     };
     let location: PathBuf = root.join(relative.as_path());
-    let Ok(metadata) = std::fs::symlink_metadata(location.as_path()) else {
-        return Ok(false);
+    let Some(read) = crate::metadata_of_a_path_within_a_ceiling::symlink_metadata_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, location.as_path()) else {
+        // No answer is not "no edit": what the mark hides was not seen, and a form that overwrites it would lose it.
+        return Err(format!(
+            "Git could not read `{}` within {} seconds, so the guard cannot tell whether the edit the index marks assume-unchanged is still there",
+            relative.display(),
+            crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+        ));
+    };
+    let metadata: std::fs::Metadata = match read {
+        Ok(found) => found,
+        // A file the worktree does not hold is no edit of the person's: Git writes that file back.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        // Any other refusal says nothing about the bytes, and a guard must not read it as "no edit".
+        Err(error) => {
+            return Err(format!(
+                "Git could not read `{}`, so the guard cannot tell whether the edit the index marks assume-unchanged is still there: {error}",
+                relative.display()
+            ));
+        }
     };
     let modified: (i64, i64) = modified_of_metadata(&metadata);
     let mode: &str = if is_executable(&metadata) { "100755" } else { "100644" };

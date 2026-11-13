@@ -89,7 +89,25 @@ pub fn set_nested_repositories_aside(
             return Err(stopped(SaveFailure::io(shown, error.to_string()), moved.as_slice()));
         }
         written.insert(parent.to_path_buf());
-        if let Err(error) = std::fs::rename(source.as_path(), destination.as_path()) {
+        // A rename or a sync on a mount whose server stopped answering waits in the kernel with no end,
+        //  so each runs on a thread this process waits for only until the read ceiling.
+        let Some(moved_here) = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, {
+            let from: PathBuf = source.clone();
+            let to: PathBuf = destination.clone();
+            move || return std::fs::rename(from.as_path(), to.as_path())
+        }) else {
+            return Err(stopped(
+                SaveFailure::io(
+                    shown,
+                    format!(
+                        "moving it into the saved copies gave no answer within {} seconds, so the wrapper cannot tell whether it moved: it is at its own place in the worktree, or below the saved copies",
+                        crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+                    ),
+                ),
+                moved.as_slice(),
+            ));
+        };
+        if let Err(error) = moved_here {
             return Err(stopped(SaveFailure::io(shown, describe_rename_failure(error)), moved.as_slice()));
         }
         moved.push(Moved {
@@ -102,13 +120,13 @@ pub fn set_nested_repositories_aside(
     let mut ordered: Vec<&PathBuf> = written.iter().collect();
     ordered.sort_by_key(depth_deepest_first);
     for each in ordered {
-        if let Err(error) = sync_directory(each.as_path()) {
+        if let Err(error) = synced_within_a_ceiling(each.as_path()) {
             return Err(stopped(SaveFailure::io(each.display().to_string(), error.to_string()), moved.as_slice()));
         }
     }
     let discarded: &Path = base.parent().unwrap_or(base.as_path());
     for each in [base.as_path(), discarded] {
-        if let Err(error) = sync_directory(each) {
+        if let Err(error) = synced_within_a_ceiling(each) {
             return Err(stopped(SaveFailure::io(each.display().to_string(), error.to_string()), moved.as_slice()));
         }
     }
@@ -202,11 +220,47 @@ fn stopped(failure: SaveFailure, moved: &[Moved]) -> SaveStopped {
 fn put_back(moved: &[Moved]) -> Vec<SavedCopy> {
     let mut still: Vec<SavedCopy> = Vec::<SavedCopy>::new();
     for each in moved.iter().rev() {
-        if std::fs::rename(each.destination.as_path(), each.source.as_path()).is_err() {
+        let moved_back: Option<std::io::Result<()>> =
+            crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, {
+                let from: PathBuf = each.destination.clone();
+                let to: PathBuf = each.source.clone();
+                move || return std::fs::rename(from.as_path(), to.as_path())
+            });
+        // A move that failed, and a move that gave no answer at the ceiling, both leave the repository
+        //  below the saved copies, where the rejection names it.
+        if !matches!(moved_back, Some(Ok(()))) {
             still.push(each.copy.clone());
         }
     }
     return still;
+}
+
+/// What:
+///  One directory's entries flushed to the disk, for no longer than the read ceiling.
+/// Why:
+///  `sync_directory` opens the directory and syncs it, and a mount whose server stopped answering
+///  waits in the kernel with no end;
+///  a save that cannot prove the copies durable must stop and name the directory rather than hold
+///  the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const synced = workWithin(WORKTREE_LOOKUP_CEILING, () => syncDirectory(directory)) ?? new Error('no answer');
+/// ```
+fn synced_within_a_ceiling(directory: &Path) -> std::io::Result<()> {
+    let named: PathBuf = directory.to_path_buf();
+    let Some(synced) = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+        return sync_directory(named.as_path());
+    }) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!(
+                "flushing it to the disk did not answer within {} seconds",
+                crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+            ),
+        ));
+    };
+    return synced;
 }
 
 /// What:

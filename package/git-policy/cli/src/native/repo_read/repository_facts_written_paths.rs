@@ -54,8 +54,14 @@ use std::path::{Path, PathBuf};
 /// ```
 pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<Vec<u8>>, String> {
     return match written {
-        WrittenPaths::Tree { revision, .. } => tree_paths(facts, revision.as_deref(), &[]),
-        WrittenPaths::MatchingTree { revision, pathspecs } => tree_paths(facts, revision.as_deref(), pathspecs.as_slice()),
+        WrittenPaths::Tree { revision, guesses_a_remote_branch, .. } => {
+            tree_paths(facts, revision.as_deref(), &[], *guesses_a_remote_branch)
+        }
+        WrittenPaths::MatchingTree { revision, pathspecs } => {
+            // A form that names paths writes the tree of the word before them, and Git resolves that word as a
+            //  revision alone: `checkout -f topic -- b.txt` answers `invalid reference: topic` for a remote-only name.
+            tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false)
+        }
         WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice()),
         WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix),
         WrittenPaths::Paths { paths } => Ok(paths.iter().map(|path| return path.as_encoded_bytes().to_vec()).collect()),
@@ -67,7 +73,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
                 Ok(Vec::<Vec<u8>>::new())
             } else {
                 match target {
-                    PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice()),
+                    PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false),
                     PathspecTarget::Index => index_paths(facts, pathspecs.as_slice()),
                 }
             }
@@ -95,6 +101,12 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 /// function pathspecsInTheFile(file, nulSeparated, directory): string[]; // throws
 /// ```
 fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&Path>) -> Result<Vec<OsString>, String> {
+    // Git itself waits for a writer on a FIFO and for a mount that stopped answering
+    //  (`timeout 10 git checkout --pathspec-from-file=<fifo>` was still waiting when the probe ended it,
+    //  measured on this host with native Git 2.56.0, 2026-11-13),
+    //  and the wrapper's own rule is that nothing waits forever, so the read runs on a thread this
+    //  process stops waiting for at the read ceiling.
+    let ceiling: std::time::Duration = crate::wait_ceilings::PATHSPEC_FILE_READ_CEILING;
     // `-` is standard input to Git, which this guard cannot read without consuming what Git needs.
     if file.as_encoded_bytes() == b"-" {
         return Err(String::from(
@@ -116,7 +128,17 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&P
         };
         base.join(named.as_path())
     };
-    let bytes: Vec<u8> = match std::fs::read(absolute.as_path()) {
+    let opened: PathBuf = absolute.clone();
+    let Some(read) = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+        return std::fs::read(opened.as_path());
+    }) else {
+        return Err(format!(
+            "the file `{}` that `--pathspec-from-file` names gave no bytes within {} seconds, so the guard cannot tell which paths this command writes over",
+            absolute.display(),
+            ceiling.as_secs()
+        ));
+    };
+    let bytes: Vec<u8> = match read {
         Ok(read) => read,
         Err(error) => {
             return Err(format!("Git could not read the pathspecs `{}` names: {error}", absolute.display()));
@@ -159,21 +181,33 @@ pub(super) fn path_from_bytes(bytes: &[u8]) -> OsString {
 
 /// What:
 ///  The paths of one revision's tree that the given pathspecs match,
-///  or every path of it when there are none.
+///  or every path of it when there are none,
+///  read from the name the command itself turns into a tree.
+///  `bool` says whether `checkout` and `switch` are free to guess the remote branch a short name
+///  stands for.
 /// Why:
 ///   `git ls-tree -r -z --name-only` prints each path of the tree,
 ///  and Git itself matches the pathspecs,
 ///  so a directory, a glob and a literal name reach exactly what the form reaches.
-///  A revision that does not resolve writes no path;
-///  a query that could not run at all is a failure.
 ///  `-` is the previous branch only to `switch` and `checkout`,
 ///  so it is read as `@{-1}` before the tree is listed.
+///  A name Git cannot turn into a tree is never read as "this form writes nothing":
+///  `git ls-tree topic` fails for a remote-only branch while `git checkout -f topic` writes that
+///  branch's tree,
+///  so the name is resolved the way the command resolves it,
+///  and a tree Git knows but cannot list is a refusal
+///  (`name_git_may_still_reach` says how the two are told apart).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function treePaths(facts, revision: string | undefined, pathspecs: string[]): Promise<Buffer[]>; // throws
+/// function treePaths(facts, revision, pathspecs, guesses): Promise<Buffer[]>; // throws
 /// ```
-fn tree_paths(facts: &mut GitFacts, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+fn tree_paths(
+    facts: &mut GitFacts,
+    revision: Option<&OsStr>,
+    pathspecs: &[OsString],
+    guesses_a_remote_branch: bool,
+) -> Result<Vec<Vec<u8>>, String> {
     // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git resolves
     //  wherever an object name is read; `@{-N}` needs no such reading.
     let named: OsString = match revision {
@@ -183,8 +217,313 @@ fn tree_paths(facts: &mut GitFacts, revision: Option<&OsStr>, pathspecs: &[OsStr
         },
         None => OsString::from("HEAD"),
     };
-    return paths_of_a_named_tree(facts, named.as_os_str(), pathspecs);
+    let Some(paths) = listed_paths_of(facts, named.as_os_str(), pathspecs)? else {
+        return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, guesses_a_remote_branch);
+    };
+    return Ok(paths);
 }
+
+/// What:
+///  The tree of a name `git ls-tree` did not list,
+///  when Git may still reach one through it:
+///  the local branch a `checkout` or a `switch` creates from a remote-tracking branch of that name.
+/// Why:
+///  `git checkout -f topic` with only `refs/remotes/origin/topic` writes that tree over the
+///  worktree
+///  (`Switched to a new branch 'topic'`, measured on this host with native Git 2.56.0,
+///  2026-11-13),
+///  so a guard that read the failed listing as "nothing is written" let the forced form overwrite
+///  an untracked file.
+///  The three answers this reading can give are all safe ones:
+///  the tree's paths, so the entries in the way are found;
+///  no path at all, only when Git itself refuses the name and no branch is there to guess; and
+///  a refusal, when Git knows an object by the name but could not list its tree,
+///  or when the guessed branch's tree could not be listed either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeOfANameGitMayStillReach(facts, 'topic', [], true): Promise<Buffer[]>; // throws
+/// ```
+fn tree_of_a_name_git_may_still_reach(
+    facts: &mut GitFacts,
+    named: &OsStr,
+    pathspecs: &[OsString],
+    guesses_a_remote_branch: bool,
+) -> Result<Vec<Vec<u8>>, String> {
+    if git_holds_an_object_named(facts, named)? {
+        return Err(tree_reading_failure(named, "Git knows an object by that name and did not list its tree"));
+    }
+    // A form that names paths, a reset, and a restore never guess: Git refuses the name itself
+    //  (`invalid reference`, `ambiguous argument`, `could not resolve`), so there is nothing to write.
+    if !guesses_a_remote_branch || !pathspecs.is_empty() || !guessing_is_left_on_in_this_repository(facts)? {
+        return Ok(Vec::<Vec<u8>>::new());
+    }
+    let Some(remote_branch) = remote_branch_a_checkout_would_create_from(facts, named)? else {
+        return Ok(Vec::<Vec<u8>>::new());
+    };
+    return match listed_paths_of(facts, remote_branch.as_os_str(), &[])? {
+        Some(paths) => Ok(paths),
+        None => Err(tree_reading_failure(
+            remote_branch.as_os_str(),
+            "Git named that branch and did not list its tree",
+        )),
+    };
+}
+
+/// What:
+///  The sentence a refusal prints when the guard could not read the tree a form writes,
+///  naming the tree and what Git answered.
+/// Why:
+///  The guard cannot tell which of the person's files the command would write over,
+///  so the command is not run;
+///  the sentence says which name failed, that nothing ran, and that the option runs the command
+///  as real Git runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cause = treeReadingFailure('topic', 'Git knows an object by that name and did not list its tree');
+/// ```
+fn tree_reading_failure(named: &OsStr, what_git_did: &str) -> String {
+    return format!(
+        "the guard could not read the tree `{}` names, so it cannot tell which of your files this command would write over ({what_git_did})",
+        named.to_string_lossy()
+    );
+}
+
+/// What:
+///  The paths `git ls-tree -r -z --name-only` answers for one name and its pathspecs,
+///  or nothing when Git exited nonzero.
+/// Why:
+///  A listing that ran and failed says the name did not resolve to a tree Git can list;
+///  a listing that could not run at all is a failure of the query, never a killed read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function listedPathsOf(facts, 'other', ['b.txt']): Promise<Buffer[] | undefined>;
+/// ```
+fn listed_paths_of(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) -> Result<Option<Vec<Vec<u8>>>, String> {
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
+        arguments.push(OsString::from(token));
+    }
+    arguments.push(named.to_os_string());
+    if !pathspecs.is_empty() {
+        arguments.push(OsString::from("--"));
+        arguments.extend(pathspecs.iter().cloned());
+    }
+    let output: MetadataOutput = facts.query(arguments, "the tree this command writes")?;
+    if !output.success {
+        return Ok(None);
+    }
+    return Ok(Some(nul_separated_paths(output.stdout.as_slice())));
+}
+
+/// What:
+///  Whether Git holds an object the name resolves to,
+///  which tells a name Git does not know from a tree it could not read.
+/// Why:
+///  `git ls-tree` exits nonzero for both,
+///  and the two mean opposite things for a guard:
+///  a name Git does not know is a form Git refuses itself, so nothing is written,
+///  while an object Git knows and cannot list is a read that failed,
+///  and what such a command writes is unknown.
+///  `rev-parse --verify` resolves the name without reading the object,
+///  so it answers for a tree whose bytes are missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const known = (facts, 'topic') => facts.query(['rev-parse', '--verify', '--quiet', '--end-of-options', 'topic']).success;
+/// ```
+fn git_holds_an_object_named(facts: &mut GitFacts, named: &OsStr) -> Result<bool, String> {
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "rev-parse", "--verify", "--quiet", "--end-of-options"] {
+        arguments.push(OsString::from(token));
+    }
+    arguments.push(named.to_os_string());
+    let output: MetadataOutput = facts.query(arguments, "whether Git knows this revision")?;
+    return Ok(output.success);
+}
+
+/// What:
+///  Whether the repository leaves `checkout`'s guess of a remote branch on.
+/// Why:
+///  `checkout.guess=false` makes Git refuse the short name
+///  (`error: pathspec 'topic' did not match any file(s) known to git`),
+///  so the guard must not resolve a branch Git never touches:
+///  a refusal over a name Git rejects is a command refused that Git would not have run.
+///  An unset key, or an empty value, leaves the guess on;
+///  a value Git does not read as a boolean is a configuration error of its own,
+///  so the guard leaves the command to Git (which refuses with its own sentence about the value).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const on = (facts) => { const v = facts.query(['config', '--get', 'checkout.guess']); return !v.success || v.stdout.length === 0 || /^(true|yes|on|1)$/i.test(v.stdout.trim()); };
+/// ```
+fn guessing_is_left_on_in_this_repository(facts: &mut GitFacts) -> Result<bool, String> {
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "config", "--get", "checkout.guess"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput = facts.query(arguments, "the repository's answer on guessing a remote branch")?;
+    if !output.success {
+        // `config --get` exits 1 for a key that is not set, and Git then guesses.
+        //  Any other nonzero is a configuration Git objects to, and Git then refuses the command
+        //  itself, so the guard resolves nothing either.
+        return Ok(output.code == Some(1));
+    }
+    let value: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_ascii_lowercase();
+    if value.is_empty() {
+        return Ok(true);
+    }
+    return Ok(matches!(value.as_str(), "true" | "yes" | "on" | "1"));
+}
+
+/// What:
+///  The remote-tracking ref a `checkout` or a `switch` would create the local branch from,
+///  worked out the way Git works it out
+///  (`unique_tracking_name` in `branch.c`).
+/// Why:
+///  One remote-tracking branch of that name is the branch Git creates;
+///  several are an ambiguity Git refuses
+///  (`hint: Branch name 'topic' appears in multiple remotes`, measured on this host with native Git
+///  2.56.0, 2026-11-13)
+///  unless `checkout.defaultRemote` names one of them,
+///  and then that one is Git's answer.
+///  The remotes are read from Git rather than split from the refname, because a remote's own name
+///  may hold a slash:
+///  with the remote `a/b`, `refs/remotes/a/b/topic` is the branch `topic` Git guesses from
+///  (`Switched to a new branch 'topic'`, measured on this host).
+///  A listing that failed is a failure of the query, never "no branch to guess".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function remoteBranchACheckoutWouldCreateFrom(facts, 'topic'): Promise<string | undefined>;
+/// ```
+fn remote_branch_a_checkout_would_create_from(facts: &mut GitFacts, named: &OsStr) -> Result<Option<OsString>, String> {
+    let remotes: Vec<Vec<u8>> = remote_names(facts)?;
+    if remotes.is_empty() {
+        return Ok(None);
+    }
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "for-each-ref", "--format=%(refname)", "refs/remotes/"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput = facts.query(arguments, "the remote-tracking branches this repository holds")?;
+    if !output.success {
+        return Err(String::from(
+            "Git could not list the remote-tracking branches, so the guard cannot tell what this command would write over",
+        ));
+    }
+    let mut candidates: Vec<(Vec<u8>, Vec<u8>)> = Vec::<(Vec<u8>, Vec<u8>)>::new();
+    for line in output.stdout.split(|byte| return *byte == b'\n') {
+        let Some(short) = line.strip_prefix(b"refs/remotes/") else {
+            continue;
+        };
+        for remote in &remotes {
+            let mut wanted: Vec<u8> = remote.clone();
+            wanted.push(b'/');
+            wanted.extend(named.as_encoded_bytes());
+            if short == wanted.as_slice() {
+                candidates.push((remote.clone(), line.to_vec()));
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return Ok(None);
+    }
+    if candidates.len() == 1 {
+        return Ok(candidates.first().map(|(_, full)| return os_string_of(full.as_slice())));
+    }
+    let Some(default_remote) = configured_remote_to_guess_from(facts)? else {
+        // Git refuses the ambiguous name itself, so the form writes nothing.
+        return Ok(None);
+    };
+    return Ok(candidates
+        .iter()
+        .find(|(remote, _)| return remote.as_slice() == default_remote.as_encoded_bytes())
+        .map(|(_, full)| return os_string_of(full.as_slice())));
+}
+
+/// What:
+///  Every remote this repository has, as Git lists them.
+/// Why:
+///  A remote-tracking refname is `<remote>/<branch>`,
+///  and a remote's own name may hold a slash,
+///  so the split between the two is only knowable from the list of remotes.
+///  A listing that failed is a failure, never "no remote".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remotes = (facts) => facts.query(['remote']).stdout.toString().split('\n').filter(Boolean);
+/// ```
+fn remote_names(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "remote"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput = facts.query(arguments, "the remotes this repository has")?;
+    if !output.success {
+        return Err(String::from(
+            "Git could not list the remotes, so the guard cannot tell what this command would write over",
+        ));
+    }
+    let mut names: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for line in output.stdout.split(|byte| return *byte == b'\n') {
+        if !line.is_empty() {
+            names.push(line.to_vec());
+        }
+    }
+    return Ok(names);
+}
+
+/// What:
+///  The `checkout.defaultRemote` this repository sets,
+///  or nothing when it sets none.
+/// Why:
+///  It decides which remote Git guesses from when several carry the branch,
+///  and a value that does not name one of them leaves Git's own ambiguity refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remote = (facts) => { const v = facts.query(['config', '--get', 'checkout.defaultRemote']); return v.success ? v.stdout.trim() : undefined; };
+/// ```
+fn configured_remote_to_guess_from(facts: &mut GitFacts) -> Result<Option<OsString>, String> {
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "config", "--get", "checkout.defaultRemote"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput = facts.query(arguments, "the remote this repository guesses a branch from")?;
+    if !output.success {
+        return Ok(None);
+    }
+    let trimmed: &[u8] = output.stdout.strip_suffix(b"\n").unwrap_or(output.stdout.as_slice());
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    return Ok(Some(os_string_of(trimmed)));
+}
+
+/// What:
+///  One name as the operating system takes it,
+///  from the bytes Git printed.
+/// Why:
+///  A refname is bytes;
+///  converting through `String` would replace a byte that is not UTF-8 and name another ref.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = (bytes) => bytes; // a Buffer is already the name
+/// ```
+fn os_string_of(bytes: &[u8]) -> OsString {
+    return path_from_bytes(bytes);
+}
+
+/// The names this reading takes from Git's answers,
+/// and the paths they resolve to,
+/// beside real-Git controls of each way a word becomes a tree.
+#[cfg(test)]
+#[path = "repository_facts_written_paths_tests.rs"]
+mod tests;
 
 /// What:
 ///  The paths of every tree a `git read-tree` form names,
@@ -204,7 +543,7 @@ fn tree_paths(facts: &mut GitFacts, revision: Option<&OsStr>, pathspecs: &[OsStr
 fn read_tree_paths(facts: &mut GitFacts, revisions: &[OsString], prefix: Option<&OsStr>) -> Result<Vec<Vec<u8>>, String> {
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for revision in revisions {
-        for path in paths_of_a_named_tree(facts, revision.as_os_str(), &[])? {
+        for path in tree_paths(facts, Some(revision.as_os_str()), &[], false)? {
             paths.push(under_the_prefix(path, prefix));
         }
     }
@@ -230,35 +569,6 @@ fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Vec<u8> {
     let mut shifted: Vec<u8> = named.as_encoded_bytes().to_vec();
     shifted.extend(path);
     return shifted;
-}
-
-/// What:
-///  The paths of one named tree that the given pathspecs match,
-///  or every path of it when there are none,
-///  read with `git ls-tree -r -z --name-only`.
-/// Why:
-///   The name is already resolved to what Git reads,
-///  and a query that could not run at all is a failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function pathsOfANamedTree(facts, 'other', ['b.txt']): Promise<Buffer[]>; // throws
-/// ```
-fn paths_of_a_named_tree(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
-    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
-        arguments.push(OsString::from(token));
-    }
-    arguments.push(named.to_os_string());
-    if !pathspecs.is_empty() {
-        arguments.push(OsString::from("--"));
-        arguments.extend(pathspecs.iter().cloned());
-    }
-    let output: MetadataOutput = facts.query(arguments, "the tree this command writes")?;
-    if !output.success {
-        return Ok(Vec::<Vec<u8>>::new());
-    }
-    return Ok(nul_separated_paths(output.stdout.as_slice()));
 }
 
 /// What:

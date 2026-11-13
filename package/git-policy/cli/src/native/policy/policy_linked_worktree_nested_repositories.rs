@@ -37,7 +37,9 @@ use crate::discarded_nested_repository::set_nested_repositories_aside;
 ///  which nothing else holds.
 use crate::policy_linked_worktree_refused_overwrite::{WrittenOverRequest, entries_a_form_would_write_over};
 /// The refusal that names those entries and the option that runs the command anyway.
-use crate::rule_linked_worktree_refused_overwrite_messages::{Overwritten, overwritten_refusal_message};
+use crate::rule_linked_worktree_refused_overwrite_messages::{
+    Overwritten, overwritten_refusal_message, tree_reading_failed_message,
+};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -322,9 +324,13 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
     }) {
         Ok(found) => found,
         // A listing Git could not read says nothing about what the command writes over, so it stops the command.
-        Err(message) => {
+        //  The sentence names what could not be read and prints the command the opt-out runs.
+        Err(cause) => {
             record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, form.dirty);
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+            return rejected(
+                LINKED_WORKTREE_REQUIRED_CODE,
+                tree_reading_failed_message(form.command, form.region, cause.as_str()),
+            );
         }
     };
     if !in_the_way.is_empty() {

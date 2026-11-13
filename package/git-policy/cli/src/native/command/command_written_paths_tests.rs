@@ -25,20 +25,24 @@ fn words(values: &[&str]) -> Vec<OsString> {
 }
 
 /// The whole tree of a named revision,
-/// with every entry at its paths written over.
-fn tree(revision: Option<&str>) -> Option<WrittenPaths> {
+/// with every entry at its paths written over,
+/// and no guess of a remote branch unless `guesses` says `checkout` or `switch` makes one.
+fn tree(revision: Option<&str>, guesses: bool) -> Option<WrittenPaths> {
     return Some(WrittenPaths::Tree {
         revision: revision.map(OsString::from),
         entries: WrittenEntries::EveryEntry,
+        guesses_a_remote_branch: guesses,
     });
 }
 
 /// The whole tree of a named revision,
-/// with only the entries the ignore rules cover written over.
+/// with only the entries the ignore rules cover written over;
+/// a reset never guesses a remote branch.
 fn tree_of_ignored_entries(revision: Option<&str>) -> Option<WrittenPaths> {
     return Some(WrittenPaths::Tree {
         revision: revision.map(OsString::from),
         entries: WrittenEntries::OnlyIgnored,
+        guesses_a_remote_branch: false,
     });
 }
 
@@ -102,9 +106,9 @@ fn a_read_tree_writes_the_trees_it_names_below_its_prefix() {
 #[test]
 fn a_reset_writes_the_tree_it_names() {
     for (values, expected) in [
-        (vec!["--hard"], tree(None)),
-        (vec!["--hard", "other"], tree(Some("other"))),
-        (vec!["other", "--hard"], tree(Some("other"))),
+        (vec!["--hard"], tree(None, false)),
+        (vec!["--hard", "other"], tree(Some("other"), false)),
+        (vec!["other", "--hard"], tree(Some("other"), false)),
         (vec!["--merge", "other"], tree_of_ignored_entries(Some("other"))),
         (vec!["--keep", "other"], tree_of_ignored_entries(Some("other"))),
         (vec!["--soft", "other"], None),
@@ -123,8 +127,8 @@ fn a_reset_writes_the_tree_it_names() {
 #[test]
 fn a_checkout_writes_what_its_own_words_name() {
     for (values, expected) in [
-        (vec!["--force"], tree(None)),
-        (vec!["--force", "other"], tree(Some("other"))),
+        (vec!["--force"], tree(None, true)),
+        (vec!["--force", "other"], tree(Some("other"), true)),
         (vec!["other", "--", "b.txt"], matching(Some("other"), &["b.txt"])),
         (vec!["--", "b.txt"], matching(None, &["b.txt"])),
         (vec!["other", "--", "--force"], matching(Some("other"), &["--force"])),
@@ -144,9 +148,9 @@ fn a_checkout_writes_what_its_own_words_name() {
 #[test]
 fn a_forced_switch_writes_the_whole_tree() {
     for (values, expected) in [
-        (vec!["--force", "other"], tree(Some("other"))),
-        (vec!["--discard-changes", "other"], tree(Some("other"))),
-        (vec!["--force"], tree(None)),
+        (vec!["--force", "other"], tree(Some("other"), true)),
+        (vec!["--discard-changes", "other"], tree(Some("other"), true)),
+        (vec!["--force"], tree(None, true)),
     ] {
         assert_eq!(
             written_paths(GuardedCommand::SwitchForce, words(values.as_slice()).as_slice(), None),
@@ -309,7 +313,7 @@ fn a_pathspec_file_is_read_in_every_spelling() {
         (
             GuardedCommand::CheckoutPaths,
             vec!["--force", "other"],
-            tree(Some("other")),
+            tree(Some("other"), true),
         ),
     ];
     for (command, values, expected) in cases {

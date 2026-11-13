@@ -30,7 +30,10 @@
 //! // every form x every kind of file in the way: refused, then the opt-out beside real Git
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, porcelain, remove, repository, run_direct, run_wrapped, stderr_of};
+use super::support::{
+    Fixture, Observed, bounded_for, fixture, git, observe, porcelain, remove, repository, run_direct, run_wrapped, stderr_of,
+    wrapper_first_path,
+};
 use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -926,6 +929,236 @@ fn a_name_that_is_not_utf8_is_found_and_refused() {
         stderr_of(&observed)
     );
     assert!(stderr_of(&observed).contains("b"), "the refusal names the file: {}", stderr_of(&observed));
+    remove(&fixture);
+}
+
+//endregion
+
+//region The review's two defects
+
+/// The bound this region gives one wrapped command:
+/// four times the five-second ceiling the pathspec read answers at, so a wrapper that never answers
+/// fails the control rather than holding the test.
+const COMMAND_BOUND_SECONDS: &str = "30";
+
+/// What:
+///  A linked worktree of a clone that has a branch only on the remote,
+///  with the person's untracked file where that branch's tree writes.
+///  `remote` names the remote the clone has.
+/// Why:
+///  `git ls-tree topic` fails for such a branch while `git checkout -f topic` creates the local
+///  branch from `origin/topic` and writes its tree
+///  (measured on this host with native Git 2.56.0, 2026-11-13),
+///  which is the state the guard read as "nothing is written".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { fixture, repo, linked } = cloneWithARemoteOnlyBranch('d-review-remote', 'origin');
+/// ```
+fn clone_with_a_remote_only_branch(name: &str, remote: &str) -> (Fixture, PathBuf, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let source: PathBuf = repository(&fixture, OsStr::new("source"));
+    std::fs::write(source.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(&fixture, source.as_path(), &["add", "--", "tracked.txt"]);
+    git(&fixture, source.as_path(), &["commit", "--quiet", "--message=main"]);
+    git(&fixture, source.as_path(), &["checkout", "--quiet", "-b", "topic"]);
+    std::fs::write(source.join("b.txt"), b"from the topic tree\n").expect("the topic's file");
+    git(&fixture, source.as_path(), &["add", "--", "b.txt"]);
+    git(&fixture, source.as_path(), &["commit", "--quiet", "--message=topic"]);
+    git(&fixture, source.as_path(), &["checkout", "--quiet", "main"]);
+    let repo: PathBuf = fixture.root.join("repo");
+    git(&fixture, fixture.root.as_path(), &[OsStr::new("clone"), OsStr::new("--quiet"), source.as_os_str(), repo.as_os_str()]);
+    if remote != "origin" {
+        git(&fixture, repo.as_path(), &["remote", "rename", "origin", remote]);
+        git(&fixture, repo.as_path(), &["fetch", "--quiet", remote]);
+    }
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("b.txt"), PRECIOUS).expect("the person's file");
+    return (fixture, repo, linked);
+}
+
+/// What:
+///  A forced `checkout` or `switch` whose tree Git reaches only by guessing a remote branch is
+///  refused with the file named,
+///  and the opt-out runs the command as real Git runs it.
+/// Why:
+///  `git checkout --no-enforce-worktree-branch -f topic` was allowed and wrote over the untracked
+///  `b.txt`, because `git ls-tree topic` fails and the guard read the failure as "nothing is
+///  written";
+///  the branch rule's opt-out is not what let it through, which the resolvable `origin/topic` row
+///  shows by being refused with the same opt-out absent.
+#[test]
+fn a_forced_form_over_a_remote_only_branch_is_refused_and_the_opt_out_runs_it() {
+    // Each row is the command as typed, and the same command as real Git runs it:
+    //  the branch rule's opt-out is the wrapper's alone, so Git never sees it.
+    for (index, typed, as_git_runs_it) in [
+        (
+            1,
+            vec!["checkout", "--no-enforce-worktree-branch", "-f", "topic"],
+            vec!["checkout", "-f", "topic"],
+        ),
+        (
+            2,
+            vec!["switch", "--no-enforce-worktree-branch", "--discard-changes", "topic"],
+            vec!["switch", "--discard-changes", "topic"],
+        ),
+        (
+            3,
+            vec!["checkout", "--no-enforce-worktree-branch", "-f", "origin/topic"],
+            vec!["checkout", "-f", "origin/topic"],
+        ),
+    ] {
+        let label: String = format!("discard-remote-only-branch-{index}");
+        let (fixture, repo, linked): (Fixture, PathBuf, PathBuf) = clone_with_a_remote_only_branch(label.as_str(), "origin");
+        let before: Vec<String> = worktree_state(linked.as_path());
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), typed.as_slice());
+        assert!(refused_by_the_guard(&observed), "{typed:?} was not refused: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("b.txt"), "{typed:?}: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS), "{typed:?} lost the file");
+        assert_eq!(worktree_state(linked.as_path()), before, "{typed:?} wrote something before refusing");
+        assert!(saved_files(repo.as_path()).is_empty(), "{typed:?} kept a copy");
+        // The opt-out runs the form and leaves what real Git leaves.
+        let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+            clone_with_a_remote_only_branch(format!("{label}-hatch").as_str(), "origin");
+        let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), typed.as_slice());
+        let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+            clone_with_a_remote_only_branch(format!("{label}-direct").as_str(), "origin");
+        let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), as_git_runs_it.as_slice());
+        assert_eq!(
+            state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+            state_after(&direct_fixture, direct_linked.as_path(), &direct),
+            "{typed:?} under the opt-out differs from real Git: {}",
+            stderr_of(&passed)
+        );
+        remove(&direct_fixture);
+        remove(&hatch_fixture);
+        remove(&fixture);
+    }
+}
+
+/// What:
+///  The ways a word becomes a tree, each through the built wrapper:
+///  a remote whose name holds a slash and `checkout.defaultRemote` are refused (Git would write the
+///  tree),
+///  and a word Git itself refuses is left to Git and loses nothing.
+/// Why:
+///  The guess the guard makes must be the guess Git makes.
+///  A repository with two remotes carrying the branch is an ambiguity Git refuses
+///  (`hint: Branch name 'topic' appears in multiple remotes`),
+///  `--no-guess` and `checkout.guess=false` make Git refuse the short name,
+///  and an unknown word is Git's own error;
+///  in each the guard must not refuse a command Git would not have run.
+#[test]
+fn the_guess_the_guard_makes_is_the_guess_git_makes() {
+    // A remote whose own name holds a slash: Git guesses the branch from it.
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = clone_with_a_remote_only_branch("discard-slashed-remote", "a/b");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["checkout", "--no-enforce-worktree-branch", "-f", "topic"]);
+    assert!(refused_by_the_guard(&observed), "a slashed remote was not read: {}", stderr_of(&observed));
+    assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS));
+    remove(&fixture);
+
+    // Two remotes carrying the branch: Git refuses, and the guard leaves the command to Git.
+    let (two, two_repo, two_linked): (Fixture, PathBuf, PathBuf) = clone_with_a_remote_only_branch("discard-two-remotes", "origin");
+    // The source repository is the one that holds the branch, so the second remote carries it too.
+    let source: PathBuf = two.root.join("source");
+    git(&two, two_repo.as_path(), &[OsStr::new("remote"), OsStr::new("add"), OsStr::new("second"), source.as_os_str()]);
+    git(&two, two_repo.as_path(), &["fetch", "--quiet", "second"]);
+    let ambiguous: Observed = run_wrapped(&two, two_linked.as_path(), &["checkout", "--no-enforce-worktree-branch", "-f", "topic"]);
+    assert!(!refused_by_the_guard(&ambiguous), "Git refuses the ambiguous name itself: {}", stderr_of(&ambiguous));
+    assert!(stderr_of(&ambiguous).contains("multiple remotes"), "{}", stderr_of(&ambiguous));
+    assert!(still_where_it_was(two_linked.as_path(), "b.txt", PRECIOUS));
+    // `checkout.defaultRemote` names the one Git then writes, so the guard refuses over its tree.
+    git(&two, two_repo.as_path(), &["config", "checkout.defaultRemote", "second"]);
+    let chosen: Observed = run_wrapped(&two, two_linked.as_path(), &["checkout", "--no-enforce-worktree-branch", "-f", "topic"]);
+    assert!(refused_by_the_guard(&chosen), "the default remote was not read: {}", stderr_of(&chosen));
+    assert!(still_where_it_was(two_linked.as_path(), "b.txt", PRECIOUS));
+    remove(&two);
+
+    // The switches that turn the guess off, and a word no branch matches: Git refuses each.
+    for (index, arguments) in [
+        (1, vec!["checkout", "--no-enforce-worktree-branch", "--no-guess", "-f", "topic"]),
+        (2, vec!["checkout", "--no-enforce-worktree-branch", "-f", "nosuchbranch"]),
+    ] {
+        let label: String = format!("discard-guess-off-{index}");
+        let (off, _off_repo, off_linked): (Fixture, PathBuf, PathBuf) = clone_with_a_remote_only_branch(label.as_str(), "origin");
+        if index == 1 {
+            // The same word with the guess on is refused, so the row's own control is the switch.
+            let on: Observed = run_wrapped(&off, off_linked.as_path(), &["checkout", "--no-enforce-worktree-branch", "-f", "topic"]);
+            assert!(refused_by_the_guard(&on), "{}", stderr_of(&on));
+        }
+        let observed: Observed = run_wrapped(&off, off_linked.as_path(), arguments.as_slice());
+        assert!(!refused_by_the_guard(&observed), "{arguments:?} was refused where Git refuses the name: {}", stderr_of(&observed));
+        assert!(still_where_it_was(off_linked.as_path(), "b.txt", PRECIOUS));
+        remove(&off);
+    }
+}
+
+/// What:
+///  A tree Git knows and cannot list is a refusal of the guard,
+///  never a form that writes nothing.
+/// Why:
+///  The review's cause was one swallow: a failing probe read as "nothing to guard".
+///  A transient failed read of an object answers the same way as a name that never resolved,
+///  so the guard tells them apart and refuses the first.
+#[test]
+fn a_tree_git_cannot_list_is_refused_rather_than_read_as_nothing() {
+    let (fixture, repo, linked): (Fixture, PathBuf, PathBuf) = clone_with_a_remote_only_branch("discard-unreadable-tree", "origin");
+    let tree: String = String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["rev-parse", "origin/topic^{tree}"]).stdout).trim().to_owned();
+    std::fs::remove_file(repo.join(".git").join("objects").join(&tree[..2]).join(&tree[2..])).expect("the tree object");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["checkout", "--no-enforce-worktree-branch", "-f", "origin/topic"]);
+    assert!(refused_by_the_guard(&observed), "{}", stderr_of(&observed));
+    assert!(
+        stderr_of(&observed).contains("could not read the tree"),
+        "the refusal says what it could not read: {}",
+        stderr_of(&observed)
+    );
+    assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS));
+    remove(&fixture);
+}
+
+/// What:
+///  A `--pathspec-from-file` that never yields bytes is refused at the ceiling,
+///  where the wrapper used to wait until something killed it.
+/// Why:
+///  Git itself waits with no end for such a file
+///  (`timeout 10 git checkout --pathspec-from-file=<fifo>` was still waiting when the probe ended
+///  it, measured on this host with native Git 2.56.0, 2026-11-13),
+///  and the wrapper's rule is that nothing waits forever.
+///  A regular file is the control that the read itself is unchanged.
+#[test]
+fn a_pathspec_file_that_never_yields_bytes_is_refused_at_its_ceiling() {
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = tracked_pair("discard-pathspec-fifo");
+    let regular: PathBuf = fixture.root.join("specs.txt");
+    std::fs::write(regular.as_path(), b"a.txt\n").expect("the regular list");
+    let prompt: Observed = run_wrapped(&fixture, linked.as_path(), &["checkout", "--pathspec-from-file", regular.to_str().expect("utf-8 path")]);
+    assert_eq!(prompt.code, Some(0), "the control needs a regular file to be read at once: {}", stderr_of(&prompt));
+
+    let fifo: PathBuf = fixture.root.join("specs.fifo");
+    let made = std::process::Command::new("/usr/bin/mkfifo").arg(&fifo).status().expect("mkfifo runs");
+    assert!(made.success(), "the fixture needs a FIFO");
+    // The command's own bound is shorter than the harness backstop, so a wrapper that never answers
+    //  fails this control in half a minute instead of holding the test.
+    let mut command: std::process::Command = bounded_for(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(&fixture).as_os_str(),
+        COMMAND_BOUND_SECONDS,
+    );
+    command.current_dir(linked.as_path()).args(["checkout", "--pathspec-from-file", fifo.to_str().expect("utf-8 path")]);
+    let began: std::time::Instant = std::time::Instant::now();
+    let observed: Observed = observe(&mut command, b"");
+    let waited: std::time::Duration = began.elapsed();
+    assert!(refused_by_the_guard(&observed), "{}", stderr_of(&observed));
+    assert!(
+        stderr_of(&observed).contains("gave no bytes within"),
+        "the refusal says the file did not answer: {}",
+        stderr_of(&observed)
+    );
+    assert!(
+        waited < std::time::Duration::from_secs(120),
+        "the wait ended only at the harness bound, {waited:?}, not at the read ceiling"
+    );
     remove(&fixture);
 }
 

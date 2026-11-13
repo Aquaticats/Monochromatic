@@ -220,6 +220,10 @@ pub mod collected_elements_looked_at;
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;
 
+/// One path's own metadata, read for no longer than a ceiling,
+/// so a lookup on a mount whose server stopped answering cannot hold a command.
+pub mod metadata_of_a_path_within_a_ceiling;
+
 /// The process's own standard error descriptor,
 /// written without the lock the standard library's shared handle takes.
 pub mod standard_error_descriptor;

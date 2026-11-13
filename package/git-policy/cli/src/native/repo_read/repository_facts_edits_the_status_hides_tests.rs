@@ -15,11 +15,12 @@
 //! //   === [{ mode: '100644', object: '<sha>', path: 'a.txt', size: 2, modified: [1, 2] }]
 //! ```
 
-use super::{after_stat_lines, edits_the_status_hides, entry_of, is_marked, parse_marked_entries};
+use super::{MarkedEntry, after_stat_lines, differs_from_the_index, edits_the_status_hides, entry_of, is_marked, parse_marked_entries};
 use crate::command_test_support::{git, repository_with_tracked_file};
 use crate::repo_read::repository_facts::{GitFacts, git_facts};
 use crate::test_support::{REAL_GIT, isolated_overlay, remove};
 use std::ffi::OsString;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 /// A provider for real Git after `-C <repository>`,
@@ -145,5 +146,51 @@ fn a_marked_edit_is_named_and_an_unmarked_one_is_not() {
         edits_the_status_hides(&mut touched_facts, repository.as_path(), false),
         Ok(Vec::<String>::new())
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A metadata lookup that fails for a reason other than "it is not there" is a failure of the
+///  reading,
+///  never "this marked path is unedited".
+/// Why:
+///  The two answers mean opposite things for the guard:
+///  a marked path the worktree does not hold is no edit of the person's,
+///  because Git writes that file back,
+///  while a lookup the file system refused says nothing at all,
+///  and a discarding form would overwrite an edit nobody saw.
+///  Here the directory that holds the marked path cannot be searched,
+///  which is a refusal a stalled mount and a broken permission both look like.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const differs = differsFromTheIndex(facts, root, { path: 'locked/a.txt', ... }); // throws
+/// ```
+#[test]
+fn a_lookup_that_fails_for_another_reason_is_a_failure_and_not_an_unchanged_path() {
+    let (root, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-edits-lookup-refused");
+    let locked: PathBuf = repository.join("locked");
+    std::fs::create_dir(locked.as_path()).expect("the directory");
+    std::fs::write(locked.join("a.txt"), b"the person's edit\n").expect("the edit");
+    let entry: MarkedEntry = MarkedEntry {
+        mode: String::from("100644"),
+        object: String::from("1111111111111111111111111111111111111111"),
+        path: Vec::from(b"locked/a.txt".as_slice()),
+        size: 17,
+        modified: (0, 0),
+    };
+    let mut facts: GitFacts = facts_in(repository.as_path());
+    // The same entry with the directory readable is read: the failure below is the refusal, not the shape.
+    assert!(matches!(differs_from_the_index(&mut facts, repository.as_path(), &entry), Ok(true)));
+    let mut refused_permissions = std::fs::Permissions::from_mode(0o000);
+    std::fs::set_permissions(locked.as_path(), refused_permissions.clone()).expect("the directory is made unsearchable");
+    let mut refused_facts: GitFacts = facts_in(repository.as_path());
+    let answer: Result<bool, String> = differs_from_the_index(&mut refused_facts, repository.as_path(), &entry);
+    refused_permissions = std::fs::Permissions::from_mode(0o700);
+    std::fs::set_permissions(locked.as_path(), refused_permissions).expect("the directory is readable again");
+    match answer {
+        Err(cause) => assert!(cause.contains("cannot tell whether the edit"), "{cause}"),
+        Ok(unchanged) => panic!("a refused lookup was read as an unchanged path: {unchanged}"),
+    }
     remove(root.as_path());
 }

@@ -161,6 +161,33 @@ pub fn overwritten_refusal_message(overwritten: Overwritten<'_>) -> String {
     );
 }
 
+/// What:
+///  The refusal of a form whose written paths the guard could not read,
+///  naming what could not be read and the command that runs it anyway.
+///  `&str` borrows the cause,
+///  which names the tree and what Git did.
+/// Why:
+///  A guard that cannot read what a command would write must not read the failure as
+///  "nothing is written":
+///  a remote-only branch, a tree whose object is unreadable and a transient failed read all
+///  answer with a failed listing,
+///  and one of them was the loss this reading exists to prevent.
+///  The person reads which name failed, that nothing ran and that the option runs the command as
+///  real Git runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// treeReadingFailedMessage('checkout', ['-f', 'topic'], 'the guard could not read the tree `topic` names ...');
+/// ```
+pub fn tree_reading_failed_message(command: GuardedCommand, region: &[OsString], cause: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git {} is rejected because {cause}. Nothing in your worktree was changed. If \
+         you have decided to run it anyway, run `{}`, and the command runs exactly as real Git runs it.",
+        subcommand(command),
+        hatch_command(command, region),
+    );
+}
+
 /// The refusal's words.
 #[cfg(test)]
 #[path = "rule_linked_worktree_refused_overwrite_messages_tests.rs"]

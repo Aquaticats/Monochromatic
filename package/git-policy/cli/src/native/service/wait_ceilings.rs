@@ -1062,6 +1062,57 @@ pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
 ///  slowest of them.
 pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
 
+/// What:
+///  The longest the guard waits for the bytes of the file a `--pathspec-from-file` names.
+/// Why:
+///  Git itself waits with no end for such a file:
+///  a FIFO nobody writes to held `git checkout --pathspec-from-file=<fifo>` until the probe's own
+///  ten-second bound ended it,
+///  measured on this host with native Git 2.56.0,
+///  2026-11-13,
+///  and the owner's rule is "nothing should ever wait forever or indefinitely",
+///  so the wrapper reads on a thread of its own and stops waiting here.
+///  A file is read in microseconds:
+///  reading a list of 20,000 paths took 0.128 ms at the median and 1.475 ms at the slowest of 200
+///  reads on this host,
+///  2026-11-13,
+///  load average 12 to 15,
+///  so five seconds is about 3,400 times the slowest of them,
+///  and long enough for a pipe a person feeds by hand,
+///  which is the one way such a file is not a file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PATHSPEC_FILE_READ_CEILING = 5_000;
+/// ```
+pub const PATHSPEC_FILE_READ_CEILING: Duration = Duration::from_secs(5);
+
+/// What:
+///  The longest the guard waits for one worktree lookup or one move of a saved repository:
+///  a metadata lookup,
+///  a rename,
+///  or a directory's flush to the disk.
+/// Why:
+///  Each waits in the kernel with no end on a mount whose server stopped answering,
+///  and each is read before a command runs or while a repository is moved aside,
+///  so none may hold the command.
+///  Measured on this host,
+///  2026-11-13,
+///  load average 12 to 15:
+///  a metadata lookup took 0.00575 ms at the median and 0.109 ms at the slowest of 2,000,
+///  a rename 0.028 ms at the median and 0.098 ms at the slowest of 200,
+///  and a directory's `fsync` 0.001 ms at the median and 69.6 ms at the slowest of 40;
+///  the package has recorded one `fsync` of bookkeeping at 11,239 ms under load
+///  (`ADD_STANDING_NOTICE_AFTER`).
+///  Sixty seconds is about five times that slowest flush and about 550,000 times the slowest
+///  metadata lookup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const WORKTREE_LOOKUP_CEILING = 60_000;
+/// ```
+pub const WORKTREE_LOOKUP_CEILING: Duration = Duration::from_secs(60);
+
 /// The longest a `git worktree add` waits for the snapshot the commit service makes ahead of it.
 ///  The ceiling covers the whole wait,
 /// not one look:
