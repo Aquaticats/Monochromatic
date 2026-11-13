@@ -670,6 +670,36 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The commit-is-made branch passed its second review, the first branch of the day ready for a pass; two more resumes finished (2026-11-13T13:40:41-05:00)
+
+Not complete: no pass is started; two branches wait for review.
+Read from each run's own report by the coordinating session; nothing here was run again by it.
+
+- **Second review of `commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`** (`c9758832c4...159fa32a47`): no defect.
+  It built the change and ran its controls (ten of ten, and the seventy-eight of the landing, built and objects modules),
+  reproduced the Git behaviour the new check rests on, and traced and dismissed five candidates with file and line.
+  Two things it notes as older than the change and outside it: the held batch's line can promise too much if the branch moved, and a marks file can outlive a failed attempt that is not tried again.
+  Its run is marked `driver-failed` by issue 6295 after the review was written.
+  **The branch at `159fa32a47` is reviewed and ready for the next integration pass**
+  (file `~/temp/agent/change-reviews/git-policy-cli-commit-is-made-fixes-after-its-first-review/review.md`).
+- **`push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch`** finished, tip `98de70959d`.
+  By its report a typed push of a branch other than the one checked out is merged as that branch and named so, and only that branch moves;
+  it reproduced, before the change, a case where `main` and its worktree were moved by a push of another branch (the branch pushed to another name while `main` stood at the pushed tip).
+  A branch checked out in another worktree follows only when that worktree's work survives.
+  Twelve controls through the built wrapper; fit to merge by its report.
+  Its review is first in the queue.
+- **`removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`** finished, tip `408f5808f6`.
+  By its report a removal is refused while a process has its working folder, its executable or an open file inside the worktree
+  (a scan that reaches its ceiling refuses too), and each removal that deleted ignored entries writes one line to
+  `monochromatic-git-policy-cli-worktree-deletions.jsonl` in the common Git directory.
+  A clean removal costs about 60 ms more (one Git start for the listing: 17 ms before, about 80 ms after).
+  Fit to merge by its report; it overlaps three files the landed-removal work also rewrites.
+  Its review is second in the queue.
+- **The next integration pass** is started when the reviews of the snapshot, guards-refuse and push-stops branches (going since 13:13 to 13:22) have ended,
+  with every branch that is reviewed clean by then.
+  It is not started now for one branch because a pass takes a place for more than an hour and a release, and would be followed at once by another.
+- The reviews of `removal-goes-around` and `abort-and-skip`, and the review of the start gate's one fix, started between 13:39:14 and 13:40:02.
+
 #### The start gate's author answered its second review; the removal that goes around a foreign volume finished (2026-11-13T13:36:42-05:00)
 
 Not complete: both wait for a review.
