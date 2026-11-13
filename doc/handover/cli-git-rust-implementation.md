@@ -685,6 +685,29 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Sixteen agents are going and three passes wait for a place; the level's hour is being probed; kept-references passed its review (2026-11-13T16:11:09-05:00)
+
+Not complete, and written by the coordinating session: the passes that carry the jam fix, the file-mode fix and the kept-references change have not started.
+
+- **The level binds.** At 16:10:34 sixteen agents were going, the level, and the queue held fifteen entries with passes 21 and 22 at its head, waiting since 16:04.
+  One place freed at 16:05:37 and went, at 16:07:34, to a review that the rate limit had ended and the filling unit put back ahead of the passes.
+  The put-back now goes behind any integration pass at the head of the queue. No run was stopped to make room: the level only says when not to start one more.
+- **The level's hour.** A probe of both drives every minute for an hour started at 16:11 with sixteen going
+  (unit `disk-ceiling-probe-level-16-with-sixteen-going-20261113T1611`); the readings on record at this level were taken with eight to sixteen going.
+  If the hour shows no symptom by the criterion in `doc/handover/agents-at-once-on-this-machine.md`, the level goes to thirty-two, and the queue holds the work to fill it.
+- **Kept references pruned by size and age** (tip `e5e75025ed`): its review went on from its session after the rate limit ended it three times and finished at 16:05:37.
+  It built the branch and ran three probes on disposable repositories (the rules, two passes at once, a kill at the listing), all passing, and found no defect;
+  it did not run the container gate or the control of the path through the service, and says so. It is **integration pass 23**, alone, queued behind 21 and 22;
+  its brief asks the pass to run the service-path control the review left out.
+- **The waiter was replaced.** The script that waited on units listed only units going at its first look, so a run that started and ended after that look was never listed
+  (the jam fix's review, read fifteen minutes late). `wait-until-a-pi-run-has-ended-by-its-summary-file.ts` waits on summaries written since a stated time, and its first use listed both endings of 16:05 to 16:07.
+- **What takes the build volume is still not known.** A walk of `/var/mnt/encrypted/cargo-build` with `du` (15:30 to before 16:11, disk weight 1) read 260 entries,
+  231 of them changed today, and a sum of 8,849,675 MiB, which is several times what the volume holds:
+  `du` counts a block once for every file that shares it, and the build folders share blocks by copy-on-write
+  (the entry `toolchain` alone reads 2,692,869 MiB). So that walk cannot say what takes room.
+  The measure that can is `btrfs filesystem du --summarize`, which gives the blocks an entry holds alone; it is a heavy walk and waits for the probe's hour to end, about 17:11.
+  The listing is kept: `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/`.
+
 #### The jam fix and the file-mode fix passed their reviews; passes 21 and 22 are queued, one branch each (2026-11-13T16:04:15-05:00)
 
 Not complete, and written by the coordinating session from the reviews' own reports: no pass has merged anything yet, and nothing is released.
