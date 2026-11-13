@@ -15,7 +15,17 @@ and rechecked by this session on 2026-11-13,
 as recorded under "Prototypes for the two further copies":
 the one for `multiple()`'s state holds up and is kept as a second patch,
 and the one for the token buffer slows other input and is not kept.
-No person and no model from another vendor has reviewed that section or the second patch.
+A model from another vendor reviewed that section and the second patch as of commit `758946f3e1`,
+and its findings were folded in.
+What changed after that is not reviewed:
+the fix it asked for,
+the timing on Node and Bun,
+and the timing rewritten as ratios,
+first in that section and then,
+on the owner's choice of 2026-11-13,
+through the whole document,
+where absolute times now stand only as scale.
+No person has reviewed any of it.
 
 Status,
 2026-11-13:
@@ -42,20 +52,15 @@ Nothing fails.
 A parse that succeeds takes longer than the token count explains.
 With one option parser and a run of positional tokens,
 on 1.3.6 and Node 26.13.1,
-the median of five parses was:
-
-- 500 tokens:
-   7.7 ms
-- 1,000 tokens:
-   24.5 ms
-- 2,000 tokens:
-   84.2 ms
-- 4,000 tokens:
-   310.6 ms
-- 8,000 tokens:
-   1,331.9 ms
-
+each doubling of the tokens from 500 to 8,000 multiplied the median time of five parses,
+within one run,
+by 3.2,
+3.4,
+3.7 and 4.3,
+where a cost proportional to the tokens would give 2 each time and their square 4.
 Sixteen times the tokens cost 173 times as long.
+For scale only,
+that run took 7.7 ms at 500 tokens and 1.3 s at 8,000.
 A straight-line fit of the logarithms gives an exponent of 1.85,
 where 1 is linear and 2 is quadratic.
 
@@ -154,20 +159,10 @@ With the prototype under "Upstream filing artifact",
 the exponent over 500 to 8,000 tokens falls to between 1.18 and 1.27,
 not to 1,
 and above that it rises again.
-The patched build on Node 26.13.1,
-median of five parses:
-
-- 2,000 tokens:
-   22.5 ms
-- 4,000 tokens:
-   49.2 ms
-- 8,000 tokens:
-   144.3 ms
-- 16,000 tokens:
-   777.8 ms
-- 32,000 tokens:
-   5,702.5 ms,
-   from a second run in which 16,000 tokens took 823.5 ms
+On the patched build on Node 26.13.1,
+each doubling from 2,000 to 16,000 tokens multiplied the median of five parses by 2.2,
+2.9 and 5.4,
+and in a second run the step from 16,000 to 32,000 multiplied it by 6.9.
 
 Two more places copy an array that grows with the token count,
 once per token,
@@ -206,10 +201,8 @@ self time under the parse:
    the function in `primitives.js` that holds the `argument()` excerpt 19.1%,
    the trie 0.9%.
 
-The unpatched build at the same sizes,
-median of three parses:
-16,000 tokens 6,687.4 ms and 32,000 tokens 29,164.0 ms,
-with `set` in `input-trace.js` at 92.7% of the parse.
+In a profile of the unpatched build at the same sizes,
+`set` in `input-trace.js` is 92.7% of the parse.
 So the trace copy is by far the largest of the three at every size measured,
 the prototype removes that one only,
 and what is left at the larger sizes is mostly the other two,
@@ -219,7 +212,11 @@ At 4,000 to 8,000 the same two functions are 14.6% and 13.3% of the patched pars
 and the two files they sit in are 54.7%;
 the profile does not separate the copies from the other work in those functions,
 so it gives no closer figure for the copies' own share at those sizes.
-The patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
+Run against the unpatched build in the same rounds,
+five of them with the order rotated,
+the patched build took 0.12 times as long at 16,000 tokens on Node (0.11 to 0.13)
+and 0.25 times on Bun (0.20 to 0.32);
+on Deno the unpatched one took 6.0 times as long at 16,000 (5.4 to 6.9) and 4.4 times at 32,000 (4.0 to 5.2).
 The prototype's author,
 an AI agent,
 had attributed the remainder to the buffer copy alone;
@@ -331,24 +328,22 @@ Fitted exponent,
 
 The older release lines on Node,
 five rounds with the order rotated,
-lowest and highest fitted exponent,
-then lowest and highest median for 8,000 tokens:
+lowest and highest fitted exponent:
 
 - 1.0.15:
-   1.85 to 1.92;
-   1,319 to 1,358 ms
+   1.85 to 1.92
 - 1.1.13:
-   1.85 to 1.93;
-   1,324 to 1,403 ms
+   1.85 to 1.93
 - 1.2.13:
-   1.82 to 1.92;
-   1,318 to 1,385 ms
+   1.82 to 1.92
 - 1.3.6,
    in the same rounds:
-   1.84 to 1.90;
-   1,298 to 1,395 ms
+   1.84 to 1.90
 
 The four overlap throughout,
+and so do their medians at 8,000 tokens in those rounds
+(for scale only,
+1.3 to 1.4 s each),
 so the cost is the same on every release line from 1.0 to 1.3.
 
 On GitHub's runners,
@@ -366,18 +361,17 @@ so the trace copy was about a quarter of that parse.
 
 ### Inputs that stay fast
 
-Five hundred tokens took 7.7 ms on Node and 1.3.6,
-and fewer take less;
-the cost per token at that size is about a tenth of the cost per token at 8,000.
+Five hundred tokens or fewer.
+On Node and 1.3.6,
+the cost per token at 500 tokens is about a tenth of the cost per token at 8,000 in the same run.
 
 ## Verified workarounds
 
 ### Split a long list of positional tokens across several parses
 
-Eight parses of 1,000 tokens cost about 8 times 24.5 ms,
-196 ms,
-against 1,332 ms for one parse of 8,000,
-by the figures under "Symptom".
+Eight parses of 1,000 tokens cost about 0.15 times as much as one parse of 8,000,
+reckoned from the medians of the run under "Symptom";
+eight separate parses were not timed against one.
 
 Tradeoffs:
 
@@ -402,10 +396,12 @@ The second patch,
 [`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
 goes on top of it and removes the state copy of `multiple()`.
 With both,
-8,000 positional tokens took 84 ms against 217 ms with the first patch alone and 1,401 ms on `main`,
-and 32,000 took 1.4 s against 7.3 s and 30.6 s
-(Deno 2.9.8,
-medians of five rounds).
+against the first patch alone and paired by round,
+a run of positional tokens took 0.50 times as long at 8,000 tokens on Node 26.13.1,
+0.24 times at 16,000 and 0.16 times at 32,000;
+on Bun 1.4.4 the same ratios are 0.58,
+0.50 and 0.43.
+The ranges are under "Timing of a run of positional arguments".
 
 Tradeoffs of the second:
 
@@ -414,10 +410,11 @@ Tradeoffs of the second:
    `structuredClone()` and `Object.freeze()` on it throw,
    and so does editing it in place,
    as listed under "What a caller can notice".
-- Just past that size it can cost about a tenth,
-   measured on a line that alternates options and arguments.
+- Just past that size it can cost on a line that alternates options and arguments:
+   about a seventh at 6,000 tokens on Bun,
+   and nothing measurable on Node.
 - It is unreviewed by upstream and by any person,
-   and adds about 600 lines of source and 700 of tests to maintain.
+   and adds about 600 lines of source and 770 of tests to maintain.
 - The buffer copy stays,
    and from about 32,000 positional tokens it is most of the parse.
 
@@ -434,12 +431,18 @@ Tradeoffs of the second:
    It changes the option-scope work and does not touch `input-trace.ts`.
 - Making the token buffer a view in `argument()` only,
    the second of the two prototypes.
-   The other primitives then slice that view through its proxy,
-   and a line that alternates options and arguments took 8.8 times as long at 24,000 tokens and 12.0 times at 48,000.
-   The figures are under "Prototypes for the two further copies".
+   The other primitives then slice that view through its proxy.
+   With the state fix in both arms,
+   a line that alternates options and arguments took 18.3 times as long with the view as without it
+   at 24,000 tokens on Node,
+   and 48.1 times on Bun.
+   The figures are under "Timing of options and arguments alternating".
 - Copying the state of `multiple()` with `slice` and `push` in place of the spread.
-   It measured the same as the spread.
-   Copying it with `concat` took about a third of the time at 16,000 tokens and left the growth as it was.
+   On Deno,
+   the only runtime it was timed on,
+   it measured the same as the spread.
+   Copying it with `concat` took 0.44 times as long at 16,000 tokens on Node and 0.69 on Bun,
+   and left the growth as it was.
 
 ## Upstream filing artifact
 
@@ -678,18 +681,19 @@ five alternating rounds,
 unpatched `1d6e4594` against patched:
 
 - 8,000 positional tokens:
-   1,182.8 ms to 150.7 ms,
    0.12 times as long (0.118 to 0.128).
    Fitted exponent 1.77 to 1.87 before,
    1.18 to 1.27 after.
 - A thousand paths through the `git commit` option set:
-   75.1 ms to 58.7 ms,
    0.78 (0.73 to 0.82).
 - The same after `--`:
-   60.1 ms to 46.4 ms,
    0.76 (0.74 to 0.79).
 
 Every round was faster in all three.
+The same comparison at larger sizes on Node and Bun is under "What is left after the fix".
+For scale only,
+the medians went from 1,182.8 to 150.7 ms,
+from 75.1 to 58.7 ms and from 60.1 to 46.4 ms.
 
 Together with upstream's pull request 1121,
 same day,
@@ -699,26 +703,30 @@ each arm from source on Deno except 1.3.6 from npm:
 `main` at `84f95710`,
 the pull request's head `a175cdb7`,
 and each with the patch applied.
-Median over the rounds:
+It was measured on Deno only.
+Each arm's median over the seven rounds,
+as a ratio to the median of 1.3.6 in the same rounds:
 
 - A thousand paths after `--`:
-   1.3.6 30.8 ms,
-   `main` 56.5 ms,
-   pull request 42.0 ms,
-   `main` with the patch 44.7 ms,
-   pull request with the patch 28.4 ms.
+   `main` 1.83,
+   pull request 1.36,
+   `main` with the patch 1.45,
+   pull request with the patch 0.92.
 - A thousand paths with no separator:
-   1.3.6 133.3 ms,
-   `main` 71.0 ms,
-   pull request 56.7 ms,
-   pull request with the patch 42.9 ms.
+   `main` 0.53,
+   pull request 0.43,
+   pull request with the patch 0.32.
 - 8,000 positional tokens:
-   1.3.6 1,119.8 ms,
-   `main` 1,130.4 ms,
-   pull request 1,132.5 ms,
-   pull request with the patch 134.1 ms.
+   `main` 1.01,
+   pull request 1.01,
+   pull request with the patch 0.12.
+
+For scale only,
+the medians of 1.3.6 were 30.8,
+133.3 and 1,119.8 ms.
 
 Paired by round,
+which is the firmer figure,
 for the paths after `--`:
 
 - `main` against 1.3.6:
@@ -742,10 +750,11 @@ That last figure needs reading with care.
 so the copy is no part of the gap between the pull request and 1.3.6;
 that gap is option-scope work the pull request leaves.
 `main` with the patch against 1.3.6 shows it:
-1.45 by the medians listed here.
+1.45 by the medians of the seven rounds.
 The patch removes from the pull request a cost that 1.3.6 also carries and that is about as large as the gap
-(42.0 less 28.4 is 13.6 ms,
-against a gap of 11.2 ms),
+(by those medians,
+the patch takes 0.44 of the 1.3.6 time off the pull request,
+and the gap is 0.36 of it),
 which is why the two land together.
 An independent review on 2026-11-13 caught an earlier sentence here,
 which called the trace copy what separates the two.
@@ -753,11 +762,58 @@ The pull request does not change the 8,000-token figure (1.00 against `main`,
 0.82 to 1.04),
 and the patch does not depend on it.
 
+The same comparison was repeated on Node 26.13.1 and Bun 1.4.4 with every arm a built package,
+after the owner asked on 2026-11-13 why a timing was on Deno only:
+seven rounds with the order of the arms rotated,
+`main` before the merge at `84f95710`,
+the merge `d26f1a24` with and without the patch,
+1.3.6 from npm,
+and the merge's package linked a second time as a same-code control.
+A thousand paths after `--`,
+paired by round:
+
+- The merge's package over itself:
+   Node 1.00 (0.96 to 1.03),
+   Bun 1.06 (0.95 to 1.09).
+- The pull request against 1.3.6:
+   Node 1.37 (1.27 to 1.63),
+   Bun 1.95 (1.62 to 1.99),
+   all seven rounds slower on each.
+- The patch on the merge against the merge:
+   Node 0.67 (0.61 to 0.76),
+   all seven faster;
+   Bun 1.07 (0.95 to 1.22),
+   five of seven slower,
+   a median inside the control's range.
+- The pull request with the patch against 1.3.6:
+   Node 0.92 (0.84 to 1.05),
+   one of seven slower;
+   Bun 1.92 (1.84 to 2.28),
+   all seven slower.
+
+With no separator the patch on the merge against the merge was 0.73 on Node (0.70 to 0.78),
+all seven faster,
+and 0.96 on Bun (0.72 to 1.15),
+three of seven slower.
+
+So at a thousand tokens the patch is a gain on Node and Deno and nothing measurable on Bun.
+On Bun its gain shows with more tokens:
+in the recheck's rounds on Bun,
+a run of positional tokens and one option,
+the patched build over `main` was 0.74 at 2,000 tokens,
+0.55 at 4,000 and 0.30 at 8,000
+(step `bun-sweep-with-main` of `keep/timing-summary.txt`,
+in the folder `two-remaining-copies-recheck-2026-11-13` of the evidence archive).
+The sentence that the patch brings the pull request level with 1.3.6 after `--` therefore holds on Node and Deno
+and not on Bun,
+where the pull request with the patch still takes about twice as long as 1.3.6.
+
 The records are in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
 folder `measurements-2026-11-13`:
 `cross-runtime/results.jsonl` for the three runtimes and the first patched comparison,
 `upstream-arms-results.jsonl` for the comparison with the pull request,
 and the container recipes and runners that produced them.
+The repeat on Node and Bun is in the folder `pull-request-1121-on-node-and-bun-2026-11-13` of the same archive.
 
 ### Prototypes for the two further copies
 
@@ -770,23 +826,38 @@ An AI session from another vendor rechecked them the same day:
 it applied the agent's diff files itself to a clean checkout of that commit,
 ran probes and timings of its own,
 and took nothing from the agent's build trees.
-No person has read the diffs or this section,
-and no third model has reviewed either.
+A model from a third vendor then reviewed the kept patch and this section as of commit `758946f3e1`;
+it recomputed the figures from the records,
+found one more flaw in the patch,
+which is fixed,
+and one sentence the figures contradicted,
+which is corrected.
+The timing on Node and Bun and the present form of the timing parts came after that review.
+No person has read the diffs or this section.
 
 The result:
 
 - The diff for `multiple()`'s state holds up,
-   with three changes made in the recheck.
+   with five changes made since,
+   three of them fixes of flaws in its view
+   (two found in the recheck,
+   one by the independent review).
    It is kept as
    [`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
-   1,342 lines added across seven files.
+   1,404 lines added across seven files.
 - The diff for the token buffer does not.
-   It makes a command line that alternates options and arguments about ten times slower once it takes effect,
-   and it is not kept as a patch;
+   Once it takes effect,
+   a command line that alternates options and arguments takes eleven to thirteen times as long on Node
+   and forty to seventy-seven times as long on Bun.
+   It is not kept as a patch;
    it is in the evidence archive for anyone who wants to repeat the measurement.
 - With both copies gone,
-   a run of positional arguments parses in time proportional to its length up to 128,000 tokens.
-   That is measured for a run of positional arguments and for nothing else.
+   a run of positional arguments parses in time about proportional to its length up to 128,000 tokens
+   on Bun,
+   and on Deno with the thresholds at zero.
+   On Node with the thresholds as written the growth stays above that,
+   and the arm that would explain it was not built.
+   This is measured for a run of positional arguments and for nothing else.
 
 #### What the two diffs do
 
@@ -833,8 +904,8 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
       8,125 and 8,125,
       none failing.
    - With the kept patch:
-      782 (8,330 steps),
-      8,115 and 8,115,
+      782 (8,332 steps),
+      8,117 and 8,117,
       none failing,
       and `deno fmt --check`,
       `deno lint` and `deno check` clean on the six source files it adds or changes.
@@ -845,9 +916,14 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    so that nearly every state and buffer is a view,
    the suite still passes whole:
    784,
-   8,125 and 8,125.
+   8,125 and 8,125 on the agent's diffs,
+   and 782,
+   8,117 and 8,117 on the kept patch with its one threshold at two.
    With both set to zero,
-   five of the agent's new tests fail and no test upstream had before does;
+   five of the agent's new test cases fail
+   (Node and Bun count five failing tests,
+   Deno five failing steps in four tests)
+   and no test upstream had before does;
    each of the five sizes itself as the threshold less one and reads index -1 or a token that is not there.
 - Two probes written for the recheck print what the library returns and how states and buffers read to a caller
    (`Array.isArray`,
@@ -869,12 +945,13 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    and two breaks inside the view code showed on the long probe only,
    so the long probe does reach the view code.
 - A parse that carries annotations copies them onto states as it goes.
-   At 16,000 tokens such a parse took about 300 ms with the state fix against 940 to 1,360 ms without
-   (three rounds),
+   At 16,000 tokens such a parse took between 0.23 and 0.32 times as long with the state fix as without,
+   in three rounds on Deno with the arms taking turns,
    so annotations do not undo it.
 
-Three changes made in the recheck,
-all in the kept patch:
+Five changes made after the agent's work,
+all in the kept patch,
+four found in the recheck and one by the independent review:
 
 - The agent's parser-level tests only append to a long state.
    A view that failed to drop the item being replaced was caught by one unit test and by no test of `multiple()`.
@@ -888,9 +965,41 @@ all in the kept patch:
    The view now refuses to be made non-extensible,
    so a freeze still throws and the view stays readable;
    a test guards it and fails when the refusal is removed.
-- A source comment cited two of the agent's measurement scripts by name,
-   which upstream does not have,
-   and another said a view is built with no closures while each caller passes a function made per view.
+- The view refused a write only to an index it holds.
+   A write past its end went through to the empty target array:
+   `state[state.length] = x` raised nothing,
+   a `push()` threw only after it had written,
+   and either way the value then read back at that index and showed in `Object.keys()` while `length` stayed.
+   `Object.defineProperty()` on an index raised nothing either,
+   and on an index the view holds it made `Object.keys()` throw afterwards.
+   All of that was measured on the three runtimes on the agent's diffs.
+   The view now refuses every index,
+   in assignments and in `Object.defineProperty()`,
+   and a test guards it and fails when the refusal is narrowed again.
+- The view reported its `length` descriptor from the empty target,
+   value 0,
+   while reading `length` gave the real count.
+   A copy made with `Object.defineProperties([], Object.getOwnPropertyDescriptors(state))` came back empty.
+   The independent review of 2026-11-13 found this and showed it with a state of 1,027 items;
+   the library copies array states that way in `annotation-state.ts`,
+   and the reviewer traced that a `multiple()` state does not reach that code in the current flow.
+   The descriptor now carries the real length,
+   and a test guards it and fails when the target's own value is reported again.
+- Comments:
+   one cited two of the agent's measurement scripts by name,
+   which upstream does not have;
+   one said a view is built with no closures while each caller passes a function made per view;
+   and two module headers and the error message spoke of the input buffer,
+   which the kept patch does not touch.
+
+The suite counts were taken on the kept patch as it now is,
+and so were six deliberate breaks,
+each caught by a test that names what it guards:
+the two of the replace-last path,
+a state view that reads the wrong item,
+and one for each of the three view fixes.
+The two probes were run on the agent's diffs and again on the kept patch,
+with the break of the state view made in the kept patch the second time.
 
 One of the nine full Bun runs made in the recheck failed one test,
 "Bash Readline file completion quoting > keeps backticks literal in a quoted tilde pattern",
@@ -913,12 +1022,26 @@ with every state made a view):
    `Proxy([])` on Node.
    `JSON.stringify` and a spread show the items.
 - `structuredClone()` throws `DataCloneError`.
-- Writing an element or `length`,
+- Every write to an index or to `length` throws a `TypeError` and leaves the state as it was:
+   an assignment,
+   `Object.defineProperty()`,
+   `delete`,
    and `push`,
-   `sort` and `reverse`,
-   throw a `TypeError`,
-   where they changed that parse's own copy before.
-- `Object.freeze()` throws,
+   `pop`,
+   `unshift`,
+   `splice`,
+   `fill`,
+   `copyWithin`,
+   `sort` and `reverse`.
+   On a plain array each of them changed that parse's own copy.
+   A property that is not an index can still be set,
+   symbol-keyed or named,
+   which is how the library attaches annotations.
+- `Object.getOwnPropertyDescriptor()` of an index says `writable: true`,
+   although a write throws.
+   Saying `false` there would make the elements of a copy made from the descriptors read-only.
+- `Object.freeze()`,
+   `Object.seal()` and `Object.preventExtensions()` throw,
    and `Object.isFrozen()` is false.
 
 A search of every upstream package's source for `Object.freeze`,
@@ -926,154 +1049,208 @@ A search of every upstream package's source for `Object.freeze`,
 `Object.seal` and `preventExtensions` finds none applied to a `multiple()` state or a token buffer.
 What third-party parsers do with a state they are handed was not looked at.
 
-#### Timing
+#### How the timing was measured
 
-Deno 2.9.8,
-every arm a source checkout read through an import map,
-in a two-CPU container with nothing mounted and no network,
-five rounds with the order of the arms rotated.
+Every figure here is a ratio between two arms that ran one after the other in the same round,
+given as the median over the rounds with the range of the single rounds.
+The machine was shared with other work the whole time,
+so no absolute time stands on its own,
+and none is given as a finding.
+The order of the arms rotated from round to round.
+A ratio whose range straddles 1 is no finding in either direction.
+
+How far two runs of identical code differ was measured in the runs themselves.
+Below its threshold an arm runs the very code of the base.
+On Deno the state fix over the base had a median of 0.82 at 100 tokens and 1.06 at 1,000,
+with single rounds from 0.56 to 1.53;
+on Node and Bun no size wholly below the threshold was timed.
+One check ran the base twice in each of ten rounds:
+the second over the first had a median between 0.97 and 1.03 at every size,
+with single rounds from 0.75 to 1.25.
+
+The runtimes:
+
+- Node 26.13.1 and Bun 1.4.4,
+   on the package built from each arm with upstream's own build.
+   These are the runtimes this repository runs on,
+   and they were timed last,
+   after the owner asked on 2026-11-13 why the timing was on Deno only.
+   The state fix on them is the kept patch as it stood before its last change,
+   which touches only how a view answers a request for its `length` descriptor.
+- Deno 2.9.8,
+   from source through an import map.
+   The first rounds were taken there because that needs no build,
+   which was a convenience and no reason.
+   Deno is also being wound down:
+   its maintainers [said on 2026-10-15][deno state] that it is maintained "until October 2027",
+   with bug fixes and no new features.
+   Upstream supports it,
+   so its figures are kept and labelled.
+   On Deno the first rounds ran the agent's diffs,
+   and the kept patch was timed beside the agent's arm in five more.
+
 The arms:
 `main`;
-base,
+the base,
 which is `main` with the trace patch;
 the state fix;
-the buffer fix;
-both;
-and both with the thresholds at zero.
+the buffer fix,
+on Deno alone and together with the state fix on all three;
+and on Deno only,
+both fixes with their thresholds at zero.
+Five rounds each unless a count is given.
 
-How much two runs of the same code differ sets what can be claimed.
-A later check ran the base twice per round for ten rounds:
-the second run over the first had a median between 0.97 and 1.03 at every size,
-and single rounds from 0.75 to 1.25.
-Rounds two to five of the main run also overlapped other containers of the same session.
-So a median within a few hundredths of 1,
-or a range that straddles 1,
-is no finding in either direction.
+#### Timing of a run of positional arguments
 
-A run of positional arguments and one unused option (`token-scaling.ts`),
-median in milliseconds:
+One unused option and the arguments (`token-scaling.ts`).
 
-- 2,000 tokens:
-   `main` 96.4,
-   base 37.1,
-   state fix 30.4,
-   both 28.3,
-   thresholds at zero 27.4
-- 4,000:
-   343.1,
-   70.8,
-   43.4,
-   42.0,
-   53.0
-- 8,000:
-   1,400.9,
-   216.8,
-   84.0,
-   85.9,
-   74.7
-- 16,000:
-   6,184.3,
-   1,029.5,
-   198.1,
-   197.5,
-   168.1
-- 32,000:
-   30,603.5,
-   7,303.4,
-   1,365.3,
-   694.9,
-   320.4
+The state fix over the base:
 
-The state fix against the base,
-paired by round:
-0.49 at 8,000 tokens (0.33 to 0.59),
-0.21 at 16,000 (0.17 to 0.32)
-and 0.18 at 32,000 (0.12 to 0.22),
-slower in none of those fifteen pairs.
-At 2,000 and 4,000 it reads 0.82 and 0.78,
+- Node:
+   0.50 at 8,000 tokens (0.48 to 0.87),
+   0.24 at 16,000 (0.19 to 0.33),
+   0.16 at 32,000 (0.14 to 0.19).
+- Bun:
+   0.58 at 8,000 (0.25 to 0.83),
+   0.50 at 16,000 (0.42 to 0.78),
+   0.43 at 32,000 (0.41 to 0.45).
+- Deno:
+   0.39 at 8,000 (0.33 to 0.59),
+   0.20 at 16,000 (0.15 to 0.28),
+   0.22 at 32,000 (0.14 to 0.33).
+
+It was slower in none of the forty-five pairs at those sizes.
+At 2,000 and 4,000 tokens it reads between 0.72 and 0.94 on the three runtimes,
+with three of thirty pairs slower,
 which is near the spread of identical code.
+On Bun the gain is smaller than on Node:
+0.43 against 0.16 at 32,000 tokens.
 
-Larger sizes were run in a step of their own,
-one parse per size in a fresh process,
-so its figures are not a continuation of that list:
+For comparison,
+the base over `main`,
+which is what the trace patch does,
+measured the same way at 16,000 tokens:
+0.12 on Node (0.11 to 0.13) and 0.25 on Bun (0.20 to 0.32).
 
-- State fix:
-   3,711 ms at 64,000 tokens and 24,262 ms at 128,000.
-- Both:
-   784 ms and 2,038 ms.
-- Thresholds at zero:
-   802 ms and 1,672 ms.
-- Base:
-   25,912 ms at 64,000.
-
-Growth per doubling,
-within a step
+How the time grows when the input doubles,
+as the ratio of two sizes within one process,
+written as an exponent
 (1 is proportional,
-2 is the square):
+2 is the square),
+from 2,000 to 32,000 tokens and then from 64,000 to 128,000:
 
-- Base:
-   0.93,
+- Base on Node:
+   0.49,
    1.61,
-   2.25 and 2.83 from 2,000 to 32,000.
-- State fix:
-   0.51,
+   2.41,
+   2.83.
+- Base on Bun:
+   1.24,
+   1.35,
+   1.60,
+   1.91.
+- State fix on Node:
+   0.54,
+   0.85,
+   1.30,
+   2.48,
+   then 2.62.
+- State fix on Bun:
    0.95,
-   1.24 and 2.78,
-   then 2.71 from 64,000 to 128,000.
-- Both:
-   0.57,
-   1.03,
-   1.20 and 1.82,
-   then 1.38.
-- Thresholds at zero:
+   0.91,
+   1.52,
+   1.59,
+   then 1.95.
+- Both fixes on Node:
+   0.38,
+   1.12,
+   1.28,
+   1.73,
+   then 1.53.
+- Both fixes on Bun:
+   1.07,
+   1.00,
+   1.25,
+   0.96,
+   then 0.84.
+- Both fixes with thresholds at zero on Deno:
    0.95,
    0.50,
-   1.17 and 0.93,
+   1.17,
+   0.93,
    then 1.06.
 
-So on this input no further cost that grows with the square shows up to 128,000 tokens once both copies are gone.
-The state fix alone leaves the buffer copy,
-which takes over from about 32,000 tokens:
-both fixes took 0.24 times as long as the state fix alone at 64,000 (0.17 to 0.27)
-and 0.084 times at 128,000 (0.078 to 0.109).
-The copy that is left does not cost a fixed amount per slot.
-The arm with both fixes and the arm with the thresholds at zero differ in the buffer copies of the last 16,384 tokens
-(and in the views the second makes on short states and buffers);
-that difference is 30 ms in a parse of 16,000 tokens and 375 ms in one of 32,000.
-The recheck did not find out why.
+So with the state fix alone the growth climbs back toward the square as the input grows,
+and that is the buffer copy.
+Both fixes over the state fix alone,
+on a positional run:
 
-Options and arguments alternating for the whole line
-(`-v v0 p0 -v v1 p1`,
-a script written for the recheck),
-median in milliseconds at 6,000,
-12,000,
-24,000 and 48,000 tokens:
+- Node:
+   0.72 at 32,000 tokens (0.61 to 0.83),
+   0.24 at 64,000 (0.22 to 0.25),
+   0.11 at 128,000 (0.10 to 0.15).
+- Bun:
+   0.60 at 32,000 (0.54 to 0.64),
+   0.31 at 64,000 (0.20 to 0.38),
+   0.14 at 128,000 (0.12 to 0.18).
 
-- Base:
-   48.8,
-   127.7,
-   489.9,
-   2,651.1
-- State fix:
-   55.0,
-   90.1,
-   310.6,
-   2,657.9
-- Buffer fix:
-   47.5,
-   124.4,
-   4,411.8,
-   30,310.6
-- Both:
-   58.0,
-   89.3,
-   4,638.3,
-   28,734.2
+With both copies gone,
+no cost that grows with the square shows on this input up to 128,000 tokens:
+on Deno with the thresholds at zero the exponents stay near 1,
+and on Bun with the thresholds as written they do too.
+On Node with the thresholds as written the last two are 1.73 and 1.53,
+and the arm that would say whether that is the threshold's leftover or something else,
+thresholds at zero,
+was not built for Node.
 
-The buffer fix took 8.8 times as long as the base at 24,000 tokens (8.5 to 11.2)
-and 12.0 times at 48,000 (9.8 to 13.8),
-slower in every round,
-and both fixes together 10.5 and 11.2 times.
+#### Timing of options and arguments alternating
+
+`-v v0 p0 -v v1 p1` for the whole line,
+a script written for the recheck.
+
+The buffer fix makes this slower by an order of magnitude once it takes effect.
+Both fixes over the base:
+
+- Node:
+   10.9 at 24,000 tokens (7.1 to 13.9),
+   13.2 at 48,000 (9.2 to 17.7).
+- Bun:
+   39.9 at 24,000 (29.2 to 46.5),
+   77.0 at 48,000 (63.6 to 101.9).
+- Deno:
+   10.5 at 24,000 (8.4 to 16.1),
+   11.2 at 48,000 (10.1 to 11.9);
+   the buffer fix alone,
+   8.8 (8.5 to 11.2) and 12.0 (9.8 to 13.8).
+
+Those ratios set a build with both fixes against a build with neither.
+Both fixes over the state fix alone,
+which holds the state fix constant and so shows what the buffer fix adds:
+
+- Node:
+   18.3 at 24,000 tokens (13.5 to 22.3),
+   13.0 at 48,000 (10.4 to 16.7).
+- Bun:
+   48.1 at 24,000 (24.1 to 65.0),
+   105.0 at 48,000 (74.9 to 153.8).
+- Deno:
+   15.6 at 24,000 (12.0 to 22.6),
+   11.4 at 48,000 (9.5 to 12.8).
+
+On Deno both arms of that second comparison carry the state fix as the agent wrote it.
+On Node and Bun the build with both fixes carries the agent's and the other arm is the kept patch,
+which differs from it in the traps for writes,
+freezing and descriptors.
+That the two measure alike where the buffer fix is not in effect was checked in the same rounds:
+up to 12,000 tokens the same ratio had medians from 0.99 to 1.05 on Node,
+and from 0.96 to 1.10 on Bun,
+the 1.10 at 3,000 tokens,
+where all five rounds were slower.
+
+At 24,000 and 48,000 tokens every comparison was slower in every round on every runtime.
+At 12,000 tokens and below,
+where the buffer fix does not take effect,
+there is no such loss.
 The cause is in the source.
 On `main`,
 `buffer.slice(` is called at 41 places outside the tests,
@@ -1083,70 +1260,142 @@ The diff changes the two in `argument()`.
 Once `argument()` has made the buffer a view,
 the next option parser calls `Array.prototype.slice` on it,
 which reads every remaining token through the proxy.
-With the thresholds at zero the same input took 5.1,
+On Deno with the thresholds at zero the same input took 5.1,
 10.1 and 12.9 times as long as the base at 3,000,
 6,000 and 12,000 tokens.
 The agent did not measure this shape:
 its scripts were the positional run and a thousand paths.
 
-The state fix on the same input,
-from the ten-round check:
-0.98 and 0.99 times the base at 1,500 and 3,000 tokens,
-1.11 at 4,500 (0.91 to 1.45,
-slower in eight of ten rounds,
-where the same-code control reads 1.03),
-0.94 at 6,000,
-then 0.87,
-0.78 and 0.76 at 7,500,
-9,000 and 12,000,
-slower in none of thirty pairs.
+The state fix over the base on the same input:
+
+- Node:
+   1.01 at 3,000 tokens,
+   1.05 at 4,500 (0.89 to 1.27),
+   0.98 at 6,000,
+   0.72 at 12,000 (0.56 to 0.83),
+   0.60 at 24,000 (0.39 to 0.68),
+   0.94 at 48,000 (0.86 to 1.06).
+- Bun:
+   0.98 at 3,000,
+   1.08 at 4,500 (0.91 to 2.11),
+   1.14 at 6,000 (1.03 to 2.16,
+   slower in all five rounds),
+   0.85 at 12,000 (0.75 to 2.31),
+   0.77 at 24,000 (0.66 to 1.65),
+   0.71 at 48,000 (0.66 to 0.95).
+- Deno,
+   ten rounds with a same-code control in each:
+   0.98 at 1,500,
+   0.99 at 3,000,
+   1.11 at 4,500 (0.91 to 1.45,
+   slower in eight of ten,
+   where the control reads 1.03),
+   0.94 at 6,000,
+   then 0.87,
+   0.78 and 0.76 at 7,500,
+   9,000 and 12,000,
+   slower in none of thirty pairs.
+   A later five rounds read 0.99 at 4,500 for the kept patch (0.53 to 1.06).
+
 This input fills two states,
 which pass 1,024 items at about 3,100 tokens.
-So just past its threshold the fix costs about a tenth here,
-and the threshold that suits a positional run is somewhat low for this shape.
-At 24,000 tokens it reads 0.70 (0.62 to 0.72),
-and at 48,000 it gains nothing (0.99).
-What takes the time in the base at 48,000 alternating tokens was not profiled.
+Just past that the fix costs something on this shape:
+about a seventh at 6,000 tokens on Bun,
+about a tenth at 4,500 on Deno in one of two checks,
+and nothing measurable on Node.
+So 1,024,
+which the agent chose from a positional run,
+is somewhat low for this shape,
+and what a better threshold is was not worked out.
+At 48,000 tokens the fix gains little on Node and Deno;
+what takes the time in the base there was not profiled.
 
-A parser shaped like `git commit`,
-twenty-eight options and the paths (`commit-paths.ts`):
+#### Timing of a parser shaped like `git commit`
+
+Twenty-eight options and the paths (`commit-paths.ts`).
 
 - A thousand paths:
-   no arm differs from the base by more than the spread,
-   with or without `--`,
-   except thresholds-at-zero.
-- 20,000 paths:
-   the state fix took 0.43 times as long as the base (0.41 to 0.45),
-   and 0.41 after `--` (0.31 to 0.74).
-   The buffer fix reads 0.97 and 1.08,
-   inside the spread.
+   no arm differs from the base by more than the spread on any runtime
+   (with and without `--` on Deno,
+   without on Node and Bun),
+   except thresholds-at-zero on Deno,
+   1.59 (1.47 to 1.68).
+   That last figure is why a threshold is needed at all.
+- 20,000 paths,
+   the state fix over the base:
+   0.43 on Node (0.37 to 0.48),
+   0.79 on Bun (0.55 to 0.93),
+   0.42 on Deno (0.27 to 0.47),
+   slower in none of fifteen pairs.
+- 20,000 paths,
+   both fixes over the state fix:
+   1.16 on Node (1.03 to 1.17,
+   slower in all five rounds)
+   and 0.99 on Bun.
+   So here too the buffer fix costs on Node where it takes effect.
 
-One smaller thing was tried on the side.
-Writing the same copy as
-`(added ? context.state : context.state.slice(0, -1)).concat([nextItemState])`,
-with no spread,
-took 0.33 times as long as the base at 16,000 positional tokens (0.28 to 0.44),
-0.38 at 32,000 (0.27 to 0.66)
-and 0.60 at 20,000 paths (0.49 to 0.62).
-It changes nothing a caller can see and upstream's suite passes with it on the three runtimes
+#### Timing of the same copy written with `concat`
+
+One smaller thing was tried on the side:
+`(added ? context.state : context.state.slice(0, -1)).concat([nextItemState])` in place of the spread.
+It changes nothing a caller can see,
+and upstream's suite passes with it on the three runtimes
 (778,
 8,086 and 8,086).
-It does not change the growth:
-2.82 per doubling from 16,000 to 32,000 and 2.29 from 64,000 to 128,000.
-It was timed on Deno only,
-and below 16,000 tokens its gain is inside the spread.
-Copying with `slice` and then `push` gained nothing measurable.
+Over the base on a positional run:
+
+- Node:
+   0.72 at 2,000 tokens,
+   0.71 at 4,000,
+   0.72 at 8,000,
+   0.44 at 16,000 (0.41 to 0.46),
+   0.46 at 32,000 (0.35 to 0.49),
+   slower in none of twenty-five pairs.
+- Bun:
+   0.76,
+   0.71,
+   0.69,
+   0.69 (0.61 to 0.71)
+   and 0.61 (0.46 to 0.63),
+   slower in one of twenty-five.
+- Deno:
+   0.74,
+   0.80,
+   0.56,
+   0.33 (0.28 to 0.44)
+   and 0.38 (0.27 to 0.66),
+   slower in none of twenty-five.
+
+At 20,000 paths it reads 0.60 on Node (0.47 to 0.69) and 0.80 on Bun (0.72 to 1.28).
+It does not change how the time grows:
+on Node the exponent from 16,000 to 32,000 tokens is 2.88 with it and 2.83 without.
+Against the state fix it is level or ahead up to 4,000 tokens and then falls behind,
+2.6 times as long at 32,000 on Node and 1.4 times on Bun.
+Copying with `slice` and then `push`,
+timed on Deno only,
+gained nothing measurable.
+
+#### Absolute times for scale only
+
+Absolute times from these runs,
+which depend on what else the machine was doing and are no finding:
+at 32,000 positional tokens the base took about six seconds on Node and two on Bun,
+and the state fix about one second on each;
+at 48,000 alternating tokens both fixes took about half a minute on Node and a minute and three quarters on Bun,
+against two and a half seconds and one and a half for the base.
 
 #### Where the agent's report and the recheck differ
 
 - The report gives one fitted exponent for both fixes,
    1.14.
-   Per doubling it is the four figures listed under "Timing",
-   and 1.82 from 16,000 to 32,000.
+   Per doubling it is the figures listed under "Timing of a run of positional arguments",
+   and on Deno,
+   where the report measured,
+   1.82 from 16,000 to 32,000.
 - It calls the buffer fix marginal,
    "nothing below its threshold" and 1.25 times at 32,000.
    On a positional run it is worth far more at larger sizes,
-   and on alternating input it is a tenfold loss.
+   and on alternating input it is a loss of ten times and more.
 - It prices a copy at "a third of a nanosecond per token".
    The price is not constant.
 - It says Node,
@@ -1159,10 +1408,12 @@ Copying with `slice` and then `push` gained nothing measurable.
 #### What is not established
 
 - What dominates the alternating input at 48,000 tokens.
-- Any timing on Node or Bun for these arms,
-   and any timing of the kept patch without the trace patch under it
+- Why the growth of both fixes stays above proportional on Node at the largest sizes.
+- Any timing of the kept patch without the trace patch under it
    (it applies to `main` alone,
-   and was timed only on top of the trace patch).
+   and was timed only on top of the trace patch),
+   and any timing of its last form,
+   which differs from the timed one in how a view answers for its `length` descriptor.
 - `multiple()` inside `multiple()`,
    a `min` or `max` bound at these sizes,
    and timing through an asynchronous value parser,
@@ -1240,11 +1491,9 @@ An AI session wrote every line of it and no person has reviewed it.
 arguments copies N(N + 1) / 2 trace entries. You noted it in #1120 as outside that issue's scope; this is the
 issue for it.
 
-With one option and a run of positional arguments, the median of five parses on 1.3.6 and Node 26:
-
-- 500 arguments: 7.7 ms
-- 2,000 arguments: 84.2 ms
-- 8,000 arguments: 1,331.9 ms
+With one option and a run of positional arguments on 1.3.6 and Node 26, sixteen times the arguments (500 to 8,000)
+took 173 times as long in one run: each doubling multiplied the time by 3.2 to 4.3, where a linear parse would give
+2.
 
 The fitted exponent of time against argument count was 1.85 on Node, 1.92 on Deno and 1.63 on Bun for 1.3.6, and
 1.75, 1.78 and 1.57 for 1.4.0-dev.2971. `recordTrace()` in *primitives.ts* calls `set()` once per recorded input,
@@ -1256,28 +1505,34 @@ A script that fits the exponent, and a workflow that runs it on pinned versions:
 https://github.com/Aquaticat/optique-parse-cost-reproduction (*token-scaling.ts*).
 
 I have a patch that keeps the entries in an immutable hash trie instead, so a write copies only the path to its
-key and earlier traces stay untouched. From source on Deno, 8,000 arguments went from 1,183 ms to 151 ms and the
-exponent from about 1.8 to about 1.2; a thousand paths through a `git commit`-shaped parser took 0.78 times as
-long. The core suite passes on Deno and Node with it, and it applies cleanly to main as of #1121's merge.
+key and earlier traces stay untouched. Run against the unpatched build in the same rounds, 8,000 arguments take
+0.11 times as long with it on Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), and the fitted exponent
+goes from about 1.8 to about 1.2 (that last from source on Deno). The gain grows with the count. In a separate
+measurement, a thousand paths with no `--` through a `git commit`-shaped parser took 0.73 times as long on Node
+(0.70 to 0.78) and showed no difference on Bun (0.96, 0.72 to 1.15). The core suite passes on Deno, Node and Bun
+with it, and it applies cleanly to main as of #1121's merge.
 
 It does not make the parse linear. Two more per-argument copies sit behind this one: `multiple()` rebuilds its
 state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`), and each primitive slices
 the rest of the buffer for each token it consumes (`context.buffer.slice(i + 1)` in `argument()`, and fourteen more
-places in *primitives.ts*). On Deno, 16,000 arguments take 6.2 s on main and 1.0 s with this patch, 32,000 take
-30.6 s and 7.3 s.
+places in *primitives.ts*). Timed as built packages on Node 26 and Bun 1.4, five rounds with the arms taking turns,
+16,000 arguments take 0.12 times as long with this patch as on main on Node (0.11 to 0.13) and 0.25 times on Bun
+(0.20 to 0.32).
 
 I tried both. For the state I have a second patch: above 1,024 items the state becomes an array-shaped view (a
-`Proxy`) over an immutable vector, and below that nothing changes. On top of this patch, 16,000 arguments go from
-1.0 s to 0.2 s and 32,000 from 7.3 s to 1.4 s, and the core suite passes on Deno, Node and Bun, also with the
-threshold lowered to two so that nearly every state is a view. Its cost is that such a state is a proxy: it prints
-as an empty array, `structuredClone()` and `Object.freeze()` throw on it, and in-place edits throw. For the buffer
-I have nothing to offer: a view cut in `argument()` alone made a line that alternates options and arguments about
-ten times slower, because the other primitives then slice the view through the proxy. With the state fixed, the
-buffer copy is most of what is left from about 32,000 arguments.
+`Proxy`) over an immutable vector, and below that nothing changes. On top of this patch, 16,000 arguments take
+0.24 times as long on Node and 0.50 on Bun, and 32,000 take 0.16 and 0.43. The core suite passes with it on Deno,
+Node and Bun, also with the threshold lowered to two so that nearly every state is a view. Its cost is that such a
+state is a proxy: it prints as an empty array, `structuredClone()` and `Object.freeze()` throw on it, and in-place
+edits throw. For the buffer I have nothing to offer: with the state copy already removed, also cutting a view in
+`argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and 48 to 105 times
+slower on Bun, because the other primitives then slice the view through the proxy. With the state fixed, the buffer
+copy is most of what is left from about 32,000 arguments.
 
-It also bears on what #1121 leaves. Measured the same way, seven rounds with the arms rotated, a thousand paths
-after `--` took 1.37 times as long on #1121's branch as on 1.3.6 (1.34 to 1.42), and 0.94 times with this patch
-on top (0.86 to 1.07, two of seven rounds slower).
+It also bears on what #1121 leaves, on Node. As built packages, seven rounds with the arms rotated, a thousand
+paths after `--` took 1.37 times as long on #1121's merge as on 1.3.6 on Node (1.27 to 1.63) and 0.92 times with
+this patch on top (0.84 to 1.05, one of seven rounds slower). On Bun the merge took 1.95 times as long as 1.3.6
+(1.62 to 1.99) and the patch changed nothing at that size (1.92, 1.84 to 2.28).
 
 The patch, with its tests: [link to the patch file in this repository at a commit].
 
@@ -1292,6 +1547,7 @@ written by an AI agent and rechecked by another.]
 [trace set]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/input-trace.ts#L140-L144
 [multiple state]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/modifiers.ts#L2743-L2746
 [argument buffer]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/primitives.ts#L2725
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027
 [option buffer]: https://github.com/dahlia/optique/blob/d26f1a244d4434f9dbfeb0317f6db32533cb8c32/packages/core/src/primitives.ts#L1251
 [policy pull requests]: https://github.com/dahlia/optique/blob/84f9571069584d8e36a3a4cfbaebf8a9a61fc645/AI_POLICY.md?plain=1#L14-L18
 [policy issues]: https://github.com/dahlia/optique/blob/84f9571069584d8e36a3a4cfbaebf8a9a61fc645/AI_POLICY.md?plain=1#L25-L27

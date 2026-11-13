@@ -254,6 +254,92 @@ one line a minute:
   The level is judged on readings taken after that,
   for an hour from there,
   and no sizing walk is run during a level's hour again.
+- Readings after the walks stopped,
+  13:34:21 to 13:58:48,
+  twenty-five of them with ten to sixteen units going:
+  home drive median 2 ms and slowest 22 ms;
+  build volume median 10 ms,
+  and over one second four times:
+  1,261 ms at 13:36:21,
+  2,597 at 13:38:22,
+  **10,419 at 13:40:25**
+  and **7,130 at 13:51:37**.
+  Two readings over the bound,
+  never two in a row,
+  so the criterion is not met;
+  the build volume stalls for seconds at this level all the same,
+  which it did not at eight.
+- The probe ended at 13:58:48 and none ran until 14:37,
+  while the session doing the search waited on a question;
+  one more was started at 14:37 for thirty-six minutes
+  (unit `disk-ceiling-probe-level-16-after-the-walks-20261113`).
+  From 14:12:41 the queue was empty and the count fell to nine by 14:38:24,
+  so its first readings are below the level.
+- Seen at this level and no symptom by the criterion:
+  the user service manager (PID 5289) wrote no log line from about 14:48:10 to 14:49:00,
+  where it wrote two to three every ten seconds before and eighteen in the ten seconds after;
+  in that time two callers got no listing from it within twenty seconds
+  (the probe's own count at 14:48:24, logged as -1,
+  and a watcher of the session doing the search, which ended at 14:49:07).
+  At 14:49:30 the same listing took 8 ms.
+  **What it waited on is not established, and nothing measured points at a drive**:
+  - the probe's two writes at 14:48:24, the start of that time, took 65 ms on the home drive and 9 ms on the build volume;
+  - the one-minute load went from 13.0 to 60.7 in that minute on 28 processors,
+    and the kernel's I/O figure `full avg10` read 23.75;
+  - memory at 14:49:30: 968 MiB free,
+    11.3 GiB in compressed swap,
+    and the memory figure `full avg10` at 2.00;
+  - the manager's whole wait for a processor since it started at 08:57:19 is 45.5 s
+    (`/proc/5289/schedstat`),
+    less than that one silence,
+    so the silence was not spent waiting for a processor;
+  - it has had 244 major page faults in that time and holds 3,108 kB in swap;
+  - the kernel's accounting of block-I/O delay per process is off (`kernel.task_delayacct` is 0),
+    and the manager's current system call cannot be read by this account,
+    so what it slept in cannot be told afterwards.
+  Three reviews ended at 14:49:16 to 14:49:18,
+  each on the provider's answer "429 … Allocated quota exceeded",
+  in the seconds after the silence ended,
+  while seven other reviews on the same provider went on.
+  A recorder now samples the manager while an answer is slow:
+  its state, its time on and waiting for a processor, its page faults, the journal's state and the kernel's pressure figures
+  (unit `record-what-the-user-service-manager-waits-on-20261113`,
+  log `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`).
+  A manager that stops answering for a time is what `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` is about.
+- Readings of the probe started at 14:37,
+  14:37:21 to 15:13:14,
+  thirty-six of them with eight to sixteen units going
+  (sixteen once, at 14:57:08, and twelve to fourteen for most of it):
+  home drive over the bound once,
+  **5,756 ms at 15:00:08**,
+  with 65 ms the next slowest;
+  build volume over one second twice
+  (1,240 ms at 14:42:22 and 1,321 at 14:44:23)
+  and under 500 ms otherwise.
+  One reading over the bound and the one after it 2 ms,
+  so the criterion is not met.
+  This is no symptom at the counts there were,
+  and it is not sixteen held for an hour:
+  the count stood at sixteen for one reading.
+- From 15:18:02 the count is bounded by something other than the drives.
+  Eighteen reviews ended that afternoon on the reviewer's provider answering "429 … Allocated quota exceeded",
+  each with six to nine runs on the reviewer's model going,
+  and the script that fills free places now starts no run on that model while five are going
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section dated 2026-11-13T15:24:13-05:00).
+  So how many agents go now follows how many author runs the queue holds,
+  and a reading at sixteen or above needs that many runs that are not reviews.
+- Free room at 15:24:13: `/var/home` 513 GiB,
+  the build volume 1,529 GiB:
+  26 GiB less than at 14:37:39,
+  in forty-seven minutes.
+- Free room at 14:37:39: `/var/home` 514 GiB,
+  the build volume 1,555 GiB:
+  61 GiB less than at 13:15:18,
+  in eighty-two minutes.
+  What takes it is not measured;
+  `/var/mnt/encrypted/cargo-build` holds 259 entries (14:38:24),
+  and each review and each resumed run builds the wrapper in a tree of its own.
 - Free room at 13:15:18: `/var/home` 517 GiB,
   the build volume 1,616 GiB
   (519 GiB and 1,640 GiB at 10:27:50,

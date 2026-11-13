@@ -57,6 +57,10 @@ pub struct LandingState {
     /// (`service_land_git_steps_and_import_stream.rs`,
     /// `keep_what_a_side_reference_write_left`).
     pub(crate) unproven_side_ref_tip: RefCell<Option<(String, String)>>,
+    /// Why the write of this batch's own scratch reference was not proven,
+    /// for the batch that lands without it
+    /// (`service_land_without_its_scratch_reference.rs`).
+    pub(crate) without_its_scratch_reference: RefCell<Option<String>>,
     /// The claims this landing placed that could not be read back,
     /// with the marker text each was written from
     /// (`service_index_claim.rs`).
@@ -95,6 +99,7 @@ impl LandingState {
             detail: RefCell::new(None),
             ceiling_step: RefCell::new(None),
             unproven_side_ref_tip: RefCell::new(None),
+            without_its_scratch_reference: RefCell::new(None),
             abandoned_claims: RefCell::new(Vec::new()),
             refused_lock: RefCell::new(None),
             unsettled_locks: Cell::new(0),
