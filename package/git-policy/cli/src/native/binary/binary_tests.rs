@@ -243,6 +243,13 @@ mod external_hooks;
 #[path = "binary_dependent_version_tests.rs"]
 mod dependent_version;
 
+/// A merge over a file whose mode the person set:
+/// the merge writes the mode real Git writes for the entry,
+/// a path the merge leaves alone keeps the mode they set,
+/// and a path the merge deletes while their file stays keeps every bit the capture read.
+#[path = "binary_merge_mode_tests.rs"]
+mod merge_mode;
+
 /// A true merge in a checkout whose index holds another session's staged work:
 /// equal to native Git's merge on a
 /// clean copy,
