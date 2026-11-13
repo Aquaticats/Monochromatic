@@ -53,7 +53,8 @@ fn rejected_by_policy(observed: &Observed) -> bool {
 /// Every form that overwrites or deletes is rejected in the main worktree and changes nothing.
 ///  The abort and skip forms are not among them:
 ///  the owner decided on 2026-11-13 ("Same rule everywhere") that they are judged by the work they would
-///  discard in the main worktree as in a linked one, and the two outcomes have their own controls in
+///  discard in the main worktree as in a linked one,
+/// and the two outcomes have their own controls in
 ///  `abort_during_an_operation` (`an_abort_in_the_main_worktree_runs_when_it_discards_nothing`,
 ///  `an_abort_in_the_main_worktree_refuses_a_hand_resolution`).
 #[test]

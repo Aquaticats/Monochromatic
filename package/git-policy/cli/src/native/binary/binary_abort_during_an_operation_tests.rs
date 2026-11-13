@@ -141,7 +141,8 @@ fn state_after(fixture: &Fixture, directory: &Path, paths: &[&str]) -> String {
 
 /// A merge of `side` that stopped at a conflict,
 ///  whose hand resolution is the person's own work.
-///  `Option<&str>` names the merge strategy, and nothing uses the one Git picks.
+///  `Option<&str>` names the merge strategy,
+/// and nothing uses the one Git picks.
 fn linked_worktree_at_a_conflicted_merge_with(fixture: &Fixture, strategy: Option<&str>) -> PathBuf {
     let linked: PathBuf = linked_worktree_with_a_diverged_side(fixture);
     let arguments: Vec<&str> = match strategy {
@@ -154,7 +155,8 @@ fn linked_worktree_at_a_conflicted_merge_with(fixture: &Fixture, strategy: Optio
     return linked;
 }
 
-/// The same, with the strategy Git picks.
+/// The same,
+/// with the strategy Git picks.
 fn linked_worktree_at_a_conflicted_merge(fixture: &Fixture) -> PathBuf {
     return linked_worktree_at_a_conflicted_merge_with(fixture, None);
 }
@@ -1285,8 +1287,10 @@ fn a_cherry_pick_that_records_no_result_refuses_an_unstaged_resolution() {
     remove(&fixture);
 }
 
-/// Where no result is recorded, a conflicted path left exactly as Git wrote it is refused too,
-///  and the refusal says why, because nothing the wrapper can read proves it is Git's own text.
+/// Where no result is recorded,
+/// a conflicted path left exactly as Git wrote it is refused too,
+///  and the refusal says why,
+/// because nothing the wrapper can read proves it is Git's own text.
 ///  The advice it prints ends the operation and keeps the files.
 #[test]
 fn a_conflicted_path_left_as_git_wrote_it_is_refused_where_no_result_is_recorded() {
@@ -1337,7 +1341,8 @@ fn an_abort_in_the_main_worktree_runs_when_it_discards_nothing() {
     remove(&fixture);
 }
 
-/// An abort in the main worktree that would discard a hand resolution is refused, naming the file,
+/// An abort in the main worktree that would discard a hand resolution is refused,
+/// naming the file,
 ///  and the opt-out leaves the state real Git leaves there.
 #[test]
 fn an_abort_in_the_main_worktree_refuses_a_hand_resolution() {

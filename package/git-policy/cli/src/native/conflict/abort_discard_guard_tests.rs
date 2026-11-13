@@ -205,7 +205,8 @@ fn a_staged_deletion_is_no_reason_to_refuse() {
     assert_eq!(judge_abort_discard(&mut facts, GuardedCommand::AbortMerge), AbortVerdict::Allowed);
 }
 
-/// A path the operation is still stopped at, in a state Git recorded no result for,
+/// A path the operation is still stopped at,
+/// in a state Git recorded no result for,
 ///  is refused and named as one the wrapper cannot judge:
 ///  what stands there may be the conflict text Git wrote or a resolution nobody else holds.
 #[test]

@@ -161,8 +161,10 @@ fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
 ///  and,
 ///  where Git recorded the result of the conflict it stopped at,
 ///  a staged resolution whose content stands nowhere else.
-///  A path the operation is still stopped at, in a state Git recorded no result for,
-///  is neither: it holds Git's own conflict text or a resolution over it,
+///  A path the operation is still stopped at,
+/// in a state Git recorded no result for,
+///  is neither:
+/// it holds Git's own conflict text or a resolution over it,
 ///  and nothing the wrapper can read tells the two apart,
 ///  so it is named as a conflicted path rather than as an edit somebody made.
 ///  Where no result is recorded the listings also compare the worktree with the index,

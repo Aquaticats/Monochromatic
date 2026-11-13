@@ -249,7 +249,8 @@ fn refuse_shared_remote_settings(
 ///  the owner decided on 2026-11-13 that the rule is the same in the main worktree and in a linked one,
 ///  an abort that would discard nothing runs and one that would discard work is refused
 ///  (`doc/handover/cli-git-rust-implementation.md`,
-///  "An abort in the main worktree: Same rule everywhere").
+///  "An abort in the main worktree:
+/// Same rule everywhere").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

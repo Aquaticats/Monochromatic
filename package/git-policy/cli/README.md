@@ -2528,7 +2528,8 @@ The rule is:
   one whose only changes are the operation's own runs exactly as Git runs it,
   one that would discard your own work is refused (nothing is copied),
   one whose operation is not waiting is left to Git (which refuses it and discards nothing),
-  and the same rule holds in the main worktree, in a linked one and outside a worktree,
+  and the same rule holds in the main worktree,
+  in a linked one and outside a worktree,
   as the owner decided on 2026-11-13 ("Same rule everywhere").
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
@@ -2739,7 +2740,8 @@ measured with Git 2.56.0),
 a path still in conflict is named as `a conflicted path` and the command is refused:
 nothing the wrapper can read tells Git's own conflict text from a resolution you wrote over it,
 because that strategy's markers name its own temporary files and change with every run.
-The refusal says that, and its two ways out are the same:
+The refusal says that,
+and its two ways out are the same:
 `git merge --quit` stops the merge and keeps everything,
 and `--no-enforce-worktree` runs the abort as Git runs it.
 The refusal looks like this:
@@ -2762,7 +2764,8 @@ One thing keeps the rejection beyond the work itself:
 an ignored file at a path the tree the abort writes back tracks,
 which is named because the abort replaces that file just as a hard reset would.
 The worktree the command runs in no longer matters:
-the main worktree, a linked one and a place outside one are decided by the same rule.
+the main worktree,
+a linked one and a place outside one are decided by the same rule.
 An edit that lands between the wrapper's measurement and Git's start is caught by a second measurement made
 immediately before Git starts;
 one that lands after it goes with the command,
