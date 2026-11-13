@@ -170,7 +170,8 @@ This narrows the "Hosted forms cannot reach the pages being checked" finding to 
 A navigation is an outbound Workers fetch,
 made by `walkRedirects` (`packages/engine/src/eval/redirect-walk.ts:89`),
 called from `packages/engine/src/cdp/page.ts:853`;
-no Kitesurf code reads files.
+a search of `packages/` for `file:` handling found only URL-parsing scheme lists and tests,
+and no loader.
 Whether a `file://` page loads therefore depends on whether `workerd`'s `fetch` serves that scheme,
 which only a run would show.
 
