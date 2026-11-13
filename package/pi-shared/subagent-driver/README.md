@@ -392,7 +392,12 @@ and so does anything the deletion had to leave.
 The deletion runs in a process of its own under `ionice --class idle` and `nice --adjustment 19`,
 which is the lowest disk priority the machine gives a process,
 so a deletion of tens of GiB gives way to every other process that wants the disk,
-and one deletion is bounded at `SCRATCH_EMPTYING_BOUND_SECONDS` (1800 s):
+and one deletion is bounded at `SCRATCH_EMPTYING_BOUND_SECONDS` (1800 s).
+The launcher waits for that deletion before it exits,
+because the figures the line reports are read after it,
+so the run's own pool slot is held until it is over:
+a folder of 63.5 GiB takes about 42 s at full speed and longer while another process wants the disk,
+and a run of the same name started in that window reads as already running.
 measured on 2026-11-13, 2.0 GiB and 22,000 entries were deleted in 1.38 s at full speed,
 and the largest scratch folder measured on this machine held 63.5 GiB of its own data,
 which is about 42 s at that rate.
