@@ -24,13 +24,17 @@ fn the_two_streams_of_a_push_reach_the_caller_with_their_url_secrets_masked() {
     let root: PathBuf = fixture("push-relay-masked");
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
-    let canary: &str = "relaycanary";
+    // A made-up secret of each kind: any user information, a run of hexadecimal characters in a path segment, and a value
+    //  under a name that says it is a secret. A plain word would be printed now, which is the rule this control holds.
+    let user_secret: &str = "FAKErelayuser";
+    let path_secret: &str = "aB3f9c2d4e5f60718293a4b5c6d7e8f9";
+    let query_secret: &str = "FAKErelayquery";
     let told_out: PathBuf = root.join("out.txt");
     let told_err: PathBuf = root.join("err.txt");
-    std::fs::write(told_out.as_path(), format!("To https://user:{canary}@host.invalid/{canary}/repo.git\n")).expect("the summary");
+    std::fs::write(told_out.as_path(), format!("To https://user:{user_secret}@host.invalid/{path_secret}/repo.git\n")).expect("the summary");
     std::fs::write(
         told_err.as_path(),
-        format!("fatal: unable to access 'https://host.invalid/{canary}/lfs?token={canary}': Failed to connect\n"),
+        format!("fatal: unable to access 'https://host.invalid/{path_secret}/lfs?token={query_secret}': Failed to connect\n"),
     )
     .expect("the failure");
     // The lines are read from files, so the fixture's own text is never quoted into shell syntax.
@@ -44,12 +48,15 @@ fn the_two_streams_of_a_push_reach_the_caller_with_their_url_secrets_masked() {
     let shown_err: String = String::from_utf8_lossy(err.as_slice()).into_owned();
     remove(root.as_path());
     assert_eq!(ended, ForwardedRun::Ran(3), "Git's own status comes back");
-    assert!(!shown_out.contains(canary), "the summary's secret is masked: {shown_out}");
-    assert!(!shown_err.contains(canary), "the failure's secret is masked: {shown_err}");
-    assert_eq!(shown_out, format!("To https://{m}@host.invalid/{m}/{m}\n", m = CREDENTIALS_MASK));
+    for secret in [user_secret, path_secret, query_secret] {
+        assert!(!shown_out.contains(secret), "{secret} reached the summary: {shown_out}");
+        assert!(!shown_err.contains(secret), "{secret} reached the failure: {shown_err}");
+    }
+    assert_eq!(shown_out, format!("To https://{m}@host.invalid/{m}/repo.git\n", m = CREDENTIALS_MASK), "the summary keeps its path");
     assert_eq!(
         shown_err,
-        format!("fatal: unable to access 'https://host.invalid/{m}/{m}?{m}={m}': Failed to connect\n", m = CREDENTIALS_MASK),
+        format!("fatal: unable to access 'https://host.invalid/{m}/lfs?token={m}': Failed to connect\n", m = CREDENTIALS_MASK),
+        "the failure keeps its call and its setting's name",
     );
 }
 
