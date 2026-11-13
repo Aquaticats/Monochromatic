@@ -315,7 +315,9 @@ fn each_intent_gets_its_own_alternative() {
     );
     assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("--exclude"));
     assert!(dirty_worktree_message(GuardedCommand::Clean).contains("untracked files"));
-    assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("untracked"));
+    // What that refusal names is the tracked changes; an untracked file elsewhere is no reason for it,
+    //  though the text may mention one where it explains what a patch from `git diff` does not hold.
+    assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("changes to tracked files or untracked"));
     assert!(main_worktree_message(GuardedCommand::AbortMerge).contains("git merge --quit"));
     assert!(main_worktree_message(GuardedCommand::AbortRebase).contains("git rebase --quit"));
     assert!(main_worktree_message(GuardedCommand::AbortPick).contains("--quit"));

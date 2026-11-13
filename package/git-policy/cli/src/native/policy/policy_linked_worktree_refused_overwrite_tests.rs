@@ -43,14 +43,13 @@ fn every_clean_asks_nothing() {
     }
 }
 
-/// A form whose own paths are the index's (a `rm`, a `mv`, a `checkout-index`, a `stash`)
-/// reaches no file Git did not put there, so it asks nothing.
+/// A form whose own paths are the index's (a `rm`, a `stash`, a mixed reset)
+/// reaches no file Git did not put there, so it asks nothing;
+/// a `mv` and a `checkout-index` name destinations the index does not hold and ask.
 #[test]
 fn forms_that_write_no_tree_ask_nothing() {
     for command in [
         GuardedCommand::Remove,
-        GuardedCommand::Move,
-        GuardedCommand::CheckoutIndex,
         GuardedCommand::Stash,
         GuardedCommand::ResetMixed,
     ] {
@@ -60,7 +59,8 @@ fn forms_that_write_no_tree_ask_nothing() {
     }
 }
 
-/// A forced tree write and a path form each ask about the paths they write,
+/// A forced tree write, a path form, a forced `mv` and a forced `checkout-index` each ask about the paths
+/// they write,
 /// and name every entry the worktree holds there.
 #[test]
 fn a_written_tree_or_path_asks_and_names_what_stands_there() {

@@ -72,7 +72,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::StashDrop => return (
             "git stash drop (or git stash clear)",
             "it deletes entries of the one stash the whole repository shares, and git stash clear deletes every entry, so work parked in any worktree of this repository is gone",
-            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> in a clean linked worktree, which applies the entry and keeps it in the branch; a stash form that changes state is refused in the main worktree, and in a linked worktree that holds uncommitted changes. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
+            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> in a clean linked worktree, which applies the entry and keeps it in the branch; a stash form that changes state is refused in the main worktree, and in a linked worktree that holds uncommitted changes. To drop one entry on purpose, first run git stash branch <branch> in a clean linked worktree, which applies the entry and keeps its work, and then drop it with the hatch below.",
         ),
         GuardedCommand::Clean => return (
             "git clean",

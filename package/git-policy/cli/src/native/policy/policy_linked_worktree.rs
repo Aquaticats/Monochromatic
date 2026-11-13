@@ -64,7 +64,8 @@ use crate::policy_checks::{fact_unavailable, clean, rejected};
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, dirty_question,
-    dirty_worktree_message, exemption_notice, repository_stash_message, resolve_linked_worktree,
+    dirty_worktree_message, dirty_worktree_message_naming, exemption_notice, repository_stash_message,
+    resolve_linked_worktree,
 };
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
 use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
@@ -449,8 +450,17 @@ pub(crate) fn check_linked_worktree(
     };
     match measured {
         Ok(true) => {
+            // The refusal names what it would destroy: the paths the worktree holds in this scope,
+            //  read only here, on the refusal path, so a command that runs pays nothing for it.
+            let listed: Vec<String> = match question {
+                DirtyQuestion::Worktree(scope) => facts.uncommitted_paths(scope).unwrap_or_default(),
+                DirtyQuestion::CleanDryRun | DirtyQuestion::RepositoryStash => Vec::<String>::new(),
+            };
             record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
+            return rejected(
+                LINKED_WORKTREE_REQUIRED_CODE,
+                format!("{}{conflict_note}", dirty_worktree_message_naming(command, listed.as_slice())),
+            );
         }
         Ok(false) => {
             // The tracked state being clean says nothing about a file Git did not put there: a form that writes a tree

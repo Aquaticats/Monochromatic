@@ -180,8 +180,9 @@ fn a_restore_writes_the_paths_it_names_over() {
     }
 }
 
-/// Every other guarded form writes no tree path this question is asked about,
-/// because Git itself refuses over a file it did not put there.
+/// Every other guarded form asks no written-path question here:
+/// a clean deletes what its own dry run names,
+/// and a `rm` and a `stash` reach only paths their index already holds.
 #[test]
 fn the_other_forms_write_no_tree_path() {
     for command in [
@@ -190,8 +191,6 @@ fn the_other_forms_write_no_tree_path() {
         GuardedCommand::CleanIgnoredOnly,
         GuardedCommand::ResetMixed,
         GuardedCommand::Remove,
-        GuardedCommand::Move,
-        GuardedCommand::CheckoutIndex,
         GuardedCommand::Stash,
     ] {
         assert_eq!(written_paths(command, words(&["--force", "other"]).as_slice(), None), None, "{command:?}");
@@ -202,11 +201,14 @@ fn the_other_forms_write_no_tree_path() {
 /// which are paths no tree or index query names.
 #[test]
 fn a_forced_move_writes_its_destination() {
+    // The reading cannot know whether the destination is a directory without asking the filesystem,
+    //  so it names both the destination and the name a source would take inside it;
+    //  a path the worktree does not hold is dropped before anything is refused.
     let cases: [(Vec<&str>, Vec<&str>); 4] = [
-        (vec!["--force", "a.txt", "b.txt"], vec!["a.txt", "b.txt"]),
-        (vec!["-f", "a.txt", "dir/b.txt"], vec!["a.txt", "dir/b.txt"]),
-        (vec!["--force", "a.txt", "dir"], vec!["a.txt", "dir", "dir/a.txt"]),
-        (vec!["--force", "a.txt", "--", "b.txt"], vec!["a.txt", "b.txt"]),
+        (vec!["--force", "a.txt", "b.txt"], vec!["b.txt", "b.txt/a.txt"]),
+        (vec!["-f", "a.txt", "dir/b.txt"], vec!["dir/b.txt", "dir/b.txt/a.txt"]),
+        (vec!["--force", "a.txt", "dir"], vec!["dir", "dir/a.txt"]),
+        (vec!["--force", "a.txt", "--", "b.txt"], vec!["b.txt", "b.txt/a.txt"]),
     ];
     for (values, expected) in cases {
         let answer: Option<WrittenPaths> = written_paths(GuardedCommand::Move, words(values.as_slice()).as_slice(), None);

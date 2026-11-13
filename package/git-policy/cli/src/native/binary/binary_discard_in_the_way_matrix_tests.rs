@@ -586,13 +586,15 @@ fn put_the_file_under_the_prefix(linked: &Path, arguments: &[&str]) {
 /// and the opt-out leaves what real Git leaves.
 #[test]
 fn a_skip_worktree_edit_is_refused_where_git_writes_over_it() {
-    for (index, arguments, written_over) in [
-        (1, vec!["checkout", "other", "--", "a.txt"], true),
-        (2, vec!["restore", "--source", "other", "--", "a.txt"], true),
-        (3, vec!["reset", "--hard"], false),
-        (4, vec!["checkout", "--force"], false),
-        (5, vec!["read-tree", "--reset", "-u", "HEAD"], false),
-        (6, vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], false),
+    // `--ignore-skip-worktree-bits` is the person telling Git to ignore the mark: real Git writes the file
+    //  by that instruction, and the guard leaves the command to Git.
+    for (index, arguments, disposition) in [
+        (1, vec!["checkout", "other", "--", "a.txt"], "refused"),
+        (2, vec!["restore", "--source", "other", "--", "a.txt"], "refused"),
+        (3, vec!["reset", "--hard"], "kept"),
+        (4, vec!["checkout", "--force"], "kept"),
+        (5, vec!["read-tree", "--reset", "-u", "HEAD"], "kept"),
+        (6, vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], "chosen"),
     ] {
         let label: String = format!("discard-skip-worktree-{index}");
         let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = marked(label.as_str(), Some("skip-worktree"));
@@ -600,7 +602,7 @@ fn a_skip_worktree_edit_is_refused_where_git_writes_over_it() {
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
         let kept: bool = still_where_it_was(linked.as_path(), "a.txt", EDIT)
             || still_where_it_was(linked.as_path(), "b.txt", EDIT);
-        if written_over {
+        if disposition == "refused" {
             assert!(refused_by_the_guard(&observed), "{arguments:?} was not refused: {}", stderr_of(&observed));
             assert!(kept, "{arguments:?} lost the edit while refusing");
             assert!(stderr_of(&observed).contains("a.txt"), "{arguments:?}: {}", stderr_of(&observed));
@@ -618,13 +620,22 @@ fn a_skip_worktree_edit_is_refused_where_git_writes_over_it() {
             remove(&direct_fixture);
             remove(&hatch_fixture);
         } else {
-            // Git keeps the file for this form, so the guard must not refuse it.
+            // Git keeps the file for this form, or the person told Git to ignore the mark.
             let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
                 marked(format!("{label}-direct").as_str(), Some("skip-worktree"));
             let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
             let git_kept: bool = still_where_it_was(direct_linked.as_path(), "a.txt", EDIT);
-            assert!(!refused_by_the_guard(&observed), "{arguments:?} was refused where real Git keeps the file (exit {:?}): {}", direct.code, stderr_of(&observed));
-            assert!(git_kept, "the control needs real Git to keep the file for {arguments:?}");
+            assert!(
+                !refused_by_the_guard(&observed),
+                "{arguments:?} was refused where the guard leaves it to Git (exit {:?}): {}",
+                direct.code,
+                stderr_of(&observed)
+            );
+            if disposition == "kept" {
+                assert!(git_kept, "the control needs real Git to keep the file for {arguments:?}");
+            } else {
+                assert!(!git_kept, "the control needs real Git to write the file for {arguments:?}");
+            }
             remove(&direct_fixture);
         }
         assert!(kept_before, "the fixture must hold the edit before the form runs");
@@ -774,24 +785,30 @@ fn a_destination_no_word_names_is_refused_and_named() {
     for (index, arguments, person_path) in [
         (1, vec!["mv", "--force", "a.txt", "kept.txt"], "kept.txt"),
         (2, vec!["mv", "--f", "a.txt", "kept.txt"], "kept.txt"),
-        (3, vec!["checkout-index", "--force", "--prefix=.", "-a"], "kept.txt"),
+        (3, vec!["checkout-index", "--force", "--prefix=out/", "-a"], "out/a.txt"),
     ] {
         let label: String = format!("discard-destination-{index}");
         let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = tracked_pair(label.as_str());
-        std::fs::write(linked.join("kept.txt"), PRECIOUS).expect("the person's file at the destination");
+        std::fs::create_dir_all(linked.join(person_path).parent().unwrap_or(linked.as_path()))
+            .expect("the directory the written path is in");
+        std::fs::write(linked.join(person_path), PRECIOUS).expect("the person's file at the destination");
         let before: Vec<String> = worktree_state(linked.as_path());
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
         assert!(refused_by_the_guard(&observed), "{arguments:?} was not refused: {}", stderr_of(&observed));
-        assert!(stderr_of(&observed).contains("kept.txt"), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains(person_path), "{arguments:?}: {}", stderr_of(&observed));
         assert!(still_where_it_was(linked.as_path(), person_path, PRECIOUS), "{arguments:?} lost the file");
         assert_eq!(worktree_state(linked.as_path()), before, "{arguments:?} wrote something before refusing");
         let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
             tracked_pair(format!("{label}-hatch").as_str());
-        std::fs::write(hatch_linked.join("kept.txt"), PRECIOUS).expect("the person's file at the destination");
+        std::fs::create_dir_all(hatch_linked.join(person_path).parent().unwrap_or(hatch_linked.as_path()))
+            .expect("the directory the written path is in");
+        std::fs::write(hatch_linked.join(person_path), PRECIOUS).expect("the person's file at the destination");
         let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
         let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
             tracked_pair(format!("{label}-direct").as_str());
-        std::fs::write(direct_linked.join("kept.txt"), PRECIOUS).expect("the person's file at the destination");
+        std::fs::create_dir_all(direct_linked.join(person_path).parent().unwrap_or(direct_linked.as_path()))
+            .expect("the directory the written path is in");
+        std::fs::write(direct_linked.join(person_path), PRECIOUS).expect("the person's file at the destination");
         let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
         assert_eq!(
             state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
