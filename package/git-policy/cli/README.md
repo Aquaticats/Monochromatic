@@ -976,8 +976,16 @@ Read-only commands,
      whose own removal would delete what is mounted at a mount point;
      when Git would also refuse what is untracked or modified there,
      the wrapper refuses with its own report,
-     which names the volumes and gives both ways on,
+     which names the volumes and words the way on by what the tree in front of it is,
      and `--force` removes everything around a volume and still leaves it.
+     A tree whose only trouble is entries missing from it is the shape a removal left:
+     the wrapper writes a record of the worktree, its registration and its path before it deletes the first
+     entry,
+     and the same unforced command reads it and finishes the removal,
+     so a command killed in that pass costs the person one more run of what they typed.
+     Without such a record the report says what the command itself did,
+     names `--force`,
+     and says that moving a volume out cannot finish a tree whose tracked entries are gone.
   A later `git worktree add` at that path meets a directory that is not empty:
      Git's own line says only that it exists,
      and the wrapper adds one line naming each volume a removal left and what frees the path.

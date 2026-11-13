@@ -3398,12 +3398,18 @@ The clean proof stays Git's own, exactly as the decision of 2026-11-12T13:04:14 
 an unforced removal deletes no untracked file and no modified tracked file,
 and a foreign volume that Git lists as untracked (one no ignore rule covers) is such an entry,
 so it keeps a typed unforced removal from happening.
-That removal then refuses with one report that says nothing was removed,
+That removal then refuses with one report that says what the command itself did,
 names each volume,
 gives the reason Git refuses,
-and gives both ways on:
+and words the way on by what the tree in front of it is:
 `git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
-stands, and clearing or moving what Git would delete.
+stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
+A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
+and the report says which of the two it read:
+a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
+and without such a record the report names `--force`,
+says that moving a volume out cannot finish a tree whose tracked entries are gone,
+and never claims that nothing was removed.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
@@ -3425,12 +3431,38 @@ so the removal deletes nothing it did not list.
 The mode of a kept directory is given back after the pass,
 and the directories the pass widened to empty are those it deletes,
 so what is left stands with the modes and owners it had.
-The pass opens each entry twice:
-once as a handle that follows nothing, crosses no mount and needs no permission on the entry, to ask what it is,
-and once for reading, only after the entry is known to be no volume,
-so a volume's own mode is never widened to look inside it.
+The pass judges and empties one opened object and never a name twice:
+it opens the entry as a handle that follows nothing, crosses no mount and needs no permission on it,
+asks that handle what kind of directory it is,
+gives the owner access through that same handle,
+and only then opens the name again for reading,
+comparing the device and inode of the descriptor it opened with the handle it judged.
+Another object at that name is kept with the directories that lead to it,
+and a name that leads elsewhere while the mode is being given cannot receive that change.
+So a volume's own mode is never widened to look inside it,
+and a volume renamed over a directory in the moment between the two lookups is left where it stands rather than
+emptied.
+The look that decides the removal (`look_for_boundaries`) resolves each name once and asks the device of the very
+descriptor it then reads.
 Nothing in the pass renames, unmounts, moves or deletes a volume;
 the only names it touches are those of the worktree's own entries.
+
+A removal that was killed inside that pass leaves the worktree's own entries deleted,
+the volumes standing and the registration kept,
+and the next unforced command would meet a worktree Git reports as changed.
+The pass therefore writes, before its first deletion,
+a record under `monochromatic-git-policy-cli/around-removals-begun/<registration id>` naming the registration's
+identity, the worktree root's identity and the path the removal was given
+(`src/native/worktree/worktree_removal_around_begun.rs`).
+A later unforced removal of that same worktree,
+whose registration and root are those two identities,
+reads the record, asks Git whether anything is reported about the tree but the entries a pass removed
+(leaving out what stands inside the volumes it leaves,
+because the pass often deletes the ignore rule that hid one),
+and finishes the removal when nothing else stands there.
+A record this build cannot read proves nothing and is left for the build that wrote it,
+a record whose registration is gone is dropped by the next removal,
+and a record that cannot be written costs that finish and never the removal.
 Every entry the pass removes is removed by `take` in that file,
 which is where the log of what a removal deletes joins it
 (`removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`).
@@ -3449,6 +3481,9 @@ it is `RemovedAround`, which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
 files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
+the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
+`git worktree prune` or another run of the same removal finishes it.
 
 The person's own `git worktree remove` prints that report on standard error and exits 0,
 because the worktree is gone from Git's records and every file of it except the volumes is gone;
