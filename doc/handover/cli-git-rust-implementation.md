@@ -722,41 +722,61 @@ Measured on `main` at 17:30
   (one search,
   its control still to be run by the author).
 
-Adopted by the coordinating session as the reading of the owner's words,
-open to veto,
-and asked through the question tool where marked:
+The owner's answers,
+through the question tool at about 17:33,
+each asked with the measurements beside it:
 
-- "From the repo" is read as from the tree.
-  History is not rewritten:
-  that would move every branch and worktree in flight and is the owner's to order (asked).
-- "Represent the data another way" is read as plain files in the tree:
-  a gzip of one text file becomes that file,
-  a zip becomes a folder of its members.
-  The cost is measured and stated to the owner:
-  each checkout grows by about 1.13 GB,
-  and the archives' bytes stay in history beside the new ones.
-- The three Java archives stay tracked and unignored for now:
-  the owner named gzip,
-  zip and tar,
-  and each of the three is read by a build
-  (`gradlew`,
-  and the plugin's `build.ts` with its reproducibility test),
-  so replacing one is a change to that package (asked).
-- A file whose bytes a recorded digest pins is not edited;
-  one record maps every removed archive to its replacement,
-  and files no digest pins are edited in place by rule `WR6`.
+- How the data is kept
+  (plain files of everything,
+  trimmed to what is cited,
+  or a store outside the repository):
+  "Trim to what is cited.
+  It doesn't discard the evidence for good because we are not going to rewrite history."
+- Whether history is rewritten too:
+  "Leave history (Recommended)".
+- What happens to the three Java archives
+  (keep all,
+  drop the plugin's,
+  drop all three):
+  "Override allowlist all 3."
+  Read as:
+  `*.jar` is ignored like the other formats,
+  and the three tracked ones stay tracked through exceptions written beside the pattern.
+
+So,
+as the project's own:
+
+- the raw bulk leaves the tree and Git history is where each whole archive stays;
+  one record lists every removed archive with its path,
+  bytes,
+  SHA-256,
+  the commit that last held it and the command that prints it from history;
+- what a document states that a reader can only check by opening the archive is kept beside it as plain text,
+  cut to the records that back the statement;
+  a document that names an archive only as the place raw material is kept gets nothing but the pointer;
+- a file whose bytes a recorded digest pins is not edited,
+  and files no digest pins are edited in place by rule `WR6`
+  (adopted by the coordinating session,
+  open to veto).
 
 The work is one run,
-`tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored`,
-on branch `chore/doc-tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored`,
-queued at 17:31
-(brief `~/temp/agent/pi-runs/tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored-prompt.md`).
-It stops and reports,
+`tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored`,
+on branch `chore/doc-tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text`,
+queued at 17:36
+(brief `~/temp/agent/pi-runs/tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-prompt.md`).
+A first brief,
+written before the answers for plain files of everything,
+was withdrawn:
+its launcher was stopped at 17:33:42 before it had made a worktree,
+a branch or a run folder,
+and the brief was deleted.
+The run stops and reports,
 instead of deciding,
-on a member that is not text or that Git LFS would take,
-on a credential-shaped string in an unpacked log,
+on an archive whose recorded digest does not match it,
+on code or a task that reads one,
+on a credential-shaped string in what it is about to keep,
 on a commit a guard refuses,
-and on a file near the forge's size bound.
+and where what one archive's documents cite comes to more than about a megabyte.
 Nothing of it reaches `main` before its report is read and the change reviewed.
 
 ##### Five runs of 2026-11-12 that never took a turn
