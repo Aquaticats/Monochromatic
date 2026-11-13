@@ -685,6 +685,133 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### `0.6.1-alpha.18` installed; the owner keeps one author pool; sixteen stranded branches of 2026-11-11 and 12 are queued; two reviews go back to their authors (2026-11-13T18:06:17-05:00)
+
+Not final and not approved:
+written by the coordinating session from the runs' own reports,
+a reading-only subagent's report and its own commands' output.
+
+##### Release
+
+`0.6.1-alpha.18` was published
+(`cargo-publish.yml` run 43521438686,
+both Linux archives,
+crates.io skipped as for every alpha)
+and installed with `native:install -- 0.6.1-alpha.18`.
+The install's sample commit took 1,153 ms and landed
+(`answerWaitMs` 662,
+answered by release 0.6.1-alpha.18);
+the service journal shows no line since that commit began.
+
+##### The author pool is full, and the owner keeps it at one
+
+- A run that names no model goes to the first default pool with room,
+  and one is open,
+  `neuralwatt-flex`,
+  full at 20 of 20 since about 17:35.
+  The launcher then waits,
+  asking every thirty seconds,
+  and gives up after two hours.
+  At 17:51 seven launchers waited,
+  the archive run since 17:35:39 and pass 24 since 17:46:00 among them.
+- Asked through the question tool at about 17:56 where author runs go when that pool is full
+  (reopen standard Neuralwatt,
+  overflow to the Kimi flex pool,
+  keep one pool),
+  the owner answered:
+  "Keep it.
+  I suspect any more would blow up the disk anyway."
+- So about twenty-five agents is the most that run at once
+  (twenty authors,
+  five reviews),
+  and the level of thirty-two is not reached until a pool changes.
+  `doc/handover/agents-at-once-on-this-machine.md` says so under "Level 32".
+- The scratch script that fills free places took an entry off the queue before the launcher had a place for it,
+  so an entry whose launcher gave up would have been lost.
+  It now starts an entry for the default pools only while the launcher's own counts show a place that no waiting launcher is asking for.
+  Five of the seven waiting launchers were stopped and their entries put back at the head of the queue;
+  the archive run and pass 24 were left to take the next places.
+  The archive run started at 17:56:40 and was sent the brief as it stands
+  (14,092 characters,
+  the count the brief file holds).
+
+##### Sixteen stranded branches
+
+A reading-only Sonnet subagent sorted the thirty-five unmerged branches of 2026-11-11 and 2026-11-12
+(`~/temp/agent/classification-of-unmerged-wrapper-branches-of-2026-11-11-and-12/keep/classification.md`,
+with its evidence beside it;
+it built and ran nothing):
+none is in `main` by another route,
+fifteen are superseded
+(six replaced after an owner decision or by a continuation,
+nine carried inside a later branch),
+four are held by a record whose reason still stands,
+sixteen are stranded.
+
+Queued at 17:50,
+behind what was already queued
+(briefs written by `~/temp/agent/pi-runs/write-the-briefs-that-continue-the-stranded-branches-of-2026-11-11-and-12-and-queue-them.ts`,
+which holds what is open for each):
+
+- fourteen continued by their own sessions,
+  each to bring its branch level with `main` and close what its report and the records left open:
+  the exempt repository,
+  the landed-removal second pass
+  (which also takes in the held-commit keeper `c79d17060e`,
+  as the record of 2026-11-12 planned),
+  the commit that records the bytes Git records,
+  the second merge,
+  the clean that counts forces as Git does,
+  the removal while linking,
+  the add that says when its copy is short,
+  the tracking-repair second pass,
+  the delivered matching push,
+  the trash hand-over,
+  the tokio next step,
+  the gate and install scripts,
+  the tokio two slices,
+  and the `cargo-shadow` cleaner branch `335462b6fd`
+  (counted by the subagent as held;
+  taken as work to do,
+  because every reason its record gives is a thing to finish and Cargo's tools are this session's to fix);
+- two fresh:
+  the reaping fix `39578c37ec` alone,
+  brought onto `main`,
+  and the performance judge of the changed commit rule,
+  from its unfinished commit `0efb4bcb4d`.
+
+The run on the landed-removal findings of the audit was told by a note in its inbox at 17:50 that `c79d17060e` already holds a fix for the late commit.
+
+Still held,
+each by its record:
+`af735d6330` (the commit that does not land says what stopped it) until the reload fix is in `main`;
+`6e1f7ba095` (the fast-forward carry) until the owner has answered on the merge's carry,
+which is in the list of owner choices still to ask.
+
+##### Two reviews
+
+- **The build tree** (`bf9c397cf2`):
+  the manifest change passed every check of its review
+  (build and both test compiles,
+  a tree of 1,433.5 MiB,
+  backtraces with file and line,
+  release and fuzz profiles untouched in effect).
+  One sentence of its document is false:
+  the gate already compiles without debug information and from a copy,
+  so the change leaves the gate as it was.
+  The author corrects that and one wording
+  (`~/temp/agent/pi-runs/build-tree-answers-its-review-of-2026-11-13-prompt.md`),
+  queued at the head;
+  the branch then goes into a pass at that commit.
+- **The review briefs** (`141ef86cbd`):
+  ten findings,
+  each reproduced,
+  the widest that a program built outside the review's worktree is never counted as run,
+  so a review of Rust code that built and ran it is started again without end.
+  All ten go back to the author
+  (`~/temp/agent/pi-runs/review-briefs-change-answers-its-review-of-2026-11-13-prompt.md`),
+  queued.
+
 #### Pass 20 is in `main` and `0.6.1-alpha.18` is dispatched; abort-and-skip passed its second review; the owner: a stale lock file fails the lint through the closure check (2026-11-13T17:44:06-05:00)
 
 Not final and not approved:
