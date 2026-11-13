@@ -478,6 +478,36 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 
+/// The longest a command waits for a connection to a service it only has to tell about work it does itself either way:
+/// the `warm` request that asks a running service to compile this repository's forbidden-strings rules.
+///  Why:
+///   The request is a help and never a part of the command:
+/// the command that needs the rules compiles them itself when the request cannot be made
+/// (`policy_forbidden_strings.rs`,
+/// `cache_access`).
+///  A connect is a kernel step that returns at once until the listening socket's queue of unaccepted connections is full,
+/// and a queue is full because the service accepts nothing
+/// (it is stopped inside its own process,
+/// a debugger holds it,
+/// a kernel wait nothing ends),
+/// so the wait can only end when that service resumes.
+/// The owner's rule is "nothing should ever wait forever or indefinitely".
+///  Measured on this host,
+/// 2026-11-13,
+/// 2,000 connections to a socket whose listener accepts,
+/// asked plain and through `unix_socket_connect_within_a_deadline` in one alternating loop,
+/// three runs:
+/// the plain connect took 9 to 10 us at the median,
+/// 15 to 17 us at the 99th percentile and 1,089 to 1,359 us at the slowest;
+/// the bounded connect 10 to 11 us at the median,
+/// 16 to 19 us at the 99th percentile and 3,217 to 4,190 us at the slowest,
+/// so bounding the wait costs about one microsecond of three extra calls.
+/// 250 ms is 60 times the slowest of those and the bound the other courtesy ask to a service has
+/// (`service_client_shadow_hand_out.rs`,
+/// `DRAWN_ANSWER_DEADLINE`),
+/// because both ask a service for something the command does without when it does not answer.
+pub const WARM_REQUEST_CONNECT_CEILING: Duration = Duration::from_millis(250);
+
 /// The longest a connected push may show no progress before it is ended and left to the service's retry plan.
 ///  Unmeasured,
 /// labelled as the other quiet windows are:
