@@ -685,6 +685,24 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The jam fix and the file-mode fix passed their reviews; passes 21 and 22 are queued, one branch each (2026-11-13T16:04:15-05:00)
+
+Not complete, and written by the coordinating session from the reviews' own reports: no pass has merged anything yet, and nothing is released.
+
+- **The jam fix** (`commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`, tip `3382d69ea0`), review of its answer, ended 15:47:53 after going on from its session three times:
+  the changed code is sound by it (a send counts only when the whole line went in, a give-up after a whole send keeps the scratch tree, the service refuses a line without its newline;
+  connect, write, read and log writes are bounded), and the change's own controls passed, sixty-eight of sixty-eight, on this machine.
+  This session read of that ending only at 16:03: the watcher that was waiting when it ended did not list it.
+  - It is **integration pass 21** (`integrate/git-policy-cli-pass-21-for-alpha-19`, brief `~/temp/agent/pi-runs/integration-pass-21-for-alpha-19-prompt.md`), alone, first in the queue.
+  - Its one finding is in a file the change does not touch and `main` has too: `service_warm_request.rs` connects without a bound,
+    so a commit with a cold forbidden-strings cache waits without end on a service that accepts nothing with a full queue (the mechanism reproduced with the same call).
+    A run of its own has it: `fix/git-policy-cli-warm-request-of-a-commit-connects-to-its-service-within-a-bound`.
+- **File mode through a merge** (tip `f89786b089`), first review, ended by 16:02:26: built, three end-to-end reproductions and a probe of real Git run, no defect.
+  It is **integration pass 22** (`integrate/git-policy-cli-pass-22-for-alpha-20`), alone.
+- **Pass 20** (finished-records) has been going since 15:40:32.
+- Each pass holds one branch, by the owner's word of 15:36 that an agent gets one thing; the three reach `main` one after another, and the version each brief names is the order they were written in, not a promise of the order they finish in.
+- The index-lock and kept-references reviews were ended by the rate limit again at 15:58 (the index-lock review for the fifth time) and put back by the filling unit in the same round.
+
 #### Issue 6293's author finished; the reload fix's review found nothing and ran nothing, so it is started again (2026-11-13T15:55:55-05:00)
 
 Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it.
