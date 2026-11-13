@@ -560,7 +560,9 @@ The kill window was hit live through the built wrapper, not simulated:
 `--trace-path` naming the build directory the rename takes.
 `--trace-path` matches the first path argument of a `rename` and resolves symlinks,
 so the path to give it is the build directory being moved, not the staging name it moves to
-(the run is `${HOME}/temp/agent/worktree-add-carried-marker/reproduce_carried_marker.ts`).
+(the run is `${HOME}/temp/agent/add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-scratch/keep/reproductions-for-the-carried-marker/reproduce_carried_marker.ts`,
+which moved there on 2026-11-13 from `${HOME}/temp/agent/worktree-add-carried-marker/reproduce_carried_marker.ts`
+when the run gathered its scratch into one folder).
 
 Before the fix, the add of `W2` printed no repair line at all, and the script's own summary was:
 
@@ -644,7 +646,8 @@ wrapper's internals into a commit, was measured through the built wrapper rather
 [control 2] wrapper git add -- ws/target.monochromatic-prewarm.owner: exit=0  (staged)
 ```
 
-The probe is `${HOME}/temp/agent/worktree-add-carried-marker/probe_exclude_reach.ts`.
+The probe is `${HOME}/temp/agent/add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-scratch/keep/probes-for-the-exclude-patterns/probe_exclude_reach.ts`,
+which moved there on 2026-11-13 from `${HOME}/temp/agent/worktree-add-carried-marker/probe_exclude_reach.ts`.
 The wrapper refuses every bulk stage, so a person's `git add -A` cannot carry those files;
 the control shows the refusal is the guard and not a quirk of the fixture.
 Naming the exact file stages it, and `--no-enforce-bulk-add` bypasses the guard deliberately,
@@ -880,7 +883,9 @@ this document and the package `README.md` finishes with no finding at this commi
   Reproduced here without a fault,
   on the toolchain lane's launcher-record read,
   by holding the one `open` of that record for 600 s with `LD_PRELOAD`
-  (`${HOME}/temp/agent/worktree-add-carried-marker/reproduce_unbounded_record_read.ts`):
+  (`${HOME}/temp/agent/add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-scratch/keep/probes-for-an-unbounded-record-read/reproduce_unbounded_record_read.ts`,
+  which moved there on 2026-11-13 from
+  `${HOME}/temp/agent/worktree-add-carried-marker/reproduce_unbounded_record_read.ts`):
   the add waited 90,008 ms and was killed by the run, and its last lines named the wrong step
   ("still copying the ignored files") while it waited in the toolchain repair.
   A named pipe at that name is refused (the read is guarded by a regular-file check),
