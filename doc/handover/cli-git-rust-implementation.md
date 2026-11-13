@@ -33,6 +33,8 @@ jams come first.
 The owner wrote on 2026-11-10:
 "Prioritize fixing the jams and release jam fixes asap."
 and "And you have 62 slots."
+Since 2026-11-13 that count is void: the owner capped this session at four agents at once, to be raised by bisecting
+(section "After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned").
 (Neuralwatt 20,
 Neuralwatt flex 22,
 opencode-go 20;
@@ -134,6 +136,91 @@ when it lands,
 move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
+
+### After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned (2026-11-13T10:27:50-05:00)
+
+#### What the owner did and said
+
+The machine came up at 08:56:31. The owner wrote in the terminal:
+
+- "I rebooted. I did a podman system reset -f and deleted some more of my personal data
+  and deleted also anything in ~/temp/agent/ last modified before Thursday.
+  I put sqfs+zstd archive of them as ~/temp/agent*.zstd , and uploaded them all to pcloud, and deleted the older archives locally."
+- "I believe this is partially your mess-up. I had no idea we had so much stuff in ~/temp/agent/ .
+  I believe we need to strengthen our auto-cleanup rules."
+- "I've realized both of the disks installed right now would just go boom on a long mv, from either direction,
+  though that might be an effect of my config.
+  I've since set bfq io idle wait to 1 and vm.swappiness to 1, which could help with disk somewhat.
+  I bought an enterprise SSD which is arriving on Sunday which is supposedly going to help a lot."
+- "In the meantime, you set your max concurrent pi+sonnet subagents starting from 4,
+  then bisecting up until we hit this disk's ceiling. We'll re-find the ceiling once the new disk arrives.
+  If the new disk still doesn't solve the problems sufficiently, we'll look at Sail Research sandboxes and more."
+
+So, as the project's own rules until the owner changes them:
+
+- This session runs at most four agents at once, Pi runs and Sonnet subagents counted together, whatever the provider pools would take.
+  The pool limits in `package/pi-shared/subagent-driver/src/pool-limits.ts` stay what a provider answers at once;
+  they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper only" is void while the cap stands.
+- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in (expected 2026-11-15).
+- The scratch folder is to be cleaned by rule, not by the owner.
+- `podman system reset` replaces the image prune of the wind-down section; that step is closed.
+- No long move or copy between the two drives in either direction.
+
+#### Readings after the restart
+
+- `df` at 10:27:50: `/var/home` 519 GiB free of 1906 (70% used); `/var/mnt/encrypted` 1640 GiB free of 3727 (54% used).
+- Drives (`lsblk`): `nvme0n1` "SPCC M.2 PCIe SSD" 1.9T and `sda` "Samsung SSD 860 EVO 4TB" 3.6T, both on `bfq`;
+  by size the first is the home drive and the second the build volume. `vm.swappiness` reads 1.
+- `/proc/pressure/io` at about 10:33 with none of this work's runs going and one sizing walk of this session on the home drive:
+  `full avg10=11.64 avg60=12.45 avg300=8.07`. That is the baseline the cap's readings are compared with.
+- Another session is at work on the same machine (commits about Optique on `main` from 10:16:01 to 10:21:46,
+  the unit `pi-optique-input-trace-and-reply-claim-check`, container images built within the hour).
+  It is not this work, is left alone, and is load the readings include.
+- `~/temp/agent` still held 232,330 MiB at about 10:50 (`du`, listing in `~/temp/agent/scratch-size-2026-11-13/du-depth-2-in-mib.txt`),
+  all of it last modified on 2026-11-12 or later. The largest folders, in MiB:
+  `pkgrepair-repair-off-the-path` 65,984 (its `runs` 36,335, `base` 18,169, `strace` 7,713);
+  `merge-reload-fix` 49,389 (two checkouts of the repository, `wt-main` and `wt-alpha13`, 24.7 GiB each);
+  `sonnet-audits` 45,614; `kimi-trials` 16,476; `module-test-logs` 10,991; `pkgrepair-verify` 7,084; `pi-runs` 6,740;
+  `cli-git-btrfs-fixtures` 5,750; `reviews` 3,848.
+  Every one was made by a run or subagent of this session and none was removed when its run ended:
+  no tool owns their removal, and the rule that says to delete superseded scratch was not applied.
+- The owner's archive `~/temp/agentModifiedOnNOV11Dirs2026NOV121809.sqfs` (66,996,248,576 bytes) is on the home drive.
+- Every scratch path the wind-down section names exists (read at about 10:45).
+- The start gate of the Pi launcher refuses a start under 100 GiB free on the build volume (`free-space-floor.ts`)
+  and never reads the home drive, which is the one that filled on 2026-11-12 and holds every run folder, Pi session and container image.
+
+#### Worktrees and branches after the restart (read 10:52)
+
+`~/temp/agent/worktree-check-2026-11-13/worktrees.jsonl` has one line per worktree, from a read-only pass with real Git and one `git ls-remote`.
+
+- Nothing committed is missing from the remote: of 153 worktrees, 64 have their tip as the tip of the remote branch of the same name,
+  86 have it in the remote's `main`, one is behind its remote branch,
+  and the two whose branch has no remote of that name (`test/qwen-review-...`, review worktrees with no change of their own)
+  sit on commits `a7e3fcfe58e0` and `5c579487c53a`, which remote `fix/` branches hold.
+- 56 worktrees hold uncommitted paths. The Pi worktrees among them are the runs that ended on 2026-11-12; their counts are in the file.
+  Two are large: `pi-kimi-review-suite-only-failures-of-the-alpha-11-gate-round-231` (17,540 paths) and
+  `pi-alpha-10-audit-commit-keeps-non-utf-8-bytes` (403 paths). Nothing in any of them is removed before it is read.
+- Two entries name folders that no longer exist (`/var/home/user/worktrees/translation-repair` and `verify-coverage`);
+  they are not this work's and are left for their owner.
+- 86 worktrees whose tip is in `main` are landed work still on disk.
+
+#### The cap and how the ceiling is looked for
+
+- Until the launcher carries the cap, this session counts by hand before every start: `pi-*` units of this work plus Sonnet subagents going, at most four.
+  The hourly loop is not set up again before whatever fills free slots reads the cap.
+- Steps: four, then double (eight, sixteen, ...) until a level fails, then halve the gap between the last level that held and the one that failed.
+  Only real queued work is run; no load is made for the test.
+- What counts as a level failing, how long a level is held, and whether other sessions' runs count against the four are asked of the owner
+  (question of 2026-11-13, answer to be recorded here).
+  At every reading the count of all agent runs on the machine, this session's and others', is written beside the figures, because the ceiling is the disk's.
+
+#### Next, in order
+
+1.  Record the owner's answers on scratch retention and the ceiling's criterion.
+2.  Put the cap, and a floor for the home drive, into the launcher (`package/pi-shared/subagent-driver`), settable per command as the pool limits are.
+3.  Remove what is rebuildable from `~/temp/agent` (checkouts, build folders, binaries) gently, one folder at a time, after listing it.
+4.  Read how each run of 2026-11-12 ended, then continue pass 18 first, within the cap.
+5.  Measure a commit against real Git, as item 5 of "Order of work after the restart" in the wind-down section asks.
 
 ### Wound down for a restart of the machine: the home drive is full (2026-11-12T16:41:25-05:00)
 
