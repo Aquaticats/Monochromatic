@@ -6600,6 +6600,78 @@ The first two qwen4 reviews under the new rule ended within about forty-five min
   and reads Kimi's review of the same commit when it appears.
   Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
 
+Round 298 (`fix/git-policy-cli-abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+from the tip of round 250) carries out the owner's answer of 2026-11-12T10:35:07,
+"Refuse with opt-out", for the abort and skip forms,
+and takes the saving round 250 built out of the tree:
+`conflict/abort_save.rs`, `conflict/abort_save_again.rs` and their two test files,
+the `index-stage-0` copy, and the `saved-abort` and `saved-skip` audit outcomes.
+
+What the branch does, measured through the built wrapper in fixtures of its own:
+
+- An abort or a skip whose only change is the operation's own state runs exactly as Git runs it,
+  and the wrapper adds no line.
+- One that would discard work standing nowhere else is refused before anything is changed.
+  The refusal names the command, each path with the kind of work standing there
+  (a resolution or edit made since Git stopped at the conflict,
+  content only the index holds,
+  a staged resolution,
+  a staged edit,
+  and `a conflicted path` where Git recorded no result to compare with),
+  at most five paths with the rest counted,
+  the quit form that stops the operation and keeps the index and files,
+  and `--no-enforce-worktree` directly after the subcommand.
+  Nothing is copied and no sentence says a copy was made.
+- An untracked file at a path the restored tree tracks is where Git itself refuses the command,
+  for every abort form and every skip form (measured with Git 2.56.0),
+  and the words say so and name the file.
+- The same question is asked again immediately before the process becomes Git,
+  once; a difference found there refuses the command.
+  `SPEC.md` states the window that remains between that measurement and Git's own reset.
+- An abort is judged the same in the main worktree, in a linked one and outside a worktree
+  (the owner's decision of 2026-11-13, "Same rule everywhere",
+  in the section above),
+  which ended the older rule that every abort is refused in the main worktree:
+  two controls hold the two outcomes there,
+  and the refusal no longer says "rejected in the main git worktree".
+
+Two review findings of `87cd3d1dfa` are answered, both reproduced before the fix:
+
+- Finding 1, data loss: with no `AUTO_MERGE` recorded the reading subtracted the paths the operation
+  was still stopped at, so a resolution written in the worktree and never staged went with them
+  (`git merge -s resolve`, and `git cherry-pick --strategy=resolve` then `--skip`).
+  Those paths are now kept and named as `a conflicted path`, and the command is refused.
+  No proof was available to do better, and that is measured: `git checkout-index` has no
+  `--conflict` option in Git 2.56.0, and the `resolve` strategy's markers name its own temporary
+  files (`.merge_file_1xHykn`, fresh each run), so the text Git wrote cannot be reproduced.
+- Finding 2 is the owner's decision above.
+
+The fallback costs nothing on the waiting path: it asks the same `--diff-filter=U` question it asked
+before and only keeps the answer.
+An abort in a main worktree now costs what an abort in a linked one always cost:
+92 ms at the median against real Git's 5 ms over nine samples each, where the refusal it replaced
+cost 10 ms (measured through the built wrapper, `~/temp/agent/abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work-scratch/cost-of-a-main-worktree-abort`).
+
+Three readings the earlier rounds had wrong, each fixed with a control that failed first:
+`AUTO_MERGE` is recorded by a rebase, a cherry-pick and an `am` as well as by a merge,
+so every form compares both sides with it;
+a path the worktree no longer holds, and a staged deletion, hold no content the reset would lose,
+so they are no reason to refuse (the untracked-file advice itself moves a file out of the way);
+and a skip's reset refuses an untracked file in the way rather than writing over it.
+Every read of a file in the Git directory on this path is bounded and regular-file only:
+a pipe at `rebase-merge/orig-head` held `git rebase --abort` for good, and now it answers.
+
+Open for the coordinating session:
+
+- Merge the branch. It now holds `main` through integration pass 19,
+  including `afc0545123`, so the memory-cap workaround no longer applies to it.
+- The package linter reports findings in files this branch does not touch,
+  which are `main`'s and older than the linter; nothing it reports is in this branch's files.
+- Audit finding 5 of 0.6.1-alpha.14 (a refusal whose advice the same guard refuses) is answered here
+  by running every piece of advice these refusals give, in the state it was printed in.
+  The installed release still discards a hand resolution on `--skip` (audit item 8);
+  this branch refuses it, so the next release must carry the branch.
+
 The gate of `7e3b74281a` ended at 20:34 with `gate-exit-status=1` before it ran a test:
 the `native_binary` test target did not compile
 (`binary_worktree_removal_held_commit_tests.rs:200`, a `String` where `Held.reference` is a `RefName`).
