@@ -28,6 +28,20 @@ pub const KEPT_REFERENCE_PREFIX: &str = "refs/cli-git/kept/";
 pub const RESCUE_SUFFIX: &str = "-rescue";
 
 /// What:
+///  Whether one byte of a name is a digit.
+/// Why:
+///  The batch a kept reference carries is a decimal number,
+///  and a name of any other shape is no kept reference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAnAsciiDigit = (byte) => byte >= 0x30 && byte <= 0x39;
+/// ```
+fn is_an_ascii_digit(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
+/// What:
 ///  The batch a kept reference names,
 ///  and whether it is the name beside the batch's own.
 /// Why:
@@ -48,7 +62,7 @@ pub fn batch_and_rescued_of(name: &str) -> Option<(u64, bool)> {
         Some(own) => (own, true),
         None => (last, false),
     };
-    if !digits.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+    if !digits.bytes().all(is_an_ascii_digit) {
         return None;
     }
     let batch: u64 = digits.parse::<u64>().ok()?;

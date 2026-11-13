@@ -80,6 +80,25 @@ pub fn why_words(why: WhyPruned, limits: crate::kept_reference_limits::KeptRefer
 }
 
 /// What:
+///  The worktree a line names,
+///  as JSON,
+///  or nothing when the record named none.
+/// Why:
+///   A null says the wrapper does not know where the commit was built,
+///  which is different from a path it knows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worktreeValue = (worktree) => worktree ?? null;
+/// ```
+fn worktree_value(worktree: Option<&str>) -> Value {
+    return match worktree {
+        Some(path) => Value::from(path),
+        None => Value::Null,
+    };
+}
+
+/// What:
 ///  One line of the log,
 ///  as it is written.
 /// Why:
@@ -101,7 +120,7 @@ pub fn line_of(pruned: &Pruned, now: u128, limits: crate::kept_reference_limits:
     object.insert(String::from("rescued"), Value::from(pruned.rescued));
     object.insert(String::from("age_seconds"), Value::from(u64::try_from(pruned.age_ms / 1000).unwrap_or(u64::MAX)));
     object.insert(String::from("kept_at"), Value::from(format_iso_milliseconds(i64::try_from(pruned.kept_at_ms).unwrap_or(i64::MAX))));
-    object.insert(String::from("worktree"), pruned.worktree.as_ref().map_or(Value::Null, |path| { return Value::from(path.as_str()); }));
+    object.insert(String::from("worktree"), worktree_value(pruned.worktree.as_deref()));
     object.insert(String::from("why"), Value::from(pruned.why.word()));
     object.insert(String::from("why_words"), Value::from(why_words(pruned.why, limits)));
     return format!("{}\n", Value::Object(object));

@@ -85,7 +85,8 @@ pub fn plan_kept_references(prune: bool, global_arguments: &[OsString], environm
 
 /// What:
 ///  The text one invocation prints:
-///  the listing, or what a pruning took.
+///  the listing,
+/// or what a pruning took.
 /// Why:
 ///  Both are one reading of the same repository,
 ///  and neither a listing nor a report may fail the invocation on a Git question

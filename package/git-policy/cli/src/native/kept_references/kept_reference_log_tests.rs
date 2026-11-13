@@ -18,7 +18,8 @@ use crate::kept_reference_pass::{Pruned, WhyPruned};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// The limits of the release, as one pass reads them.
+/// The limits of the release,
+/// as one pass reads them.
 fn the_limits() -> KeptReferenceLimits {
     return KeptReferenceLimits { max_age: KEPT_REFERENCE_MAX_AGE, max_bytes: KEPT_REFERENCE_MAX_BYTES, floor: KEPT_REFERENCE_FLOOR };
 }
@@ -65,7 +66,8 @@ fn each_reason_says_whether_the_commit_was_lost() {
     assert!(too_much.contains("weighed more than"), "{too_much}");
 }
 
-/// The log lives in the common Git directory, beside the wrapper's other logs.
+/// The log lives in the common Git directory,
+/// beside the wrapper's other logs.
 #[test]
 fn the_log_sits_in_the_common_git_directory() {
     let common: &Path = Path::new("/a repository/.git");

@@ -3652,12 +3652,15 @@ because no command in a removed worktree can move it.
 
 A reference under `refs/cli-git/kept/` is removed by the wrapper itself once it is worth nothing,
 because nothing else would ever remove it and the objects it holds would pin space for ever
-(owner, 2026-11-12:
-"Keep the reference, auto prune by size and age").
+(owner,
+2026-11-12:
+"Keep the reference,
+auto prune by size and age").
 
 Three rules decide one,
 in this order.
-A kept commit that a branch, a remote-tracking reference or a tag has since reached
+A kept commit that a branch,
+a remote-tracking reference or a tag has since reached
 holds nothing any more,
 so its reference goes at the next pass,
 however young it is.
@@ -3669,7 +3672,8 @@ one at a time,
 until the rest is under the limit;
 a reference younger than **one hour** is never pruned for its size,
 so a commit kept a moment ago is not the price of a burst of removals.
-The three values are `KEPT_REFERENCE_MAX_AGE`, `KEPT_REFERENCE_MAX_BYTES` and `KEPT_REFERENCE_FLOOR`
+The three values are `KEPT_REFERENCE_MAX_AGE`,
+`KEPT_REFERENCE_MAX_BYTES` and `KEPT_REFERENCE_FLOOR`
 in `src/native/kept_references/kept_reference_limits.rs`,
 with the measurement each rests on,
 and a run can change any of them with

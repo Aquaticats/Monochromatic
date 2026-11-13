@@ -26,7 +26,8 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::service_route::service_status;
 use crate::management_service_settle_earlier_batches::{plan_settle_earlier_batches};
 use crate::management_service_stop_units_of_removed_worktrees::plan_stop_units_of_removed_worktrees;
-/// The listing of the references the wrapper keeps commits on, and one pruning of them.
+/// The listing of the references the wrapper keeps commits on,
+/// and one pruning of them.
 use crate::kept_reference_command::plan_kept_references;
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,

@@ -43,7 +43,8 @@ pub const FIRST_SEEN: &str = "first seen by the pass that prunes kept references
 pub const KEPT_FOR_A_REMOVAL: &str = "kept before a worktree that held the commit was removed";
 
 /// What:
-///  One kept reference, as the wrapper wrote it down.
+///  One kept reference,
+/// as the wrapper wrote it down.
 /// Why:
 ///   The pass needs the age and the listing needs the worktree,
 ///  and both are gone from the repository once the worktree is.
@@ -65,9 +66,11 @@ pub struct KeptReferenceRecord {
     /// The worktree the commit was built in,
     /// or nothing when the release that kept it recorded none.
     pub worktree: Option<String>,
-    /// When the reference was written, in milliseconds since the Unix epoch.
+    /// When the reference was written,
+    /// in milliseconds since the Unix epoch.
     pub kept_at_ms: u128,
-    /// Why it was written, in the wrapper's own words.
+    /// Why it was written,
+    /// in the wrapper's own words.
     pub why: String,
 }
 
@@ -189,6 +192,22 @@ pub fn remove_record(common_dir: &Path, reference: &str) {
 }
 
 /// What:
+///  A path as the record keeps it,
+///  which is text with a byte that is not text replaced.
+/// Why:
+///  A record is JSON,
+///  and the path of a worktree the wrapper removed is the one thing here a person needs;
+///  a path with an odd byte is still worth more than no path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathText = (path) => path.toString('utf8');
+/// ```
+fn path_text(path: &std::path::Path) -> String {
+    return path.to_string_lossy().into_owned();
+}
+
+/// What:
 ///  Write the record of a kept reference a worktree removal has just written,
 ///  naming the worktree it kept the commit for.
 /// Why:
@@ -212,11 +231,30 @@ pub fn record_a_removals_kept_reference(common_dir: &Path, reference: &str, comm
         commit: String::from(commit),
         batch,
         rescued,
-        worktree: Some(worktree.to_string_lossy().into_owned()),
+        worktree: Some(path_text(worktree)),
         kept_at_ms: now_ms,
         why: String::from(KEPT_FOR_A_REMOVAL),
     };
     let _recorded: Option<KeptReferenceRecord> = write_if_absent(common_dir, &record);
+}
+
+/// What:
+///  The worktree a record names,
+///  as JSON,
+///  or nothing when it names none.
+/// Why:
+///  A null says no release recorded where the commit was built,
+///  which is different from a worktree the record knows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worktreeValue = (worktree) => worktree ?? null;
+/// ```
+fn worktree_value(worktree: Option<&str>) -> Value {
+    return match worktree {
+        Some(path) => Value::from(path),
+        None => Value::Null,
+    };
 }
 
 /// What:
@@ -237,7 +275,7 @@ pub fn line_of(record: &KeptReferenceRecord) -> String {
     object.insert(String::from("commit"), Value::from(record.commit.as_str()));
     object.insert(String::from("batch"), Value::from(record.batch));
     object.insert(String::from("rescued"), Value::from(record.rescued));
-    object.insert(String::from("worktree"), record.worktree.as_ref().map_or(Value::Null, |path| { return Value::from(path.as_str()); }));
+    object.insert(String::from("worktree"), worktree_value(record.worktree.as_deref()));
     object.insert(String::from("kept_at_ms"), Value::from(u64::try_from(record.kept_at_ms).unwrap_or(u64::MAX)));
     object.insert(String::from("why"), Value::from(record.why.as_str()));
     return format!("{}\n", Value::Object(object));

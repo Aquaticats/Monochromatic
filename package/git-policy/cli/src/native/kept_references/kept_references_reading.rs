@@ -11,20 +11,25 @@
 //!  Four Git starts answer everything:
 //!  a `for-each-ref` of the folder,
 //!  a `rev-list` of the objects only the kept references reach,
-//!  and, when the pass has to weigh a set of them, the same `rev-list` for that set,
+//!  and,
+//! when the pass has to weigh a set of them,
+//! the same `rev-list` for that set,
 //!  and a `cat-file` that sums the objects it names.
 //!  The measurement the limits rest on was taken with these commands
 //!  against this repository on 2026-11-12,
 //!  read-only:
 //!  `git for-each-ref refs/cli-git/ --format='%(refname) %(objectname) %(creatordate:iso-strict)'`
-//!  printed five references, all of them `refs/cli-git/kept/<number>`,
+//!  printed five references,
+//! all of them `refs/cli-git/kept/<number>`,
 //!  written between 2026-11-07T13:01:46-05:00 and 2026-11-07T13:48:16-05:00,
 //!  and nothing else lived under `refs/cli-git/`;
 //!  `git rev-list --count <commit> --not --branches --remotes --tags`
 //!  answered one for each of them,
 //!  so none had reached a branch;
 //!  and the reading below named 27 objects only they reach
-//!  (5 commits, 13 trees, 9 blobs),
+//!  (5 commits,
+//! 13 trees,
+//! 9 blobs),
 //!  7,573 bytes on disk and 258,055 bytes before compression.
 //!  The commands and their output are in
 //!  `doc/troubleshooting/cli-git-kept-references-are-pruned-by-size-and-age.md`.
@@ -97,6 +102,42 @@ pub struct TheReading {
 }
 
 /// What:
+///  An exit status as a person reads it,
+///  or the words for a command a signal ended.
+/// Why:
+///   A failure of a question is reported with what Git answered,
+///  and a step a signal ended answered no status at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const exitStatusWords = (code) => code === null ? 'no exit status' : String(code);
+/// ```
+fn exit_status_words(code: Option<i32>) -> String {
+    return match code {
+        Some(number) => number.to_string(),
+        None => String::from("no exit status"),
+    };
+}
+
+/// What:
+///  The commits of a set of kept references.
+/// Why:
+///  A reading asks Git about what the references name,
+///  and the names themselves are read beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commitsOf = (ones) => ones.map((one) => one.commit);
+/// ```
+fn commits_of(ones: &[OneKeptReference]) -> Vec<String> {
+    let mut commits: Vec<String> = Vec::with_capacity(ones.len());
+    for one in ones {
+        commits.push(one.commit.clone());
+    }
+    return commits;
+}
+
+/// What:
 ///  One Git question of the reading,
 ///  answered as text or as the reason it gave no answer.
 /// Why:
@@ -116,7 +157,7 @@ async fn answered_as_text(git: &GitContext, request: &GitRequest) -> Result<Vec<
         return Err(format!(
             "`{}` answered {}: {}",
             crate::transaction_git::command_text(request.arguments.as_slice()),
-            output.code.map_or_else(|| { return String::from("no exit status"); }, |code| { return code.to_string(); }),
+            exit_status_words(output.code),
             String::from_utf8_lossy(output.stderr.as_slice()).trim()
         ));
     }
@@ -254,7 +295,7 @@ pub async fn read_the_kept_references(git: &GitContext, common_dir: &Path) -> Re
     if kept.is_empty() {
         return Ok(TheReading { kept, bytes_only_they_reach: 0 });
     }
-    let commits: Vec<String> = kept.iter().map(|one| { return one.commit.clone(); }).collect();
+    let commits: Vec<String> = commits_of(kept.as_slice());
     let objects: Vec<String> = objects_only_these_reach(git, common_dir, commits.as_slice()).await?;
     let unreached: HashSet<&String> = objects.iter().collect();
     for one in &mut kept {

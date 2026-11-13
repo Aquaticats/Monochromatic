@@ -28,10 +28,12 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// The variable that sets the age limit, in whole seconds.
+/// The variable that sets the age limit,
+/// in whole seconds.
 const MAX_AGE_VARIABLE: &str = "CLI_GIT_KEPT_REFERENCE_MAX_AGE_SECONDS";
 
-/// The variable that sets the size limit, in bytes.
+/// The variable that sets the size limit,
+/// in bytes.
 const MAX_BYTES_VARIABLE: &str = "CLI_GIT_KEPT_REFERENCE_MAX_BYTES";
 
 /// The variable that sets the floor under which no reference is pruned for its size.
@@ -44,7 +46,8 @@ const PRUNED_NEXT: &str = "the next pass prunes it:";
 const COMMAND: &str = "monochromatic-git-policy-cli";
 
 /// How long a control waits before it asks whether a reference kept a moment ago is old enough yet:
-/// longer than the one-second age a control sets, and short enough that a control stays quick.
+/// longer than the one-second age a control sets,
+/// and short enough that a control stays quick.
 const A_MOMENT: Duration = Duration::from_millis(1_200);
 
 /// How long a control waits for the commit service's upkeep to reach the pass it runs by itself.
@@ -61,7 +64,8 @@ const MARKER_POLL: Duration = Duration::from_millis(20);
 
 /// A fixture and the one repository its controls keep references in.
 struct World {
-    /// The disposable fixture, removed by the control.
+    /// The disposable fixture,
+    /// removed by the control.
     fixture: Fixture,
     /// The repository's root.
     repo: PathBuf,
@@ -235,7 +239,8 @@ impl Paused {
     }
 }
 
-/// The commit service prunes a kept reference by itself, in the upkeep that runs after a landed commit,
+/// The commit service prunes a kept reference by itself,
+/// in the upkeep that runs after a landed commit,
 /// with no command asking for a pass.
 #[test]
 fn the_upkeep_prunes_with_no_command_asking_for_a_pass() {

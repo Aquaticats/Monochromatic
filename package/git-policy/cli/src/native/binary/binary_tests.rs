@@ -840,6 +840,7 @@ mod package_repair;
 mod kept_references;
 
 /// A commit and its push made while the service is inside a batch of the repository's own housekeeping records:
-/// how long each waited, measured for the record and not asserted as a control.
+/// how long each waited,
+/// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;

@@ -54,7 +54,9 @@ fn a_pass() -> ThePass {
     };
 }
 
-/// Every block names the commit, the age, the worktree and the batch,
+/// Every block names the commit,
+/// the age,
+/// the worktree and the batch,
 /// and says which of the two things the next pass does.
 #[test]
 fn a_listing_names_what_is_kept_and_what_the_next_pass_takes() {

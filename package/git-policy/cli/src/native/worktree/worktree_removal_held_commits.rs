@@ -178,9 +178,11 @@ fn names_this_commit(git: &GitContext, common_dir: &Path, name: &str, commit: &s
 }
 
 /// What:
-///  Record the worktree a held commit was kept for, beside the reference that keeps it.
+///  Record the worktree a held commit was kept for,
+/// beside the reference that keeps it.
 /// Why:
-///   The reference outlives the worktree, and the pruning's line about a pruned commit names
+///   The reference outlives the worktree,
+/// and the pruning's line about a pruned commit names
 ///  the worktree and batch it came from:
 ///  this is the one moment both are known together
 ///  (`kept_reference_record.rs`).

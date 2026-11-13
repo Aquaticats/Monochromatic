@@ -7,7 +7,8 @@
 //!  Nothing removed a kept reference before this,
 //!  so the objects only they reach grew without end
 //!  (the owner's answer of 2026-11-12,
-//!  "Keep the reference, auto prune by size and age").
+//!  "Keep the reference,
+//! auto prune by size and age").
 //!  Three things decide a reference's fate,
 //!  in this order:
 //!  a commit a branch has since reached holds nothing,
@@ -29,12 +30,15 @@
 //!  (`transaction_git_step_bounds.rs`),
 //!  it plans no more removals than `THE_MOST_A_PASS_PRUNES`,
 //!  and it stops once `A_PASS_WITHIN` has passed,
-//!  leaving the rest to the next pass, which runs after the next commit.
+//!  leaving the rest to the next pass,
+//! which runs after the next commit.
 //!  No lock is taken:
 //!  two passes that run at once remove the same references conditionally,
 //!  each with the value that reference had when that pass listed it
 //!  (`git update-ref -d <ref> <old>`),
-//!  so a reference another pass removed, or one a keeper wrote after the listing, is left alone by
+//!  so a reference another pass removed,
+//! or one a keeper wrote after the listing,
+//! is left alone by
 //!  the pass that listed it,
 //!  and two passes end where one of them alone would have.
 //!
@@ -60,9 +64,12 @@ pub use crate::kept_reference_pass_answers::{Kept, Pruned, WhyNotPruned, WhyPrun
 
 /// How many kept references one pass may remove.
 ///  Sixteen:
-///  a pass runs after every commit a repository lands, so a burst larger than this is worked through
-///  by the passes that follow it, and no single pass holds the service's upkeep for long.
-///  Measured: this repository held five kept references in the 5.7 days before 2026-11-12,
+///  a pass runs after every commit a repository lands,
+/// so a burst larger than this is worked through
+///  by the passes that follow it,
+/// and no single pass holds the service's upkeep for long.
+///  Measured:
+/// this repository held five kept references in the 5.7 days before 2026-11-12,
 ///  so no pass has had to remove any yet,
 ///  and the cap costs nothing until a repository's kept references actually accumulate.
 pub const THE_MOST_A_PASS_PRUNES: usize = 16;
@@ -70,10 +77,14 @@ pub const THE_MOST_A_PASS_PRUNES: usize = 16;
 /// How long one pass may spend planning and removing.
 ///  Twenty seconds:
 ///  the service's after-commit work starts housekeeping for thirty seconds a round
-///  (`HOUSEKEEPING_OF_ONE_ROUND`), and a pass that ends inside that slice leaves the round's own
+///  (`HOUSEKEEPING_OF_ONE_ROUND`),
+/// and a pass that ends inside that slice leaves the round's own
 ///  bound intact.
-///  Measured: a pass over this repository's five kept references is four Git starts
-///  (a `for-each-ref`, a `rev-list`, a `cat-file` and one `update-ref` for each removal),
+///  Measured:
+/// a pass over this repository's five kept references is four Git starts
+///  (a `for-each-ref`,
+/// a `rev-list`,
+/// a `cat-file` and one `update-ref` for each removal),
 ///  each of them milliseconds on the host of 2026-11-12.
 pub const A_PASS_WITHIN: Duration = Duration::from_secs(20);
 
@@ -175,7 +186,8 @@ async fn plan_the_pass(
 /// ```
 ///
 /// # Errors
-/// The words of the Git question that failed, when the pass could not read the repository.
+/// The words of the Git question that failed,
+/// when the pass could not read the repository.
 pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) -> Result<ThePass, String> {
     let began: Instant = Instant::now();
     let limits: KeptReferenceLimits = limits_from_the_environment();
@@ -232,7 +244,11 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
 /// const commonDirectory = (gitDir) => commonDirectoryOf(gitDir) ?? gitDir;
 /// ```
 pub fn common_directory_of_this_repository(git_dir: &Path) -> PathBuf {
-    return crate::service_work_common_directory::common_directory_of(git_dir).unwrap_or_else(|| { return git_dir.to_path_buf(); });
+    return match crate::service_work_common_directory::common_directory_of(git_dir) {
+        Some(found) => found,
+        // A worktree whose Git directory names no other is the repository's common one.
+        None => git_dir.to_path_buf(),
+    };
 }
 
 /// What:

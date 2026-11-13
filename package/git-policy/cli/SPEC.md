@@ -3405,7 +3405,8 @@ so it looks at no worktree.
 The wrapper prunes the references it keeps commits on,
 by age and by size
 (the owner's answer of 2026-11-12:
-"Keep the reference, auto prune by size and age"),
+"Keep the reference,
+auto prune by size and age"),
 because nothing else removes them and the objects only they reach would accumulate without end.
 
 A reference is a kept reference when its name is `refs/cli-git/kept/<number>` or
@@ -3465,7 +3466,8 @@ That line is the only account of the commit afterwards,
 because the reference was its only handle,
 and `git gc` takes the objects once it is gone.
 A line that cannot be written never stops the removal:
-the rule against unbounded growth decides, and the service's log names the failure.
+the rule against unbounded growth decides,
+and the service's log names the failure.
 
 The pass runs off the path any command waits for:
 in the commit service's after-commit upkeep,
@@ -3504,7 +3506,8 @@ holding 27 objects that weigh 7,573 bytes on disk (258,055 bytes before compress
 so thirty days is about five times the oldest age ever reached here and 64 MiB is about 43,000 of
 them at that weight;
 a repository with ten times this activity would bound the folder at about 250 references and the same
-ages, and one whose kept commits carry ten times the content would reach the size limit on most passes.
+ages,
+and one whose kept commits carry ten times the content would reach the size limit on most passes.
 
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory

@@ -14,7 +14,8 @@
 //!  and nothing removed them afterwards,
 //!  so the objects they hold grew without end
 //!  (the owner's answer of 2026-11-12:
-//!  "Keep the reference, auto prune by size and age").
+//!  "Keep the reference,
+//! auto prune by size and age").
 //!  The pass runs where no command waits for it
 //!  (`kept_reference_pass.rs`),
 //!  and every removal is the same one the runner's own words describe,
@@ -29,7 +30,8 @@
 /// and the batch it carries.
 pub mod kept_reference_name;
 
-/// The age, the size and the floor a kept reference is judged by,
+/// The age,
+/// the size and the floor a kept reference is judged by,
 /// with the measurement each value rests on,
 /// and the variables that change them.
 pub mod kept_reference_limits;

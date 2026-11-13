@@ -6,7 +6,8 @@
 //!  with the measurement each rests on and the variables that change them.
 //! Why:
 //!  The owner decided on 2026-11-12
-//!  ("Keep the reference, auto prune by size and age",
+//!  ("Keep the reference,
+//! auto prune by size and age",
 //!  `doc/handover/cli-git-rust-implementation.md`,
 //!  the answer of 2026-11-12T11:58:45-05:00)
 //!  that the wrapper prunes them by itself and named no values.
@@ -14,7 +15,9 @@
 //!  (the commands and numbers are in `kept_references_reading.rs`
 //!  and in `doc/troubleshooting/cli-git-kept-references-are-pruned-by-size-and-age.md`),
 //!  and are put to the owner before a release carries them.
-//!  They sit here, in one place, so the owner can read and change them together.
+//!  They sit here,
+//! in one place,
+//! so the owner can read and change them together.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +33,9 @@ const TAG: &str = "keptReferenceLimits";
 
 /// How old a kept reference may become before a pass prunes it.
 ///
-/// Measured on this host on 2026-11-12, read-only, with
+/// Measured on this host on 2026-11-12,
+/// read-only,
+/// with
 /// `git for-each-ref refs/cli-git/ --format='%(refname) %(objectname) %(creatordate:iso-strict)'`
 /// and `git rev-list --count <commit> --not --branches --remotes --tags`:
 /// this repository held five kept references,
@@ -38,18 +43,24 @@ const TAG: &str = "keptReferenceLimits";
 /// so the oldest was 6.5 days old and none of the five had reached a branch.
 /// Thirty days is about five times the oldest age this repository ever reached,
 /// so a person has a month to recover a commit the wrapper could not land.
-/// At this repository's rate (five references in 5.7 days, one every 1.2 days)
+/// At this repository's rate (five references in 5.7 days,
+/// one every 1.2 days)
 /// it bounds the folder at about 25 references;
 /// a repository with ten times the activity bounds it at about 250,
-/// and sees the same ages, because the age rule does not depend on the rate.
+/// and sees the same ages,
+/// because the age rule does not depend on the rate.
 pub const KEPT_REFERENCE_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 
 /// How many bytes the objects only kept references reach may weigh before the oldest references go.
 ///
-/// Measured on this host on 2026-11-12, read-only, with the commands in
+/// Measured on this host on 2026-11-12,
+/// read-only,
+/// with the commands in
 /// `kept_references_reading.rs`:
 /// the objects reachable only through this repository's five kept references were
-/// 27 objects (5 commits, 13 trees, 9 blobs),
+/// 27 objects (5 commits,
+/// 13 trees,
+/// 9 blobs),
 /// 7,573 bytes on disk by `%(objectsize:disk)` and 258,055 bytes before compression,
 /// so one kept reference cost 1,515 bytes on disk there.
 /// Sixty-four mebibytes is about 43,000 of them at that weight,
@@ -73,20 +84,23 @@ pub const KEPT_REFERENCE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 ///  the cleanup of 68 unused worktrees (`clean-build-trees-of-unused-pi-worktrees-1138`)
 ///  ran against this repository from 11:38 and ended before 11:49:32
 ///  (`doc/handover/cli-git-rust-implementation.md`,
-///  "The cleaning of unused worktrees, ended"),
+///  "The cleaning of unused worktrees,
+/// ended"),
 ///  so a burst of removals takes tens of minutes,
 ///  and an hour covers several of them.
 ///  The age rule still takes such a reference thirty days later,
 ///  so nothing is kept for ever by this floor.
 pub const KEPT_REFERENCE_FLOOR: Duration = Duration::from_secs(60 * 60);
 
-/// The variable that sets how old a kept reference may become, in whole seconds.
+/// The variable that sets how old a kept reference may become,
+/// in whole seconds.
 pub const MAX_AGE_VARIABLE: &str = "CLI_GIT_KEPT_REFERENCE_MAX_AGE_SECONDS";
 
 /// The variable that sets the bytes the kept objects may weigh.
 pub const MAX_BYTES_VARIABLE: &str = "CLI_GIT_KEPT_REFERENCE_MAX_BYTES";
 
-/// The variable that sets how young a kept reference stays out of the size rule's reach, in whole seconds.
+/// The variable that sets how young a kept reference stays out of the size rule's reach,
+/// in whole seconds.
 pub const FLOOR_VARIABLE: &str = "CLI_GIT_KEPT_REFERENCE_FLOOR_SECONDS";
 
 /// What:
@@ -154,7 +168,9 @@ fn variable(name: &str) -> Option<OsString> {
 ///  the three defaults above,
 ///  each replaced by its variable when that names a positive whole number.
 /// Why:
-///   The variables are how the owner, a person, and a control change the values without a build,
+///   The variables are how the owner,
+/// a person,
+/// and a control change the values without a build,
 ///  and how a control reaches the size rule with a fixture's few kilobytes.
 ///  A value that does not parse keeps the default,
 ///  so a typo never removes a bound.

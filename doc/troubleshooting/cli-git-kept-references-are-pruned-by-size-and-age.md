@@ -23,7 +23,9 @@ The writers are:
 - `src/native/landing/service_land_kept_commit.rs`,
   for a batch the branch does not show.
 - `src/native/landing/service_land_git_steps_and_import_stream.rs`
-  (`keep_unlanded`, `keep_on_a_side_ref`, `keep_on_a_side_ref_only_if_free`),
+  (`keep_unlanded`,
+  `keep_on_a_side_ref`,
+  `keep_on_a_side_ref_only_if_free`),
   for a commit a landing could not land,
   and for the name beside a batch's own.
 - `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`,
@@ -34,25 +36,34 @@ The writers are:
 Nothing removed any of them,
 so the objects only they reach were pinned for the life of the repository.
 The owner answered on 2026-11-12
-("Keep the reference, auto prune by size and age",
+("Keep the reference,
+auto prune by size and age",
 `doc/handover/cli-git-rust-implementation.md`,
 the answer of 2026-11-12T11:58:45-05:00).
 
 What else lives under `refs/cli-git/` is not touched by the pruning:
 
-- `refs/cli-git/carried/<n>`: the carried work of an isolated merge
-  (`src/native/merge/merge_isolation_recovery_tests.rs`, `keep_on_a_side_ref`).
-- `refs/cli-git/auto-push/fetch-<pid>`: the private fetch of an automatic push
-  (`src/native/push/auto_push_reconcile_basics_and_limits.rs`, `PRIVATE_FETCH_PREFIX`).
-- `refs/cli-git/trash`: only the reference a trash's work record carries;
+- `refs/cli-git/carried/<n>`:
+  the carried work of an isolated merge
+  (`src/native/merge/merge_isolation_recovery_tests.rs`,
+  `keep_on_a_side_ref`).
+- `refs/cli-git/auto-push/fetch-<pid>`:
+  the private fetch of an automatic push
+  (`src/native/push/auto_push_reconcile_basics_and_limits.rs`,
+  `PRIVATE_FETCH_PREFIX`).
+- `refs/cli-git/trash`:
+  only the reference a trash's work record carries;
   no reference of that name is created.
 
 `refs/cli-git/kept/` is the one folder the pruning removes a reference from,
-and only a name that is a number, or a number and `-rescue`, is a kept reference.
+and only a name that is a number,
+or a number and `-rescue`,
+is a kept reference.
 
 ## The reading of this repository on 2026-11-12
 
-Read-only, in the repository at `/var/mnt/encrypted/repository/Monochromatic`:
+Read-only,
+in the repository at `/var/mnt/encrypted/repository/Monochromatic`:
 
 ```console
 $ git for-each-ref refs/cli-git/ --format='%(refname) %(objectname) %(creatordate:iso-strict)'
@@ -88,7 +99,8 @@ $ git for-each-ref --format='%(objectname)' refs/cli-git/kept/ \
 ```
 
 Twenty-seven objects are reachable only through kept references:
-5 commits, 13 trees and 9 blobs.
+5 commits,
+13 trees and 9 blobs.
 
 ```console
 $ git for-each-ref --format='%(objectname)' refs/cli-git/kept/ \
@@ -96,7 +108,8 @@ $ git for-each-ref --format='%(objectname)' refs/cli-git/kept/ \
   | awk '{print $1}' | git cat-file --batch-check='%(objecttype) %(objectsize) %(objectsize:disk)'
 ```
 
-summed: 7,573 bytes on disk and 258,055 bytes before compression,
+summed:
+7,573 bytes on disk and 258,055 bytes before compression,
 so one kept reference cost about 1,515 bytes on disk here,
 and the largest single object was a blob of 2,023 bytes on disk.
 
@@ -106,9 +119,11 @@ at about 1.3 KiB of objects a day.
 
 ## The rules the pruning follows
 
-In order, for each reference under `refs/cli-git/kept/` that is a number or a number and `-rescue`:
+In order,
+for each reference under `refs/cli-git/kept/` that is a number or a number and `-rescue`:
 
-1. A branch, a remote-tracking reference or a tag reaches the commit:
+1. A branch,
+   a remote-tracking reference or a tag reaches the commit:
    the reference goes at once,
    whatever its age.
 2. The reference is older than the age limit and no branch reaches its commit:
@@ -134,13 +149,15 @@ because that is what the repository gives back when the reference goes.
 
 ## The values, and what they rest on
 
-- `KEPT_REFERENCE_MAX_AGE`: thirty days.
+- `KEPT_REFERENCE_MAX_AGE`:
+  thirty days.
   The oldest reference this repository ever reached was 6.5 days old and still unreached,
   so thirty days is about five times that,
   and a person has a month to recover a commit.
   At this repository's rate it bounds the folder at about 25 references;
   ten times the activity bounds it at about 250 and changes no age.
-- `KEPT_REFERENCE_MAX_BYTES`: 64 MiB.
+- `KEPT_REFERENCE_MAX_BYTES`:
+  64 MiB.
   One reference cost 1,515 bytes on disk here,
   so 64 MiB is about 43,000 of them,
   and the age limit binds long before that at this weight.
@@ -148,7 +165,8 @@ because that is what the repository gives back when the reference goes.
   this repository's five carry no object over 2 KiB,
   while a kept commit of a worktree holding an artifact can carry megabytes,
   and ten of 6 MiB each bring the limit to its bound.
-- `KEPT_REFERENCE_FLOOR`: one hour.
+- `KEPT_REFERENCE_FLOOR`:
+  one hour.
   A kept reference is written at the moment a worktree goes,
   so a burst of removals writes a burst of references.
   The cleanup of 68 unused worktrees on 2026-11-12 ran from 11:38 to before 11:49,
@@ -198,11 +216,11 @@ which is the only moment the two are known together.
 
 ## Reading the state yourself
 
-```console
-$ git for-each-ref refs/cli-git/kept/ --format='%(refname) %(objectname)'
-$ git monochromatic-git-policy-cli kept-references
-$ ls .git/monochromatic-git-policy-cli/kept-references/
-$ tail -n 5 .git/monochromatic-git-policy-cli-kept-references.jsonl
+```sh
+git for-each-ref refs/cli-git/kept/ --format='%(refname) %(objectname)'
+git monochromatic-git-policy-cli kept-references
+ls .git/monochromatic-git-policy-cli/kept-references/
+tail -n 5 .git/monochromatic-git-policy-cli-kept-references.jsonl
 ```
 
 A reference removed by hand is one the pass stops answering for;
@@ -223,7 +241,8 @@ The pruning names the two forms of a kept reference itself
 so it answers for both a merge produces,
 and the only work a merge of the two leaves is the record of the worktree:
 the removal keeper writes it
-(`worktree_removal_held_commits.rs`, `remember_the_worktree`),
+(`worktree_removal_held_commits.rs`,
+`remember_the_worktree`),
 and a merge adds the same one call after the write in
 `service_land_side_reference_write.rs`,
 so that a commit a landing kept also names the worktree it was built in.

@@ -107,8 +107,14 @@ pub fn kept_words(why: WhyNotPruned, limits: KeptReferenceLimits) -> String {
 /// const worktreeWords = (worktree) => worktree ?? 'not recorded';
 /// ```
 pub fn worktree_words(worktree: Option<&str>) -> String {
-    return worktree.map_or_else(|| { return String::from("not recorded"); }, String::from);
+    return match worktree {
+        Some(path) => String::from(path),
+        None => String::from(NOT_RECORDED),
+    };
 }
+
+/// What a listing says about a reference no release recorded a worktree for.
+pub const NOT_RECORDED: &str = "not recorded";
 
 /// What:
 ///  The lines of one kept reference.

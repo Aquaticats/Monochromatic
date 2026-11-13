@@ -1,5 +1,6 @@
 //! What:
-//!  Test-only phase markers of the isolated merge, of a commit headed for the service and of the
+//!  Test-only phase markers of the isolated merge,
+//! of a commit headed for the service and of the
 //!  pruning of the references the wrapper keeps commits on,
 //! for crash and interleaving suites.
 //!  An explicit environment variable arms one marker:

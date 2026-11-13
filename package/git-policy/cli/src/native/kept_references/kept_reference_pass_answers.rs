@@ -84,7 +84,9 @@ pub enum WhyNotPruned {
 ///  with what the person needs to find out afterwards what went.
 /// Why:
 ///   Removing the reference destroys the only handle on a commit no branch reaches,
-///  so the log line and the listing carry the commit, the batch, the worktree it was built in,
+///  so the log line and the listing carry the commit,
+/// the batch,
+/// the worktree it was built in,
 ///  its age and the reason.
 ///
 /// In TS you'd write (pseudocode):
@@ -104,7 +106,8 @@ pub struct Pruned {
     /// The worktree the commit was built in,
     /// or nothing when the release that kept it recorded none.
     pub worktree: Option<String>,
-    /// When the reference was written, in milliseconds since the Unix epoch.
+    /// When the reference was written,
+    /// in milliseconds since the Unix epoch.
     pub kept_at_ms: u128,
     /// How old it was when this pass read it.
     pub age_ms: u128,
@@ -136,7 +139,8 @@ pub struct Kept {
     /// The worktree the commit was built in,
     /// or nothing when it was not recorded.
     pub worktree: Option<String>,
-    /// When it was written, in milliseconds since the Unix epoch.
+    /// When it was written,
+    /// in milliseconds since the Unix epoch.
     pub kept_at_ms: u128,
     /// How old it was when this pass read it.
     pub age_ms: u128,
@@ -156,9 +160,11 @@ pub struct Kept {
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ThePass {
-    /// The references the pass removed, or would remove.
+    /// The references the pass removed,
+    /// or would remove.
     pub pruned: Vec<Pruned>,
-    /// The references it left, with the rule that spared each.
+    /// The references it left,
+    /// with the rule that spared each.
     pub kept: Vec<Kept>,
     /// The bytes the objects only kept references reached before it read them.
     pub bytes_before: u64,
@@ -236,7 +242,8 @@ pub fn recorded_or_first_seen(common_dir: &Path, one: &OneKeptReference, now: u1
 }
 
 /// What:
-///  The commits of the references that would stay, as a size question asks about them.
+///  The commits of the references that would stay,
+/// as a size question asks about them.
 /// Why:
 ///  The size limit is about what the references that stay still hold,
 ///  so every question about it is asked of the survivors.
@@ -256,6 +263,60 @@ pub fn commits_of_survivors(kept: &[OneKeptReference], planned: &[bool]) -> Vec<
 }
 
 /// What:
+///  The time one record says its reference was written,
+///  or the fallback a caller gives for a reference the repository records none of.
+/// Why:
+///   A reference an earlier release wrote has no record until a pass writes one,
+///  and a time of nothing would make it the oldest thing in the folder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptAtOr = (record, fallback) => record ? record.keptAtMs : fallback;
+/// ```
+fn kept_at_or(record: Option<&KeptReferenceRecord>, fallback: u128) -> u128 {
+    return match record {
+        Some(held) => held.kept_at_ms,
+        None => fallback,
+    };
+}
+
+/// What:
+///  The age of one record at `now`,
+///  or nothing when there is no record.
+/// Why:
+///   Every rule asks a reference's age,
+///  and a reference the repository recorded none of has none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ageOrNothing = (record, now) => record ? Math.max(0, now - record.keptAtMs) : 0;
+/// ```
+fn age_or_nothing(record: Option<&KeptReferenceRecord>, now: u128) -> u128 {
+    return match record {
+        Some(held) => age_of(held, now),
+        None => 0,
+    };
+}
+
+/// What:
+///  The worktree one record names,
+///  or nothing when it names none.
+/// Why:
+///  The listing and the log line print the worktree a commit was built in,
+///  and a record written by a release that knew none says so by leaving it out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worktreeOf = (record) => record?.worktree;
+/// ```
+fn worktree_of(record: Option<&KeptReferenceRecord>) -> Option<String> {
+    return match record {
+        Some(held) => held.worktree.clone(),
+        None => None,
+    };
+}
+
+/// What:
 ///  The age of one kept reference,
 ///  as the record says,
 ///  and nothing when the repository holds no record of it.
@@ -268,7 +329,7 @@ pub fn commits_of_survivors(kept: &[OneKeptReference], planned: &[bool]) -> Vec<
 /// const ageAt = (records, at, now) => records[at] ? ageOf(records[at], now) : 0;
 /// ```
 pub fn age_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) -> u128 {
-    return records[at].as_ref().map_or(0, |record| { return age_of(record, now); });
+    return age_or_nothing(records[at].as_ref(), now);
 }
 
 /// What:
@@ -288,8 +349,12 @@ pub fn oldest_the_floor_allows(reading: &[OneKeptReference], records: &[Option<K
         if planned[at] || age_at(records, at, now) <= limits.floor.as_millis() {
             continue;
         }
-        let candidate: u128 = records[at].as_ref().map_or(u128::MAX, |record| { return record.kept_at_ms; });
-        let held_at: u128 = chosen.and_then(|held| { return records[held].as_ref(); }).map_or(u128::MAX, |record| { return record.kept_at_ms; });
+        let candidate: u128 = kept_at_or(records[at].as_ref(), u128::MAX);
+        // The earliest time kept among those already passed over is the one to beat.
+        let held_at: u128 = match chosen {
+            Some(held) => kept_at_or(records[held].as_ref(), u128::MAX),
+            None => u128::MAX,
+        };
         if chosen.is_none() || candidate < held_at {
             chosen = Some(at);
         }
@@ -309,8 +374,8 @@ pub fn oldest_the_floor_allows(reading: &[OneKeptReference], records: &[Option<K
 /// const keptOne = (one, record, now) => ({ ...one, keptAtMs, ageMs, whyNot });
 /// ```
 pub fn kept_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, now: u128, limits: KeptReferenceLimits, planned: bool, cap_reached: bool) -> Kept {
-    let kept_at_ms: u128 = record.map_or(now, |held| { return held.kept_at_ms; });
-    let age_ms: u128 = record.map_or(0, |held| { return age_of(held, now); });
+    let kept_at_ms: u128 = kept_at_or(record, now);
+    let age_ms: u128 = age_or_nothing(record, now);
     let why_not: WhyNotPruned = if planned && cap_reached {
         WhyNotPruned::ThisPassReachedItsCap
     } else if age_ms <= limits.max_age.as_millis() {
@@ -323,7 +388,7 @@ pub fn kept_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, no
         commit: one.commit.clone(),
         batch: one.batch,
         rescued: one.rescued,
-        worktree: record.and_then(|held| { return held.worktree.clone(); }),
+        worktree: worktree_of(record),
         kept_at_ms,
         age_ms,
         why_not,
@@ -346,9 +411,9 @@ pub fn pruned_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, 
         commit: one.commit.clone(),
         batch: one.batch,
         rescued: one.rescued,
-        worktree: record.and_then(|held| { return held.worktree.clone(); }),
-        kept_at_ms: record.map_or(now, |held| { return held.kept_at_ms; }),
-        age_ms: record.map_or(0, |held| { return age_of(held, now); }),
+        worktree: worktree_of(record),
+        kept_at_ms: kept_at_or(record, now),
+        age_ms: age_or_nothing(record, now),
         why,
     };
 }
