@@ -21,10 +21,18 @@ A model from another vendor reviewed that rewrite as of commit `ce2cc36df5`,
 and its one finding on this document,
 a comparison described as one run each that was seven rounds,
 is corrected.
-The figures on pull request 1121 in the reply draft were measured again on Node and Bun after that,
-and that change has had no review.
-The timings in this document ran on Node.
-Deno appears only as one of the runtimes the reproduction scripts were run on;
+The figures on pull request 1121 in the reply draft were measured again on Node and Bun after that.
+The timings in this document's own sections ran on Node,
+and the reply draft also carries figures taken on Node and on Bun.
+A second review by that vendor's model read the reply draft's new figures as of commit `2907e3a444`
+and recomputed them from the raw rounds;
+what it found on this document,
+an earlier form of this sentence that left Bun out
+and a line of the draft that said the core suite passes with the first patch "on Deno and Node"
+where the record has Bun as well,
+is corrected,
+and those corrections have had no review.
+Deno appears only as one of the runtimes the reproduction scripts and the suite were run on;
 its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
 with no new feature work.
 
@@ -788,9 +796,9 @@ Node a cost both carry is about as large: the `InputTraceImpl.set()` copy you se
 that on top of #1121 the same parse took 0.92 times as long as 1.3.6 on Node (0.84 to 1.05, one of seven rounds
 slower); on Bun the patch changed nothing at a thousand paths (1.92, 1.84 to 2.28). On its own input, 8,000
 positional arguments and one option, the patched build takes 0.11 times as long as main on Node (0.10 to 0.12) and
-0.30 times on Bun (0.15 to 0.33). It keeps the entries in
-an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
-to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
+0.30 times on Bun (0.15 to 0.33). It keeps the entries in an immutable hash trie in place of the copied `Map`; the
+core suite passes with it on Deno, Node and Bun, and it applies to main as of that merge. It does not make the
+parse linear: two more per-argument copies sit behind it, in
 `multiple()` (the state array) and in every primitive that consumes a token (the buffer slice). I tried both. A
 second patch removes the state copy by making a state of more than 1,024 items an array-shaped view over an
 immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
