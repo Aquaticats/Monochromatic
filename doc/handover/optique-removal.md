@@ -1019,7 +1019,19 @@ to settle before a reply:
   The corrections made after that third pass are not reviewed,
   and neither is the section "Prototypes for the two further copies",
   the second patch,
-  or the revised reply draft and draft issue.
+  or the revised reply draft and draft issue,
+  all committed as `a62135c94d`.
+  A fourth pass over them is prepared
+  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fourth-pass-prompt.md`,
+  resuming the same reviewer session).
+  It could not start at 2026-11-13T14:01:47-05:00,
+  when the machine held sixteen agents against a cap of sixteen,
+  so the unit `optique-review-fourth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
+  and starts it when a place is free;
+  its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-4.log`,
+  and the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-4`.
+  If that unit gave up,
+  start the pass by hand with the same prompt.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
   a local file that is not committed.
@@ -1067,6 +1079,13 @@ Container images `localhost/optique-cross-runtime:2026-11-13`,
 `localhost/optique-prototype-work:2026-11-13` and `localhost/optique-prototype-work-current-bun:2026-11-13`
 were built on 2026-11-13,
 after `podman system reset` removed the earlier ones.
+The recheck added `localhost/optique-two-remaining-copies-recheck:2026-11-13`
+and two small ones built on it,
+tagged `-annotated` and `-mixed-threshold`,
+and the prototype agent left `localhost/optique-prototype-arms:2026-11-13`.
+All of these are kept until the fourth review pass is folded in,
+in case a check has to be run again,
+and are to be removed after it.
 
 The defects in this repository's own tools that showed during the work are filed,
 on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
