@@ -1020,14 +1020,20 @@ to settle before a reply:
   and neither is the section "Prototypes for the two further copies",
   the second patch,
   or the revised reply draft and draft issue,
-  all committed as `a62135c94d`.
+  first committed as `a62135c94d` and changed since:
+  the second patch gained a second fix,
+  for writes past a view's end,
+  and the section the figures of the patch as kept.
   A fourth pass over them is prepared
   (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fourth-pass-prompt.md`,
   resuming the same reviewer session).
   It could not start at 2026-11-13T14:01:47-05:00,
-  when the machine held sixteen agents against a cap of sixteen,
-  so the unit `optique-review-fourth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
+  when the machine held sixteen agents against a cap of sixteen.
+  The unit `optique-review-fourth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
   and starts it when a place is free;
+  it was stopped once before it had started anything,
+  while the patch was being changed,
+  and started again after that change was committed;
   its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-4.log`,
   and the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-4`.
   If that unit gave up,
@@ -1042,8 +1048,9 @@ to settle before a reply:
   (`passthrough-cases.jsonl` beside it).
   Nothing about it is to be mentioned in public.
 - Which of the drafted questions go into the reply.
-  The draft asks one,
-  whether offering every token to every option parser is the intended end state.
+  The draft asks whether an issue for the first patch is welcome,
+  whether a proxy-backed state is wanted at all,
+  and whether offering every token to every option parser is the intended end state.
   The one about a guard on how parse work grows is partly answered by pull request 1121,
   which keeps a benchmark for its workload.
 
@@ -1069,10 +1076,18 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
   report,
   scripts,
   logs and measurements.
-- `optique-two-remaining-copies-recheck-2026-11-13/keep/`:
-  the records of the recheck of those diffs.
-  The scripts that made them are in the evidence archive beside the research document,
+- `optique-two-remaining-copies-recheck-2026-11-13/`:
+  the recheck of those diffs.
+  Its `keep/` folder holds the records;
+  beside it are the scripts that made them,
+  the staged source arms under `arms/`,
+  which the fourth review pass reads,
+  and `suite-fixture/`,
+  an installed copy of upstream's clone for running its suite.
+  The scripts and records are also in the evidence archive beside the research document,
   folder `two-remaining-copies-recheck-2026-11-13`.
+  Once the fourth review pass is folded in,
+  everything in that folder but `keep/` is to be deleted.
 
 Container images `localhost/optique-cross-runtime:2026-11-13`,
 `localhost/optique-upstream-arms:2026-11-13`,
