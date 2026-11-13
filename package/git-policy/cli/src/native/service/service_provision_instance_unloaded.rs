@@ -32,18 +32,24 @@
 
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
 use crate::service_instance::{service_unit_instance, socket_path, socket_unit_instance};
-use crate::service_messages::ClientFailure;
 use crate::service_provision_host_and_manager::{Manager, ProvisionHost};
 use crate::systemd_dbus::CallError;
 
-/// The longest the manager is given to drop a unit after it was stopped.
+/// The longest the manager is given to drop a unit after it was stopped,
+/// before this commit stops waiting and goes on
+///  without writing the record of what the manager read.
 ///  Measured:
 /// a disposable user manager dropped a stopped socket and service instance on the first 50 ms poll,
 /// 11 ms after the
 ///  stop was answered,
 /// with 4,959 units loaded (`doc/planning/git-wrapper-reload-remedy.md`).
 /// Five seconds is 450 times that,
-/// and it is only reached by a manager that cannot make progress at all.
+/// and it is only reached by a manager that cannot make progress,
+/// or by a unit another command
+///  started again inside the wait;
+/// either way the commit does not wait longer and does not fail,
+/// and the next commit asks
+///  the manager to drop it again.
 pub const UNLOAD_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// How often the manager is asked whether it still holds the units.
@@ -68,30 +74,6 @@ pub(crate) fn is_at_rest(state: &str) -> bool {
 }
 
 /// What:
-///  The failure for a unit the manager still holds after the unload wait.
-/// Why:
-///  A start now would read the text the manager loaded earlier instead of the files this release wrote,
-/// and that is the
-///  one thing this repair is for;
-/// the person is told which unit and what to try.
-/// What that text runs is this release's own
-///  program while it names the program link (every release since `0.6.1-alpha.14`),
-/// and the release that wrote it when the
-///  text is older than the link,
-/// which the client's own repair for a service of another release answers.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stillLoaded(unit) // could-not-start with the unit's name
-/// ```
-fn still_loaded(unit: &str) -> ClientFailure {
-    return ClientFailure::CouldNotStart(format!(
-        "the service manager still holds this worktree's unit ({unit}) {:.0} seconds after it was stopped, so a start now would read the text it loaded earlier rather than the files; run the commit again in a moment",
-        UNLOAD_WAIT.as_secs_f64()
-    ));
-}
-
-/// What:
 ///  What a call to `unload_instance` came to.
 /// Why:
 ///   The caller may write the record of what the manager read only when it was watched dropping this worktree's units;
@@ -108,8 +90,10 @@ pub(crate) enum Unloaded {
     /// The manager was asked and holds neither of this worktree's units,
     /// so its next start reads the files as they are now.
     Dropped,
-    /// The manager could not be asked,
-    /// so nothing was dropped and nothing about what it holds is known.
+    /// The manager was not seen dropping them,
+    /// or could not be asked,
+    /// so nothing about what it holds is known and the
+    ///  record must not claim it read these texts.
     NotAsked,
 }
 
@@ -155,12 +139,25 @@ enum ServiceLeft {
 /// and the wait for it to leave
 ///  is the retirement wait of the host,
 /// because a batch it is landing is finished rather than cut.
+/// Nothing here ends a commit:
+/// every wait it gives answers what it found,
+/// and the commit goes on through whatever the manager holds,
+/// with the
+///  record of what the manager read left unwritten so the next commit asks again.
+/// The one harm this repair turns away
+///  (a start running the release that replaced this one,
+/// from a unit held at a text older than the program link)
+/// is
+///  answered where it happens,
+/// by the client's own repair for a service of another release
+/// (`service_client_reach_service.rs`),
+/// not by failing the commit that found it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await unloadInstance(host, manager) // throws when the manager keeps the unit
+/// await unloadInstance(host, manager) // stop this worktree's units, wait for the manager to drop them
 /// ```
-pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<Unloaded, ClientFailure> {
+pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -> Unloaded {
     let instance: &str = host.instance.as_str();
     let service: String = service_unit_instance(instance);
     let socket: String = socket_unit_instance(instance);
@@ -177,7 +174,7 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                 "the service manager could not say whether it holds this worktree's service unit ({service}): {}; the commit goes on without unloading it, and the next commit asks again",
                 describe(&error)
             );
-            return Ok(Unloaded::NotAsked);
+            return Unloaded::NotAsked;
         }
     };
     let socket_state: Option<String> = match manager.active_state(socket.as_str()) {
@@ -187,11 +184,11 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                 "the service manager could not say whether it holds this worktree's socket unit ({socket}): {}; the commit goes on without unloading it, and the next commit asks again",
                 describe(&error)
             );
-            return Ok(Unloaded::NotAsked);
+            return Unloaded::NotAsked;
         }
     };
     if service_state.is_none() && socket_state.is_none() {
-        return Ok(Unloaded::Dropped);
+        return Unloaded::Dropped;
     }
     // A service that runs is asked to leave by itself before anything is stopped, so the batch it holds is finished.
     if !matches!(&service_state, Some(state) if is_at_rest(state.as_str())) {
@@ -210,7 +207,7 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                     "the commit service of this worktree ({service}) is still running {:.0} seconds after it was asked to retire, which is a batch landing, so this commit goes on through it and the next commit drops the unit once it is at rest",
                     host.retirement_wait.as_secs_f64()
                 );
-                return Ok(Unloaded::NotAsked);
+                return Unloaded::NotAsked;
             }
             // What: A manager that cannot say what the service does leaves the units as they are and the commit going.
             // Why:  The answer only decides whether they have to be dropped; nothing can be dropped on a guess, the commit does
@@ -220,7 +217,7 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                     "the service manager could not say whether the commit service of this worktree ({service}) is still running: {}; the units stay as they are and the commit goes on, and the next commit asks again",
                     describe(&error)
                 );
-                return Ok(Unloaded::NotAsked);
+                return Unloaded::NotAsked;
             }
         }
     }
@@ -238,12 +235,11 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
                 "the service manager did not take the stop of this worktree's own unit ({socket}): {}; the units stay as they are and the commit goes on, and the next commit asks again",
                 describe(&error)
             );
-            return Ok(Unloaded::NotAsked);
+            return Unloaded::NotAsked;
         }
     }
     return wait_until_dropped(manager, [service.as_str(), socket.as_str()].as_slice());
 }
-
 /// Waits until the manager reports the unit `unit` at rest or not held,
 /// and answers what it found when the retirement wait runs out.
 /// Why:
@@ -284,17 +280,22 @@ fn wait_until_at_rest(host: &ProvisionHost, manager: &mut dyn Manager, unit: &st
 ///   A unit the manager unloaded is read from its file the next time it is started;
 /// one it still holds is started from
 ///  the text it read earlier.
-/// The one failure that ends the commit is a manager that answered every question and still holds the
-///  unit after `UNLOAD_WAIT`,
-/// because a start then reads the text it loaded rather than the files;
-/// a question it cannot answer
-///  leaves the units as they are and the commit going.
+/// A unit it still holds when `UNLOAD_WAIT` runs out is one another command started again,
+/// or one whose
+///  collection the manager has not reached,
+/// and neither is a reason to end a commit:
+/// the commit goes on through whatever the manager
+///  runs,
+/// and the record stays unwritten so the next commit asks again.
+/// A question it cannot answer leaves the units as they
+///  are and the commit going,
+/// for the same reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await waitUntilDropped(manager, ['<service>', '<socket>'])
 /// ```
-fn wait_until_dropped(manager: &mut dyn Manager, units: &[&str]) -> Result<Unloaded, ClientFailure> {
+fn wait_until_dropped(manager: &mut dyn Manager, units: &[&str]) -> Unloaded {
     let deadline: std::time::Instant = std::time::Instant::now() + UNLOAD_WAIT;
     loop {
         let mut held: Option<&str> = None;
@@ -312,13 +313,17 @@ fn wait_until_dropped(manager: &mut dyn Manager, units: &[&str]) -> Result<Unloa
                         "the service manager could not say whether it still holds this worktree's unit ({unit}): {}; the units stay as they are and the commit goes on, and the next commit asks again",
                         describe(&error)
                     );
-                    return Ok(Unloaded::NotAsked);
+                    return Unloaded::NotAsked;
                 }
             }
         }
-        let Some(unit) = held else { return Ok(Unloaded::Dropped) };
+        let Some(unit) = held else { return Unloaded::Dropped };
         if std::time::Instant::now() >= deadline {
-            return Err(still_loaded(unit));
+            crate::service_warn!(
+                "the service manager still holds this worktree's unit ({unit}) {:.0} seconds after it was stopped, so this commit goes on without the record of what the manager read, and the next commit asks it to drop the unit again",
+                UNLOAD_WAIT.as_secs_f64()
+            );
+            return Unloaded::NotAsked;
         }
         std::thread::sleep(UNLOAD_POLL);
     }

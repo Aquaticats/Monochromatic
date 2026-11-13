@@ -7961,6 +7961,36 @@ and
   the manager is asked what it holds of the worktree's units until it holds neither,
   and the socket is started again,
   so the next start reads the file as it is now.
+  That repair never ends a commit it cannot finish:
+  a manager that answers nothing,
+  a stop it does not take,
+  a service still running at the retirement wait,
+  and a unit another command starts again inside the wait are each one line on the wrapper's log,
+  with nothing stopped,
+  the record of what the manager read left unwritten,
+  and the commit going on through whatever the manager runs
+  (`a_manager_that_stops_answering_after_the_stop_leaves_the_commit_to_go_on`,
+  `a_service_that_is_still_landing_leaves_the_commit_to_go_on_and_stops_nothing`,
+  `a_unit_the_manager_keeps_past_the_wait_leaves_the_commit_to_go_on_and_the_record_unwritten`).
+  The link is the one thing whose failure the commit outlives rather than mends,
+  and it decides whether that commit lands:
+  pointing it never ends a commit,
+  the units are still written,
+  and a start then runs the program the link still names
+  (`point_program_link` in `service_provision.rs`,
+  `a_program_link_that_cannot_be_pointed_leaves_the_commit_to_go_on`).
+  That program is this release when a build of this release left the link at another path,
+  and the commit lands through it;
+  when it is another release's and it will not step aside on the retire or on the restart,
+  the commit ends with "The commit service that is running was started from another release ...",
+  whose words name the link and the runtime directory that could not hold it;
+  and when it cannot be executed at all (a directory,
+  a path an upgrade removed) the start fails and the commit ends with
+  "The commit service did not start".
+  Nothing smaller is safe there:
+  the commit service is the only writer of a commit,
+  this release does not hand one to another release's service,
+  and the manager reads the program from the link on the text it holds.
   The cost is this worktree's own:
   measured in a disposable manager holding 4,059 units,
   the manager held a stopped socket and service no longer on the first 50 ms poll,

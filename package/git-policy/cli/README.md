@@ -94,9 +94,20 @@ Every earlier name keeps working in this release:
    which is this worktree's own unit and nobody else's.
   That repair never costs a commit:
   a service still landing a batch,
-  a manager that stops answering and a link that cannot be written are each one line,
+  a manager that stops answering,
+  a stop it does not take,
+  and a unit another command starts again inside the wait are each one line,
    the units are left as they are,
   and the commit lands through the service that is running.
+  The one failure a commit outlives rather than mends is the program link:
+   pointing it never ends a commit,
+  but what the link still names decides whether that commit lands.
+  A program of this release (a link a build of this release left at another path) greets as this release and the commit
+   lands;
+  another release's program that will not step aside ends the commit with the message that names the link and the runtime
+   directory that could not hold it;
+  and a path that cannot be executed starts nothing,
+  so the commit ends saying the service did not start.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -6962,10 +6973,9 @@ and a commit that ends there names the journal command.
   (`src/native/service/service_provision_instance_unloaded.rs`).
   A service that is landing a batch when that repair asks it to retire is left running and the commit goes on
   through it,
-  and so is one whose manager stops answering:
+  and so is one whose manager stops answering or whose unit another command starts again inside the wait:
   the repair is repeated by the next commit,
-  and no
-  commit waits for a landing or fails for one.
+  and no commit waits for a landing or fails for one.
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
   (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,

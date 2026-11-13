@@ -158,18 +158,43 @@ pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
 ///  (after its idle exit,
 /// or after a restart) must run the release of the commit that needed it.
 /// A link that cannot
-///  be written never fails the commit:
+///  be written does not end the commit by itself:
 /// the unit files are still written,
-/// and a start then runs whatever the link named
-///  before,
-/// which the client asks to retire in the ordinary way;
-/// one line names the link and what a start will run
-///  instead,
+/// the commit goes on,
+/// one line
+///  names the link,
 /// and the next commit points it again.
+/// Whether the commit lands is then decided by whatever the link
+///  still names,
+/// because the unit starts the link and nothing else.
+/// A program of this release
+///  (which a link a build of the same release left at another path is)
+/// greets as this release,
+/// and the
+///  commit lands through it.
+/// A program of another release answers as that release,
+/// and the client's own repair for it
+///  (`service_client_reach_service.rs`) ends the commit with its message when it will not step aside.
+/// A path that cannot
+///  be executed at all (a directory,
+/// an executable an upgrade removed) starts nothing,
+/// and the commit ends with "The
+///  commit service did not start".
+/// Nothing smaller is safe:
+/// the commit service is the only writer of a commit,
+/// this release will not
+///  hand one to another release's service,
+/// and the manager reads the link from the text it holds,
+/// which this release cannot
+///  change without writing that text.
+/// The remedy when it repeats is the runtime directory:
+/// the link must sit where this account can
+///  write,
+/// which is what the line and the failure that follows both name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pointProgramLink(host) // the link names host.serviceBinary, or a line says it does not
+/// pointProgramLink(host) // the link names host.serviceBinary, or a line says what it still names
 /// ```
 fn point_program_link(host: &ProvisionHost) {
     let link: PathBuf = program_link(host.runtime_dir.as_path());
@@ -178,7 +203,7 @@ fn point_program_link(host: &ProvisionHost) {
     }
     if let Err(error) = link_atomically(link.as_path(), host.service_binary.as_path()) {
         crate::service_warn!(
-            "{} cannot be pointed at {} ({}), so the commit service starts whatever the link names, which is not the release of this commit; the units are still written and this commit goes on, and the next commit points the link again",
+            "{} cannot be pointed at {} ({}), so this commit's service is started from whatever the link still names; the units are still written and this commit goes on, and it lands if that program is this release, and ends with that program's own message if it is another release or none at all; set XDG_RUNTIME_DIR to a runtime directory this account can write, and the next commit points the link again",
             link.display(),
             host.service_binary.display(),
             in_plain_words(&error)
@@ -363,8 +388,11 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       manager does not hold it, so anything a manager that could not be asked leaves behind is a text the record must
     //       not claim it read.
     let mut holds_these_texts: bool = told;
+    // What: A repair that could not be finished leaves the record unwritten and the commit going.
+    // Why:  Nothing it asks the manager for is needed for the commit to land, so nothing it fails to get may end one
+    //       (`unload_instance` answers what it found and never a failure).
     if stale {
-        let unloaded: Unloaded = unload_instance(host, manager)?;
+        let unloaded: Unloaded = unload_instance(host, manager);
         holds_these_texts = unloaded == Unloaded::Dropped;
     }
     manager.within(EXCHANGE_WAIT);
