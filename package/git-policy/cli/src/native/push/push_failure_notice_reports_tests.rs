@@ -7,7 +7,8 @@
 
 use super::*;
 use crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN;
-use crate::push_failure_notice::{LONGEST_REASON, push_failures};
+use crate::push_failure_notice::push_failures;
+use crate::push_failure_notice_reason::LONGEST_REASON;
 use crate::test_support::{fixture, remove};
 
 /// A commit name for the records of these controls.
