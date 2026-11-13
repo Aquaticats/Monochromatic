@@ -8072,22 +8072,39 @@ in-process reader can) gives every value of the multi-valued keys.
   so a merge of many parts failed its commit with `Argument list too long` instead of publishing
   (cross-vendor review of round 198,
   finding 2).
-  Its message reads `Merge <remote>/<tracked ref> into <branch>`,
-  naming the branch whose tip is that first parent,
+  Its message reads `Merge <remote>/<ref> into <pushed branch>`,
+  naming the branch the rejected push sent,
+  which is the branch whose tip is that first parent,
   the way `git merge` names the branch it is on,
   measured on this host at 2026-11-09T09:33:10-05:00 with native Git 2.56.0
   (`feature` tracking `origin/main` wrote
-  `Merge remote-tracking branch 'origin/main' into feature`),
-  and a branch whose name differs from the tracked ref's short name also gets
-  `Published to <remote>/<tracked ref>.`
+  `Merge remote-tracking branch 'origin/main' into feature`).
+  The pushed branch is the local side of the update Git reported for the push,
+  resolved by `git rev-parse --symbolic-full-name`,
+  so a typed push of a branch that is not checked out is named as that branch and never as the branch the
+  command's checkout shows
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "A typed push of a branch that was not checked out published a merge labelled with the checked-out branch").
+  A local side that names no branch (a detached `HEAD`,
+  a commit expression such as `feat/topic~1`) has no branch to name,
+  and the subject names the ref the merge was published to instead.
+  A pushed branch whose short name differs from that ref's also gets
+  `Published to <remote>/<ref>.`
   as a further line of its body,
   because the commit lands on a ref its subject does not name.
   That ref is the destination of the rejected push,
   which is not always the branch's upstream
   (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
   so the line states where the merge was published and nothing about what the branch tracks.
-  A detached `HEAD` has no branch to name and keeps the tracked ref's short name
-  (`wording_of` in `src/native/push/auto_push_reconcile_plan.rs`).
+  The body also says what made the merge:
+  `because <remote>/<ref> had commits <pushed side> did not have` for a push a person typed,
+  and `because <remote>/<ref> advanced after the commit landed` for the automatic push after a commit.
+  It names the merge's two tips and says nothing was forced,
+  and it says how to undo the merge
+  (`git revert -m 1 <this commit>`,
+  and `git reset --hard <first parent>` for the local branch alone),
+  so a reader of the branch's history a year later needs no report beside it
+  (`merge_message` in `src/native/push/auto_push_reconcile_plan.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
@@ -8106,19 +8123,32 @@ in-process reader can) gives every value of the multi-valued keys.
   the worktree or the untracked files,
   so another consumer's uncommitted files cannot block it or be changed by it.
   After the merge is published,
-  the branch and its worktree are fast-forwarded to it
-  (`git merge --ff-only <merge>`) only when all of these hold:
-  `HEAD` is the pushed branch at the tip that was pushed,
+  the branch the push sent follows it,
+  and the worktree that has that branch checked out follows with it,
+  only when all of these hold:
+  that worktree's `HEAD` is the pushed branch at the tip that was pushed,
   and no path of `git --no-optional-locks status --porcelain=v1 -z --untracked-files=no`
   (both names of a staged rename or copy included)
   is a path of `git diff --name-only -z --no-renames <pushed tip> <merge>`.
+  The pushed branch is the only branch that ever moves;
+  the branch the command's own checkout shows is not moved over a merge of another branch,
+  which the release before this one did when that checkout stood at the pushed tip.
+  The worktree that has the pushed branch is found with `git worktree list --porcelain -z`,
+  and a branch checked out in another worktree moves there,
+  by the same two-way index and file update and the same compare-and-swap of the ref,
+  run in that worktree,
+  with that worktree's own intent record.
+  A pushed branch that no worktree has checked out moves as a ref alone,
+  by `update-ref` from the tip the push sent,
+  and no file is written.
   An empty status passes trivially;
   uncommitted work in files the move does not write is left exactly as it was,
-  and the report says so.
+  and the report says so,
+  naming the worktree the work belongs to.
   Git itself refuses,
   without changing anything,
   a move that would overwrite an untracked file.
-  Any other state leaves the branch behind the remote,
+  Any other state leaves the branch where it is,
   and the report names the reason,
   with the overlapping paths
   (five by name,
@@ -8129,12 +8159,20 @@ in-process reader can) gives every value of the multi-valued keys.
   read as the bytes Git printed,
   so a kill between Git's checkout and its ref update leaves an intent recovery finds
   whatever bytes the worktree's path holds.
-  Every line the reconcile adds begins with `monochromatic-git-policy-cli: auto-push: `;
-  a line that begins with `monochromatic-git-policy-cli: auto-push: not published: `
+  Every line the reconcile adds begins with `monochromatic-git-policy-cli: auto-push: ` for the automatic push
+  and with `monochromatic-git-policy-cli: push: ` for a push a person typed;
+  a line that begins with `<that prefix>not published: `
   explains a failure and replaces the generic "run `git push`" note,
   which would repeat a push that cannot succeed.
-  When the branch could not be fast-forwarded it stays behind the remote,
-  and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
+  The line that says what the run did is the last line it prints:
+  it names the two sides of the merge,
+  the ref the merge was published to,
+  and where the pushed branch is now,
+  and the merge's commit is named last.
+  One line before it says how to undo the merge.
+  When the pushed branch could not follow the merge it stays where it is,
+  and the last line names the reason and `git merge --ff-only <merge>`,
+  for the worktree that has the branch checked out.
   The report reaches the person through a record of the worktree's notice directory,
   shown once by the next command (`record_push_report` in `push_failure_notice.rs`),
   because the command that ran the push returned before the push ended:
@@ -8149,6 +8187,9 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
+  A text longer than a record may hold keeps its first and its last line and cuts the lines between them,
+  because the last line is the run's own sentence and the first are Git's
+  (`clean_reason` in `push_failure_notice.rs`).
 - The reconcile is one loop,
   and it is awaited
   (`integrate_and_push_awaiting` in `src/native/push/auto_push_reconcile_awaiting.rs`);

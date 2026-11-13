@@ -544,21 +544,31 @@ Read-only commands,
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
-  The merge's message names the branch whose tip is its first parent
+  The merge's message names the branch the push sent,
+  which is the branch whose tip is its first parent
   (`Merge origin/main into feature`),
   as `git merge` names the branch it is on,
    and it names the ref the merge is published to when that ref's name differs from the branch's.
+  It also says what made the merge,
+  names its two tips,
+  and says how to undo it,
+  so a reader of the branch's history a year later needs no report beside it.
   While the merge is computed and pushed,
   the local branch,
   the index,
   the worktree and untracked files are not read
    or changed,
   so another session's uncommitted files cannot block the push.
-  Afterwards the local branch follows the published merge by a fast-forward when nothing can be lost:
-   a worktree with uncommitted work follows too,
+  Afterwards that branch follows the published merge by a fast-forward when nothing can be lost,
+  and it is the only branch that ever moves:
+  a branch the command's checkout happens to show is never moved over a merge of another branch.
+   The worktree that has the pushed branch checked out follows too,
   as long as the move writes none of the files that work touches,
-   and the report says the work was left as it is.
-   Otherwise the branch stays behind and the report names the overlapping files.
+   and the report says the work was left as it is;
+  a pushed branch that is checked out in another worktree follows there,
+  under that worktree's own uncommitted work,
+  and one that no worktree has checked out moves as a ref alone.
+   Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;
   when it resolves every conflicted file,
@@ -632,9 +642,11 @@ Read-only commands,
    at most ten times.
   A conflict is reported with the conflicting paths and publishes nothing,
   after the same second pass.
-  The checked-out branch follows the published merge under the same conditions as after a commit;
-   a detached HEAD stays where it is,
-  and the report says so.
+  The branch your push sent follows the published merge under the same conditions as after a commit,
+  in whichever worktree has it checked out,
+  and no other branch moves:
+  a push of a branch that is not checked out is named, reported and followed as that branch,
+  and a detached HEAD stays where it is with the report saying that no local branch follows the merge.
   Forced,
   deleting,
   mirroring,
