@@ -134,7 +134,7 @@ fn a_commit_whose_reference_a_lock_keeps_from_being_written_is_made() {
     let lock: PathBuf = world.repo.join(".git/refs/worktree/cli-git-service/1.lock");
     std::fs::File::create(lock.as_path()).expect("the lock another writer holds");
     let (landed, lines) = land_one_built(&world, &built, false);
-    let commit: String = landed_commit(&landed, &lines.as_slice());
+    let commit: String = landed_commit(&landed, lines.as_slice());
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
     let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
@@ -173,7 +173,7 @@ fn a_reference_another_command_wrote_is_neither_replaced_nor_removed() {
     git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), competing.as_str()]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let (landed, lines) = land_one_built(&world, &built, false);
-    let commit: String = landed_commit(&landed, &lines.as_slice());
+    let commit: String = landed_commit(&landed, lines.as_slice());
     let still: String = git_text(world.repo.as_path(), &["rev-parse", scratch.as_str()]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
     let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", competing.as_str()]);
@@ -205,7 +205,7 @@ fn a_reference_store_that_refuses_the_write_leaves_the_commit_made() {
     std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
     let (landed, lines) = land_one_built(&world, &built, false);
     std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
-    let commit: String = landed_commit(&landed, &lines.as_slice());
+    let commit: String = landed_commit(&landed, lines.as_slice());
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let said: String = lines.join("");
     remove(world.root.as_path());
@@ -311,7 +311,7 @@ fn a_commit_whose_reference_the_write_proved_is_told_nothing_new() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let (landed, lines) = land_one_built(&world, &built, false);
-    let commit: String = landed_commit(&landed, &lines.as_slice());
+    let commit: String = landed_commit(&landed, lines.as_slice());
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let said: String = lines.join("");
     remove(world.root.as_path());

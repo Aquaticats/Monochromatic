@@ -259,10 +259,7 @@ pub(crate) fn land_batch_body(
         //  removes it in the same transaction (`service_land_objects_of_batch.rs`). A reference this attempt did not prove is not
         //  this landing's to remove: the name may hold another command's commit, so the delete is left out and the branch move
         //  names the commit without it (`service_land_without_its_scratch_reference.rs`).
-        let removal: String = match crate::service_land_without_its_scratch_reference::it_has_one() {
-            true => format!("delete {scratch}\n"),
-            false => String::new(),
-        };
+        let removal: String = crate::service_land_without_its_scratch_reference::the_removal_of_the_scratch_reference(scratch.as_str());
         // A detached head is the `HEAD` file itself and is updated as such. The update follows a symbolic `HEAD` as native Git's
         //  own commit does, because a compare that does not follow it replaces a head attached to a branch since the last look
         //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the

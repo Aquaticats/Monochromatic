@@ -80,7 +80,8 @@ fn clear_the_reason(state: &LandingState, (): ()) {
 }
 
 /// What:
-///  Whether the reference this attempt was supposed to write is not proven to name the batch.
+///  The line of the branch write that removes the batch's scratch reference,
+///  or nothing when this attempt never wrote it.
 /// Why:
 ///   The branch write removes that reference in its own transaction,
 ///  and a name this landing never wrote is not its to remove:
@@ -88,13 +89,18 @@ fn clear_the_reason(state: &LandingState, (): ()) {
 ///  because the name may hold another command's commit,
 ///  and that commit may be the only thing holding it
 ///  (the owner's rule "never discard user data").
+///  A reference a wait left running may finish after the branch moved and recreate that name;
+///  it then names the commit the branch already has, which costs space and never the person's data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const proven = !landing.withoutItsScratchReference
+/// const removal = proven ? `delete ${scratch}\n` : ''
 /// ```
-pub(crate) fn it_has_one() -> bool {
-    return on_the_landing_state((), the_reference_is_proven);
+pub(crate) fn the_removal_of_the_scratch_reference(scratch: &str) -> String {
+    return match on_the_landing_state((), the_reference_is_proven) {
+        true => format!("delete {scratch}\n"),
+        false => String::new(),
+    };
 }
 
 /// Whether the state holds no reason, which is the reference having been proven.
@@ -171,13 +177,13 @@ pub(crate) fn say_what_it_cost_and_keep_a_held_commit(
 /// the commit a held batch keeps,
 /// and whether a branch names it.
 fn made_of(outcomes: Option<&[Outcome]>) -> Option<Made> {
-    let outcomes: &[Outcome] = outcomes?;
-    for outcome in outcomes {
+    let answered: &[Outcome] = outcomes?;
+    for outcome in answered {
         if let Outcome::Landed { commit } = outcome {
             return Some((commit.clone(), true));
         }
     }
-    for outcome in outcomes {
+    for outcome in answered {
         if let Outcome::Held { commit, .. } = outcome {
             return Some((commit.clone(), false));
         }
