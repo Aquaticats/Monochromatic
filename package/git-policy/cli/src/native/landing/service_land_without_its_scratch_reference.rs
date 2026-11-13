@@ -163,7 +163,7 @@ pub(crate) fn say_what_it_cost_and_keep_a_held_commit(
     let kept: String = kept_ref(seq);
     match keep_the_batches_commit(&git, repository, seq, made.0.as_str()) {
         None => announce.announce(Announce::Waiting(format!(
-            "monochromatic-git-policy-cli: the commit of this held batch is kept at {kept} (see it with `git log {kept}`) as well as on {scratch}, so a maintenance that drops what no reference names cannot take it.\n"
+            "monochromatic-git-policy-cli: the commit of this held batch is kept at {kept} (see it with `git log {kept}`), because the batch's own reference {scratch} was not written, so a maintenance that drops what no reference names cannot take it while the branch waits.\n"
         ))),
         // Nothing of this repository names the commit now, so the one thing this landing can still give the person is the
         //  object's own name with what to do with it before a maintenance that drops what no reference names takes it.
