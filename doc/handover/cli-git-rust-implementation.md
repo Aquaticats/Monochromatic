@@ -685,6 +685,23 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The index-lock fix's second review: no defect reachable here, two things sent back all the same (2026-11-13T16:17:04-05:00)
+
+Not complete, and written by the coordinating session from the review's own report.
+
+- The review of the index-lock fix's answer (`d189162e3e`) finished at 16:12:27, at its sixth start, the rate limit having ended five.
+  It read every listed file, built the code, ran the branch's controls and its own end-to-end reproductions, and calls the answer right where the first review found defects.
+  Its run's end reason reads `driver-failed` (issue 6299, the seventh today); the review is final and stands.
+- Sent back to the author, weighed by this session:
+  - a control of the branch fails by itself, two times in ten in the review's runs
+    (its helper starts `git --version` and reads its identity while it runs, and the program is often gone first). A control like that fails a pass and a release.
+  - the review removed a live Git's lock and failed its commit in a state it made by hand:
+    a stale PID file and the lock born in one tick of the filesystem's clock.
+    It weighs that as unreachable, because this btrfs volume dates births to about a millisecond.
+    That rests on this one volume, and the project's rules name unusual filesystems as normal,
+    so the author is asked to show what the pass does where birth times are coarse or absent and to keep the lock wherever the order of the two births cannot be proven.
+- The branch is therefore not in a pass. Its author's run is queued; the review of its answer follows.
+
 #### The owner: one pass carries every reviewed branch; pass 21 has the jam fix, file mode and kept-references (2026-11-13T16:14:18-05:00)
 
 Not complete, and written by the coordinating session: passes 20 and 21 are going and have reported nothing.
