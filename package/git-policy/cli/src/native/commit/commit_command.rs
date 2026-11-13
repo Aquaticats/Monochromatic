@@ -27,9 +27,11 @@ use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
+use crate::commit_form_refusal_from_git::{ask_git, unavailable_words};
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
 use crate::config_schema::CliGitConfig;
 use crate::command_commit::CommitRegion;
+use crate::rule_commit_region_git_refuses::{GitRefusedForm, form_git_refuses};
 use crate::diagnostics::{EngineFailureCode, render_engine_failure};
 use crate::git_version::check_git_version;
 use crate::policy_checks::ShippedChecks;
@@ -37,6 +39,7 @@ use crate::policy_engine::StageRequest;
 use crate::policy_events::{PolicyEvent, render_policy_events};
 use crate::policy_trigger::Trigger;
 use crate::post_commit::{NO_BLOCKING_CAUSE, POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, blocked_reason, run_post_commit_gate};
+use crate::diagnostic_log::debug;
 use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
 use crate::global_arguments::without_directory_changes;
@@ -213,11 +216,77 @@ pub struct CommitCommand<'a> {
 /// await runCommitCommand({ ... });
 /// ```
 pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>) -> CommitEnding {
+    // A command line real Git refuses is refused here, before the transaction reads an index or reaches the service, so the
+    //  mistyped command changes nothing at all: no staged path, no reference, no record of a commit that never existed.
+    if let Some(ending) = refuse_a_form_git_refuses(command) {
+        return ending;
+    }
     let mut timing: CommitTiming = CommitTiming::start();
     let ending: CommitEnding = run_timed(command, checks, &mut timing);
     // One append to the repository's timing file once everything the person sees is written; the terminal never shows it.
     timing.finish(ending.code);
     return ending;
+}
+
+/// What:
+///  Refuse a `git commit` whose options are a form real Git refuses,
+///  with Git's own status and words,
+///  or nothing when Git would accept the command.
+/// Why:
+///   "Refuse as Git does" (owner,
+///  2026-11-12):
+///  the form is decided here
+///  (`rule_commit_region_git_refuses.rs`) and Git is asked for its own answer
+///  (`commit_form_refusal_from_git.rs`),
+///  so a release that rewords a message changes nothing in this program.
+///  Nothing is created first:
+///  the question is a `--dry-run` of the same command line,
+///  which rolls its index lock back and never looks for a commit,
+///  so a refused command leaves no staged path, no reference and no record.
+///  A command Git accepts costs one token comparison here and no process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const form = formGitRefuses(region); if (!form) return; const refusal = await askGit(context, cwd, args); ...
+/// ```
+fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding> {
+    let form: GitRefusedForm = form_git_refuses(command.region)?;
+    let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return PathBuf::from("."); });
+    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    let asked: &[OsString] = &command.arguments[command.subcommand_index + 1..];
+    // The answer is Git's, so its status and its bytes are handed on as they came.
+    match ask_git(command.context, cwd.as_path(), asked) {
+        Some(refusal) => {
+            debug("commit-form-refusal", format!("real Git refuses {}: status {}", form.name(), refusal.code).as_str());
+            write_stderr_bytes(refusal.stderr.as_slice());
+            return Some(CommitEnding { code: refusal.code });
+        }
+        None => {
+            // Git could not be asked, so it printed nothing, and the form is still one it refuses: the wrapper says which
+            //  form and that the sentence is its own.
+            debug("commit-form-refusal", format!("real Git could not be asked about {}; the wrapper refuses it in its own words", form.name()).as_str());
+            write_stderr(unavailable_words(form.name()).as_str());
+            return Some(CommitEnding { code: 128 });
+        }
+    }
+}
+
+/// What:
+///  Write bytes to standard error,
+/// ignoring a closed stream.
+/// Why:
+///   A refusal Git printed is bytes,
+///  and a path or a message the person typed may hold a byte that is not UTF-8;
+///  decoding it would change what they see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(bytes);
+/// ```
+fn write_stderr_bytes(bytes: &[u8]) {
+    let mut stream: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
+    let _ = stream.write_all(bytes);
+    let _ = stream.flush();
 }
 
 /// `run_commit_command`,

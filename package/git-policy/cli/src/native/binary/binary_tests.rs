@@ -322,6 +322,11 @@ mod merge_notice;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// The commit forms real Git refuses,
+/// each refused with Git's own status and words.
+#[path = "binary_commit_form_refusal_tests.rs"]
+mod commit_form_refusal;
+
 /// The Git version text a commit records in the user's cache directory,
 /// and when it trusts it.
 #[path = "binary_version_cache_tests.rs"]
