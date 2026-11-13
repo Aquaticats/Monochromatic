@@ -44,6 +44,13 @@
 //! 108.0,
 //! 97.7 and 95.5 ms,
 //!  so it is paid once per worktree a removal considers and nowhere else.
+//!  Measured again on 2026-11-13 with the executable's own refusal,
+//!  the same removal under the escape as the control,
+//!  four rounds: 47,
+//! 52,
+//! 54 and 57 ms more for the refusal that reads the table,
+//!  which is what a person waits for the words that name their process,
+//!  on a host holding 1,052 processes at the time.
 //!  A kernel gives no reverse lookup from a directory to the processes holding it open,
 //!  so a scan is what the truth costs.
 //!  A process that ended while it was being read is skipped:
