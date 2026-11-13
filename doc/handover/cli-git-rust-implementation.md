@@ -413,6 +413,28 @@ Its own scratch folder held 36 KiB, all of it `keep/`, so there was nothing to r
 Next for it: the qwen4 review in a worktree of its own, started when a place is free, then the merge.
 The place it freed went to the resume of `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager` at 11:38:36.
 
+#### The start gate's cap and floors are finished and in review (2026-11-13T11:44:07-05:00)
+
+The run `start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive` ended `idle` at about 11:44 after 365 turns and an hour.
+Its branch `feat/pi-shared-subagent-driver-` with that name is on the remote (`53d5cf44b2` at 11:35:27; read the tip again before a merge).
+Not reviewed and not approved by anyone. By the run's own report (`lastAssistantText` in its run folder's `summary.json`, its logs in its scratch folder's `keep/`):
+
+- The gate refuses a start at the cap with the status the retrying start already waits on, so a list longer than the free places is started one by one and no longer all at once.
+  The cap counts every `pi-*` unit and every launcher of this package; an agent it cannot see is counted only through what the caller states
+  (`PI_RUNS_OTHER_AGENTS_GOING`). A run started by hand without the package's launcher is not counted.
+- Floors on three needs, each volume found by resolving the folder's real path: the build volume as before, the volume of the runs folder, and the volume of Pi's session files (50 GiB).
+  It kept a 50 GiB floor for the runs folder too, from the first correction, and names `RUNS_FOLDER_FLOOR_BYTES` as the one constant to drop if no separate floor is wanted there.
+- `PI_RUNS_FREE_SPACE_BYTES` is replaced by `PI_RUNS_VOLUME_FREE_SPACE_BYTES` and `PI_RUNS_FOLDER_VOLUMES`, every use changed with it.
+- Left open by it, outside its package or its brief:
+  `.agents/skills/pi-as-subagent/SKILL.md` still says "The practical limit is 20" and names no cap;
+  `doc/handover/agents-at-once-on-this-machine.md` needs its two sentences about the gate replaced at the merge;
+  a `sessionDir` in Pi's settings file is not read by the gate, only `PI_CODING_AGENT_SESSION_DIR` and Pi's default;
+  the package's README failed `markdown/semantic-line-breaks` before this change (70 findings) and still does outside the new sections.
+
+Its scratch folder held 728 KiB, all of it `keep/`.
+Its review (qwen4, a worktree of its own) was started in the place it freed, at about 11:45;
+the review of the scratch-folder branch takes the place after that.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
