@@ -1032,3 +1032,28 @@ Considered and not chosen:
  tightening `ASK` to "ask before acting on them or briefing an agent with them",
  defining "settled" in `QGR`,
  and a policy-versus-scope clause in `VR2`.
+
+#### Measure-vs-ask: why TVC allows no absolute time as a finding
+
+On 2026-11-13 a session measured an upstream library's parse cost and wrote its results as medians in milliseconds,
+ and held a test run back so that a timing run would have the machine to itself.
+The owner's correction:
+ "You should always assume the machine doesn't just have you using it and all timings are unpredictable
+ and cannot stand on their own and comparative timing is better."
+
+Other sessions' agents and builds run on this machine all the time,
+ so the same code measured twice in one hour differed by a quarter in single rounds and more.
+An absolute time therefore says how busy the machine was as much as how fast the code is.
+A ratio between two arms run one after the other in the same round carries that load on both sides,
+ and its range over the rounds shows how far it can be trusted.
+
+The rule already beside it,
+ `QNB`,
+ asks for the spread of unchanged input before two measurements are compared;
+ the rule on a quiet host among the hazardous-command rules says never to wait for one.
+Neither says what form a reported result takes,
+ which is what `TVC` adds.
+
+Considered and not chosen by the owner the same day:
+ a rule to time and test only on the runtimes this repository runs on,
+ proposed after the same session had timed on Deno alone.

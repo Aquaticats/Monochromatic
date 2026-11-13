@@ -819,9 +819,11 @@ each in answer to a question that gave the options:
   told that its first commit carries the account's own address:
   "Make public as it is".
   Done at 2026-11-13T14:41:43Z.
-- The five `passThrough()` findings held back from this repository:
-  "Draft a private advisory (Recommended)",
-  meaning a local draft for the owner to review and submit through GitHub's private reporting.
+- One further item,
+  held back from this repository:
+  the owner's decision on it is recorded in a local file,
+  `${HOME}/temp/agent/optique-2026-11-13/held-back-item-notes.md`,
+  which is not committed.
 - The research record's status line,
   which read "complete" on the word of the session that wrote it:
   "No.
@@ -1016,37 +1018,78 @@ to settle before a reply:
   given as the share of the two copies
   (the document now gives both the functions' and the files' figures and says the profile cannot do better);
   and a count of scratch files in this handover.
-  The corrections made after that third pass are not reviewed,
-  and neither is the section "Prototypes for the two further copies",
-  the second patch,
-  or the revised reply draft and draft issue,
-  first committed as `a62135c94d` and changed since:
-  the second patch gained a second fix,
-  for writes past a view's end,
-  and the section the figures of the patch as kept.
-  A fourth pass over them is prepared
-  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fourth-pass-prompt.md`,
-  resuming the same reviewer session).
-  It could not start at 2026-11-13T14:01:47-05:00,
-  when the machine held sixteen agents against a cap of sixteen.
-  The unit `optique-review-fourth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
+  A fourth pass read the section "Prototypes for the two further copies",
+  the second patch and the revised drafts as of commit `758946f3e1`,
+  by resuming the same session once the machine was under its agent cap
+  (run folder `optique-input-trace-and-reply-claim-check-4`,
+  33 turns;
+  prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fourth-pass-prompt.md`;
+  report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-4.md`).
+  It recomputed every figure of the section from the raw records and found them to match,
+  found the vector and the two view fixes correct,
+  and found five things,
+  all folded in the same day:
+  the view's `length` descriptor reported 0,
+  so a copy made from a state's descriptors came back empty
+  (latent;
+  fixed in the patch,
+  with a test);
+  a sentence that called the `concat` variant's gain "inside the spread" where the figures show a gain;
+  no test guarding that descriptor;
+  a count of failing tests that differs by runtime;
+  and two omissions in the list of what a caller can notice.
+  Not reviewed by anyone:
+  the changes made after that pass,
+  which are that fix,
+  the timing on Node and Bun,
+  and the timing parts rewritten as ratios,
+  committed as `f398643c8b`.
+  A fifth pass over exactly those is prepared
+  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fifth-pass-prompt.md`).
+  The machine held sixteen agents against a cap of sixteen when it was to start,
+  so the unit `optique-review-fifth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
   and starts it when a place is free;
-  it was stopped once before it had started anything,
-  while the patch was being changed,
-  and started again after that change was committed;
-  its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-4.log`,
-  and the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-4`.
-  If that unit gave up,
+  its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-5.log`,
+  the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-5`,
+  and its report goes to `keep/review-report-5.md` beside that log.
+  If the unit gave up,
   start the pass by hand with the same prompt.
-- The private advisory draft for the `passThrough()` findings is written and waits for the owner:
-  `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
-  a local file that is not committed.
-  Its five cases were run again on 2026-11-13 on 1.3.6,
-  `1.4.0-dev.2971`,
-  `main` at `84f95710` and pull request 1121's head,
-  with the same outcome on each
-  (`passthrough-cases.jsonl` beside it).
-  Nothing about it is to be mentioned in public.
+- The owner's two corrections of 2026-11-13 on the timing,
+  both acted on the same day:
+  "Why did you time a thing only on deno and why did you time a thing on deno (to be discontinued software) at all?",
+  and
+  "You should always assume the machine doesn't just have you using it and all timings are unpredictable
+  and cannot stand on their own and comparative timing is better."
+  The arms were then timed on Node 26.13.1 and Bun 1.4.4 as built packages,
+  and the section's timing parts and the two drafts now give ratios between arms run in the same round,
+  with no absolute time as a finding.
+  Deno's own tracker says it is maintained "until October 2027" with bug fixes only (issue 37030 there).
+  The earlier documents of this work still give absolute times and Deno figures in places.
+  Asked on 2026-11-13 how far the rewrite should go,
+  the owner chose "Everything (Recommended)":
+  the three Optique troubleshooting documents,
+  the research record and the README of the public reproduction repository are to be recast to ratios,
+  with absolute times only as labelled scale,
+  and are to say that Deno is maintained only until October 2027.
+  That recast is open work,
+  and its result needs a review pass of its own.
+- Asked the same day which of the recheck's results the reply draft should carry,
+  the owner chose the second patch with its costs and the buffer finding,
+  and not the note about `concat`.
+  The draft carries exactly those.
+- Asked whether to add two rules to `AGENTS.md`,
+  one on reporting timings as ratios and one on which runtimes to measure on,
+  the owner chose "Only TVC".
+  Rule `TVC` is added,
+  with its reason in `doc/philosophy/agents.md`.
+- One further item waits for the owner.
+  It is held back from this repository on the owner's decision.
+  What it is,
+  where its draft is and what was checked are in the local file
+  `${HOME}/temp/agent/optique-2026-11-13/held-back-item-notes.md`,
+  which is not committed;
+  read that file before writing anything about the item anywhere.
+  On 2026-11-13 the owner chose to have this handover point to it without saying what it concerns.
 - Which of the drafted questions go into the reply.
   The draft asks whether an issue for the first patch is welcome,
   whether a proxy-backed state is wanted at all,
@@ -1107,8 +1150,9 @@ on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo
 #6288,
 #6289,
 #6290,
-#6291
-and #6293.
+#6291,
+#6293
+and #6298.
 
 ## Next action
 

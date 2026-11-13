@@ -12,6 +12,12 @@ and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
 the corrections made after that last pass are not reviewed,
 and the reply draft waits for the owner.
+On 2026-11-13 the owner pointed out that this machine is shared and no timing stands on its own,
+and the timing figures here,
+the reply draft's among them,
+were rewritten as ratios between versions run in the same round,
+with absolute times kept only as scale;
+that rewrite is not reviewed either.
 
 Status,
 2026-11-12:
@@ -51,11 +57,18 @@ Three variants exist by version:
    growing with the length of each token;
    nearly all of it in `levenshteinDistance`.
 - 1.3.2 to 1.3.6:
-   about 0.18 ms per positional token whatever its length;
+   about a fifteenth of the time 1.3.1 takes on a thousand real paths,
+   and the same whatever the length of a token;
    about three quarters of it in collecting option names and searching them.
 - `1.4.0-dev` builds from `1.4.0-dev.2665` on:
-   about 0.09 ms per positional token;
+   about half the time of 1.3.6 again;
    no suggestion code runs.
+
+Those ratios are from seven rounds with the versions paired by round,
+under "Inputs that are slow".
+For scale only,
+on the machine used they came to seconds for a thousand paths on the first group,
+and about 0.18 ms and 0.09 ms per positional token on the other two.
 
 ## Root cause
 
@@ -258,7 +271,8 @@ and the profile of `1.4.0-dev.2971` shows what that costs with the suggestion wo
 - Upstream pull request 992 says
    "Short-path default/callback runs showed no improvement."
    On this repository's parser,
-   a thousand tokens of one to three characters went from 300.3 ms on 1.3.1 to 185.3 ms on 1.3.2.
+   a thousand tokens of one to three characters took 0.62 times as long on 1.3.2 as on 1.3.1,
+   in one comparison of one run each.
    The length check in step 4 rejects this parser's long option names against a short token;
    that explanation was read from the code and not tested on its own.
 
@@ -387,39 +401,56 @@ the figures here are the lowest and highest round medians.
 
 ### Inputs that are slow
 
-The script as written,
-paths before any `--`,
-over four rounds:
+Paths before any `--`.
+The finding is the ratio between versions,
+from the measurement in the research document:
+this repository's old parser,
+seven rounds,
+each version's process paired with the other's in the same round,
+later version over earlier:
 
-- 1.1.1:
-   2,683.4 to 4,207.5 ms
-- 1.3.1:
-   2,566.3 to 3,734.3 ms
-- 1.3.2:
-   165.5 to 291.8 ms
-- 1.3.6:
-   169.6 to 256.5 ms
-- `1.4.0-dev.2664`:
-   190.9 to 298.6 ms
-- `1.4.0-dev.2971`:
-   91.3 to 134.6 ms
+- 1.1.1 to 1.3.1:
+   1.00 (0.83 to 1.04),
+   four rounds one way and three the other:
+   no difference.
+- 1.3.1 to 1.3.2:
+   0.065 (0.061 to 0.070),
+   faster in all seven.
+- 1.3.2 to 1.3.6:
+   1.04 (0.97 to 1.20),
+   no difference.
+- 1.3.2 to `1.4.0-dev.2664`:
+   1.24 (1.14 to 1.43),
+   slower in all seven.
+- 1.3.6 to `1.4.0-dev.2971`:
+   0.51 (0.46 to 0.61),
+   faster in all seven.
 
-The four round medians for 1.3.6 were 169.6,
+The script of this document,
+over four rounds,
+went the same way in each.
+Its round medians,
+for scale only:
+2.6 to 4.2 s on 1.1.1 and 1.3.1,
+0.17 to 0.30 s on 1.3.2,
+1.3.6 and `1.4.0-dev.2664`,
+and 0.09 to 0.13 s on `1.4.0-dev.2971`.
+The four for 1.3.6 were 169.6,
 175.4,
 178.9 and 256.5 ms,
-which shows how far one loaded round can sit from the others.
+which shows how far one loaded round can sit from the others
+and why no single time is a finding.
 
 ### Inputs that stay fast
 
 The same script with `"--"` placed before the paths,
-over two rounds:
-
-- 1.1.1:
-   32.9 to 48.4 ms
-- 1.3.6:
-   38.2 to 47.1 ms
-- `1.4.0-dev.2971`:
-   73.7 to 80.5 ms
+over two rounds.
+On 1.1.1 it took about a hundredth of the time it took without the separator
+(between 0.008 and 0.018,
+from the extremes of the round medians of both).
+For scale only,
+the round medians were 33 to 48 ms on 1.1.1,
+38 to 47 ms on 1.3.6 and 74 to 81 ms on `1.4.0-dev.2971`.
 
 After `--` an option parser returns a fixed failure before it looks at the token,
 so the search in step 2 is never reached.
@@ -439,7 +470,9 @@ so the search in step 2 is never reached.
 On this input the pre-release took 1.6 to 2.2 times as long as 1.1.1 and 1.3.6,
 taking each round by itself.
 Two rounds are too few to call that a regression;
-it is recorded because the ranges do not overlap.
+the seven-round measurement that does is in
+`doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md`,
+1.73 times 1.3.6 (1.51 to 2.12).
 
 ## Verified workarounds
 
@@ -453,12 +486,13 @@ Tradeoffs:
    upstream issues 990 and 991.
    An undeclared `--name=value` token before `--` now goes to `passThrough()` and is no longer a positional argument,
    and a known value option with its value missing now fails the parse where it used to succeed.
-- About 0.18 ms per positional token remains.
+- About a fifteenth of the earlier time remains,
+   and it still grows with tokens times options.
 
 ### Put `--` before the positional tokens
 
 Verified on 1.1.1 by the figures under "Inputs that stay fast":
-from seconds to under 50 ms for a thousand paths.
+about a hundredth of the time for a thousand paths.
 
 Tradeoffs:
 
@@ -469,15 +503,13 @@ Tradeoffs:
 ### On 1.3.2 or later, give every option and flag a literal `errors.noMatch`
 
 The script with `{ errors: { noMatch: message`No match.` } }` passed to every `option()` and `flag()`,
-over two rounds:
-
-- 1.3.2:
-   46.1 to 51.8 ms
-- 1.3.6:
-   44.5 to 48.2 ms
-
-That is about a quarter of the same version's time without it,
-and below the pre-release's.
+over two rounds,
+took about a quarter of the same version's time without it on 1.3.2 and on 1.3.6
+(between 0.16 and 0.31,
+from the extremes of the round medians of both),
+and less than the pre-release.
+For scale only,
+its round medians were 46 to 52 ms on 1.3.2 and 45 to 48 ms on 1.3.6.
 
 Tradeoffs:
 
@@ -516,13 +548,15 @@ Tradeoffs:
 - A literal `errors.noMatch` on 1.3.1 or earlier.
    The search runs before the literal is returned (step 2).
    Measured over two rounds with the literal on every option and flag:
-   2,591.7 to 2,895.5 ms on 1.1.1,
-   and 2,804.9 to 3,193.8 ms on 1.3.1.
+   the round medians on 1.1.1 and on 1.3.1 were no lower than without it by more than the rounds differ among themselves
+   (for scale only,
+   2.6 to 3.2 s with it and 2.6 to 4.2 s without).
 - A function-valued `errors.noMatch` on any version before 1.4.0.
    Step 2 and step 4 show the search running before the call.
    This was read from the source and not timed.
 - Shorter paths on 1.3.1 or earlier.
-   A thousand tokens of one to three characters still took 300.3 ms on 1.3.1.
+   A thousand tokens of one to three characters still took 1.6 times as long on 1.3.1 as on 1.3.2,
+   in one comparison of one run each.
 
 ## Upstream filing artifact
 
@@ -722,37 +756,36 @@ one parser only, the Git wrapper's, which has since been rewritten; the rest of 
 and Valibot reasons you noticed.]
 
 The numbers behind that. The parser this commit removed, unchanged from its parent, one parse of
-`['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a two-CPU container:
+`['--message', 'x', ...1000 paths]`, on Node 26 in a two-CPU container. The machine is shared, so I give ratios
+between versions run in the same round, seven rounds, with the range of the single rounds:
 
-- 1.1.1: 2,696 ms
-- 1.3.2 and 1.3.6: 180 ms and 184 ms
-- 1.4.0-dev.2971: 95 ms
+- 1.3.2 over 1.3.1: 0.065 (0.061 to 0.070), faster in all seven
+- 1.4.0-dev.2971 over 1.3.6: 0.51 (0.46 to 0.61), faster in all seven
+- 1.1.1 against 1.3.1, and 1.3.2 against 1.3.6: no difference
 
-So #992 removed 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
+So #992 removed about 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
 `errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
 
-On #1121: I measured its branch at a175cdb7, the same tree as its merge, from source on Deno, seven rounds with the
-arms rotated, a thousand paths after `--`:
-
-- 1.3.6: 30.8 ms
-- main before the merge, at 84f95710: 56.5 ms
-- #1121: 42.0 ms
-
-That is 0.75 times the earlier main (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42), which agrees with your own figures.
-On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
+On #1121: I measured its branch at a175cdb7, the same tree as its merge, from source on Deno only, seven rounds with
+the arms rotated, a thousand paths after `--`. It took 0.75 times as long as main before the merge (0.71 to 0.77)
+and 1.37 times as long as 1.3.6 (1.34 to 1.42), which agrees with your own figures. On the published builds,
+1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
 
 What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
 both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
-input, 8,000 positional arguments and one option, it took a parse from 1,130 ms to 140 ms in that run. It keeps the entries in
+input, 8,000 positional arguments and one option, the patched build takes 0.11 times as long as main on Node (0.10
+to 0.12) and 0.30 times on Bun (0.15 to 0.33). It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
 to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
-`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice); in a later run on
-Deno, 32,000 arguments took 30.6 s on main and 7.3 s patched. I tried both. A second patch removes the state copy by making a
-state of more than 1,024 items an array-shaped view over an immutable vector: 32,000 arguments then take 1.4 s, and
-the core suite passes on Deno, Node and Bun. Its cost is that such a state is a `Proxy`, which prints as an empty
-array and throws on `structuredClone()`, `Object.freeze()` and in-place edits. For the buffer I have nothing to
-offer: a view cut in `argument()` alone made a line that alternates options and arguments about ten times slower.
+`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice). I tried both. A
+second patch removes the state copy by making a state of more than 1,024 items an array-shaped view over an
+immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
+(built packages, five rounds with the arms taking turns), and the core suite passes on Deno, Node and Bun. Its cost
+is that such a state is a `Proxy`, which prints as an empty array and throws on `structuredClone()`,
+`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: with the second patch in place, also
+cutting a view in `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and
+48 to 105 times slower on Bun.
 The write-up and both patches: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
