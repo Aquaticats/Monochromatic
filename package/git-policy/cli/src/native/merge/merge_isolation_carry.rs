@@ -603,7 +603,10 @@ pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, captu
 /// What:
 ///  The same deletion of a capture's ref,
 /// awaited by a caller that is itself a task of the runtime,
-///  answering whether the name is gone.
+///  answering whether this record may go:
+///  the name is gone,
+///  or another record names it and that record's finish drops it,
+///  and never when a deletion this command attempted did not go.
 /// Why:
 ///   A deletion that fails is logged and answered,
 /// and the caller keeps the record that names the ref so the
@@ -620,8 +623,11 @@ pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, roo
     //  are the person's only copy of that work, so the name stays, and the caller keeps its record: the command that finishes
     //  that other merge drops the name, and this one's next attempt finds it gone.
     if another_record_still_names_the_capture(git_dir, capture, finishing) {
-        debug(TAG, format!("the capture's ref {reference} is still named by a merge record, so it was left where it is").as_str());
-        return false;
+        // Another record names this capture, and that record's own finish is what drops the name; keeping this one too
+        //  would leave two records each waiting for the other to let go, for ever (an audit of 0.6.1-alpha.14, its third
+        //  finding). So the name is settled as far as this record is concerned, and the record goes.
+        debug(TAG, format!("the capture's ref {reference} is still named by another merge record, which drops it").as_str());
+        return true;
     }
     let arguments: Vec<OsString> = vec![
         OsString::from("update-ref"),
