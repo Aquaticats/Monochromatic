@@ -538,10 +538,12 @@ fn the_advised_way_to_conclude_the_merge_concludes_it() {
     assert_eq!(staging.len(), 1, "the refusal names the way to stage the resolution: {commands:?}");
     assert_eq!(committing.len(), 1, "the refusal names the way to commit it: {commands:?}");
     assert!(committing[0].contains("--message resolve-the-conflict"), "the commit names the message the refusal gives: {commands:?}");
-    let staged: Observed = super::commit::run_commit(&fixture, repo.as_path(), &shell_words(staging[0].as_str()).iter().map(String::as_str).collect::<Vec<&str>>().as_slice());
+    let staging_words: Vec<String> = shell_words(staging[0].as_str());
+    let staged: Observed = super::commit::run_commit(&fixture, repo.as_path(), staging_words.iter().map(String::as_str).collect::<Vec<&str>>().as_slice());
     let staged_said: String = stderr_of(&staged);
     assert_eq!(staged.code, Some(0), "`{}` runs: {staged_said}", staging[0]);
-    let concluded: Observed = super::commit::run_commit(&fixture, repo.as_path(), &shell_words(committing[0].as_str()).iter().map(String::as_str).collect::<Vec<&str>>().as_slice());
+    let committing_words: Vec<String> = shell_words(committing[0].as_str());
+    let concluded: Observed = super::commit::run_commit(&fixture, repo.as_path(), committing_words.iter().map(String::as_str).collect::<Vec<&str>>().as_slice());
     let concluded_said: String = stderr_of(&concluded);
     assert_eq!(concluded.code, Some(0), "`{}` runs: {concluded_said}", committing[0]);
     assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is over after the advised commands: {concluded_said}");
