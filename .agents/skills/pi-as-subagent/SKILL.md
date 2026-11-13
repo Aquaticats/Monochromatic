@@ -166,11 +166,21 @@ after free slots had been filled with other packages' issues
 A tool that slows down with dozens of agents running has a defect to fix;
 the number of agents is never the explanation and never a reason to start fewer.
 Audits and reviews sit outside that limit and use other models.
-Reviews of a change run on Kimi K3.1 Pro alone,
+Reviews of a change run on `qwen4-max-preview` alone,
 and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
 rules `KRV` and `LHZ` in `AGENTS.md`,
-from the owner's "Kimi alone" and "Both side by side (Recommended)"
+from the owner's "qwen4 alone, read-checked" of 2026-11-12
+(the section dated `2026-11-12T12:26:24-05:00` in `doc/handover/cli-git-rust-implementation.md`)
+and "Both side by side (Recommended)"
 after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+A review of a change is written and checked by
+`package/pi-shared/subagent-driver`'s `write-a-brief-for-a-review` and `check-a-review-that-ended`:
+the brief demands a statement of what the review read and what it ran through a program built from the
+reviewed commit,
+and the check reads the ended review's file, run and session and says whether it is complete, ran nothing,
+is missing its statement or a match with its session, wrote no review file, or was cut,
+then writes the entry that starts it again
+(see `package/pi-shared/subagent-driver/doc/a-review-states-what-it-read-and-ran.md`).
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
 When Synthetic answers 429,

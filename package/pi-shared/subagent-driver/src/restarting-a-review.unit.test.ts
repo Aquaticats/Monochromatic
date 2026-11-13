@@ -23,11 +23,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import type { ReviewCheck, } from '../dist/final/node/index.mjs';
 import {
   CHANGE_DIFF_FILE_NAME,
   REVIEW_FILE_NAME,
   REVIEW_READING_FILE_NAME,
+  type ReviewCheck,
   aRestartIsPending,
   baseReviewNameOf,
   restartNumberIn,
@@ -285,7 +285,7 @@ await describe({
             expect(outcome.kind,).toBe('written',);
             const plan = (outcome.kind === 'written') ? outcome.plan : undefined;
             expect(plan?.restartReview,).toBe(`${aReview()}-restart-2`,);
-            expect(await entriesIn(fixture.reviewsFolder),).toEqual([`${aReview()}`, `${aReview()}-restart-2`,],);
+            expect(await entriesIn(fixture.reviewsFolder),).toEqual([(aReview()), `${aReview()}-restart-2`,],);
             const brief = await readFile(plan?.briefFile ?? '', 'utf8',);
             expect(brief,).toContain('This is the second run of the review',);
             expect(brief,).toContain('Its check answered `ran nothing`.',);
@@ -338,7 +338,7 @@ await describe({
               focus: 'data loss',
             },);
             expect(outcome.kind,).toBe('not needed',);
-            expect(await entriesIn(fixture.reviewsFolder),).toEqual([`${aReview()}`,],);
+            expect(await entriesIn(fixture.reviewsFolder),).toEqual([(aReview()),],);
           },
         },),
         it({
@@ -362,7 +362,7 @@ await describe({
             },);
             expect(again.kind,).toBe('already written',);
             expect((again.kind === 'already written') ? again.line : '',).toContain('has not ended, so no later run was written');
-            expect(await entriesIn(fixture.reviewsFolder),).toEqual([`${aReview()}`, `${aReview()}-restart-2`,],);
+            expect(await entriesIn(fixture.reviewsFolder),).toEqual([(aReview()), `${aReview()}-restart-2`,],);
           },
         },),
         it({
@@ -433,7 +433,7 @@ await describe({
               rulesFile: '/repo/rules.md',
               focus: 'data loss',
             },);
-            const plan = planned.plan;
+            const {plan} = planned;
             if (plan === undefined) {
               return;
             }
@@ -446,7 +446,9 @@ await describe({
             expect(written.refused,).toContain('already there with other text',);
             expect(await readFile(plan.briefFile, 'utf8',),).toBe(kept,);
             // The refusal was decided before any file was written, so the plan's other files are not there.
-            expect(await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),).toEqual(['brief.md',],);
+            expect(
+              await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),
+            ).toEqual(['brief.md',],);
           },
         },),
         it({
@@ -461,7 +463,7 @@ await describe({
               rulesFile: '/repo/rules.md',
               focus: 'data loss',
             },);
-            const plan = planned.plan;
+            const {plan} = planned;
             if (plan === undefined) {
               return;
             }
@@ -472,7 +474,9 @@ await describe({
             const written = await writeRestartPlan({ plan, },);
             expect(written.refused,).toContain(plan.batchFile,);
             expect(await readFile(plan.batchFile, 'utf8',),).toBe(kept,);
-            expect(await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),).toEqual([],);
+            expect(
+              await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),
+            ).toEqual([],);
           },
         },),
         it({
@@ -623,7 +627,7 @@ await describe({
           name: 'starts nothing when no restart was written',
           fn: async () => {
             /**
-             * How many starts a fake launcher would answer.
+             How many starts a fake launcher would answer.
              */
             const started: string[] = [];
             const lines = await startRestarts({
@@ -639,7 +643,7 @@ await describe({
                   };
                 },
                 wait: async function wait() {
-                  return;
+                  started.push('waited',);
                 },
               },
             },);

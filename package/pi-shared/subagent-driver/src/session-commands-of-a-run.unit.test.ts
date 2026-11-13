@@ -308,17 +308,19 @@ await describe({
         it({
           name: 'refuses a tool call with no id or no tool, because its result could not be joined to it',
           fn: async () => {
-            expect(messageOf(aLine({
-              type: 'message',
-              message: {
-                role: 'assistant',
-                content: [{
-                  type: 'toolCall',
-                  id: '',
-                  name: 'bash',
-                },],
-              },
-            },),),).toContain('holds a tool call with no id or no tool');
+            expect(
+              messageOf(aLine({
+                type: 'message',
+                message: {
+                  role: 'assistant',
+                  content: [{
+                    type: 'toolCall',
+                    id: '',
+                    name: 'bash',
+                  },],
+                },
+              },),),
+            ).toContain('holds a tool call with no id or no tool');
           },
         },),
         //endregion What a session cannot be read from

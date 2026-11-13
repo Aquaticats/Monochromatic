@@ -183,8 +183,7 @@ function sessionText({ calls, }: { readonly calls: readonly FixtureCall[] },): s
           },
         },],
       },
-    },),);
-    lines.push(lineOf({
+    },), lineOf({
       type: 'message',
       message: {
         role: 'toolResult',
@@ -196,7 +195,7 @@ function sessionText({ calls, }: { readonly calls: readonly FixtureCall[] },): s
         },],
         isError: (call.exit ?? 0) !== 0,
       },
-    },),);
+    },));
   }
   return lines.join('',);
 }
@@ -481,7 +480,7 @@ await describe({
   name: '',
   children: [
     describe({
-      name: 'checkAReview',
+      name: checkAReview.name,
       children: [
         //region The five verdicts
         it({
@@ -507,7 +506,7 @@ await describe({
             expect(check.run,).toBe(`review-${aReview()}-1`,);
             expect(check.builtPrograms,).toEqual([aBuiltProgram(),],);
             expect(check.coverage?.filesNotReadWhole,).toEqual(['package/a/src/two.rs',],);
-            expect(checkLineOf({ check, },),).toContain(`${aBuiltProgram()}`,);
+            expect(checkLineOf({ check, },),).toContain((aBuiltProgram()),);
             expect(check.reasons.join('\n',),).toContain(`read 2 of the diff's ${String(aDiffLines(),)} lines`,);
           },
         },),

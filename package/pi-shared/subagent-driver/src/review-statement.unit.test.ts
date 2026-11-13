@@ -176,7 +176,9 @@ await describe({
         it({
           name: 'reads a block the skeleton was copied from, refusing it by the first field still holding a placeholder',
           fn: async () => {
-            expect(messageOf(aReviewFile(REVIEW_STATEMENT_SKELETON,),),).toContain('diff.lines is no whole number from zero');
+            expect(
+              messageOf(aReviewFile(REVIEW_STATEMENT_SKELETON,),),
+            ).toContain('diff.lines is no whole number from zero');
           },
         },),
         //region The section's place
@@ -228,22 +230,28 @@ await describe({
         it({
           name: 'refuses a block that is no JSON',
           fn: async () => {
-            expect(messageOf(aReviewFile('{ this is not json',),),).toContain('is no JSON');
+            expect(
+              messageOf(aReviewFile('{ this is not json',),),
+            ).toContain('is no JSON');
           },
         },),
         it({
           name: 'refuses a block that is no JSON object',
           fn: async () => {
-            expect(messageOf(aReviewFile('[]',),),).toContain('the statement is no JSON object');
+            expect(
+              messageOf(aReviewFile('[]',),),
+            ).toContain('the statement is no JSON object');
           },
         },),
         it({
           name: 'refuses a field the shape does not carry, naming it and the fields the reader reads',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'verdict',
-              value: 'clean',
-            },),),).toContain('the statement names a field this reader does not read: verdict');
+            expect(
+              messageOf(withTheField({
+                field: 'verdict',
+                value: 'clean',
+              },),),
+            ).toContain('the statement names a field this reader does not read: verdict');
           },
         },),
         //endregion The block
@@ -252,157 +260,191 @@ await describe({
         it({
           name: 'refuses a commit that is missing, blank, or not text',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'commit',
-              value: '  ',
-            },),),).toContain('commit is no text');
-            expect(messageOf(withTheField({
-              field: 'commit',
-              value: 7,
-            },),),).toContain('commit is no text');
+            expect(
+              messageOf(withTheField({
+                field: 'commit',
+                value: '  ',
+              },),),
+            ).toContain('commit is no text');
+            expect(
+              messageOf(withTheField({
+                field: 'commit',
+                value: 7,
+              },),),
+            ).toContain('commit is no text');
           },
         },),
         it({
           name: 'refuses a diff that is no object, or that names a field the shape does not carry',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'diff',
-              value: 12,
-            },),),).toContain('diff is no JSON object');
-            expect(messageOf(withTheField({
-              field: 'diff.files',
-              value: 12,
-            },),),).toContain('diff names a field this reader does not read: files');
+            expect(
+              messageOf(withTheField({
+                field: 'diff',
+                value: 12,
+              },),),
+            ).toContain('diff is no JSON object');
+            expect(
+              messageOf(withTheField({
+                field: 'diff.files',
+                value: 12,
+              },),),
+            ).toContain('diff names a field this reader does not read: files');
           },
         },),
         it({
           name: 'refuses a line count that is no whole number from zero',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'diff.lines',
-              value: -1,
-            },),),).toContain('diff.lines is no whole number from zero');
-            expect(messageOf(withTheField({
-              field: 'diff.linesRead',
-              value: 1.5,
-            },),),).toContain('diff.linesRead is no whole number from zero');
+            expect(
+              messageOf(withTheField({
+                field: 'diff.lines',
+                value: -1,
+              },),),
+            ).toContain('diff.lines is no whole number from zero');
+            expect(
+              messageOf(withTheField({
+                field: 'diff.linesRead',
+                value: 1.5,
+              },),),
+            ).toContain('diff.linesRead is no whole number from zero');
           },
         },),
         it({
           name: 'refuses a line count read that is more than the diff holds',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'diff.linesRead',
-              value: 13,
-            },),),).toContain('diff.linesRead says 13 lines read of a diff of 12 lines');
+            expect(
+              messageOf(withTheField({
+                field: 'diff.linesRead',
+                value: 13,
+              },),),
+            ).toContain('diff.linesRead says 13 lines read of a diff of 12 lines');
           },
         },),
         it({
           name: 'refuses files that are no array, or an entry that is no object',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'files',
-              value: {},
-            },),),).toContain('files is no JSON array');
-            expect(messageOf(withTheField({
-              field: 'files',
-              value: ['package/a/src/one.rs',],
-            },),),).toContain('files entry 1 is no JSON object');
+            expect(
+              messageOf(withTheField({
+                field: 'files',
+                value: {},
+              },),),
+            ).toContain('files is no JSON array');
+            expect(
+              messageOf(withTheField({
+                field: 'files',
+                value: ['package/a/src/one.rs',],
+              },),),
+            ).toContain('files entry 1 is no JSON object');
           },
         },),
         it({
           name: 'refuses a file entry naming a field the shape does not carry',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'files',
-              value: [{
-                path: 'package/a/src/one.rs',
-                read: 'whole',
-                lines: 3,
-              },],
-            },),),).toContain('files entry 1 names a field this reader does not read: lines');
+            expect(
+              messageOf(withTheField({
+                field: 'files',
+                value: [{
+                  path: 'package/a/src/one.rs',
+                  read: 'whole',
+                  lines: 3,
+                },],
+              },),),
+            ).toContain('files entry 1 names a field this reader does not read: lines');
           },
         },),
         it({
           name: 'refuses a file entry with no path, and one whose read word is not whole, part or none',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'files',
-              value: [{
-                path: '',
-                read: 'whole',
-              },],
-            },),),).toContain('files entry 1.path is no text');
-            expect(messageOf(withTheField({
-              field: 'files',
-              value: [{
-                path: 'package/a/src/one.rs',
-                read: 'half',
-              },],
-            },),),).toContain('files entry 1.read is "half", which is not one of whole, part, none');
+            expect(
+              messageOf(withTheField({
+                field: 'files',
+                value: [{
+                  path: '',
+                  read: 'whole',
+                },],
+              },),),
+            ).toContain('files entry 1.path is no text');
+            expect(
+              messageOf(withTheField({
+                field: 'files',
+                value: [{
+                  path: 'package/a/src/one.rs',
+                  read: 'half',
+                },],
+              },),),
+            ).toContain('files entry 1.read is "half", which is not one of whole, part, none');
           },
         },),
         it({
           name: 'refuses a file named more than once',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'files',
-              value: [
-                {
-                  path: 'package/a/src/one.rs',
-                  read: 'whole',
-                },
-                {
-                  path: 'package/a/src/one.rs',
-                  read: 'part',
-                },
-              ],
-            },),),).toContain('files names package/a/src/one.rs more than once');
+            expect(
+              messageOf(withTheField({
+                field: 'files',
+                value: [
+                  {
+                    path: 'package/a/src/one.rs',
+                    read: 'whole',
+                  },
+                  {
+                    path: 'package/a/src/one.rs',
+                    read: 'part',
+                  },
+                ],
+              },),),
+            ).toContain('files names package/a/src/one.rs more than once');
           },
         },),
         it({
           name: 'refuses a command that is no text, and an exit code that is no whole number from zero',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'commands',
-              value: [{
-                command: '',
-                exit: 0,
-              },],
-            },),),).toContain('commands entry 1.command is no text');
-            expect(messageOf(withTheField({
-              field: 'commands',
-              value: [{
-                command: 'node repro.ts',
-                exit: -2,
-              },],
-            },),),).toContain('commands entry 1.exit is no whole number from zero');
+            expect(
+              messageOf(withTheField({
+                field: 'commands',
+                value: [{
+                  command: '',
+                  exit: 0,
+                },],
+              },),),
+            ).toContain('commands entry 1.command is no text');
+            expect(
+              messageOf(withTheField({
+                field: 'commands',
+                value: [{
+                  command: 'node repro.ts',
+                  exit: -2,
+                },],
+              },),),
+            ).toContain('commands entry 1.exit is no whole number from zero');
           },
         },),
         it({
           name: 'refuses a command entry naming a field the shape does not carry',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'commands',
-              value: [{
-                command: 'node repro.ts',
-                exit: 0,
-                stderr: 'nothing',
-              },],
-            },),),).toContain('commands entry 1 names a field this reader does not read: stderr');
+            expect(
+              messageOf(withTheField({
+                field: 'commands',
+                value: [{
+                  command: 'node repro.ts',
+                  exit: 0,
+                  stderr: 'nothing',
+                },],
+              },),),
+            ).toContain('commands entry 1 names a field this reader does not read: stderr');
           },
         },),
         it({
           name: 'refuses a carried built-program path that is blank, and reads one that is not',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'commands',
-              value: [{
-                command: 'node repro.ts',
-                exit: 0,
-                ranBuiltProgram: ' ',
-              },],
-            },),),).toContain('commands entry 1.ranBuiltProgram is no text');
+            expect(
+              messageOf(withTheField({
+                field: 'commands',
+                value: [{
+                  command: 'node repro.ts',
+                  exit: 0,
+                  ranBuiltProgram: ' ',
+                },],
+              },),),
+            ).toContain('commands entry 1.ranBuiltProgram is no text');
             expect(statementInReview({
               shown: withTheField({
                 field: 'commands',
@@ -423,20 +465,24 @@ await describe({
         it({
           name: 'refuses a finding whose shownBy is neither run nor reading, and a finding entry with no name',
           fn: async () => {
-            expect(messageOf(withTheField({
-              field: 'findings',
-              value: [{
-                finding: '1',
-                shownBy: 'guess',
-              },],
-            },),),).toContain('findings entry 1.shownBy is "guess", which is not one of run, reading');
-            expect(messageOf(withTheField({
-              field: 'findings',
-              value: [{
-                finding: '',
-                shownBy: 'run',
-              },],
-            },),),).toContain('findings entry 1.finding is no text');
+            expect(
+              messageOf(withTheField({
+                field: 'findings',
+                value: [{
+                  finding: '1',
+                  shownBy: 'guess',
+                },],
+              },),),
+            ).toContain('findings entry 1.shownBy is "guess", which is not one of run, reading');
+            expect(
+              messageOf(withTheField({
+                field: 'findings',
+                value: [{
+                  finding: '',
+                  shownBy: 'run',
+                },],
+              },),),
+            ).toContain('findings entry 1.finding is no text');
           },
         },),
         it({

@@ -17,6 +17,11 @@ Two more commands read the same runs folder:
 `watch-overdue-pi-runs` ends when a run should have come back,
 and `check-in-on-pi-runs` describes one run that has not.
 
+A review of a change is written, checked and started again by commands of this package:
+`write-a-brief-for-a-review` writes what a review reads and the section it must fill in,
+`check-a-review-that-ended` says what an ended review left and whether it needs starting again,
+and `write-a-fix-brief-for-each-review` writes the briefs for the defects a review found.
+
 The skill `.agents/skills/pi-as-subagent/SKILL.md` says how to start a run
 and which command to run to watch for one that should have come back.
 Evidence for how Pi behaves is in `doc/agent/drive-pi-as-a-coding-subagent.md`.
@@ -503,6 +508,12 @@ the qwen plan's review pool.
 No command, option, run, branch or folder carries a model's name,
 so a review of another model is one edit there and no new names.
 
+A review is checked afterwards by `check-a-review-that-ended`,
+which reads the review file, its run and its session and says whether it is complete,
+ran nothing, is missing its statement or a match with its session, wrote no review file, or was cut;
+and a review that needs one is started again from a brief that says what the first run did.
+That check is bookkeeping of evidence, not a judgement of the review's findings.
+
 A review's worktree starts at the commit the review reads,
 which the launcher's `--base` takes.
 A branch of that name that already exists is added as it is,
@@ -550,6 +561,23 @@ prints `nothing to review under <source> in <ranges>`,
 and exits `1`:
 a reviewer given no file reports nothing,
 which reads as a clean review although nothing was reviewed.
+
+### What every review brief asks the review to state
+
+Every brief asks for one section, first after the review file's title,
+holding one JSON object in a fenced block tagged `review-statement`:
+the commit reviewed,
+the lines of `change.diff` in total and the lines read,
+each file of the diff as read `whole`, `part` or `none`,
+each command run with its exit code and, when it ran a program the review's worktree built,
+that program's path,
+and each finding as shown by `run` or by `reading`.
+The brief carries the skeleton to copy and says what the package compares it with.
+The shape is documented in `doc/a-review-states-what-it-read-and-ran.md`,
+and the reader that holds a block to it is `src/review-statement-fields.ts`.
+A review that read part of the diff and says so is worth more than one that claims all of it:
+a partial reading does not make a review incomplete,
+it names the files a second review may read.
 
 ### `start-reviews-of-finished-branches`
 
@@ -664,6 +692,81 @@ and names no owner, no hurry and no due date.
 A review whose `review.md`, `change.diff` or record is not there gets no brief:
 the line names the missing file and the rest go on,
 and the command exits `1` when any review was left without one.
+
+### `check-a-review-that-ended`
+
+`--review`,
+repeatable,
+one per review to check;
+`--reviews-folder`;
+`--runs-folder`;
+`--rules-file`,
+which a restart's brief names first;
+`--focus`,
+what a restart's reviewer looks hardest at;
+and `--start`,
+without which the command writes the entry that starts a review again but starts nothing.
+
+For each review it reads the review file,
+the newest finished run's `summary.json`,
+the session file that summary names,
+the diff beside the review and `what-the-review-read.json`,
+and prints one line: the run's name, one verdict, and its reasons.
+The verdicts are:
+
+- `complete`:
+  the statement is there and well formed,
+  each command it lists is one the session records with the same exit code,
+  at least one command ran a program built from the reviewed commit,
+  the files and line count match the diff,
+  and the run ended on its own terms.
+- `ran nothing`:
+  the statement and its session agree, and no command ran a program built from the commit.
+- `statement missing or not matching its session`:
+  no section, a shape the reader refuses, a command the session does not record,
+  an exit code it does not record, a file or line count the diff does not match,
+  or a commit other than the one the review recorded.
+- `no review file`:
+  the run ended by itself and wrote none.
+- `cut`:
+  the run ended on a turn cap, a wall clock, an abort or a model error,
+  or no run of the review finished at all.
+
+A verdict says what it cannot see as well:
+a command run inside a `codemode` call,
+a `process` start's exit code (its result records none),
+a script that builds a built program's path from a variable,
+and anything written after the run ended.
+The command exits `0` only when every review is `complete`,
+and every line about a review that needs one says what is missing.
+
+```text
+# --review=rewrite-the-gate --reviews-folder=/reviews --runs-folder=/runs
+review-rewrite-the-gate: complete; read 3927 of the diff's 3927 lines; 12 of 12 files read whole; 3 command(s) ran a program built from commit abc1234: /repo/.../target/debug/monochromatic-git-policy-cli; the run ended idle
+```
+
+For a review whose verdict is `ran nothing`, `no review file` or `cut`,
+the command writes the entry that starts it again,
+in a folder, branch and run name of its own:
+`<change>-restart-2`, counting the review itself as the first run.
+Its worktree starts at the commit the earlier review recorded it read;
+its brief opens with what the earlier run did and did not do,
+and names the earlier review file and reproduction scripts so the second run does not repeat the reading;
+and its diff is the whole earlier diff,
+or only the files the earlier review did not read whole when its statement says it read the rest.
+The batch list is `<reviews folder>/<change>/restart-<n>-batch.json`, one entry,
+which `start-a-batch-in-its-own-unit` or `start-pi-runs-from-a-batch-list` takes as any other.
+
+Nothing is ever written over:
+a brief, a diff, a reading or a batch list holding other text refuses the whole restart
+and names the file,
+and a restart whose review file is already there is refused as one that already ran.
+A restart already written and not yet ended holds back the next one,
+so the command says which run is pending rather than writing a third;
+once that run ends, the next number is written and its brief says it is the third run.
+`--start` starts each restart it writes through the retrying start,
+one at a time, on the review pool;
+without it, nothing is started.
 
 ## Removing finished worktrees
 

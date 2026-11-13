@@ -122,14 +122,14 @@ type CommitReading =
   | {
     readonly kind: 'the same commit';
   }
-  | {
-    readonly kind: 'another commit';
-    readonly problem: string;
-  }
-  | {
-    readonly kind: 'cannot be compared';
-    readonly uncompared: string;
-  };
+    | {
+      readonly kind: 'another commit';
+      readonly problem: string;
+    }
+    | {
+      readonly kind: 'cannot be compared';
+      readonly uncompared: string;
+    };
 
 /**
  Reads what a statement's commit and the review's record say together: whether they name the same commit, another one, or no
@@ -165,12 +165,14 @@ function commitReadingIn({
   }
   return commitIsTheSame({
     stated,
-    recorded: recorded.reading.commit,
+    recorded: recorded.reading
+      .commit,
   },)
     ? { kind: 'the same commit', }
     : {
       kind: 'another commit',
-      problem: `the statement names commit ${stated} and the review recorded ${recorded.reading.commit}`,
+      problem: `the statement names commit ${stated} and the review recorded ${recorded.reading
+        .commit}`,
     };
 }
 
@@ -347,7 +349,8 @@ export async function checkAReview({
    */
   const commit = commitReadingIn({
     recorded: await readingAtAPath(readingFile,),
-    stated: reading.statement.commit,
+    stated: reading.statement
+      .commit,
     readingFile,
   },);
   /**

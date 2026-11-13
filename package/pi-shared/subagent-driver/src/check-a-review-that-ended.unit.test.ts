@@ -312,7 +312,9 @@ await describe({
             const again = await runTheCommand(words,);
             expect(again.status,).toBe(1,);
             expect(again.printed,).toContain('has not ended, so no later run was written',);
-            expect(await readdir(join(folder.path, 'reviews',),),).toEqual([aReview(), `${aReview()}-restart-2`,],);
+            expect(
+              await readdir(join(folder.path, 'reviews',),),
+            ).toEqual([aReview(), `${aReview()}-restart-2`,],);
           },
         },),
         it({
@@ -369,7 +371,9 @@ await describe({
             ],);
             expect(ran.status,).toBe(0,);
             expect(ran.printed,).toContain(`review-${aReview()}: complete`,);
-            expect(await readdir(join(folder.path, 'reviews',),),).toEqual([aReview(),],);
+            expect(
+              await readdir(join(folder.path, 'reviews',),),
+            ).toEqual([aReview(),],);
           },
         },),
         it({

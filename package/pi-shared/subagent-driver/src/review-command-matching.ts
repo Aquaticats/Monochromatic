@@ -121,8 +121,8 @@ function collapsed(text: string,): string {
     ' ',
   )
     .replaceAll(
-      /\s+/gu,
-      ' ',
+    /\s+/gu,
+    ' ',
     )
     .trim();
 }
