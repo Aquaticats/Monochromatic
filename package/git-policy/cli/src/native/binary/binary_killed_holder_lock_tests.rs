@@ -543,6 +543,10 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
 }
 
 /// This test binary running the child body on `lock`.
+/// The wrapper never starts itself;
+/// this starts libtest,
+/// so the ban on `current_exe` does not reach it.
+#[allow(clippy::disallowed_methods, reason = "starts this test binary (libtest), not the wrapper; the ban on `current_exe` guards the wrapper's own start")]
 fn start_non_dumpable_holder(lock: &Path) -> Child {
     let binary: PathBuf = std::env::current_exe().expect("this test binary");
     return Command::new(binary)
