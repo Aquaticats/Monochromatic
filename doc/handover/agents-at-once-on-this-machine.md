@@ -7,10 +7,16 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **16** agents run on this machine at once,
+At most **32** agents run on this machine at once,
 counted across every session
-(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:58:50,
+(raised from 4 to 8 on 2026-11-13 at 11:57,
+from 8 to 16 at 12:58:50
+and from 16 to 32 at 17:12,
 each time when the level before had held its hour).
+The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
+not in `main`,
+carries the number in a file of its own that still reads sixteen;
+the number is brought to this one when that branch is merged.
 
 The owner,
 2026-11-13,
@@ -254,6 +260,92 @@ one line a minute:
   The level is judged on readings taken after that,
   for an hour from there,
   and no sizing walk is run during a level's hour again.
+- Readings after the walks stopped,
+  13:34:21 to 13:58:48,
+  twenty-five of them with ten to sixteen units going:
+  home drive median 2 ms and slowest 22 ms;
+  build volume median 10 ms,
+  and over one second four times:
+  1,261 ms at 13:36:21,
+  2,597 at 13:38:22,
+  **10,419 at 13:40:25**
+  and **7,130 at 13:51:37**.
+  Two readings over the bound,
+  never two in a row,
+  so the criterion is not met;
+  the build volume stalls for seconds at this level all the same,
+  which it did not at eight.
+- The probe ended at 13:58:48 and none ran until 14:37,
+  while the session doing the search waited on a question;
+  one more was started at 14:37 for thirty-six minutes
+  (unit `disk-ceiling-probe-level-16-after-the-walks-20261113`).
+  From 14:12:41 the queue was empty and the count fell to nine by 14:38:24,
+  so its first readings are below the level.
+- Seen at this level and no symptom by the criterion:
+  the user service manager (PID 5289) wrote no log line from about 14:48:10 to 14:49:00,
+  where it wrote two to three every ten seconds before and eighteen in the ten seconds after;
+  in that time two callers got no listing from it within twenty seconds
+  (the probe's own count at 14:48:24, logged as -1,
+  and a watcher of the session doing the search, which ended at 14:49:07).
+  At 14:49:30 the same listing took 8 ms.
+  **What it waited on is not established, and nothing measured points at a drive**:
+  - the probe's two writes at 14:48:24, the start of that time, took 65 ms on the home drive and 9 ms on the build volume;
+  - the one-minute load went from 13.0 to 60.7 in that minute on 28 processors,
+    and the kernel's I/O figure `full avg10` read 23.75;
+  - memory at 14:49:30: 968 MiB free,
+    11.3 GiB in compressed swap,
+    and the memory figure `full avg10` at 2.00;
+  - the manager's whole wait for a processor since it started at 08:57:19 is 45.5 s
+    (`/proc/5289/schedstat`),
+    less than that one silence,
+    so the silence was not spent waiting for a processor;
+  - it has had 244 major page faults in that time and holds 3,108 kB in swap;
+  - the kernel's accounting of block-I/O delay per process is off (`kernel.task_delayacct` is 0),
+    and the manager's current system call cannot be read by this account,
+    so what it slept in cannot be told afterwards.
+  Three reviews ended at 14:49:16 to 14:49:18,
+  each on the provider's answer "429 … Allocated quota exceeded",
+  in the seconds after the silence ended,
+  while seven other reviews on the same provider went on.
+  A recorder now samples the manager while an answer is slow:
+  its state, its time on and waiting for a processor, its page faults, the journal's state and the kernel's pressure figures
+  (unit `record-what-the-user-service-manager-waits-on-20261113`,
+  log `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`).
+  A manager that stops answering for a time is what `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` is about.
+- Readings of the probe started at 14:37,
+  14:37:21 to 15:13:14,
+  thirty-six of them with eight to sixteen units going
+  (sixteen once, at 14:57:08, and twelve to fourteen for most of it):
+  home drive over the bound once,
+  **5,756 ms at 15:00:08**,
+  with 65 ms the next slowest;
+  build volume over one second twice
+  (1,240 ms at 14:42:22 and 1,321 at 14:44:23)
+  and under 500 ms otherwise.
+  One reading over the bound and the one after it 2 ms,
+  so the criterion is not met.
+  This is no symptom at the counts there were,
+  and it is not sixteen held for an hour:
+  the count stood at sixteen for one reading.
+- From 15:18:02 the count is bounded by something other than the drives.
+  Eighteen reviews ended that afternoon on the reviewer's provider answering "429 … Allocated quota exceeded",
+  each with six to nine runs on the reviewer's model going,
+  and the script that fills free places now starts no run on that model while five are going
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section dated 2026-11-13T15:24:13-05:00).
+  So how many agents go now follows how many author runs the queue holds,
+  and a reading at sixteen or above needs that many runs that are not reviews.
+- Free room at 15:24:13: `/var/home` 513 GiB,
+  the build volume 1,529 GiB:
+  26 GiB less than at 14:37:39,
+  in forty-seven minutes.
+- Free room at 14:37:39: `/var/home` 514 GiB,
+  the build volume 1,555 GiB:
+  61 GiB less than at 13:15:18,
+  in eighty-two minutes.
+  What takes it is not measured;
+  `/var/mnt/encrypted/cargo-build` holds 259 entries (14:38:24),
+  and each review and each resumed run builds the wrapper in a tree of its own.
 - Free room at 13:15:18: `/var/home` 517 GiB,
   the build volume 1,616 GiB
   (519 GiB and 1,640 GiB at 10:27:50,
@@ -265,3 +357,79 @@ one line a minute:
   one of them waiting for the branch it builds on.
   Whether thirty-two can be reached with real work is not settled by that count:
   reviews of the branches that finish add entries.
+- **The hour that judges this level**:
+  probe readings from 16:11:15 to 17:10:33,
+  sixty of them,
+  one a minute,
+  with the queue holding enough author runs to keep the places filled.
+  Agents going at each reading:
+  thirteen once,
+  fourteen at five readings,
+  fifteen at eleven,
+  sixteen at twenty-four
+  and seventeen at nineteen.
+  - Home drive: median 1 ms;
+    one reading over one second and over the bound,
+    **7,819 ms at 16:57:24**,
+    the reading after it under the bound.
+  - Build volume: median 7 ms;
+    over one second twice
+    (4,464 ms at 16:13:15 and 2,020 ms at 16:38:21),
+    none over the bound.
+  - Never two readings in a row over the bound on either drive.
+  - Thirteen Pi runs were started in the hour
+    (by the creation time of each run's feed),
+    and each gave its first answer within the bound of 120 s:
+    slowest 76,930 ms,
+    four of them over 60 s
+    (`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/time-to-first-answer-of-each-pi-run-started-in-the-hour-of-level-16-2026-11-13T1611.txt`).
+  - Thirteen runs ended in the hour
+    (`list-runs-that-ended-since`),
+    none on a disk error:
+    eight settled,
+    four ended `driver-failed` with Pi's exit code zero on the parse error of issue 6299,
+    and one review ended on the provider's rate limit.
+  - So the criterion is not met:
+    sixteen held its hour.
+  - No sizing walk ran during the hour.
+  - Free room at 17:11:42: `/var/home` 507 GiB,
+    the build volume 1,488 GiB
+    (41 GiB less than at 15:24:13,
+    in one hour and forty-seven minutes).
+
+### Level 32, started 2026-11-13T17:12:00-05:00
+
+- The unit that fills free places was stopped between two of its rounds and started again at the new level
+  (`fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`):
+  at most two starts every 150 s,
+  and no more than five runs on the reviewer's model at once,
+  which bounds how fast the count climbs and how far it gets with a queue that is mostly reviews.
+- Going at 17:14:28: seventeen Pi runs,
+  one of them another session's.
+- A sizing walk of the shared cargo build folder
+  (`btrfs filesystem du --summarize`,
+  disk weight 1,
+  unit `blocks-each-build-folder-holds-alone-20261113T1713`)
+  was started at 17:13,
+  after the hour of level sixteen and before this level's probe;
+  the probe of this level
+  (unit `disk-ceiling-probe-level-32-20261113`,
+  the same readings file)
+  starts when the walk ends,
+  so no reading of this level's hour falls in the walk.
+- The walk was still going at 17:21:02 with nothing printed,
+  and no probe had read since 17:10:33 while the count rose.
+  So a second probe reads while the walk runs,
+  from 17:22,
+  fifteen minutes at a time,
+  renewed while the walk goes
+  (unit `disk-ceiling-probe-level-32-while-the-build-folder-walk-runs-20261113T1722`,
+  the same readings file,
+  level field 32).
+  Its readings are there to catch a symptom,
+  and are read against the walk:
+  they do not count toward the hour that judges the level.
+- The hour counts from the first reading with the count above sixteen for good,
+  and is read by the counts it holds:
+  a count that stays near twenty is a reading at twenty,
+  not thirty-two held.

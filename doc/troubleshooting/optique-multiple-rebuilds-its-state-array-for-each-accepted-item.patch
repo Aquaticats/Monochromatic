@@ -10,10 +10,10 @@ index 00000000..dca43323
 +    items it already holds.
 diff --git a/packages/core/src/internal/array-view.test.ts b/packages/core/src/internal/array-view.test.ts
 new file mode 100644
-index 00000000..f6c5b0f2
+index 00000000..eaceb7c9
 --- /dev/null
 +++ b/packages/core/src/internal/array-view.test.ts
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,179 @@
 +/**
 + * Unit tests for array-shaped views of elements that live in another
 + * structure.
@@ -115,6 +115,54 @@ index 00000000..f6c5b0f2
 +    assert.deepEqual(writable, ITEMS);
 +  });
 +
++  test("gives a copy made from its descriptors its length and elements", () => {
++    const view = virtualArrayOf(elementsOf(ITEMS));
++
++    assert.equal(
++      Object.getOwnPropertyDescriptor(view, "length")?.value,
++      ITEMS.length,
++    );
++    // A `length` descriptor taken from the empty target would cut this copy
++    // back to no elements.
++    const copy: string[] = [];
++    for (const key of Reflect.ownKeys(view)) {
++      const descriptor = Reflect.getOwnPropertyDescriptor(view, key);
++      if (descriptor !== undefined) {
++        Object.defineProperty(copy, key, descriptor);
++      }
++    }
++    assert.equal(copy.length, ITEMS.length);
++    assert.deepEqual(copy, ITEMS);
++  });
++
++  test("refuses writes past its end and keeps no trace of them", () => {
++    const writable = virtualArrayOf(elementsOf(ITEMS)) as string[];
++    const pastEnd = String(ITEMS.length);
++
++    assert.throws(() => writable.push("z"), TypeError);
++    assert.throws(() => writable.unshift("z"), TypeError);
++    assert.throws(() => {
++      writable[ITEMS.length] = "z";
++    }, TypeError);
++    assert.throws(() => {
++      writable[ITEMS.length + 3] = "z";
++    }, TypeError);
++    assert.throws(
++      () => Object.defineProperty(writable, "0", { value: "z" }),
++      TypeError,
++    );
++    assert.throws(
++      () => Object.defineProperty(writable, pastEnd, { value: "z" }),
++      TypeError,
++    );
++    // A write that reached the target array would show up as a key and as an
++    // element past the end.
++    assert.equal(writable[ITEMS.length], undefined);
++    assert.ok(!(ITEMS.length in writable));
++    assert.deepEqual(Object.keys(writable), ["0", "1", "2", "3"]);
++    assert.deepEqual(writable, ITEMS);
++  });
++
 +  test("refuses to be frozen and stays readable afterwards", () => {
 +    const view = virtualArrayOf(elementsOf(ITEMS));
 +
@@ -147,17 +195,16 @@ index 00000000..f6c5b0f2
 +});
 diff --git a/packages/core/src/internal/array-view.ts b/packages/core/src/internal/array-view.ts
 new file mode 100644
-index 00000000..612066ba
+index 00000000..f78d5e48
 --- /dev/null
 +++ b/packages/core/src/internal/array-view.ts
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,205 @@
 +/**
 + * Array-shaped views of elements that live in another structure.
 + *
-+ * Two values the parser hands around grow or shrink by one slot per accepted
-+ * token: the state array of `multiple()` and the context's input buffer.
-+ * Both are typed `readonly T[]` and are read by indexing, spreading and
-+ * `Array.prototype` methods, so a persistent structure cannot replace them
++ * The state array of `multiple()` grows by one slot per accepted item.  It is
++ * typed `readonly T[]` and is read by indexing, spreading and
++ * `Array.prototype` methods, so a persistent structure cannot replace it
 + * without a type or reader change.  This module keeps the array type and the
 + * readers: the value is a proxy over a real array, every index read is served
 + * from the structure that holds the elements, and no version copies a slot it
@@ -241,13 +288,11 @@ index 00000000..612066ba
 +/**
 + * Refuses a write to an element of a view.
 + *
-+ * @throws {TypeError} Always, because the elements belong to a parser state or
-+ *         an input buffer that later versions share.
++ * @throws {TypeError} Always, because the elements belong to a parser state
++ *         that later versions share.
 + */
 +function refuseWrite(): never {
-+  throw new TypeError(
-+    "An array view of parser state or input cannot be modified.",
-+  );
++  throw new TypeError("An array view of parser state cannot be modified.");
 +}
 +
 +// One handler serves every view: each trap reads the view's elements from its
@@ -278,13 +323,19 @@ index 00000000..612066ba
 +  },
 +  getOwnPropertyDescriptor(target, property) {
 +    // `length` is a non-configurable own property of the target array and the
-+    // proxy may not hide it, so it is reported from the target.  Index
-+    // descriptors come from the elements, which is what makes deep equality
-+    // and property enumeration see the presented elements.
-+    if (property === "length") {
-+      return Reflect.getOwnPropertyDescriptor(target, property);
-+    }
++    // proxy may not hide it, so its descriptor comes from the target, with the
++    // presented length as its value: the target's own value is 0, and a copy
++    // made from the view's descriptors would otherwise be cut back to nothing.
++    // The target's `length` is writable, so a proxy may report another value.
++    // Index descriptors come from the elements, which is what makes deep
++    // equality and property enumeration see the presented elements.
 +    const elements = elementsOf(target);
++    if (property === "length") {
++      const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
++      return descriptor === undefined
++        ? undefined
++        : { ...descriptor, value: elements.length };
++    }
 +    const index = indexOfProperty(property, elements.length);
 +    if (index !== undefined) {
 +      return {
@@ -297,13 +348,24 @@ index 00000000..612066ba
 +    return Reflect.getOwnPropertyDescriptor(target, property);
 +  },
 +  set(target, property, value) {
++    // An index past the end is refused as well: written through to the empty
++    // target it would read back as an element the view does not have.
 +    if (
 +      property === "length" ||
-+      indexOfProperty(property, elementsOf(target).length) !== undefined
++      indexOfProperty(property, Number.POSITIVE_INFINITY) !== undefined
 +    ) {
 +      refuseWrite();
 +    }
 +    return Reflect.set(target, property, value);
++  },
++  defineProperty(target, property, descriptor) {
++    if (
++      property === "length" ||
++      indexOfProperty(property, Number.POSITIVE_INFINITY) !== undefined
++    ) {
++      refuseWrite();
++    }
++    return Reflect.defineProperty(target, property, descriptor);
 +  },
 +  deleteProperty(target, property) {
 +    if (indexOfProperty(property, elementsOf(target).length) !== undefined) {
@@ -326,8 +388,8 @@ index 00000000..612066ba
 + *
 + * The returned value is a proxy over an empty array, so `Array.isArray()`
 + * stays true and `Array.prototype` methods work; writes to its indices and to
-+ * `length` throw, because its elements belong to a parser state or an input
-+ * buffer that later versions share.
++ * `length` throw, because its elements belong to a parser state that later
++ * versions share.
 + *
 + * @template T The type of the elements.
 + * @param elements The reader that serves the elements.
@@ -701,16 +763,16 @@ index 00000000..b1c7f3ea
 +});
 diff --git a/packages/core/src/internal/persistent-vector.ts b/packages/core/src/internal/persistent-vector.ts
 new file mode 100644
-index 00000000..2ac1fcb3
+index 00000000..efcbfbb2
 --- /dev/null
 +++ b/packages/core/src/internal/persistent-vector.ts
 @@ -0,0 +1,408 @@
 +/**
 + * An immutable vector: an indexed sequence whose versions share storage.
 + *
-+ * `multiple()` rebuilds its state array for every item it accepts, and the
-+ * input buffer drops one token per accepted token, so a parse of N positional
-+ * arguments copies 1 + 2 + ... + N slots when both are plain arrays.  This
++ * `multiple()` rebuilds its state array for every item it accepts, so a parse
++ * of N positional arguments copies 1 + 2 + ... + N slots when that state is a
++ * plain array.  This
 + * vector appends and drops the last slot by copying only the nodes on the
 + * path to it: both cost O(log32 N) slots, and a vector obtained earlier keeps
 + * the slots it had, because no node, child list or item list is modified

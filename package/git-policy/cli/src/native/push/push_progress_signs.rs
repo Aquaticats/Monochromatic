@@ -24,15 +24,20 @@ use crate::tcp_sockets::socket_inodes_of;
 /// Why:
 ///   The signs are kept apart because a process that holds the connection to the remote may be polling it,
 /// and a poll is not work the remote sees.
+///  The count of the bytes is kept as well as the fact that there were some,
+/// because the least traffic a
+///  push's connection must carry is judged on their sum (`push_minimum_rate.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Signs = { moved: boolean; busy: boolean };
+/// type Signs = { moved: boolean; movedBytes: number; busy: boolean };
 /// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Signs {
     /// Bytes read or written since the look before.
     pub moved: bool,
+    /// How many those were.
+    pub moved_bytes: u64,
     /// Processor time used since the look before,
     /// or a task able to run or waiting for the disk now.
     pub busy: bool,
