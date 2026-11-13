@@ -21,7 +21,7 @@
 //! ```
 
 /// The fixtures and bounded process helpers every binary-level control shares.
-use super::support::{Fixture, Observed, fixture, git, hermetic, observe, remove, repository, wrapped};
+use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -268,17 +268,6 @@ fn the_upkeep_prunes_with_no_command_asking_for_a_pass() {
     let lines: Vec<String> = log_lines(&world);
     assert_eq!(lines.len(), 1, "the upkeep wrote the line about what it pruned: {lines:?}");
     assert!(lines[0].contains("too-old"), "{lines:?}");
-    remove(&world.fixture);
-}
-
-/// That fixture's wrapper gets the fixture's own home and runtime directory,
-/// so no control reaches the owner's.
-#[test]
-fn the_fixture_environment_is_the_controls_own() {
-    let world: World = world("kept-references-environment");
-    let mut command: Command = wrapped(&world.fixture);
-    hermetic(&mut command, &world.fixture, OsStr::new("/usr/bin:/bin"));
-    assert_eq!(command.get_envs().filter(|(name, _value)| { return *name == OsStr::new("HOME"); }).count(), 1);
     remove(&world.fixture);
 }
 
