@@ -227,6 +227,15 @@ WDQ:
 Intended behavior that could confuse gets documented where its users meet it,
  so they are not confused.
 
+HLD:
+ A precaution that makes work wait (a hold,
+ a freeze,
+ a serial order,
+ a stopped run) names the recorded failure it prevents;
+ none on record:
+ read the source,
+ then drop it or file the defect.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
@@ -843,6 +852,12 @@ RBT:
  and never count on uncommitted files,
  scratch,
  or caches surviving one.
+
+MXA:
+ Before starting a Pi run or subagent,
+ count every agent going on the machine,
+ all sessions;
+ start none past the cap in `doc/handover/agents-at-once-on-this-machine.md`.
 
 FHU:
  Real jobs may use almost the whole host:

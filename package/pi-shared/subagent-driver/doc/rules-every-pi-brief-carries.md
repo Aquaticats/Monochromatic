@@ -30,7 +30,9 @@ Each rule is the project's own requirement.
   Make one fixture repository and reuse it,
   or make a copy-on-write copy (`cp --reflink=always`),
   instead of a full copy for each round.
-  On 2026-11-13 the scratch folder held 232 GiB from two days of runs,
+  On 2026-11-13 the scratch folder held about 64 GiB of its own from two days of runs
+  (`btrfs filesystem du`;
+  `du` read 232 GiB because it counts data shared between copies once for each copy),
   and a full home drive had ended twenty runs the day before.
 - Never generate synthetic host load in any session or subagent:
   no `stress-ng`,

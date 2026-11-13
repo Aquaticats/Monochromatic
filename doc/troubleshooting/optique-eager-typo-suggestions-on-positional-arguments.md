@@ -8,8 +8,9 @@ the measurements and the source reading reported here,
 and one review by a model from another vendor of the text as it stood on 2026-11-12.
 Open:
 a second such review read the text as of commits `5a4e07d2e3` and `426d33d638`,
+and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
-the corrections made after that are not reviewed,
+the corrections made after that last pass are not reviewed,
 and the reply draft waits for the owner.
 
 Status,
@@ -681,7 +682,9 @@ because the thread moved:
    which runs to 2026-11-16T14:27:49Z.
 - The maintainer read this repository's documents without waiting,
    opened upstream issue 1120 from them at 2026-11-13T08:16:37Z,
-   and opened pull request 1121 for it two hours later.
+   opened pull request 1121 for it two hours later,
+   and merged it at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+   whose tree is that of the branch head `a175cdb7` measured here.
    So the draft no longer reports the short-option cost as news;
    it reports a measurement of the pull request.
 - The input-trace cost has its own document and a checked patch,
@@ -722,14 +725,14 @@ The numbers behind that. The parser this commit removed, unchanged from its pare
 So #992 removed 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
 `errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
 
-On #1121: I measured its branch at a175cdb7 from source on Deno, seven rounds with the arms rotated, a thousand
-paths after `--`:
+On #1121: I measured its branch at a175cdb7, the same tree as its merge, from source on Deno, seven rounds with the
+arms rotated, a thousand paths after `--`:
 
 - 1.3.6: 30.8 ms
-- main at 84f95710: 56.5 ms
+- main before the merge, at 84f95710: 56.5 ms
 - #1121: 42.0 ms
 
-That is 0.75 times main (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42), which agrees with your own figures.
+That is 0.75 times the earlier main (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42), which agrees with your own figures.
 On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
 
 What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
@@ -737,7 +740,7 @@ both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
 input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
-to main and to #1121's branch. It does not make the parse linear: a profile of the patched build shows two smaller
+to main as of that merge. It does not make the parse linear: a profile of the patched build shows two smaller
 per-argument copies behind it, in `multiple()` (the state array) and `argument()` (the buffer slice); 32,000
 arguments take 29 s unpatched and 5.7 s patched. The write-up and the patch: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].

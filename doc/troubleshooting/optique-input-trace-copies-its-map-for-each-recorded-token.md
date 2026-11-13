@@ -6,11 +6,12 @@ and the owner has not approved it.
 Done and checked by that session:
 the measurements and the source reading reported here.
 Open:
-a model from another vendor reviewed the text twice,
-as of commits `5a4e07d2e3` and `426d33d638`,
+a model from another vendor reviewed the text as of commits `5a4e07d2e3` and `426d33d638`,
+and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
-the corrections made after its second pass are not reviewed,
-and the two further copies named under "What is left after the fix" are profiled and not fixed.
+the corrections made after that last pass are not reviewed,
+and the two further copies named under "What is left after the fix" are profiled and not fixed:
+fixes for them are being prototyped and nothing about that is settled.
 
 Status,
 2026-11-13:
@@ -207,15 +208,23 @@ median of three parses:
 with `set` in `input-trace.js` at 92.7% of the parse.
 So the trace copy is by far the largest of the three at every size measured,
 the prototype removes that one only,
-and what is left is mostly the other two,
-nine tenths of the patched parse at 16,000 to 32,000 tokens and a little over half at 4,000 to 8,000:
-the patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
+and what is left at the larger sizes is mostly the other two,
+nine tenths of the patched parse at 16,000 to 32,000 tokens.
+At 4,000 to 8,000 the same two functions are 14.6% and 13.3% of the patched parse,
+27.9% together,
+and the two files they sit in are 54.7%;
+the profile does not separate the copies from the other work in those functions,
+so it gives no closer figure for the copies' own share at those sizes.
+The patched build takes about an eighth of the time at 16,000 tokens and about a fifth at 32,000.
 The prototype's author,
 an AI agent,
 had attributed the remainder to the buffer copy alone;
 the profile puts more of it in `multiple()`.
 
-Neither of the two was prototyped.
+Neither of the two has a fix here.
+On 2026-11-13 the owner chose to have fixes prototyped before any reply to upstream,
+and that work was started the same day;
+this document says nothing about its result until the result has been checked.
 Each changes a value that other code reads as a plain array
 (the state of `multiple()`,
 and the context's token buffer),
@@ -385,7 +394,8 @@ it is unreviewed by upstream and adds about 350 lines to maintain.
    or a `1.4.0-dev` build.
    Both concern the typo-suggestion work,
    which is a different cost.
-- Waiting for upstream pull request 1121.
+- Upstream pull request 1121,
+   merged on 2026-11-13.
    It changes the option-scope work and does not touch `input-trace.ts`.
 
 ## Upstream filing artifact
@@ -454,6 +464,22 @@ Work in progress,
 Nobody is fixing it.
 The maintainer is working in the neighbouring code today,
 so read pull request 1121 as it stands on the day before posting.
+
+The same checks again later on 2026-11-13,
+after upstream moved:
+
+- Pull request 1121 was merged at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+   which closed issue 1120.
+   The merge commit's tree is that of the branch head `a175cdb7`,
+   so the patch's clean application to that head holds for `main` as of the merge.
+- `gh pr list --state open`:
+   none.
+- `gh issue list --state all`:
+   nothing newer than issue 1120,
+   and nothing about the trace.
+- The newest commit on `packages/core/src/input-trace.ts` is still the one of 2026-05-14.
+
+So nobody is fixing it as of that check either.
 
 The six constraints:
 
@@ -768,7 +794,7 @@ https://github.com/Aquaticat/optique-parse-cost-reproduction (*token-scaling.ts*
 I have a patch that keeps the entries in an immutable hash trie instead, so a write copies only the path to its
 key and earlier traces stay untouched. From source on Deno, 8,000 arguments went from 1,183 ms to 151 ms and the
 exponent from about 1.8 to about 1.2; a thousand paths through a `git commit`-shaped parser took 0.78 times as
-long. The core suite passes on Deno and Node with it, and it applies cleanly to main and to #1121's branch.
+long. The core suite passes on Deno and Node with it, and it applies cleanly to main as of #1121's merge.
 
 It does not make the parse linear. A profile of the patched build shows two more per-argument copies behind this
 one: `multiple()` rebuilds its state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`)

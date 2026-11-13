@@ -6,10 +6,9 @@ and the owner has not approved it.
 Done and checked by that session:
 the invocations and the source reading reported here.
 Open:
-a model from another vendor reviewed it once,
-as of commit `426d33d638`,
-and its findings were folded in;
-the corrections made after that are not reviewed.
+a model from another vendor reviewed it as of commit `426d33d638`,
+and the corrections made after that as of commit `2d06b4ae60`,
+where it found nothing to change in this document.
 
 Found on 2026-11-13 while checking that the scripts of a reproduction repository run on Deno.
 The repository holds a `package.json` so that Node treats its scripts as ES modules,
