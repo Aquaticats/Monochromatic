@@ -26,6 +26,8 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::service_route::service_status;
 use crate::management_service_settle_earlier_batches::{plan_settle_earlier_batches};
 use crate::management_service_stop_units_of_removed_worktrees::plan_stop_units_of_removed_worktrees;
+/// The listing of the references the wrapper keeps commits on, and one pruning of them.
+use crate::kept_reference_command::plan_kept_references;
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,
     parse_management_arguments,
@@ -475,6 +477,9 @@ pub fn plan_management_with_section(
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
         ManagementAction::SettleEarlierBatches => return plan_settle(git_global_arguments, environment, inputs),
         ManagementAction::StopUnitsOfRemovedWorktrees => return plan_stop_units_of_removed_worktrees(environment),
+        ManagementAction::KeptReferences { prune } => {
+            return plan_kept_references(prune, git_global_arguments, environment, inputs);
+        }
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs),
         ManagementAction::Direct {

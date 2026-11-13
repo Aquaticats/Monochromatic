@@ -710,11 +710,16 @@ impl WorkHandlers for GitHandlers {
 
     fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
-            return match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
+            let answer: Verdict = match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
                 Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
                 Ok(_) => Verdict::Done,
                 Err(error) => Verdict::Failed(format!("{error:?}")),
             };
+            // The upkeep is where the wrapper prunes the references it keeps built commits on, by age and by size: the
+            //  person's commit has returned, and nothing a command waits for is behind this step
+            //  (`kept_reference_pass.rs`).
+            crate::kept_reference_pass::prune_after_a_commit(&self.context, item.git_dir.as_path()).await;
+            return answer;
         });
     }
 

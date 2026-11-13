@@ -3648,6 +3648,95 @@ so a held commit there is kept on `refs/cli-git/kept/<batch>` before Git runs,
 and the command says then that the branch stays where it is,
 because no command in a removed worktree can move it.
 
+#### A kept reference is pruned by age and by size
+
+A reference under `refs/cli-git/kept/` is removed by the wrapper itself once it is worth nothing,
+because nothing else would ever remove it and the objects it holds would pin space for ever
+(owner, 2026-11-12:
+"Keep the reference, auto prune by size and age").
+
+Three rules decide one,
+in this order.
+A kept commit that a branch, a remote-tracking reference or a tag has since reached
+holds nothing any more,
+so its reference goes at the next pass,
+however young it is.
+A reference older than **thirty days** goes,
+because a person who was going to recover that commit has had the time.
+And while the objects reachable only through kept references weigh more than **64 MiB**,
+the oldest references go first,
+one at a time,
+until the rest is under the limit;
+a reference younger than **one hour** is never pruned for its size,
+so a commit kept a moment ago is not the price of a burst of removals.
+The three values are `KEPT_REFERENCE_MAX_AGE`, `KEPT_REFERENCE_MAX_BYTES` and `KEPT_REFERENCE_FLOOR`
+in `src/native/kept_references/kept_reference_limits.rs`,
+with the measurement each rests on,
+and a run can change any of them with
+`CLI_GIT_KEPT_REFERENCE_MAX_AGE_SECONDS`,
+`CLI_GIT_KEPT_REFERENCE_MAX_BYTES` and
+`CLI_GIT_KEPT_REFERENCE_FLOOR_SECONDS`.
+
+The pass runs in the commit service after a landed commit,
+in the same record that runs `git maintenance run --auto`,
+so no command a person types waits for it,
+and it runs once per repository per round.
+It takes no lock:
+every removal is `git update-ref -d <ref> <old value>`,
+so a reference another command wrote after the pass listed it,
+or one another pass removed,
+is left alone,
+and two passes that run at once leave what one of them leaves.
+
+Before a reference whose commit no branch reaches goes,
+the wrapper writes one line to `<common Git directory>/monochromatic-git-policy-cli-kept-references.jsonl`
+with the time,
+the reference,
+the commit,
+the batch,
+the worktree the commit was built in,
+its age and the reason.
+Nothing else remembers that commit afterwards,
+so that line is what a person reads to find out what went.
+A reference kept by a worktree removal carries the worktree's path in a record beside it,
+in `<common Git directory>/monochromatic-git-policy-cli/kept-references/`;
+one an earlier release wrote has no record,
+and the first pass that lists it dates it,
+so it is never pruned before it has been listed for the whole age limit.
+
+`git monochromatic-git-policy-cli kept-references` lists every kept reference with its commit,
+its age,
+the worktree and batch it came from,
+and what the next pass will do with it,
+and `git monochromatic-git-policy-cli kept-references --prune` runs one pass now.
+The listing is the pass with the removals left out,
+so what it says the next pass takes is what that pass takes:
+
+```console
+$ git monochromatic-git-policy-cli kept-references
+2 kept references hold objects only they reach, 7573 bytes on disk.
+The limits are 2592000 seconds of age and 67108864 bytes, and a reference younger than 3600 seconds is never pruned for its size.
+
+refs/cli-git/kept/1794071191963903
+  commit 4abc7d6a39b8f76b741705ae772910419412a60e
+  kept 2026-11-07T13:26:31.963Z (5 days 22 hours ago), batch 1794071191963903
+  worktree /home/a person/worktrees/task
+  the next pass keeps it: it is younger than the 30-day age limit
+
+refs/cli-git/kept/1794071191963902
+  commit deb10b333be2e7c350d4d5cce35b8d474161fbbc
+  kept 2026-11-07T13:26:31.963Z (5 days 22 hours ago), batch 1794071191963902
+  worktree not recorded
+  the next pass keeps it: it is younger than the 30-day age limit
+
+The next pass prunes nothing, so the objects only kept references reach stay at 7573 bytes.
+```
+
+On this repository on 2026-11-12 the five kept references it held
+cost 7,573 bytes of objects on disk,
+and the reading is in
+`doc/troubleshooting/cli-git-kept-references-are-pruned-by-size-and-age.md`.
+
 The first command that finds the lock gone moves the branch,
 by one compare-and-swap from the value the batch was prepared on.
 The batch's index entries are installed under Git's index lock,
