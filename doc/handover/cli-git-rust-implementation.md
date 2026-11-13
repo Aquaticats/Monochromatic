@@ -670,6 +670,45 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The jam fix's review found a commit that lands after its command said it was not made; two more runs ended (2026-11-13T13:22:37-05:00)
+
+Not complete: both reviewed branches go back to their authors, and the third waits for its review.
+Read from each run's report and from the two review files by the coordinating session.
+
+- **Review of the jam fix** (`commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`, range `9d5a7b0ed7..f025b571c9`), file
+  `~/temp/agent/change-reviews/git-policy-cli-commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer/review.md`.
+  It built the wrapper and reproduced one defect against the real service binary:
+  the bounded write can give up with the whole JSON request delivered and only its framing newline unsent;
+  the client then says the service never took the request, tells the person the commit was not made and nothing of it can land later,
+  and removes the commit's scratch tree, while the service decodes the line at the end of the stream and lands the commit.
+  It landed a captured request so, and again after a full close, where the drop of a request whose client is gone lost a race with the heartbeat.
+  New with the change (the blocking write before it ended in "not known" with the tree kept).
+  The rest of the change (bounded connect, chunked read, status probe, journal fallback, ceilings) it found sound.
+  Its run is marked `driver-failed` by issue 6295 after the review was written; the review is whole.
+  **The jam fix is not fit for an integration pass.**
+  The author answers it: brief `~/temp/agent/pi-runs/commit-fails-within-a-bound-answers-its-review-of-2026-11-13-prompt.md`, first in the queue.
+- **Review of `commit-does-not-list-every-reference-on-the-path-it-waits-on`** (commit `7592e20235`): two places where the in-process reader answers differently from Git without declining.
+  In a linked worktree the snapshot holds the main worktree's `refs/bisect`, `refs/rewritten` and `refs/worktree`, which Git does not print there;
+  and it keeps symbolic references whose chain ends nowhere, which Git drops.
+  No data lost, no wait without a bound.
+  The review ran Git's side for real and the reader's side as a transcription; it did not compile the crate.
+  The author answers both, first showing each with the real reader:
+  brief `~/temp/agent/pi-runs/commit-does-not-list-every-reference-answers-its-review-of-2026-11-13-prompt.md`, second in the queue.
+- **`abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`** finished, tip `87cd3d1dfa`.
+  By its report an abort or a skip that would discard work is refused before anything changes, naming the files, with `--no-enforce-worktree` as the opt-out
+  and `--quit` as the way to keep the work; the saver and its four files are removed; a pipe at the record's path is refused within a bound.
+  It calls itself fit to merge, 377 commits behind `main`, and without `afc0545123`.
+  Its two questions for the owner: an abort in the main worktree is still always refused, even when it discards nothing;
+  and the second measurement before Git starts is one round.
+  Its review is third in the queue.
+- **Checked, no defect**: that report says the merge of `main` into its branch on 2026-11-12 (`d53e15d8f7`) "silently dropped" a handover section.
+  Git's own merge of the two parents (`git merge-tree --write-tree 7cd39662bf 9d5a7b0ed7`, run 13:24) gives the same handover blob as the merge commit (`400e4a78bc`),
+  and that blob differs from `main`'s side only by 47 lines more.
+  So the merge is Git's and holds every line `main` had; what the run restored afterwards was not lost by the wrapper.
+- **Seen in passing**: at 13:24 the wrapper printed, for three worktrees made today
+  (two reviews' and the reload fix's), that their package state "was not relinked after 3 tries".
+  That is the relink giving up that task 317's runs are about, still there in `0.6.1-alpha.16`.
+
 #### The push-stops resume finished; three second reviews and the reload fix's author are going (2026-11-13T13:19:20-05:00)
 
 Not complete: the branch waits for its review.
