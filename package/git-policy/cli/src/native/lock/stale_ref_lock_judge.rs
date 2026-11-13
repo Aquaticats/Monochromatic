@@ -421,7 +421,8 @@ impl Judge {
                 self.process_state_words(pid)
             ),
             PidFile::Unproven(pid) => format!(
-                "a pid file beside it names process {pid}, and nothing proves it was written for this lock: its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them"
+                "a pid file beside it names process {pid}, which {}, and nothing proves it was written for this lock: its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them",
+                self.process_state_words(pid)
             ),
             PidFile::Absent => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
         };

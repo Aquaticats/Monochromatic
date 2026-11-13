@@ -246,8 +246,8 @@ fn equal_or_missing_birth_times_keep_the_lock() {
     let hidden: PathBuf = a_git_directory("no-birth-times");
     let (hidden_pid, hidden_identity) = dead_holder();
     plant(hidden.as_path(), "index.lock", hidden_pid, &[hidden_identity]);
-    let kept: bool = with_birth_times(BirthTimes::Hidden, || { return matches!(looked(hidden.as_path(), "index.lock"), Ended::Kept); });
-    assert!(kept, "a file system that records no birth time proves no order, so the lock stays");
+    let kept_without_times: bool = with_birth_times(BirthTimes::Hidden, || { return matches!(looked(hidden.as_path(), "index.lock"), Ended::Kept); });
+    assert!(kept_without_times, "a file system that records no birth time proves no order, so the lock stays");
     remove(hidden.as_path());
     let recorded: PathBuf = a_git_directory("recorded-birth-times");
     let (recorded_pid, recorded_identity) = dead_holder();
