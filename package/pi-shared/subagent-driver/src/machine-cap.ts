@@ -26,25 +26,20 @@
  */
 
 import type { GoingRun, } from './going-runs.ts';
+import type { MachineCapLevel, } from './machine-agent-cap-level.ts';
 import {
   LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
   wholeNumberIn,
 } from './whole-number-setting.ts';
 
 /**
- The variable that sets the cap for one command, as `<whole number of agents>`, so the cap is raised a step at a time and found
- again on another drive without a code change.
+ The variable that sets the cap for one command, as `<whole number of agents>`, which is how a reading is taken at a level before
+ the level file and the record are changed.
 
- Unset, the cap is {@link MACHINE_CAP_DEFAULT}. Zero is a cap of its own: it starts nothing at all, which is how a caller pauses
- every start on the machine without touching a pool.
+ Unset, the cap is the machine's level, read from the level file at every start. Zero is a cap of its own: it starts nothing at
+ all, which is how a caller pauses every start on the machine without touching a pool.
  */
 export const MACHINE_CAP_VARIABLE = 'PI_RUNS_MACHINE_CAP';
-
-/**
- The cap while a caller sets none: the four agents of the owner's words in this module's doc, the level a search for this machine's
- ceiling stands at, raised a step at a time and found again after a new drive is in.
- */
-export const MACHINE_CAP_DEFAULT = 4;
 
 /**
  The variable a caller sets to say how many agents it has going that this gate cannot see: subagents of its own session, which are
@@ -56,19 +51,56 @@ export const MACHINE_CAP_DEFAULT = 4;
 export const OTHER_AGENTS_GOING_VARIABLE = 'PI_RUNS_OTHER_AGENTS_GOING';
 
 /**
- How many agents the machine may carry at once, and how many of them the gate cannot see.
-
- @example
- ```ts
- const machineCap: MachineCap = { cap: MACHINE_CAP_DEFAULT, otherAgentsGoing: 0, };
- ```
+ Where the cap's number came from: the machine's level file, or the one variable that sets it for one command.
  */
-export type MachineCap = {
+export type MachineCapSource =
+  | {
+    /**
+     Whether the number came from the one variable, which is true here.
+     */
+    readonly from: 'the-variable';
+  }
+    | {
+      /**
+       Whether the number came from the level file, which is true here.
+       */
+      readonly from: 'the-level-file';
+
+      /**
+       The level file the number was read from.
+       */
+      readonly path: string;
+
+      /**
+       When that number was set, as the file names the time.
+       */
+      readonly setAt: string;
+    };
+
+/**
+ A cap and where it came from, before the agents the gate cannot see are added.
+ */
+export type MachineCapPlace = {
   /**
    How many agents may be going on the machine at once, this run included.
    */
   readonly cap: number;
 
+  /**
+   Where that number came from.
+   */
+  readonly source: MachineCapSource;
+};
+
+/**
+ How many agents the machine may carry at once, where that number came from, and how many of them the gate cannot see.
+
+ @example
+ ```ts
+ const machineCap: MachineCap = { cap: 16, source: { from: 'the-level-file', path: '/pkg/src/machine-agent-cap.json', setAt: '2026-11-13T12:58:50-05:00', }, otherAgentsGoing: 0, };
+ ```
+ */
+export type MachineCap = MachineCapPlace & {
   /**
    How many agents the caller says it has going which are no Pi run, so the count of runs the gate read is short by that many.
    */
@@ -86,16 +118,17 @@ export class MachineCapError extends Error {
 }
 
 /**
- Reads the cap a caller set, from the value of {@link MACHINE_CAP_VARIABLE}.
+ Reads the cap a caller set for one command, from the value of {@link MACHINE_CAP_VARIABLE}.
 
  A value that is no whole number is refused rather than counted, because a mistyped cap would otherwise start more agents than the
- machine carries, or stop every start, with no line saying which.
+ machine carries, or stop every start, with no line saying which. An empty value is refused too: the caller reads the machine's
+ level instead of passing nothing.
 
- @param listed - the variable's value, empty when the caller set nothing
+ @param listed - the variable's value, which must hold a whole number
 
  @returns the cap to count against
 
- @throws MachineCapError when the value is not a whole number
+ @throws MachineCapError when the value is no whole number, empty included
 
  @example
  ```ts
@@ -108,7 +141,9 @@ export function machineCapIn({ listed, }: { readonly listed: string },): number 
    */
   const written = listed.trim();
   if (written === '') {
-    return MACHINE_CAP_DEFAULT;
+    throw new MachineCapError(
+      `${MACHINE_CAP_VARIABLE} is empty, and a cap for one command is a whole number of agents. Leave it unset to take the machine's level, or set it to a number.`,
+    );
   }
   /**
    What this value was read as, or why it could not be read.
@@ -121,10 +156,80 @@ export function machineCapIn({ listed, }: { readonly listed: string },): number 
       );
     }
     throw new MachineCapError(
-      `${MACHINE_CAP_VARIABLE} holds "${listed}", which is no whole number of agents. Set it to the number of agents this machine may carry at once, such as ${String(MACHINE_CAP_DEFAULT,)}.`,
+      `${MACHINE_CAP_VARIABLE} holds "${listed}", which is no whole number of agents. Set it to the number of agents this machine may carry at once.`,
     );
   }
   return reading.value;
+}
+
+/**
+ Reads the cap a caller set for one command, with where it came from.
+
+ @param listed - the variable's value, which must hold a whole number
+
+ @returns the cap, and that the one variable named it
+
+ @throws MachineCapError when the value is no whole number of agents
+
+ @example
+ ```ts
+ const place = machineCapFromVariable({ listed: '8', },);
+ ```
+ */
+export function machineCapFromVariable({ listed, }: { readonly listed: string },): MachineCapPlace {
+  return {
+    cap: machineCapIn({ listed, },),
+    source: { from: 'the-variable', },
+  };
+}
+
+/**
+ Reads the machine's level from the file that holds it, with where it came from.
+
+ @param level - the level the file holds
+
+ @param path - the file's path, which a counts line names
+
+ @returns the cap, and that the level file named it
+
+ @example
+ ```ts
+ const place = machineCapFromLevel({ level: { cap: 16, setAt: '2026-11-13T12:58:50-05:00', }, path: '/pkg/src/machine-agent-cap.json', },);
+ ```
+ */
+export function machineCapFromLevel({
+  level,
+  path,
+}: {
+  readonly level: MachineCapLevel;
+  readonly path: string;
+},): MachineCapPlace {
+  return {
+    cap: level.cap,
+    source: {
+      from: 'the-level-file',
+      path,
+      setAt: level.setAt,
+    },
+  };
+}
+
+/**
+ Says where the cap came from, as the counts line names it: the one variable, or the level file and when its number was set.
+
+ @param source - where the cap came from
+
+ @returns the variable's name, or the file's path and the time the file names
+
+ @example
+ ```ts
+ const text = machineCapSourceTextOf({ source: { from: 'the-variable', }, },);
+ ```
+ */
+export function machineCapSourceTextOf({ source }: { readonly source: MachineCapSource },): string {
+  return (source.from === 'the-variable')
+    ? MACHINE_CAP_VARIABLE
+    : `${source.path} set ${source.setAt}`;
 }
 
 /**
@@ -208,7 +313,7 @@ export function agentsGoingOf({
 
  @example
  ```ts
- const full = machineTakesNoMoreAgents({ agentsGoing: MACHINE_CAP_DEFAULT, cap: MACHINE_CAP_DEFAULT, },);
+ const full = machineTakesNoMoreAgents({ agentsGoing: 16, cap: 16, },);
  ```
  */
 export function machineTakesNoMoreAgents({
@@ -222,28 +327,32 @@ export function machineTakesNoMoreAgents({
 }
 
 /**
- Says the count against the cap, as the counts line prints it beside the pools, so a coordinator reads how full the machine is
- before it fills a free slot.
+ Says the count against the cap and where the cap came from, as the counts line prints it beside the pools, so a coordinator reads
+ how full the machine is and which level it is counting against.
 
  @param agentsGoing - how many agents are going on the machine now
 
  @param cap - how many the machine may carry at once
 
- @returns the count and the cap, in the same `<count>/<limit>` shape every pool prints
+ @param source - where that number came from
+
+ @returns the count and the cap in the same `<count>/<limit>` shape every pool prints, and the source of the number
 
  @example
  ```ts
- const text = machineCapCountsTextOf({ agentsGoing: 1, cap: MACHINE_CAP_DEFAULT, },);
+ const text = machineCapCountsTextOf({ agentsGoing: 1, cap: 16, source: { from: 'the-variable', }, },);
  ```
  */
 export function machineCapCountsTextOf({
   agentsGoing,
   cap,
+  source,
 }: {
   readonly agentsGoing: number;
   readonly cap: number;
+  readonly source: MachineCapSource;
 },): string {
-  return `every agent on the machine ${String(agentsGoing,)}/${String(cap,)}`;
+  return `every agent on the machine ${String(agentsGoing,)}/${String(cap,)} from ${machineCapSourceTextOf({ source, },)}`;
 }
 
 /**
@@ -257,7 +366,7 @@ export function machineCapCountsTextOf({
 
  @example
  ```ts
- const text = machineCapRefusalTextOf({ agentsGoing: 5, cap: MACHINE_CAP_DEFAULT, },);
+ const text = machineCapRefusalTextOf({ agentsGoing: 5, cap: 16, },);
  ```
  */
 export function machineCapRefusalTextOf({

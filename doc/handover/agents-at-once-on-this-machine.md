@@ -21,6 +21,13 @@ We'll re-find the ceiling once the new disk arrives."
 Asked whether that counts one session's agents or all of them:
 "Every agent on the machine".
 
+The number itself lives in one place:
+`package/pi-shared/subagent-driver/src/machine-agent-cap.json`,
+whose `cap` field is the number above and whose `setAt` field says when it was set.
+Every start reads that file,
+so raising or lowering the level there reaches every session without a code change and without a restart.
+Changing the level is an edit of that file's two fields and of this section.
+
 The number is the level the search stands at,
 a starting point that is raised,
 and never a reason to stop work that is going.
@@ -68,9 +75,14 @@ the subagents of its own session,
 counted by step 2 above,
 are passed as `PI_RUNS_OTHER_AGENTS_GOING=<n>`,
 and a session that passes none is counted as having none.
-`PI_RUNS_MACHINE_CAP=<n>` sets the cap for one command,
-which is how a level is raised or lowered between readings;
-the number under "The cap now" remains the level the search stands at.
+The number that gate counts against is the one in `package/pi-shared/subagent-driver/src/machine-agent-cap.json`
+(the file the gate reads at every start),
+and `PI_RUNS_MACHINE_CAP=<n>` overrides it for one command,
+which is how a reading is taken at a level before this record and that file are changed.
+The number under "The cap now" is the level the search stands at.
+A gate that cannot read that file refuses the start,
+naming the file and what the read gave,
+so no run counts against a number nobody chose.
 The gate refuses starts and stops nothing:
 a count above the cap is a reading at that higher count.
 

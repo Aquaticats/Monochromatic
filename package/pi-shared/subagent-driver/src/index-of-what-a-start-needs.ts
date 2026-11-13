@@ -26,18 +26,29 @@ export {
   wholeGibibytesOf,
 } from './free-space-floor.ts';
 export {
-  MACHINE_CAP_DEFAULT,
   MACHINE_CAP_VARIABLE,
   type MachineCap,
   MachineCapError,
+  type MachineCapPlace,
+  type MachineCapSource,
   OTHER_AGENTS_GOING_VARIABLE,
   agentsGoingOf,
   machineCapCountsTextOf,
+  machineCapFromLevel,
+  machineCapFromVariable,
   machineCapIn,
   machineCapRefusalTextOf,
+  machineCapSourceTextOf,
   machineTakesNoMoreAgents,
   otherAgentsGoingIn,
 } from './machine-cap.ts';
+export {
+  MACHINE_CAP_LEVEL_FILE_NAME,
+  type MachineCapLevel,
+  MachineCapLevelError,
+  type ReadText,
+  machineCapLevelIn,
+} from './machine-agent-cap-level.ts';
 export {
   LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
   type WholeNumberProblem,

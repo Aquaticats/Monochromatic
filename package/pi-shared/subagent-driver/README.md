@@ -249,20 +249,33 @@ because another session started a run or the number was lowered,
 is a reading at that higher count,
 said on the counts line as it is.
 
-Two variables set it for one command,
-as `PI_RUNS_POOL_LIMITS` sets a pool's limit:
+The number itself lives in one place:
+`src/machine-agent-cap.json`,
+which holds the number of agents under `cap` and the time it was set under `setAt`,
+and which every start reads,
+so a level raised that way reaches every session without a code change and without a restart.
+Changing the level is an edit of that file's two fields,
+and of "The cap now" in `doc/handover/agents-at-once-on-this-machine.md`,
+which names that file and says which number it holds.
+The file sits beside the gate's module,
+and the build copies it beside the built one,
+so a gate run from source and a gate run from `dist` read the same file.
 
-- `PI_RUNS_MACHINE_CAP=<n>`:
-  the number of agents the machine may carry at once,
-  4 while it is unset.
-  Zero starts nothing at all.
-- `PI_RUNS_OTHER_AGENTS_GOING=<n>`:
-  how many agents of its own the caller has going which are no Pi run,
-  none while it is unset.
+A start that cannot read that file refuses rather than counting against a number nobody chose:
+the line names the path and what the read gave,
+and the counts line never prints a cap it did not read.
+
+`PI_RUNS_MACHINE_CAP=<n>` sets the cap for one command instead,
+which is how a reading is taken at a level before the record is changed;
+zero starts nothing at all.
+`PI_RUNS_OTHER_AGENTS_GOING=<n>` says how many agents the caller has going which are no Pi run,
+none while it is unset.
 
 ```sh
-# three Pi runs and one subagent of this session, the level of 2026-11-13
-PI_RUNS_OTHER_AGENTS_GOING=1 PI_RUNS_MACHINE_CAP=4 start-pi-run-when-a-pool-has-room --counts-only
+# three Pi runs and one subagent of this session, at whatever level the file holds
+PI_RUNS_OTHER_AGENTS_GOING=1 start-pi-run-when-a-pool-has-room --counts-only
+# the same counts against a level of eight for this command alone
+PI_RUNS_MACHINE_CAP=8 start-pi-run-when-a-pool-has-room --counts-only
 ```
 
 A value that is no whole number,
@@ -274,6 +287,10 @@ with no line saying which,
 and a cap read as another number or as `Infinity` would refuse the wrong starts,
 or none at all,
 without a word.
+A level file is read the same way:
+a `cap` that is no whole number of agents a number holds exactly,
+or a `setAt` that is no time,
+is refused with the file's path and what was found there.
 
 ### The room a new run needs
 
@@ -352,7 +369,7 @@ plus these:
   `${HOME}/temp/agent/pi-runs` by default.
 - `--counts-only`:
   print the counts,
-  the count of every agent on the machine against its cap,
+  the count of every agent on the machine against its cap and where that number came from,
   and the room of each distinct volume a run needs,
   and start nothing.
   It needs no name and never refuses because a run is already going.
@@ -369,7 +386,10 @@ the machine is at its cap,
 or a volume is under its floor,
 and `4` when a run of that name is already going,
 which is what the retrying start reads.
-The counts line ends with `<n> GiB free on <volume>`,
+The counts line names where the cap came from after its count and number:
+`from PI_RUNS_MACHINE_CAP`,
+or `from <the level file> set <when it was set>`.
+It ends with `<n> GiB free on <volume>`,
 once per distinct volume;
 a refusal names the count against the cap,
 or the volumes under their floors,

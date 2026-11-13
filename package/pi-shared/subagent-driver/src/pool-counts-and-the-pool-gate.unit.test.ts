@@ -22,7 +22,6 @@ import {
   type GateOutcome,
   type GoingRun,
   type LauncherArguments,
-  MACHINE_CAP_DEFAULT,
   type MachineCap,
   MODEL_OF_A_RUN_NAMING_NONE,
   MODEL_OPTION,
@@ -396,19 +395,21 @@ function sessionFilesRoomUnderTheFloor(): FreeSpace {
 }
 
 /**
- The machine's cap as the shipped default counts it, with no agent the gate cannot see going.
+ A cap of a test's own, with no agent the gate cannot see going and the one variable as its source, so no test here depends on the
+ level file this machine holds.
 
  @returns the cap
 
  @example
  ```ts
- const machineCap = theShippedCap();
+ const machineCap = theCapOfATest();
  ```
  */
-function theShippedCap(): MachineCap {
+function theCapOfATest(): MachineCap {
   return {
-    cap: MACHINE_CAP_DEFAULT,
+    cap: 4,
     otherAgentsGoing: 0,
+    source: { from: 'the-variable', },
   };
 }
 
@@ -453,7 +454,7 @@ function volumesAnewRunFills({
 
  @param agentsGoing - every agent going on the machine
 
- @param cap - how many the machine may carry at once
+ @param machineCap - the cap the gate counted against, with where its number came from
 
  @param volumes - the room of each distinct volume, in the order the counts line prints them
 
@@ -461,25 +462,26 @@ function volumesAnewRunFills({
 
  @example
  ```ts
- const line = countsLineOf({ tallies, agentsGoing: 0, cap: MACHINE_CAP_DEFAULT, volumes: volumesAnewRunFills() });
+ const line = countsLineOf({ tallies, agentsGoing: 0, machineCap: theCapOfATest(), volumes: volumesAnewRunFills() });
  ```
  */
 function countsLineOf({
   tallies,
   agentsGoing,
-  cap,
+  machineCap,
   volumes,
 }: {
   readonly tallies: PoolTallies;
   readonly agentsGoing: number;
-  readonly cap: number;
+  readonly machineCap: MachineCap;
   readonly volumes: readonly FreeSpaceAgainstItsFloor[];
 },): string {
   return [
     summaryTextOf(tallies,),
     machineCapCountsTextOf({
       agentsGoing,
-      cap,
+      cap: machineCap.cap,
+      source: machineCap.source,
     },),
     ...volumes.map(function roomOf(volume,) {
       return freeSpaceTextOf(volume.space,);
@@ -548,7 +550,7 @@ function gateOptions(options: {
 
  @example
  ```ts
- const outcome = await gateOutcomeOf({ options, runs: [], tallies, sessionFileOf: aSessionFile, volumes, machineCap: theShippedCap(), });
+ const outcome = await gateOutcomeOf({ options, runs: [], tallies, sessionFileOf: aSessionFile, volumes, machineCap: theCapOfATest(), });
  ```
  */
 async function aSessionFile(): Promise<string> {
@@ -1123,13 +1125,13 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes,
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('counts',);
             expect(outcome.lines,).toEqual([countsLineOf({
               tallies: talliesOf({ runs, },),
               agentsGoing: runs.length,
-              cap: theShippedCap().cap,
+              machineCap: theCapOfATest(),
               volumes,
             },),],);
             expectCountsLineNamesEachPool({
@@ -1157,7 +1159,7 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('counts',);
           },
@@ -1182,13 +1184,13 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes,
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('counts',);
             expect(outcome.lines,).toEqual([countsLineOf({
               tallies: talliesOf({ runs: [], },),
               agentsGoing: 0,
-              cap: theShippedCap().cap,
+              machineCap: theCapOfATest(),
               volumes,
             },),],);
           },
@@ -1203,7 +1205,7 @@ await describe({
                 tallies: talliesOf({ runs: [], },),
                 sessionFileOf: aSessionFile,
                 volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-                machineCap: theShippedCap(),
+                machineCap: theCapOfATest(),
               },);
             }
             catch (error) {
@@ -1230,7 +1232,7 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('already-running',);
             expect((outcome.action === 'already-running') ? outcome.status : 0,).toBe(ALREADY_RUNNING_EXIT_STATUS,);
@@ -1253,7 +1255,7 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomUnderTheFloor(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('already-running',);
             expect(outcome.lines,).toEqual(['ALREADY RUNNING: copy-route',],);
@@ -1275,7 +1277,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: room, runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
@@ -1303,7 +1305,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: room, }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
@@ -1331,7 +1333,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ sessionFilesSpace: room, }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
@@ -1363,7 +1365,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes,
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect(outcome.lines,).toEqual([
@@ -1394,7 +1396,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildRoom, runsFolderSpace: runsRoom, }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
@@ -1416,7 +1418,7 @@ await describe({
              Runs going, one fewer than the machine takes.
              */
             const runs = Array.from(
-              { length: MACHINE_CAP_DEFAULT - 1, },
+              { length: theCapOfATest().cap - 1, },
               function named(_unused, index,) {
                 return aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-${String(index,)}`, inPool(NEURALWATT_DEEPSEEK_FLEX,),);
               },
@@ -1430,7 +1432,7 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('start',);
           },
@@ -1442,7 +1444,7 @@ await describe({
              Runs going, as many as the machine takes.
              */
             const runs = Array.from(
-              { length: MACHINE_CAP_DEFAULT, },
+              { length: theCapOfATest().cap, },
               function named(_unused, index,) {
                 return aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-${String(index,)}`, inPool(NEURALWATT_DEEPSEEK_FLEX,),);
               },
@@ -1456,14 +1458,14 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
             expect(outcome.lines,).toEqual([
               `NO SLOT: ${machineCapRefusalTextOf({
                 agentsGoing: runs.length,
-                cap: MACHINE_CAP_DEFAULT,
+                cap: theCapOfATest().cap,
               },)}; not started: copy-route`,
             ],);
           },
@@ -1491,6 +1493,7 @@ await describe({
               machineCap: {
                 cap,
                 otherAgentsGoing: 0,
+                source: { from: 'the-variable', },
               },
             },);
             expect(outcome.action,).toBe('no-room',);
@@ -1512,12 +1515,17 @@ await describe({
               machineCap: {
                 cap,
                 otherAgentsGoing: 0,
+                source: { from: 'the-variable', },
               },
             },);
             expect(counted.lines,).toEqual([countsLineOf({
               tallies: talliesOf({ runs, },),
               agentsGoing: cap,
-              cap,
+              machineCap: {
+                cap,
+                otherAgentsGoing: 0,
+                source: { from: 'the-variable', },
+              },
               volumes: volumesAnewRunFills(),
             },),],);
           },
@@ -1529,8 +1537,9 @@ await describe({
              A cap the test sets, so the agents the gate cannot see are what fills it.
              */
             const machineCap: MachineCap = {
-              cap: MACHINE_CAP_DEFAULT,
-              otherAgentsGoing: MACHINE_CAP_DEFAULT,
+              cap: theCapOfATest().cap,
+              otherAgentsGoing: theCapOfATest().cap,
+              source: { from: 'the-variable', },
             };
             /**
              What the gate answered while no Pi run was going and the caller had that many agents of its own.
@@ -1568,6 +1577,7 @@ await describe({
             const machineCap: MachineCap = {
               cap: runs.length,
               otherAgentsGoing: 0,
+              source: { from: 'the-variable', },
             };
             /**
              What the gate answered for one more agent.
@@ -1606,13 +1616,13 @@ await describe({
               tallies: talliesOf({ runs: filled, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect(outcome.lines,).toEqual([
               `NO SLOT: ${machineCapRefusalTextOf({
                 agentsGoing: filled.length,
-                cap: MACHINE_CAP_DEFAULT,
+                cap: theCapOfATest().cap,
               },)}, and no pool has room (${summaryTextOf(talliesOf({ runs: filled, },),)}); not started: copy-route`,
             ],);
           },
@@ -1624,7 +1634,7 @@ await describe({
              Runs going, two more than the machine takes, as another session's starts and a lowered cap leave it.
              */
             const runs = Array.from(
-              { length: MACHINE_CAP_DEFAULT + 2, },
+              { length: theCapOfATest().cap + 2, },
               function named(_unused, index,) {
                 return aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-${String(index,)}`, inPool(NEURALWATT_DEEPSEEK_FLEX,),);
               },
@@ -1638,16 +1648,16 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills(),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(counted.action,).toBe('counts',);
             expect(counted.lines,).toEqual([countsLineOf({
               tallies: talliesOf({ runs, },),
               agentsGoing: runs.length,
-              cap: MACHINE_CAP_DEFAULT,
+              machineCap: theCapOfATest(),
               volumes: volumesAnewRunFills(),
             },),],);
-            expect(counted.lines[0],).toContain(`every agent on the machine ${String(runs.length,)}/${String(MACHINE_CAP_DEFAULT,)}`,);
+            expect(counted.lines[0],).toContain(`every agent on the machine ${String(runs.length,)}/${String(theCapOfATest().cap,)}`,);
             /**
              What the gate answered for the next start while that many agents were going.
              */
@@ -1657,13 +1667,13 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(next.action,).toBe('no-room',);
             expect((next.action === 'no-room') ? next.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
             expect(next.lines[0],).toContain(machineCapRefusalTextOf({
               agentsGoing: runs.length,
-              cap: MACHINE_CAP_DEFAULT,
+              cap: theCapOfATest().cap,
             },),);
           },
         },),
@@ -1683,7 +1693,7 @@ await describe({
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('start',);
           },
@@ -1708,6 +1718,7 @@ await describe({
               machineCap: {
                 cap: filled.length + 1,
                 otherAgentsGoing: 0,
+                source: { from: 'the-variable', },
               },
             },);
             expect(outcome.action,).toBe('no-room',);
@@ -1732,7 +1743,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.lines[0],).toContain('goes on its own provider',);
@@ -1754,7 +1765,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain('--session=/sessions/a.jsonl',);
@@ -1784,7 +1795,7 @@ await describe({
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
               volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
-              machineCap: theShippedCap(),
+              machineCap: theCapOfATest(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain(

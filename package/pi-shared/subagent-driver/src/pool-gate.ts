@@ -257,6 +257,7 @@ export async function gateOutcomeOf({
         machineCapCountsTextOf({
           agentsGoing,
           cap: machineCap.cap,
+          source: machineCap.source,
         },),
         ...volumes.map(function roomOf(volume,) {
           return freeSpaceTextOf(volume.space,);

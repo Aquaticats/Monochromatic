@@ -11,10 +11,12 @@
 
 import { statfsSync, } from 'node:fs';
 import {
+  readFile,
   realpath,
   stat,
 } from 'node:fs/promises';
 import { homedir, } from 'node:os';
+import { join, } from 'node:path';
 import {
   argv,
   env,
@@ -38,10 +40,16 @@ import {
 import {
   MACHINE_CAP_VARIABLE,
   type MachineCap,
+  type MachineCapPlace,
   OTHER_AGENTS_GOING_VARIABLE,
-  machineCapIn,
+  machineCapFromLevel,
+  machineCapFromVariable,
   otherAgentsGoingIn,
 } from './machine-cap.ts';
+import {
+  MACHINE_CAP_LEVEL_FILE_NAME,
+  machineCapLevelIn,
+} from './machine-agent-cap-level.ts';
 import {
   POOL_GATE_USAGE,
   parsePoolGateOptions,
@@ -221,10 +229,52 @@ const volumes: readonly FreeSpaceAgainstItsFloor[] = strictestFloorPerVolume({ v
   },);
 
 /**
- How many agents the machine may carry at once, and how many of those this gate cannot see.
+ The file that holds the machine's level of agents, beside the module that reads it: the same name in a run from source and in a
+ run of the built module, which the build copies it beside.
+ */
+const capLevelPath = join(
+  import.meta.dirname,
+  MACHINE_CAP_LEVEL_FILE_NAME,
+);
+
+/**
+ Reads one file's text, which the level reading asks for.
+
+ @param filePath - the file to read
+
+ @returns the text the file holds
+
+ @example
+ ```ts
+ const level = await textOfFile('/pkg/src/machine-agent-cap.json',);
+ ```
+ */
+function textOfFile(filePath: string,): Promise<string> {
+  return readFile(
+    filePath,
+    'utf8',
+  );
+}
+
+/**
+ The cap this start counts against: the one the caller set for this command, or the machine's level, which is read from its own
+ file at every start so a level raised while the drives hold reaches every session without being told and without a restart.
+ */
+const capPlace: MachineCapPlace = ((env[MACHINE_CAP_VARIABLE] ?? '').trim() === '')
+  ? machineCapFromLevel({
+    path: capLevelPath,
+    level: await machineCapLevelIn({
+      path: capLevelPath,
+      readText: textOfFile,
+    },),
+  },)
+  : machineCapFromVariable({ listed: env[MACHINE_CAP_VARIABLE] ?? '', },);
+
+/**
+ How many agents the machine may carry at once, where that number came from, and how many of those this gate cannot see.
  */
 const machineCap: MachineCap = {
-  cap: machineCapIn({ listed: env[MACHINE_CAP_VARIABLE] ?? '', },),
+  ...capPlace,
   otherAgentsGoing: otherAgentsGoingIn({ listed: env[OTHER_AGENTS_GOING_VARIABLE] ?? '', },),
 };
 

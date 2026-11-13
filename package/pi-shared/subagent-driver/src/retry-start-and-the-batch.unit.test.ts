@@ -32,7 +32,6 @@ import {
   type FreeSpaceAgainstItsFloor,
   type GoingRun,
   GATE_OUTPUT_TAIL_CHARACTERS,
-  MACHINE_CAP_DEFAULT,
   type MachineCap,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
   type ProviderPool,
@@ -362,19 +361,21 @@ function volumesAnewRunFills(): readonly FreeSpaceAgainstItsFloor[] {
 }
 
 /**
- The machine's cap as the shipped default counts it, with no agent the gate cannot see going.
+ A cap of a test's own, with no agent the gate cannot see going and the one variable as its source, so no test here depends on the
+ level file this machine holds.
 
  @returns the cap
 
  @example
  ```ts
- const machineCap = theShippedCap();
+ const machineCap = theCapOfATest();
  ```
  */
-function theShippedCap(): MachineCap {
+function theCapOfATest(): MachineCap {
   return {
-    cap: MACHINE_CAP_DEFAULT,
+    cap: 4,
     otherAgentsGoing: 0,
+    source: { from: 'the-variable', },
   };
 }
 
@@ -672,6 +673,7 @@ await describe({
               machineCap: {
                 cap: full.length,
                 otherAgentsGoing: 0,
+                source: { from: 'the-variable', },
               },
             },);
             expect(whileFull.action,).toBe('no-room',);
@@ -694,6 +696,7 @@ await describe({
               machineCap: {
                 cap: full.length,
                 otherAgentsGoing: 0,
+                source: { from: 'the-variable', },
               },
             },);
             expect(withRoom.action,).toBe('start',);

@@ -29,7 +29,7 @@ import {
   BYTES_IN_A_GIBIBYTE,
   FOLDER_VOLUMES_VARIABLE,
   LAUNCHER_ENTRY_NAMES,
-  MACHINE_CAP_DEFAULT,
+  MACHINE_CAP_LEVEL_FILE_NAME,
   MACHINE_CAP_VARIABLE,
   NEURALWATT_DEEPSEEK_FLEX,
   NEURALWATT_KIMI_FLEX,
@@ -227,8 +227,28 @@ function openDefaultPools(): readonly ProviderPool[] {
 }
 
 /**
+ The level file the gate reads, which is this package's own: a start that sets no `PI_RUNS_MACHINE_CAP` counts against it.
+ */
+const CAP_LEVEL_PATH = join(
+  dirname(GATE,),
+  MACHINE_CAP_LEVEL_FILE_NAME,
+);
+
+/**
+ The level this package's file holds, read once so every counts line of a test that sets no cap expects what the gate read.
+ */
+const LEVEL_OF_THIS_PACKAGE = JSON.parse(await readFile(
+  CAP_LEVEL_PATH,
+  'utf8',
+),) as {
+  readonly cap: number;
+  readonly setAt: string;
+};
+
+/**
  Says the counts line names every pool the table ships, in the table's order, each with the count this test expects and its own
- limit, then the count of every agent on the machine against its cap, and ends with the room of each distinct volume, once.
+ limit, then the count of every agent on the machine against its cap and where that numbered came from, and ends with the room of
+ each distinct volume, once.
 
  @param line - what the gate printed
 
@@ -238,7 +258,7 @@ function openDefaultPools(): readonly ProviderPool[] {
 
  @param agentsGoing - every agent going on the machine, which the test counted in its process folder
 
- @param cap - the cap the test gave the machine
+ @param cap - the cap the test gave the machine through the one variable, or nothing when the gate took the machine's own level
 
  @example
  ```ts
@@ -250,7 +270,7 @@ function expectCountsLine({
   counts,
   folder,
   agentsGoing,
-  cap = MACHINE_CAP_DEFAULT,
+  cap,
 }: {
   readonly line: string;
   readonly counts: ReadonlyMap<string, number>;
@@ -272,7 +292,14 @@ function expectCountsLine({
   }
   expect(machine,).toBe(machineCapCountsTextOf({
     agentsGoing,
-    cap,
+    cap: cap ?? LEVEL_OF_THIS_PACKAGE.cap,
+    source: (cap === undefined)
+      ? {
+        from: 'the-level-file',
+        path: CAP_LEVEL_PATH,
+        setAt: LEVEL_OF_THIS_PACKAGE.setAt,
+      }
+      : { from: 'the-variable', },
   },),);
   /**
    The distinct volumes the gate was given, in the order it reads its needs: a volume two needs share is named once.
@@ -673,6 +700,64 @@ await describe({
           'systemctl --user list-units --state=active,activating --no-legend --plain pi-*.service',
           'systemctl --user show pi-copy-route.service --property=ExecStart --value',
         ],);
+      },
+    },),
+    it({
+      name: 'prints the counts naming the level file it read and the time its number was set, when no command set the cap',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the gate answered a caller that asked only for the counts and set no cap.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
+        },);
+        expect(ran.status,).toBe(0,);
+        expect(ran.stdout,).toContain(`from ${CAP_LEVEL_PATH} set ${LEVEL_OF_THIS_PACKAGE.setAt}`,);
+        expectCountsLine({
+          line: ran.stdout.trim(),
+          counts: new Map(),
+          folder,
+          agentsGoing: 0,
+        },);
+      },
+    },),
+    it({
+      name: 'prints the one variable as the cap source when a command set it, and never reads the level file for that command',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         A cap the test sets for this one command.
+         */
+        const cap = 2;
+        /**
+         What the gate answered.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
+          machineCap: String(cap,),
+        },);
+        expect(ran.status,).toBe(0,);
+        expect(ran.stdout,).toContain(`every agent on the machine 0/${String(cap,)} from ${MACHINE_CAP_VARIABLE}`,);
+        expectCountsLine({
+          line: ran.stdout.trim(),
+          counts: new Map(),
+          folder,
+          agentsGoing: 0,
+          cap,
+        },);
       },
     },),
     it({

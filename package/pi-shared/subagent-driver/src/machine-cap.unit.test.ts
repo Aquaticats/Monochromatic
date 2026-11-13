@@ -13,17 +13,22 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   LARGEST_EXACTLY_HELD_WHOLE_NUMBER,
-  MACHINE_CAP_DEFAULT,
   MACHINE_CAP_VARIABLE,
   type MachineCap,
   MachineCapError,
+  type MachineCapLevel,
+  MachineCapLevelError,
   NEURALWATT_DEEPSEEK_FLEX,
   OTHER_AGENTS_GOING_VARIABLE,
   type GoingRun,
   agentsGoingOf,
   machineCapCountsTextOf,
+  machineCapFromLevel,
+  machineCapFromVariable,
   machineCapIn,
+  machineCapLevelIn,
   machineCapRefusalTextOf,
+  machineCapSourceTextOf,
   machineTakesNoMoreAgents,
   otherAgentsGoingIn,
 } from '../dist/final/node/index.mjs';
@@ -72,19 +77,21 @@ function aRunInNoPool(name: string,): GoingRun {
 }
 
 /**
- The machine's cap as the shipped default counts it, with no agent the gate cannot see going.
+ A cap of a test's own, with no agent the gate cannot see going and the one variable as its source, so no test here depends on the
+ level file this machine holds.
 
  @returns the cap
 
  @example
  ```ts
- const machineCap = theShippedCap();
+ const machineCap = theCapOfATest();
  ```
  */
-function theShippedCap(): MachineCap {
+function theCapOfATest(): MachineCap {
   return {
-    cap: MACHINE_CAP_DEFAULT,
+    cap: 4,
     otherAgentsGoing: 0,
+    source: { from: 'the-variable', },
   };
 }
 
@@ -95,16 +102,25 @@ await describe({
       name: machineCapIn.name,
       children: [
         it({
-          name: 'answers the cap the owner set while the caller sets none, and reads a whole number a caller sets instead',
+          name: 'reads a whole number a caller sets, and refuses nothing at all, because the caller takes the machine own level instead',
           fn: async () => {
-            expect(machineCapIn({ listed: '', },),).toBe(MACHINE_CAP_DEFAULT,);
             /**
-             A cap of the test's own, above the shipped one, as the owner raises it step by step.
+             A cap of the test's own, as the level is raised step by step.
              */
-            const raised = MACHINE_CAP_DEFAULT * 2;
+            const raised = theCapOfATest().cap * 2;
             expect(machineCapIn({ listed: String(raised,), },),).toBe(raised,);
             expect(machineCapIn({ listed: ` ${String(raised,)} `, },),).toBe(raised,);
             expect(machineCapIn({ listed: '0', },),).toBe(0,);
+            try {
+              machineCapIn({ listed: '', },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(MachineCapError,);
+              expect(String(error,),).toContain(MACHINE_CAP_VARIABLE,);
+              expect(String(error,),).toContain('empty',);
+              return;
+            }
+            throw new Error('an empty cap was read instead of refused',);
           },
         },),
         it({
@@ -134,7 +150,7 @@ await describe({
         it({
           name: 'refuses a setting that is no whole number, naming the variable and the value, rather than counting it as some other cap',
           fn: async () => {
-            for (const listed of ['half', '4.5', '-1', `${String(MACHINE_CAP_DEFAULT,)} agents`,]) {
+            for (const listed of ['half', '4.5', '-1', `${String(theCapOfATest().cap,)} agents`,]) {
               try {
                 machineCapIn({ listed, },);
               }
@@ -202,6 +218,208 @@ await describe({
       ],
     },),
     describe({
+      name: machineCapFromVariable.name,
+      children: [
+        it({
+          name: 'names the one variable as the source of a cap set for one command',
+          fn: async () => {
+            expect(machineCapFromVariable({ listed: '8', },),).toEqual({
+              cap: 8,
+              source: { from: 'the-variable', },
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: machineCapFromLevel.name,
+      children: [
+        it({
+          name: 'names the level file and the time it sets as the source of the machine own number',
+          fn: async () => {
+            /**
+             The level a test's file holds.
+             */
+            const level: MachineCapLevel = {
+              cap: 16,
+              setAt: '2026-11-13T12:58:50-05:00',
+            };
+            expect(machineCapFromLevel({
+              level,
+              path: '/pkg/src/machine-agent-cap.json',
+            },),).toEqual({
+              cap: 16,
+              source: {
+                from: 'the-level-file',
+                path: '/pkg/src/machine-agent-cap.json',
+                setAt: '2026-11-13T12:58:50-05:00',
+              },
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: machineCapSourceTextOf.name,
+      children: [
+        it({
+          name: 'says the variable where a command set the cap, and the file with its time where the machine own level did',
+          fn: async () => {
+            expect(machineCapSourceTextOf({ source: { from: 'the-variable', }, },),).toBe(MACHINE_CAP_VARIABLE,);
+            expect(machineCapSourceTextOf({
+              source: {
+                from: 'the-level-file',
+                path: '/pkg/src/machine-agent-cap.json',
+                setAt: '2026-11-13T12:58:50-05:00',
+              },
+            },),).toBe('/pkg/src/machine-agent-cap.json set 2026-11-13T12:58:50-05:00',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: machineCapLevelIn.name,
+      children: [
+        it({
+          name: 'reads the number and the time a level file holds, from the text a test gives it',
+          fn: async () => {
+            /**
+             The level file's path, which a refusal would name.
+             */
+            const path = '/pkg/src/machine-agent-cap.json';
+            expect(await machineCapLevelIn({
+              path,
+              readText: async function held() {
+                return '{"cap": 16, "setAt": "2026-11-13T12:58:50-05:00"}';
+              },
+            },),).toEqual({
+              cap: 16,
+              setAt: '2026-11-13T12:58:50-05:00',
+            },);
+          },
+        },),
+        it({
+          name: 'refuses a level file that cannot be read, naming the path and what the read said, so no run starts on a guess',
+          fn: async () => {
+            /**
+             The level file's path the refusal must name.
+             */
+            const path = '/pkg/src/machine-agent-cap.json';
+            try {
+              await machineCapLevelIn({
+                path,
+                readText: async function missing() {
+                  throw Object.assign(
+                    new Error('the file is not there',),
+                    { code: 'ENOENT', },
+                  );
+                },
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(MachineCapLevelError,);
+              expect(String(error,),).toContain(path,);
+              expect(String(error,),).toContain('could not be read',);
+              expect(String(error,),).toContain('ENOENT',);
+              expect(String(error,),).toContain('no run starts on a guess',);
+              return;
+            }
+            throw new Error('a level file that could not be read was counted instead of refused',);
+          },
+        },),
+        it({
+          name: 'refuses text that is no JSON, naming the path and what the parser said',
+          fn: async () => {
+            /**
+             The level file's path the refusal must name.
+             */
+            const path = '/pkg/src/machine-agent-cap.json';
+            try {
+              await machineCapLevelIn({
+                path,
+                readText: async function held() {
+                  return 'cap: sixteen';
+                },
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(MachineCapLevelError,);
+              expect(String(error,),).toContain(path,);
+              expect(String(error,),).toContain('no JSON',);
+              return;
+            }
+            throw new Error('text that is no JSON was read as a level instead of refused',);
+          },
+        },),
+        it({
+          name: 'refuses text that is no JSON object, naming the shape a level file has',
+          fn: async () => {
+            for (const held of ['null', '16',]) {
+              try {
+                // oxlint-disable-next-line eslint/no-await-in-loop -- one shape after another, each a text of its own; see doc/lint/sequential-awaits.md
+                await machineCapLevelIn({
+                  path: '/pkg/src/machine-agent-cap.json',
+                  readText: async function heldText() {
+                    return held;
+                  },
+                },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(MachineCapLevelError,);
+                expect(String(error,),).toContain('no level object',);
+                continue;
+              }
+              throw new Error(`"${held}" was read as a level instead of refused`,);
+            }
+          },
+        },),
+        it({
+          name: 'refuses a cap that is no whole number of agents, naming the value and the field',
+          fn: async () => {
+            for (const cap of ['4.5', '-1', '"16"', 'true', '1e400',]) {
+              try {
+                // oxlint-disable-next-line eslint/no-await-in-loop -- one cap value after another, each a file text of its own; see doc/lint/sequential-awaits.md
+                await machineCapLevelIn({
+                  path: '/pkg/src/machine-agent-cap.json',
+                  readText: async function heldCap() {
+                    return `{"cap": ${cap}, "setAt": "2026-11-13T12:58:50-05:00"}`;
+                  },
+                },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(MachineCapLevelError,);
+                expect(String(error,),).toContain('"cap"',);
+                continue;
+              }
+              throw new Error(`a cap of ${cap} was read instead of refused`,);
+            }
+          },
+        },),
+        it({
+          name: 'refuses a file with no time the level was set, or one no time reads, naming the field',
+          fn: async () => {
+            for (const setAt of ['', '"not a time"', '17',]) {
+              try {
+                // oxlint-disable-next-line eslint/no-await-in-loop -- one time after another, each a file text of its own; see doc/lint/sequential-awaits.md
+                await machineCapLevelIn({
+                  path: '/pkg/src/machine-agent-cap.json',
+                  readText: async function heldAt() {
+                    return `{"cap": 16, "setAt": ${((setAt === '') ? '""' : setAt)}}`;
+                  },
+                },);
+              }
+              catch (error) {
+                expect(error,).toBeInstanceOf(MachineCapLevelError,);
+                expect(String(error,),).toContain('"setAt"',);
+                continue;
+              }
+              throw new Error(`a "setAt" of ${setAt} was read instead of refused`,);
+            }
+          },
+        },),
+      ],
+    },),
+    describe({
       name: agentsGoingOf.name,
       children: [
         it({
@@ -247,16 +465,16 @@ await describe({
           name: 'takes another agent under the cap, and none at the cap or over it',
           fn: async () => {
             expect(machineTakesNoMoreAgents({
-              agentsGoing: MACHINE_CAP_DEFAULT - 1,
-              cap: MACHINE_CAP_DEFAULT,
+              agentsGoing: theCapOfATest().cap - 1,
+              cap: theCapOfATest().cap,
             },),).toBe(false,);
             expect(machineTakesNoMoreAgents({
-              agentsGoing: MACHINE_CAP_DEFAULT,
-              cap: MACHINE_CAP_DEFAULT,
+              agentsGoing: theCapOfATest().cap,
+              cap: theCapOfATest().cap,
             },),).toBe(true,);
             expect(machineTakesNoMoreAgents({
-              agentsGoing: MACHINE_CAP_DEFAULT + 1,
-              cap: MACHINE_CAP_DEFAULT,
+              agentsGoing: theCapOfATest().cap + 1,
+              cap: theCapOfATest().cap,
             },),).toBe(true,);
           },
         },),
@@ -269,9 +487,10 @@ await describe({
           name: 'says every agent of the machine with the count against the cap, in the shape every pool prints',
           fn: async () => {
             expect(machineCapCountsTextOf({
-              agentsGoing: theShippedCap().otherAgentsGoing,
-              cap: MACHINE_CAP_DEFAULT,
-            },),).toBe(`every agent on the machine 0/${String(MACHINE_CAP_DEFAULT,)}`,);
+              agentsGoing: theCapOfATest().otherAgentsGoing,
+              cap: theCapOfATest().cap,
+              source: theCapOfATest().source,
+            },),).toBe(`every agent on the machine 0/${String(theCapOfATest().cap,)} from ${MACHINE_CAP_VARIABLE}`,);
           },
         },),
       ],
@@ -284,16 +503,16 @@ await describe({
           fn: async () => {
             expect(machineCapRefusalTextOf({
               agentsGoing: 1,
-              cap: MACHINE_CAP_DEFAULT,
-            },),).toBe(`1 agent going on the machine, of the ${String(MACHINE_CAP_DEFAULT,)} its cap allows`,);
+              cap: theCapOfATest().cap,
+            },),).toBe(`1 agent going on the machine, of the ${String(theCapOfATest().cap,)} its cap allows`,);
             /**
              A count over the cap, which is what a caller's own agents alone can make it.
              */
-            const overTheCap = MACHINE_CAP_DEFAULT + 2;
+            const overTheCap = theCapOfATest().cap + 2;
             expect(machineCapRefusalTextOf({
               agentsGoing: overTheCap,
-              cap: MACHINE_CAP_DEFAULT,
-            },),).toBe(`${String(overTheCap,)} agents going on the machine, of the ${String(MACHINE_CAP_DEFAULT,)} its cap allows`,);
+              cap: theCapOfATest().cap,
+            },),).toBe(`${String(overTheCap,)} agents going on the machine, of the ${String(theCapOfATest().cap,)} its cap allows`,);
           },
         },),
       ],

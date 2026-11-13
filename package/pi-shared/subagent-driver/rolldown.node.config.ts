@@ -1,10 +1,23 @@
+import { join, } from 'node:path';
 import {
+  copiedAssetsPlugin,
   nodeConfig,
   type NodeFlavorConfig,
 } from '@monochromatic-dev/config-rolldown/.node.ts';
+import { MACHINE_CAP_LEVEL_FILE_NAME, } from './src/machine-agent-cap-level.ts';
 
 /**
- Node build for `@monochromatic-dev/pi-shared-subagent-driver`: the library index and the bin.
+ The machine's level of agents, which the built gate reads beside its own module and a run from source reads in `src`.
+ */
+const CAP_LEVEL_SOURCE = join(
+  import.meta.dirname,
+  'src',
+  MACHINE_CAP_LEVEL_FILE_NAME,
+);
+
+/**
+ Node build for `@monochromatic-dev/pi-shared-subagent-driver`: the library index and the bin, with the level file the gate reads
+ beside the module that reads it.
  */
 const config: NodeFlavorConfig = nodeConfig({
   input: {
@@ -29,6 +42,12 @@ const config: NodeFlavorConfig = nodeConfig({
     'start-reviews-of-finished-branches': './src/start-reviews-of-finished-branches.ts',
     'write-a-fix-brief-for-each-review': './src/write-a-fix-brief-for-each-review.ts',
   },
+  extraPlugins: [copiedAssetsPlugin({
+    files: [{
+      source: CAP_LEVEL_SOURCE,
+      fileName: MACHINE_CAP_LEVEL_FILE_NAME,
+    },],
+  },),],
 },);
 
 export default config;
