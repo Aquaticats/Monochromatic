@@ -670,6 +670,47 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Nine reviews ended on the reviewer's rate limit; they are gone on with from their sessions (2026-11-13T15:04:12-05:00)
+
+Not complete: whether a review gone on with from its session finishes is not yet seen; the first was started at 15:04.
+
+- Reviews that ended on `429 … Allocated quota exceeded` on 2026-11-13: one at 13:56:41, three at 14:49:16 to 14:49:18,
+  and five at 14:57:47 to 14:59:12 (the index-lock answer's after 46 turns, kept-references' after 32, finished-records' after 35,
+  and the second starts of the reload fix's and guards-refuse's after 16 and 11).
+- Starting such a review again from nothing lost its turns each time, and two of the three started again at 14:55 ended the same way four minutes later.
+  From 15:04 a review ended so is gone on with from its own session (`sessionOf`), in its own worktree,
+  with `~/temp/agent/pi-runs/go-on-with-a-review-that-the-providers-rate-limit-ended-prompt.md`.
+  The reload fix's first review of its answer (62 turns) is the first, started at 15:04; four more are in the queue.
+- The unit that fills free places starts two entries a round from 15:04:12, where it started four:
+  a review starts by reading a whole diff and its files, and the endings came in groups within seconds.
+  What the plan's limit of tokens a minute is, is not stated by the provider's message and is not measured.
+- `review-briefs-demand-what-was-read-and-run-and-a-review-that-ran-nothing-is-started-again` finished at 14:57:30, tip `141ef86cbd`.
+  By its report a review must write, as its first section, a statement a program reads
+  (the commit, how much of the diff and of each file it read, each command with its exit and whether it ran a built program, and how each finding was shown),
+  and a check reads review files and can write a restart for one that ran nothing; nothing starts unless a person asks with `--start`.
+  It says no independent review of it was obtained.
+  Fit to merge by its report; its review is queued.
+
+#### The owner took the qwen plan's DeepSeek model out of the pools (2026-11-13T15:00:53-05:00)
+
+Not complete: the change is made in the main checkout and read by the launcher; its commit follows the package's type check and unit tests.
+
+- The owner, between 14:56 and 15:00: "Remove Qwen hosted Deepseek from the pool."
+- `package/pi-shared/subagent-driver/src/pool-limits.ts`: `qwen-plan-deepseek` (`qwen-token-plan-individual`, `deepseek-v4.1-flash-1017`) has limit 0
+  and a `closed` reason, the package's own way of taking a pool out; it took 18 before.
+  This ends the arrangement of 2026-11-11T17:45 recorded under "The owner changed the Neuralwatt limits" in this handover.
+- Read from the launcher itself at 15:00:53 (`start-pi-run-when-a-pool-has-room --counts-only`):
+  `qwen-plan-deepseek 6/0, neuralwatt 0/0, neuralwatt-flex 0/20, opencode-go 0/0, neuralwatt-kimi-flex 0/20, qwen-token-plan 7/18`.
+- What follows from the table as it stands:
+  a run that names no model of its own now goes to `neuralwatt-flex` (20 runs, about twice the wall clock);
+  the six runs already on the qwen plan's DeepSeek model are counted there and finish there, none was stopped;
+  a resume of a run that was on it takes the first default pool with room, as resumes of other closed pools do;
+  reviews stay on `qwen-token-plan` (`qwen4-max-preview`, 18).
+- Standard Neuralwatt (`neuralwatt`) stays closed.
+  It was closed because the qwen pool replaced it, and nothing was said about it now; reopening it is one number in the same file.
+- Issue 6297 is corrected by a comment: the decision of 2026-11-11 gives 429s to Pi's own retry, and the driver left the answer to it as decided;
+  the feed shows Pi's retry did not take it either, so neither layer asked again.
+
 #### `0.6.1-alpha.17` published and installed; the jam fix's author answered its review; three more branches finished (2026-11-13T14:56:09-05:00)
 
 Not complete: every branch named here waits for a review.
