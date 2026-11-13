@@ -3564,7 +3564,8 @@ and `refs/worktree/cli-git-service/<batch>` is what keeps its objects out of a
 Real Git needs no such reference:
 one `git commit` writes the objects and moves the branch itself.
 When the write of that reference cannot be proven
-(Git refuses it, or the wait for it ended before it did),
+(Git refuses it,
+or the wait for it ended before it did),
 the commit is made as real Git makes it and the command exits `0`,
 with one line on standard error that says the commit was made,
 naming the reference that was not written and Git's own words for why,

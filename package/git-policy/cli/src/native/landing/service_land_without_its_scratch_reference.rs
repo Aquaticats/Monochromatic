@@ -90,7 +90,8 @@ fn clear_the_reason(state: &LandingState, (): ()) {
 ///  and that commit may be the only thing holding it
 ///  (the owner's rule "never discard user data").
 ///  A reference a wait left running may finish after the branch moved and recreate that name;
-///  it then names the commit the branch already has, which costs space and never the person's data.
+///  it then names the commit the branch already has,
+///  which costs space and never the person's data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,7 +104,8 @@ pub(crate) fn the_removal_of_the_scratch_reference(scratch: &str) -> String {
     };
 }
 
-/// Whether the state holds no reason, which is the reference having been proven.
+/// Whether the state holds no reason,
+/// which is the reference having been proven.
 fn the_reference_is_proven(state: &LandingState, (): ()) -> bool {
     return state.without_its_scratch_reference.borrow().is_none();
 }

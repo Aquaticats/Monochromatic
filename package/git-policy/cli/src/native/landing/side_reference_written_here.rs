@@ -312,7 +312,8 @@ fn give_the_lock_back(directory: &Path, batch: &str, mark: LockMark, held: std::
 ///  and every shape whose write Git would make differently answers `LeftToGit` instead of writing,
 ///  as does a name that already stands:
 ///  that reference may be the only thing naming another command's commit,
-///  so this writer never replaces it, and Git's own create-only refusal is what the caller reads.
+///  so this writer never replaces it,
+///  and Git's own create-only refusal is what the caller reads.
 ///  The reference is written where a per-worktree reference lives:
 ///  in the worktree's own Git directory,
 ///  which is `.git` for the main worktree and `.git/worktrees/<id>` for a linked one

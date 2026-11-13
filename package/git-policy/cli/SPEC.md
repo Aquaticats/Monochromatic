@@ -12700,7 +12700,10 @@ It uses:
 #### What names a commit between its objects and its branch
 
 Preparation writes a commit's objects into the real object store,
-and nothing names them yet: no reference does, and the index names blobs, never the commit.
+and nothing names them yet:
+no reference does,
+and the index names blobs,
+never the commit.
 Real Git writes a commit's objects and moves the branch in one command,
 so the objects of a commit it makes are named the instant they exist:
 on this host,
@@ -12708,24 +12711,30 @@ three commits made by `/usr/bin/git` left the commit object and the branch's fil
 0 to 1.3 ms apart.
 
 A wrapper commit's objects exist earlier than the branch that will name them,
-and `refs/worktree/cli-git-service/<batch>`, the batch's scratch reference,
+and `refs/worktree/cli-git-service/<batch>`,
+the batch's scratch reference,
 is what names them until the branch does
 (`src/native/landing/service_land_objects_of_batch.rs`).
 That reference is written as soon as the landing has the batch:
 for three commits whose write it proved,
-the window from the commit object's own file time to that write was 9, 15 and 93 ms,
+the window from the commit object's own file time to that write was 9,
+15 and 93 ms,
 and the branch write removes the reference in the same transaction that names the commit,
 so the objects are named from that write onwards without a gap.
 
 That protection is the reference and nothing else.
-`git gc --prune=now`, `git prune --expire=now` and `git repack -a -d` that read the references
+`git gc --prune=now`,
+`git prune --expire=now` and `git repack -a -d` that read the references
 while a batch's objects exist and no reference names them take those objects;
 Git's default maintenance keeps unreachable objects younger than `gc.pruneExpire` (two weeks),
 so a repository that leaves that setting alone cannot lose a landing commit to its own maintenance,
-and a maintenance that runs `--prune=now`, or one whose `gc.pruneExpire` is `now`, is the case the reference covers.
+and a maintenance that runs `--prune=now`,
+or one whose `gc.pruneExpire` is `now`,
+is the case the reference covers.
 A batch whose own reference the write cannot prove leaves that window open until its branch write,
 which is the landing's own remaining steps and every wait inside it:
-three such commits measured 5, 167 and 17,760 ms,
+three such commits measured 5,
+167 and 17,760 ms,
 the last spent in the landing's reads of what its batch owed (`reads_owed_ms` 16,023)
 on a host other sessions had filled.
 The window is longer than real Git's by exactly that wait:

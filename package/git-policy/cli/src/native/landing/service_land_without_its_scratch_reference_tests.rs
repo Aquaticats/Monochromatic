@@ -99,7 +99,8 @@ fn land_one_built(world: &World, built: &CommitRequest, short_wait: bool) -> (Re
     return (landed, lines);
 }
 
-/// The commit the batch built, as the single landed outcome names it,
+/// The commit the batch built,
+/// as the single landed outcome names it,
 /// and the lines said about it.
 fn landed_commit(landed: &Result<Vec<Outcome>, FailureCode>, lines: &[String]) -> String {
     match landed {

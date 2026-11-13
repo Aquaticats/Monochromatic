@@ -50,8 +50,10 @@ as a killed `git fast-import` does.
 The wrapper's automatic maintenance uses `gc --auto` with the default grace,
 so only a concurrent `gc --prune=now` in that instant takes the commit.
 That window's length is what a commit made without its reference pays for,
-and it is measured in `SPEC.md`, "What names a commit between its objects and its branch":
-milliseconds when nothing else waits, and as long as the landing's own wait when something does.
+and it is measured in `SPEC.md`,
+"What names a commit between its objects and its branch":
+milliseconds when nothing else waits,
+and as long as the landing's own wait when something does.
 
 The import closes that window by landing the batch when the repository refuses its reference:
 `fast-import` exports its marks at the end of the stream and updates the batch's reference last,
@@ -70,7 +72,8 @@ and one whose wait ended before the write did,
 leave the batch landing as real Git lands it,
 and the command that made the commit says once that the reference was not written and what that
 exposed (`src/native/landing/service_land_without_its_scratch_reference.rs`,
-`SPEC.md`, "What names a commit between its objects and its branch").
+`SPEC.md`,
+"What names a commit between its objects and its branch").
 Only a write the service's stop ended,
 or a Git that cannot be started,
 still answers the batch as not made,
@@ -190,7 +193,8 @@ The controls live in the package's own tests
 A commit that is made says nothing about a name it did not need.
 A batch whose own reference the write did not prove is made,
 and the command says once that the commit was made and that the reference which keeps a `git gc`
-off a landing commit's objects was not in place for it, naming the reference and Git's words.
+off a landing commit's objects was not in place for it,
+naming the reference and Git's words.
 
 Every ending that still answers a batch as not made says the commit's name and where it is kept:
 `refs/cli-git/kept/<batch>` when the keep was written,

@@ -239,7 +239,8 @@ mod built_tests;
 mod side_reference_write_tests;
 
 /// Controls for a batch whose own scratch reference the write did not prove stay out of the release executable:
-/// it lands as real Git lands a commit, and the person is told once what the missing reference exposed.
+/// it lands as real Git lands a commit,
+/// and the person is told once what the missing reference exposed.
 #[cfg(test)]
 #[path = "service_land_without_its_scratch_reference_tests.rs"]
 mod without_its_scratch_reference_tests;
