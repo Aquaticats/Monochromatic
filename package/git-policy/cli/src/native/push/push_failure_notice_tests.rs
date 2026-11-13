@@ -770,3 +770,19 @@ fn a_skip_record_whose_replacement_is_refused_keeps_the_record_it_replaces() {
     assert!(!shown[0].contains(SECOND), "the refused words are not the record: {:?}", shown[0]);
     remove(root.as_path());
 }
+
+/// What:
+///  A text that is one line longer than a record may hold is cut so that the record stays within the cap.
+/// Why:
+///  The cut appended its marker after a cut sized to the whole cap,
+///  so one long line made the record a few bytes longer than the limit its own control names
+///  (a review of commit `98de70959d`, finding 2).
+#[test]
+fn a_single_line_longer_than_the_cap_is_cut_within_it() {
+    let said: String = "x".repeat(LONGEST_REASON + 1000);
+    let cleaned: String = clean_reason(said.as_str());
+    assert!(cleaned.len() <= LONGEST_REASON, "the record fits its cap: {} bytes", cleaned.len());
+    assert_eq!(cleaned.len(), LONGEST_REASON, "and it uses all of it");
+    assert!(cleaned.ends_with("(Git's output is cut here.)"), "the cut is marked: {}", &cleaned[cleaned.len() - 40..]);
+    assert!(cleaned.starts_with("x"), "the line keeps its beginning");
+}

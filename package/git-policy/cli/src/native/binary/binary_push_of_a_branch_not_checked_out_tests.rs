@@ -633,3 +633,56 @@ fn a_checked_out_branch_at_the_pushed_tip_is_not_moved_over_another_branchs_merg
     assert!(!world.repo.join("other.txt").exists(), "the merge's file is not in this checkout");
     remove(fixture);
 }
+
+/// What:
+///  A pushed branch whose worktree folder was deleted follows its merge,
+///  and the push is not reported as a failure.
+/// Why:
+///  Git still lists such a worktree (as prunable) while it holds the branch,
+///  and a Git started in its gone folder fails;
+///  that failure left the loop after the merge was published,
+///  so the push exited 1 with "may or may not have taken the merge" and the branch stayed behind
+///  (a review of commit `98de70959d`, finding 1).
+#[test]
+fn a_pushed_branch_whose_worktree_folder_is_gone_follows_its_merge() {
+    let world: World = diverged("push-not-checked-out-prunable");
+    let fixture: &Fixture = &world.fixture;
+    git(fixture, world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let main_before: String = tip(fixture, world.repo.as_path(), "refs/heads/main");
+    let linked: PathBuf = fixture.root.join("linked");
+    git(
+        fixture,
+        world.repo.as_path(),
+        &["worktree", "add", "--quiet", linked.to_str().expect("utf-8"), "feat/topic"],
+    );
+    // The folder goes while Git still lists the worktree as holding the branch.
+    std::fs::remove_dir_all(linked.as_path()).expect("the worktree's folder is removed");
+    let listed: String = String::from_utf8_lossy(
+        &git(fixture, world.repo.as_path(), &["worktree", "list", "--porcelain"]).stdout,
+    )
+    .into_owned();
+    assert!(listed.contains("prunable"), "the control states the prunable worktree: {listed}");
+    let observed: Observed = run_wrapped(
+        fixture,
+        world.repo.as_path(),
+        &["push", "origin", "refs/heads/feat/topic:refs/heads/feat/topic"],
+    );
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "a published merge is not a failed push: {said}");
+    let published: String = tip(fixture, world.origin.as_path(), "refs/heads/feat/topic");
+    assert_ne!(published, world.remote_tip, "the merge was published");
+    let message: String = message_of(fixture, world.origin.as_path(), published.as_str());
+    assert!(message.contains("Merge origin/feat/topic into feat/topic"), "{message}");
+    assert!(!message.contains("main"), "the merge names the pushed branch: {message}");
+    let line: String = last_line(&observed);
+    assert!(
+        line.contains("and feat/topic is now at it"),
+        "the branch followed its merge: {line}"
+    );
+    assert!(!said.contains("did not finish"), "the push does not report a merge it published as unfinished: {said}");
+    assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/feat/topic"), published, "the branch is at the merge");
+    assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/main"), main_before, "no other branch is moved");
+    assert_eq!(checked_out(fixture, world.repo.as_path()), String::from("refs/heads/main"));
+    assert_eq!(changes(fixture, world.repo.as_path()), "");
+    remove(fixture);
+}
