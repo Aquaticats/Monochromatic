@@ -87,6 +87,10 @@ run = "node src/start-a-batch-in-its-own-unit.ts"
 description = "Write what one review of a change reads: the diff of its ranges under the reviewed source folder, the brief naming its files, and its reproductions folder"
 run = "node src/write-a-brief-for-a-review.ts"
 
+[tasks."check-a-review-that-ended"]
+description = "Say one verdict per ended review (complete, ran nothing, statement missing or not matching its session, no review file, cut), and write the batch entry that starts a review again when it needs one"
+run = "node src/check-a-review-that-ended.ts"
+
 [tasks."start-reviews-of-finished-branches"]
 description = "Write and start one review of each finished branch, on the review pool, and save the last message of a review that wrote no review file"
 run = "node src/start-reviews-of-finished-branches.ts"

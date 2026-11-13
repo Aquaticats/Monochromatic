@@ -10,11 +10,13 @@
 
 import { REVIEW_OF_A_CHANGE_TEMPLATE, } from './briefs/review-of-a-change-template.ts';
 import {
+  diffFileOfAReview,
   reproductionsFolderOfAReview,
   reviewFolderOf,
   reviewFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
+import { REVIEW_STATEMENT_SKELETON, } from './review-statement-shape.ts';
 import {
   filledTemplate,
   placeholdersIn,
@@ -30,10 +32,13 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'REVIEWS_FOLDER',
   'RUNS_FOLDER',
   'SCRATCH_FOLDER',
+  'EARLIER',
   'SUBJECT',
   'FILES',
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
+  'DIFF_FILE',
+  'STATEMENT_SKELETON',
   'REVIEW_FILE',
 ];
 
@@ -80,6 +85,8 @@ export function subjectOfAReview({ source, }: { readonly source: string },): str
 
  @param rulesFile - the rules file's path, which the brief names first
 
+ @param earlier - what an earlier run of the same review did, when this brief starts another, ending with a blank line
+
  @returns the value of each placeholder, by its name
 
  @example
@@ -96,6 +103,7 @@ export function reviewBriefValues({
   reviewsFolder,
   runsFolder,
   rulesFile,
+  earlier = '',
 }: {
   readonly review: string;
   readonly commit: string;
@@ -105,6 +113,7 @@ export function reviewBriefValues({
   readonly reviewsFolder: string;
   readonly runsFolder: string;
   readonly rulesFile: string;
+  readonly earlier?: string;
 }): Readonly<Record<string, string>> {
   return {
     RULES: rulesFile,
@@ -115,6 +124,7 @@ export function reviewBriefValues({
       reviewsFolder,
       review,
     },),
+    EARLIER: earlier,
     SUBJECT: subjectOfAReview({ source, },),
     FILES: files.map(function asAListItem(path,) {
       return `- \`${path}\``;
@@ -125,6 +135,11 @@ export function reviewBriefValues({
       review,
     },),
     FOCUS: focus,
+    DIFF_FILE: diffFileOfAReview({
+      reviewsFolder,
+      review,
+    },),
+    STATEMENT_SKELETON: REVIEW_STATEMENT_SKELETON,
     REVIEW_FILE: reviewFileOfAReview({
       reviewsFolder,
       review,
@@ -151,6 +166,8 @@ export function reviewBriefValues({
 
  @param rulesFile - the rules file's path, which the brief names first
 
+ @param earlier - what an earlier run of the same review did, when this brief starts another, ending with a blank line
+
  @returns the brief's text
 
  @throws TemplatePlaceholderError when the text carries a placeholder no value fills
@@ -169,6 +186,7 @@ export function briefOfAReview({
   reviewsFolder,
   runsFolder,
   rulesFile,
+  earlier = '',
 }: {
   readonly review: string;
   readonly commit: string;
@@ -178,6 +196,7 @@ export function briefOfAReview({
   readonly reviewsFolder: string;
   readonly runsFolder: string;
   readonly rulesFile: string;
+  readonly earlier?: string;
 }): string {
   return filledTemplate({
     template: REVIEW_OF_A_CHANGE_TEMPLATE,
@@ -190,6 +209,7 @@ export function briefOfAReview({
       reviewsFolder,
       runsFolder,
       rulesFile,
+      earlier,
     },),
     name: `the brief of ${runNameOfAReview({ review, },)}`,
   },);

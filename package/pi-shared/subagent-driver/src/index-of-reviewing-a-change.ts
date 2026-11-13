@@ -1,6 +1,7 @@
 /**
  The library surface of the review commands: who reviews a change and what a review of one is called, what a review reads, the
- briefs a review and its fix are given, and the starter that starts one review per finished branch. `index.ts` re-exports it.
+ briefs a review and its fix are given, the statement a review writes, the check of an ended review, the restart it may need,
+ and the starter that starts one review per finished branch. `index.ts` re-exports it.
 
  @module
  */
@@ -105,3 +106,90 @@ export {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
+export {
+  type FileReadState,
+  type FindingShownBy,
+  type ReviewCommandRun,
+  type ReviewFileRead,
+  type ReviewFinding,
+  type ReviewStatement,
+  REVIEW_STATEMENT_HEADING,
+  REVIEW_STATEMENT_LANGUAGE,
+  REVIEW_STATEMENT_SKELETON,
+  ReviewStatementError,
+} from './review-statement-shape.ts';
+export {
+  commitIsTheSame,
+  statementInReview,
+} from './review-statement.ts';
+export {
+  type FilesInADiff,
+  ReviewDiffError,
+  diffOfOnlyFiles,
+  filesInDiff,
+} from './review-diff.ts';
+export {
+  type CommandTool,
+  type SessionCommand,
+  type SessionReadings,
+  SESSION_TEXT_LIMIT_BYTES,
+  SessionRecordError,
+  sessionReadings,
+  sessionTextIn,
+} from './session-commands-of-a-run.ts';
+export {
+  type CommandComparison,
+  type StatedCommandCheck,
+  COMMAND_IN_A_REASON_CHARACTERS,
+  compareCommands,
+} from './review-command-matching.ts';
+export {
+  type ReviewCheck,
+  type ReviewVerdict,
+  CHECK_LIMITS_LINE,
+  checkAReview,
+  checkLineOf,
+} from './checking-a-review.ts';
+export {
+  type ReadingAtAPath,
+  type ReviewCoverage,
+  type StatementReading,
+  NO_TEXT_AT_THAT_PATH,
+  coverageIn,
+  coverageReasonsOf,
+  fileProblemsIn,
+  readingAtAPath,
+  readingOfAStatement,
+  textAtAPath,
+} from './review-check-reading.ts';
+export {
+  FIRST_RESTART_NUMBER,
+  FIRST_RUN_NUMBER,
+  REVIEW_RESTART_SEGMENT,
+  baseReviewNameOf,
+  restartNumberIn,
+  restartReviewNameOf,
+  runWordOf,
+} from './review-runs-of-a-change.ts';
+export {
+  type RestartPlan,
+  batchListOfOne,
+  earlierRunTextOf,
+  filesForARestart,
+  restartPlanOf,
+} from './restart-brief.ts';
+export {
+  type RestartOutcome,
+  type RestartStartingSeams,
+  aRestartIsPending,
+  restartOfAReview,
+  startRestarts,
+  writeRestartPlan,
+} from './restarting-a-review.ts';
+export {
+  CHECK_REVIEW_USAGE,
+  CheckReviewOptionsError,
+  type CheckReviewOptions,
+  START_RESTARTS_FLAG,
+  parseCheckReviewOptions,
+} from './parse-check-review-options.ts';
