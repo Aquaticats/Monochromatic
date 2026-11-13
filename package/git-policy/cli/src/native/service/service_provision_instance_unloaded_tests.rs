@@ -6,16 +6,18 @@
 //!  The unload is a repair,
 //! not a precondition of a commit:
 //! a commit whose service is landing a batch,
-//! or whose manager stops
+//! whose manager stops
 //!  answering,
-//! must land through the service that is running and leave the record unwritten so the next commit
-//!  repairs the text,
-//! rather than fail with a diagnosis that is not true of the machine.
+//! or whose unit another command starts again inside the wait
+//! must land through whatever the manager runs and leave
+//!  the record unwritten so the next commit repairs the text,
+//! rather than fail with a diagnosis that is not true of the
+//!  machine.
 //! The manager here is a script,
 //! so none of these reach the account's own manager.
 
 use super::*;
-use crate::service_instance::{program_link, service_unit_instance, socket_unit_instance};
+use crate::service_instance::{program_link, service_unit_instance};
 use std::path::PathBuf;
 use crate::service_provision::unit_texts;
 use crate::test_support::{fixture, remove};
@@ -283,41 +285,50 @@ fn a_program_link_that_cannot_be_pointed_leaves_the_commit_to_go_on() {
 }
 
 /// What:
-///  A manager that answers every question and still holds the unit after it was stopped ends the commit,
-/// because a start
-///  then reads the text it loaded rather than the files.
+///  A unit the manager still holds when the wait runs out leaves the commit to go on,
+/// and the record of what the
+///  manager read is not written.
 /// Why:
-///   This is the one case the refusal is true of,
-/// and it is kept so the repair cannot silently stop repairing:
-/// the
-///  message names the unit and says what a start would do.
+///   A unit another command started again inside this wait,
+/// or one whose collection the manager has not reached,
+///  is no
+/// reason to end a commit:
+/// the manager runs something that answers this commit or it does not,
+/// and what it
+///  runs is what the start and the client's own wait see.
+/// Reaching this wait is the one way a commit could have
+///  ended here before,
+/// and it does not any more.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await provisionWith(host, managerThatKeepsTheUnit)).toEqual({ couldNotStart: /still holds/ });
+/// expect(await provisionWith(host, managerWhichKeepsTheUnit)).toBe(undefined);
 /// ```
 #[test]
-fn a_unit_the_manager_keeps_after_the_stop_ends_the_commit_and_says_so() {
+fn a_unit_the_manager_keeps_past_the_wait_leaves_the_commit_to_go_on_and_the_record_unwritten() {
     let machine: Machine = machine("unload-unit-kept-lib", Duration::from_secs(10));
-    let mut manager: Scripted = Scripted::new(vec![Answer::State("active"), Answer::State("inactive"), Answer::State("active")], vec![Answer::State("active")]);
-    let failure: ClientFailure = crate::service_provision::provision_with(&machine.host, &mut manager).expect_err("a manager that keeps the unit after the stop ends the commit");
-    let ClientFailure::CouldNotStart(reason) = failure else {
-        panic!("the refusal names the unit and what a start would do: {failure:?}");
-    };
-    assert!(
-        reason.contains(instance_service().as_str()) || reason.contains(instance_socket().as_str()),
-        "the refusal names this worktree's own unit: {reason}"
+    // What: The socket is stopped and gone,
+    // and the service is still there at every question after it.
+    // Why:  That is what a second command's start, or a collection the manager has not reached, leaves.
+    let mut manager: Scripted = Scripted::new(
+        vec![Answer::State("active"), Answer::State("inactive"), Answer::State("active")],
+        vec![Answer::State("active")],
     );
-    assert!(reason.contains("still holds") && reason.contains("the text it loaded"), "{reason}");
+    let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
+        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a unit the manager keeps does not fail the commit");
+    })
+    .iter()
+    .map(|entry| { return entry.message.clone(); })
+    .collect();
+    assert!(
+        said.iter().any(|line| { return line.contains("still holds this worktree's unit") && line.contains(INSTANCE); }),
+        "one line says the manager still holds one of this worktree's units, and the commit goes on: {said:?}"
+    );
+    assert!(!record_says_read(&machine), "the text was not dropped, so the record stays unwritten and the next commit asks again");
     remove(machine.root.as_path());
 }
 
 /// The service unit of the fixture's instance.
 fn instance_service() -> String {
     return service_unit_instance(INSTANCE);
-}
-
-/// The socket unit of the fixture's instance.
-fn instance_socket() -> String {
-    return socket_unit_instance(INSTANCE);
 }
