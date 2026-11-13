@@ -81,6 +81,12 @@ pub enum AbortDiscard {
         ///  because the tree the reset writes back holds that path and its content:
         ///  an abort undoes the deletion and loses nothing of the person's.
         staged: Vec<Vec<u8>>,
+        /// The paths the operation is still stopped at,
+        ///  named by the worktree listing,
+        ///  when Git recorded no result for the conflict.
+        ///  Nothing tells the conflict text Git wrote there from a resolution the person wrote over it,
+        ///  so each of them is kept as the person's and named as one the wrapper cannot judge.
+        conflicted: Vec<Vec<u8>>,
     },
 }
 
@@ -352,8 +358,7 @@ pub fn listed_paths(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
 }
 
 /// What:
-///  The argument list of the query that names the paths the operation is still stopped at,
-///  which are its own state and not the person's work.
+///  The argument list of the query that names the paths the operation is still stopped at.
 ///  `&[OsString]` borrows the caller's global options.
 /// Why:
 ///   `--diff-filter=U` selects exactly the unmerged entries
@@ -363,6 +368,8 @@ pub fn listed_paths(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
 ///  and once as a modification,
 /// so no other filter separates them),
 ///  and this is the only reading that does.
+///  Where no result is recorded they are named as conflicted rather than dropped,
+///  because each may hold a resolution the person wrote and never staged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -382,7 +389,7 @@ pub fn unresolved_query(global_prefix: &[OsString]) -> Vec<OsString> {
 /// Why:
 ///   The reading that compares each side with the other cannot tell an untouched conflicted path
 ///  from an edit,
-/// and these paths are exactly the operation's own state;
+/// and no more can be proved about it without a recorded result;
 ///  a listing that failed is a failure and never an empty answer.
 ///
 /// In TS you'd write (pseudocode):
@@ -532,8 +539,8 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     };
     // Git records the result it computed for the conflict it stopped at, whichever operation stopped there,
     //  so the person's own work is what differs from that result;
-    //  where no result is recorded, everything uncommitted is at risk except the paths the operation still
-    //  stands at, which are its own state.
+    //  where no result is recorded there is no baseline that tells Git's own conflict text from a resolution,
+    //  and every uncommitted change is at risk.
     let recorded: bool = merge_result_readable(facts)?;
     let (queries, baseline): ([Vec<OsString>; 2], DiscardBaseline) = match recorded {
         true => (merge_result_queries(facts.global_prefix.as_slice()), DiscardBaseline::RecordedResult),
@@ -543,19 +550,16 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     let second: MetadataOutput = facts.query(queries[1].clone(), "the staged paths this command would discard")?;
     let mut worktree_paths: Vec<Vec<u8>> = listed_paths(&first)?;
     let index_paths: Vec<Vec<u8>> = listed_paths(&second)?;
-    if !recorded {
-        // Without a recorded result the worktree listing names every path the operation is still stopped at,
-        //  and those paths are the operation's own state: the listing is read against the other side, not against
-        //  what Git wrote into the worktree. They are asked for on their own and left out.
-        let unresolved: Vec<Vec<u8>> = unresolved_paths(facts)?;
-        let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(worktree_paths.len());
-        for path in worktree_paths {
-            if !unresolved.contains(&path) {
-                kept.push(path);
-            }
-        }
-        worktree_paths = kept;
-    }
+    // Without a recorded result, a path the operation is still stopped at holds either the conflict text Git wrote
+    //  there or a resolution the person wrote over it, and nothing the wrapper can read tells the two apart:
+    //  a checked-in strategy's text names its own temporary files (the `resolve` strategy does: measured, its markers
+    //  read `.merge_file_1xHykn` and the name is fresh each time), a custom merge driver writes whatever it likes,
+    //  and an older Git records no result at all. So those paths are kept too, and named as ones the wrapper cannot
+    //  judge, which refuses the command rather than risk a resolution that exists nowhere else.
+    let conflicted: Vec<Vec<u8>> = match recorded {
+        true => Vec::<Vec<u8>>::new(),
+        false => unresolved_paths(facts)?,
+    };
     // A path the worktree no longer holds is no work of the person's: the reset writes the tree back over it.
     //  The answer is read from the filesystem, after the location Git already named.
     let top: Option<PathBuf> = crate::repository_facts_abort_discard_worktree_entries::worktree_top(facts);
@@ -577,6 +581,7 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
         baseline,
         worktree: both_listings(worktree_paths, Vec::new()),
         staged,
+        conflicted,
     });
 }
 

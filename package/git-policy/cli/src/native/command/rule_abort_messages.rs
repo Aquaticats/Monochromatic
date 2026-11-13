@@ -152,76 +152,100 @@ fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
 
 /// What:
 ///  What stands at one path that the command would discard,
-///  in words that are true of the listing that named it.
+///  in words that are true of the reading that named it.
+///  `bool` says which listings named the path.
 /// Why:
 ///   The person has to know which of the things they made is at risk:
 ///  an edit in the worktree,
 ///  a staged edit,
-///  a staged deletion,
-///  and for a merge,
-///  a staged resolution whose content stands nowhere else.
-/// What:
-///  What stands at one path that the command would discard,
-///  in words that are true of the listing that named it.
-/// Why:
-///   The person has to know which of the things they made is at risk:
-///  an edit in the worktree,
-///  a staged edit,
-///  a staged deletion,
 ///  and,
-/// where Git recorded the result of the conflict it stopped at,
+///  where Git recorded the result of the conflict it stopped at,
 ///  a staged resolution whose content stands nowhere else.
-///  Where no result is recorded,
-/// the listings compare the worktree with the index,
+///  A path the operation is still stopped at, in a state Git recorded no result for,
+///  is neither: it holds Git's own conflict text or a resolution over it,
+///  and nothing the wrapper can read tells the two apart,
+///  so it is named as a conflicted path rather than as an edit somebody made.
+///  Where no result is recorded the listings also compare the worktree with the index,
 ///  so a path only the index listing names is content the worktree holds too:
 ///  a sentence claiming it stood only in the index would be false.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// describePath('a.txt', { baseline: 'recorded-result', inWorktree: true, staged: true });
+/// describePath('a.txt', { baseline: 'recorded-result', inWorktree: true, staged: true, conflicted: false });
 /// ```
-fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool) -> String {
-    let mut facts: Vec<&str> = Vec::<&str>::new();
-    if in_worktree {
-        facts.push(match baseline {
-            DiscardBaseline::RecordedResult => "a resolution or edit you made since Git stopped at the conflict",
-            DiscardBaseline::OperationStart => "an edit you made since the operation began",
-        });
+fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool, conflicted: bool) -> &'static str {
+    // The order is the order of certainty: a path the operation is still stopped at is named as that first,
+    //  because what stands there may be Git's own text.
+    if conflicted {
+        return "a conflicted path";
+    }
+    if staged && in_worktree {
+        return match baseline {
+            DiscardBaseline::RecordedResult => "a resolution or edit you made since Git stopped at the conflict; a staged resolution",
+            DiscardBaseline::OperationStart => "an edit you made since the operation began; a staged edit",
+        };
     }
     if staged {
-        facts.push(match (baseline, in_worktree) {
-            (DiscardBaseline::RecordedResult, false) => "content only the index holds",
-            (DiscardBaseline::RecordedResult, true) => "a staged resolution",
-            (DiscardBaseline::OperationStart, false) => "content the index holds",
-            (DiscardBaseline::OperationStart, true) => "a staged edit",
-        });
+        return match baseline {
+            DiscardBaseline::RecordedResult => "content only the index holds",
+            DiscardBaseline::OperationStart => "content the index holds",
+        };
     }
-    return facts.join("; ");
+    return match baseline {
+        DiscardBaseline::RecordedResult => "a resolution or edit you made since Git stopped at the conflict",
+        DiscardBaseline::OperationStart => "an edit you made since the operation began",
+    };
 }
 
 /// What:
 ///  Each path the command would discard,
-/// with what stands there,
-/// as one sentence fragment,
+///  with what stands there,
+///  as one sentence fragment,
 ///  bounded to the paths a sentence names.
-///  `&[Vec<u8>]` borrows the two listings and the staged entry paths.
+///  `&[Vec<u8>]` borrows the two listings and the paths the operation is still stopped at.
 /// Why:
 ///   Paths that differ in both the worktree and the index are one item,
 ///  and a path that differs in either is what the command would discard,
-///  so the items are the union of the two listings and each carries both of its facts.
+///  so the items are the union of the two listings and each carries its own facts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// discardedList({ baseline, worktree, staged }) // 'a.txt (an edit you made since ...), b.txt (content the index holds)'
+/// discardedList({ baseline, worktree, staged, conflicted }) // 'a.txt (an edit you made since ...), b.txt (content the index holds)'
 /// ```
-pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &[Vec<u8>]) -> String {
+pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &[Vec<u8>], conflicted: &[Vec<u8>]) -> String {
     let union: Vec<Vec<u8>> = crate::repository_facts_abort_discard::both_listings(worktree.to_vec(), staged.to_vec());
     let mut items: Vec<String> = Vec::<String>::with_capacity(union.len());
     for path in &union {
-        let facts: String = describe_path(baseline, named(worktree, path.as_slice()), named(staged, path.as_slice()));
+        let facts: &str = describe_path(
+            baseline,
+            named(worktree, path.as_slice()),
+            named(staged, path.as_slice()),
+            named(conflicted, path.as_slice()),
+        );
         items.push(format!("{} ({facts})", String::from_utf8_lossy(path.as_slice())));
     }
     return named_items(items.as_slice());
+}
+
+/// What:
+///  Whether the paths a refusal names include one the operation is still stopped at,
+///  which is the case that has to say why the wrapper could not judge it.
+///  `&[Vec<u8>]` borrows the two listings and the conflicted paths.
+/// Why:
+///   The sentence explains a refusal that looks over-careful otherwise:
+///  a person who left a conflicted file exactly as Git wrote it is told why the wrapper still counted it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesAConflictedPath = ({ worktree, staged, conflicted }) => conflicted.some((path) => worktree.concat(staged).includes(path));
+/// ```
+fn names_a_conflicted_path(worktree: &[Vec<u8>], staged: &[Vec<u8>], conflicted: &[Vec<u8>]) -> bool {
+    for path in conflicted {
+        if named(worktree, path.as_slice()) || named(staged, path.as_slice()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -248,6 +272,7 @@ pub fn discard_refusal_text(
     baseline: DiscardBaseline,
     worktree: &[Vec<u8>],
     staged: &[Vec<u8>],
+    conflicted: &[Vec<u8>],
 ) -> String {
     let command: &str = abort_command_text(operation, ends);
     let word: &str = operation_name(in_progress);
@@ -255,12 +280,17 @@ pub fn discard_refusal_text(
         OperationEnd::Abort => "restores the state before it",
         OperationEnd::Skip => "goes on without the commit or patch it stopped at",
     };
+    // A refusal that counted a conflicted path says why, because the file may hold exactly what Git wrote there.
+    let unexplained: &str = match names_a_conflicted_path(worktree, staged, conflicted) {
+        true => " Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours. ",
+        false => "",
+    };
     return format!(
         "monochromatic-git-policy-cli: {command} is refused: it would discard work that stands nowhere else, and the {word} in progress still waits. \
-         Nothing was changed, and nothing was copied. It would discard {}. To keep that work, stop the operation and keep your index and files with \
-         {quit} (that command is allowed), then commit or save what you want to keep; {command} {halt}. To discard the work on purpose, run {hatch}: \
-         the guard steps aside and Git does exactly what it does on its own.",
-        discarded_list(baseline, worktree, staged),
+         Nothing was changed, and nothing was copied. It would discard {}.{unexplained}To keep that work, stop the operation and keep your index and \
+         files with {quit} (that command is allowed), then commit or save what you want to keep; {command} {halt}. To discard the work on purpose, run \
+         {hatch}: the guard steps aside and Git does exactly what it does on its own.",
+        discarded_list(baseline, worktree, staged, conflicted),
         quit = quit_command_text(in_progress),
         hatch = hatch_command_text(operation, ends)
     );

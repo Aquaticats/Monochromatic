@@ -2525,10 +2525,11 @@ The rule is:
   `git am` and the `--skip` forms of the last three operations are decided by the operation in progress,
   not by the status,
   because an operation that stopped with conflicts makes the status dirty by itself:
-  in a linked worktree one whose only changes are the operation's own runs exactly as Git runs it,
+  one whose only changes are the operation's own runs exactly as Git runs it,
   one that would discard your own work is refused (nothing is copied),
   one whose operation is not waiting is left to Git (which refuses it and discards nothing),
-  and the main worktree keeps the rejection for an abort.
+  and the same rule holds in the main worktree, in a linked one and outside a worktree,
+  as the owner decided on 2026-11-13 ("Same rule everywhere").
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -2714,7 +2715,8 @@ What decides them is the work that is not the operation's own:
   (`a resolution or edit you made since Git stopped at the conflict`,
   `content only the index holds`,
   `a staged resolution`,
-  `a staged edit`),
+  `a staged edit`,
+  `a conflicted path`),
   at most five paths with the rest counted,
   and both ways out.
 - Where no operation of that kind waits,
@@ -2730,6 +2732,16 @@ a cherry-pick and an `am` as well as for a merge:
 a path that still holds the recorded result was never touched by you,
 a resolution you wrote over it is named,
 and one you staged over it is named as content only the index holds.
+
+Where Git recorded no result,
+which a checked-in strategy can arrange (`git merge -s resolve` records none,
+measured with Git 2.56.0),
+a path still in conflict is named as `a conflicted path` and the command is refused:
+nothing the wrapper can read tells Git's own conflict text from a resolution you wrote over it,
+because that strategy's markers name its own temporary files and change with every run.
+The refusal says that, and its two ways out are the same:
+`git merge --quit` stops the merge and keeps everything,
+and `--no-enforce-worktree` runs the abort as Git runs it.
 The refusal looks like this:
 
 ```text
@@ -2746,15 +2758,11 @@ Git will not write that tree over the file,
 so the wrapper names the file and says to move or copy it away and run the command again,
 which then goes through.
 
-Two things keep the rejection:
-the main worktree,
-where an abort is always rejected (`git merge --quit` and its siblings stop the operation
-and keep the index and files,
-and the opt-out runs the abort),
-and an ignored file at a path the tree the abort writes back tracks,
+One thing keeps the rejection beyond the work itself:
+an ignored file at a path the tree the abort writes back tracks,
 which is named because the abort replaces that file just as a hard reset would.
-A `--skip` is not refused in the main worktree for being there:
-it is refused exactly when it would discard your work.
+The worktree the command runs in no longer matters:
+the main worktree, a linked one and a place outside one are decided by the same rule.
 An edit that lands between the wrapper's measurement and Git's start is caught by a second measurement made
 immediately before Git starts;
 one that lands after it goes with the command,
@@ -2937,7 +2945,9 @@ Each alternative is run through the built executable by `src/native/binary/binar
    the same command with `--quit` stops the operation and keeps the index and files,
    `--continue` finishes it after resolving conflicts,
    and `--skip` drops the current commit or patch.
-   An abort in the main worktree keeps the rejection.
+   The worktree the command runs in does not change the rule:
+   an abort that would discard nothing runs in the main worktree too,
+   and one that would discard work is refused there naming the files.
 
 The forms are read with Git's own option grammar,
  so abbreviations,

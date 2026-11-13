@@ -111,7 +111,7 @@ pub fn judge_abort_discard(facts: &mut dyn RepositoryFacts, command: GuardedComm
         Ok(answer) => answer,
         Err(message) => return unreadable(operation, ends, message.as_str()),
     };
-    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, baseline, worktree, staged } = discard else {
+    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, baseline, worktree, staged, conflicted } = discard else {
         return AbortVerdict::LeftToGit;
     };
     debug_assert!(measured_ends == ends, "the reading of what this form ends is the same one the guard is judging");
@@ -141,7 +141,15 @@ pub fn judge_abort_discard(facts: &mut dyn RepositoryFacts, command: GuardedComm
         // Only the operation's own state is there, which is what the command is for.
         return AbortVerdict::Allowed;
     }
-    return AbortVerdict::Refused(discard_refusal_text(operation, ends, in_progress, baseline, worktree.as_slice(), staged.as_slice()));
+    return AbortVerdict::Refused(discard_refusal_text(
+        operation,
+        ends,
+        in_progress,
+        baseline,
+        worktree.as_slice(),
+        staged.as_slice(),
+        conflicted.as_slice(),
+    ));
 }
 
 /// The verdict and its readings.

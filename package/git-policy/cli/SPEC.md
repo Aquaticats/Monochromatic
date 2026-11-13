@@ -17463,6 +17463,9 @@ because the wrapper never sees that command start.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
+The abort and skip forms are the exception,
+decided by the work they would discard wherever they run
+("The abort and skip forms while their operation waits" below).
 A `clean` counts untracked files as well.
 An ignored file is not a reason to refuse a clean in a linked worktree,
 by the owner's answer of 2026-11-10 ("All four are deleted,
@@ -17833,11 +17836,22 @@ or a state none is written for),
 the listings compare each side with the other
 (`git diff --name-only -z` and `git diff --cached --name-only -z --diff-filter=ACDMRTB`),
 and the paths the operation is still stopped at are asked for on their own
-(`git diff --name-only -z --diff-filter=U`) and left out of the worktree listing:
-measured with Git 2.56.0,
-the worktree listing names each of them twice,
+(`git diff --name-only -z --diff-filter=U`) and kept:
+they are named as conflicted paths,
+and a command that would replace one of them is refused,
+because without a recorded result nothing the wrapper can read tells the conflict text Git wrote there
+from a resolution the person wrote over it.
+That is not caution for its own sake:
+a checked-in strategy's text names its own temporary files,
+so it cannot be reproduced to compare with,
+and the `resolve` strategy's markers read `.merge_file_1xHykn` with a fresh name each time (measured with Git 2.56.0);
+a custom merge driver writes whatever it likes;
+and a Git older than the ref records nothing at all.
+Measured with Git 2.56.0,
+the worktree listing names such a path twice,
 once with the status `U` and once as a modification,
-so no other filter separates the operation's state from the person's work.
+so no filter separates the operation's state from the person's work,
+and every one of them is counted as the person's.
 A listing that fails is a rejection,
 never an empty list.
 A listed path whose index holds a whole entry is content the command would drop,
@@ -17934,12 +17948,17 @@ and gives moving or copying the file away as the way forward.
 Nothing is lost,
 so no copy is owed and no notice may claim the command ran.
 
-The main worktree and a directory outside a worktree keep the rejection for an abort,
-because the rule above refuses a form there always;
-`git merge --quit` and its siblings stop the operation and keep the index and files,
-and the hatch runs the abort anyway.
-A skip is not refused there,
-because the work is what this rule decides about and a skip that would discard the person's work is refused anywhere.
+An abort is decided by the work it would discard wherever it runs:
+in the main worktree,
+in a linked one,
+and outside a worktree,
+the same reading answers the same way,
+which is the owner's decision of 2026-11-13 ("Same rule everywhere")
+and ends the older rule that every abort is refused in the main worktree.
+So an abort that would discard nothing runs there,
+and one that would discard work is refused there naming the files,
+with the same quit form and the same opt-out,
+and a skip is decided the same way.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no refusal either.
 

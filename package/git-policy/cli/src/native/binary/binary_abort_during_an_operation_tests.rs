@@ -141,12 +141,57 @@ fn state_after(fixture: &Fixture, directory: &Path, paths: &[&str]) -> String {
 
 /// A merge of `side` that stopped at a conflict,
 ///  whose hand resolution is the person's own work.
-fn linked_worktree_at_a_conflicted_merge(fixture: &Fixture) -> PathBuf {
+///  `Option<&str>` names the merge strategy, and nothing uses the one Git picks.
+fn linked_worktree_at_a_conflicted_merge_with(fixture: &Fixture, strategy: Option<&str>) -> PathBuf {
     let linked: PathBuf = linked_worktree_with_a_diverged_side(fixture);
-    attempt(fixture, linked.as_path(), &["merge", "side"]);
+    let arguments: Vec<&str> = match strategy {
+        Some(named) => vec!["merge", "--no-ff", "-s", named, "side"],
+        None => vec!["merge", "side"],
+    };
+    attempt(fixture, linked.as_path(), arguments.as_slice());
     let during: String = plain(fixture, linked.as_path(), &["status", "--porcelain=v1"]);
     assert!(during.contains("UU a.txt"), "a conflicted merge is in progress: {during}");
     return linked;
+}
+
+/// The same, with the strategy Git picks.
+fn linked_worktree_at_a_conflicted_merge(fixture: &Fixture) -> PathBuf {
+    return linked_worktree_at_a_conflicted_merge_with(fixture, None);
+}
+
+/// What:
+///  A repository whose `a.txt` `side` and `main` both changed,
+///  with the merge of `side` stopped at a conflict in the main worktree itself.
+///  `Option<&str>` names the merge strategy.
+/// Why:
+///  The owner decided on 2026-11-13 that an abort is judged by the work it would discard
+///  in the main worktree as in a linked one,
+///  which ends the older rule that every abort there is refused;
+///  both outcomes need a control in the main worktree itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = mainWorktreeAtAConflictedMerge(fixture, undefined);
+/// ```
+fn main_worktree_at_a_conflicted_merge(fixture: &Fixture, strategy: Option<&str>) -> PathBuf {
+    let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "side"]);
+    std::fs::write(repo.join("a.txt"), b"side\n").expect("side edit");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::write(repo.join("a.txt"), b"main\n").expect("main edit");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    let arguments: Vec<&str> = match strategy {
+        Some(named) => vec!["merge", "--no-ff", "-s", named, "side"],
+        None => vec!["merge", "side"],
+    };
+    attempt(fixture, repo.as_path(), arguments.as_slice());
+    let during: String = plain(fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    assert!(during.contains("UU a.txt"), "a conflicted merge is in progress in the main worktree: {during}");
+    return repo;
 }
 
 /// The merge's own state is the only thing there is,
@@ -1160,4 +1205,173 @@ fn a_rebase_abort_whose_record_is_a_pipe_answers_and_the_advice_ends_it() {
     assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
     assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {quit_said}");
     remove(&fixture);
+}
+
+/// What:
+///  Whether the merge Git started recorded the result it computed (`AUTO_MERGE`).
+/// Why:
+///  The reading leans on that record to tell Git's own conflict text from a resolution the person wrote,
+///  and a checked-in strategy can leave it absent,
+///  which is the state the fallback has to answer for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recorded = plain(fixture, where, ['rev-parse', '--verify', '--quiet', 'AUTO_MERGE']).trim().length > 0;
+/// ```
+fn merge_result_recorded(fixture: &Fixture, directory: &Path) -> bool {
+    return git_path_is_there(fixture, directory, "AUTO_MERGE");
+}
+
+/// A merge under the `resolve` strategy records no result,
+///  so a resolution written in the worktree and never staged is refused:
+///  nothing proves which of the conflicted paths hold Git's own text,
+///  and the abort writes that tree back over all of them.
+#[test]
+fn a_merge_that_records_no_result_refuses_an_unstaged_resolution() {
+    let fixture: Fixture = fixture("abort-merge-resolve-resolution");
+    let linked: PathBuf = linked_worktree_at_a_conflicted_merge_with(&fixture, Some("resolve"));
+    assert!(!merge_result_recorded(&fixture, linked.as_path()), "the resolve strategy records no result");
+    std::fs::write(linked.join("a.txt"), b"HAND RESOLUTION written by the person\n").expect("the resolution");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "the abort would discard the resolution: {said}");
+    assert!(said.contains("a.txt (a conflicted path)"), "the path is named as one the wrapper cannot judge: {said}");
+    assert!(
+        said.contains("Git recorded no result for the conflict it stopped at"),
+        "the refusal says why it could not tell the resolution from Git's text: {said}"
+    );
+    assert!(said.contains("git merge --quit"), "the way out that keeps the work: {said}");
+    assert!(said.contains("git merge --no-enforce-worktree --abort"), "the opt-out: {said}");
+    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge still waits: {said}");
+    assert_eq!(
+        std::fs::read(linked.join("a.txt")).expect("the file"),
+        b"HAND RESOLUTION written by the person\n",
+        "nothing was changed: {said}"
+    );
+    assert!(saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "nothing was copied");
+    // The opt-out runs the abort as real Git runs it, which is the loss the refusal named.
+    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
+    assert_eq!(hatched.code, Some(0), "the opt-out aborts the merge: {}", stderr_of(&hatched));
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is gone");
+    remove(&fixture);
+}
+
+/// A cherry-pick under the `resolve` strategy records no result either,
+///  so a resolution written in the worktree and never staged is refused before `--skip` goes on.
+#[test]
+fn a_cherry_pick_that_records_no_result_refuses_an_unstaged_resolution() {
+    let fixture: Fixture = fixture("skip-pick-resolve-resolution");
+    let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
+    let side: String = plain(&fixture, linked.as_path(), &["rev-parse", "side"]).trim().to_string();
+    attempt(&fixture, linked.as_path(), &["cherry-pick", "--strategy=resolve", side.as_str()]);
+    let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
+    assert!(during.contains("UU a.txt"), "the pick stopped: {during}");
+    assert!(!merge_result_recorded(&fixture, linked.as_path()), "the resolve strategy records no result");
+    std::fs::write(linked.join("a.txt"), b"HAND RESOLUTION written by the person\n").expect("the resolution");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--skip"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "the skip would discard the resolution: {said}");
+    assert!(said.contains("a.txt (a conflicted path)"), "{said}");
+    assert!(said.contains("git cherry-pick --quit or git revert --quit"), "{said}");
+    assert!(said.contains("git cherry-pick --no-enforce-worktree --skip"), "{said}");
+    assert!(git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"), "the pick still waits: {said}");
+    assert_eq!(
+        std::fs::read(linked.join("a.txt")).expect("the file"),
+        b"HAND RESOLUTION written by the person\n",
+        "nothing was changed: {said}"
+    );
+    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--no-enforce-worktree", "--skip"]);
+    assert_ne!(hatched.code, Some(1), "the opt-out lets the skip go on: {}", stderr_of(&hatched));
+    remove(&fixture);
+}
+
+/// Where no result is recorded, a conflicted path left exactly as Git wrote it is refused too,
+///  and the refusal says why, because nothing the wrapper can read proves it is Git's own text.
+///  The advice it prints ends the operation and keeps the files.
+#[test]
+fn a_conflicted_path_left_as_git_wrote_it_is_refused_where_no_result_is_recorded() {
+    let fixture: Fixture = fixture("abort-merge-resolve-untouched");
+    let linked: PathBuf = linked_worktree_at_a_conflicted_merge_with(&fixture, Some("resolve"));
+    let before: Vec<u8> = std::fs::read(linked.join("a.txt")).expect("the conflicted file");
+    assert!(String::from_utf8_lossy(before.as_slice()).contains("<<<<<<<"), "Git wrote conflict markers: {}", String::from_utf8_lossy(before.as_slice()));
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "the conflicted path cannot be told from a resolution: {said}");
+    assert!(said.contains("a.txt (a conflicted path)"), "{said}");
+    assert!(said.contains("Git recorded no result for the conflict it stopped at"), "{said}");
+    assert_eq!(
+        std::fs::read(linked.join("a.txt")).expect("the file"),
+        before,
+        "nothing was changed: {said}"
+    );
+    // The advice, run as printed: the quit form ends the merge and keeps the file as it is.
+    let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--quit"]);
+    let quit_said: String = stderr_of(&quit);
+    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
+    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is over: {quit_said}");
+    assert_eq!(
+        std::fs::read(linked.join("a.txt")).expect("the file after the quit"),
+        before,
+        "the quit keeps the file as it was: {quit_said}"
+    );
+    remove(&fixture);
+}
+
+/// An abort in the main worktree whose only changes are the merge's own runs,
+///  which ends the older rule that every abort there is refused.
+#[test]
+fn an_abort_in_the_main_worktree_runs_when_it_discards_nothing() {
+    let fixture: Fixture = fixture("abort-main-worktree-own");
+    let repo: PathBuf = main_worktree_at_a_conflicted_merge(&fixture, None);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "the abort discards nothing the person made: {said}");
+    assert!(!rejected(&observed), "{said}");
+    assert!(!git_path_is_there(&fixture, repo.as_path(), "MERGE_HEAD"), "the merge is gone: {said}");
+    assert_eq!(
+        plain(&fixture, repo.as_path(), &["status", "--porcelain=v1"]).trim(),
+        "",
+        "the worktree is back to the state before the merge: {said}"
+    );
+    assert!(saved_copy_names(common_dir(&fixture, repo.as_path()).as_path()).is_empty(), "nothing was copied");
+    remove(&fixture);
+}
+
+/// An abort in the main worktree that would discard a hand resolution is refused, naming the file,
+///  and the opt-out leaves the state real Git leaves there.
+#[test]
+fn an_abort_in_the_main_worktree_refuses_a_hand_resolution() {
+    let hatched_fixture: Fixture = fixture("abort-main-worktree-resolution");
+    let repo: PathBuf = main_worktree_at_a_conflicted_merge(&hatched_fixture, None);
+    std::fs::write(repo.join("a.txt"), b"resolved by hand\n").expect("the resolution");
+    let observed: Observed = run_wrapped(&hatched_fixture, repo.as_path(), &["merge", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "the abort would discard the resolution: {said}");
+    assert!(said.contains("git merge --abort is refused"), "{said}");
+    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
+    assert!(!said.contains("main git worktree"), "the older rule's words are gone: {said}");
+    assert!(said.contains("git merge --quit"), "{said}");
+    assert!(said.contains("git merge --no-enforce-worktree --abort"), "{said}");
+    assert!(git_path_is_there(&hatched_fixture, repo.as_path(), "MERGE_HEAD"), "the merge still waits: {said}");
+    assert_eq!(
+        std::fs::read(repo.join("a.txt")).expect("the file"),
+        b"resolved by hand\n",
+        "nothing was changed: {said}"
+    );
+    let hatched: Observed = run_wrapped(&hatched_fixture, repo.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
+    assert_eq!(hatched.code, Some(0), "the opt-out aborts the merge: {}", stderr_of(&hatched));
+    assert!(!git_path_is_there(&hatched_fixture, repo.as_path(), "MERGE_HEAD"), "the merge is gone");
+    // The same state, built the same way, where real Git runs the abort itself.
+    let oracle: Fixture = fixture("abort-main-worktree-resolution-oracle");
+    let oracle_repo: PathBuf = main_worktree_at_a_conflicted_merge(&oracle, None);
+    std::fs::write(oracle_repo.join("a.txt"), b"resolved by hand\n").expect("the resolution");
+    let direct: Observed = run_direct(&oracle, oracle_repo.as_path(), &["merge", "--abort"]);
+    assert_eq!(direct.code, Some(0), "real Git runs the abort in the same state: {}", stderr_of(&direct));
+    assert_eq!(
+        state_after(&hatched_fixture, repo.as_path(), &["a.txt"]),
+        state_after(&oracle, oracle_repo.as_path(), &["a.txt"]),
+        "the opt-out leaves what real Git leaves"
+    );
+    remove(&hatched_fixture);
+    remove(&oracle);
 }

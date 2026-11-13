@@ -58,7 +58,7 @@ use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
 /// owed immediately before Git starts.
 use crate::abort_recheck::{AbortRecheckPlan, plan_the_second_look};
 /// What a guarded form does to the operation it finds waiting.
-use crate::rule_abort_operation::{OperationEnd, ended_operation};
+use crate::rule_abort_operation::ended_operation;
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -240,18 +240,23 @@ fn refuse_shared_remote_settings(
 }
 
 /// What:
-///  Whether the form drops the commit an operation stopped at and goes on.
+///  Whether the form ends the operation it finds waiting,
+///  which is every abort form and every skip form.
 /// Why:
-///   Such a form is let through wherever it runs once its work is copied,
-///  so the refusal a main worktree or a place outside one earns for an overwriting form
-///  is not asked of it.
+///   Such a form is decided by its own reading wherever it runs,
+///  so the refusal the rule above gives an overwriting form in a main worktree
+///  is not asked of it:
+///  the owner decided on 2026-11-13 that the rule is the same in the main worktree and in a linked one,
+///  an abort that would discard nothing runs and one that would discard work is refused
+///  (`doc/handover/cli-git-rust-implementation.md`,
+///  "An abort in the main worktree: Same rule everywhere").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const skips = (command: GuardedCommand): boolean => endedOperation(command)?.[1] === 'skip';
+/// const endsAnOperation = (command: GuardedCommand): boolean => endedOperation(command) !== undefined;
 /// ```
-fn ends_an_operation_with_a_skip(command: GuardedCommand) -> bool {
-    return matches!(ended_operation(command), Some((_operation, OperationEnd::Skip)));
+fn ends_an_operation(command: GuardedCommand) -> bool {
+    return ended_operation(command).is_some();
 }
 
 /// What:
@@ -384,11 +389,11 @@ pub(crate) fn check_linked_worktree(
         if target != EffectiveTarget::MainWorktree && target != EffectiveTarget::LinkedWorktree {
             return clean();
         }
-    } else if !ends_an_operation_with_a_skip(command)
+    } else if !ends_an_operation(command)
         && let Some(message) = resolve_linked_worktree(command, target)
     {
-        // A `--skip` is decided by the save below in the main worktree and in a linked one: the copy is the protection,
-        //  and a refusal is only for the case where no copy can be made.
+        // Every abort and every skip is decided by the carve-out below, in the main worktree as in a linked one:
+        //  the same reading answers both, and only the work it finds decides the command.
         record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
     }

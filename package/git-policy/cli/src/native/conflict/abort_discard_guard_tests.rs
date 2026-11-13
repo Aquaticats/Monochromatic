@@ -35,6 +35,7 @@ fn waiting(operation: AbortOperation, worktree: Vec<Vec<u8>>, staged: Vec<Vec<u8
         baseline: DiscardBaseline::RecordedResult,
         worktree,
         staged,
+        conflicted: Vec::new(),
     };
 }
 
@@ -50,6 +51,7 @@ fn waiting_from_the_operation_start(operation: AbortOperation, ends: OperationEn
         baseline: DiscardBaseline::OperationStart,
         worktree,
         staged,
+        conflicted: Vec::new(),
     };
 }
 
@@ -203,6 +205,33 @@ fn a_staged_deletion_is_no_reason_to_refuse() {
     assert_eq!(judge_abort_discard(&mut facts, GuardedCommand::AbortMerge), AbortVerdict::Allowed);
 }
 
+/// A path the operation is still stopped at, in a state Git recorded no result for,
+///  is refused and named as one the wrapper cannot judge:
+///  what stands there may be the conflict text Git wrote or a resolution nobody else holds.
+#[test]
+fn a_conflicted_path_the_reading_cannot_judge_is_refused() {
+    let mut facts: ScriptedFacts = scripted_facts();
+    let mut discard: AbortDiscard = waiting_from_the_operation_start(
+        AbortOperation::Merge,
+        OperationEnd::Abort,
+        vec![b"conflict.txt".to_vec()],
+        Vec::new(),
+    );
+    if let AbortDiscard::Waiting { conflicted, .. } = &mut discard {
+        *conflicted = vec![b"conflict.txt".to_vec()];
+    }
+    facts.abort_discard = Ok(discard);
+    match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge) {
+        AbortVerdict::Refused(text) => {
+            assert!(text.contains("conflict.txt (a conflicted path)"), "{text}");
+            assert!(text.contains("Git recorded no result for the conflict it stopped at"), "{text}");
+            assert!(text.contains("git merge --quit"), "{text}");
+            assert!(text.contains("git merge --no-enforce-worktree --abort"), "{text}");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
 /// A refusal names a bounded number of paths and counts the rest.
 #[test]
 fn every_path_beyond_the_bound_is_counted() {
@@ -289,6 +318,7 @@ fn the_ignored_file_question_reads_the_restored_revision() {
         baseline: DiscardBaseline::OperationStart,
         worktree: Vec::<Vec<u8>>::new(),
         staged: Vec::<Vec<u8>>::new(),
+        conflicted: Vec::<Vec<u8>>::new(),
     });
     facts.ignored_and_tracked = Ok(Vec::<String>::new());
     assert_eq!(judge_abort_discard(&mut facts, GuardedCommand::AbortRebase), AbortVerdict::Allowed);

@@ -83,25 +83,63 @@ fn every_operation_names_its_quit_form() {
 #[test]
 fn each_path_carries_the_kind_of_work_standing_there() {
     assert_eq!(
-        discarded_list(DiscardBaseline::RecordedResult, &[b"a.txt".to_vec()], &[b"a.txt".to_vec()]),
+        discarded_list(DiscardBaseline::RecordedResult, &[b"a.txt".to_vec()], &[b"a.txt".to_vec()], &[]),
         "a.txt (a resolution or edit you made since Git stopped at the conflict; a staged resolution)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::RecordedResult, &[], &[b"new.txt".to_vec()]),
+        discarded_list(DiscardBaseline::RecordedResult, &[], &[b"new.txt".to_vec()], &[]),
         "new.txt (content only the index holds)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"a.txt".to_vec()], &[]),
+        discarded_list(DiscardBaseline::OperationStart, &[b"a.txt".to_vec()], &[], &[]),
         "a.txt (an edit you made since the operation began)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[], &[b"b.txt".to_vec()]),
+        discarded_list(DiscardBaseline::OperationStart, &[], &[b"b.txt".to_vec()], &[]),
         "b.txt (content the index holds)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"c.txt".to_vec()], &[b"c.txt".to_vec()]),
+        discarded_list(DiscardBaseline::OperationStart, &[b"c.txt".to_vec()], &[b"c.txt".to_vec()], &[]),
         "c.txt (an edit you made since the operation began; a staged edit)"
     );
+    // A path the operation is still stopped at in a state Git recorded no result for: neither kind is true of it,
+    //  because what stands there may be the conflict text Git wrote.
+    assert_eq!(
+        discarded_list(DiscardBaseline::OperationStart, &[b"conflict.txt".to_vec()], &[], &[b"conflict.txt".to_vec()]),
+        "conflict.txt (a conflicted path)"
+    );
+}
+
+/// A refusal that counted a conflicted path says why the wrapper could not judge it,
+///  and one that counted none says nothing about a recorded result.
+#[test]
+fn a_conflicted_path_says_why_the_wrapper_could_not_judge_it() {
+    let with: String = discard_refusal_text(
+        AbortOperation::Merge,
+        OperationEnd::Abort,
+        AbortOperation::Merge,
+        DiscardBaseline::OperationStart,
+        &[b"conflict.txt".to_vec()],
+        &[],
+        &[b"conflict.txt".to_vec()],
+    );
+    assert!(with.contains("conflict.txt (a conflicted path)"), "{with}");
+    assert!(
+        with.contains("Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours."),
+        "{with}"
+    );
+    assert!(with.contains("git merge --quit"), "the way out that keeps the work: {with}");
+    assert!(with.contains("git merge --no-enforce-worktree --abort"), "the opt-out: {with}");
+    let without: String = discard_refusal_text(
+        AbortOperation::Merge,
+        OperationEnd::Abort,
+        AbortOperation::Merge,
+        DiscardBaseline::RecordedResult,
+        &[b"a.txt".to_vec()],
+        &[],
+        &[],
+    );
+    assert!(!without.contains("Git recorded no result"), "{without}");
 }
 
 /// The list names a bounded number of paths and counts the rest.
@@ -111,7 +149,7 @@ fn the_list_is_bounded_and_counts_the_rest() {
     for number in 0..SHARED_PATHS_NAMED + 3 {
         paths.push(format!("p{number}.txt").into_bytes());
     }
-    let listed: String = discarded_list(DiscardBaseline::OperationStart, paths.as_slice(), &[]);
+    let listed: String = discarded_list(DiscardBaseline::OperationStart, paths.as_slice(), &[], &[]);
     assert!(listed.contains("p0.txt"), "{listed}");
     assert!(listed.contains(&format!("and {} more paths", 3)), "{listed}");
     assert!(!listed.contains(&format!("p{}.txt", SHARED_PATHS_NAMED + 2)), "{listed}");
@@ -130,6 +168,7 @@ fn the_refusal_names_both_ways_out_and_promises_no_copy() {
         AbortOperation::Rebase,
         DiscardBaseline::OperationStart,
         &[b"a.txt".to_vec()],
+        &[],
         &[],
     );
     assert!(text.starts_with("monochromatic-git-policy-cli: git rebase --abort is refused"), "{text}");
@@ -151,6 +190,7 @@ fn a_skip_says_it_goes_on() {
         AbortOperation::Am,
         DiscardBaseline::OperationStart,
         &[b"a.txt".to_vec()],
+        &[],
         &[],
     );
     assert!(text.contains("git am --skip goes on without the commit or patch it stopped at"), "{text}");
