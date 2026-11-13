@@ -12,6 +12,14 @@
  over the builtin catalog,
  so the stale builtin list stops serving and `unregisterProvider` restores it.
 
+ Both stream entry points wrap the OpenAI-completions stream so the provider's
+ passing token-rate limit (
+ `429 - Throttling.AllocationQuota/insufficient_quota`,
+ tokens a second or a minute,
+ `src/passing-token-rate-limit.ts`)
+ reaches pi as an answer pi's own automatic retry takes,
+ which is the layer that answers 429s here.
+
  @module
  */
 
@@ -60,6 +68,7 @@ import {
   projectQwenTokenPlanIndividualModels,
   type QwenTokenPlanIndividualPiModel,
 } from './projection.ts';
+import { streamWithPassingTokenRateLimitRetried, } from './stream-with-passing-token-rate-limit-retried.ts';
 
 //region Types
 
@@ -314,22 +323,30 @@ export function createQwenTokenPlanIndividualProvider({
       context: TranscriptContext,
       options?: ApiStreamOptions<T>,
     ): AssistantMessageEventStream {
-      return streams.stream(
+      return streamWithPassingTokenRateLimitRetried({
+        inner: streams.stream(
+          model,
+          context,
+          options,
+        ),
         model,
-        context,
-        options,
-      );
+        logger: l,
+      },);
     },
     streamSimple: function streamSimpleQwenTokenPlanIndividual(
       model: Model<typeof QWEN_TOKEN_PLAN_INDIVIDUAL_API>,
       context: TranscriptContext,
       options?: SimpleStreamOptions,
     ): AssistantMessageEventStream {
-      return streams.streamSimple(
+      return streamWithPassingTokenRateLimitRetried({
+        inner: streams.streamSimple(
+          model,
+          context,
+          options,
+        ),
         model,
-        context,
-        options,
-      );
+        logger: l,
+      },);
     },
     refreshModels: async function refreshQwenTokenPlanIndividualModels(
       context: RefreshModelsContext,

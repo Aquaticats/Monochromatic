@@ -54,6 +54,14 @@ export {
   type QwenTokenPlanIndividualProviderRuntime,
 } from './provider.ts';
 export {
+  isPassingTokenRateLimitAnswer,
+  messagePiRetriesInPlaceOfPassingTokenRateLimit,
+  QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_CODE,
+  QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_RETRIED_ERROR_MESSAGE,
+  QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
+} from './passing-token-rate-limit.ts';
+export { streamWithPassingTokenRateLimitRetried, } from './stream-with-passing-token-rate-limit-retried.ts';
+export {
   QWEN_TOKEN_PLAN_COST_RATE_ZERO,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV,
