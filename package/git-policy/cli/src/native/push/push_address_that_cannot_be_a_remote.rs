@@ -79,8 +79,8 @@ pub enum CannotBeARemote {
 ///  or nothing when it might be one now or later.
 /// Why:
 ///   The four answers come from what Git itself refuses whatever the machine's state is;
-/// every other shape is left to its retries (`doc/…`,
-/// and the module doc's measurements).
+/// every other shape is left to its retries,
+/// and this module's own doc quotes Git's answer for each of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
