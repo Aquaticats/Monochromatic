@@ -186,14 +186,27 @@ export const NEURALWATT_KIMI_FLEX: ProviderPool = {
 
  The owner, 2026-11-11T16:3x-05:00: "qwen-token-plan-individual  qwen4-max-preview is now available in Pi. Check if it can
  replace Kimi or Sonnet." Then, 2026-11-11T19:27-05:00: "Make the Qwen 4 pool 18, and use it for reviews INSTEAD of Kimi."
- So the limit is the owner's number. The plan's own concurrency limit for it is not measured or stated, and a 429 that names
- one sets the real number.
+ So the limit was the owner's number, 18, until 2026-11-13.
+
+ The limit now is measured. On 2026-11-13, between 13:56:41 and 15:15:53 (-05:00), the plan answered eighteen runs on this
+ model "429 ... Allocated quota exceeded ... insufficient_quota", which its error-code page gives as a limit on tokens a second
+ or a minute, and Pi 1.5.2 never retries that answer (`@earendil-works/pi-ai/dist/utils/retry.js` lists `insufficient_quota`
+ and `quota exceeded` as not retryable), so each one ended its run. Counted from every run's feed and summary of that day:
+ each ending came with six to nine runs on this model going; by minute, none in the 278 minutes with five or fewer going, one
+ in the 40 minutes at six, five in the 21 at seven, one in the 5 at eight, one in the single minute at nine. Six to nine runs
+ on the plan's DeepSeek model were going beside them each time, and whether the plan counts those against the same limit is
+ not shown. The owner, 2026-11-13T15:2x-05:00: "You're responsible for the driver, the wrapper, mpm, cargo. If you find a
+ issue you or a subagent fix it."
+
+ The limit is on tokens, so a count of runs stands in for it: raise the number by one after an hour in which no run on this
+ model ended on that answer, and lower it by one when one does. When Pi itself retries the answer, an ending is one Pi's retry
+ gave up on, and the same rule holds.
  */
 export const QWEN_PLAN_QWEN4_MAX_PREVIEW: ProviderPool = {
   name: 'qwen-token-plan',
   provider: 'qwen-token-plan-individual',
   model: 'qwen4-max-preview',
-  limit: 18,
+  limit: 5,
   wallFactor: 1,
   takesDefaultRuns: false,
 };

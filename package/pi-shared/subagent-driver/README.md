@@ -153,9 +153,17 @@ In the order a run that names no model of its own takes them:
   20 runs of Kimi K3.1 Pro flex,
   taken only by a run that names that model.
 - `qwen-token-plan`:
-  18 runs of `qwen4-max-preview`,
+  5 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
   Reviews of a change run here.
+  It took 18, the owner's number of 2026-11-11, until 2026-11-13.
+  That day the plan answered eighteen reviews "429 … Allocated quota exceeded",
+  its limit on tokens a minute,
+  each with six to nine runs on the model going,
+  and none in the 278 minutes with five or fewer;
+  Pi never retries that answer, so each one ended its run.
+  The number is raised by one after an hour with no such ending,
+  and the measurement is beside it in `src/pool-limits.ts`.
 
 A closed pool takes no new run at all,
 and keeps its place in the table,
