@@ -4412,9 +4412,27 @@ of which the two that rewrite link layouts in place are the service's work whene
   which runs in the service after the add returned and when the person may be working in the worktree,
   never writes that lock:
   it passes `--locked`,
-  a lock Cargo refuses is resolved first by `cargo metadata --offline`,
-  and the checked-out bytes go back only when the file still holds exactly what that resolution wrote,
-  so a write of the person's lands in their own file and stays there.
+  and a lock Cargo refuses is resolved in a mirror of the workspace below the Git directory,
+  never in the worktree:
+  the mirror's directories on the way to the workspace are the job's,
+  every other entry is a link to the real one,
+  and the workspace's manifest and lock are copies,
+  so Cargo's resolution writes a `Cargo.lock` that is not the person's file.
+  The resolution's bytes are then placed at the lock with the one step that hands back the file it
+  replaced (`renameat2(RENAME_EXCHANGE)`):
+  whatever stood there at that instant is returned and compared with the bytes the filling read before
+  its clean began,
+  and anything else is a person's write,
+  which is put back while the resolution is taken away and the repair gives way for that workspace.
+  So no moment exists in which a write a person made to that file is replaced:
+  a write made before the placement is handed back,
+  a write made after it makes the file differ from the resolution and the checked-out bytes never go
+  back over it,
+  and a lock a person creates where the checkout has none is never written over (`create_new`).
+  A filesystem that cannot exchange the two names gives that workspace up rather than write over the
+  lock,
+  and a mirror that cannot be made or a resolution that fails does the same,
+  because the prewarm of one workspace costs only a build and a replaced write costs the person's work.
   That comparison is a moment of its own,
   so the write that puts the checked-out bytes back is one step that hands back the file it replaced
   (`renameat2(RENAME_EXCHANGE)`,
@@ -4435,6 +4453,73 @@ of which the two that rewrite link layouts in place are the service's work whene
   the workspace,
   `cargo update --offline --workspace` there and the clean the add would have run,
   in Cargo's own words for whatever stopped it.
+  The names a filling works on are held by a lease,
+  `<staging name>.claim`,
+  taken with `flock(LOCK_EX | LOCK_NB)` before anything is removed or renamed and held until the
+  filling ends:
+  a marker says a filling wrote the names, and only the kernel's lock says whether it is still alive,
+  because a killed filling and a live one leave the same marker.
+  A filling that finds the lease taken stages under names of its own and removes nothing;
+  the add gives that workspace up rather than take a live filling's names,
+  and the same lease is what lets the next filling treat an abandoned marker as a dead filling's.
+  Every pair of adjacent steps below is listed with what another actor at that point leaves, and the
+  control that shows it:
+
+  - The add takes the lease, then writes the marker.
+    A kill between them leaves a lease file nobody holds and no marker;
+    the next add takes the lease and writes its own marker
+    (`a_marker_whose_rename_never_happened_stages_the_state_again`).
+  - The add writes the marker, then renames the copied state aside.
+    A kill in between leaves the marker and the build state where it was;
+    the next add stages it again rather than skipping the repair
+    (`a_marker_a_copy_carried_from_another_worktree_never_skips_the_repair`).
+    A second add at that moment finds the lease free and stages only what its own worktree holds.
+  - The add stages the state, then writes the prewarm record.
+    A kill in between leaves a staged copy nothing names;
+    the next filling of that build directory finds a marker whose lease nobody holds, adopts the
+    names and completes the clean and the publish
+    (`a_filling_a_kill_left_has_its_names_taken_and_its_leftovers_removed`).
+  - The filling takes the lease, then reads the marker.
+    A second filling at that point sees the lease taken and stages under names of its own, removing
+    nothing of the live one's;
+    a person's write to the lock is untouched by either
+    (`a_filling_that_is_alive_keeps_its_names_from_the_next_one`,
+    `an_add_never_takes_the_names_of_a_filling_that_is_alive`).
+  - The filling clones into the staging name, then reads the lock.
+    A kill leaves an uncleaned clone beside the marker;
+    the next filling adopts the names and cleans a fresh clone, and the abandoned one goes with them.
+    A build that starts in the worktree in the meantime publishes itself and the copy is given back
+    (`a_build_that_got_there_first_keeps_its_own_and_the_staged_state_is_given_back`).
+  - The filling reads the lock, then runs the `--locked` clean.
+    A person's write there is the lock the restore compares against `before`:
+    it is their bytes, so it stays theirs and the checked-out bytes never go back over it
+    (`a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it`).
+  - The clean refuses the lock, then the resolution runs in the mirror.
+    A person's write during it is in the worktree, untouched by Cargo;
+    the placement then hands it back and the repair gives way
+    (`a_write_the_resolution_meets_is_handed_back_and_the_repair_gives_way`).
+    A kill during the mirror's resolution leaves only the mirror below the Git directory, which the
+    next filling rebuilds, and the person's file as it was.
+  - The placement puts the resolution in, then the second clean runs.
+    A person's write after the placement makes the file differ from the resolution, so the restore
+    leaves it and names the copy it kept
+    (`a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it`).
+    A kill after the placement leaves the resolution in the person's file and its predecessor kept
+    under the Git directory;
+    the next filling reads the lock again and puts the checked-out bytes back over a file that holds
+    the resolution only (`the_filling_puts_the_lock_back_as_checked_out`).
+  - The clean ends, then the restore runs.
+    A write in that window is put back by the exchange and the checked-out bytes are kept
+    (`a_lock_another_command_wrote_is_kept_before_the_checked_out_one_comes_back`).
+  - The restore ends, then the copy is published.
+    A build that made the destination keeps it and the staging copy is given back;
+    a second filling's publish answers `AlreadyExists` and reports `Kept`
+    (`publishing_a_staging_copy_never_replaces_a_directory`).
+  - The publish ends, then the names are given back.
+    A kill in between leaves the marker, the target and the lease with no staging;
+    the next filling finds the destination and gives them back without touching it
+    (`a_filling_killed_after_it_published_leaves_nothing_of_its_own`).
+
   Nothing is cloned or cleaned when the source and the worktree share one build directory,
   when the source has no such
   workspace,
