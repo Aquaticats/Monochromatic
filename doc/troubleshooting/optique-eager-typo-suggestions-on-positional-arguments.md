@@ -627,9 +627,13 @@ Readiness check,
     yes,
     the figures under "Verification" come from that script unchanged.
 7.  Reproduction runnable by others on a clean machine through CI:
-    not done.
-    The script needs one file and one installed package;
-    no repository with a workflow was created.
+    not done on 2026-11-12.
+    Done since:
+    `Aquaticat/optique-parse-cost-reproduction`,
+    private,
+    with three workflow runs that fail on their asserting steps;
+    the scripts were also run on Node,
+    Deno and Bun on 2026-11-13.
 8.  Verdict:
     no recommendation to post.
     The blocker is one only the owner can clear:
@@ -650,10 +654,31 @@ and a reproducer.
 The reassessment itself is the owner's to state,
 so that line is a placeholder.
 
+Rewritten 2026-11-13T09:36:05-05:00,
+because the thread moved:
+
+- The owner answered on the commit at 2026-11-12T13:52:56Z:
+   "Looking. ETA: In 24h with 90% certainty."
+   That day ended at 2026-11-13T13:52:56Z,
+   before this rewrite.
+- The maintainer read this repository's documents without waiting,
+   opened upstream issue 1120 from them at 2026-11-13T08:16:37Z,
+   and opened pull request 1121 for it two hours later.
+   So the draft no longer reports the short-option cost as news;
+   it reports a measurement of the pull request.
+- The input-trace cost has its own document and a checked patch,
+   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+
 ~~~md
-Thanks for #992 and #997, and for following up. I reran the parser this commit removed, unchanged from its parent,
-against several versions. One parse of `['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a
-two-CPU container:
+Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
+had written back.
+
+[Owner: your answer to "would you consider reassessing". What the record here shows: performance was the reason for
+one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
+and Valibot reasons you noticed.]
+
+The numbers behind that. The parser this commit removed, unchanged from its parent, one parse of
+`['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a two-CPU container:
 
 - 1.1.1: 2,696 ms
 - 1.3.2 and 1.3.6: 180 ms and 184 ms
@@ -662,24 +687,33 @@ two-CPU container:
 So #992 removed 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
 `errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
 
-[Owner: your answer to "would you consider reassessing". What the record here shows: performance was the reason for
-one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
-and Valibot reasons you noticed.]
+On #1121: I measured its branch at a175cdb7 from source on Deno, seven rounds with the arms rotated, a thousand
+paths after `--`:
 
-Three things from the measurement that may be of use:
+- 1.3.6: 30.8 ms
+- main at 84f95710: 56.5 ms
+- #1121: 42.0 ms
 
-1. On 1.3.6 the default path still collects the option names and searches them on every mismatch; a profile puts
-   about three quarters of the parse there. The new length check skips a name only when its length differs from the
-   token's by more than three, so a token about as long as the option names still pays in full. That may be why
-   your short-path run showed no change. A literal `errors.noMatch` on every option avoids all of it.
-2. On main, with `--` before the paths, the same parse takes about 1.8 times as long as on 1.3.6 (1.5 to 2.1 over
-   seven paired rounds). The profile puts the difference in *short-option.js* from #981.
-3. On every version from 1.1.1 to main, parse time is close to quadratic in the number of positional tokens:
-   `InputTraceImpl.set()` copies its whole map for each token it records. With one option, eight times the tokens
-   costs 40 to 55 times as long.
+That is 0.75 times main (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42), which agrees with your own figures.
+On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
 
-Scripts for all three run unchanged on Node, Deno and Bun, against an npm version or a checkout, and a workflow
-runs them on pinned versions: https://github.com/Aquaticat/optique-parse-cost-reproduction
+What #1121 leaves looks like the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
+of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
+input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
+an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
+to main and to #1121's branch. The write-up and the patch:
+https://github.com/Aquaticats/Monochromatic/blob/main/doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md
+
+The patch was written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for it?
+
+One thing that is still true of 1.3.6: the default path collects the option names and searches them on every
+mismatch, and a profile puts about three quarters of the parse there. The length check skips a name only when its
+length differs from the token's by more than three, so a token about as long as the option names pays in full. A
+literal `errors.noMatch` on every option avoids all of it.
+
+The reproducer you asked for: three scripts that run unchanged on Node, Deno and Bun, against an npm version or a
+checkout, and a workflow that runs them on pinned versions:
+https://github.com/Aquaticat/optique-parse-cost-reproduction
 
 One question: after #997 every token is still offered to every option parser, a constant cost per token and option.
 Is that the intended end state?
@@ -691,8 +725,17 @@ deleted, so our old 4.24 s and 0.89 s compared two different things.
 want to say about the cost not having been reported upstream in July.]
 ~~~
 
-The repository the draft links was created private on 2026-11-12T21:02:23Z
-and is not readable by the maintainer until the owner makes it public.
+Two things the draft depends on,
+as of 2026-11-13:
+
+- The repository it links was created private on 2026-11-12T21:02:23Z
+   and is not readable by the maintainer until the owner makes it public.
+   Three of its workflow runs fail on their asserting steps,
+   as its README says they should
+   (`43306241322`,
+   `43306311950` and `43443075690`).
+- The link to the input-trace write-up names the `main` branch;
+   replace it with a commit permalink on the day of posting.
 
 [object loop]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/constructs.ts#L5869-L5884
 [no-match 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L1232-L1271

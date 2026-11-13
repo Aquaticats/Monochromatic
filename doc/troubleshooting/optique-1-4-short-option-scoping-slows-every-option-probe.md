@@ -9,6 +9,18 @@ and no package in this repository uses a 1.4 build.
 It is written up because upstream's maintainer asked this project to assess `main`,
 and because upstream can still change it before 1.4.0.
 
+Status,
+2026-11-13:
+upstream is fixing it.
+The maintainer opened [upstream issue 1120][upstream issue] at 2026-11-13T08:16:37Z,
+"Reduce option-scope overhead when probing positional arguments",
+which says the regression
+"was reported in Monochromatic's research record and short-option scoping investigation,
+then reproduced locally",
+and links this document at commit `249bbf19ea`.
+Pull request 1121 for it was opened at 2026-11-13T10:10:30Z and is open at this writing.
+What this project measured of that pull request is under "Upstream's pull request 1121, measured".
+
 The measurement behind it is in `doc/research/optique-typo-suggestion-overhead-upstream-record.md`,
 section "What the 1.4 line added",
 with the raw records in the evidence archive beside that document.
@@ -231,6 +243,60 @@ A thousand paths with no separator.
 `1.4.0-dev.2971` took 0.51 times as long as 1.3.6 there (0.46 to 0.61),
 because the suggestion work pull request 997 removed was larger than the scope work pull request 981 added.
 
+### The three runtimes
+
+On 2026-11-13 the reproduction repository's `commit-paths.ts --separator` was run on three runtimes,
+in the same kind of container with no network,
+five alternating rounds each.
+`1.4.0-dev.2971` against 1.3.6:
+
+- Node 26.13.1:
+   1.90 (1.80 to 2.11)
+- Deno 2.9.8:
+   1.85 (1.77 to 2.00)
+- Bun 1.4.4:
+   2.61 (2.51 to 2.75)
+
+Every round was slower on every runtime.
+Bun's 1.3.6 figure is lower than the others' (21.1 ms against 36.9 on Node),
+while its figure for the pre-release is about the same (55.2 against 70.5),
+so the scope work costs relatively more there.
+
+### Upstream's pull request 1121, measured
+
+Seven rounds with the order of the arms rotated,
+on Deno 2.9.8,
+1.3.6 from npm and the other arms from source:
+`main` at `84f95710` and the pull request's head `a175cdb7`.
+A thousand paths after `--`:
+
+- 1.3.6:
+   30.8 ms
+- `main`:
+   56.5 ms,
+   1.87 times 1.3.6 (1.79 to 1.92)
+- Pull request 1121:
+   42.0 ms,
+   0.75 times `main` (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42)
+
+Every round went the same way in each comparison.
+The pull request's own figures,
+on Node and another machine,
+are 37.0,
+77.6 and 54.3 ms,
+which is 0.70 times `main` and 1.47 times 1.3.6;
+it says
+"the separator case remains slower than 1.3.6".
+The two measurements agree on the direction and roughly on the size.
+
+With no separator the pull request took 0.80 times as long as `main` (0.79 to 0.81).
+
+What remains after it is mostly a different cost:
+with the input-trace patch of
+`doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md` on top of the pull request,
+the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07,
+two of seven rounds slower).
+
 ## Verified workarounds
 
 ### Stay on the 1.3 line for inputs with many tokens after `--`
@@ -259,7 +325,24 @@ No way to switch the scope work off inside the 1.4 line was looked for.
 
 ### Upstream filing decision
 
-Decision:
+Decision,
+2026-11-13:
+no new report.
+Upstream issue 1120 is this finding,
+opened by the maintainer from this document,
+so a report from here would duplicate it.
+The record from 2026-11-12 that follows was written before that issue existed and is kept as the audit trail.
+
+What this project has that the issue and its pull request do not
+(the three-runtime figures,
+a second measurement of the pull request,
+and what the input-trace patch does to the remainder)
+goes into the reply the maintainer asked for,
+drafted in `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md`.
+A separate comment on issue 1120 would repeat that reply,
+so none is drafted.
+
+Decision as it stood on 2026-11-12:
 a new report is warranted,
 since nothing upstream covers this;
 whether and how to send it is the owner's decision.
@@ -355,41 +438,14 @@ Readiness check,
     and the owner's review and edit of the text,
     which upstream's policy requires.
 
-### Draft issue (do not post as-is)
+### No draft issue
 
-An AI session wrote every line of it and no person has reviewed it.
+The draft issue this section held on 2026-11-12 was never posted,
+and upstream issue 1120 now says what it said,
+with the maintainer's own reproduction.
+Nothing is to be filed from it.
 
-~~~~md
-Target branch: `main`, before 1.4.0.
-
-On `main`, a successful parse of many positional arguments after `--` takes about 1.8 times as long as on 1.3.6.
-Without `--` the 1.4 line is faster than 1.3.6 overall, because #997 removed the suggestion work, so this cost
-only shows where there was no suggestion work to remove.
-
-Measured with a parser that has the option set of `git commit` and a thousand paths after `--`, seven rounds with
-the versions alternating, on Node 26 in a two-CPU container:
-
-| version | median of process medians | against 1.3.6, paired by round |
-| --- | --- | --- |
-| 1.3.6 | 41.3 ms | |
-| 1.4.0-dev.2664 | 75.1 ms | 1.80 (1.36 to 1.91) |
-| 1.4.0-dev.2971 | 79.4 ms | 1.73 (1.51 to 2.12) |
-
-A CPU profile puts the difference in *short-option.js*, which 1.3.x does not have: about 26 of the 31 ms added
-per parse, in `withParserOptionScope()`, `forkOptionScope()` and `withOptionScopeChild()`. `withChildContext()`
-calls `withParserOptionScope()` for every child it offers a token to, and each call spreads the context into a
-new object and builds a new `Set` from the inherited sources; `forkOptionScope()` copies the selections `Map`.
-In a sweep over the number of options the cost was a constant 1.6 to 1.9 µs per token and option.
-
-The file arrived with #981. I have not tried to change it: I do not know which scopes may be shared between
-probes.
-
-A script that shows it, and a workflow that runs it against pinned versions: [link to the reproduction
-repository].
-
-[Owner: add the disclosure of AI assistance that upstream's policy asks for, in your own words.]
-~~~~
-
+[upstream issue]: https://github.com/dahlia/optique/issues/1120#:~:text=was%20reported%20in%20Monochromatic%27s
 [child context]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/constructs.ts#L248-L260
 [parser scope]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/short-option.ts#L274-L299
 [fork scope]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/short-option.ts#L302-L313

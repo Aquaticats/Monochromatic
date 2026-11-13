@@ -768,72 +768,75 @@ Open:
   which is scratch and not committed
   (its first copy under `${HOME}/temp/agent` was gone after the reboot of 2026-11-13).
 
-### State when this work wound down, 2026-11-12T16:10:00-05:00
+### State on 2026-11-13T09:36:05-05:00
 
-The owner's note in commits `6b88bafc75` and `869cd1ff95` asked every agent to wind down,
-because `/var/home` was full
-(`df` read 148K available at the time).
-The work stopped part way,
-and nothing was sent upstream.
+Nothing has been sent upstream by this project.
+Upstream moved on its own from this repository's public documents:
 
-Done and checked:
+- The owner answered the maintainer on the commit at 2026-11-12T13:52:56Z:
+  "Looking. ETA: In 24h with 90% certainty."
+  That day ended at 2026-11-13T13:52:56Z with no reply posted.
+- The maintainer opened upstream issue 1120 at 2026-11-13T08:16:37Z,
+  citing the research record and the short-option document at commit `249bbf19ea`,
+  and pull request 1121 for it at 2026-11-13T10:10:30Z.
+  Issue 1120 names the input-trace copy and puts it outside its own scope.
 
-- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` exists,
-  private,
-  created 2026-11-12T21:02:23Z,
-  at commit `43cc2885d6492923c7cfefae2dec9d3402730a4d`,
-  authored with the account's noreply address.
-- Its workflow ran twice on GitHub's runners,
-  runs `43306241322` (push) and `43306311950` (started by hand),
-  and both gave the same result:
-  the job for discarded diagnostics passed on `1.4.0-dev.2971` and failed on 1.3.6,
-  both token-count jobs failed,
-  and the separator job failed,
-  each on its asserting step.
-  In run `43306311950` the separator job read 41.3 ms on 1.3.6 against 77.0 ms on `1.4.0-dev.2971`,
-  a ratio of 1.86,
-  and the fitted exponent of parse time against token count was 1.7 on 1.3.6 and 1.564 on `1.4.0-dev.2971`.
-- `doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md` is written.
+Where each piece stands:
+
+- The reply draft,
+  in `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md`,
+  was rewritten on 2026-11-13 for that state.
+  It waits for the owner's edit,
+  disclosure and posting.
+- The short-option finding needs no report;
+  its document records upstream's issue and this project's measurement of pull request 1121.
+- The input-trace finding has its document,
+  `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
+  a patch beside it,
+  and a draft issue.
+  The patch was written by an AI agent on 2026-11-12 and rechecked on 2026-11-13.
+  Whether to post the issue is the owner's decision.
+- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is private,
+  at commit `76b15277df53e5577cdc4e67bfeda3b7302b12c6`.
+  Its README was corrected on 2026-11-13,
+  and its scripts were run on Node,
+  Deno and Bun that day.
+  Three workflow runs fail on their asserting steps.
+  Before it is made public,
+  every file,
+  commit message and commit author has to be read,
+  as `.agents/skills/troubleshooting-doc/SKILL.md` asks;
+  that reading is not done.
 
 Not done:
 
-- The repository's `README.md` gives an exponent range of 1.75 to 1.97,
-  which came from a local check over other token counts;
-  the runs measured 1.56 to 1.7,
-  so that sentence needs the measured figures.
-  Its claim that the scripts were run on Node,
-  Deno and Bun is unverified:
-  only Node ran,
-  locally and in the workflow.
-- The new troubleshooting doc's lint run was stopped before it answered.
-  Its draft issue holds a pipe table inside a code fence,
-  which the lint may or may not accept.
-- The fix prototype for the input trace was at its changelog step when it was asked to stop
-  (run folder `optique-input-trace-fix-prototype-4`,
-  clone `${HOME}/temp/agent/upstream-prototype.O1iPjcqr`).
-  Its patch has not been checked by anyone but the agent that wrote it,
-  and the troubleshooting doc for that finding is not written.
-- The agent that was to run the scripts on Deno and Bun did not get going
-  (run folder `optique-cross-runtime-reproducers-7`).
-- No reviewer from another vendor has read the rewritten reply draft or the new doc.
-- `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip` predates the later check runs.
-- The repository has not been made public.
-  The rule in `.agents/skills/troubleshooting-doc/SKILL.md` asks for every file,
-  commit message and commit author to be read first.
+- No reviewer from another vendor has read the rewritten reply draft or the input-trace document.
 - The owner has not yet been asked which of the remaining questions to send,
   nor what to do with the findings that are held back from this repository
   because upstream's `SECURITY.md` asks for a private report.
+- Upstream's full suite on Bun was not run against the patch with a baseline.
 
-Scratch lives under `${HOME}/temp/agent` on the full disk.
-The small files that cannot be regenerated were copied on 2026-11-12 to
-`/var/mnt/encrypted/temp/agent/optique-session-2026-11-12/`:
-the question list,
-the held-back report,
-the staging folder and publish script for the reproduction repository,
-one run's log,
-the coordinator's check scripts and their records,
-and the prototype's logs and commit message.
-The prototype's patch itself is only in its clone.
+Scratch,
+all under `${HOME}/temp/agent`,
+which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
+
+- `optique-session-2026-11-12/`:
+  the question list,
+  the held-back report,
+  the publish and wait scripts for the reproduction repository.
+- `optique-parse-cost-reproduction/`:
+  the staging copy the publish script reads.
+- `optique-2026-11-13/`:
+  the container recipes,
+  runners and records of the measurements of 2026-11-13.
+- `upstream-prototype.O1iPjcqr/`:
+  the disposable clone that holds the patch's working tree,
+  with its logs.
+
+Container images `localhost/optique-cross-runtime:2026-11-13`,
+`localhost/optique-upstream-arms:2026-11-13` and `localhost/optique-prototype-work:2026-11-13`
+were built on 2026-11-13,
+after `podman system reset` removed the earlier ones.
 
 The defects in this repository's own tools that showed during the work are filed,
 on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
