@@ -504,6 +504,7 @@ git [<git-global-options>] monochromatic-git-policy-cli check [--policy <id>]...
 git [<git-global-options>] monochromatic-git-policy-cli fix [--policy <id>]... --all
 git [<git-global-options>] monochromatic-git-policy-cli fix [--policy <id>]... -- <pathspec>...
 git [<git-global-options>] monochromatic-git-policy-cli doctor
+git [<git-global-options>] monochromatic-git-policy-cli kept-references [--prune]
 ```
 
 The retired forms `trust [--yes]`,
@@ -532,6 +533,11 @@ Rules:
 - `doctor` takes no options,
   scope or policy;
   any extra token is a usage error with exit `2`.
+- `kept-references` takes no scope or policy:
+  no argument lists the references the wrapper keeps commits on,
+  and `--prune` runs one pruning of them;
+  any other token is a usage error with exit `2`.
+  It runs no policy and reads no configuration.
 - `check` and `fix` load config after grammar and scope validation.
 - `fix` changes selected worktree files and verifies every real index blob is unchanged.
 
@@ -3455,6 +3461,129 @@ A merge run again never finishes that removal:
 a branch that already landed makes the merge up to date,
 so it looks at no worktree.
 
+The wrapper prunes the references it keeps commits on,
+by age and by size
+(the owner's answer of 2026-11-12:
+"Keep the reference,
+auto prune by size and age"),
+because nothing else removes them and the objects only they reach would accumulate without end.
+
+A reference is a kept reference when its name is `refs/cli-git/kept/<number>` or
+`refs/cli-git/kept/<number>-rescue`;
+nothing else under `refs/cli-git/` is touched,
+so `refs/cli-git/carried/<number>` (the carried work of an isolated merge)
+and `refs/cli-git/auto-push/fetch-<pid>` (a private fetch of a push) are left where they are.
+
+A kept reference goes in three cases,
+judged in this order.
+Its commit has been reached by a local branch,
+a remote-tracking branch or a tag
+(and by none of the holders that go away by themselves:
+a landing's `refs/worktree/cli-git-service/<batch>`,
+the carried work of an isolated merge,
+a private fetch of a push,
+a person's stash,
+each of which is a holder in flight and not a branch):
+the question is asked again immediately before such a reference goes,
+because a branch can move off the commit while the reference's own value stays the same;
+the reference holds nothing any more and goes at the pass that reads it,
+whatever its age.
+It is older than thirty days and no branch reaches its commit:
+it goes,
+because a person who would recover that commit has had the time.
+Or the objects reachable only through kept references weigh more than 64 MiB:
+the oldest references go first,
+one at a time,
+each removal followed by a fresh reading of what the survivors reach,
+until the survivors are under the limit or none of them is older than one hour,
+which is the floor under which no reference is ever pruned for its size.
+Every pass plans at most sixteen removals and stops planning and removing after twenty seconds,
+leaving the rest to the next pass,
+which runs after the next landed commit.
+
+The size is measured over the objects reachable from a kept reference and from no reference outside
+`refs/cli-git/kept/`,
+in bytes on disk as `%(objectsize:disk)` reports each of them.
+That is the space a repository gives back when the reference goes,
+and it is what the passage of time makes grow;
+the objects before compression are not counted,
+because they are not what the disk holds.
+
+A reference carries no time of its own:
+the wrapper writes no reflog for one,
+so it records when it wrote each in
+`<common Git directory>/monochromatic-git-policy-cli/kept-references/<number>[-rescue].json`,
+with the worktree the commit was built in when the writer knew it.
+A removal writes that record,
+and a reference an earlier release wrote has none,
+so the first pass that lists it writes one dated at that moment:
+such a reference is never pruned before it has been listed for the whole age limit,
+which loses no commit and lets every reference this release and the earlier ones wrote be bounded.
+
+Before a reference whose commit no branch reaches is removed,
+and before every other removal of a reference too,
+the wrapper appends one line to
+`<common Git directory>/monochromatic-git-policy-cli-kept-references.jsonl`
+that carries the time,
+the reference,
+the commit,
+the batch and its two forms,
+the worktree the commit was built in,
+its age and the reason it went.
+That line is the only account of the commit afterwards,
+because the reference was its only handle,
+and `git gc` takes the objects once it is gone,
+so the line is written before the reference goes and never after:
+a crash between the two must not leave the repository without either.
+A removal Git then refuses
+(because another pass took the reference first,
+or another command moved it)
+appends a second line about the same reference with `"outcome":"refused"`,
+so what the log says is what became of each removal.
+A line that cannot be written never stops the removal:
+the rule against unbounded growth decides,
+and the service's log names the failure.
+
+The pass runs off the path any command waits for:
+in the commit service's after-commit upkeep,
+in the record that also runs `git maintenance run --auto`,
+once per repository per round,
+and through `git monochromatic-git-policy-cli kept-references --prune`
+when a person asks.
+It takes no repository-wide lock:
+each removal is `git update-ref -d <ref> <old value>`,
+so a reference another command wrote after the pass listed it is not removed by that pass,
+a reference another pass removed makes this removal refuse,
+and two passes that run at once leave the repository where one of them leaves it.
+Every Git start it makes carries the step ceiling every other start of the wrapper carries.
+
+`git monochromatic-git-policy-cli kept-references` lists every kept reference with its commit,
+its age,
+the worktree and batch it came from,
+and what the next pass will do with it,
+and its last line says how many the next pass prunes and what the survivors weigh.
+The listing is the pass with the removals left out,
+so what it says the next pass takes is what that pass takes.
+
+The three limits are named in
+`src/native/kept_references/kept_reference_limits.rs`,
+each with the measurement it rests on,
+and a run changes any of them with
+`CLI_GIT_KEPT_REFERENCE_MAX_AGE_SECONDS`,
+`CLI_GIT_KEPT_REFERENCE_MAX_BYTES` and
+`CLI_GIT_KEPT_REFERENCE_FLOOR_SECONDS`;
+a value that is not a positive whole number keeps the shipped one,
+so a typo never removes a bound.
+Measured on this repository on 2026-11-12:
+five kept references,
+the oldest 6.5 days old and none of them reached by a branch,
+holding 27 objects that weigh 7,573 bytes on disk (258,055 bytes before compression),
+so thirty days is about five times the oldest age ever reached here and 64 MiB is about 43,000 of
+them at that weight;
+a repository with ten times this activity would bound the folder at about 250 references and the same
+ages,
+and one whose kept commits carry ten times the content would reach the size limit on most passes.
+
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
 below the tree's parent without following a link or crossing a mount,
@@ -5207,42 +5336,42 @@ and "never discard user data"):
   a path written after the capture is left alone and named,
   and nothing is written to it before that is decided,
   so the line that names it is true.
-  A mode the person set without touching the bytes is theirs as the bytes are:
-  the merge's own content is written with their mode,
-  and a staged mode stays staged over the merge's object,
-  where every permission bit Git does not record (the read and write bits of each of the owner,
-  the group and
-  everyone,
-  and the setuid,
-  setgid and sticky bits above them) is kept from the entry the write replaces and
-  only the execute bits come from Git's entry
-  (`keep_the_permissions_of_the_entry_it_replaces` in `src/native/merge/merge_isolation_carry_place.rs`,
-  and `plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`
-  for the execute bits and the staged mode).
-  A saved merge's install gives the files it wrote the permission bits the command judged before the carry
-  writes over them
-  (`give_back_the_permissions_of_the_files_the_install_wrote` in
-  `src/native/merge/merge_isolation_recovery_install.rs`),
-  because `checkout-index` writes the mode Git's entry implies and the chmod the judgement saw is nowhere else.
-  An entry that was a symbolic link has no mode of the person's to give back,
-  because a link's own permission bits are the platform's and not a person's,
-  so a file the merge puts where a link stood keeps the mode Git's entry implies.
-  A mode at a path the merge deletes keeps the person's side whole and is named with the others,
-  because nothing of the merge's stands there to take it
-  (`the_mode_a_deletion_would_leave` in `src/native/merge/merge_isolation_carry_layers.rs`,
-  and `plan_worktree_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs` for a mode the capture read).
-  A mode the capture read is every permission bit the entry carried,
-  which Git records only the executable one of,
-  and it is recorded because a path the merge deletes stands empty when the carry writes the person's entry back:
-  the entry that would have given the bits back is gone,
-  so a private file came back world-readable and a `chmod 0600` on a path the merge deletes was dropped
-  (`CapturedFile` in `src/native/merge/merge_isolation_carry_parts.rs`,
-  and `paths_with_a_mode_a_person_set` in `src/native/merge/merge_isolation.rs`,
-  which puts such a path among the paths the merge would discard because `git status` compares the executable bit alone;
-  a checkout that wrote the file under another umask reads as the person's there,
-  which keeps a file rather than lose one;
-  a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
-  its second finding).
+  A permission bit Git does not record is not work a merge carries:
+  a `chmod 0600` on a tracked `0644` file is invisible to Git,
+  and real Git writes the merge's content over it with the mode its entry and the umask give,
+  so this command does the same and the file ends as Git's own checkout leaves it
+  (owner's decision of 2026-11-12T12:26:24-05:00,
+  "As real Git,
+  both cases",
+  recorded in `doc/handover/cli-git-rust-implementation.md`).
+  So a path the merge writes is created as Git creates it:
+  `0666`,
+  or `0777` when Git's entry for it is executable,
+  with the file system narrowing that by the process's umask and any default ACL of the directory,
+  and the executable bits come from the mode the two layers end with
+  (`write_entry` in `src/native/merge/merge_isolation_carry_place_write.rs`,
+  and `plan_worktree_awaiting` and `plan_index_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
+  A saved merge's install writes the same mode,
+  because `checkout-index` creates the file as Git does
+  (`src/native/merge/merge_isolation_recovery_install.rs`).
+  Nothing puts any other bit back over it,
+  and a permission bit a person set that Git does not record is not listed as work the merge would discard,
+  because the merge does not discard what it writes over:
+  the mode follows Git.
+  A staged entry is a different thing:
+  `git add` writes the executable bit into the index,
+  where it is a record of Git's and a piece of the person's work as their staged bytes are,
+  so a staged mode stays staged over the merge's object,
+  and at a path the merge deletes it is written back with the file it names
+  (`plan_index_awaiting` and `plan_worktree_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs`).
+  The one place the person's own bits are written for an unstaged file is a path the merge deletes while their
+  file stays,
+  which is a deletion against an edit they made:
+  nothing of Git's stands there,
+  so their entry goes back exactly as the capture read it,
+  every permission bit included,
+  and the mode Git records is kept for the kind and the executable bits
+  (`the_persons_bits` of `FileWrite::Bytes` in `src/native/merge/merge_isolation_carry_writes.rs`).
   A layer another program wrote keeps its bytes while the other layer of the same path is still carried.
   Every such finding exits 0:
   the merge is made,
@@ -6751,6 +6880,35 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `WITHDRAW_CEILING` 10 minutes:
   the client's wait for the answer to its withdrawal (five times the longest observed
   landing).
+- `CONNECT_CEILING` 5 seconds:
+  one connection to the service's address.
+  A connect to a local socket completes in the kernel,
+  and it waits only for room in the socket's queue of connections nothing has accepted yet:
+  a blocking connect into a queue of one that already held two connections was still waiting after 2,000 ms on
+  2026-11-12,
+  so a queue nothing empties is a wait with no end of its own.
+  80 times the slowest of 2,000 measured connects (15 us at the median,
+  156 us at the 99th percentile,
+  62.6 ms at the slowest),
+  and the silence a service that is working may keep (`HEARTBEAT_SILENCE`).
+- `REQUEST_WRITE_SILENCE` 5 seconds:
+  how long the write of a request may take no byte at all before the service is taken for one that stopped reading.
+  A request line is at most `MAX_LINE_BYTES` (one mebibyte),
+  and the send buffer of a local stream socket holds 212,992 bytes,
+  so a request of one mebibyte can only be written by a service that reads:
+  measured on 2026-11-12,
+  one socket's two buffers took 233,152 bytes with nothing reading,
+  and a commit whose service stopped with `SIGSTOP` waited there with no bound at all before this.
+  It is `HEARTBEAT_SILENCE`,
+  five beats,
+  because a service that reads takes the bytes at once.
+- `REQUEST_WRITE_CEILING` 10 seconds:
+  the longest the whole request of a commit is written,
+  however steadily the service takes it.
+  One mebibyte written into a socket whose reader drains it took 0.4 ms at the median,
+  16.6 ms at the 99th percentile and 18.2 ms at the slowest of 50 runs on 2026-11-12,
+  so ten seconds is 550 times the slowest of them,
+  and it is the wait a command already grants a service's own start (`START_WAIT`).
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
@@ -7646,11 +7804,49 @@ now inside these bounds:
   from the longest
   of 715 measured holds);
   this number awaits the owner's approval.
+- Every step of a commit's exchange with its service is bounded,
+  and each ends at a constant of `service/wait_ceilings.rs` named above:
+  the connect at `CONNECT_CEILING`,
+  the write of the request at `REQUEST_WRITE_SILENCE` and `REQUEST_WRITE_CEILING`,
+  the greeting at the start wait the client was given,
+  and the answer at `HEARTBEAT_SILENCE` and `ANSWER_CEILING`.
+  The write waits on progress and not on a clock:
+  the silence window starts again with every byte the kernel takes,
+  so a service that reads slowly but reads is waited for,
+  and only the whole request has a ceiling.
+  A line is read in chunks under the bound the connection carries,
+  because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
+  so a service that dribbles bytes and never ends its line held a client inside one call for ever.
+- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+  A line that ends with the connection instead of its newline is not decoded,
+  not queued,
+  and refused in the service's log
+  (`service/service_server_connection_handling.rs`).
+  The two ends agree on one meaning of "taken",
+  and neither carries the proof alone:
+  the client's chunked write can leave every byte of the object and only the newline unsent,
+  and the service used to decode that at end of stream and land it
+  (the review of this change, finding 1).
+- The client says the service never took a request only when it never put one whole request line on the wire.
+  A give-up on the write ends with `ClientFailure::ServiceNotReading`,
+  which says the commit was not made and cannot land later
+  (`landing/service_messages_of_a_service_that_stopped.rs`),
+  only when no attempt of this command delivered a whole line;
+  after an attempt that did, a give-up ends with the "not known" failure,
+  whose commit's scratch tree stays with the service's claim on it.
+  The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
+  the landing's client-gone check races the connection writer's heartbeat,
+  so that message says the service may still land it and names `git log -1`.
 - The service sends a heartbeat every second (`HEARTBEAT_EVERY`) to a client whose request is queued or landing;
   a client that
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  The connection made again is what tells a service that stopped from one whose beats were late:
+  a service that still runs greets a new connection at once,
+  however busy its landing is,
+  and a service that stopped greets nothing,
+  which ends the command at that bound.
   The beat is written before the note it carries,
   and a note still unanswered one beat later is left for the next beat
   (`service_reply.rs`),
@@ -7748,6 +7944,24 @@ now inside these bounds:
   A commit the service builds itself from the request is the case the journal answers where the branch alone could not:
   the open batch names the commit it is making,
   and the finished one names the commit it made.
+  The three failures of a stopped service (`ServiceSilent`,
+  `ServiceSilentAfterPreparing`,
+  `NothingAnswered`) and the one of a service that stopped reading say the same four things:
+  what did not answer and for how long,
+  whether the commit was made,
+  that the staged changes and the working files are as they were,
+  and the three steps that end it.
+  The steps name the unit of this worktree's service and no other,
+  which is why the failure text names no `@*` pattern:
+  restarting every service of the account stops the commits of every other worktree.
+  The first step is `git monochromatic-git-policy-cli service status`,
+  which connects to the service of this worktree,
+  waits for its greeting for `HAND_OVER_GREETING_WAIT`,
+  and names its unit;
+  a service that takes the connection and greets nothing is running and stopped inside itself,
+  which the status says rather than reporting it as a service that answers.
+  Tests:
+  `binary_commit_when_the_service_stops_tests.rs`.
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -19005,15 +19219,33 @@ The scanner reads candidate content in process,
 and no scanner file is materialized.
 Wrapper-added latency for every forwarded real Git command must remain strictly less than `2,000 ms`.
 
-Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git;
-the bound holds for each commit,
+What a commit made through the wrapper adds over the same commit made with native Git is at most the larger of
+`5,000 ms` and twice native Git's own time for it,
+so a commit real Git takes 50 ms to make may gain five seconds,
+and one it takes 30 s to make under disk pressure may gain 60 s.
+The bound holds for each commit,
 not for a percentile of them.
-This is the only latency requirement on a commit;
-no wrapped command has to finish within a fixed time.
-The owner's words (2026-11-01):
+It is the owner's change of 2026-11-12,
+"The five-second rule is changed":
+"Change the 5s rule to max(5s, double what native git takes)",
+read as the extra over real Git.
+The requirements it replaces were the flat 5,000 ms,
+which is what the owner set on 2026-11-01:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
+
+A wrapper time alone says nothing under this rule:
+every wrapper commit is measured beside a native Git commit of the same change set,
+in the same repository,
+under the same conditions,
+alternating with it.
+The `native:perf` task still judges a commit by the flat `5,000 ms`,
+which is stricter than this requirement for every commit whose native Git time is over 2.5 s,
+and its judge is to be changed to this rule;
+until then a `native:perf` failure over 5,000 ms must be read with native Git's own time beside it.
+This is the only latency requirement on a commit;
+no wrapped command has to finish within a fixed time.
 
 The 5-second kill in the binary tests (`TIME_BOUND_SECONDS`) is a hang guard of the test harness,
 not this requirement.

@@ -474,6 +474,56 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 
+/// The longest one connection to the commit service is waited for before the client gives it up.
+///  Why:
+///   A connect to a local socket is a kernel step that returns at once,
+/// so the only thing it waits for is room in the socket's queue
+/// of connections nothing has accepted yet.
+/// A queue that is full is a service that has accepted nothing for a long time,
+/// and a blocking connect into it
+///  waits until the service accepts, which for a stopped service is never:
+/// measured on this host on 2026-11-12,
+/// a blocking connect into a listening socket whose queue of one was full
+///  was still waiting after 2,000 ms,
+/// though the two connections before it went in at once.
+///  Measured on this host,
+/// 2026-11-12,
+/// 2,000 connects to a socket whose listener accepts:
+/// 15 us at the median,
+/// 156 us at the 99th percentile and 62.6 ms at the slowest.
+/// Five seconds is 80 times the slowest of those,
+/// and it is `HEARTBEAT_SILENCE`,
+/// the time a service that is working may say nothing:
+/// a socket that has taken no connection for that long is one nothing accepts on.
+pub const CONNECT_CEILING: Duration = Duration::from_secs(5);
+
+/// How long the write of a request may take no byte at all before the service is taken for one that stopped reading.
+///  Why:
+///   A request line is at most `MAX_LINE_BYTES`, one mebibyte,
+/// and it can only be written by a service that reads:
+/// measured on this host on 2026-11-12,
+/// the send buffer of a local stream socket holds 212,992 bytes and one socket's two buffers took
+///  233,152 bytes with nothing reading,
+/// so a request of one mebibyte waits in the kernel for the other end to read it.
+/// A service that reads takes bytes in a few microseconds,
+/// so a write that puts no byte anywhere for this
+///  long is a service that stopped reading,
+/// and it is five beats of a service that is working.
+pub const REQUEST_WRITE_SILENCE: Duration = crate::service_protocol::HEARTBEAT_SILENCE;
+
+/// The longest the whole request of a commit is written into its connection.
+///  Measured on this host,
+/// 2026-11-12:
+/// one mebibyte written into a socket whose reader drains it took 0.4 ms at the median,
+/// 16.6 ms at the 99th
+///  percentile and 18.2 ms at the slowest of 50 runs.
+/// Ten seconds is 550 times the slowest of them,
+/// and it is the wait a command already grants a service's own
+///  start (`START_WAIT`):
+/// a request that is not in by then is one the person should not wait for any longer,
+/// however steadily the service takes it.
+pub const REQUEST_WRITE_CEILING: Duration = Duration::from_secs(10);
+
 /// The longest a connected push may show no progress before it is ended and left to the service's retry plan.
 ///  Unmeasured,
 /// labelled as the other quiet windows are:
