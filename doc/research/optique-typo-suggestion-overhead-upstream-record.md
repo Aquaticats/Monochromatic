@@ -46,7 +46,12 @@
    None ran on Deno,
    whose maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
    with no new feature work.
-   No reviewer has read this rewrite yet.
+   A model from another vendor reviewed the rewrite as of commit `ce2cc36df5`,
+   recomputed its figures from the archive and found them to match;
+   its findings on this document,
+   a missing note on Deno and one ratio of two separate measurements that carried no scale label,
+   are corrected.
+   The corrections made after that commit have had no review.
 - Scope:
    how the eager "did you mean" cost entered `@optique/core`,
    how upstream handled it,
@@ -1067,17 +1072,20 @@ with 50 options whose names are 20 characters long:
    on a shared and loaded machine it shows the order of size and nothing finer.
    The cost model in the evidence archive predicted 0.07 to 0.095 ms from the first round's profile before this was run.
 - One failing parse of one mistyped option took about 300 times as long as a parse that succeeds in the same process:
-   297 to 299 in the three rounds of the check script,
-   and 323 in the agent's run
+   297 to 299 in the three rounds of the check script.
+   The agent's run gave 323,
+   and its report does not say whether its two sides shared a process
    (3.1 to 3.4 ms against 0.011 ms,
    for scale only).
    Each of the 50 option parsers rejects the token and each runs its own search,
    so one typo is about 55 searches.
 - One successful parse of a thousand paths made 50,000 searches,
    counted,
-   and in the agent's run took about 2,600 times as long as its one failing parse
-   (8.7 s,
-   for scale only).
+   and in the agent's run took 8.7 s,
+   about 2,600 times its one failing parse.
+   Both figures are for scale only:
+   the two were separate measurements,
+   not arms run in turn.
 
 So the estimate was right for the unit it priced and off by the number of times that unit runs:
 about 50 times for a single typo,
