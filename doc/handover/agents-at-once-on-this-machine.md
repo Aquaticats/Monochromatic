@@ -102,6 +102,9 @@ one line a minute:
   Both probe files of that first probe were on the build volume
   (`~/temp` is a link to `/var/mnt/encrypted/temp`),
   so the readings in the log from 10:44 to 10:56 labelled `homeMilliseconds` are build-volume readings.
-- The probe was started again at 10:57 with its home file under `~/.cache`,
-  which is on `/var/home`.
-  The hour of the level counts from 10:57.
+- The probe was started again with its home file under `~/.cache`,
+  which is on `/var/home`;
+  its first reading is of 10:56:44 (four units,
+  write-and-sync 1 ms on the home drive and 2 ms on the build volume,
+  `full avg60` 4.42).
+  The hour of the level counts from there.

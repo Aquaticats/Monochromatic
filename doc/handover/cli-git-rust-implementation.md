@@ -294,9 +294,14 @@ This session wrote the opposite on 2026-11-12 and again on 2026-11-13 without re
 A throwaway clone run with its own `HOME` and `XDG_RUNTIME_DIR` still got a commit-service unit in the account's real manager,
 with its journal under the real `~/.local/state`, and that unit retries a push to the address `DISABLED` with growing pauses.
 `doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md` says such a run "has no route to a service and refuses every commit"; here the commit was made.
-By which route is not established. It is wrapper work and is queued behind the resumes of the jam fixes:
-find the route from the source and a fixture, then end a push plan on an address that cannot be a remote,
-and correct the skill's sentence on what the two variables isolate.
+The route as the source reads (posted on the issue at about 11:00, read and not run):
+`src/native/landing/service_route.rs` line 383 reads `DBUS_SESSION_BUS_ADDRESS`, and `session_bus_path` (`src/native/service/systemd_dbus.rs` line 171)
+prefers that variable's `unix:path=` entry over `$XDG_RUNTIME_DIR/bus`, so a run that changes two variables and inherits the third still speaks to the real manager.
+The troubleshooting doc's sentence is about a run "without a bus" and does not cover this case.
+Unsetting the third variable alone would, by that doc, leave the clone unable to commit at all, so the skill's sentence cannot simply be extended.
+No remedy is decided. The brief `~/temp/agent/pi-runs/issue-6293-throwaway-clone-reaches-the-real-commit-service-route-proven-and-remedies-weighed-prompt.md`
+asks for the route proven in a container, what the wrapper does with the bus address unset, and the remedies weighed as a proposal under `doc/planning/`;
+it changes only sentences its own proof shows to be false. It starts when a place is free, after the first resumes of the jam fixes.
 The unit and the clone are the other session's and are left alone while its run works there.
 
 #### Corrections to this section (2026-11-13T10:51:36-05:00)
