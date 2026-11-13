@@ -43,15 +43,14 @@ fn a_path_whose_socket_file_is_stale_is_bound_again() {
 }
 
 /// What:
-///  A socket a service greets on stays with that service,
-///  and one that accepts a connection and greets nothing is taken over.
+///  A socket a service holds stays with that service, whether it greets or is silent,
+///  and only one the kernel refuses is taken over.
 /// Why:
-///   A service of this release greets a connection before it restores anything,
-/// so a socket that accepts and says nothing is held by a process that is leaving or stopped inside itself.
-/// Measured 2026-11-12: an instance stopped 287 ms after it started kept its address for 33 s and a commit waited
-/// 37 s on it, so the next server takes the name instead of waiting for a process that is already on its way out.
+///  The review of `53726ade2d` reproduced two live services for one worktree, because a socket that accepted and greeted
+///  nothing within a second was taken over: a service that is recovering, starved or stopped in a debugger is silent and
+///  alive (`service_server_socket_binding.rs`). The refusal is the kernel's proof that nothing holds the address.
 #[test]
-fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_over() {
+fn a_socket_a_service_holds_is_kept_and_one_nothing_holds_is_taken_over() {
     use std::io::Write;
     let root = short_directory("live");
     let path = root.join("service.sock");
@@ -69,7 +68,7 @@ fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_ove
     });
     assert!(bind(&Bind::Path(path.clone())).is_err(), "a socket a service greets on stays with that service");
     std::mem::forget(greeter);
-    // A socket that accepts and greets nothing: the next bind takes it over.
+    // A socket that accepts and greets nothing: a live service that is slow, and the bind leaves it its address.
     let silent_path = root.join("silent.sock");
     let silent: UnixListener = UnixListener::bind(silent_path.as_path()).expect("a socket that says nothing");
     let holder = std::thread::spawn(move || {
@@ -81,10 +80,17 @@ fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_ove
             }
         }
     });
-    let taken: UnixListener = bind(&Bind::Path(silent_path.clone())).expect("a socket nothing greets on is taken over");
-    assert!(UnixStream::connect(&silent_path).is_ok(), "the address reaches the new server");
-    drop(taken);
+    let refused: std::io::Error = bind(&Bind::Path(silent_path.clone())).expect_err("a socket a service holds is not taken over");
+    assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse, "{refused}");
+    assert!(UnixStream::connect(&silent_path).is_ok(), "the service that holds it still answers");
     std::mem::forget(holder);
+    // A socket nothing holds refuses, and that one is taken over.
+    let stale_path = root.join("stale.sock");
+    let stale: UnixListener = UnixListener::bind(stale_path.as_path()).expect("a socket a service left");
+    drop(stale);
+    let taken: UnixListener = bind(&Bind::Path(stale_path.clone())).expect("a refused socket is taken over");
+    assert!(UnixStream::connect(&stale_path).is_ok(), "the address reaches the new server");
+    drop(taken);
     remove_short(root.as_path());
 }
 
