@@ -1,6 +1,6 @@
 # cli-git implementation handover
 
-## Scope of the work: the Git wrapper only
+## Scope of the work: the Git wrapper, and the driver, mpm and Cargo it is worked on with
 
 The owner has said it more than once,
 most recently on 2026-11-10:
@@ -21,6 +21,21 @@ its release and install).
 Other packages' issues wait,
 however many slots are free,
 unless the owner names that work.
+
+The owner named more on 2026-11-13,
+between 15:25 and 15:27,
+when the coordinating session was about to put three choices about the launcher's rate-limit endings to them:
+"You're responsible for the driver, the wrapper, mpm, cargo. If you find a issue you or a subagent fix it."
+So an issue found in the Pi run driver (`package/pi-shared/subagent-driver`),
+the wrapper,
+mpm,
+or the way Cargo is run here is fixed by the coordinating session or by a run it starts,
+and is not parked as a filed issue or as a question.
+What stays the owner's is what the rules reserve whatever the package:
+anything sent outside this repository,
+anything destructive,
+and a choice no measurement settles.
+
 A free slot is filled with wrapper work:
 open issues naming the wrapper,
 audit and review findings,
@@ -160,7 +175,7 @@ So, as the project's own rules until the owner changes them:
 
 - This session runs at most four agents at once, Pi runs and Sonnet subagents counted together, whatever the provider pools would take.
   The pool limits in `package/pi-shared/subagent-driver/src/pool-limits.ts` stay what a provider answers at once;
-  they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper only" is void while the cap stands.
+  they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper, and the driver, mpm and Cargo it is worked on with" is void while the cap stands.
 - The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in (expected 2026-11-15).
 - The scratch folder is to be cleaned by rule, not by the owner.
 - `podman system reset` replaces the image prune of the wind-down section; that step is closed.
@@ -672,8 +687,10 @@ The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files),
 
 #### Why the reviewer's rate limit ends a run, what is done about it, and the runs that ended between 14:58 and 15:21 (2026-11-13T15:24:13-05:00)
 
-Not complete, and written by the coordinating session: three choices in it are the owner's and were asked at 15:25;
-the fix it names is being written on a branch and is merged nowhere.
+Not complete, and written by the coordinating session: the fix it names is being written on a branch and is merged nowhere.
+Its last passage first said three choices were asked of the owner at 15:25. They were not asked:
+before the question went out the owner wrote "You're responsible for the driver, the wrapper, mpm, cargo. If you find a issue you or a subagent fix it."
+(recorded under "Scope of the work: the Git wrapper, and the driver, mpm and Cargo it is worked on with"), and what was done with each is in the passage "What became of the three choices".
 
 **Why a run ends on the first such answer.**
 Pi 1.5.2 decides what its own retry takes in `isRetryableAssistantError`
@@ -720,10 +737,25 @@ and what the limit is in tokens, which no message states.
   Nothing of it is merged without the owner's answer.
 - Issue 6297 carries the source finding.
 
-**Asked of the owner at 15:25, not answered when this was written:**
-whether the plugin may make Pi retry this answer (which reverses, for this provider, the README's sentence that a quota sent as a 429 stands);
-what the pool for the reviewer's model reads (18 now, five by this measurement);
-and whether the classification is reported to Pi's upstream project.
+**What became of the three choices** (after the owner's words of 15:25 to 15:27):
+
+- Whether the plugin makes Pi retry this answer: it is being fixed that way, by the run named in "What is done".
+  It reverses, for this provider, the README's sentence that a quota sent as a 429 stands, and the brief asks the run to say so in the README.
+  It goes into `main` after a review, like any change.
+- What the pool for the reviewer's model reads: five, in `package/pi-shared/subagent-driver/src/pool-limits.ts`, with this measurement beside it
+  and the rule that it is raised by one after an hour with no such ending and lowered by one when one happens.
+  It read 18, the owner's number of 2026-11-11; the owner can name another.
+- Whether the classification is reported to Pi's upstream project: still the owner's, since it is sent outside this repository. Asked.
+
+**Two more runs started from the same words:**
+
+- issue 6299, filed at 15:25 for the `driver-failed` ending of a run that did its work:
+  `fix/pi-shared-subagent-driver-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed`,
+  brief `~/temp/agent/pi-runs/issue-6299-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed-prompt.md`;
+- the cargo lock every lint takes (the section "The cargo lock agents wait on is taken by every lint"):
+  `perf/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch`,
+  brief `~/temp/agent/pi-runs/cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch-prompt.md`.
+  The order of fetch before lint, the owner's decision of 2026-11-07, stays.
 
 **Runs that ended between 14:58 and 15:21, and where each went.**
 
