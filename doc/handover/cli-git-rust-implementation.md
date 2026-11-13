@@ -685,6 +685,78 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Pass 20 is in `main` and `0.6.1-alpha.18` is dispatched; abort-and-skip passed its second review; the owner: a stale lock file fails the lint through the closure check (2026-11-13T17:44:06-05:00)
+
+Not final and not approved:
+written by the coordinating session from the runs' own reports and its commands' output.
+
+- **Pass 20** reported at 17:37:48 that its branch is fit to be released
+  (`~/temp/agent/pi-runs/integration-pass-20-for-alpha-18-1/report-from-its-summary.md`):
+  the finished-records branch merged with no conflict;
+  one repair commit, `9a1178f17b`,
+  gives the branch's own fixture the field `shadow` that `main` had added to `CommitRequest`;
+  build, both test compiles and Clippy pass;
+  the nine controls the branch adds pass by name;
+  a commit of one changed file added 21 ms to 737 ms over real Git's 5 ms to 10 ms in twelve rounds.
+  Its two red tests are the two of `service_journal_restored_at_start` that fail on `main` too and have a run of their own queued.
+- Merged into `main` at about 17:40 as `f3c9fbfe92`.
+  `main..e048c741ed` held the branch's eight commits and the repair and nothing else.
+- `native:release -- 0.6.1-alpha.17 0.6.1-alpha.18` dispatched `crate-release.yml` run 43521287707;
+  `native:release:wait` is going in unit `gpc-release-wait-0-6-1-alpha-18`.
+  Then: `native:install -- 0.6.1-alpha.18` and a sample commit.
+- **Abort and skip** (`92591a71e6`): its second review ended at 17:35:41 with no defect found,
+  its reproductions run through the wrapper built at that commit against real Git
+  (`~/temp/agent/change-reviews/git-policy-cli-abort-and-skip-answers-after-its-first-review/review.md`).
+  It is integration pass 24
+  (`integrate/git-policy-cli-pass-24-for-alpha-22`,
+  brief `~/temp/agent/pi-runs/integration-pass-24-for-alpha-22-prompt.md`),
+  pinned to that commit,
+  queued at 17:43.
+- **Start gate** (`a75145b0b1`): its fourth review reproduced one defect.
+  A level file that cannot be read for a moment
+  (rewritten in place while a start looks)
+  ends a waiting start with status 1 instead of letting it wait.
+  Sent to its author
+  (`~/temp/agent/pi-runs/start-gate-answers-its-fourth-review-of-2026-11-13-prompt.md`),
+  queued.
+- **Add never skips** (`55b1d7671f`): its third review reports two things,
+  both sent to its author
+  (`~/temp/agent/pi-runs/add-never-skips-answers-its-third-review-of-2026-11-13-prompt.md`):
+  the filling now reads `info/exclude` with a call that can block the thread that polls the runtime,
+  and the helper's check that the patterns are there looks at the first pattern alone.
+- **The cargo fetch lock** (`perf/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch`, `26a02ec36c`,
+  the root `mise.toml` alone):
+  its author finished at 17:37:10.
+  By its report one lint pass took Cargo's package-cache lock 70 times before and takes it 0 times after,
+  and a second Cargo beside a pass waited in 27 of 44 probes before and in 0 of 8 after;
+  the linter's closure check alone still takes the lock 105 times in a lint,
+  which is the next item and has no run yet.
+  Its review is written by hand
+  (the launcher reads no task file;
+  `~/temp/agent/change-reviews/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch/brief.md`)
+  and queued.
+- That branch changes what a stale lock file does:
+  with every crate cached,
+  the fetch step used to fail on it and now leaves it alone,
+  and the closure check names it as a warning that does not fail the lint.
+  Asked through the question tool at about 17:42 with three options
+  (fail through the closure check,
+  a warning only,
+  keep the old fetch),
+  the owner chose "Fail via closure check (Recommended)".
+  A run for it is queued:
+  `stale-cargo-lock-file-fails-the-lint-through-the-closure-check`,
+  branch `fix/linter-monochromatic-lint-stale-cargo-lock-file-fails-the-lint-through-the-closure-check`.
+  The cargo fetch branch reaches `main` with that fix or after it,
+  never before,
+  so that no lint in between lets a stale lock file through.
+- The run that takes the closure check's 105 lock acquisitions away starts when the stale-lock fix has ended,
+  from that branch:
+  both change `package/linter/monochromatic-lint/src/closure_cargo.rs`,
+  and two branches that met in the same files cost a continuation on 2026-11-12
+  (the landed-removal second pass,
+  seven files against `main`).
+
 #### The owner: no archive stays tracked; five runs of 2026-11-12 that never took a turn are started again (2026-11-13T17:31:03-05:00)
 
 Not final and not approved:
