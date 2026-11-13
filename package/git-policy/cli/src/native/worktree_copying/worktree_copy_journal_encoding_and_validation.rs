@@ -420,27 +420,119 @@ pub fn parse_journal(
     path: &Path,
     journal_root: &Path,
 ) -> Result<Journal, WorktreeCopyError> {
+    return parse_journal_reading(text, path, journal_root).map_err(|refusal| return refusal.into_error(path));
+}
+
+/// What:
+///  Why a journal's text is not one this release reads.
+/// Why:
+///   The two kinds end differently:
+/// a record whose bytes are not the record this release writes is what an interrupted write leaves,
+/// so the command that finds it moves it aside and goes on,
+/// while paths that relate the way no writer writes them are refused and kept,
+/// because damage cannot produce them and recovery may not act on them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type JournalRefusal = { kind: 'not-json'; cause: Error } | { kind: 'not-the-shape' } | { kind: 'unsafe'; error: WorktreeCopyError };
+/// ```
+pub enum JournalRefusal {
+    /// The bytes are not JSON at all: what a write cut short by a crash leaves.
+    NotJson(String),
+    /// The JSON is not the record this release writes.
+    NotTheShape,
+    /// The record's own paths name relations no writer writes,
+    /// so recovery may not act on it.
+    Unsafe(WorktreeCopyError),
+}
+
+impl JournalRefusal {
+    /// What:
+    ///  What one line says about why the record does not read.
+    /// Why:
+    ///   The notice names the cause in the person's words,
+    /// and the refusal a caller reports is built from the same text.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// refusal.reason()
+    /// ```
+    pub fn reason(&self) -> String {
+        return match self {
+            JournalRefusal::NotJson(cause) => format!("its bytes are not the JSON a copy writes ({cause})"),
+            JournalRefusal::NotTheShape => String::from("it is not a record this release writes"),
+            JournalRefusal::Unsafe(error) => error.0.clone(),
+        };
+    }
+
+    /// What:
+    ///  The failure a caller reports when it refuses the record instead of settling it.
+    /// Why:
+    ///   The sentences a strict reader printed before this classification exist
+    /// are the ones its controls pin,
+    /// so both kinds keep their own.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// refusal.intoError(path)
+    /// ```
+    fn into_error(self, path: &Path) -> WorktreeCopyError {
+        return match self {
+            JournalRefusal::NotJson(cause) => {
+                let message: String = format!(
+                    "monochromatic-git-policy-cli: could not read worktree-copy journal {}.",
+                    quote(path.to_string_lossy().as_ref())
+                );
+                failure_with_cause(message.as_str(), Some(&std::io::Error::other(cause)))
+            }
+            JournalRefusal::NotTheShape => corrupt(path),
+            JournalRefusal::Unsafe(error) => error,
+        };
+    }
+}
+
+/// What:
+///  `parse_journal` that says whether a refusal is damage a crash leaves or a record recovery must not act on.
+/// Why:
+///   The caller decides:
+/// damage is settled by the command that found it,
+/// and a path relation no writer writes is refused and kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseJournalReading(text, path, root): Journal | JournalRefusal;
+/// ```
+pub fn parse_journal_reading(
+    text: &str,
+    path: &Path,
+    journal_root: &Path,
+) -> Result<Journal, JournalRefusal> {
     let value: serde_json::Value = match serde_json::from_str(text) {
         Ok(parsed) => parsed,
-        Err(error) => {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: could not read worktree-copy journal {}.",
-                quote(path.to_string_lossy().as_ref())
-            );
-            return Err(failure_with_cause(message.as_str(), Some(&error)));
-        }
+        Err(error) => return Err(JournalRefusal::NotJson(error.to_string())),
     };
     let Some(journal) = read_shape(&value) else {
-        return Err(corrupt(path));
+        return Err(JournalRefusal::NotTheShape);
     };
+    return parse_journal_relations(journal, path, journal_root);
+}
+
+/// What:
+///  The checks on a journal this release parsed but whose paths must relate the way a writer writes them.
+/// Why:
+///   Recovery turns journal paths into deletions,
+/// so every relation between them is checked before any of them is used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseJournalRelations(journal, path, root): Journal;
+/// ```
+fn parse_journal_relations(journal: Journal, path: &Path, journal_root: &Path) -> Result<Journal, JournalRefusal> {
+    let refused = |message: String| return Err(JournalRefusal::Unsafe(failure_with_cause(message.as_str(), None)));
     if path.parent() != Some(journal_root) {
-        return Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: worktree-copy journal escaped private root: {}.",
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
+        return refused(format!(
+            "monochromatic-git-policy-cli: worktree-copy journal escaped private root: {}.",
+            quote(path.to_string_lossy().as_ref())
         ));
     }
     for (field, field_value) in [
@@ -450,13 +542,9 @@ pub fn parse_journal(
         ("stageRoot", journal.stage_root.as_path()),
     ] {
         if !is_canonical_absolute(field_value) {
-            return Err(failure_with_cause(
-                format!(
-                    "monochromatic-git-policy-cli: worktree-copy journal has unsafe {field}: {}.",
-                    quote(field_value.to_string_lossy().as_ref())
-                )
-                .as_str(),
-                None,
+            return refused(format!(
+                "monochromatic-git-policy-cli: worktree-copy journal has unsafe {field}: {}.",
+                quote(field_value.to_string_lossy().as_ref())
             ));
         }
     }
@@ -469,23 +557,27 @@ pub fn parse_journal(
         && stage_named
         && journal.stage_root == journal.stage_container.join("payload");
     if !stage_relation {
-        return Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: worktree-copy journal has unsafe private stage relation: {}.",
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
+        return refused(format!(
+            "monochromatic-git-policy-cli: worktree-copy journal has unsafe private stage relation: {}.",
+            quote(path.to_string_lossy().as_ref())
         ));
     }
     for selected in &journal.selected_roots {
-        assert_safe_repository_path(selected.as_slice())?;
+        // A repository path the selection may not hold is a record no writer writes, not a tear: a cut cannot make a
+        // complete JSON object whose paths relate otherwise.
+        if let Err(error) = assert_safe_repository_path(selected.as_slice()) {
+            return Err(JournalRefusal::Unsafe(error));
+        }
     }
     for intended in &journal.intended_entries {
-        assert_safe_repository_path(intended.as_slice())?;
+        if let Err(error) = assert_safe_repository_path(intended.as_slice()) {
+            return Err(JournalRefusal::Unsafe(error));
+        }
     }
     for created in &journal.created_entries {
-        assert_safe_repository_path(created.relative_path.as_slice())?;
+        if let Err(error) = assert_safe_repository_path(created.relative_path.as_slice()) {
+            return Err(JournalRefusal::Unsafe(error));
+        }
     }
     let mut created_paths: Vec<&[u8]> = Vec::new();
     for entry in &journal.created_entries {
@@ -495,13 +587,9 @@ pub fn parse_journal(
         || has_duplicates(journal.intended_entries.as_slice())
         || has_duplicates(created_paths.as_slice());
     if duplicated {
-        return Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: worktree-copy journal contains duplicate repository paths: {}.",
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
+        return refused(format!(
+            "monochromatic-git-policy-cli: worktree-copy journal contains duplicate repository paths: {}.",
+            quote(path.to_string_lossy().as_ref())
         ));
     }
     return Ok(journal);

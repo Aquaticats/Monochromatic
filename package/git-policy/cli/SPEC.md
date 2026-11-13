@@ -2672,9 +2672,18 @@ on standard error at the ordinary level
 (no `MONOCHROMATIC_VERBOSE` is needed,
 and `--quiet` does not suppress it),
 and the recovery runs before every command that takes the linked-worktree lifecycle:
-any command in a linked worktree or a bare repository,
+any command a linked worktree or a bare repository forwards,
 and a creating or served `git worktree` command in the main checkout,
 and the records go in the command that finds the worktree whole or gone.
+`git commit` is the wrapper's own command and not a forwarded one:
+the resident service lands it,
+and neither the client nor the service reads these records,
+so a record settles on the next command that forwards
+(`worktree_copying/worktree_copy_unreadable_records.rs`,
+"A record that cannot be read" below).
+The exception is deliberate:
+a commit is the one command that must not fail for the wrapper's own bookkeeping,
+and what the recovery adds there is a notice the next forwarded command prints anyway.
 The proof is what the two directories say,
 without running Git:
 the destination is gone,
@@ -2915,14 +2924,23 @@ rename,
 so a fill that comes afterwards makes a pool of its own rather than writing into the tree being deleted,
 and then member by
 member.
-A pool that cannot be taken stops the removal while nothing has happened:
-the command refuses with exit status 1
-and one report that names the worktree,
-the folder,
-the reason,
-and the command that deletes a member
-(`btrfs subvolume delete <entry>`),
-and says that nothing of the worktree changed.
+A member is a subvolume,
+and the destroy of one takes the filesystem's write lock against every snapshot in flight,
+so it is the
+commit service's work and never the person's:
+every member leaves the pool with one more rename into
+`<common>/monochromatic-git-policy-cli/cli-git-deleting-<subvolume id>`,
+with the record of its delete written before the move
+(`leave_a_subvolume_for_the_service` in `src/native/worktree/worktree_remove_hand_over.rs`),
+exactly as the worktree's own subvolume does.
+A member that is no subvolume is a name this program wrote,
+and it goes as a plain tree.
+A pool or a member that cannot be taken stops the removal while nothing has happened:
+the command refuses with
+exit status 1 and one report that names the worktree,
+the folder and the reason,
+and says that nothing of the
+worktree changed.
 
 The wrapper serves the removal only when real Git would remove the same directory,
 with the same force:
@@ -2989,11 +3007,17 @@ with the same force:
   so such a worktree can never go
   this way:
   the refusal comes before anything is renamed,
-  it names the volume it found and the branch the linked worktree
-  there has checked out,
-  and it gives the one command that removes that worktree while keeping its branch
+  and it names the volume it found:
+  for a worktree this repository registers,
+  the branch that worktree has checked out or that it is on a detached `HEAD`,
+  and the one command that removes it while keeping what its `HEAD` names
   (`git worktree remove <inner>`),
   which refuses while anything there is uncommitted.
+  A volume that is no registration of this repository is named with what it is,
+  with the move or the unmount that keep every file of it first,
+  and with a delete last and for what it destroys,
+  because a subvolume there may be another repository's worktree,
+  whose commits only its own removal keeps.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -3013,6 +3037,21 @@ with the same force:
   the
   destroy cannot take such a worktree whatever the person asks,
   and Git's removal would take the files inside it.
+  A subvolume below the root whose name is `cli-git-deleting-<16 lowercase hexadecimal digits>`
+  and which is a subvolume
+  is this program's own:
+  a removal that renamed a nested worktree's subvolume inside the folder it held left it there,
+  and the outer
+  removal takes it out of the tree first,
+  with a record of its own
+  (`src/native/worktree/worktree_removal_takes_its_pending_deletions.rs`),
+  because a name is no proof of what stands at it:
+  an entry of that shape that is no subvolume is somebody else's and is refused with every other
+  volume below the root.
+  The proof is made again after a destroy the kernel refused,
+  because a worktree can be added below this one
+  in the moments between the walk and the call,
+  and Git's removal of the tree it would then be handed would unlink that worktree's files.
 - Every volume below the registration can be left alone,
   except in the folder this program owns there
   (`src/native/worktree/worktree_remove_reports.rs`,
@@ -3223,7 +3262,15 @@ the record is dropped by a removal that finished and by a destroy that failed,
 so a command killed in the window
 between the destroy and the removal of the registration leaves one decidable state.
 The record is marked once the kernel call returned,
-and only that mark proves the files are gone.
+or,
+for a removal that hands its subvolume to the service,
+once that subvolume has been renamed out of the worktree.
+The place it will take is written into the record before the rename,
+so a command killed between the rename and the mark is
+decidable,
+and for a removal that destroys in place the mark is written before the call,
+so a command killed inside it is decidable too:
+a worktree path that is still there when the record is read is dropped with nothing changed.
 The mark is a line of
 its own at the very start of the record,
 so the pathname's bytes,
@@ -3288,11 +3335,18 @@ snapshot the rescue route settles,
 so an unshown push failure in it is shown rather than destroyed with it.
 A record whose worktree
 directory is still there is dropped with nothing changed,
-because the destroy did not happen,
+because no step that takes the files away has run yet,
 and an unmarked record whose
-pathname is empty is reported once and dropped with the registration untouched,
+pathname is empty and which names no place a renamed subvolume stands
+is reported once and dropped with the registration untouched,
 naming `git worktree repair <new path>`
 for a worktree that was moved and `git worktree prune` for one that is gone.
+An unmarked record that names such a place,
+for a worktree whose path is gone,
+is a removal killed between its rename and its mark:
+the delete of that place was recorded before the rename,
+so the registration is finished exactly as a marked record's is,
+and nothing is left for the person.
 What still fails is reported with its path and with `git worktree prune` as the way forward.
 
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory,
@@ -3404,9 +3458,12 @@ it,
 and refuses before it deletes anything when a directory below the tree is a nested subvolume (its device differs
 from the top directory's) or a mount point;
 the report names that path and says to move it out,
-to delete it with
-`btrfs subvolume delete`,
-or to unmount it.
+which keeps every file of it,
+or to unmount a mount point,
+which keeps its contents;
+`btrfs subvolume delete` is named after those and for what it does,
+because it destroys everything inside that subvolume,
+which the command that refused cannot see.
 A boundary that appears after that first pass is refused again at the directory where it is met,
 named with the same ways forward,
 and a directory whose listing was removed and that the kernel then refuses as not empty is
@@ -3646,8 +3703,10 @@ A reader takes the bytes line only as the first line or the line after the text 
 and requires those two lines to name one path when both are there,
 because the release installed before the bytes line wrote a container path verbatim:
 a destination parent holding a line break then spelled lines of the record itself.
-A claim of any other shape is refused and kept,
-never acted on.
+A claim of any other shape is a record this release cannot read:
+the command that finds it moves it aside and writes it again where the records beside it name its stage
+("A record that cannot be read" below),
+so the shape check of an earlier release names the same case a reader now settles.
 The record of the object a stage's creation made is `<identifier>.made` beside the claim:
 the container's bytes,
 the object's identity and the instant after which nothing of the wrapper's is written into that folder,
@@ -4060,10 +4119,15 @@ and of the two callers,
 not a check beside them,
 and it is not done in this round.
 
-Malformed or unsafe journal,
-install-log,
+A journal,
 stage claim,
-or stage state fails closed without deleting the journal or a path outside the validated private stage.
+record of an unfilled worktree,
+or stage binding whose bytes are not the record this release writes is the mark of an interrupted copy
+and is settled ("A record that cannot be read" below);
+a file at one of those names that is not this account's private plain file,
+an install-log line whose bytes are not UTF-8,
+and every path relation no writer writes fail closed without deleting the journal or a path outside the validated private
+stage.
 
 After the destination settles successfully,
 write exactly one human summary line to stderr.
@@ -4115,6 +4179,79 @@ and
 `a_git_child_of_a_command_that_is_not_run_again_keeps_its_signal`,
 and
 `a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal`.
+
+### A record that cannot be read
+
+A copy publishes every record whole by one rename and flushes none of them,
+so a filesystem that commits a name before its bytes can leave a record empty or cut short
+(`fs/btrfs/inode.c` writes a renamed inode's data only when it replaces a non-empty regular file,
+and `fs/btrfs/transaction.c` waits for buffered data only under `flushoncommit`,
+which is off;
+the mount option's own documentation says "the filesystem is consistent but buffered writes may last more than one
+transaction commit").
+Such a record is the mark of a copy that was interrupted,
+never a reason to stop a command:
+every forwarded command in a linked worktree or bare repository reads these records before Git runs,
+so one of them would otherwise stop every command of the repository,
+in every worktree,
+until a person removed the file.
+`git commit` reads none of them,
+since the wrapper implements it and the resident service lands it:
+a commit misses only the notices a forwarded command would have printed,
+never its own outcome.
+
+The command that meets one settles it in the pass that runs before every forwarded command
+(`worktree_copying/worktree_copy_unreadable_records.rs`):
+
+- The writer is judged first,
+  as every item of a copy is judged:
+  a journal whose name carries a live owner,
+  and a stage record whose journal or claim names one,
+  are that owner's and are left whole with no wait.
+  A claim's and an unfilled record's name carries no owner,
+  and a record whose bytes do not read cannot name one either,
+  so such a record has none to wait for,
+  which is what an interrupted copy is.
+- A record whose writer is gone is renamed into `<common git dir>/monochromatic-git-policy-cli-worktree-copy/v1/unreadable`,
+  never deleted,
+  and never over a record an earlier command kept there.
+  One line names the record,
+  the folder it went to,
+  and what may still stand on disk because of it.
+  The folder is not work:
+  a command does not sweep for it.
+- A stage claim is written again under its own name from the records beside it where they name the folder,
+  the record of the object that folder's creation made (`<identifier>.made`) or the destination record
+  (`<identifier>.add`) whose worktree parent holds it.
+  The claim written again names no owner,
+  so the same pass settles the stage and,
+  where the add still owes a copy,
+  makes it.
+  A claim whose folder nothing names is moved aside with the words that say what may stand.
+- A destination record whose claim was moved is still read:
+  the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
+  naming the worktree it describes with the two commands that settle it,
+  and removing the record and its marker once the worktree is gone or replaced.
+  A marker whose claim and record are both gone says nothing and is removed.
+- The registration inside a stage (`registration`) that cannot be read is moved aside under a name that keeps its
+  container,
+  and the copy it belongs to proves its destination from that destination's own registration,
+  which is what a stage an earlier release made does.
+- A record of an unfilled worktree that cannot be read is moved aside,
+  and its line names the worktree the copy was filling where a journal or destination record of the same copy still
+  says it,
+  because no command names that worktree as one holding less than its source ignores any more.
+
+Nothing a person made is removed on the strength of a record that cannot be read:
+the pass settles the wrapper's own records only,
+and a stage folder,
+a worktree and a file are touched exactly as the policy above allows when a record does read.
+What it cannot settle it names once,
+in the same line that says where the record went,
+and then goes on:
+a stage folder whose name only the lost journal held,
+and a worktree that only the lost record of an unfilled copy named,
+are named there and nowhere else.
 
 ### Package-manager repair of a new worktree
 
@@ -4211,6 +4348,31 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
+  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  state a build could reuse:
+  Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
+  so a worktree that starts without one rebuilds its own crates by itself,
+  and a copied `target/` alone is no reason to clean.
+  Measured on 2026-11-12 on this repository:
+  a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
+  build, which named the copy's own path,
+  while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
+  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
+  Where the worktree's build directory does hold that state,
+  the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
+  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  so no build that starts at once finds artifacts Cargo would call fresh:
+  it finds no build directory and compiles everything itself, which is correct and only slower.
+  The filling then cleans that staged copy and publishes it back with the rename that never replaces,
+  so a worktree that built in the meantime keeps what it made.
+  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
+  Where the state cannot be moved aside at all (a staging name another writer holds,
+  or a directory that cannot be renamed),
+  the add cleans it where it stands as every release before this one did,
+  the finding names the clean to run by hand when that fails,
+  and the tool's own window applies to that case.
   The workspaces are repaired side by side on as many threads as the host's available parallelism (the standard library reads the
   CPU quota of the control group,
   so a capped session gets its own share),
@@ -4369,9 +4531,17 @@ the ceiling and the notice below are all read from a clock the run has not reach
 (`src/native/repair/package_repair_start.rs`,
 `start_within`).
 The start runs on a job of the blocking pool,
-so a fork that does not answer holds no worker of the runtime,
-and a child that appears after the bound is stopped with its whole process group and collected by a reaper,
+so a start that does not answer holds no worker of the runtime.
+The child reports itself through a pipe before its own `exec` and waits there for the run to let it go,
+so a start that reaches the bound has run nothing of the tool:
+the run closes that gate when it answers,
+and a child the kernel only forks after that bound leaves before its `exec`,
 because the finding has already said the tool did not start and named the command to run by hand.
+A child that was let go and whose own `exec` then gives no answer within the same bound is the one case a start cannot
+promise that nothing ran:
+it is stopped through the descriptor the kernel made at its report,
+and the finding says it was stopped,
+because what it wrote before that stands.
 A tool that shows no sign of work for the quiet window (600 seconds;
 the longest quiet gap measured is 30.3 s,
 see "The quiet
@@ -4393,6 +4563,15 @@ and both bounds that end it
 That line is a notice and not a bound:
 nothing ends at it,
 and the quiet window and the ceiling above it are what end a tool.
+Its own write is bounded:
+a standard error whose reader has stopped draining waits in the kernel,
+and a write that waited there would hold the thread that reads the quiet window and the ceiling,
+so neither would ever end the tool.
+The line is given up at `REPAIR_NOTICE_WRITE_CEILING`
+(the 250 ms the commit's optional warning takes,
+`src/native/service/wait_ceilings.rs`),
+which is logged,
+and the bounds that end the tool go on being read.
 It exists because an add whose `pnpm` never ended printed its last line at two seconds
 and nothing for the next 613 s,
 which a person cannot tell from a hang
@@ -4405,6 +4584,11 @@ When all repairs worked,
 one line on standard error names the worktree,
 each tool's detail and its time,
 unless `--quiet` was given.
+The detail of work the add handed over names where its progress shows:
+the queue's own states,
+`<git-common-dir>/monochromatic-git-policy-cli/work/{pending,claimed,done,failed}`,
+and the commit service's journal,
+so a person who reads that a filling happens after the add returns is told where to look for what became of it.
 A repair that did not finish,
 including a missing tool,
 prints one line per failure,
@@ -6292,6 +6476,23 @@ The line goes straight to the diagnostics rather than through the blocking pool,
 because the refusal means no task may be reachable;
 it is one line per step.
 
+Two questions about the process's workers are read as one
+(`the_worker_answers` in `src/native/foundation/lazy_runtime.rs`):
+whether a task can run now,
+and whether a build that outlasted `BUILD_DEADLINE` is still on its way.
+Asked one after the other they can describe two moments,
+and a build that arrived between them answered both with the worse one:
+a caller that cannot do its work without a worker gave up while one was there,
+and the commit service ended with status 4 in the middle of a start
+(the review of 2026-11-12T09:34-05:00,
+its first finding).
+The runtime such a build finished with is handed over in one moment with the caller's last read of its channel and
+its closing of it (`THE_HANDOFF_OF_A_LATE_RUNTIME`):
+a send that landed between them succeeded into a channel that was then dropped,
+and the process believed for the rest of its life that a build was still coming,
+so every task that cannot do without a worker spent the whole patience before it gave up
+(the same review's second finding).
+
 The read of a step that is ended at its ceiling ends with the step,
 not with the last program that holds its pipes open.
 A step's output is read whole through two pipes
@@ -6804,6 +7005,40 @@ on the commit path:
   and ends with the existing "Another program is using this repository's index"
   failure;
   the command to run again is the commit.
+- A lock the index cannot be taken for is not always another program's:
+  a Git directory that turned read-only,
+  a permission this process does not have,
+  a disk with no room left and a stale lock nothing can remove refuse it too.
+  Every refusal withdraws the batch and keeps the commit it built on `refs/cli-git/kept/<batch>`,
+  with the words a refused lock gets,
+  because the commit is on no branch whichever reason refused the lock
+  (`src/native/landing/service_land_take_index_lock.rs`).
+  The reference the batch held that commit on (`refs/worktree/cli-git-service/<batch>`)
+  is let go of only once the kept reference is proven to name the commit,
+  and only while it still names it:
+  the removal is `git update-ref -d <ref> <old>` with the value that was read,
+  so a reference another command wrote between the read and the removal is never removed.
+  A kept reference that cannot be written (a lock standing on it,
+  a name that already holds another batch's commit,
+  a directory that refuses the write)
+  leaves the batch's own reference where it is,
+  and the person is told the commit's name and that reference,
+  so a built commit is never one no reference names
+  (`src/native/landing/service_land_side_reference_write.rs`).
+  A batch whose own reference the write did not put the commit on has nothing to leave there:
+  the landing keeps it on `refs/cli-git/kept/<batch>` and names that reference,
+  and where the write of that reference is refused as well it names the commit object itself
+  and the command that makes a reference of it,
+  because by then nothing names the commit
+  (`keep_what_a_side_reference_write_left`,
+  `src/native/landing/service_land_side_reference_write.rs`).
+  An import whose update of the batch's own reference the repository refused is the same ending,
+  reached without a reference that was ever written:
+  the marks `fast-import` exported name every commit of a batch it read to its end,
+  so that batch's tip is kept on `refs/cli-git/kept/<batch>` and named to the person,
+  and a batch the import stopped inside keeps nothing,
+  because the commit its marks name is not the commit its requests make together
+  (`src/native/landing/service_land_objects_of_batch.rs`).
 - A client whose wait passes `ANSWER_CEILING` asks the service,
   on a new connection,
   to withdraw its request (protocol version 7:
@@ -6867,6 +7102,11 @@ on the commit path:
   and an open
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
+  That keep follows the rule a withdrawal behind the index lock follows:
+  a kept reference that cannot be written leaves the batch's own reference where it is,
+  the person is told the commit's name and that reference,
+  and the batch's own reference is let go of only after the kept reference names the commit,
+  and only while it still does.
   A step of the landing never ends a hook of the person:
   every Git it starts carries the hooks-off options,
   and the one place a hook of the person runs below a step of the wrapper is a push to a local path
@@ -6885,6 +7125,10 @@ on the commit path:
   (the landing sweeps its own batch when it fails,
   the restart when it drops one;
   `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+  Every other path that stops naming a built commit follows that one rule:
+  the reference a batch holds its commit on is removed only after another reference is proven to name the commit,
+  and only while it still names it (`git update-ref -d <ref> <old>`),
+  so a commit nothing else names is never the reason a reference goes.
 - A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
   intent to settle it,
   and a service instance is a hash of its worktree's Git directory,
@@ -8159,6 +8403,39 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
+  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  and never the newest work record the round claimed:
+  a commit that lands after that claim is what the push sends,
+  so a record named for the claimed commit would replace an unread account of that commit with words about another one and
+  label them as its,
+  and nothing makes the replaced account say itself again.
+  A record replaces an earlier record of the same commit in one rename,
+  so a kill in that write leaves one of the two accounts rather than none.
+  A push the retry plan makes leaves the same record as a push of a round,
+  by the same words and under the same name.
+  A record the storage refuses is said in the service journal with every line the push chose to show,
+  and the work record is settled as failed rather than done,
+  because a push settled as done with no record tells the person nothing and leaves nothing that could be told later.
+  The account of a push that landed keeps every line,
+  because nothing makes such a push say it again;
+  the display cap of a notice stays on a push that did not finish,
+  which a later try says the same thing about.
+- A record that could not be written never leaves its work items settled as if it existed:
+  the words it would have carried go to the service journal, every line of them,
+  and what the items become follows what a later try can say.
+  A push that landed,
+  whose account the storage refused,
+  is settled failed:
+  its words cannot be said again,
+  and a record settled as done would leave the person nothing and nothing that could be said later.
+  A refusal or a skip whose record could not be written leaves the claims to their lease,
+  so the service asks the server again,
+  and the next try records what it says then;
+  settling it would end the work with its reason said to nobody.
+  A push a retry plan carries may settle either way,
+  because the plan says the same words on its next try.
+  A notice replaces the notice of its commit in one rename,
+  so a kill in that write leaves one of the two records rather than none.
 - The reconcile is one loop,
   and it is awaited
   (`integrate_and_push_awaiting` in `src/native/push/auto_push_reconcile_awaiting.rs`);
@@ -8617,6 +8894,13 @@ in-process reader can) gives every value of the multi-valued keys.
   a stopped or unfinished push says only that it did not finish and that the remote may or may
   not have taken the commit,
   and the retry is what settles it.
+- The plan of a branch whose last try a server refused is removed only after that refusal is recorded,
+  and a record the storage refused leaves the plan,
+  planned again after a pause,
+  because the plan is the only durable record that the branch waits for a person:
+  a plan removed before its refusal is written would leave neither the plan nor the notice,
+  nothing would try the branch again,
+  and the refusal would be said to nobody.
 
 ### Manual push
 
@@ -9234,10 +9518,25 @@ a heading with the count,
 then one line per record naming the branch,
 the commit and the lock,
 with the exact `rm --` that clears it when no Git process uses the repository.
+The line names the locks that stand when it is printed,
+not the ones the record names from the instant the commit was held:
+one of those is often gone by the time the next command reads the record,
+and a message names what really stops the command at the moment it is printed.
 A command whose output a program reads prints nothing and settles the same.
 The first command that finds the locks gone settles them,
 and so does the service before its next batch and at its start
 (`src/native/landing/held_commit_settle.rs`).
+
+A settlement asks about the locks that can refuse its own branch write and no others:
+the branch it moves,
+the reference its transaction deletes beside it,
+`packed-refs.lock` and the reftable backend's list of tables
+(`src/native/landing/held_commit_settle.rs`).
+A lock on another reference can refuse neither the move nor the delete,
+and native Git commits on a branch while another branch's lock stands,
+so a held commit is never kept held behind a lock that is not in its way.
+The landing's own wait for a reference lock is unchanged,
+and still looks at every reference lock of the repository.
 
 The settlement reads the branch and moves it by one compare-and-swap,
 with the side reference removed in the same transaction.
@@ -11268,6 +11567,13 @@ a landing or withdrawal record,
 the repositories a service was still to look at and the pushes it was still to try again,
 and a file or folder this release does not know keep the whole journal and are logged,
 never discarded.
+A batch's copy of the conclusion state it removed (`<batch>.cleanup`,
+`src/native/landing/conclusion_state_copy.rs`)
+is one of them no longer:
+it is a copy of the worktree's own state,
+made before the branch moved and removed with the batch,
+and the worktree whose journal this is has no files left for the comparison to read,
+so it goes with the journal and keeps nothing.
 A finished batch's record is kept for `A_FINISHED_RECORD_IS_READ` in `service/wait_ceilings.rs`
 (`ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `LOOKING_FOR_A_LANDED_COMMIT`:
 the whole wait a client may spend on an answer,
@@ -13807,13 +14113,107 @@ the links and the copied `config.worktree`.
 It holds no ref store and no conclusion state,
 which a commit adds after it takes one,
 from this invocation's own capture.
+The skeleton is the directory itself,
+`objects`,
+`objects/info` and `refs`:
+`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+which makes the loose object's own directory and the loose ref it writes,
+and the check answers "no pack and no ref" with one question about each absent directory
+(`shadow_skeleton.rs`,
+`shadow_pool_member.rs`).
+A member that holds one of the three is refused, which is what a shadow a commit has used holds.
 
+#### A shadow handed out from the drawn folder
+
+The service draws a finished shadow out of the pool before a commit asks for one,
+and hands it over:
+this is the option of
+`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
+that the owner decided for on 2026-11-11,
+in its checked form, so every question a claim asks is asked of the tree that is handed out.
+
+- The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
+  one entry per tree named `drawn-<identity>`,
+  beside the pool's folder and never inside it
+  (`SHADOW_DRAWN_FOLDER` in `wrapper_names_old_and_new.rs`):
+  a claim takes a member out of the pool's folder,
+  and the removal of a removed worktree takes that folder out of its name with one rename,
+  while a drawn tree is used where it stands and is left alone while a commit holds it.
+- The draw is one `rename` of a pool member into that folder and the same check a claim makes,
+  and it runs beside the landing loop on a thread of its own,
+  after the landing it follows
+  (`service_shadow_draw.rs`),
+  and makes a pool member itself when the pool holds none:
+  a draw that ran beside the fill of its own landing found a pool the fill had not filled yet and drew nothing.
+  so what it can delay is the next draw and nothing else:
+  a draw that stalls for the 5,606 ms the slowest measured rename took costs the commits in that window
+  the pool's member and no wait of their own.
+- A commit asks on a connection of its own,
+  `{"type":"shadow"}` with its own Git directory and its scratch tree,
+  and the answer is written by that connection's own task and never by the landing thread
+  (`service_server_connection_handling.rs`,
+  `answer_the_shadow_question`):
+  a commit's wait for its tree does not grow while another commit lands.
+  The service keeps the trees it drew in memory and hands one out with each answer,
+  so two commits that ask at once never get one tree;
+  a restarted service hands out nothing it did not draw,
+  and a tree an earlier one drew is left to the sweep by its age.
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+  which is a hundred and fifty times the largest answer measured over 3,000 round trips
+  (`service_client_shadow_hand_out.rs`).
+  A socket nobody listens on, a service that does not answer, an empty stock,
+  and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
+  it takes the pool's member or makes its creation, within the bounds it has today,
+  and says nothing.
+- A commit that is handed a tree runs `refusal` on it,
+  which is the same check a claim runs and is all reads,
+  then writes the ref store into it as it does into a claimed member.
+  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  which the landing that concludes compares at the path its own scratch tree holds.
+  A tree this invocation refuses is released in the background and the commit takes the other routes.
+- The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
+  exactly as the commit's own scratch tree is,
+  so no lock is written and none can be left held:
+  a client killed at any instruction stops renewing,
+  and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
+  `sweep_drawn` runs beside every wrapped command,
+  beside the service's own draw,
+  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and the service removes that tree with the scratch tree once that landing is over.
+  A request the service answered as not landed, or never took,
+  leaves the tree to the command, which releases it beside itself in the background.
+- A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
+  their commit makes its creation, and it asks nothing.
+- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  and takes the pool's member or makes its creation as it did before:
+  the landing that concludes compares the state Git left in the shadow with the copy it kept,
+  reading the shadow at the path the commit's own scratch tree holds
+  (`conclusion_state_copy.rs`,
+  `remove_conclusion_state`),
+  which a tree used where it stands does not occupy
+  (`may_be_handed_a_tree` in `shadow_create.rs`).
+- `buildParts` names the ask and the check `shadow hand-out`:
+  a build that took a drawn tree names no `shadow pool` and no creation stretch,
+  so a reading of a slow commit tells the three routes apart.
+
+- A commit first asks the service for a finished shadow the service drew ahead of it,
+  and takes the pool's member by one `rename` only when the service holds none.
+  The drawn route is the one taken when the service answers:
+  the tree is a member the service already renamed out of the pool
+  (`shadow_drawn.rs`),
+  and every check below is still made of it.
 - A claim is one `rename` of a member onto the commit's `<scratch>/shadow`,
   which fails for the second claimant,
   so no lock is taken and no commit waits for another
   (`AGENTS.md`,
   `NLK`).
-- A claimed member is checked before it is used,
+  It is the service's `rename` that the drawn route moves off the commit's wait:
+  `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
+  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+  "The cost, over 330 commits").
+- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,
@@ -13877,6 +14277,10 @@ from this invocation's own capture.
   because Git makes a registration before it makes the checkout,
   and a folder the wrapper did not name stays,
   because only a folder named for a worktree can be proven to belong to one.
+  A name that is no directory is no pool either:
+  the pool's folder and every pool in it are read as entries before anything below them is,
+  so a link at either name is somebody else's and its target is never listed,
+  never read and never removed.
   A removal that fails is named in the diagnostic log and left for the next command,
   and nothing it removes is followed through a member's links into this repository.
   A removal that succeeds prints nothing:
@@ -13894,10 +14298,11 @@ from this invocation's own capture.
   and then the member it took is not in the tree the deletion was given,
   or it finds no pool and the commit makes its own shadow.
 
-`buildParts` names the claim `shadow pool`:
+`buildParts` names the claim `shadow pool` and the hand-out `shadow hand-out`:
 a build that took a member names no `shadow skeleton`,
 `shadow config` or `shadow links` stretch,
-so a reading of the record can tell the one route from the other,
+so a reading of the record can tell the three routes apart,
+a build that was handed a drawn tree names `shadow hand-out` and no `shadow pool` either,
 and a claim that refused a member names `shadow pool refused` beside them.
 
 #### Private `HEAD` shape
@@ -16391,8 +16796,15 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 11,
-the first whose landing answers `held`
+The commit request speaks protocol version 12,
+the first whose client asks the service for a finished shadow drawn ahead of it
+(`{"type":"shadow"}`,
+answered `{"type":"drawn","tree":...}` or `{"type":"no-shadow"}`),
+and whose request names the tree it was handed in a `shadow` field.
+A service of version 11 refuses the question as a message it does not know,
+which the client reads as no tree and answers by taking the pool's member or making its own creation:
+the question is an offer and never a step a commit needs.
+It was 11 because a landing answers `held`
 when a reference lock keeps a commit off its branch:
 the answer carries the commit and the words the command prints,
 and a client of version 10 reads a message type it does not know as a line it cannot read,

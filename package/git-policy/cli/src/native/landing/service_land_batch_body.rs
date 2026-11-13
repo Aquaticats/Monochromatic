@@ -13,7 +13,7 @@
 //! ```
 
 use crate::service_land_take_index_lock::take_index_lock;
-use crate::service_land_git_steps_and_import_stream::{checked, requests_that_land, run, run_words};
+use crate::service_land_git_steps_and_import_stream::{checked, requests_that_land, run_words};
 use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, read_commit};
@@ -26,7 +26,7 @@ use crate::service_index_lock::{Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
+use crate::transaction_git::{GitContext, GitOutput};
 use std::path::Path;
 use std::time::Instant;
 
@@ -198,7 +198,7 @@ pub(crate) fn land_batch_body(
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             crate::service_server_land_group::forget_what_a_batch_owes(&intent);
-            let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
+            let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(&git, repository, scratch.as_str(), new.as_str());
             return match still {
                 Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
                 Err(code) => Err(code),
@@ -285,15 +285,9 @@ pub(crate) fn land_batch_body(
                 //  back, so no record of a landing that did not happen outlives it. A step ended at a ceiling keeps the commit
                 //  the reference holds first (`land_batch_timed`), so that reference is left for it.
                 Err(code) => {
-                    let drop: crate::service_land_hold_a_batch::DropTheBatch<'_> = crate::service_land_hold_a_batch::DropTheBatch {
-                        git: &git,
-                        context,
-                        repository,
-                        seq,
-                        intent: &intent,
-                        scratch: scratch.as_str(),
-                    };
-                    crate::service_land_hold_a_batch::end_a_batch_the_write_never_started(&drop, code);
+                    let drop: crate::service_land_hold_a_batch::DropTheBatch<'_> =
+                        crate::service_land_hold_a_batch::DropTheBatch { git: &git, context, repository, seq, intent: &intent, scratch: scratch.as_str() };
+                    crate::service_land_hold_a_batch::end_a_batch_the_write_never_started(&drop, code, announce);
                     return Err(code);
                 }
             }
@@ -326,7 +320,7 @@ pub(crate) fn land_batch_body(
                         let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
                         crate::service_server_land_group::forget_what_a_batch_owes(&intent);
                         remove_start(context.journal.as_path(), seq);
-                        let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
+                        let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(&git, repository, scratch.as_str(), new.as_str());
                         continue;
                     }
                     // The bound has passed and nothing stands now: the refusal this batch keeps meeting is Git's own, and
@@ -372,7 +366,7 @@ pub(crate) fn land_batch_body(
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             crate::service_server_land_group::forget_what_a_batch_owes(&intent);
             remove_start(context.journal.as_path(), seq);
-            let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
+            let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(&git, repository, scratch.as_str(), new.as_str());
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
             timing.hold += hold_began.elapsed();
