@@ -34,8 +34,9 @@ Each rule is the project's own requirement.
   Make one fixture repository and reuse it,
   or make a copy-on-write copy (`cp --reflink=always`),
   instead of a full copy for each round.
-  On 2026-11-13 `${HOME}/temp/agent` held 190.5 GB as `du` counts it from two days of runs,
-  of which 68.2 GB (63.5 GiB) was its own data and 14.1 GB was shared between the copies inside it,
+  On 2026-11-13 the scratch folder held about 64 GiB of its own from two days of runs
+  (`btrfs filesystem du`;
+  `du` read 232 GiB because it counts data shared between copies once for each copy),
   and a full home drive had ended twenty runs the day before.
 - Never generate synthetic host load in any session or subagent:
   no `stress-ng`,

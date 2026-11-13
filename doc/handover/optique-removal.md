@@ -787,6 +787,15 @@ Upstream moved on its own from this repository's public documents:
   citing the research record and the short-option document at commit `249bbf19ea`,
   and pull request 1121 for it at 2026-11-13T10:10:30Z.
   Issue 1120 names the input-trace copy and puts it outside its own scope.
+- The maintainer merged pull request 1121 at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+  which closed issue 1120.
+  The merge commit's tree is that of the branch head `a175cdb7` this project measured,
+  so those figures are figures for `main` as of the merge.
+  Checked afterwards the same day:
+  upstream has no open pull request,
+  no issue newer than 1120,
+  and no commit on `input-trace.ts` since 2026-05-14.
+  The documents and the reply draft now say the pull request is merged.
 
 Decided by the owner on 2026-11-13,
 each in answer to a question that gave the options:
@@ -864,7 +873,8 @@ each in answer to a question that gave the options:
     so `mise test` in upstream's checkout runs Bun 1.3.14 for whoever runs it.
   - This repository's `toolchain.lock.json` held Bun 1.4.4 at the commit before the issue (`07597bdd20`) and holds it now.
   - No measurement or run record of this work names 1.3.14;
-    the two scratch files that do are copies of upstream's issues 1116 and 1118.
+    the scratch files that do are copies of upstream's issues 1116 and 1118
+    and the review reports that quote them.
     The records show Bun 1.3.0,
     in the prototype's work image,
     whose first Bun log is dated 2026-11-12T15:02:28-05:00,
@@ -891,6 +901,37 @@ each in answer to a question that gave the options:
   Rule `PIN` in `AGENTS.md` was amended on the owner's choice:
   test on current releases only,
   and an older one's failures are no defect.
+- The two per-token copies the input-trace patch leaves,
+  in `multiple()` and `argument()`,
+  asked whether to prototype fixes for them before the reply,
+  describe them in the reply as profiled and not fixed,
+  or leave them out:
+  "Prototype now (Recommended)".
+  A Pi run did it on 2026-11-13,
+  named `optique-two-remaining-copies-prototype`,
+  on DeepSeek through Neuralwatt,
+  with the brief `${HOME}/temp/agent/pi-runs/optique-two-remaining-copies-prototype-prompt.md`.
+  It ended after 362 turns with its report given;
+  its driver then recorded `driver-failed` on a parse error of its own,
+  which another session filed as issue 6295.
+  Its feed holds seven commands that reach a network,
+  all of them reads,
+  and it left no process or container.
+  The coordinating session rechecked the two diffs the same day and wrote the result into
+  `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
+  section "Prototypes for the two further copies":
+  the diff for `multiple()`'s state holds up and is kept as a second patch beside that document,
+  with a test and a fix added in the recheck;
+  the diff for the token buffer makes alternating option-and-argument input about ten times slower and is not kept.
+  The run's clone is deleted;
+  its `keep/` folder remains at `${HOME}/temp/agent/upstream-prototype.3lsGY9v7/keep`.
+  The agent said this machine's Git wrapper emptied `node_modules` in its throwaway worktrees;
+  its feed shows the failed imports and no cause,
+  and that was not looked into further.
+- Agents at once:
+  rule `MXA` in `AGENTS.md` and `doc/handover/agents-at-once-on-this-machine.md` set a cap for the whole machine.
+  Count before starting any further Pi run for this work,
+  the next review pass included.
 
 Nothing in this section has been approved by the owner as complete or final;
 it is one AI session's record of what it did,
@@ -911,8 +952,11 @@ Where each piece stands:
   and a draft issue that is not to be filed for now.
   Settled on 2026-11-13 and recorded there:
   the patch removes the largest of three per-token copies and leaves two,
-  in `multiple()` and `argument()`,
-  which were profiled and not prototyped;
+  the state array of `multiple()` and the buffer slice every primitive makes;
+  a second patch beside the document removes the first of those,
+  rechecked by the coordinating session and reviewed by nobody else,
+  and nothing that works was found for the second;
+  whether the second patch is offered to upstream is the owner's choice and is not made;
   the patched tree passes upstream's core suite on Bun 1.4.4,
   the current release,
   with no failure;
@@ -954,9 +998,46 @@ to settle before a reply:
   Its own findings were small and were corrected the same day:
   a wrong count and two unrecorded statements in the Deno document
   (the two were then run and recorded),
+  a sentence there that dated a Deno run without a record
+  (replaced by the recorded one),
   and wording that said slightly more than the records in this handover and in the input-trace document.
-  The corrections made after it are not reviewed.
   Its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`.
+  A third pass read those corrections,
+  commit `2d06b4ae60`,
+  by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-3`,
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-3.md`).
+  It found each correction supported by its record or source,
+  the three checks run after the second pass real and run against the patch as committed,
+  and nothing in the status lines claiming more than unapproved.
+  It found two wording matters,
+  corrected the same day:
+  a share of the patched parse at 4,000 to 8,000 tokens that was the share of two files,
+  given as the share of the two copies
+  (the document now gives both the functions' and the files' figures and says the profile cannot do better);
+  and a count of scratch files in this handover.
+  The corrections made after that third pass are not reviewed,
+  and neither is the section "Prototypes for the two further copies",
+  the second patch,
+  or the revised reply draft and draft issue,
+  first committed as `a62135c94d` and changed since:
+  the second patch gained a second fix,
+  for writes past a view's end,
+  and the section the figures of the patch as kept.
+  A fourth pass over them is prepared
+  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fourth-pass-prompt.md`,
+  resuming the same reviewer session).
+  It could not start at 2026-11-13T14:01:47-05:00,
+  when the machine held sixteen agents against a cap of sixteen.
+  The unit `optique-review-fourth-pass-waits-for-a-free-place` looks every thirty seconds for four hours
+  and starts it when a place is free;
+  it was stopped once before it had started anything,
+  while the patch was being changed,
+  and started again after that change was committed;
+  its log is `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-launch-4.log`,
+  and the run folder will be `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-4`.
+  If that unit gave up,
+  start the pass by hand with the same prompt.
 - The private advisory draft for the `passThrough()` findings is written and waits for the owner:
   `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
   a local file that is not committed.
@@ -967,8 +1048,9 @@ to settle before a reply:
   (`passthrough-cases.jsonl` beside it).
   Nothing about it is to be mentioned in public.
 - Which of the drafted questions go into the reply.
-  The draft asks one,
-  whether offering every token to every option parser is the intended end state.
+  The draft asks whether an issue for the first patch is welcome,
+  whether a proxy-backed state is wanted at all,
+  and whether offering every token to every option parser is the intended end state.
   The one about a guard on how parse work grows is partly answered by pull request 1121,
   which keeps a benchmark for its workload.
 
@@ -988,18 +1070,45 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
 - `upstream-prototype.O1iPjcqr/`:
   the disposable clone that holds the patch's working tree,
   with its logs.
+- `upstream-prototype.3lsGY9v7/keep/`:
+  what the prototype agent left for the two further copies:
+  its diffs,
+  report,
+  scripts,
+  logs and measurements.
+- `optique-two-remaining-copies-recheck-2026-11-13/`:
+  the recheck of those diffs.
+  Its `keep/` folder holds the records;
+  beside it are the scripts that made them,
+  the staged source arms under `arms/`,
+  which the fourth review pass reads,
+  and `suite-fixture/`,
+  an installed copy of upstream's clone for running its suite.
+  The scripts and records are also in the evidence archive beside the research document,
+  folder `two-remaining-copies-recheck-2026-11-13`.
+  Once the fourth review pass is folded in,
+  everything in that folder but `keep/` is to be deleted.
 
 Container images `localhost/optique-cross-runtime:2026-11-13`,
-`localhost/optique-upstream-arms:2026-11-13` and `localhost/optique-prototype-work:2026-11-13`
+`localhost/optique-upstream-arms:2026-11-13`,
+`localhost/optique-prototype-work:2026-11-13` and `localhost/optique-prototype-work-current-bun:2026-11-13`
 were built on 2026-11-13,
 after `podman system reset` removed the earlier ones.
+The recheck added `localhost/optique-two-remaining-copies-recheck:2026-11-13`
+and two small ones built on it,
+tagged `-annotated` and `-mixed-threshold`,
+and the prototype agent left `localhost/optique-prototype-arms:2026-11-13`.
+All of these are kept until the fourth review pass is folded in,
+in case a check has to be run again,
+and are to be removed after it.
 
 The defects in this repository's own tools that showed during the work are filed,
 on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
 #6288,
 #6289,
-#6290
-and #6291.
+#6290,
+#6291
+and #6293.
 
 ## Next action
 

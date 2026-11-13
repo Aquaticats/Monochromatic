@@ -617,6 +617,37 @@ pub const PREPARATION_READ_CEILING: Duration = LANDING_STATE_CEILING;
 /// under the owner's 5,000 ms bound on what a command may add (2026-11-09).
 pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 
+/// The longest the notice of a repair tool's wait may take to reach the person's stream.
+///  Why:
+///  The line is written by the loop that reads the quiet window and `REPAIR_TOOL_CEILING`,
+/// and a stream whose reader has stopped
+///  draining waits in the kernel until it resumes.
+/// A write still waiting here held that loop,
+/// so neither bound ever fired:
+/// the tool the repair owns
+///  was never stopped,
+/// its process group kept running,
+/// and an add ended with a signal left it behind
+/// (2026-11-12,
+/// a full pipe on standard error whose reader stalled,
+/// reproduced through `git worktree add`).
+/// The line is advisory beside the tool's own
+///  result,
+/// so it is abandoned and logged,
+/// and the loop goes on reading the bounds that end the tool.
+///  The value is
+/// `WARNING_WRITE_CEILING`'s:
+/// a line of 1 KiB took 0.006 ms at the median and 3.6 ms at the slowest of 200 writes to a
+///  stream whose reader drains it (this host,
+/// 2026-11-09),
+/// and that bound leaves the owner's 5,000 ms commit slack untouched,
+/// so one measured pace of one kind of line serves both.
+///  The descriptor is written without Rust's shared standard-error lock
+/// (`standard_error_descriptor.rs`),
+/// so a
+///  write this run abandons holds nothing the run's next line waits for.
+pub const REPAIR_NOTICE_WRITE_CEILING: Duration = WARNING_WRITE_CEILING;
+
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
 /// `cargo clean`,
@@ -647,6 +678,12 @@ pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 /// the finding names the tool
 ///  and the command to run,
 /// and the worktree keeps the files Git wrote.
+///  That promise holds because the tool is held before its own `exec` until the run lets it go
+/// (`start_within`):
+/// a start this bound ends has run nothing of the tool,
+/// and the one child that was already let go and then did not
+///  come up is stopped and named as stopped,
+/// because what it wrote stands.
 pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,

@@ -156,21 +156,22 @@ pub(crate) fn worded_unfinished(branch: &str, shown: &str, outcome: PushOutcome,
 
 /// What:
 ///  The text shown for what a push that succeeded did,
-/// with the commit named as given and the service's words already cleaned.
+/// with the commit named as given and the words the push chose to show already cleaned.
 /// Why:
 ///   Nothing failed,
-/// so the text is the service's own account of what the push did and nothing about a backup
-///  that did not happen:
-/// it already begins with the tool's name and says which branch was merged,
-/// what became of the local
-///  branch and the command that finishes the move.
+/// so the text is the account of what the push did and says nothing about a backup
+///  that did not happen.
+/// The account is the server's own `remote:` lines,
+/// which open with whatever the server wrote,
+///  and the lines the reconcile added,
+/// which begin with the tool's name.
 /// The command that ran the push has returned,
 /// so this is the only way
 ///  those words reach the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// wordedReport(branchRef, shown, reason) // the service's words, as they are
+/// wordedReport(branchRef, shown, reason) // the words the push chose to show, as they are
 /// ```
 pub(crate) fn worded_report(branch_ref: &str, shown: &str, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);

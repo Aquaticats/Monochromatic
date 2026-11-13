@@ -157,6 +157,14 @@ async fn repair_cargo_one(request: RepairRequest<'_>) -> Vec<Finding> {
 ///   Both faces report the same findings the same way,
 /// whatever waited for them,
 /// and a repair never fails the add.
+///  This write is the add's own line on the person's stream,
+/// as every other line the add prints is,
+/// and it is not bounded:
+/// nothing the repair owns is still running when it is written,
+/// so a reader that stopped draining waits for the command's own output,
+/// and the Git this command forwarded writes that stream itself.
+/// The one line of the repair that is bounded is the notice of a tool's wait,
+/// which is written by the loop that ends the tool (`REPAIR_NOTICE_WRITE_CEILING`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
