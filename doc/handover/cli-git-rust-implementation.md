@@ -670,6 +670,68 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Two owner decisions; pass 19 is on `main` and `0.6.1-alpha.17` is dispatched; seven reviews came back, six with defects (2026-11-13T14:41:59-05:00)
+
+Not complete: the release is running; every branch named here but the two in the pass is with its author or in review.
+Decisions are the owner's words through the question dialog; the rest is read from each run's own report by the coordinating session.
+
+##### The owner's decisions of 2026-11-13, answered between 13:56 and 14:37
+
+- **An ignored file in the way of a discarding command** (`git reset --hard <other>`, `git checkout --force` and the like, where the file exists nowhere else):
+  "Refuse, with opt-out (Recommended)".
+  The command is refused and names the file; `--no-enforce-worktree` runs it as real Git would.
+  The other options offered were "Allow and log" (the decision of 2026-11-12 for `git clean -fX`) and "Allow silently, as Git"
+  (Git's documented default, `--overwrite-ignore`).
+  This is what the discarding-commands branch does at `26834c0f32`; nothing changes there.
+- **An abort in the main worktree**: "Same rule everywhere (Recommended)".
+  In the main worktree too, `git merge --abort` and the rebase, cherry-pick, revert and am aborts run when they discard nothing,
+  and are refused, naming the files, when they would discard work.
+  The older rule (every abort refused in the main worktree) is ended.
+  The abort-and-skip branch's author is told in its brief.
+
+##### Pass 19 and the release
+
+- Pass 19 ended before 14:37 with its branch fit to release by its own report (`93cebf4c2e`): both branches merged clean with no repair;
+  the build, both test compiles and Clippy with warnings denied pass; the twenty-six controls the two branches add pass by name.
+  Measured through its built wrapper: a commit of one file costs 32 to 66 ms more than real Git; a push behind a hook that never answers is stopped at 31 s, where the meter before let it run past 75 s.
+  Report: `~/temp/agent/integration-pass-19-for-alpha-17-scratch/keep/report.md`.
+- Merged into `main` as `afd971129a` at 14:39:19, the merge command taking one second.
+- `0.6.1-alpha.17` dispatched at 14:41:10 (`crate-release.yml` run 43494523496); a waiter follows it.
+
+##### Reviews that ended between 13:52 and 14:27
+
+- `add-never-skips` (the second review, which built and ran): two defects reproduced.
+  A person's write to `Cargo.lock` made before the repair resolves the lock is discarded with no copy; and a live filling has its marker adopted and its staging deleted by another.
+  The first review of the same commit, which ran nothing, had found none.
+- The start gate's one fix: one more way for two runs of one name to count as one, for the life of a `systemd-run` client that is about to be refused.
+- `abort-and-skip`: a resolution written in the worktree and never staged is discarded when Git recorded no `AUTO_MERGE` (the `resolve` strategy); new with the change.
+- `removal-goes-around`: a subvolume swapped in between two lookups by name would be emptied (found by reading, sixty trials did not trigger it);
+  and after a kill part way the next removal says nothing was removed, which is false, and does not go on without `--force`.
+- `push-of-a-branch`: a pushed branch still held by a deleted worktree turns a published merge into a reported failure, the local branch left behind; two smaller findings.
+- `removal-refuses`: the new retry of kept worktrees matches by path alone, so a worktree made again at a kept path is removed with what it holds;
+  and the deletions log is written after the deletion, so a kill between leaves nothing written.
+- `discarding-commands`: the review ended after eight turns on the provider's answer "429 … Allocated quota exceeded"; it is started again under a name of its own.
+- Each of the five wrapper branches goes back to its author with a brief
+  (`~/temp/agent/pi-runs/<name>-answers-its-review-of-2026-11-13-prompt.md`, written by one script beside them).
+
+##### The start gate is not merged: its default cap is four
+
+- Its README says `PI_RUNS_MACHINE_CAP` is "4 while it is unset". On `main` that would hold every session's starts to four while the level is sixteen.
+  The author is asked to take the cap from one place that is changed when the level changes, and to close the third review's finding while there:
+  brief `~/temp/agent/pi-runs/start-gate-change-answers-its-third-review-and-takes-its-cap-from-one-place-prompt.md`, first in the queue.
+
+##### Authors that answered their reviews, each now queued for a review of its answer
+
+- The reload fix at `575c585373`, the index-lock fix at `d189162e3e`, snapshot at `384eb00c4f`, commit-does-not-list at `6219d4312c`,
+  guards-refuse at `b8ca678262`, and the launcher's scratch folder at `09dbd07586` (its third review).
+- Finished and queued for a first review: finished-records at `999a5d4080`, kept-references at `e5e75025ed`, LFS push programs at `2533d1bfea`.
+
+##### How the places are filled now
+
+- A unit of its own (`fill-free-places-from-the-resume-queue-at-level-16-20261113`, started 13:54:24) starts queue entries into free places every two and a half minutes,
+  so the places stay full while the coordinating session waits on a question; it did so for the forty minutes the dialog was open.
+  The queue ran empty at 14:12:41 and nine agents were going at 14:38:24; it was refilled at 14:38:40.
+
 #### Integration pass 19 started; the discarding-commands resume finished (2026-11-13T13:53:09-05:00)
 
 Not complete: the pass is going; the branch waits for its review.

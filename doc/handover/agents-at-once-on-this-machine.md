@@ -254,6 +254,34 @@ one line a minute:
   The level is judged on readings taken after that,
   for an hour from there,
   and no sizing walk is run during a level's hour again.
+- Readings after the walks stopped,
+  13:34:21 to 13:58:48,
+  twenty-five of them with ten to sixteen units going:
+  home drive median 2 ms and slowest 22 ms;
+  build volume median 10 ms,
+  and over one second four times:
+  1,261 ms at 13:36:21,
+  2,597 at 13:38:22,
+  **10,419 at 13:40:25**
+  and **7,130 at 13:51:37**.
+  Two readings over the bound,
+  never two in a row,
+  so the criterion is not met;
+  the build volume stalls for seconds at this level all the same,
+  which it did not at eight.
+- The probe ended at 13:58:48 and none ran until 14:37,
+  while the session doing the search waited on a question;
+  one more was started at 14:37 for thirty-six minutes
+  (unit `disk-ceiling-probe-level-16-after-the-walks-20261113`).
+  From 14:12:41 the queue was empty and the count fell to nine by 14:38:24,
+  so its first readings are below the level.
+- Free room at 14:37:39: `/var/home` 514 GiB,
+  the build volume 1,555 GiB:
+  61 GiB less than at 13:15:18,
+  in eighty-two minutes.
+  What takes it is not measured;
+  `/var/mnt/encrypted/cargo-build` holds 259 entries (14:38:24),
+  and each review and each resumed run builds the wrapper in a tree of its own.
 - Free room at 13:15:18: `/var/home` 517 GiB,
   the build volume 1,616 GiB
   (519 GiB and 1,640 GiB at 10:27:50,
