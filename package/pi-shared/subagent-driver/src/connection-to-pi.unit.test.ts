@@ -68,8 +68,15 @@ const SHORT_ANSWER_MILLISECONDS = 50;
  the compaction the scenarios play, so a wait that counted the compaction as silence would end mid-way through it.
  */
 const COMPACTION_BOUND_MILLISECONDS = 300;
-/** Milliseconds between looks at what a test waits for. */
+/**
+ Milliseconds between looks at what a test waits for.
+ */
 const LOOK_MILLISECONDS = 20;
+/**
+ What a test hears once the connection has noticed Pi gone, which is the report it waits for instead of a wall-clock guess at how
+ fast this machine runs a process.
+ */
+const EXIT_REPORTED = 'exit noted';
 /**
  Milliseconds a test waits for something the connection reports before giving up on it. What it waits for is a report the
  connection makes as the event arrives, so only a starved host can spend this.
@@ -331,7 +338,7 @@ async function openConnection(
         heard.unreadable.push(line,);
       },
       onExit: () => {
-        heard.problems.push('exit noted',);
+        heard.problems.push(EXIT_REPORTED,);
       },
       onProblem: (problem,) => {
         heard.problems.push(problem,);
@@ -576,10 +583,18 @@ await describe({
     it({
       name: 'a standard error copy that cannot finish is reported, and ending the run still returns',
       fn: async () => {
+        // Pi leaves on its own before the run is ended, so the ending is asked to survive the copy alone. Whether a live Pi
+        // leaves inside the stages a test can afford is this machine's to decide: a process can sit in uninterruptible sleep
+        // until its own input or output finishes, and no signal reaches it before then. The run's own two stages are covered by
+        // the tests above that expect Pi to ignore its input closing and its first signal.
         await using opened = await openConnection({
-          scenario: 'normal',
+          scenario: 'crash',
           standardErrorIsPipe: true,
           graceMilliseconds: ESCALATION_GRACE_MILLISECONDS,
+        },);
+        await waitForProblem({
+          heard: opened.heard,
+          text: EXIT_REPORTED,
         },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);

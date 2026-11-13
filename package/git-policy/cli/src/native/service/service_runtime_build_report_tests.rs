@@ -4,7 +4,8 @@
 //! Why:
 //!  A service that ends because its runtime came out as a stand-in fails a person's commit,
 //! so the line it leaves must name the cause and the wait
-//! (`LATE_BUILD_PATIENCE` in `foundation/lazy_runtime.rs`),
+//! (`RUNTIME_BUILD_PATIENCE` in `service/wait_ceilings.rs`),
+//! a service that waits for that build must say so while it waits,
 //! and a process that never asked for a runtime must not be reported as one that built a bad one.
 
 use super::*;
@@ -52,7 +53,7 @@ fn a_stand_in_runtime_is_named_with_its_cause_and_the_wait() {
     let words: String = stand_in_words(build).expect("a stand-in is named");
     drop(late);
     assert!(words.contains("outlasted"), "the line names the deadline as the cause: {words}");
-    assert!(words.contains(&format!("{} ms", LATE_BUILD_PATIENCE.as_millis())), "the line names the wait the service gives the late build: {words}");
+    assert!(words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())), "the line names the wait the service gives the late build: {words}");
 }
 
 /// What:
@@ -76,8 +77,30 @@ fn the_words_of_a_task_with_no_worker_name_it_the_wait_and_what_to_check() {
     assert!(words.contains("the acceptor of connections"), "the line names the task it could not start: {words}");
     assert!(words.contains("no worker thread"), "the line says what this process lacked: {words}");
     assert!(words.contains("outlasted"), "the line names the cause of the stand-in: {words}");
-    assert!(words.contains(&format!("{} ms", LATE_BUILD_PATIENCE.as_millis())), "the line names how long the wait lasted: {words}");
+    assert!(words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())), "the line names the wait a build that missed its deadline is given: {words}");
     assert!(words.contains("`ulimit -u`") && words.contains("pids.max") && words.contains("memory.max"), "the line names what to check: {words}");
+}
+
+/// What:
+///  The line said while a service waits for the build of the runtime it cannot serve without
+///  names the task that waits,
+///  the deadline that build missed and the wait it is given.
+/// Why:
+///   The socket takes connections and answers none of them while this wait lasts,
+/// so this line is what a person whose commit is waiting reads to know the start is under way;
+/// the bound it names is the one the wait ends at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(waitingWords('the after-commit work')).toContain('the after-commit work'); expect(waitingWords('the after-commit work')).toContain('60000 ms')
+/// ```
+#[test]
+fn the_line_of_a_wait_for_the_build_names_the_task_the_deadline_and_the_wait() {
+    let words: String = waiting_words("the after-commit work");
+    assert!(words.contains("the after-commit work"), "the line names the task that waits: {words}");
+    assert!(words.contains("still being built"), "the line says what is waited for: {words}");
+    assert!(words.contains(&format!("outlasted its {BUILD_DEADLINE:?} deadline")), "the line names the deadline the build missed: {words}");
+    assert!(words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())), "the line names the wait it is given: {words}");
 }
 
 /// What:
@@ -86,7 +109,7 @@ fn the_words_of_a_task_with_no_worker_name_it_the_wait_and_what_to_check() {
 /// Why:
 ///   A service can reach its acceptor before anything needed the runtime,
 /// and then no build exists to describe;
-/// the wait that has nothing coming must end at `LATE_BUILD_PATIENCE` rather than wait on a build that will never be there.
+/// the wait that has nothing coming must end at its own bound rather than wait on a build that will never be there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

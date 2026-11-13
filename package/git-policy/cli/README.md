@@ -83,12 +83,13 @@ Every earlier name keeps working in this release:
   because other programs append to it without a lock.
   If a rename fails (a read-only Git directory),
   the earlier name is used for that run and the next command tries again.
-- The commit service units.
-  The units this release writes are `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service`,
-   and the socket sits under `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/`.
-  A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
+- The commit service's files.
+  `monochromatic-git-policy-cli` under `$XDG_RUNTIME_DIR` (or under `~/.run` when the environment names no runtime
+   directory) holds one worktree's four files: its socket, the note that names its process, the note that names its
+   worktree, and its log.
+  A service that an older program started keeps running from its own install folder
    and lands the commits that older programs send it;
-  this release neither stops it nor removes the old units.
+  this release neither stops it nor removes the unit files an older one wrote, because it reads none of them.
 
 These names are not renamed,
 because an older program or an interrupted run may still need them:
@@ -694,6 +695,14 @@ Read-only commands,
   and is named
    on one line.
   A file that cannot be copied at all fails the copy with its own path in the message.
+  A record of that copy that a crash left empty or cut short is not a reason to stop a command:
+  the command that meets it moves it aside into the journal root's `unreadable` folder,
+  never over another record and never deleting one,
+  writes a stage claim again where the records beside it name the stage folder so the copies that settle it still
+  run,
+  and goes on,
+  with one line naming what may stand on disk because of it.
+  Nothing you made is removed on the strength of a record that cannot be read.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,
@@ -982,14 +991,17 @@ Read-only commands,
      and returns;
      that service deletes the
    subvolume in its own time,
-   normally within a second,
+   in the next round the service runs for that repository,
      so a busy volume's btrfs transaction or cleaner does not hold your
-   command.
+   command,
+     and a volume no add is copying to is not the next round's wait either.
      The path you named is gone the moment the command returns;
      the files are gone when the service has run.
      A
-   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
-   service did not delete it yet:
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory,
+   or in the repository's
+   `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
+   means the service did not delete it yet:
      while a record for it is still queued,
      the next command of that repository wakes the service that reads the
    record,
@@ -1106,16 +1118,26 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    because a merge of another branch brings every branch sitting on its commits along;
    a repository that keeps no reflog for that branch proves nothing about it,
    so its worktree is examined as it was before this rule;
-   a branch moved onto a commit another branch had already moved onto holds no commit of its own either,
-   which is the state `git reset --hard main` leaves in a task worktree;
+   a branch moved onto a commit another branch's own reflog names holds no commit of its own either,
+   which is the state `git reset --hard main` leaves in a task worktree,
+   and that other branch need not still sit on the commit:
+   one that committed again names the same commit in an older line;
+   the one move the merge itself makes in the branch it ran in is no witness,
+   so a fast-forward merge of that tip never counts against the branch that made it;
    a branch merely made at a commit records no commit before its first reflog line,
    so a tip another branch was created at still holds this branch's work;
    a branch moved onto a commit this one made keeps the worktree,
-   because Git records no owner of a commit;
+   because Git records no owner of a commit,
+   and a landed worktree whose tip another branch's history passed through stays the same way,
+   with the notice saying so;
 - the worktree does not hold another worktree this repository registers,
    whose files and whose own record a removal would take with it,
-   and the registrations are read again as the removal runs,
-   so a worktree a command adds inside it while the sweep works keeps it too;
+   and the registrations are read again inside the removal,
+   in the moment the destroy follows,
+   so a worktree a command adds inside it while the sweep works keeps it too,
+   and the commit service reads them again immediately before it destroys the worktree;
+   what no look can keep is an add that lands between that last look and the destroy,
+   which is the window Git's own removal takes for every write and lock in the tree it deletes;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1144,6 +1166,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
 
+A worktree that fails one of those is kept and the report says why.
+A nested worktree of this repository inside it is named with the branch it is on,
+or with the fact that it is on a detached `HEAD`,
+and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
+ uncommitted.
+A subvolume or a mount point that is no worktree of this repository is named with what it is,
+with the move or the unmount that keep every file of it first,
+and with a `btrfs subvolume delete` last and for what it destroys,
+ because a subvolume there may be another repository's worktree.
+
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
  that call runs in the commit service,
@@ -1155,8 +1187,9 @@ Every other case is real `git worktree remove`,
 That removal never runs on the merge's own thread:
  the merge records it for the commit service of the worktree it ran in,
  and the line it prints names the record,
- where `done` means the worktree is gone and `failed` means Git kept it,
- with Git's own sentence in the service's journal.
+ where `done` means the worktree is gone and `failed` means it was kept,
+ with the reason on the standard error of your next command in that repository,
+ and Git's own sentence in the service's journal.
 Either way,
  **the branch is kept**,
  and so is every commit on it;
@@ -1164,6 +1197,29 @@ Either way,
 A removal recorded that way finishes after the merge returned,
  so the worktree stands at the prompt until the service has run it;
  `git worktree remove <path>` removes it now if nothing in it is yours.
+
+The service proves every condition above again,
+ in its own process,
+ immediately before it destroys anything:
+ the registrations,
+ the lock,
+ the unfinished marks,
+ the process table,
+ the ignored files (compared again with the worktree the merge ran in,
+ which the sweep names in the worktree's own Git directory),
+ the records its Git directory holds,
+ the record that this program made the worktree,
+ and every commit a reference lock holds.
+A worktree that no longer meets one of them stays,
+ and the next wrapper command in that repository names it once,
+ with the path,
+ the branch and the reason,
+ so nothing is kept in silence.
+The record names one worktree and not a path:
+ it is keyed by the path and by the identity of the registration standing beside it,
+ and the service recomputes that name before it removes anything.
+A worktree you removed by hand and added again at the same path is therefore a different worktree,
+ and the record of the earlier one leaves it exactly as it is.
 
 **What goes with the worktree.**
 The files Git ignores in it go too,
@@ -1173,6 +1229,10 @@ The files Git ignores in it go too,
 That is the whole reason a worktree is removed only when this program made it:
  a worktree you created by hand is never removed by itself,
  because this program cannot know which ignored files in it are yours.
+An ignored file you write after the merge returned is one the service compares again before it removes the worktree,
+ and it keeps the worktree;
+ what goes with it is a file written in the moment between that reading and Git's deletion,
+ which is the same window any check and the step relying on it leave.
 A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
@@ -1195,6 +1255,11 @@ A worktree whose records could not all be copied stays,
 A commit a reference lock held in that worktree is kept the same way,
  on `refs/cli-git/kept/<batch>` of this repository,
  before anything is removed.
+A held record this program cannot read still names its batch in its own file name,
+ so the commit behind it is read from the worktree's per-worktree reference and kept there too,
+ and the record is named with the path it is at;
+ when nothing can be read for such a record,
+ the worktree stays and the notice says which record and where.
 
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,
@@ -2008,9 +2073,13 @@ and
  name it:
 its content is not part of the tree.
  Move it out,
-delete it with `btrfs subvolume delete`,
-or unmount it,
-then run the deletion again.
+which keeps every file of it,
+or unmount a mount point,
+which keeps its contents,
+then run the deletion again;
+`btrfs subvolume delete` comes after those and is named for what it does,
+because it destroys everything inside that subvolume,
+which the deletion that refused cannot see.
 A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
 with the same reason and the same ways forward;
 the entries the deletion had already removed from that directory stay removed,
@@ -2222,7 +2291,16 @@ the two tools that rewrite link layouts in place are the commit service's work w
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
-  The add's clean runs in a worktree you may already be working in,
+  Where the copy carried the worktree's own build state inside the worktree,
+   the add moves that state aside in one rename before it returns and the commit service cleans it,
+   so a build you start at once finds no build directory and compiles everything itself:
+   correct,
+  and slower than a build that waits for the service's clean.
+   The worktree's own crates never come back from the repair as fresh artifacts with another checkout's paths.
+  The clean that still runs inside the add,
+  which is the case only where the copied state cannot be
+   moved aside,
+  runs in a worktree you may already be working in,
    and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
    so the bytes standing there when the clean ends are kept whole under the repository's Git directory,
    in `monochromatic-git-policy-cli-displaced-locks`,
@@ -2233,7 +2311,10 @@ the two tools that rewrite link layouts in place are the commit service's work w
    it passes `--locked`,
    asks Cargo for the resolution a stale lock needs as a step of its own,
    and puts the checked-out lock back only when the file still holds exactly what that resolution wrote.
-  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it.
+  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it,
+   even one that lands in the moment between the repair's last look and its restore:
+   the restore replaces the file itself in one step and puts back what it found there,
+   so your write stays and the checked-out lock is the copy kept under the repository's Git directory.
   A `target` or `node_modules` you keep as a link to a directory outside the worktree is left alone:
    a clean or an install through it would delete or rewrite the files of the checkout the link names,
    so the repair does nothing there and your first build recompiles what it needs.
@@ -7144,16 +7225,19 @@ all durations in whole milliseconds taken from the monotonic clock:
   They were added for the reading in
   `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `prepareParts` splits the preparation by the stretch of work it was in,
-  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  as `{"layout": {"ms": 12, "calls": 1, "childrenMs": 480}, ...}`:
   the seams are one line each in `src/native/landing/service_prepare.rs`,
-  each figure is the time that stretch spent without a Git child
+  `ms` is the time that stretch spent without a Git child
   (the steps are listed apart in `steps`),
+  `childrenMs` is the time of the Git steps that began inside it,
+  clipped to its end,
+  so a stretch a child dominated states that child's time rather than nothing,
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `buildParts` is the same shape for the build phase:
-  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
-  with a name for every stretch that held no Git child.
+  `{"branch": {"ms": 1, "calls": 1, "childrenMs": 0}, "shadow skeleton": {"ms": 3, "calls": 1, "childrenMs": 0}, ...}`,
+  with a name for every stretch and the time of the Git children that began inside it.
   The shadow repository's creation is the one this was added for:
   it is in-process filesystem work,
   so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
@@ -7442,6 +7526,9 @@ a large `reachMs` with `updateRounds` above zero and two entries in `releasesSee
 of another release being replaced,
 and the journal of the instance shows that service's `retire requested` and `exiting`
 lines and the new `started` line;
+a service of another release that has not left after the client's wait for it is ended once,
+with one line saying so,
+and the commit goes on once the program this release installs answers;
 a large `answerWaitMs` is the queue or a held index,
 and the `answered` line of the
 request in the journal says which,

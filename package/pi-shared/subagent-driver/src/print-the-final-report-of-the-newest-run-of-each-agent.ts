@@ -33,6 +33,7 @@ import {
   requiredPositiveNumber,
   requiredText,
 } from './required-option-values.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
@@ -40,6 +41,17 @@ import {
 const FINAL_REPORT_USAGE =
   'print-the-final-report-of-the-newest-run-of-each-agent --agent=<name> [--agent=<name>]... [--runs-folder=<folder>] '
     + '[--lines=<n>] [--width=<n>]';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: FINAL_REPORT_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The option that names one agent.

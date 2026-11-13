@@ -164,16 +164,20 @@ fn private_name(location: &Path, transaction_id: &str) -> PathBuf {
 ///   A file whose mode could not be set is not the entry the write promised,
 /// so the attempt fails and is reported rather than
 ///  placed.
+///  The mode string is Git's kind and permission digits,
+/// and a write of the person's own entry carries every bit they set in those digits:
+///  `100644` is Git's plain file and `100600` is the same file made private,
+/// which is the whole of what the capture keeps of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function setMode(file, mode): Promise<void>; // 0o755 for 100755, else 0o644
+/// async function setMode(file, mode): Promise<void>; // the permission digits of the mode, or 0o644 when it names none
 /// ```
 fn set_mode(file: &Path, mode: &str) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let bits: u32 = if mode == "100755" { 0o755 } else { 0o644 };
+        let bits: u32 = crate::merge_isolation_carry_permissions::the_permission_bits_of_a_mode(mode);
         return match std::fs::set_permissions(file, std::fs::Permissions::from_mode(bits)) {
             Ok(()) => Ok(()),
             Err(error) => Err(error.to_string()),
@@ -323,7 +327,7 @@ fn put_back(location: &Path, aside: &Path) -> Result<Placed, CarryFailure> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function dropTheAside({ context, root, path, aside, judged, kept }): Promise<void>; // mayRemove ? unlink : kept.push(aside)
+/// async function dropTheAside({ context, root, path, aside, judged, kept }): Promise<void>; // proof ? unlink : kept.push(aside)
 /// ```
 async fn drop_the_aside_awaiting(
     context: &GitContext,
@@ -337,11 +341,11 @@ async fn drop_the_aside_awaiting(
         kept.push(aside.to_path_buf());
         return Ok(());
     };
-    if !may_remove_the_aside_awaiting(context, root, path, aside, taken, expected).await {
+    let Some(proof) = may_remove_the_aside_awaiting(context, root, path, aside, taken, expected).await else {
         kept.push(aside.to_path_buf());
         return Ok(());
-    }
-    return match std::fs::remove_file(aside) {
+    };
+    return match proof.remove(aside) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display()))),

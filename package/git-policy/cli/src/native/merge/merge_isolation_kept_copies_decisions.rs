@@ -45,7 +45,7 @@ use crate::merge_isolation_journal::{list_merge_intents, parse_merge_intent};
 use crate::transaction_owner::OwnerLiveness;
 /// Reading the bytes of a file through Git.
 use crate::merge_isolation_changes::{FileIdentity, file_identity};
-use crate::merge_isolation_take_asides::{CopyRemoval, may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
+use crate::merge_isolation_take_asides::{CopyRemoval, ProofNothingCanWrite, may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
 /// The person's own work a merge captured,
 /// which holds the bytes of a path the take of a carry moved aside.
 use crate::merge_isolation_carry_parts::Capture;
@@ -284,8 +284,9 @@ enum Fate {
     /// The path is free,
     /// and the copy is the file the merge itself holds there.
     PutBack,
-    /// The path holds a file whose bytes are the copy's own.
-    TheFileHoldsThem,
+    /// The path holds a file whose bytes are the copy's own,
+    /// with the proof that nothing can write into the copy held until its name goes.
+    TheFileHoldsThem(ProofNothingCanWrite),
     /// The copy's bytes are the ones one of the merge's commits holds for the path,
     /// so Git still has them.
     GitHoldsThem(String),
@@ -354,7 +355,7 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         } else {
             match the_file {
                 Some(standing) => match may_remove_the_copy_awaiting(context, root, copy.aside.as_path(), copy.location.as_path(), standing).await {
-                    CopyRemoval::Proven => Fate::TheFileHoldsThem,
+                    CopyRemoval::Proven(proof) => Fate::TheFileHoldsThem(proof),
                     CopyRemoval::HeldOpen => Fate::KeptBecause("a program still holds the copy open"),
                     CopyRemoval::Changed => Fate::KeptBecause("the file at its path or the copy changed after they were compared"),
                 },
@@ -368,7 +369,7 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     };
     match fate {
         Fate::PutBack => return put_the_copy_back(git_dir, copy, named, out),
-        Fate::TheFileHoldsThem => remove_the_copy_because_the_file_holds_it(git_dir, copy, out),
+        Fate::TheFileHoldsThem(proof) => remove_the_copy_because_the_file_holds_it(git_dir, copy, proof, out),
         Fate::GitHoldsThem(object) => remove_the_copy_because_git_holds_it(git_dir, copy, object.as_str(), out),
         Fate::Kept | Fate::KeptBecause(_) => {
             // The copy is recorded, so the next command that runs the recovery decides it again even though no later merge
@@ -429,8 +430,8 @@ fn put_the_copy_back<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, named: 
 /// ```ts
 /// rm(aside); forget(gitDir, aside); say(`${aside} was removed: ${location} holds those same bytes`);
 /// ```
-fn remove_the_copy_because_the_file_holds_it<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, out: &mut W) {
-    match std::fs::remove_file(copy.aside.as_path()) {
+fn remove_the_copy_because_the_file_holds_it<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, proof: ProofNothingCanWrite, out: &mut W) {
+    match proof.remove(copy.aside.as_path()) {
         Ok(()) => {
             forget_the_copy(git_dir, copy.aside.as_path());
             let _said = out.write_all(

@@ -509,3 +509,43 @@ fn the_scene_records_the_object_it_made() {
     assert_eq!(path_identity(scene.destination.as_path()), Some(recorded), "the snapshot is at the destination after the exchange");
     remove(scene.root.as_path());
 }
+
+/// What:
+///  The removals of a release, in their order with the process killed after the first, leave a
+/// finished add that no command names as owing the ignored state it holds.
+/// Why:
+///   A release removes the record of the object the stage's creation made before the claim's own
+/// records,
+/// so a kill between the two removals leaves the destination holding the snapshot and no record
+/// naming it.
+///  The completion marker is what still says the add finished,
+/// so the worktree that holds the
+///  snapshot's whole ignored state is never named as owing a copy or as missing files,
+/// and the claim and its records settle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAdd('swap-killed-in-the-release'); settleDisplaced(scene); claim.markCompleteUnsynced(); removeMade(claim);
+/// const said = recoveryWords(scene, scene.observer); expect(said).toBe(''); expect(records(scene)).toEqual([]);
+/// ```
+#[test]
+fn a_kill_after_the_release_removed_the_object_record_leaves_no_copy_owed() {
+    let scene: Exchanged = exchanged_add("swap-killed-in-the-release");
+    let record: PathBuf = scene.claim.with_extension(&DESTINATION_SUFFIX[1..]);
+    let text: String = std::fs::read_to_string(record.as_path()).expect("the record the add wrote before Git ran");
+    let Some(Recorded::Registered(binding)) = decode_record(text.as_str()) else { panic!("the scene's record is the binding the add wrote") };
+    // The rung settles the directory Git made before it returns, and the release's removals run after that.
+    let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(scene.container.as_path(), scene.destination.as_path(), binding.destination_id, binding.pointer.as_slice());
+    assert_eq!(notes, Vec::<String>::new(), "the disconnected directory is settled as the creating command settles it");
+    let claim: StageClaim = StageClaim::adopted(scene.claim.as_path(), scene.container.as_path(), Some(record.as_path())).expect("the claim the add wrote");
+    // `StageClaim::settle_unsynced`, instruction by instruction, with the kill after the first removal.
+    claim.mark_complete_unsynced().expect("the completion marker the release writes before any removal");
+    crate::worktree_copy_stage_made_object::remove_made(scene.claim.as_path()).expect("the record of the object the stage's creation made");
+    let said: String = recovery_words(&scene, scene.observer.as_path());
+    assert!(!said.contains("still owed"), "an add that finished owes no copy, whatever stands recorded: {said}");
+    assert!(!said.contains("never finished"), "and none may be reported as unfinished: {said}");
+    assert_eq!(said, "", "the add is whole, so there is nothing to say about it: {said}");
+    assert!(records(&scene).is_empty(), "the claim and its records settle: {:?}", records(&scene));
+    assert_eq!(std::fs::read(scene.destination.join("ignored.txt")).ok(), Some(b"ignored content\n".to_vec()), "the snapshot's ignored state stays where it is");
+    remove(scene.root.as_path());
+}

@@ -42,18 +42,27 @@ fn removal_command(worktree: &Path) -> String {
 
 /// What:
 ///  Where the wrapper keeps what became of a handed-over removal,
-///  as the person reads it.
+///  as the person reads it:
+///  the work directory itself,
+///  and the record's own name.
 /// Why:
-///  The record moves from `pending` to `done` or `failed` under the work directory named here,
-///  and a person whose worktree is still there needs a place to look that is not this program's own words.
+///  A record is a file under `pending`, `claimed`, `done` or `failed` below that directory,
+///  and it moves between them,
+///  so a line that named one of those paths named a file that is not there more often than one that is.
+///  The directory and the name are what a person can open,
+///  and the state they read in it is the outcome this program wrote:
+///  `done` means the worktree is gone,
+///  `failed` means a service kept it,
+///  and the reason that service answered reaches the person on their next command
+///  (`worktree_kept_notices.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const recordPlace = (record) => `${workDir(record.gitDir)}/${record.id}`;
+/// const recordPlace = (record) => `${workDir(record.gitDir)} carries the record ${record.id}`;
 /// ```
 fn record_place(one: &HandedOverWorktree) -> String {
     let work: std::path::PathBuf = crate::service_work::work_directory(one.record.git_dir.as_path());
-    return work.join(one.record.id()).display().to_string();
+    return format!("{} carries the record {}", work.display(), one.record.id());
 }
 
 /// What:
@@ -113,7 +122,7 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
     //  the merge waits for none of it, so the person reads where its outcome is and what stands until then.
     for handed in &sweep.handed_over {
         lines.push(format!(
-            "{PREFIX}handed the removal of the worktree {} to the commit service, though its branch {} is now on {}: removing it is Git's own reading of every tracked file there, and no merge waits for that. The branch stays. What became of it is the record {}: `done` there means the worktree is gone, and `failed`, with Git's own sentence in the service's journal, means Git kept it. If nothing there is yours and you want it gone now, `{}` removes it.",
+            "{PREFIX}handed the removal of the worktree {} to the commit service, though its branch {} is now on {}: removing it is Git's own reading of every tracked file there, and no merge waits for that. The branch stays. What became of it is the record {}: `done` under it means the worktree is gone, and `failed` means it was kept, with the reason on your next command's standard error. If nothing there is yours and you want it gone now, `{}` removes it.",
             handed.worktree.display(),
             handed.branch,
             sweep.landed_branch,

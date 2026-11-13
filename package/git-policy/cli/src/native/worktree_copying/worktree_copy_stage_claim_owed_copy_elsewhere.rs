@@ -66,6 +66,11 @@ pub(crate) fn copy_owed_to_another_worktree(
     if crate::worktree_copy_stage_made_object::the_made_object_stands_at(claim, destination.as_path()) {
         return false;
     }
+    // The same answer where a kill removed that record of the object before this command read the claim: the
+    // completion marker is the add's own record that it finished, so nothing is owed into any worktree.
+    if crate::worktree_copy_interrupted_add_settlement::the_add_finished(claim) {
+        return false;
+    }
     // The copy has a future only where the registration and the checkout are whole under this repository.
     if crate::worktree_copy_recovery::destination_registration(common_dir, destination.as_path())
         != crate::worktree_copy_recovery::Registration::Registered

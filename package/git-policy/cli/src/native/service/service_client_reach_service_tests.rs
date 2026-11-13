@@ -159,3 +159,88 @@ fn a_service_of_another_release_is_asked_to_retire() {
     assert!(asked.load(Ordering::SeqCst), "the other release was asked to leave");
     std::mem::forget(serving);
 }
+
+/// What:
+///  The line a wait prints when nothing has answered is written while the wait still goes on,
+///  and the wait still ends at its own bound.
+/// Why:
+///  A line read only at the end of the wait is a line a person sees after the thing it explains has stopped happening:
+/// the start wait is where a commit spent ten seconds in silence.
+/// The sink here records the moment of each write, which is the only way to see that the line came early.
+#[test]
+fn the_notice_of_a_wait_reaches_the_person_before_the_wait_ends() {
+    let socket: String = address("client-reach-notice-while-waiting");
+    let listener = listen_at(socket.as_str()).expect("the address is bound");
+    let (finished, held, serving) = take_connections_and_greet_nothing(listener);
+    let mut settings: ClientConfig = config(socket.as_str());
+    // Twice the notice grace, so the line and the end of the wait are a second apart at the least.
+    settings.start_wait = Duration::from_millis(2_400);
+    let mut notices: TimesOfLines = TimesOfLines::start();
+    let mut announced: bool = false;
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut ReachTrace::default(), false).expect_err("nothing answered, so nothing is reached");
+    let waited: Duration = began.elapsed();
+    let said: Vec<(Duration, String)> = notices.lines();
+    let text: String = said.iter().map(|(_when, line)| { return line.as_str(); }).collect();
+    let telling: Vec<&(Duration, String)> = said.iter().filter(|(_when, line)| { return line.contains("nothing has answered at"); }).collect();
+    assert_eq!(telling.len(), 1, "one line, and one only: {text:?}");
+    let (when, _line): &(Duration, String) = telling[0];
+    assert!(text.contains(socket.as_str()), "the line names the address: {text}");
+    assert!(*when < Duration::from_millis(1_500), "the line is read while the wait goes on ({when:?} of {waited:?}): {text}");
+    assert!(waited >= settings.start_wait, "and the wait still ends at its own bound: {waited:?}");
+    assert!(matches!(failure, ClientFailure::NothingAnswered { .. }), "the end says what the wait proved: {failure:?}");
+    finished.store(true, std::sync::atomic::Ordering::Relaxed);
+    serving.join().expect("the stand-in service's thread");
+    drop(held);
+}
+
+/// A sink that records the moment it was given each line.
+struct TimesOfLines {
+    /// When the wait began.
+    began: std::time::Instant,
+    /// Every line,
+    /// with the moment it was written.
+    lines: std::sync::Arc<std::sync::Mutex<Vec<(Duration, String)>>>,
+}
+
+impl TimesOfLines {
+    /// A sink whose clock starts now.
+    fn start() -> Self {
+        return Self { began: std::time::Instant::now(), lines: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())) };
+    }
+
+    /// Every line written so far, with when.
+    fn lines(&self) -> Vec<(Duration, String)> {
+        return self.lines.lock().expect("the sink's lines").clone();
+    }
+}
+
+impl std::io::Write for TimesOfLines {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let when: Duration = self.began.elapsed();
+        self.lines.lock().expect("the sink's lines").push((when, String::from_utf8_lossy(bytes).into_owned()));
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// A service that accepts every connection and greets nothing, held open until the control says it is done.
+fn take_connections_and_greet_nothing(listener: std::os::unix::net::UnixListener) -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::Arc<std::sync::Mutex<Vec<std::os::unix::net::UnixStream>>>, std::thread::JoinHandle<()>) {
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let serving_finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+    let held: std::sync::Arc<std::sync::Mutex<Vec<std::os::unix::net::UnixStream>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let serving_held: std::sync::Arc<std::sync::Mutex<Vec<std::os::unix::net::UnixStream>>> = std::sync::Arc::clone(&held);
+    let serving = std::thread::spawn(move || {
+        let _set = listener.set_nonblocking(true);
+        while !serving_finished.load(std::sync::atomic::Ordering::Relaxed) {
+            match listener.accept() {
+                Ok((stream, _address)) => serving_held.lock().expect("held").push(stream),
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+    return (finished, held, serving);
+}

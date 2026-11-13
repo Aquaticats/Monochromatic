@@ -708,18 +708,355 @@ What was established that day:
   whose context names `node:util` `parseArgs` adoption and Valibot,
   and no performance reason.
   The measurement therefore bears on none of the reasons that decision records.
-- An Optique parse of three tokens cost 0.52 to 0.74 ms on every version measured,
+- An Optique parse of two tokens cost 0.39 to 0.97 ms across the versions measured,
   and each positional token before a `--` adds about 0.18 ms on 1.3.6.
   Which of the consumers this handover lists pass many such tokens was not checked;
   the section "Existing consumer constraints" names forwarding ones.
 
-Open,
-and the owner's to decide:
+Decided by the owner on 2026-11-12:
 
-- whether to reply to the maintainer,
-  and with which of the drafted material;
-- whether the reassessment the maintainer asks for should happen at all.
-  This handover's scope and decisions stand until the owner says otherwise.
+- The removal plan stays as it is ("Keep the removal plan").
+  No reassessment of Optique is scheduled.
+- The data reply to the maintainer goes out only after the owner has edited it
+  (the option chosen reads "I edit,
+  then post").
+  The draft is in the troubleshooting doc;
+  no agent posts it.
+- Nobody for this project reported the cost upstream before 2026-09-28
+  (the option chosen reads "No,
+  nobody reported it").
+
+Further instructions from the owner on 2026-11-12,
+in order:
+
+- "dahlia could be someone useful.
+  Be maximally coorperative and do everything dahlia asked and might ask."
+- "Still do everything we need to do to ask dahlia questions correctly on top of that.
+  This is an addition,
+  not a change of course."
+- "Feel free to make new gh repos in my `Aquaticat` gh account for minimal reproductions."
+
+What those add:
+
+- Reproducers the maintainer can run as they are,
+  on Node,
+  Deno and Bun,
+  against an npm version or a source checkout.
+- Each new upstream finding written up as its own report under `doc/troubleshooting/`,
+  with a draft in the form upstream's tracker uses.
+  Two were found on 2026-11-12:
+  every option probe on the unreleased 1.4 line pays for short-option scoping,
+  and the input trace copies its whole map for each recorded token on every version.
+- A fix prototyped locally for the input trace only.
+  Upstream accepts AI-assisted pull requests only for accepted issues,
+  so no patch is sent before an issue is accepted.
+- Reproduction repositories under the owner's account,
+  created private,
+  made public only when the owner says.
+
+Open:
+
+- Which further questions go to the maintainer.
+  The owner's instruction on 2026-11-12:
+  "You're supposed to put on your statistician and mathmatician and software engineer's hats
+  to resolve questions we can resolve first."
+  So each drafted question is first answered here by analysis,
+  measurement or source reading where that is possible,
+  and only what is left is offered for sending.
+  The drafted questions are in
+  `/var/mnt/encrypted/temp/agent/optique-session-2026-11-12/optique-questions-for-maintainer-2026-11-12.md`,
+  which is scratch and not committed
+  (its first copy under `${HOME}/temp/agent` was gone after the reboot of 2026-11-13).
+
+### State on 2026-11-13T09:45:00-05:00
+
+Nothing has been sent upstream by this project beyond the owner's own two short comments.
+Upstream moved on its own from this repository's public documents:
+
+- The owner answered the maintainer on the commit at 2026-11-12T13:52:56Z:
+  "Looking.
+  ETA:
+  In 24h with 90% certainty."
+  and again at 2026-11-13T14:27:49Z:
+  "Sorry,
+  I had some issues with my machine.
+  New ETA:
+  in 72h with 80% certainty."
+  That runs to 2026-11-16T14:27:49Z.
+- The maintainer opened upstream issue 1120 at 2026-11-13T08:16:37Z,
+  citing the research record and the short-option document at commit `249bbf19ea`,
+  and pull request 1121 for it at 2026-11-13T10:10:30Z.
+  Issue 1120 names the input-trace copy and puts it outside its own scope.
+- The maintainer merged pull request 1121 at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+  which closed issue 1120.
+  The merge commit's tree is that of the branch head `a175cdb7` this project measured,
+  so those figures are figures for `main` as of the merge.
+  Checked afterwards the same day:
+  upstream has no open pull request,
+  no issue newer than 1120,
+  and no commit on `input-trace.ts` since 2026-05-14.
+  The documents and the reply draft now say the pull request is merged.
+
+Decided by the owner on 2026-11-13,
+each in answer to a question that gave the options:
+
+- When to answer the maintainer:
+  "Wait for the review".
+- The input-trace patch,
+  asked whether to raise it in the reply,
+  open an issue,
+  open a discussion or keep it here:
+  "Keep it local for now.
+  I want to have everything figured out ourselves before giving replies.
+  And I've already said my ETA had changed to 72h from now."
+  An agent then took the patch paragraph out of the reply draft,
+  and the owner corrected that:
+  "I only said to "keep it **local** for **now**",
+  which means it can be in the draft."
+  So the draft carries it,
+  and nothing about the patch is filed or posted before the owner posts the reply.
+- The reproduction repository,
+  told that its first commit carries the account's own address:
+  "Make public as it is".
+  Done at 2026-11-13T14:41:43Z.
+- The five `passThrough()` findings held back from this repository:
+  "Draft a private advisory (Recommended)",
+  meaning a local draft for the owner to review and submit through GitHub's private reporting.
+- The research record's status line,
+  which read "complete" on the word of the session that wrote it:
+  "No.
+  It was not complete.
+  At the very least it should have said I haven't approved it as complete."
+  and
+  "You marking it Status:
+  complete probably caused dahlia to pre-emptively work more than what the information at that time called for.
+  And it might have also created extra work for dahlia."
+  The line now says the owner has not approved it,
+  and the reply draft holds a placeholder for whether to tell the maintainer.
+- Two rule changes that came of this session's missteps,
+  both chosen by the owner from proposals:
+  rule `VR2` in `AGENTS.md` now covers answers as well as requests,
+  and a new rule,
+  `SGO`,
+  reserves "complete",
+  "final" and "approved" for the owner and has agents mark their documents and reports otherwise,
+  saying what was done and checked,
+  by whom,
+  and what is open.
+  The Optique and Deno documents of this work carry that mark.
+  The other documents under `doc/` whose status reads "complete" are listed in #6292,
+  filed on the owner's answer "Open one issue (Recommended)";
+  none of them was changed.
+
+- Upstream issue 1118,
+  about PowerShell completion tests exceeding Bun's five-second timeout,
+  which the owner took for something this work set off:
+  "I believe we're the only ones using Bun 1.3.14,
+  so this one has to have been triggered by us.
+  And we don't care about support for older versions,
+  just like Bun itself doesn't care."
+  and
+  "I suspect you tested Bun 1.3.14 anyway,
+  which we shouldn't have.
+  Even if we did,
+  it shouldn't have been counted or marked as a defect."
+  What the records show,
+  checked on 2026-11-13 by the session that did the work:
+  - The issue was opened by upstream's maintainer at 2026-11-12T18:11:19Z.
+    It,
+    and the two beside it (1116 and 1117),
+    name neither this repository nor its owner.
+    It reports `mise test` on the maintainer's own branch `bugfiix/docs-build-oom`,
+    on Fedora Linux 44.
+  - Upstream's `mise.toml` pins `bun = "1.3"`,
+    and `mise ls-remote bun` lists 1.3.14 as the newest 1.3 release,
+    so `mise test` in upstream's checkout runs Bun 1.3.14 for whoever runs it.
+  - This repository's `toolchain.lock.json` held Bun 1.4.4 at the commit before the issue (`07597bdd20`) and holds it now.
+  - No measurement or run record of this work names 1.3.14;
+    the scratch files that do are copies of upstream's issues 1116 and 1118
+    and the review reports that quote them.
+    The records show Bun 1.3.0,
+    in the prototype's work image,
+    whose first Bun log is dated 2026-11-12T15:02:28-05:00,
+    about two hours after the issue;
+    and Bun 1.4.4 on 2026-11-13.
+  - This repository's public Optique documents,
+    as of the commit before the issue,
+    say nothing about Bun tests or PowerShell.
+  So nothing found ties the issue to this work.
+  Not established:
+  what the session did before its context was summarised,
+  beyond what those records hold;
+  and why the maintainer ran the suite that day.
+  What was wrong on this side is the Bun 1.3.0:
+  the prototype's image pinned it with no reason given,
+  the session ran upstream's suite on it on 2026-11-13,
+  and wrote the failing-test counts into a public document.
+  That is an old version,
+  the failures are no finding about upstream,
+  and nothing about them is to be reported.
+  The comparison was run again on Bun 1.4.4 the same day,
+  where the patched tree passes the core suite,
+  and the document now reports that.
+  Rule `PIN` in `AGENTS.md` was amended on the owner's choice:
+  test on current releases only,
+  and an older one's failures are no defect.
+- The two per-token copies the input-trace patch leaves,
+  in `multiple()` and `argument()`,
+  asked whether to prototype fixes for them before the reply,
+  describe them in the reply as profiled and not fixed,
+  or leave them out:
+  "Prototype now (Recommended)".
+  A Pi run was started for it on 2026-11-13,
+  named `optique-two-remaining-copies-prototype`,
+  on DeepSeek through Neuralwatt,
+  with the brief `${HOME}/temp/agent/pi-runs/optique-two-remaining-copies-prototype-prompt.md`.
+  It works in a fresh disposable clone of its own under `${HOME}/temp/agent`,
+  on top of the trace patch,
+  on the current Node,
+  Deno and Bun,
+  and sends nothing anywhere.
+  Its result is to be checked again by the coordinating session,
+  as the trace patch was,
+  before anything about it is written into a document.
+  Its clone is `${HOME}/temp/agent/upstream-prototype.3lsGY9v7/optique`,
+  based on `main` at the merge commit `d26f1a24` with the trace patch committed on top,
+  and what must outlive the run goes in the `keep/` folder beside the clone.
+  The owner's commit service holds a push plan for that clone and retries it against the disabled push address,
+  although the agent ran `git` with a `HOME` and `XDG_RUNTIME_DIR` of its own;
+  nothing leaves the machine,
+  and the behaviour is filed as #6293.
+- Agents at once:
+  rule `MXA` in `AGENTS.md` and `doc/handover/agents-at-once-on-this-machine.md` set a cap for the whole machine.
+  Count before starting any further Pi run for this work,
+  the next review pass included.
+
+Nothing in this section has been approved by the owner as complete or final;
+it is one AI session's record of what it did,
+checked and left open.
+
+Where each piece stands:
+
+- The reply draft,
+  in `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md`,
+  was rewritten on 2026-11-13.
+  It is not to be posted until the independent review is folded in and the open points are settled,
+  and then only by the owner after editing it.
+- The short-option finding needs no report;
+  its document records upstream's issue and this project's measurement of pull request 1121.
+- The input-trace finding has its document,
+  `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
+  a patch beside it,
+  and a draft issue that is not to be filed for now.
+  Settled on 2026-11-13 and recorded there:
+  the patch removes the largest of three per-token copies and leaves two,
+  in `multiple()` and `argument()`,
+  which were profiled,
+  and whose fixes are being prototyped on the owner's decision of 2026-11-13;
+  the patched tree passes upstream's core suite on Bun 1.4.4,
+  the current release,
+  with no failure;
+  and the 1.0,
+  1.1 and 1.2 lines grow as 1.3.6 does.
+- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is public,
+  at commit `76b15277df53e5577cdc4e67bfeda3b7302b12c6`.
+  Three workflow runs fail on their asserting steps.
+
+Open,
+to settle before a reply:
+
+- The independent review of the three documents and the patch:
+  qwen4-max-preview through Pi,
+  run name `optique-input-trace-and-reply-claim-check`,
+  started 2026-11-13.
+  Its first pass ended after 71 turns and 35 minutes,
+  reading the documents as of commit `5a4e07d2e3`;
+  its report is `${HOME}/temp/agent/optique-2026-11-13/review-report.md`.
+  It recomputed every figure from the raw records and found them to match,
+  found the code excerpts verbatim and no defect in the patch,
+  and found errors in the prose,
+  which were corrected the same day:
+  a sentence quoted from upstream issue 989 that is not in it,
+  a claim that the trace copy is what separates pull request 1121 from 1.3.6
+  (1.3.6 pays for that copy too,
+  so the gap is option-scope work),
+  the length check misstated in the reply draft,
+  and smaller wording and timestamp matters.
+  The documents changed after that commit,
+  so a second pass over the changes was run on 2026-11-13 by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-2`,
+  27 turns and 17 minutes,
+  reading `main` at `426d33d638`;
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-2.md`).
+  It found every new figure to match its record,
+  the new source excerpts verbatim,
+  and the first pass's corrections all in place.
+  Its own findings were small and were corrected the same day:
+  a wrong count and two unrecorded statements in the Deno document
+  (the two were then run and recorded),
+  a sentence there that dated a Deno run without a record
+  (replaced by the recorded one),
+  and wording that said slightly more than the records in this handover and in the input-trace document.
+  Its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`.
+  A third pass read those corrections,
+  commit `2d06b4ae60`,
+  by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-3`,
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-3.md`).
+  It found each correction supported by its record or source,
+  the three checks run after the second pass real and run against the patch as committed,
+  and nothing in the status lines claiming more than unapproved.
+  It found two wording matters,
+  corrected the same day:
+  a share of the patched parse at 4,000 to 8,000 tokens that was the share of two files,
+  given as the share of the two copies
+  (the document now gives both the functions' and the files' figures and says the profile cannot do better);
+  and a count of scratch files in this handover.
+  The corrections made after that third pass are not reviewed.
+- The private advisory draft for the `passThrough()` findings is written and waits for the owner:
+  `${HOME}/temp/agent/optique-2026-11-13/optique-passthrough-private-advisory-draft.md`,
+  a local file that is not committed.
+  Its five cases were run again on 2026-11-13 on 1.3.6,
+  `1.4.0-dev.2971`,
+  `main` at `84f95710` and pull request 1121's head,
+  with the same outcome on each
+  (`passthrough-cases.jsonl` beside it).
+  Nothing about it is to be mentioned in public.
+- Which of the drafted questions go into the reply.
+  The draft asks one,
+  whether offering every token to every option parser is the intended end state.
+  The one about a guard on how parse work grows is partly answered by pull request 1121,
+  which keeps a benchmark for its workload.
+
+Scratch,
+all under `${HOME}/temp/agent`,
+which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
+
+- `optique-session-2026-11-12/`:
+  the question list,
+  the held-back report,
+  the publish and wait scripts for the reproduction repository.
+- `optique-parse-cost-reproduction/`:
+  the staging copy the publish script reads.
+- `optique-2026-11-13/`:
+  the container recipes,
+  runners and records of the measurements of 2026-11-13.
+- `upstream-prototype.O1iPjcqr/`:
+  the disposable clone that holds the patch's working tree,
+  with its logs.
+
+Container images `localhost/optique-cross-runtime:2026-11-13`,
+`localhost/optique-upstream-arms:2026-11-13` and `localhost/optique-prototype-work:2026-11-13`
+were built on 2026-11-13,
+after `podman system reset` removed the earlier ones.
+
+The defects in this repository's own tools that showed during the work are filed,
+on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
+#6288,
+#6289,
+#6290,
+#6291
+and #6293.
 
 ## Next action
 

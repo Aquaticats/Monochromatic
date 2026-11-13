@@ -8,6 +8,9 @@ import type {
   ExtensionFactory,
 } from '@earendil-works/pi-coding-agent';
 
+import { readFile, } from 'node:fs/promises';
+import { lodgedImportsIn, } from './bundle-imports.ts';
+
 import {
   createAgentSettledEvent,
   createExtensionContext,
@@ -21,6 +24,14 @@ import {
  Built extension path consumed by Pi package discovery.
  */
 const BUILT_EXTENSION_PATH = '../dist/final/node/index.mjs';
+
+/**
+ The file that path names, read as text so a specifier the bundle asks for at run time can be read out of it.
+ */
+const BUILT_EXTENSION_FILE = new URL(
+  BUILT_EXTENSION_PATH,
+  import.meta.url,
+).pathname;
 
 /**
  Sole Pi lifecycle event required by this extension.
@@ -128,6 +139,22 @@ function isAgentSettledNotificationModule(
  ```
  */
 async function verifyBuiltExtension(): Promise<string> {
+  /**
+   What the bundle asks for at run time and cannot answer from itself, which is what Pi fails to load.
+   */
+  const lodged = lodgedImportsIn({
+    bundle: await readFile(
+      BUILT_EXTENSION_FILE,
+      'utf8',
+    ),
+  },);
+  if (lodged.length > 0) {
+    throw new Error(
+      `the built bundle ${BUILT_EXTENSION_FILE} asks for ${lodged.join(', ')} at run time, so Pi loads it only where that package `
+        + 'is beside it. A workspace package belongs inside the bundle: run `mise exec -- pnpm install --offline --frozen-lockfile` '
+        + 'in the checkout, then build again.',
+    );
+  }
   /**
    Module namespace imported from the same built entry Pi loads.
    */
