@@ -18,6 +18,16 @@
 //! a ref name it declines,
 //! a damaged `packed-refs`) ends in the Git child,
 //!  so a decline adds a start and changes no answer.
+//! Three rules keep the answer Git's answer rather than a set nearly like it,
+//! and each was a case a review of this reader found the code getting wrong:
+//!  a linked worktree's per-worktree namespaces come only from its own Git directory,
+//! so the shared directory's copies of them are left out;
+//!  a symbolic ref is printed with the name its chain ends at,
+//! not with the name it points at directly;
+//!  and a symbolic ref whose chain ends at no ref,
+//! or in a loop,
+//! is not printed at all.
+//! `the_reader_answers_every_kind_of_store_as_git_does_or_declines` holds all three.
 //! The writer of the store is `shadow_ref_write.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -34,9 +44,6 @@ use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_
 /// The package's own reader of Git's ref files,
 /// which answers without a Git start.
 use crate::repo_read_refs::{RefValue, Refs};
-/// A table keyed by a ref name's bytes,
-/// which keeps the names in Git's own order.
-use std::collections::BTreeMap;
 /// The ref backend,
 /// which decides whether files or tables hold the refs.
 use crate::transaction_journal::RefFormat;
@@ -184,10 +191,6 @@ fn entry_of(name: &str, value: RefValue) -> RefSnapshotEntry {
 /// ```ts
 /// const refsReadFromFiles = (sources) => sharedRefs.list() + perWorktreeNamespaces;
 /// ```
-fn chain_entry(entry: &RefSnapshotEntry) -> (Vec<u8>, (String, Vec<u8>)) {
-    return (entry.name.clone(), (entry.oid.clone(), entry.symref.clone()));
-}
-
 /// What:
 ///  One entry of the snapshot read from the ref files,
 ///  or `None` when the reader cannot prove the answer.
@@ -203,45 +206,101 @@ fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntr
     if sources.ref_format != RefFormat::Files {
         return None;
     }
+    // A worktree that does not own its Git directory resolves the per-worktree namespaces to its own,
+    // so the shared directory's copies of them are another worktree's refs and are not this snapshot's.
+    let linked: bool = sources.git_dir != sources.common_dir;
     let shared: Refs = Refs::new(sources.common_dir.as_path(), hex_length);
-    let mut found: BTreeMap<Vec<u8>, RefSnapshotEntry> = BTreeMap::new();
+    // The entries are built once and sorted once: a name is bytes, and the entry holds those bytes, so the list is
+    //  made in place rather than through a table keyed by a copy of every name.
+    let mut entries: Vec<RefSnapshotEntry> = Vec::new();
     for (name, value) in shared.list()? {
-        let entry: RefSnapshotEntry = entry_of(name.as_str(), value);
-        found.insert(entry.name.clone(), entry);
+        if linked && is_a_per_worktree_name(name.as_str()) {
+            continue;
+        }
+        entries.push(entry_of(name.as_str(), value));
     }
     // A worktree that does not own its Git directory keeps these three namespaces in its own, never in `packed-refs`.
-    if sources.git_dir != sources.common_dir {
+    if linked {
         let own: Refs = Refs::new(sources.git_dir.as_path(), hex_length);
         for namespace in PER_WORKTREE_NAMESPACES {
             for (name, value) in own.loose_namespace(namespace)? {
-                let entry: RefSnapshotEntry = entry_of(name.as_str(), value);
-                found.insert(entry.name.clone(), entry);
+                entries.push(entry_of(name.as_str(), value));
             }
         }
     }
-    let mut entries: Vec<RefSnapshotEntry> = found.into_values().collect();
-    let chains: BTreeMap<Vec<u8>, (String, Vec<u8>)> = entries
-        .iter()
-        .map(chain_entry)
-        .collect();
-    for entry in &mut entries {
-        if entry.symref.is_empty() {
+    // Both halves are sorted by name already, and the worktree's three namespaces are disjoint from the shared list,
+    //  so one sort of the whole list is what Git's byte order needs and no name is ever replaced.
+    entries.sort_by(compare_by_name_bytes);
+    let mut dropped: Vec<bool> = vec![false; entries.len()];
+    for index in 0..entries.len() {
+        if entries[index].symref.is_empty() {
             continue;
         }
-        // `refs/remotes/origin/HEAD` and a branch that is a symbolic ref both end at a direct ref or nowhere.
-        let mut current: Vec<u8> = entry.symref.clone();
-        for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
-            let Some((oid, symref)) = chains.get(&current) else {
-                break;
-            };
-            if symref.is_empty() {
-                entry.oid = oid.clone();
-                break;
+        // Git prints a symbolic ref with the ref its chain ends at, and prints none when that chain ends nowhere.
+        match end_of_a_symbolic_chain(entries.as_slice(), entries[index].symref.as_slice()) {
+            Some((end, oid)) => {
+                entries[index].symref = end;
+                entries[index].oid = oid;
             }
-            current = symref.clone();
+            None => dropped[index] = true,
         }
     }
-    return Some(entries);
+    let mut kept: Vec<RefSnapshotEntry> = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.into_iter().enumerate() {
+        if !dropped[index] {
+            kept.push(entry);
+        }
+    }
+    return Some(kept);
+}
+
+/// What:
+///  Whether a ref name lives in one of the namespaces Git keeps in a worktree's own Git directory.
+/// Why:
+///   Git resolves such a name to the worktree's own directory and never to the shared one,
+/// so a shared copy of it is another worktree's ref.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPerWorktreeName = (name) => PER_WORKTREE.some((ns) => name.startsWith(`${ns}/`))
+/// ```
+fn is_a_per_worktree_name(name: &str) -> bool {
+    for namespace in PER_WORKTREE_NAMESPACES {
+        if name.len() > namespace.len() && name.starts_with(namespace) && name.as_bytes()[namespace.len()] == b'/' {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The direct ref a symbolic ref's chain ends at,
+///  as its name and its object,
+///  or `None` when the chain ends at no ref or in a loop.
+/// Why:
+///  `for-each-ref` prints neither a ref that points at a name that does not exist nor one that points back into its own chain,
+/// and the name it prints beside a symbolic ref is the end of the chain,
+///  so a two-step chain is printed with the ref it finally names.
+///  The depth is Git's own `SYMREF_MAXDEPTH` (5),
+/// so a chain Git refuses to follow is dropped here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endOfChain = (chains, target) => { let name = target; for (let step = 0; step < 5; step++) { const entry = chains.get(name); if (!entry) return undefined; if (entry.symref === '') return [name, entry.oid]; name = entry.symref } return undefined }
+/// ```
+fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
+    let mut current: Vec<u8> = target.to_vec();
+    for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
+        // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
+        let found: usize = entries
+            .binary_search_by(|entry| { return entry.name.as_slice().cmp(current.as_slice()); })
+            .ok()?;
+        if entries[found].symref.is_empty() {
+            return Some((entries[found].name.clone(), entries[found].oid.clone()));
+        }
+        current = entries[found].symref.clone();
+    }
+    return None;
 }
 
 /// What:

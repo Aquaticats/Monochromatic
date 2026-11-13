@@ -419,15 +419,21 @@ impl Refs {
                 let kind = entry.file_type().ok()?;
                 if kind.is_dir() {
                     pending.push(name);
-                } else if kind.is_file() && !name.ends_with(".lock") {
-                    match self.lookup(name.as_str()) {
-                        Lookup::Found(value) => {
-                            found.insert(name, value);
-                        }
-                        Lookup::Missing | Lookup::Unsure => return None,
-                    }
-                } else {
+                    continue;
+                }
+                // A lock beside a ref is no ref at all: Git refuses `.lock` as the end of a name, so the file the
+                //  writer holds says nothing about the listing and is passed over rather than declining the whole read.
+                if kind.is_file() && name.ends_with(".lock") {
+                    continue;
+                }
+                if !kind.is_file() {
                     return None;
+                }
+                match self.lookup(name.as_str()) {
+                    Lookup::Found(value) => {
+                        found.insert(name, value);
+                    }
+                    Lookup::Missing | Lookup::Unsure => return None,
                 }
             }
         }
