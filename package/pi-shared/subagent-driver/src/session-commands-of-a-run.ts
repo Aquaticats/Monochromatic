@@ -411,12 +411,15 @@ export function sessionReadings({
       continue;
     }
     /**
-     The code the call's result records, when it records one.
+     The code a bash call's result records, which a process start's result never does: the process is started and reported on
+     later, so no single result says how its command ended.
      */
-    const exitCode = exitCodeIn({
-      results,
-      id,
-    },);
+    const exitCode = (call.name === 'bash')
+      ? exitCodeIn({
+        results,
+        id,
+      },)
+      : NO_EXIT_CODE;
     commands.push({
       command,
       tool: call.name === 'bash' ? 'bash' : 'process',

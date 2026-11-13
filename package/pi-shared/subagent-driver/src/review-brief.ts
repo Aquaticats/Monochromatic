@@ -37,8 +37,8 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'FILES',
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
-  'DIFF_FILE',
   'STATEMENT_SKELETON',
+  'DIFF_FILE',
   'REVIEW_FILE',
 ];
 
@@ -135,11 +135,11 @@ export function reviewBriefValues({
       review,
     },),
     FOCUS: focus,
+    STATEMENT_SKELETON: REVIEW_STATEMENT_SKELETON,
     DIFF_FILE: diffFileOfAReview({
       reviewsFolder,
       review,
     },),
-    STATEMENT_SKELETON: REVIEW_STATEMENT_SKELETON,
     REVIEW_FILE: reviewFileOfAReview({
       reviewsFolder,
       review,

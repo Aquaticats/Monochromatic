@@ -116,7 +116,24 @@ export const CHECK_LIMITS_LINE: string =
     + 'that builds a built program\'s path from a variable rather than holding it, and anything written after the run ended.';
 
 /**
- Reads the commit problems a statement's commit and the review's record show.
+ What a statement's commit and the review's record say together.
+ */
+type CommitReading =
+  | {
+    readonly kind: 'the same commit';
+  }
+  | {
+    readonly kind: 'another commit';
+    readonly problem: string;
+  }
+  | {
+    readonly kind: 'cannot be compared';
+    readonly uncompared: string;
+  };
+
+/**
+ Reads what a statement's commit and the review's record say together: whether they name the same commit, another one, or no
+ commit this reader can compare.
 
  @param recorded - what the review recorded it read
 
@@ -124,14 +141,14 @@ export const CHECK_LIMITS_LINE: string =
 
  @param readingFile - the record's path, for the message
 
- @returns one line per problem, or one line saying the commit cannot be compared
+ @returns which of the three it is, with the line a verdict prints
 
  @example
  ```ts
- const problems = commitProblemsIn({ recorded, stated: 'abc123', readingFile: '/reviews/a/what-the-review-read.json' });
+ const commit = commitReadingIn({ recorded, stated: 'abc123', readingFile: '/reviews/a/what-the-review-read.json' });
  ```
  */
-function commitProblemsIn({
+function commitReadingIn({
   recorded,
   stated,
   readingFile,
@@ -139,18 +156,22 @@ function commitProblemsIn({
   readonly recorded: ReadingAtAPath;
   readonly stated: string;
   readonly readingFile: string;
-},): readonly string[] {
+},): CommitReading {
   if (recorded.kind === 'unreadable') {
-    return [`${readingFile} is not there or names no commit, so the commit the statement names cannot be compared`];
+    return {
+      kind: 'cannot be compared',
+      uncompared: `${readingFile} is not there or names no commit, so the commit the statement names cannot be compared`,
+    };
   }
   return commitIsTheSame({
     stated,
-    recorded: recorded.reading
-      .commit,
+    recorded: recorded.reading.commit,
   },)
-    ? []
-    : [`the statement names commit ${stated} and the review recorded ${recorded.reading
-      .commit}`];
+    ? { kind: 'the same commit', }
+    : {
+      kind: 'another commit',
+      problem: `the statement names commit ${stated} and the review recorded ${recorded.reading.commit}`,
+    };
 }
 
 /**
@@ -315,10 +336,26 @@ export async function checkAReview({
        String(reading.diff
          .lines,)}`];
   /**
+   The record of what the review read, which the statement's commit is compared with.
+   */
+  const readingFile = readingFileOfAReview({
+    reviewsFolder,
+    review,
+  },);
+  /**
+   What the statement's commit and the review's record say together.
+   */
+  const commit = commitReadingIn({
+    recorded: await readingAtAPath(readingFile,),
+    stated: reading.statement.commit,
+    readingFile,
+  },);
+  /**
    What the comparison found that does not fit.
    */
   const problems = [
     ...lineCountProblem,
+    ...((commit.kind === 'another commit') ? [commit.problem,] : []),
     ...fileProblemsIn({
       statement: reading.statement,
       diff: reading.diff,
@@ -327,22 +364,10 @@ export async function checkAReview({
       .problems,
   ];
   /**
-   The record of what the review read, which the statement's commit is compared with.
-   */
-  const readingFile = readingFileOfAReview({
-    reviewsFolder,
-    review,
-  },);
-  /**
    What the session cannot confirm either way.
    */
   const uncompared = [
-    ...commitProblemsIn({
-      recorded: await readingAtAPath(readingFile,),
-      stated: reading.statement
-        .commit,
-      readingFile,
-    },),
+    ...((commit.kind === 'cannot be compared') ? [commit.uncompared,] : []),
     ...reading.comparison
       .uncompared,
     ...((session.session

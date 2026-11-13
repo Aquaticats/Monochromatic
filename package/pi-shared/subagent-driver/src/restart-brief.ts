@@ -237,6 +237,7 @@ export async function earlierRunTextOf({
     : `${run} ended ${check.endReason ?? 'with no reason its summary names'}, `
       + `${check.endedByItself ? 'so it ended by itself' : 'so it was cut rather than ended by itself'}.`;
   return `This is the ${runWordOf(number,)} run of the review \`${baseReview}\`. ${ending} `
+    + `Its check answered \`${check.verdict}\`. `
     + `${statementSentenceOf({ check, },)} `
     + `${await notesSentenceOf({
       review: check.review,

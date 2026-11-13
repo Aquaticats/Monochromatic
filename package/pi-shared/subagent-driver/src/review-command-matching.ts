@@ -101,7 +101,8 @@ export type CommandComparison = {
 };
 
 /**
- Collapses the runs of whitespace in a command, so a reviewer's line breaks and a session's single line compare.
+ Collapses the runs of whitespace in a command, so a reviewer's line breaks and a session's single line compare. A backslash that
+ ends a line joins it to the next in the shell, so it is dropped with the line break it ends.
 
  @param text - the command as written
 
@@ -116,9 +117,13 @@ function collapsed(text: string,): string {
   /* oxlint-disable-next-line no-restricted-syntax/no-regex -- a run of whitespace in one command line; the pattern has one
      quantifier, no backreference and no alternation, and the input is one command's own text */
   return text.replaceAll(
-    /\s+/gu,
+    /\\\s+/gu,
     ' ',
   )
+    .replaceAll(
+      /\s+/gu,
+      ' ',
+    )
     .trim();
 }
 

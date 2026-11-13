@@ -16,6 +16,8 @@ import {
   FOCUS_OF_A_CHANGE_REVIEW,
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
+  REVIEW_STATEMENT_HEADING,
+  REVIEW_STATEMENT_SKELETON,
   TemplatePlaceholderError,
   briefOfAReview,
   placeholdersIn,
@@ -237,6 +239,37 @@ await describe({
             expect(aBrief(),).toContain('/var/home/user/temp/agent/kimi-reviews',);
             expect(aBrief(),).toContain('/var/home/user/temp/agent/qwen-trials',);
             expect(aBrief(),).toContain(`\`${aReviewsFolder()}\` outside your own review folder`,);
+          },
+        },),
+        it({
+          name: 'asks for the statement section at the first place after the title, with the skeleton and the diff file it is compared with',
+          fn: async () => {
+            expect(aBrief(),).toContain(REVIEW_STATEMENT_HEADING,);
+            expect(aBrief(),).toContain(REVIEW_STATEMENT_SKELETON,);
+            expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'change.diff',),);
+            expect(aBrief(),).toContain('as the first section of your review file',);
+            expect(aBrief(),).toContain('A review that read part of the diff and says so is worth more',);
+          },
+        },),
+        it({
+          name: 'says what the package compares the statement with, and what it cannot see',
+          fn: async () => {
+            expect(aBrief(),).toContain('checks this section against your session, without a model',);
+            expect(aBrief(),).toContain('codemode',);
+            expect(aBrief(),).toContain('process start\'s exit code',);
+            expect(aBrief(),).toContain('is started again',);
+          },
+        },),
+        it({
+          name: 'opens with what an earlier run did when the caller starts a review again',
+          fn: async () => {
+            const brief = briefOfAReview({
+              ...aBriefRequest(),
+              earlier: 'This is the second run of the review `a`. It ran nothing.\n\n',
+            },);
+            expect(brief.startsWith('Read `',),).toBe(true,);
+            expect(brief,).toContain('This is the second run of the review `a`. It ran nothing.',);
+            expect(placeholdersIn({ template: brief, },),).toEqual([],);
           },
         },),
         it({
