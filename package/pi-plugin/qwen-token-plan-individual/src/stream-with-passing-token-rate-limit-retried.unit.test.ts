@@ -217,7 +217,9 @@ await describe({
           stopReason: 'error',
           errorMessage: RECORDED_PASSING_LIMIT_ANSWER,
         },);
-        const stream = forwardedStreamOf(providerStreamOf(answerEventsOf(message,),),);
+        const stream = forwardedStreamOf(
+          providerStreamOf(answerEventsOf(message,),),
+        );
         const events = await drainedEventsOf(stream,);
         expect(events.map(function typeOf(event,) {
           return event.type;
@@ -278,11 +280,12 @@ await describe({
     it({
       name: 'leaves an error that is not the passing limit untouched',
       fn: async () => {
-        for (const errorMessage of [
+        const errorMessages = [
           '401: {"error":{"message":"Invalid API-key provided.","type":"invalid_api_key"}}',
           '402: {"message":"Payment required."}',
           '429: {"message":"Free allocated quota exceeded.","type":"insufficient_quota","code":"insufficient_quota"}',
-        ]) {
+        ];
+        await Promise.all(errorMessages.map(async function staysAsSent(errorMessage,) {
           /**
            The error message the provider's stream settles on.
            */
@@ -291,7 +294,9 @@ await describe({
             errorMessage,
           },);
           const events = await drainedEventsOf(
-            forwardedStreamOf(providerStreamOf(answerEventsOf(message,),),),
+            forwardedStreamOf(
+              providerStreamOf(answerEventsOf(message,),),
+            ),
           );
           /**
            The terminal event the caller saw.
@@ -302,7 +307,7 @@ await describe({
           expect(terminal.error,).toBe(message,);
           expect(terminal.error.diagnostics,).toBe(undefined,);
           expect(isRetryableAssistantError(terminal.error,),).toBe(false,);
-        }
+        },),);
       },
     },),
   ],
@@ -340,7 +345,9 @@ await describe({
     it({
       name: 'reports an error for a stream that showed nothing at all',
       fn: async () => {
-        const events = await drainedEventsOf(forwardedStreamOf(providerStreamOf([],),),);
+        const events = await drainedEventsOf(
+          forwardedStreamOf(providerStreamOf([],),),
+        );
         expect(events,).toHaveLength(1,);
         /**
          The terminal event the caller saw.

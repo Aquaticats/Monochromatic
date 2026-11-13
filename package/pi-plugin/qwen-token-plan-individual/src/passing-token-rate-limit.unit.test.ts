@@ -405,7 +405,7 @@ await describe({
             assistantMessageFixture({
               errorMessage: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_RETRIED_ERROR_MESSAGE,
             },),
-            ),
+          ),
         ).toBe(true,);
       },
     },),

@@ -123,8 +123,8 @@ function failedAnswerResponse({
   readonly status: number;
   readonly body: unknown
 },): Response {
-  return new Response(
-    JSON.stringify(body,),
+  return Response.json(
+    body,
     {
       status,
       headers: { 'content-type': 'application/json', },
@@ -336,7 +336,7 @@ await describe({
     it({
       name: 'leaves every answer that must stay final as the provider sent it',
       fn: async () => {
-        for (const answer of [
+        const answers = [
           {
             status: 401,
             body: {
@@ -374,7 +374,8 @@ await describe({
             },
             expected: `429: {"message":"Too many requests.","type":"Throttling.RateQuota","code":"Throttling.RateQuota"}`,
           },
-        ]) {
+        ];
+        await Promise.all(answers.map(async function settlesAsSent(answer,) {
           /**
            What pi settles on for this answer.
            */
@@ -386,7 +387,7 @@ await describe({
           },);
           expect(message.errorMessage,).toBe(answer.expected,);
           expect(message.diagnostics,).toBe(undefined,);
-        }
+        },),);
       },
     },),
   ],
