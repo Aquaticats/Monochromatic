@@ -526,6 +526,31 @@ The place that run freed went to the launcher's scratch-folder author answering 
 which takes the first entry of the queue that may start, starts it and takes it off the list, and starts nothing at or above the level it is given.
 A watcher now runs it each time a place comes free. Eighteen entries are left.
 
+#### The jam fix for a commit whose service does not answer is finished, and issue 6295 marked it failed (2026-11-13T12:33:43-05:00)
+
+`commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`, resumed at 11:10:39, ended at about 12:33 after 106 turns of the resume and an hour and twenty-two minutes.
+Its summary says `endReason: driver-failed` with the message of issue 6295; its agent had given its whole report first, so the run is read by that report.
+Branch `fix/git-policy-cli-` with that name on the remote. Not reviewed and not approved by anyone. By its own report (`keep/` of its scratch folder):
+
+- A commit that finds a stopped or silent service now ends within a bound and says what happened and that the staged work is safe:
+  seven controls pass, taking 3.6 to 33.2 s each; the connect is bounded at 5 s and proved by `getpeername`, the greeting is bounded,
+  and a line a full pipe cannot take is dropped where it used to hold a landing. Clippy with `-D warnings` clean.
+- One unit control fails and it says it is not its own: `the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add` reads a constant no code takes any more,
+  and the same assertion fails at the fork point. It belongs to the snapshot work and needs an owner.
+- **Measured against the rule of the larger of five seconds and twice real Git, three alternating rounds each:**
+  a commit of 1 path adds 139 ms over real Git's 34 ms; of 600 paths, 2,602 ms over 41 ms; of 1,600 paths, **6,083 ms over 68 ms, over the rule**,
+  and 7,123 ms at the fork point, so the cost is older than this branch and is in preparation, not in the exchange with the service.
+  That is the work of the queue entry `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`, which now has a measured case.
+- Its text names what it did not fix: the service's own 33-second shutdown when it is ended while workers are blocked, bounded here on the client's side only.
+- It calls the branch fit to merge, with the 1,600-path case and that shutdown for a merger to weigh.
+
+Issue 6295 has now marked two finished runs as failed, this one among them.
+Its fix was handed at 12:36, by a note, to the run already changing the same file (the launcher's scratch-folder author answering its review),
+with what the project requires of it: a result the driver cannot read never ends a run as failed, and the question whether the run's work still runs is still answered, "unknown" counting as work that may run.
+This run's scratch folder was emptied by hand to its `keep/` (its reproduction scripts moved in first, 113 MiB of fixtures removed).
+The place it freed went to the resume of `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried` at 12:33:44; seventeen entries are left.
+Waiting for a review place: this branch.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
