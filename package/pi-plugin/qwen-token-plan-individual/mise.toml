@@ -69,6 +69,10 @@ run = ["mise run //package/pi-plugin/qwen-token-plan-individual:build", "node sr
 [tasks."verify:host".env]
 QWEN_TOKEN_PLAN_INDIVIDUAL_VERIFY_HOST = "1"
 
+[tasks."verify:token-rate-limit-retried"]
+description = "Prove with a real pi that this provider's passing token-rate limit is retried by pi's own retry, and that the unchanged package ends the run on that answer"
+run = ["mise run //package/pi-plugin/qwen-token-plan-individual:build", "node src/verify-token-rate-limit-retried.ts"]
+
 [tasks."install:global"]
 description = "Install this extension into the global pi settings without changing anything outside packages"
 shell = "node --input-type=module-typescript -e"
