@@ -17775,11 +17775,62 @@ The file is read here, the way Git reads it:
 line ends or NUL bytes, a carriage return dropped,
 each entry passed to `ls-tree`/`ls-files` as a pathspec so its magic means what Git means by it,
 and a file that cannot be read is a `fact-unavailable` refusal rather than an empty answer.
+The read is bounded by `PATHSPEC_FILE_READ_CEILING` (five seconds,
+`service/wait_ceilings.rs`, with the measurement it rests on):
+Git itself waits with no end for a named pipe nobody writes to
+(`timeout 10 git checkout --pathspec-from-file=<fifo>` was still waiting when the probe ended it,
+measured on this host with native Git 2.56.0,
+2026-11-13),
+and the wrapper's rule is that nothing waits forever,
+so the bytes are read on a thread the command stops waiting for at the ceiling.
+A read that reaches it is a refusal naming the file and the seconds,
+and the opt-out runs the command, which then waits as Git waits.
 `--pathspec-from-file=-` reads standard input in Git,
 which a guard cannot read without consuming it,
 so that spelling is refused with the reason and the opt-out,
 and a person who means it passes `--no-enforce-worktree`:
 the choice is recorded here because Git's own reading is the only other way to learn those paths.
+The name a forced `checkout`,
+a forced `switch`,
+a `reset` or a `restore` writes the tree of is resolved the way the command resolves it
+(`repo_read/repository_facts_written_paths.rs`),
+measured on this host with native Git 2.56.0:
+`git ls-tree topic` fails for a branch that exists only as `refs/remotes/origin/topic`,
+while `git checkout -f topic` and `git switch --force topic` create the local branch from it and
+write that tree,
+so a failed listing is never read as "this form writes nothing".
+The forms that guess are the two that name a branch alone (`checkout -f <name>`,
+`switch -f <name>`);
+`reset`, `restore` and `read-tree` do not guess
+(`fatal: ambiguous argument 'topic'`,
+`fatal: could not resolve 'topic'`,
+`fatal: Not a valid object name topic`),
+and neither does a path form (`checkout -f topic -- b.txt` answers `invalid reference: topic`).
+Git's own rules decide the rest, each measured in the same place:
+a remote that is not configured leaves the guess off
+(`error: pathspec 'topic' did not match any file(s) known to git`),
+`--no-guess` and `checkout.guess=false` turn it off,
+two remotes carrying the branch are an ambiguity Git refuses
+(`hint: Branch name 'topic' appears in multiple remotes`)
+unless `checkout.defaultRemote` names one,
+and a remote whose own name holds a slash is guessed from, which is why the remotes are read from
+Git rather than split out of the refname.
+A tree Git knows and cannot list (a removed object, a name that is a blob) is a refusal saying
+what could not be read,
+never an empty answer:
+an empty answer would be the same swallow in another dress.
+The rule behind it holds for every probe of these guards:
+a probe that fails,
+is killed,
+or answers something the reading does not expect is never read as "nothing to guard".
+Each answer a probe can give is written down where the reading is,
+and the only probe whose failure means "Git will refuse this command anyway" is the one that
+resolves the name the form writes,
+which the same reading asks twice (once as a listing, once as `rev-parse --verify`).
+The over-refusal that costs is named here:
+`checkout -f HEAD:<file>` is refused with that sentence where Git answers `reference is not a tree`,
+and the opt-out gives Git's own words.
+
 The three reset modes differ in which of the worktree's entries they write over,
 measured on this host with native Git 2.56.0:
 `--hard` writes over or deletes every entry at those paths,
@@ -17796,6 +17847,18 @@ a `checkout <revision> -- <paths>` and a `restore` with a source write the tree 
 pathspecs reach,
 which Git matches itself;
 a restore with no source writes what the index holds at its pathspecs.
+The step that names the entries in the way asks the worktree whether each is a directory or a file,
+and the comparison of a marked edit asks the same of its path,
+so both run on a thread the command waits for only until `WORKTREE_LOOKUP_CEILING`
+(sixty seconds,
+`service/wait_ceilings.rs`, with its measurement):
+a metadata lookup on a mount whose server stopped answering waits in the kernel with no end.
+The rename and the directory flushes of a nested repository saved aside are bounded the same way,
+and a rename still waiting at the ceiling is reported as "the wrapper cannot tell whether it moved",
+naming both places, because an abandoned rename may still complete.
+A metadata lookup that fails for any reason other than `NotFound` is a failure of the reading,
+never "this marked path is unedited":
+the first says nothing about the bytes and the second would let a form overwrite an edit nobody saw.
 Every directory on the way to each of those paths is asked about as well,
 because a tree creates the directories it needs,
 and a worktree that holds a file where one of them must go loses that file

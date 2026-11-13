@@ -1087,8 +1087,12 @@ fn the_guess_the_guard_makes_is_the_guess_git_makes() {
             let on: Observed = run_wrapped(&off, off_linked.as_path(), &["checkout", "--no-enforce-worktree-branch", "-f", "topic"]);
             assert!(refused_by_the_guard(&on), "{}", stderr_of(&on));
         }
-        let observed: Observed = run_wrapped(&off, off_linked.as_path(), arguments.as_slice());
-        assert!(!refused_by_the_guard(&observed), "{arguments:?} was refused where Git refuses the name: {}", stderr_of(&observed));
+        let left_to_git: Observed = run_wrapped(&off, off_linked.as_path(), arguments.as_slice());
+        assert!(
+            !refused_by_the_guard(&left_to_git),
+            "{arguments:?} was refused where Git refuses the name: {}",
+            stderr_of(&left_to_git)
+        );
         assert!(still_where_it_was(off_linked.as_path(), "b.txt", PRECIOUS));
         remove(&off);
     }

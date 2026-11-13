@@ -129,7 +129,7 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&P
         base.join(named.as_path())
     };
     let opened: PathBuf = absolute.clone();
-    let Some(read) = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+    let Some(answer) = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
         return std::fs::read(opened.as_path());
     }) else {
         return Err(format!(
@@ -138,8 +138,8 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&P
             ceiling.as_secs()
         ));
     };
-    let bytes: Vec<u8> = match read {
-        Ok(read) => read,
+    let bytes: Vec<u8> = match answer {
+        Ok(found) => found,
         Err(error) => {
             return Err(format!("Git could not read the pathspecs `{}` names: {error}", absolute.display()));
         }

@@ -2519,6 +2519,14 @@ The rule is:
   a directory and the work inside a nested repository at its path,
   and an edit to a path you marked with `git update-index --assume-unchanged`,
   because those forms lose it whatever the mark says.
+  The name a forced `checkout` or `switch` writes the tree of is resolved the way the command
+  resolves it: a branch that exists only on a remote is guessed exactly as Git guesses it
+  (`origin/topic` for `topic`, `checkout.defaultRemote` when several remotes carry it, none at all
+  under `--no-guess` or `checkout.guess=false`, and a remote whose own name holds a slash included),
+  and a tree Git knows but cannot list is refused with the reason rather than read as "nothing to
+  write over".
+  A file named by `--pathspec-from-file` is read for at most five seconds: Git itself waits with no
+  end for a pipe nobody writes to, and this wrapper's rule is that nothing waits forever.
   The refusal names each entry (five, then a count),
   says that nothing else holds them,
   that nothing in the worktree was changed,
