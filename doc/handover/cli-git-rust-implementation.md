@@ -366,6 +366,21 @@ What the release is built to do, read from its source:
   The release went on undisturbed.
 - The other session was told the hold is withdrawn and why.
 
+#### 0.6.1-alpha.16 published and installed (2026-11-13T11:22:21-05:00)
+
+- Published at 11:22:06 with both Linux archives, nine minutes and thirty-seven seconds after the dispatch
+  (`crate-release.yml` run 43460372511, `cargo-publish.yml` run 43460562572; crates.io skipped as for every alpha).
+  Three commits of this session went to `main` while it ran, one of them before the publish run had finished its builds; none disturbed it.
+- Installed at 11:22:21 with `native:install -- 0.6.1-alpha.16`.
+  The install's own sample commit (the toolchain lock, `2529462711`) took 821 ms and landed; the remote's `main` is at that commit.
+  `git --version` names `monochromatic-git-policy-cli 0.6.1-alpha.16`.
+- The user manager's journal for 11:22:00 to 11:23:00 holds no line with "reload".
+- Agents that were running keep the service of the release that started theirs until it is replaced; nothing was restarted.
+- Not checked yet on the installed release: a `git worktree add` with package-manager state under several agents,
+  which is what this release changes most; the next resumes start worktree commands through it and their times are to be read.
+- With pass 18 released, the condition this document set on 2026-11-12 for starting the runs of rounds 310 to 313 again is met;
+  they are in the resume queue with the rest.
+
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
 The list of twenty was written at 16:06. `list-runs-that-ended-since --since=2026-11-12T16:00:00-05:00`, read on 2026-11-13 at about 11:05, shows four more of this work,
