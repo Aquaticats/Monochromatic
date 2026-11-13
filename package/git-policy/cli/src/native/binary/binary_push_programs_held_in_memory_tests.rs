@@ -425,6 +425,60 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
 }
 
 /// What:
+///  A push the service refuses for want of `git-lfs` prints the remedy it always printed,
+///  and the push that remedy names works from the shell as printed.
+/// Why:
+///   The remedy used to promise that a typed push records the list the service searches,
+/// which no release does any more;
+/// what it says now must be true of the command it names,
+/// and the command must send the commit.
+#[test]
+fn the_remedy_a_refusal_prints_pushes_from_the_shell() {
+    let world: World = world("push-programs-remedy");
+    // A commit whose push waits, made without a transport setting, so nothing would stop it later for one.
+    let mut committing: Command = wrapped_commit(&world.fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--allow-empty"]);
+    committing.env("PATH", &world.shell_path);
+    committing.env(git_policy_cli::service_fault::FAULT_VARIABLE, AFTER_PROMOTE);
+    let killed: std::process::Output = committing.output().expect("the wrapped commit runs");
+    assert!(!killed.status.success(), "the wrapper was killed at the fault point");
+    let commit: String = head_of(&world);
+    // A service that holds nothing: its own `PATH` has no `git-lfs`, so its push is refused and says how to go on.
+    world.service.stop_all();
+    world.service.serve(&world.fixture, git_dir(&world).as_path());
+    let notice: PathBuf = git_policy_cli::push_failure_notice::notice_directory(git_dir(&world).as_path());
+    wait_until("the push records what stopped it", &|| { return std::fs::read_dir(notice.as_path()).is_ok_and(|entries| { return entries.flatten().next().is_some(); }); });
+    let shown: Observed = wrapped_with(&world, &["status"], &[]);
+    let words: String = stderr_of(&shown);
+    assert!(words.contains("`git-lfs` was not found in the folders this push searches"), "the refusal names the missing program: {words}");
+    assert!(words.contains("No `PATH` came with the request this push belongs to"), "and where the list came from: {words}");
+    assert!(words.contains("push by hand once from that shell (`git push`), which searches that shell's own `PATH`"), "and the remedy: {words}");
+    assert!(!words.contains("records that list"), "the remedy promises nothing a typed push does not do: {words}");
+    // The remedy as printed: a push typed in the shell that holds `git-lfs`.
+    let typed: std::process::Output = std::process::Command::new("/bin/sh")
+        .current_dir(world.repo.as_path())
+        .arg("-c")
+        .arg("git push")
+        .env_clear()
+        .env("PATH", &world.shell_path)
+        .env("HOME", world.fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+        .output()
+        .expect("the remedy runs");
+    assert!(typed.status.success(), "the remedy pushes: {}\n{}", String::from_utf8_lossy(typed.stdout.as_slice()), String::from_utf8_lossy(typed.stderr.as_slice()));
+    assert_eq!(origin_main(&world), commit, "the commit the refused push held is on the remote");
+    let runs: Vec<Vec<(String, String)>> = stand_in_runs(&world);
+    assert!(!runs.is_empty(), "the typed push found `git-lfs` where that shell keeps it");
+    assert_eq!(saw(runs.last().expect("a run").as_slice(), "path-stand-in"), "yes", "and searched that shell's `PATH`");
+    world.service.stop_all();
+    remove_settled(&world.fixture);
+}
+
+/// What:
 ///  The record an unreleased branch wrote,
 ///  and a staging file of one of its writes,
 ///  are removed by the first command that meets them.
