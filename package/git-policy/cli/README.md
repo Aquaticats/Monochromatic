@@ -3556,6 +3556,24 @@ the rules:
 `SPEC.md`,
 "Word-level second merge pass".
 
+### A commit made without the reference that would have protected it
+
+A commit is written to the object store before any reference names it,
+and `refs/worktree/cli-git-service/<batch>` is what keeps its objects out of a
+`git gc --prune=now` until the branch write names them.
+Real Git needs no such reference:
+one `git commit` writes the objects and moves the branch itself.
+When the write of that reference cannot be proven
+(Git refuses it, or the wait for it ended before it did),
+the commit is made as real Git makes it and the command exits `0`,
+with one line on standard error that says the commit was made,
+naming the reference that was not written and Git's own words for why,
+and saying that the branch names the commit now so no later maintenance can take it.
+Nothing changes for a commit whose reference the write proved.
+`SPEC.md`,
+"What names a commit between its objects and its branch",
+measures the window this leaves open.
+
 ### A commit held behind a reference lock
 
 The owner,

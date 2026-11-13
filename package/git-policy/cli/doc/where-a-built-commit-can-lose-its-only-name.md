@@ -49,17 +49,32 @@ collector's grace,
 as a killed `git fast-import` does.
 The wrapper's automatic maintenance uses `gc --auto` with the default grace,
 so only a concurrent `gc --prune=now` in that instant takes the commit.
+That window's length is what a commit made without its reference pays for,
+and it is measured in `SPEC.md`, "What names a commit between its objects and its branch":
+milliseconds when nothing else waits, and as long as the landing's own wait when something does.
 
-The import closes that window when the repository refuses its reference:
+The import closes that window by landing the batch when the repository refuses its reference:
 `fast-import` exports its marks at the end of the stream and updates the batch's reference last,
 so a marks file naming every commit of the batch is a batch whose objects exist and whose reference
 was refused,
-and the landing keeps that tip on `refs/cli-git/kept/<batch>` and names it
-(`the_tip_a_refused_reference_left_unnamed`,
+and that batch lands as real Git would land it,
+the branch naming its commits a step later
+(`the_commits_a_refused_reference_left_unnamed`,
 `src/native/landing/service_land_objects_of_batch.rs`).
-A marks file naming fewer is an import that stopped inside the batch,
-so the commit it names is not the commit the person's requests make together,
-and nothing is kept for it.
+A batch the import stopped inside still fails,
+because the commit its marks name is not the commit the person's requests make together.
+
+The landing's own write for a commit Git built elsewhere is the same rule:
+a write Git refuses,
+and one whose wait ended before the write did,
+leave the batch landing as real Git lands it,
+and the command that made the commit says once that the reference was not written and what that
+exposed (`src/native/landing/service_land_without_its_scratch_reference.rs`,
+`SPEC.md`, "What names a commit between its objects and its branch").
+Only a write the service's stop ended,
+or a Git that cannot be started,
+still answers the batch as not made,
+because the branch write that would name the commit cannot run either.
 
 A kill in that instant is the one ending no marks recover,
 because the reference that will name the object is written after the object exists;
@@ -172,10 +187,15 @@ The controls live in the package's own tests
 
 ## What a person is told
 
-Every ending that answers a batch as not made says the commit's name and where it is kept:
+A commit that is made says nothing about a name it did not need.
+A batch whose own reference the write did not prove is made,
+and the command says once that the commit was made and that the reference which keeps a `git gc`
+off a landing commit's objects was not in place for it, naming the reference and Git's words.
+
+Every ending that still answers a batch as not made says the commit's name and where it is kept:
 `refs/cli-git/kept/<batch>` when the keep was written,
-or the batch's own reference when it was not,
-with the words Git gave for the refused keep.
+the batch's own reference when it names the commit,
+or the object's own name and the command that makes a reference of it when nothing names it.
 `SPEC.md`,
 "Commit protocol",
 states the same in the place a reader checks the guarantee.
