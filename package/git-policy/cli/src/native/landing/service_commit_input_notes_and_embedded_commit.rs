@@ -248,9 +248,12 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
     let runtime: Option<PathBuf> = crate::service_host_of_a_worktree::runtime_directory(named.as_deref(), home.as_deref());
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
     let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
+    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     let route: Option<Route> = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         state_home: state_home.as_deref(),
+        named_runtime_dir: named.as_deref(),
+        bus_address: bus_address.as_deref(),
         home: home.as_deref(),
         own_executable: remembered_own_executable(),
         real_git: invocation.context.real_git.as_path(),

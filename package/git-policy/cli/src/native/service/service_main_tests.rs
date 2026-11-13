@@ -87,6 +87,7 @@ fn the_start_names_the_service_mode_words_and_the_worktrees_files() {
         journal: std::path::PathBuf::from("/state/monochromatic-git-policy-cli/service/3f9a"),
         git: std::path::PathBuf::from("/usr/bin/git"),
         program: std::path::PathBuf::from("/bin/git"),
+        manager: None,
     };
     let arguments: Vec<String> = server.arguments().iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
     let first: Vec<String> = arguments.iter().take(SERVICE_WORDS.len()).cloned().collect();

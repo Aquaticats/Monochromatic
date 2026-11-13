@@ -13,6 +13,8 @@ fn the_paths_are_the_ones_the_unit_used_to_name() {
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from("3f9a"),
         git_dir: PathBuf::from("/repo/.git"),
+        named_runtime_dir: Some(PathBuf::from("/run/user/1000")),
+        bus_address: None,
     };
     assert_eq!(host.socket(), PathBuf::from(format!("/run/user/1000/{SOCKET_DIRECTORY}/3f9a.sock")));
     assert_eq!(host.journal(), PathBuf::from(format!("/home/a/.local/state/{}/service/3f9a", SERVICE_UNIT.current)));

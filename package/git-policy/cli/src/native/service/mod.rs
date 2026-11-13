@@ -106,6 +106,10 @@ pub mod service_journal_restored_at_start;
 /// one command at a time.
 pub mod service_server_start_by_the_wrapper;
 
+/// The enhancement: a transient scope through a service manager that is this account's own,
+/// and the base's start whenever it is absent, slow or failing.
+pub mod service_server_start_through_the_manager;
+
 /// Starts the service's program as a process that outlives the command and the terminal.
 pub mod service_server_start_spawns_a_detached_process;
 

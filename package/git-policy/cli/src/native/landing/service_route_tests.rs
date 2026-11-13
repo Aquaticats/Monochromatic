@@ -32,6 +32,8 @@ fn inputs<'a>(machine: &'a Machine) -> RouteInputs<'a> {
     return RouteInputs {
         runtime_dir: Some(machine.runtime.as_path()),
         state_home: Some(machine.root.as_path()),
+        named_runtime_dir: Some(machine.runtime.as_path()),
+        bus_address: None,
         home: Some(machine.root.as_path()),
         own_executable: Some(machine.wrapper.as_path()),
         real_git: Path::new(GIT),

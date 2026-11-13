@@ -22,6 +22,8 @@ fn a_service_already_made_is_not_made_again() {
         git: std::path::PathBuf::from("/usr/bin/git"),
         instance: String::from("3f9a"),
         git_dir: std::path::PathBuf::from("/nonexistent/.git"),
+        named_runtime_dir: None,
+        bus_address: None,
     };
     assert!(ensure_a_server(Some(&host), true, &mut timing).expect("an already provisioned command starts nothing"));
     assert_eq!(timing, std::time::Duration::ZERO);

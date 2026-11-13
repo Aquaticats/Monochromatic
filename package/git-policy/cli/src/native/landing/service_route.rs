@@ -75,6 +75,16 @@ pub struct RouteInputs<'a> {
     /// `XDG_STATE_HOME`,
     /// where the services' journals live.
     pub state_home: Option<&'a Path>,
+    /// What:
+    ///  `XDG_RUNTIME_DIR` as the environment gave it,
+    ///  which is nothing when it gave none and the route fell back to a folder of its own.
+    /// Why:
+    ///  The enhancement asks a service manager for a scope only for the session whose bus belongs to the directory the
+    ///  environment named: a folder this program made is no session, and asking would reach the account's manager from a
+    ///  command that was given a runtime directory of its own (issue 6293).
+    pub named_runtime_dir: Option<&'a Path>,
+    /// `DBUS_SESSION_BUS_ADDRESS`, which tells the enhancement whether the bus is this session's.
+    pub bus_address: Option<&'a str>,
     /// `HOME`.
     pub home: Option<&'a Path>,
     /// The running wrapper's own executable.
@@ -143,6 +153,10 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         git: inputs.real_git.to_path_buf(),
         instance,
         git_dir: inputs.git_dir.to_path_buf(),
+        // The name the environment gave, which is what the enhancement's gate reads: a folder this program fell back to is
+        //  no session, so no manager is asked for it.
+        named_runtime_dir: inputs.named_runtime_dir.filter(|named| *named == runtime_dir).map(Path::to_path_buf),
+        bus_address: inputs.bus_address.map(str::to_string),
     };
     return Some(Route { address: Bind::Path(socket), host: Some(host) });
 }
@@ -365,9 +379,12 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
     //       folder of its own, so a commit lands there as real Git's does.
     // Why:  Real Git commits on such a machine, so this wrapper must; a command that refused would fail where Git succeeds.
     let runtime: Option<PathBuf> = crate::service_host_of_a_worktree::runtime_directory(named.as_deref(), home.as_deref());
+    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     return choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         state_home: state_home.as_deref(),
+        named_runtime_dir: named.as_deref(),
+        bus_address: bus_address.as_deref(),
         home: home.as_deref(),
         own_executable: remembered_own_executable(),
         real_git,

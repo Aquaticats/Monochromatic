@@ -30,6 +30,7 @@ use crate::service_server::Bind;
 use crate::service_server_log_file_of_an_instance::{self as log_file, LOG_ENDING};
 use crate::service_server_pid_note_of_an_instance::PID_NOTE_ENDING;
 use crate::service_server_start_spawns_a_detached_process::{Detached, spawn, text_argument};
+use crate::service_server_start_through_the_manager::{MANAGER_START_EXTRA, ManagerStart};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -72,6 +73,14 @@ pub struct ServerToStart {
     /// The wrapper's own executable,
     /// which is the service's program too.
     pub program: PathBuf,
+    /// What:
+    ///  The manager this command may ask for a scope,
+    ///  and nothing when the base starts the server itself.
+    /// Why:
+    ///  The decision belongs where the environment is read (`ManagerStart::in_this_session`),
+    /// and a start here must not read it again:
+    /// a control hands in the answer it pins.
+    pub manager: Option<ManagerStart>,
 }
 
 impl ServerToStart {
@@ -159,6 +168,30 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     let log: PathBuf = server.log();
     if let Err(_cannot_truncate) = log_file::truncate_when_past_its_cap(log.as_path()) {
         // A log that cannot be shortened still takes the server's lines, and the start is worth making.
+    }
+    // What: The manager is asked for a scope when it is this account's own and answers a probe in time; otherwise this command
+    //       starts the server itself, which is the base.
+    // Why:  A scope gives the server a cgroup of its own, and the base is what runs whenever the manager is absent, slow,
+    //       refuses or answers with an error, with no message a person has to act on
+    //       (`service_server_start_through_the_manager.rs`, and issue 6293 for the gate).
+    if let Some(manager) = server.manager.as_ref()
+        && manager.probe()
+    {
+        // One scope is made for this start, never two: the leader is kept so a scope that made nothing answer can be ended.
+        let leader: Option<i32> = manager.start(server).ok().flatten();
+        let greeted: bool = leader.is_some() && waits_for_a_greeting(server.socket.as_path(), START_WAIT + MANAGER_START_EXTRA);
+        if greeted {
+            return StartAttempt::Greeted;
+        }
+        // What: A scope that made nothing answer is ended, and the base's start is what this command does instead.
+        // Why:  A manager that made a scope and then failed costs one extra second and never a commit, and the scope's group is
+        //       what this command started, so ending it is its own to do.
+        if let Some(process) = leader {
+            crate::service_server_start_through_the_manager::end_the_group_of(process);
+        }
+        if answered(server.socket.as_path()) {
+            return StartAttempt::Greeted;
+        }
     }
     let detached: Detached = Detached { program: server.program.clone(), arguments: server.arguments(), log: log.clone() };
     if spawn(&detached).is_err() {

@@ -303,6 +303,9 @@ fn unreachable_host() -> crate::service_host_of_a_worktree::ServiceHost {
         git: PathBuf::from("/nonexistent-git"),
         instance: String::from("fixture-instance"),
         git_dir: PathBuf::new(),
+        // A host of no session: the base's start, which is what a control's own starter replaces anyway.
+        named_runtime_dir: None,
+        bus_address: None,
     };
 }
 

@@ -50,6 +50,21 @@ pub struct ServiceHost {
     /// The worktree's own Git directory,
     /// written beside the socket so the service and the sweep know whose it is.
     pub git_dir: PathBuf,
+    /// What:
+    ///  The runtime directory the environment named,
+    ///  and nothing when the command fell back to a folder of its own (`runtime_directory`).
+    /// Why:
+    ///  The enhancement asks a service manager only for the session whose bus this is,
+    /// and a folder the wrapper fell back to is no session at all
+    /// (`service_server_start_through_the_manager.rs`, and issue 6293).
+    pub named_runtime_dir: Option<PathBuf>,
+    /// What:
+    ///  The session bus address the environment gave this command,
+    ///  which is the manager's if its socket sits in the runtime directory.
+    /// Why:
+    ///  A bus that belongs to another directory is another session's manager,
+    /// and asking it would put this run's service in the account's manager.
+    pub bus_address: Option<String>,
 }
 
 impl ServiceHost {
@@ -68,6 +83,21 @@ impl ServiceHost {
         return journal_of(&self.state_dir.join(SERVICE_UNIT.current), self.instance.as_str());
     }
 
+    /// What:
+    ///  The manager this command may ask for a scope,
+    ///  and nothing when the base starts the server itself.
+    /// Why:
+    ///  The decision reads two facts of the environment and the presence of the manager's program,
+    /// so a caller never repeats it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// host.manager() // ManagerStart | undefined
+    /// ```
+    pub fn manager(&self) -> Option<crate::service_server_start_through_the_manager::ManagerStart> {
+        return crate::service_server_start_through_the_manager::ManagerStart::in_this_session(self);
+    }
+
     /// What starting this worktree's service needs.
     pub fn server(&self) -> ServerToStart {
         return ServerToStart {
@@ -76,6 +106,7 @@ impl ServiceHost {
             journal: self.journal(),
             git: self.git.clone(),
             program: self.service_binary.clone(),
+            manager: self.manager(),
         };
     }
 }

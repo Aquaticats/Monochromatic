@@ -129,6 +129,7 @@ fn two_starts_at_once_leave_one_service() {
         journal: fixture.root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
         program: PathBuf::from(service_executable()),
+        manager: None,
     };
     let one: ServerToStart = server.clone();
     let two: ServerToStart = server.clone();
@@ -180,5 +181,96 @@ fn a_start_that_cannot_greet_names_its_log() {
     let stderr: String = String::from_utf8_lossy(committed.stderr.as_slice()).to_string();
     assert!(stderr.contains(".log"), "the message names the file the service's output went to: {stderr}");
     assert_eq!(subject(&fixture, repo.as_path()), "base", "nothing was committed");
+    finish(&fixture, runtime.as_path());
+}
+
+/// What:
+///  A stand-in for the account's manager, in the fixture's own `bin`, which records every word it is given and then runs the
+///  command it was asked to run.
+/// Why:
+///  The enhancement's gain is that the server is started as a scope of the manager, and the only honest way to see that
+///  without this machine's manager is a program of the run's own that plays it: it records the words, then does what
+///  `systemd-run --user --scope` does, which is to run the command as its child in the caller's environment.
+fn stand_in_manager(fixture: &Fixture, sleeps_seconds: u32) -> PathBuf {
+    let calls: PathBuf = fixture.root.join("manager-calls.txt");
+    let programme: PathBuf = fixture.root.join("bin/systemd-run");
+    std::fs::write(
+        programme.as_path(),
+        format!(
+            "#!/bin/sh\n# The words this start asked the manager for.\nprintf '%s\\n' \"$*\" >> '{calls}'\n# Past the `--`, the command the manager would run as its scope's own child.\nwhile [ \"$#\" -gt 0 ] && [ \"$1\" != \"--\" ]; do shift; done\n[ \"$#\" -gt 0 ] && shift\nsleep {sleeps_seconds}\nexec \"$@\"\n",
+            calls = calls.display()
+        ),
+    )
+    .expect("the stand-in is written");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(programme.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the stand-in runs");
+    return calls;
+}
+
+/// A commit whose command may ask a manager: the runtime directory is named, and the bus is inside it, which is what makes
+/// it this session's own.
+fn commit_with_a_manager_of_this_session(fixture: &Fixture, repo: &Path, runtime: &Path) -> Output {
+    let mut command = wrapped_commit(fixture, repo, &["commit", "-m", "subject", "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime);
+    // Nothing listens on this file: the gate compares the bus's directory with the runtime directory, and the stand-in
+    //  interpreter never speaks the protocol. No bus of this machine is named or reached.
+    command.env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", runtime.join("bus").display()));
+    return command.output().expect("the wrapped commit runs");
+}
+
+/// What:
+///  With a manager of this session there, the server is started as a scope of it, and the commit lands.
+/// Why:
+///  This is the whole of what the enhancement gives: the service's cgroup is the scope's, so it is not killed with, nor charged
+///  to, the command that started it;
+///  and the words prove the base's own service words travel inside the manager's.
+#[test]
+fn with_a_manager_of_this_session_the_service_is_started_as_its_scope() {
+    let (fixture, repo, runtime) = prepared("starts-through-the-manager");
+    let calls: PathBuf = stand_in_manager(&fixture, 0);
+    let met: std::time::Instant = std::time::Instant::now();
+    let committed: Output = commit_with_a_manager_of_this_session(&fixture, repo.as_path(), runtime.as_path());
+    assert!(committed.status.success(), "the commit lands through a scope: {}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    assert_eq!(subject(&fixture, repo.as_path()), "subject");
+    let asked: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
+    assert!(asked.contains("--user --scope"), "the manager's own words are used: {asked}");
+    assert!(asked.contains("-- /bin/true") || asked.contains("-- true"), "the probe comes first: {asked}");
+    assert!(
+        asked.contains("service run --path"),
+        "and the start it then makes carries the base's own service words: {asked}"
+    );
+    // The service that answers is this release's, started with the arguments the design names.
+    let socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
+    assert!(socket.exists(), "the service listens where the base says");
+    assert!(met.elapsed() < PATIENCE, "the whole start is bounded: {:?}", met.elapsed());
+    finish(&fixture, runtime.as_path());
+}
+
+/// What:
+///  With a manager that does not answer in time, the result is exactly the base's: one server, the same files, one commit.
+/// Why:
+///  An enhancement that can fail a commit is not one;
+/// the probe's bound is what makes a busy manager (one re-reading its units answers after the reload, which took 139,770 ms
+///  once on this machine) cost a first commit at most `PROBE_WAIT` and nothing at all afterwards.
+#[test]
+fn with_a_manager_that_does_not_answer_in_time_the_base_starts_the_service() {
+    let (fixture, repo, runtime) = prepared("starts-manager-too-slow");
+    // The probe outlasts its bound, so the manager is treated as not there and its command is never run.
+    let calls: PathBuf = stand_in_manager(&fixture, 30);
+    let began: std::time::Instant = std::time::Instant::now();
+    let committed: Output = commit_with_a_manager_of_this_session(&fixture, repo.as_path(), runtime.as_path());
+    let took: std::time::Duration = began.elapsed();
+    assert!(committed.status.success(), "the commit lands with a manager that does not answer: {}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    assert_eq!(subject(&fixture, repo.as_path()), "subject");
+    assert!(took < PATIENCE, "and within the bound: {took:?}");
+    // The manager was asked once and never ran the service: its record holds the probe alone.
+    let asked: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
+    assert!(!asked.contains("service run"), "the manager that did not answer was not asked to start the service: {asked}");
+    // Exactly the base's files, and exactly one server.
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let note: PathBuf = pid_note(runtime.join(git_policy_cli::service_instance::SOCKET_DIRECTORY).as_path(), instance.as_str());
+    let served = read_note(note.as_path()).expect("the base started the service, which wrote its note");
+    assert!(git_policy_cli::service_server_pid_note_of_an_instance::is_still_the_process(&served), "and it is one living service");
+    assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the address is the base's");
     finish(&fixture, runtime.as_path());
 }
