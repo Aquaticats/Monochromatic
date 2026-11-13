@@ -202,13 +202,20 @@ and it also replaces the command-line driver the repository's rules and runbooks
   or emulates `prefers-color-scheme`,
   and whether Browser Run retains page content.
 
-## Possible follow-up
+## Follow-up vet declined
 
 A narrower role,
 such as a cheap engine for reading public pages during research,
 would need its own vet.
 `agent-browser` 0.43.0 already accepts `--engine lightpanda` and `--engine obscura`,
 so such a vet would compare those with Kitesurf behind `--cdp`.
+
+Offered that vet,
+or a vet of a self-run Kitesurf alone,
+the owner chose "No follow-up" at 2026-11-13T17:00:57-05:00.
+A suggestion,
+not a decision:
+a recorded `agent-browser` failure tied to Chromium's CPU or memory would be a reason to offer it again.
 
 Sources accessed 2026-11-13.
 
