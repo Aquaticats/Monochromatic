@@ -116,6 +116,10 @@ pub mod service_server_start_by_the_wrapper;
 /// so a client keeps a newer service and replaces an older.
 pub mod service_release_order;
 
+/// What an earlier release left running and on disk for this account's commit services,
+/// and what this release does about it at its first command.
+pub mod service_server_earlier_release_units;
+
 /// The enhancement: a transient scope through a service manager that is this account's own,
 /// and the base's start whenever it is absent, slow or failing.
 pub mod service_server_start_through_the_manager;

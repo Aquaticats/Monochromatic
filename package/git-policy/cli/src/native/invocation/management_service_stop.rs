@@ -20,7 +20,7 @@
 use crate::action::Action;
 use crate::service_client_listen_and_ask_to_retire::{ask_to_retire, START_WAIT};
 use crate::service_host_of_a_worktree::runtime_directory;
-use crate::service_instance::{instance_of, socket_path};
+use crate::service_instance::socket_path;
 use crate::service_route::non_empty_path_variable;
 use crate::service_server_start_by_the_wrapper::answered;
 use std::path::{Path, PathBuf};

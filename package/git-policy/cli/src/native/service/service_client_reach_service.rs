@@ -225,6 +225,12 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
                 // A service that announces no release is this build's own, as every service this release starts is.
                 None => true,
             };
+            // What: A service of an earlier release is met, so an earlier release's units are what hold this worktree's address;
+            //       they are retired once in this command, before it asks the service to leave.
+            // Why:  A loaded socket unit of that release keeps the name bound, so a server of this release could never own it, and
+            //       the manager would start the old program again on every connection (`service_server_earlier_release_units.rs`).
+            //       A command that meets only its own release touches nothing.
+            let _retired: Vec<std::path::PathBuf> = retire_earlier_units_once(config);
             if newer_or_equal {
                 if release.as_deref() != Some(RELEASE) {
                     let _written = writeln!(notices, "{}", other_release_notice(release.as_deref()));
@@ -258,6 +264,30 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
         // replaces it, which is a start this wrapper makes and never a call to a manager.
         std::thread::sleep(CONNECT_PAUSE * 4);
     }
+}
+
+/// What:
+///  Retires an earlier release's units once in this command,
+///  and nothing on every later look.
+/// Why:
+///  The removal and the manager's stop cost a read of the unit directory and one program call,
+/// so they are paid once, at the first service of another release this command meets;
+/// the fact is the process's, because a command is one process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!retiredOnce) retireEarlierUnits(host)
+/// ```
+fn retire_earlier_units_once(config: &ClientConfig) -> Vec<std::path::PathBuf> {
+    static DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if DONE.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return Vec::new();
+    }
+    let Some(server) = config.starter.as_ref() else { return Vec::new() };
+    // The socket sits one folder below the runtime directory the units live in, and the manager is the gate's own answer:
+    //  a command that may not ask a manager passes none.
+    let Some(runtime_dir) = server.directory().parent().map(std::path::Path::to_path_buf) else { return Vec::new() };
+    return crate::service_server_earlier_release_units::retire_earlier_units(runtime_dir.as_path(), server.manager.as_ref(), server.instance.as_str());
 }
 
 /// What:
