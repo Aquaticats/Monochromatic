@@ -7047,9 +7047,36 @@ Guard tests keep it so:
   a worktree that Git's own `gc` prunes is not seen by the wrapper,
   so its
   records are lost with it.
-- The service keeps the records of its newest 1024 finished batches in its journal and removes older ones when it starts;
-  a request is answered as already landed only while its own client retries it,
-  which is minutes at most.
+- The service keeps a finished batch's record while a client of it may still send its request again,
+  and keeps the newest 1024 records whatever their age;
+  a record is removed only when it is both older than `A_FINISHED_RECORD_IS_READ` and beyond that count,
+  and the removal runs when a service starts.
+  A client's whole life is `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus
+  `LOOKING_FOR_A_LANDED_COMMIT`,
+  which is 30 minutes 17 seconds,
+  so a request sent again inside that time is answered as already landed
+  however many other landings pushed its record past the count,
+  and one sent again later is answered as already landed while fewer than 1024 batches have landed since it.
+  Limit:
+  a client that was stalled past that time is recognised only while the repository landed fewer than 1024
+  batches in the meantime.
+  Limit:
+  a request replayed by a later command from a recording of an earlier one obeys no ceiling of this wrapper,
+  so its record is the only thing that keeps it from landing twice,
+  and that record is kept only by the two conditions above.
+  Limit:
+  a service that keeps landing keeps every record it writes until its next start,
+  so its journal grows by the batches it lands while it runs,
+  and the first commits after that start wait for it to read every record it kept.
+  Limit:
+  two services of one worktree at the same time each remember what landed before they started,
+  so a request one of them landed and a client sends again to the other is landed twice;
+  one service per worktree is what keeps that from happening.
+  Limit:
+  a service of an earlier release,
+  started on the same journal,
+  removes the oldest records by count alone,
+  so a change of release may drop a record this release would keep.
 - The service exits after three hours with nothing to do (Bazel's server has the same default);
   the next commit starts it
   again.
