@@ -1,9 +1,9 @@
 # The commit service without a service manager
 
-Status, 2026-11-13 (third run): `main` is merged in, and the three things the last report
-named as missing are done: the two-release control (which found and fixed a real defect of
-the upgrade), `service stop`, and the earlier releases' units. The times and the cost on a
-commit's path are measured. What remains is the closing list.
+Status, 2026-11-13 (fourth run, answering the review of `53726ade2d`): `main` is merged in,
+the review's one finding is fixed with three controls and its reproductions no longer
+reproduce, and the advice a person reads no longer names a unit that this release does not
+have. The deadline inventory the review asked for is below.
 
 The task: the wrapper's commit service stops being a unit of the user's
 service manager and becomes a server the wrapper starts, finds, replaces and
@@ -1463,3 +1463,64 @@ that is usually empty, and the release order is one comparison of two short text
    in `service_server_greets_before_the_journal_is_restored_tests.rs` (it fails identically
    with this branch's greeting change put back) and `service_round`'s panic lane (its files
    are byte-identical to main). Both want their owners.
+
+## The review of the takeover, and what answers it
+
+The review of `53726ade2d` reproduced one defect with the real binary: a service that was
+alive and silent for a second lost its address to a second server, and the first one's exit
+then unlinked the second's socket and note by their paths. Two live services for one
+worktree; the note, which proves a service gone, missing while a service ran.
+
+Both halves are fixed, and neither depends on the other:
+
+- **Silence is never proof that a holder is gone.** `bind_path` takes over only a socket the
+  kernel refuses a connection to. What a silent socket means is "a live service that is
+  slow", and the three ways that happens are recovery before the acceptor starts, a starved
+  acceptor, and a debugger. The follow-on is what makes it safe: `start` starts no server
+  while something accepts at the address and returns the wait the caller keeps, bounded by
+  its own start ceiling. So a slow recovery costs a wait, never a commit.
+- **A service removes only what is still its own.** `OwnFiles` removes the socket only while
+  the path still names the inode it bound, and the note only while it still holds the text it
+  wrote. Two removals in the sweep were by path as well: `remove_what_a_stopped_instance_left`
+  now needs the note's death *and* the kernel's refusal, and `stop_own_socket` needs the note
+  to name this process.
+
+Three controls, each shown failing without its guard:
+
+- `a_socket_that_accepts_is_left_to_its_service_and_a_refused_one_is_taken_over` — without
+  the fix, `bind_path` returns a listener where it must return `AddrInUse`.
+- `a_service_leaves_files_that_are_not_its_own` — without the fix,
+  "the later server's address is left where it is" fails.
+- `a_command_waits_at_an_address_that_accepts_and_greets_nothing` — without both guards,
+  the start returns `DidNotGreet` after a start wait where it must return at once.
+- `a_live_address_whose_note_is_stale_is_left_alone` and
+  `a_service_removes_only_the_note_that_names_it` — the sweep's two guards.
+
+The review's reproduction, run again against the fixed build: B refuses to take the silent
+service's address (`cannot listen: Address already in use`) where it had taken it before, so
+the wrong result it printed (`REPRODUCED: B is running but A's exit removed B's socket`) is
+gone. What a person sees instead is a commit that waits for the service that is there and
+lands through it (`service-silent-commit-waits.sh`: a commit waits 3.1 s through a stopped
+service, lands, the same pid serves it, one service was started in that worktree).
+
+### Every place this change decides from a deadline alone that another process is gone
+
+- `bind_path`: **no deadline**. A takeover requires the kernel's refusal; a silent socket is
+  left and the command waits. (Was a one-second greeting read; that was the defect.)
+- `start`'s wait for a greeting: a deadline, but it decides only that *this* command stops
+  waiting for a server it spawned; it removes nothing and kills nothing, and a failure names
+  the log. When something still accepts at the address it does not fail at all: the caller
+  keeps waiting to its own ceiling.
+- `service_server_start_through_the_manager::end_the_group_of`, and the probe's kill: a
+  deadline ends a process group **this command started**, never another's.
+- `service_is_gone_after_a_stop`: **no deadline**. The note's process birth identity is the
+  proof, and a note that names a live process means the service is there.
+- `remove_what_a_stopped_instance_left` and `stop_own_socket`: no deadline; the note's death
+  and the kernel's refusal, or the note naming this process.
+- `management_service_stop::stop` and `service_server_earlier_release_units`: a deadline ends
+  the *asking* (`START_WAIT`, `PROBE_WAIT`); neither unlinks another process's file, and both
+  say what they found.
+- `service_client_reach_service`'s `Heard::Silent if service_seen` (`HEARTBEAT_SILENCE`, 5 s):
+  a deadline that ends the *wait*, and the failure it reports says the outcome is not known
+  (`ServiceSilent`) rather than claiming the commit was not made; the request may still land,
+  so the words point at `git log` and `git status` first.
