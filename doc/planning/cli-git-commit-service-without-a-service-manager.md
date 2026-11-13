@@ -1,9 +1,10 @@
 # The commit service without a service manager
 
-Status, 2026-11-13 (fourth run, answering the review of `53726ade2d`): `main` is merged in,
-the review's one finding is fixed with three controls and its reproductions no longer
-reproduce, and the advice a person reads no longer names a unit that this release does not
-have. The deadline inventory the review asked for is below.
+Status, 2026-11-13 (fifth run, answering the review of `3d5c1a0d8c` on the branch that stands
+on this one): `main` is merged in, every connect to a service has a bound, a queued connect is
+never read as an answer, and the manager probe ends and reaps its child off the waiting path.
+The two findings of that review which are this branch's are below, with the deadline
+inventory from the previous round.
 
 The task: the wrapper's commit service stops being a unit of the user's
 service manager and becomes a server the wrapper starts, finds, replaces and
@@ -1524,3 +1525,58 @@ service, lands, the same pid serves it, one service was started in that worktree
   a deadline that ends the *wait*, and the failure it reports says the outcome is not known
   (`ServiceSilent`) rather than claiming the commit was not made; the request may still land,
   so the words point at `git log` and `git status` first.
+
+## The review of `3d5c1a0d8c`: the two findings that are this branch's
+
+### A connect with no bound (its finding 1, reproduced here)
+
+The review measured a commit still waiting after 30,013 ms with nothing printed, where a healthy
+one took 42 ms, and `service status` waiting 15,013 ms. I reproduced both against this branch's
+previous tip, with its own script: `unix_wait_for_peer` at 6 s, killed at 30 s.
+
+Every connect in release code is now made within `CONNECT_CEILING` (1 s) through main's
+`connect_within`, including an abstract name (which main's helper did not cover and I added):
+the client's `reach`, `answered` and `accepts`, the takeover probe in `bind_path`, the warm
+message, and the fixture readiness probes. Three consequences follow:
+
+- `waits_for_a_greeting`'s own deadline now bounds each look, so "a slow start is never cut
+  short by a slow look" holds as an argument rather than as an assumption.
+- `service_answers` (`service status`) asks for a *greeting*, so a service that queues and says
+  nothing is reported as not answering; it was reported "running and answers" from a queued
+  connect alone.
+- `accepts` reads a connection the bound ended as a process that holds the address, so a full
+  queue is a service that is there: no server is started beside it, and the command waits for
+  it, bounded by its own ceiling.
+- The client's whole wait for a service is `START_WAIT` (10 s), one start's bound, instead of the
+  minute measured against a service manager's start. Re-run of the review's script: commit fails
+  at 16.1 s with the wait notice at 1 s and "The commit service did not start … Its log shows
+  why", exit 1; `service status` answers in 1.0 s. `HANG REPRODUCED: false`.
+
+### The probe's unbounded reap (its finding 8, by reading)
+
+`kill()` then `wait()` after `PROBE_WAIT`: a child inside an uninterruptible call cannot be
+ended by a signal, so the commit waited for as long as that call took. The ending and the
+reaping now happen on a thread of its own, and the probe answers at its bound whatever the child
+does. The seam is the ending-and-reaping itself; the control hands in one that sleeps 30 s and
+asserts the probe still answers within its bound, which fails at 32 s with the wait on the path.
+
+### What the other findings of that review are
+
+- Its finding 7 (a takeover orphans a live service) no longer holds: `bind_path` takes over only
+  a socket the kernel refuses, and a service removes only what is still its own (the previous
+  round, `e568825f42`).
+- Its finding 9 (messages naming a unit this release never creates) no longer holds: every such
+  message names the log folder, `service stop`, or exporting a variable for the next start
+  (`7d84cc66f9`).
+- Its finding 5 (a long runtime directory) is main's, and it reached this run's own harness: a
+  38-byte runtime directory made every wrapper commit fail after ten seconds with the service's
+  `cannot listen: path must be shorter than SUN_LEN`, and the same fixture under a 30-byte
+  directory committed in 90 ms. That is the measurement for the run that owns it.
+
+### Every place a connect is made, and its bound
+
+`CONNECT_CEILING` (1 s) at: `service_client_listen_and_ask_to_retire::connect` (path and
+abstract), `ask_to_retire`, `service_warm_request`, `service_server_socket_binding::bind_path`,
+`service_route::service_answers` (through `answered`), `service_server_start_by_the_wrapper::answered`
+and `accepts`, `service_client_shadow_hand_out` (main's `connect_within`), and the binary
+fixture's readiness probes. No release path connects to a service socket any other way.
