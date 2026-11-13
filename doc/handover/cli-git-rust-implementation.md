@@ -790,6 +790,59 @@ read by the coordinating session from the output of `native:release:wait` and `n
   for whichever of passes 22,
   23 and 24 reports fit first.
 
+##### The removal-goes-around answer passed its second review and is pass 25 (2026-11-13T18:55:47-05:00)
+
+Not final and not approved:
+the coordinating session's reading of the review,
+which ended at 18:49:22.
+
+- The review of `50d55b0b8d`
+  (`~/temp/agent/change-reviews/git-policy-cli-removal-goes-around-answers-after-its-first-review/review.md`)
+  found no defect that discards a person's data,
+  fails a commit or a merge,
+  lands a removal twice
+  or waits without a bound.
+  It built the crate at that commit and ran 32 focused controls,
+  all passing,
+  and probed that `rmdir` of an empty subvolume root succeeds on this host.
+- It reports one finding,
+  found by reading and not reproduced:
+  when the volume a removal goes around is removed by somebody else during the pass,
+  the command prints the notice of a subvolume destroyed in one step with files the service deletes later,
+  where the root went by `rmdir`,
+  the files were already gone and nothing is queued.
+  Weighed:
+  the removal is right and only the words are false,
+  so it does not hold the branch back;
+  it earns a fix because a message naming a deletion still to come sends its reader looking for one.
+- One candidate the review dismissed it also calls a real gap:
+  a renamed subvolume that nothing deletes,
+  when the inline destroy in `hand_over_with` fails after the service has settled the record.
+  It loses nothing and waits on nothing,
+  and it holds room on the volume whose filling ended twenty runs on 2026-11-12.
+  The author is asked whether the sequence can happen as the code stands
+  and whether the lines are the change's own or older;
+  a run of its own follows from that answer.
+- Routed:
+  integration pass 25 for `0.6.1-alpha.23`,
+  pinned to `50d55b0b8d`,
+  queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-25-for-alpha-23-prompt.md`);
+  the author,
+  resumed with its session,
+  on the finding and the two questions
+  (`~/temp/agent/pi-runs/removal-goes-around-answers-its-second-review-of-2026-11-13-prompt.md`),
+  queued behind the two cleanup runs.
+  What the author commits comes after the pinned commit and gets a review and a pass of its own.
+- The scratch folder `~/temp/agent` measured 321 GiB at 18:55
+  (`du`, one level deep):
+  `change-reviews` 66 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  `sonnet-audits` 45 GiB,
+  three run scratch folders of 28 GiB each,
+  `kimi-trials` 17 GiB,
+  `module-test-logs` 11 GiB.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
