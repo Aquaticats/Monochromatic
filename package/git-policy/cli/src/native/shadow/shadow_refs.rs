@@ -231,24 +231,28 @@ fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntr
     // Both halves are sorted by name already, and the worktree's three namespaces are disjoint from the shared list,
     //  so one sort of the whole list is what Git's byte order needs and no name is ever replaced.
     entries.sort_by(compare_by_name_bytes);
-    let mut dropped: Vec<bool> = vec![false; entries.len()];
-    for index in 0..entries.len() {
-        if entries[index].symref.is_empty() {
-            continue;
-        }
-        // Git prints a symbolic ref with the ref its chain ends at, and prints none when that chain ends nowhere.
-        match end_of_a_symbolic_chain(entries.as_slice(), entries[index].symref.as_slice()) {
-            Some((end, oid)) => {
-                entries[index].symref = end;
-                entries[index].oid = oid;
-            }
-            None => dropped[index] = true,
-        }
+    // What:
+    //  Every chain is resolved against the targets as they are stored, before any of them is rewritten.
+    // Why:
+    //  Git counts a chain's depth from the ref files, one name at a time, so one name's answer never
+    //  depends on which other name was answered first. Resolving in place made it depend: a chain that
+    //  passed through a shorter chain sorting before it read that name already collapsed to its own end,
+    //  counted fewer links than it has, and was kept where Git drops it (`aa -> bb -> cc -> dd -> ee` with
+    //  `zz -> aa`: Git drops `zz` for being five links long, and the reader kept it).
+    //  So the ends are found first, in a list of their own, and the entries are read and never written
+    //  while they are being read.
+    let mut ends: Vec<Option<(Vec<u8>, String)>> = Vec::with_capacity(entries.len());
+    for entry in &entries {
+        ends.push(if entry.symref.is_empty() { None } else { end_of_a_symbolic_chain(entries.as_slice(), entry.symref.as_slice()) });
     }
     let mut kept: Vec<RefSnapshotEntry> = Vec::with_capacity(entries.len());
-    for (index, entry) in entries.into_iter().enumerate() {
-        if !dropped[index] {
-            kept.push(entry);
+    for (entry, end) in entries.into_iter().zip(ends) {
+        match end {
+            // A direct ref is its own answer.
+            None if entry.symref.is_empty() => kept.push(entry),
+            // A chain that ends nowhere, or beyond Git's depth, is not a ref Git prints.
+            None => {}
+            Some((end, oid)) => kept.push(RefSnapshotEntry { name: entry.name, symref: end, oid }),
         }
     }
     return Some(kept);
@@ -301,6 +305,19 @@ pub const SYMBOLIC_REF_DEPTH_IN_A_LISTING: usize = 4;
 /// ```ts
 /// const endOfChain = (entries, target) => { let name = target; for (let step = 0; step < 4; step++) { const found = findByName(entries, name); if (found === undefined) return undefined; if (entries[found].symref === '') return [name, entries[found].oid]; name = entries[found].symref } return undefined }
 /// ```
+fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
+    let mut current: Vec<u8> = target.to_vec();
+    for _step in 0..SYMBOLIC_REF_DEPTH_IN_A_LISTING {
+        // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
+        let found: usize = find_by_name(entries, current.as_slice())?;
+        if entries[found].symref.is_empty() {
+            return Some((entries[found].name.clone(), entries[found].oid.clone()));
+        }
+        current = entries[found].symref.clone();
+    }
+    return None;
+}
+
 /// What:
 ///  Where a ref name sits in the snapshot's own byte order,
 ///  or `None` when the snapshot holds no such name.
@@ -323,19 +340,6 @@ fn find_by_name(entries: &[RefSnapshotEntry], name: &[u8]) -> Option<usize> {
             std::cmp::Ordering::Greater => high = middle,
             std::cmp::Ordering::Equal => return Some(middle),
         }
-    }
-    return None;
-}
-
-fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
-    let mut current: Vec<u8> = target.to_vec();
-    for _step in 0..SYMBOLIC_REF_DEPTH_IN_A_LISTING {
-        // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
-        let found: usize = find_by_name(entries, current.as_slice())?;
-        if entries[found].symref.is_empty() {
-            return Some((entries[found].name.clone(), entries[found].oid.clone()));
-        }
-        current = entries[found].symref.clone();
     }
     return None;
 }
