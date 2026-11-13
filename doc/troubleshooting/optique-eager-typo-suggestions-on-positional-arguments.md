@@ -747,12 +747,13 @@ of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of s
 input, 8,000 positional arguments and one option, it took a parse from 1,130 ms to 140 ms in that run. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
 to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
-`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice); in a later run on
-Deno, 32,000 arguments took 30.6 s on main and 7.3 s patched. I tried both. A second patch removes the state copy by making a
-state of more than 1,024 items an array-shaped view over an immutable vector: 32,000 arguments then take 1.4 s, and
-the core suite passes on Deno, Node and Bun. Its cost is that such a state is a `Proxy`, which prints as an empty
-array and throws on `structuredClone()`, `Object.freeze()` and in-place edits. For the buffer I have nothing to
-offer: a view cut in `argument()` alone made a line that alternates options and arguments about ten times slower.
+`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice). I tried both. A
+second patch removes the state copy by making a state of more than 1,024 items an array-shaped view over an
+immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
+(built packages, five rounds with the arms taking turns), and the core suite passes on Deno, Node and Bun. Its cost
+is that such a state is a `Proxy`, which prints as an empty array and throws on `structuredClone()`,
+`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: a view cut in `argument()` alone made
+a line that alternates options and arguments 11 to 13 times slower on Node and 40 to 77 times slower on Bun.
 The write-up and both patches: [commit permalink to
 doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
