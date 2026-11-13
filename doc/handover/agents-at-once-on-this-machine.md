@@ -417,6 +417,18 @@ one line a minute:
   the same readings file)
   starts when the walk ends,
   so no reading of this level's hour falls in the walk.
+- The walk was still going at 17:21:02 with nothing printed,
+  and no probe had read since 17:10:33 while the count rose.
+  So a second probe reads while the walk runs,
+  from 17:22,
+  fifteen minutes at a time,
+  renewed while the walk goes
+  (unit `disk-ceiling-probe-level-32-while-the-build-folder-walk-runs-20261113T1722`,
+  the same readings file,
+  level field 32).
+  Its readings are there to catch a symptom,
+  and are read against the walk:
+  they do not count toward the hour that judges the level.
 - The hour counts from the first reading with the count above sixteen for good,
   and is read by the counts it holds:
   a count that stays near twenty is a reading at twenty,

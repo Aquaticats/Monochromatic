@@ -723,6 +723,45 @@ written by the coordinating session from its own readings.
   the probe hour of level thirty-two starts when it ends.
   Its output goes to `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/`.
 
+- The review of the build-tree branch
+  (`perf/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller`,
+  `bf9c397cf2`)
+  was never started.
+  Asked for it at 16:53:18,
+  `start-reviews-of-finished-branches` printed
+  "nothing to review under package/git-policy/cli in main...perf/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller"
+  and exited with status zero:
+  the branch changes `Cargo.toml` and one Markdown file,
+  and `codeFilesAmong` in `package/pi-shared/subagent-driver/src/material-of-a-review.ts` keeps only `.rs` and `.ts`.
+  The scratch script that fills free places had taken the entry off the queue before the command answered,
+  so nothing showed the review was missing until the queue was read by kind at 17:16.
+  Two things follow,
+  both in the queue since 17:20:
+  - a review of that branch from a brief written by hand in the launcher's form
+    (`~/temp/agent/change-reviews/git-policy-cli-build-tree-of-the-wrapper-package-is-measured-and-made-smaller/brief.md`:
+    the manifest,
+    the measurements document and the package's task file to read whole,
+    and what counts as a defect of a profile change);
+  - a fix run for the launcher
+    (`fix/pi-shared-subagent-driver-a-change-to-a-build-manifest-or-task-file-is-reviewed`,
+    brief `~/temp/agent/pi-runs/change-to-a-build-manifest-or-task-file-is-reviewed-and-not-answered-as-nothing-to-review-prompt.md`):
+    a change to a build manifest or a task file is given to the reviewer,
+    a change of notes and tests alone is still answered as nothing to review.
+  The branch of the cargo fetch lock
+  (`perf/mise-cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch`,
+  one file changed so far)
+  will meet the same answer if its file is a task file and the fix is not in `main` by then;
+  its review is then written by hand the same way.
+- Thirty-five branches of 2026-11-11 and 2026-11-12 are not merged into `main`
+  (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/whether-merging-each-unmerged-branch-would-change-main-2026-11-13T1718.txt`:
+  a trial merge of each would change `main` or conflicts with it).
+  A reading-only Sonnet subagent sorts them into brought to `main` by another route,
+  superseded,
+  held on purpose,
+  and stranded
+  (`~/temp/agent/classification-of-unmerged-wrapper-branches-of-2026-11-11-and-12/keep/classification.md` when it ends);
+  each stranded one gets a run.
+
 Next:
 read each pass's report as it ends and release;
 read the walk's output and remove the build folders no worktree owns,
