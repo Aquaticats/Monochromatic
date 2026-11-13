@@ -262,9 +262,23 @@ The level of four is judged when the hour is over and each of the three runs has
 - Still there and next: the two checkouts under `merge-reload-fix`, the fixture copies under `pkgrepair-repair-off-the-path` and `pkgrepair-verify`,
   `sonnet-audits` and `kimi-trials`. Each is read first for a report or measurement that lives nowhere else, and for commits a clone holds that the remote does not.
 
+#### How the runs of 2026-11-12 ended, and how they continue
+
+`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/how-each-run-ended.md` has one entry for each of the twenty.
+Every one ended in the middle of its work on "ENOSPC: no space left on device, write" (between 52 and 375 turns in),
+every one's Pi session file is still there, every brief is there, and every worktree is as the worktree check found it.
+So each is resumed in its own session rather than briefed again: the same name and branch, `sessionOf` its first run folder,
+and the note `~/temp/agent/pi-runs/resume-note-for-a-run-ended-by-the-full-drive-of-2026-11-12-prompt.md` as its prompt
+(what happened, the new scratch rule, check the worktree before trusting memory, then go on).
+The nineteen besides pass 18 are queued in `keep/resume-queue-in-order-one-entry-per-free-slot.json` in that folder,
+jam fixes and issue 6286 first.
+Until the launcher carries the cap, a list of nineteen must not be handed to the batch command, which would start them all:
+one entry is started by hand each time a slot of the four comes free
+(the unit `wait-until-fewer-than-four-agent-units-go-20261113` ends when one does).
+
 #### Next, in order
 
-1.  Read how each run of 2026-11-12 ended and write the briefs that continue them; they start as slots of the four come free.
+1.  Start the next entry of the resume queue each time a slot of the four comes free, and take it off the list.
 2.  Judge the level of four after its hour; then eight, if it held.
 3.  Review the two launcher changes when their runs end (qwen4, in a worktree of its own, counted against the cap), merge them, and only then set the hourly loop up again.
 4.  Remove the rest of the rebuildable scratch as described under "Scratch rules written, and the first removal".
