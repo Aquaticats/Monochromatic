@@ -40,7 +40,7 @@ description = "Build the library, then run unit tests; the unit tests import the
 run = ["mise run build", "mise run test:unit"]
 
 [tasks."start-pi-run-when-a-pool-has-room"]
-description = "Start one Pi run when its provider pool has room, or say why it started none: the worktree launcher's options, plus --session-of=<run folder> and --counts-only"
+description = "Start one Pi run when its provider pool has room and the machine is under its cap of agents, or say why it started none: the worktree launcher's options, plus --session-of=<run folder> and --counts-only"
 run = "node src/start-pi-run-when-a-pool-has-room.ts"
 
 [tasks."start-pi-run-in-a-worktree"]

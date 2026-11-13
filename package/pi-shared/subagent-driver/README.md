@@ -185,7 +185,7 @@ so a launcher that has not made its unit yet still holds its slot.
 An audit (`sol-`) is counted in no pool,
 because an audit runs on another account and competes for none of these slots.
 It is still one agent on the machine,
-and counts against the number of agents below.
+and counts against the number of agents named in "The number of agents on the machine".
 
 A run whose pool cannot be read holds a slot in every pool it could be running on,
 and the command names the unit it could not read on standard error:
@@ -213,12 +213,13 @@ Asked whose runs count: "Every agent on the machine".
 The number is the level a search for what the drives carry stands at,
 and the record of that search is `doc/handover/agents-at-once-on-this-machine.md`.
 
-It counts runs, never slots:
+It counts runs, never slots.
 
 - every Pi run going,
   whoever started it and whichever provider it is on,
   including a run no pool holds
-  (an audit whose name begins `sol-`, a Kimi run on a provider outside the table),
+  (an audit whose name begins `sol-`,
+  a Kimi run on a provider outside the table),
   and every launcher that has not made its unit yet;
 - the agents a caller says it has going which are no Pi run,
   such as subagents of its own session,
@@ -236,10 +237,12 @@ said on the counts line as it is.
 Two variables set it for one command, as `PI_RUNS_POOL_LIMITS` sets a pool's limit:
 
 - `PI_RUNS_MACHINE_CAP=<n>`:
-  the number of agents the machine may carry at once, 4 while it is unset.
+  the number of agents the machine may carry at once,
+  4 while it is unset.
   Zero starts nothing at all.
 - `PI_RUNS_OTHER_AGENTS_GOING=<n>`:
-  how many agents of its own the caller has going which are no Pi run, none while it is unset.
+  how many agents of its own the caller has going which are no Pi run,
+  none while it is unset.
 
 ```sh
 # three Pi runs and one subagent of this session, the level of 2026-11-13
@@ -264,23 +267,28 @@ No run starts while any volume it cannot work without has less room than its flo
   so about 9 GB an agent,
   which makes the floor about eleven agents' builds.
 - the volume that holds the runs folder,
-  with the scratch folders beside it: 50 GiB, about three of the largest scratch folder one run of 2026-11-12 left.
+  with the scratch folders beside it: 50 GiB,
+  about three of the largest scratch folder one run of 2026-11-12 left.
   Measured on 2026-11-13 with `btrfs filesystem du --summarize --raw`,
   that folder (`pkgrepair-repair-off-the-path`) holds 14,021,046,272 bytes of its own
-  and 3,934,998,528 shared inside it, 16.7 GiB together,
+  and 3,934,998,528 shared inside it,
+  16.7 GiB together,
   where `du` counted the shared data once for each copy-on-write copy and read 65,984 MiB.
 - the volume that holds Pi's own session files,
   with the container images and the caches: 50 GiB.
-  That drive filled on 2026-11-12: 1 MiB free of 1906 GiB,
+  That drive filled on 2026-11-12:
+  1 MiB free of 1906 GiB,
   and twenty runs ended within four minutes,
   every one on Pi's write of its session,
   `ENOSPC: no space left on device, write`.
   On 2026-11-13 one session's container images took about 20 GB of it in one hour
   (nine images of 2.15 to 2.53 GB, `podman images`),
   so the floor is about two hours of that with nobody looking.
-  A run's scratch is not on that drive, so the floor there is not sized from scratch.
+  A run's scratch is not on that drive,
+  so the floor there is not sized from scratch.
 
-The last two volumes are found by resolving the real path of the folder each is read from,
+The volume of the runs folder, and the volume of Pi's session files,
+are found by resolving the real path of the folder each is read from,
 never from a path written into the code:
 the runs folder the command was given,
 and Pi's session folder,
@@ -293,9 +301,12 @@ at the strictest of their floors.
 `src/free-space-floor.ts` holds the floors,
 `src/volume-of-a-folder.ts` finds the volume a folder is on,
 and a refusal names each volume that is under its floor,
-the room it read, the floor it needed, and the run it did not start.
+the room it read,
+the floor it needed,
+and the run it did not start.
 
-The runs folder, and where Pi's session folder is, are read at the start of every ask.
+The runs folder, and where Pi's session folder is,
+are read at the start of every ask.
 A `sessionDir` written in Pi's own settings file is not read here,
 so a session that sets it without the variable is guarded by the floor on the folder Pi would otherwise use.
 
@@ -311,7 +322,8 @@ plus these:
   the folder the runs live in,
   `${HOME}/temp/agent/pi-runs` by default.
 - `--counts-only`:
-  print the counts, the count of every agent on the machine against its cap,
+  print the counts,
+  the count of every agent on the machine against its cap,
   and the room of each distinct volume a run needs,
   and start nothing.
   It needs no name and never refuses because a run is already going.
@@ -323,7 +335,9 @@ Every other word is the launcher's and is passed on untouched.
 
 It answers one line,
 and exits `0` when it started a run,
-`3` when no pool has room, the machine is at its cap, or a volume is under its floor,
+`3` when no pool has room,
+the machine is at its cap,
+or a volume is under its floor,
 and `4` when a run of that name is already going,
 which is what the retrying start reads.
 The counts line ends with `<n> GiB free on <volume>`,
