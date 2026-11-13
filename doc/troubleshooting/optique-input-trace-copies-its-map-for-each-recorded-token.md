@@ -394,7 +394,8 @@ it is unreviewed by upstream and adds about 350 lines to maintain.
    or a `1.4.0-dev` build.
    Both concern the typo-suggestion work,
    which is a different cost.
-- Waiting for upstream pull request 1121.
+- Upstream pull request 1121,
+   merged on 2026-11-13.
    It changes the option-scope work and does not touch `input-trace.ts`.
 
 ## Upstream filing artifact
@@ -463,6 +464,22 @@ Work in progress,
 Nobody is fixing it.
 The maintainer is working in the neighbouring code today,
 so read pull request 1121 as it stands on the day before posting.
+
+The same checks again later on 2026-11-13,
+after upstream moved:
+
+- Pull request 1121 was merged at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+   which closed issue 1120.
+   The merge commit's tree is that of the branch head `a175cdb7`,
+   so the patch's clean application to that head holds for `main` as of the merge.
+- `gh pr list --state open`:
+   none.
+- `gh issue list --state all`:
+   nothing newer than issue 1120,
+   and nothing about the trace.
+- The newest commit on `packages/core/src/input-trace.ts` is still the one of 2026-05-14.
+
+So nobody is fixing it as of that check either.
 
 The six constraints:
 
@@ -777,7 +794,7 @@ https://github.com/Aquaticat/optique-parse-cost-reproduction (*token-scaling.ts*
 I have a patch that keeps the entries in an immutable hash trie instead, so a write copies only the path to its
 key and earlier traces stay untouched. From source on Deno, 8,000 arguments went from 1,183 ms to 151 ms and the
 exponent from about 1.8 to about 1.2; a thousand paths through a `git commit`-shaped parser took 0.78 times as
-long. The core suite passes on Deno and Node with it, and it applies cleanly to main and to #1121's branch.
+long. The core suite passes on Deno and Node with it, and it applies cleanly to main as of #1121's merge.
 
 It does not make the parse linear. A profile of the patched build shows two more per-argument copies behind this
 one: `multiple()` rebuilds its state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`)

@@ -9,8 +9,10 @@ Open:
 a model from another vendor reviewed the text as of commits `5a4e07d2e3` and `426d33d638`,
 and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
-the corrections made after that last pass are not reviewed,
-and upstream's pull request 1121 was not merged at this writing.
+the corrections made after that last pass are not reviewed.
+Upstream merged pull request 1121 on 2026-11-13,
+after the measurements here were taken of its branch;
+`main` has not been measured again since.
 
 Status,
 2026-11-12:
@@ -23,15 +25,22 @@ and because upstream can still change it before 1.4.0.
 
 Status,
 2026-11-13:
-upstream is fixing it.
+upstream has reduced it and closed its issue.
 The maintainer opened [upstream issue 1120][upstream issue] at 2026-11-13T08:16:37Z,
 "Reduce option-scope overhead when probing positional arguments",
 which says the regression
 "was reported in Monochromatic's research record and short-option scoping investigation,
 then reproduced locally",
 and links this document at commit `249bbf19ea`.
-Pull request 1121 for it was opened at 2026-11-13T10:10:30Z and is open at this writing.
-What this project measured of that pull request is under "Upstream's pull request 1121 as measured here".
+Pull request 1121 for it was opened at 2026-11-13T10:10:30Z
+and merged at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+which closed the issue.
+The merge commit holds the same files as the branch head `a175cdb7` that was measured here
+(both have the tree `b8217aeb`),
+so the figures under "Upstream's pull request 1121 as measured here" are figures for `main` as of that merge,
+and the arm called `main` there is `main` before it.
+By the pull request's own account and by the measurement here,
+parsing after a separator is still slower than on 1.3.6.
 
 The measurement behind it is in `doc/research/optique-typo-suggestion-overhead-upstream-record.md`,
 section "What the 1.4 line added",

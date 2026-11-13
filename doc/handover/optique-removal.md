@@ -787,6 +787,15 @@ Upstream moved on its own from this repository's public documents:
   citing the research record and the short-option document at commit `249bbf19ea`,
   and pull request 1121 for it at 2026-11-13T10:10:30Z.
   Issue 1120 names the input-trace copy and puts it outside its own scope.
+- The maintainer merged pull request 1121 at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+  which closed issue 1120.
+  The merge commit's tree is that of the branch head `a175cdb7` this project measured,
+  so those figures are figures for `main` as of the merge.
+  Checked afterwards the same day:
+  upstream has no open pull request,
+  no issue newer than 1120,
+  and no commit on `input-trace.ts` since 2026-05-14.
+  The documents and the reply draft now say the pull request is merged.
 
 Decided by the owner on 2026-11-13,
 each in answer to a question that gave the options:
@@ -910,6 +919,17 @@ each in answer to a question that gave the options:
   Its result is to be checked again by the coordinating session,
   as the trace patch was,
   before anything about it is written into a document.
+  Its clone is `${HOME}/temp/agent/upstream-prototype.3lsGY9v7/optique`,
+  based on `main` at the merge commit `d26f1a24` with the trace patch committed on top,
+  and what must outlive the run goes in the `keep/` folder beside the clone.
+  The owner's commit service holds a push plan for that clone and retries it against the disabled push address,
+  although the agent ran `git` with a `HOME` and `XDG_RUNTIME_DIR` of its own;
+  nothing leaves the machine,
+  and the behaviour is filed as #6293.
+- Agents at once:
+  rule `MXA` in `AGENTS.md` and `doc/handover/agents-at-once-on-this-machine.md` set a cap for the whole machine.
+  Count before starting any further Pi run for this work,
+  the next review pass included.
 
 Nothing in this section has been approved by the owner as complete or final;
 it is one AI session's record of what it did,
@@ -1034,8 +1054,9 @@ The defects in this repository's own tools that showed during the work are filed
 on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
 #6288,
 #6289,
-#6290
-and #6291.
+#6290,
+#6291
+and #6293.
 
 ## Next action
 
