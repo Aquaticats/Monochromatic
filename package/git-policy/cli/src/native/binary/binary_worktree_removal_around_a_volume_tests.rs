@@ -289,6 +289,8 @@ fn a_volume_several_directories_deep_and_a_second_one_are_both_left_with_their_m
     assert!(!target.join("c/other.txt").exists(), "the file beside the second volume was removed");
     assert!(target.join("a/b").is_dir() && target.join("a").is_dir() && target.join("c").is_dir(), "the directories that lead to them stay");
     assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "Git no longer lists the worktree");
+    // The control gave that directory its read-only mode, and the fixture is removed with the owner's access to it.
+    std::fs::set_permissions(target.join("a/b").as_path(), std::fs::Permissions::from_mode(0o700)).expect("the fixture's removal needs this directory");
     remove(&fixture);
 }
 
@@ -382,6 +384,9 @@ fn a_volume_that_holds_a_worktree_of_this_repository_stays_registered_and_usable
 ///  Git's own removal descends into a mount point and deletes what is mounted there,
 ///  and nothing in the tree is evidence that the mount is the removal's:
 ///  this is the case a device comparison alone cannot catch (a bind mount keeps the device).
+///  The worktree and the mount are made inside the private namespace,
+///  because a removal's cleanliness proof compares each file's owner with the index,
+///  and a file written outside the namespace has another owner inside it.
 #[test]
 fn a_mount_point_inside_a_worktree_is_left_and_what_is_mounted_there_is_untouched() {
     let fixture: Fixture = fixture("removal-around-mount");
@@ -389,24 +394,24 @@ fn a_mount_point_inside_a_worktree_is_left_and_what_is_mounted_there_is_untouche
         remove(&fixture);
         return;
     }
-    let repo: PathBuf = a_repository_with_rules(&fixture, "");
-    // A plain directory worktree: the mount a control makes is the only volume, and no kernel call of this filesystem
-    //  is needed inside the namespace.
-    let added: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
-    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    // The mount point is covered by an ignore rule, so Git sees a clean worktree: a mount point Git lists as untracked keeps
+    // an unforced removal from happening, as any other untracked entry does.
+    let repo: PathBuf = a_repository_with_rules(&fixture, "mnt/\n");
     let target: PathBuf = fixture.root.join("topic");
-    age_tracked_files(&fixture, target.as_path());
     let mounted: PathBuf = fixture.root.join("mounted");
     std::fs::create_dir_all(mounted.as_path()).expect("the directory the mount shows");
     std::fs::write(mounted.join("precious.txt"), b"what is mounted there\n").expect("a file the mount shows");
-    std::fs::create_dir_all(target.join("mnt").as_path()).expect("the directory the mount stands at");
     let before: Vec<String> = tree_of(mounted.as_path());
     let script: String = format!(
-        "mount --bind {mounted} {at} && git -C {repo} worktree remove {target}; status=$?; cd / && umount -l {at}; exit $status",
-        mounted = word(mounted.as_path()),
-        at = word(target.join("mnt").as_path()),
+        "{real} -C {repo} worktree add --quiet -b topic {target} && mkdir {at} && touch -d '120 seconds ago' {tracked} {rules} && {real} -C {target} update-index --refresh && \
+         mount --bind {mounted} {at} && git -C {repo} worktree remove {target}; status=$?; cd / && umount -l {at}; exit $status",
+        real = "/usr/bin/git",
         repo = word(repo.as_path()),
-        target = word(target.as_path())
+        target = word(target.as_path()),
+        at = word(target.join("mnt").as_path()),
+        tracked = word(target.join("tracked.txt").as_path()),
+        rules = word(target.join(".gitignore").as_path()),
+        mounted = word(mounted.as_path())
     );
     let removed: Observed = inside_a_private_mount_namespace(&fixture, repo.as_path(), script.as_str());
     assert_the_report_of_a_removal_that_went_around(&removed, target.as_path(), &[target.join("mnt").as_path()]);
@@ -429,22 +434,22 @@ fn a_read_only_mount_point_is_left_standingly_untouched() {
         remove(&fixture);
         return;
     }
-    let repo: PathBuf = a_repository_with_rules(&fixture, "");
-    let added: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
-    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let repo: PathBuf = a_repository_with_rules(&fixture, "mnt/\n");
     let target: PathBuf = fixture.root.join("topic");
-    age_tracked_files(&fixture, target.as_path());
     let mounted: PathBuf = fixture.root.join("mounted");
     std::fs::create_dir_all(mounted.as_path()).expect("the directory the mount shows");
     std::fs::write(mounted.join("precious.txt"), b"read only, and mine\n").expect("a file the mount shows");
-    std::fs::create_dir_all(target.join("mnt").as_path()).expect("the directory the mount stands at");
     let before: Vec<String> = tree_of(mounted.as_path());
     let script: String = format!(
-        "mount --bind {mounted} {at} && mount -o remount,bind,ro {at} && git -C {repo} worktree remove {target}; status=$?; cd / && umount -l {at}; exit $status",
-        mounted = word(mounted.as_path()),
-        at = word(target.join("mnt").as_path()),
+        "{real} -C {repo} worktree add --quiet -b topic {target} && mkdir {at} && touch -d '120 seconds ago' {tracked} {rules} && {real} -C {target} update-index --refresh && \
+         mount --bind {mounted} {at} && mount -o remount,bind,ro {at} && git -C {repo} worktree remove {target}; status=$?; cd / && umount -l {at}; exit $status",
+        real = "/usr/bin/git",
         repo = word(repo.as_path()),
-        target = word(target.as_path())
+        target = word(target.as_path()),
+        at = word(target.join("mnt").as_path()),
+        tracked = word(target.join("tracked.txt").as_path()),
+        rules = word(target.join(".gitignore").as_path()),
+        mounted = word(mounted.as_path())
     );
     let removed: Observed = inside_a_private_mount_namespace(&fixture, repo.as_path(), script.as_str());
     assert_the_report_of_a_removal_that_went_around(&removed, target.as_path(), &[target.join("mnt").as_path()]);
