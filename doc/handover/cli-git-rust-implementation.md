@@ -685,6 +685,22 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Two more authors answered their reviews: the push of a branch not checked out, and the removal that refuses a busy worktree (2026-11-13T17:00:22-05:00)
+
+Not complete, and written by the coordinating session from the runs' own reports; nothing here was run again by it. Both branches wait for their second review, queued.
+
+- **Push of a branch that is not checked out**, tip `b0c133f42b` (ended 16:55:51). By its report:
+  a worktree whose folder is gone is no longer a holder, so the branch moves as a reference, and an error after a published merge is reported and never fails the push
+  (the review's script now prints exit 0 and the local branch following the merge);
+  the record of a failed push is cut inside its budget; and the move of a reference looks at the worktree listing again at the moment of the move, with two controls for the window.
+  Each fix has a control quoted failing without it. Review queued over `main...b0c133f42b`.
+- **Removal refuses a worktree a process works in, and logs each ignored file it deletes**, tip `01d26607ce` (ended 16:56:01). By its report:
+  a kept record now holds the branch and the identity of the registration and the root, and answers only for that worktree, through the one loop the first pass uses
+  (the review's sequence, a worktree made again at the same path for other work, no longer loses it);
+  and the list of what will be deleted is written before the deletion and confirmed after it, on all three routes.
+  Review queued over `main...01d26607ce`.
+- At 17:00:29 sixteen agents were going and thirteen entries waited in the queue, seven of them reviews.
+
 #### The no-manager branch's author answered the takeover defect; two findings of the review above it go to the same author (2026-11-13T16:55:43-05:00)
 
 Not complete, and written by the coordinating session from the run's own report; nothing here was run again by it.
