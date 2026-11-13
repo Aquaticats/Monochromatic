@@ -1064,10 +1064,24 @@ to settle before a reply:
   and the section's timing parts and the two drafts now give ratios between arms run in the same round,
   with no absolute time as a finding.
   Deno's own tracker says it is maintained "until October 2027" with bug fixes only (issue 37030 there).
-  The earlier documents of this work still give absolute times and Deno figures in places;
-  whether to recast those,
-  and the public reproduction repository's README,
-  is put to the owner.
+  The earlier documents of this work still give absolute times and Deno figures in places.
+  Asked on 2026-11-13 how far the rewrite should go,
+  the owner chose "Everything (Recommended)":
+  the three Optique troubleshooting documents,
+  the research record and the README of the public reproduction repository are to be recast to ratios,
+  with absolute times only as labelled scale,
+  and are to say that Deno is maintained only until October 2027.
+  That recast is open work,
+  and its result needs a review pass of its own.
+- Asked the same day which of the recheck's results the reply draft should carry,
+  the owner chose the second patch with its costs and the buffer finding,
+  and not the note about `concat`.
+  The draft carries exactly those.
+- Asked whether to add two rules to `AGENTS.md`,
+  one on reporting timings as ratios and one on which runtimes to measure on,
+  the owner chose "Only TVC".
+  Rule `TVC` is added,
+  with its reason in `doc/philosophy/agents.md`.
 - One further item waits for the owner.
   It is held back from this repository on the owner's decision.
   What it is,
