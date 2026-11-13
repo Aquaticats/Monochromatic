@@ -266,12 +266,12 @@ fn the_commit_this_attempt_built_stands_on(
     first: &CommitRequest,
     settings: &Settings<'_>,
 ) -> Result<bool, FailureCode> {
-    let Some(commit) = commit else { return Ok(false) };
+    let Some(built) = commit else { return Ok(false) };
     let read: Option<BuiltCommit> = match settings.plain_history {
-        true => read_commit(first.common_dir.as_path(), commit),
+        true => read_commit(first.common_dir.as_path(), built),
         false => None,
     };
-    let (named_itself, parents): (bool, Vec<String>) = the_parents_of(git, repository, commit, read.as_ref())?;
+    let (named_itself, parents): (bool, Vec<String>) = the_parents_of(git, repository, built, read.as_ref())?;
     return Ok(named_itself && parents.first().map(String::as_str) == expected);
 }
 
