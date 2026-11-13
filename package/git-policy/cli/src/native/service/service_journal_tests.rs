@@ -270,7 +270,8 @@ fn written_intents_are_listed_and_finished_ones_are_remembered() {
 const AN_EARLIER_BOOT: &str = "0000000000000000000000000000000b";
 
 /// A time longer than the whole life of any client of a record,
-/// by a minute, so nothing is judged at the edge.
+/// by a minute,
+/// so nothing is judged at the edge.
 fn longer_than_a_client_s_life() -> Duration {
     return A_FINISHED_RECORD_IS_READ + Duration::from_secs(60);
 }
@@ -283,7 +284,9 @@ fn longer_than_a_client_s_life() -> Duration {
 ///   `write_intent` stamps a record with the clocks of now,
 /// and a fresh modification time alone keeps a record whatever its reading says,
 /// so both are what a control says when it needs a record no client may still read.
-/// A record of an earlier boot, and a wall clock as far back, make the reading past on a host with no boot ID too.
+/// A record of an earlier boot,
+/// and a wall clock as far back,
+/// make the reading past on a host with no boot ID too.
 fn finished_record(root: &Path, seq: u64, older: Duration) {
     // A record of this boot a moment old, or one of an earlier boot that far back, which are the two ways time passes.
     let written: ClaimTime = match older.is_zero() {

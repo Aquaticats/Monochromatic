@@ -6972,7 +6972,9 @@ Guard tests keep it so:
   so a request one of them landed and a client sends again to the other is landed twice;
   one service per worktree is what keeps that from happening.
   Limit:
-  a service of an earlier release, started on the same journal, removes the oldest records by count alone,
+  a service of an earlier release,
+  started on the same journal,
+  removes the oldest records by count alone,
   so a change of release may drop a record this release would keep.
 - The service exits after three hours with nothing to do (Bazel's server has the same default);
   the next commit starts it

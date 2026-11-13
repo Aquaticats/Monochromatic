@@ -3107,7 +3107,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  exactly as a failed push's record does.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
- The hand-over writes, beside the registration,
+ The hand-over writes,
+beside the registration,
  in the file `monochromatic-git-policy-cli-removal-identity`,
  the device and the inode of the registration and of the worktree root,
  and the service compares them with the two directories standing there before it removes anything.
@@ -3123,7 +3124,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  A record whose hand-over wrote no such identity,
  which is every record an earlier release queued,
  is compared with the name it was keyed by,
- which is the name the release before this one computed from the path and the registration's device, inode and
+ which is the name the release before this one computed from the path and the registration's device,
+inode and
  change time:
  a match proves the registration is untouched since the hand-over,
  and a mismatch leaves the worktree and names it.
@@ -3140,8 +3142,11 @@ A queue outlives the program that writes to it,
  and a version above this build's,
  are left in `pending` and looked at again,
  which is one read per record per round;
- a field this build does not know is ignored, and the record is this build's work when its kind and version are;
- and a record that is not a record at all, which no release can ever read, is settled in `failed`
+ a field this build does not know is ignored,
+and the record is this build's work when its kind and version are;
+ and a record that is not a record at all,
+which no release can ever read,
+is settled in `failed`
  (`record_of_a_later_release` in `src/native/landing/work_item.rs`).
  A whole-worktree removal that a commit service of an earlier release refused is queued once more by the next command
  of the repository,
@@ -11950,7 +11955,8 @@ and the append is one whole-entry write on an append-mode descriptor with no loc
 (`log_lines_appended_without_a_lock.rs`),
 so two reviews of one repository may run beside each other and every other kind.
 Reviews run after the pushes and before the steps that free space:
-a push is the person's backup, and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
+a push is the person's backup,
+and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
 On 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round emptied the trashes of removed worktrees ahead of them,
 one of which can run for many minutes (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 
@@ -13677,10 +13683,13 @@ the commit then fails where real Git's own filter would have made the directory 
 and no step of the wrapper can close that window,
 because a link cannot make the directory it names.
 The shadow's store link is what a filter of a wrapped commit writes through only when that commit both stages
-tracked changes at commit time (`--all`) and is built by real Git (an editor, a signature, a hook):
+tracked changes at commit time (`--all`) and is built by real Git (an editor,
+a signature,
+a hook):
 the staging of every other shape runs in the real repository,
 where `git-lfs` writes into the real store.
-What the repository holds at that name is the person's, in every form,
+What the repository holds at that name is the person's,
+in every form,
 and the creation never replaces,
 moves or deletes it:
 a directory,
@@ -15217,10 +15226,12 @@ it is what tells a client whose answer was lost that its request already landed,
 and what answers the withdrawal of a request the client stopped waiting for (`service/service_journal.rs`,
 `service/service_busy.rs`).
 A service removes such a record only when both hold:
-it is older than `A_FINISHED_RECORD_IS_READ`, and it is beyond the newest `DONE_RETAINED` records of the journal.
+it is older than `A_FINISHED_RECORD_IS_READ`,
+and it is beyond the newest `DONE_RETAINED` records of the journal.
 The removal runs when a service starts (`prune_done`) and never on the path a commit waits on.
 The age is the whole life of a client of the record (`service/wait_ceilings.rs`):
-the wait for the answer, inside which every resend of the request happens (`ANSWER_CEILING`),
+the wait for the answer,
+inside which every resend of the request happens (`ANSWER_CEILING`),
 the short extra wait for a request the service says is inside its stuck branch write (`SHORT_EXTRA_WAIT`),
 the withdrawal whose answer the same record decides (`WITHDRAW_CEILING`),
 and the look the client makes for its commit after a lost answer (`LOOKING_FOR_A_LANDED_COMMIT`);
@@ -15258,7 +15269,9 @@ so a request one of them landed and a client sends again to the other is landed 
 one service per worktree is what keeps that from happening,
 and nothing in the journal alone prevents it.
 Limit:
-a service of an earlier release, started on the same journal, removes the oldest records by the count alone,
+a service of an earlier release,
+started on the same journal,
+removes the oldest records by the count alone,
 so a change of release may drop a record this release would keep for its client.
 A batch whose branch does not show its commit is dropped,
 unless a record of a hold names it:

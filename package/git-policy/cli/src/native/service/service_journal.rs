@@ -535,10 +535,13 @@ fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned
 /// Why:
 ///   A request is answered as already landed only by the record its batch left,
 /// so the record must outlive the client that may send the request again.
-/// That client's whole life is `A_FINISHED_RECORD_IS_READ` (`wait_ceilings.rs`), which decides most removals;
+/// That client's whole life is `A_FINISHED_RECORD_IS_READ` (`wait_ceilings.rs`),
+/// which decides most removals;
 /// this count decides the others:
 ///  a client that was stalled for hours
-/// (a host suspended under it, a command held at a debugger, an agent's turn that resumed the next day)
+/// (a host suspended under it,
+/// a command held at a debugger,
+/// an agent's turn that resumed the next day)
 /// outlives any age a service may state,
 /// and its record stays while fewer than this many batches have landed since it.
 /// It is also what a quiet repository keeps without end,

@@ -181,7 +181,8 @@ fn reading_of_a_finished_record(path: &Path) -> Option<ClaimTime> {
 /// the sweep of a removed worktree's journal asks the same question and keeps the whole journal on a record it cannot read
 /// (`service_files_of_a_stopped_instance.rs`),
 /// because there it guards work a person may want rather than spending one record's memory.
-/// Two questions are asked of the modification time, so a record past its word is read and stated once per answer;
+/// Two questions are asked of the modification time,
+/// so a record past its word is read and stated once per answer;
 /// nothing here removes anything.
 ///
 /// In TS you'd write (pseudocode):

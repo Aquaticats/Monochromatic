@@ -38,7 +38,8 @@ use std::time::{Duration, Instant};
 /// The committer every request of a control is landed as.
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
-/// The longest a control waits for anything but a landing, far beyond a healthy run.
+/// The longest a control waits for anything but a landing,
+/// far beyond a healthy run.
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// The boot a control writes a record of when it needs one no client of this boot may read:
@@ -48,7 +49,9 @@ const AN_EARLIER_BOOT: &str = "0000000000000000000000000000000b";
 /// The message of the request the controls send again.
 const ONE_REQUEST: &str = "one-request";
 
-/// The finished batches of a journal, by their numbers, in order.
+/// The finished batches of a journal,
+/// by their numbers,
+/// in order.
 fn finished(journal: &Path) -> Vec<u64> {
     return list_intents(journal, DONE_EXTENSION)
         .iter()
@@ -56,14 +59,17 @@ fn finished(journal: &Path) -> Vec<u64> {
         .collect();
 }
 
-/// A time longer than the whole life of any client of a record, by a minute,
+/// A time longer than the whole life of any client of a record,
+/// by a minute,
 /// so nothing a control states sits at the edge.
 fn longer_than_a_client_s_life() -> Duration {
     return A_FINISHED_RECORD_IS_READ + Duration::from_secs(60);
 }
 
 /// What:
-///  A finished record of batch `seq`, in a fixture's journal, that is `older` than now,
+///  A finished record of batch `seq`,
+/// in a fixture's journal,
+/// that is `older` than now,
 ///  in the reading of the clocks it carries and in its modification time.
 /// Why:
 ///   A journal of a stated size is a fixture's own,
@@ -108,7 +114,8 @@ fn write_finished_from(journal: &Path, repository: &Path, first: u64, count: usi
     }
 }
 
-/// What the client of a control sends with, on the socket of a fixture's service.
+/// What the client of a control sends with,
+/// on the socket of a fixture's service.
 fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
     return ClientConfig {
         address: Bind::Path(socket_for(runtime, git_dir)),
@@ -166,13 +173,15 @@ fn landed(config: &ClientConfig, request: &CommitRequest, what: &str) -> Submitt
     return answered.unwrap_or_else(|failure| panic!("{what}: the service did not answer: {failure:?}"));
 }
 
-/// The commit an answer landed, and whether the service said it had landed it before.
+/// The commit an answer landed,
+/// and whether the service said it had landed it before.
 fn commit_and_already(answer: &Submitted, what: &str) -> (String, bool) {
     let Submitted::Landed { commit, already } = answer else { panic!("{what}: expected a landing, got {answer:?}") };
     return (commit.clone(), *already);
 }
 
-/// The identity, the commit and the batch number of the one finished record a scene's first request left.
+/// The identity,
+/// the commit and the batch number of the one finished record a scene's first request left.
 fn first_request_of(journal: &Path) -> (String, String, u64) {
     let listed = list_intents(journal, DONE_EXTENSION);
     let (_, Some(intent)) = listed.first().cloned().expect("one finished record") else { panic!("the first finished record parses") };
@@ -181,7 +190,8 @@ fn first_request_of(journal: &Path) -> (String, String, u64) {
     return (id, commit, intent.seq);
 }
 
-/// A repository with a file committed, a running service and the journal it writes.
+/// A repository with a file committed,
+/// a running service and the journal it writes.
 struct Scene {
     fixture: Fixture,
     repo: PathBuf,
@@ -201,7 +211,8 @@ fn scene(name: &str) -> Scene {
 }
 
 impl Scene {
-    /// The service of this worktree, started as the manager starts it on the first connection.
+    /// The service of this worktree,
+    /// started as the manager starts it on the first connection.
     fn serve(&self) {
         self.service.serve(&self.fixture, self.repo.join(".git").as_path());
     }
@@ -211,7 +222,8 @@ impl Scene {
         return config(self.service.runtime.as_path(), self.repo.join(".git").as_path());
     }
 
-    /// A wrapped commit that lands on `main`, and the message it was given.
+    /// A wrapped commit that lands on `main`,
+    /// and the message it was given.
     fn wrapped_commit(&self, message: &str) {
         std::fs::write(self.repo.join("a.txt"), format!("{message}\n")).expect("a file to commit");
         git(&self.fixture, &self.repo, &["add", "--", "a.txt"]);
@@ -226,7 +238,8 @@ impl Scene {
 ///   This is the audit's reproduction of release 0.6.1-alpha.12:
 /// a request whose answer was lost was sent again after a thousand other landings had pushed its record past the count,
 /// and the service landed it a second time.
-/// The record was a hundred seconds old, far inside the window in which its client may still resend it.
+/// The record was a hundred seconds old,
+/// far inside the window in which its client may still resend it.
 #[test]
 fn a_request_resent_after_more_landings_than_the_journal_keeps_is_recognised() {
     let scene: Scene = scene("service-finished-resend");
