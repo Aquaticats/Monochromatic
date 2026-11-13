@@ -376,8 +376,17 @@ What the release is built to do, read from its source:
   `git --version` names `monochromatic-git-policy-cli 0.6.1-alpha.16`.
 - The user manager's journal for 11:22:00 to 11:23:00 holds no line with "reload".
 - Agents that were running keep the service of the release that started theirs until it is replaced; nothing was restarted.
-- Not checked yet on the installed release: a `git worktree add` with package-manager state under several agents,
-  which is what this release changes most; the next resumes start worktree commands through it and their times are to be read.
+- A real `git worktree add --detach` of this repository through the installed release, with four agents going, at 11:22:55: **6.97 s**
+  (0.97 s user, 4.07 s system). It printed at five seconds that it was taking the snapshot of the main checkout,
+  left the six uncommitted paths of the main checkout out, and handed the relink of the copied `node_modules` to the commit service to run after it returned.
+  On `0.6.1-alpha.15` on 2026-11-12, with about forty agents working and a drive filling, an add was still running after 339 seconds.
+  The two readings differ in release, in load and in the state of the drives, so this one shows the add returns before the repair, and nothing about forty agents.
+- The removal of that same worktree with `git worktree remove` (not forced), started 15 seconds after the add returned: **36.98 s**
+  (0.71 s user, 26.26 s system), exit 0, no line printed, the worktree gone.
+  Pass 18's fixture measured a forced removal at 26 ms, "in one step". Why the plain removal of a fresh snapshot spends 26 s of system time is not established:
+  the walk that proves nothing would be lost, a wait for the relink still running in it, or file-by-file deletion are the candidates,
+  and real Git's own time for the same removal was not measured beside it.
+  It goes to the runs on removal in the resume queue as a case to measure with real Git beside it.
 - With pass 18 released, the condition this document set on 2026-11-12 for starting the runs of rounds 310 to 313 again is met;
   they are in the resume queue with the rest.
 
