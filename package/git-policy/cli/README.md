@@ -1202,6 +1202,16 @@ Every worktree the sweep keeps is also remembered in
  a file is committed),
  and a sweep's candidates are only the branches the merge in front of it brought in,
  so nothing else would ever look at that worktree again.
+The record answers only for the worktree it was written for:
+ it holds that worktree's branch,
+ its registration's device and inode and its root's,
+ and the next sweep acts on it only when all three are the ones standing there now
+ and that branch's work is on the branch the merge landed.
+A path names whatever stands there when a later sweep reads it,
+ so a worktree you removed and added again at that path,
+ on another branch or on the same one,
+ is your worktree and stays;
+ the record that no longer answers for it is dropped.
 The record names one worktree and not a path:
  it is keyed by the path and by the identity of the registration standing beside it,
  and the service recomputes that name before it removes anything.
@@ -1238,7 +1248,19 @@ Every removal this program makes or lets Git make records what it deletes of the
 in `monochromatic-git-policy-cli-worktree-deletions.jsonl` in the repository's common Git directory,
 beside `monochromatic-git-policy-cli-audit.jsonl`
 (`git rev-parse --git-common-dir` names the directory).
-One line per removal holds the moment (`time`),
+A removal writes two lines there,
+ and a reader pairs them by their `id`:
+ the first before anything is deleted,
+ with `"outcome":"begun"`,
+ and the second after the files are gone,
+ with `"outcome":"deleted"`.
+That order is what survives a kill at any instruction:
+ a process killed between the deletion and its confirming line leaves the first line,
+ which says what the removal was about to delete,
+ so the files are never gone with nothing saying they were there,
+ and a `begun` line whose `id` has no `deleted` line is a removal that an interruption,
+ a refusal or a crash stopped after it had started.
+The first line holds the moment (`time`),
 the worktree it emptied (`worktree`, and `worktreeHex` for a path that is not UTF-8),
 the command that did it (`command`),
 and what went:
@@ -1264,7 +1286,12 @@ and its generations are kept up to 32 MiB together,
 so the record outlives the worktree.
 A removal that deleted nothing a record explains,
 which is every ordinary clean removal,
-writes no line at all.
+writes no line at all,
+and neither does a removal refused before it started
+(the busy-worktree refusal and every refusal of the removal's own proofs come first).
+A refusal Git itself makes, of a worktree holding changes, comes after the first line:
+ that line names what the removal was about to delete,
+ and its missing `deleted` line says Git did not delete it.
 
 **What a removal keeps.**
 A worktree's own Git directory also holds the push failures nobody has seen yet

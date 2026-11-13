@@ -3113,18 +3113,36 @@ A worktree whose branch a merge landed is removed by those same routes,
  so no later merge would ever look at a worktree kept in an earlier one,
  while the reason a removal was kept is often temporary.
  A record whose worktree went,
- is no longer registered or can never be removed is dropped by that pass.
+ is no longer registered or no longer answers for the worktree at its path is dropped by that pass.
+ The record holds the worktree's path,
+ the branch it had checked out,
+ and the identity of the two directories it was written for
+ (the registration's device and inode, then the worktree root's),
+ and a sweep acts on it only when all of them are the ones standing there now
+ and that branch's work is contained in the branch the merge landed.
+ The identity is what a path cannot be:
+ a worktree a person removed and added again at the same path,
+ on the same branch or another,
+ is two other directories and a new registration,
+ so its record answers for nothing and the worktree stays.
  The records are private files named by the hash of the worktree's path,
+ a record with no identity answers for no worktree,
  and a path that is not valid UTF-8 names no record a sweep acts on,
  which leaves the worktree in place rather than removing another directory.
+ Both passes reach the removal through one list and one examination
+ (`worktrees_this_merge_may_remove`, `examine_and_remove`),
+ so neither can miss a condition the other makes.
 
- Every removal writes what it deleted of the files the repository's own rules do not name to
+ Every removal writes what it deletes of the files the repository's own rules do not name to
  `monochromatic-git-policy-cli-worktree-deletions.jsonl` in the common Git directory
  (`src/native/worktree/worktree_removal_deletions.rs`),
- one JSON line per removal:
+ two JSON lines that a reader pairs by `id`,
+ and the order is the durability:
+ the first is appended before anything is deleted and carries `"outcome":"begun"` with
  `time`,
  `release`,
  `kind` (`worktree-removal`),
+ `id`,
  `worktree` and `worktreeHex`,
  `command` (the words the wrapper ran, `--force` included when it was given),
  `ignored` (the worktree's ignored entries,
@@ -3134,10 +3152,20 @@ A worktree whose branch a merge landed is removed by those same routes,
  `nested` (each registered worktree that stood inside it,
  with `worktree`, `worktreeHex`, `files`, `filesShown` and `filesTotal` for the untracked and ignored files it held),
  and `unreadable` when a listing could not be read,
- which is not a failure of the removal.
- The line is written after the files are gone and only when Git reported success or the destroy returned,
- so a refused removal writes none,
- and a removal that deleted nothing the record explains writes none either.
+ which is not a failure of the removal;
+ the second is appended once the files are gone and carries `"outcome":"deleted"`,
+ the same `id`, `time`, `release`, `worktree` and `worktreeHex`.
+ A process killed at any instruction therefore leaves a true record:
+ killed between the two lines it leaves the list,
+ which says what the removal was about to delete and never confirmed,
+ and a `begun` line whose `id` has no `deleted` line is read as exactly that,
+ including a removal Git itself refused,
+ whose list stands beside a worktree that is still there.
+ A removal that deleted nothing the record explains,
+ and one refused by this program before it started,
+ writes no line at all.
+ The test-only point `CLI_GIT_TEST_ONLY_REMOVAL_FAULT=after-deletion` kills the wrapper between the two lines,
+ and one control reads the log after that kill.
  The file rotates at one mebibyte and keeps 32 MiB of generations,
  with no generation pinned,
  and a write that fails is a debug line and never a failure of the removal.
