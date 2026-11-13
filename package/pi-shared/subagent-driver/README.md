@@ -1119,14 +1119,15 @@ for work whose number has gone.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
 
-The `processes` line is why an answer is there twice.
-The `tool_end` line beside it keeps only a preview of what the tool answered,
-cut at `FEED_PREVIEW_CHARACTERS.toolResult`,
-and a preview cut inside a JSON string is not a JSON document:
-reading that back fails with `Unterminated string in JSON at position 509`.
+An answer that names processes is on the feed twice,
+because the `tool_end` line beside the `processes` line keeps only a preview of it,
+cut at `FEED_PREVIEW_CHARACTERS.toolResult`.
+A preview cut inside a JSON string is not a JSON document,
+and reading one back fails with `Unterminated string in JSON`,
+at the position the cut landed.
 That is what turned twelve runs of 2026-11-12 and 2026-11-13 into `driver-failed`
 after their work was whole and Pi had exited 0,
-found on 2026-11-13 by reading the summaries under `${HOME}/temp/agent/pi-runs`.
+with the position at 509 in each summary read on 2026-11-13 under `${HOME}/temp/agent/pi-runs`.
 The feed is read as it is written,
 so a line its writer has not finished is no record yet and is left alone:
 that is what `src/whole-lines-of-a-feed.ts` does for every reader of a feed.
