@@ -19,7 +19,7 @@
 //! plantDeadHolderLock(repo, 'index.lock'); expect(runWrapped(repo, ['add', 'a.txt']).code).toBe(0);
 //! ```
 
-use super::support::{Fixture, Observed, REAL_GIT, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
+use super::support::{Fixture, Observed, REAL_GIT, executable, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
 use std::os::unix::process::CommandExt as _;
 use git_policy_cli::lock_holder_records::{folder_of, identity_of_process, record_text};
 use std::path::{Path, PathBuf};
@@ -377,34 +377,168 @@ fn a_lock_whose_record_names_a_live_process_is_kept() {
 }
 
 /// What:
-///  A record whose number now belongs to another live process is not a record of that process,
-///  so the lock is cleared:
-///  the birth identity the record names has no process,
-/// and the number does not make it the holder.
+///  A lock whose PID file names a number a live process has now is kept,
+///  even when a record of a dead process names that number:
+///  the number was used before,
+///  and a record of that earlier process proves nothing about the program that has it now,
+///  which may be the Git that wrote this very PID file.
 /// Why:
-///  A process number is reused,
-///  and the wrapper records the birth for exactly this:
-///  the lock's number is the test's own process,
-///  the record names a birth that process never had,
-///  so nothing the record names runs and the lock is a dead holder's.
+///  Removing such a lock is the worst kind of defect the project knows:
+///  the review of `d4a0803231` held a real `git commit --all` in its editor,
+///  planted exactly this record,
+///  and the removal made that live commit fail with
+///  `fatal: repository has been updated, but unable to write new index file ... "git restore --staged :/" to recover`,
+///  which for `commit --only <path>` also discards the only copy of that staging.
+///  The control that used to assert the removal now asserts the lock stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reused = deadHolder(); plantLock(repo, 'index.lock', process.pid, reused.identity); expect(cleared).toBe(true);
+/// const reused = deadHolder(); plantLock(repo, 'index.lock', process.pid, reused.identity); expect(kept).toBe(true);
 /// ```
 #[test]
-fn a_lock_whose_number_now_belongs_to_another_process_is_cleared() {
+fn a_lock_whose_number_a_live_process_has_is_kept() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("reused-number-lock");
     let (_dead_pid, dead_identity) = a_dead_holder();
     // The number is this control's own process, which runs now; the identity is a process that ended.
     let live_number: i64 = i64::from(std::process::id());
     plant_lock(repo.as_path(), "index.lock", live_number, Some(&dead_identity), "record-reused");
-    let (after, elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
-    assert!(!after.lock_stands, "the recorded birth is no process's, so the lock is cleared although the number is in use: {}", after.said);
-    assert!(after.said.contains("cleared"), "the removal is told once: {}", after.said);
-    assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
-    assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}");
+    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
+    assert!(after.lock_stands, "a number a live process has is never proved gone: {}", after.said);
+    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    assert!(after.said.contains("live process has now"), "the line says a live process has the number: {}", after.said);
     super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  A real `git commit --all` held in its editor keeps its lock and finishes its commit
+///  while a wrapper command meets the lock and a record of a dead process names the commit's number.
+/// Why:
+///  This is the review's finding 1 as a control:
+///  the lock is a live Git's editor-phase lock,
+///  the number a record names was used by a process that ended,
+///  and the commit must not lose the index it wrote into that lock.
+///  It is the case the fabricated lock of the rewritten control above cannot see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commit = heldEditorCommit(repo); plantRecord(commit.pid, deadIdentity); expect(runWrapped(['status']).code).toBe(0);
+/// expect(lockStands).toBe(true); releaseEditor(); expect(commitExit).toBe(0);
+/// ```
+#[test]
+fn a_live_commits_editor_phase_lock_is_kept_when_a_dead_record_names_its_number() {
+    let (fixture, repo): (Fixture, PathBuf) = staged_fixture("live-editor-lock");
+    // The person's own commit is real Git's, so the lock it holds must name itself: the wrapper turns lockfilePid on for its
+    //  own Git, and this one is started directly.
+    git(&fixture, repo.as_path(), &["config", "core.lockfilePid", "true"]);
+    let ready: PathBuf = fixture.root.join("editor-ready");
+    let let_go: PathBuf = fixture.root.join("editor-go");
+    let editor: PathBuf = fixture.root.join("editor.sh");
+    executable(
+        editor.as_path(),
+        format!(
+            "#!/bin/sh\nprintf 'the live commit\\n' > \"$1\"\necho ready > '{}'\nwhile [ ! -e '{}' ]; do sleep 0.05; done\nexit 0\n",
+            ready.display(),
+            let_go.display()
+        )
+        .as_bytes(),
+    );
+    let lock: PathBuf = repo.join(".git/index.lock");
+    let pid_file: PathBuf = pid_file_of(lock.as_path());
+    let mut commit: Child = super::support::direct_held(&fixture)
+        .current_dir(repo.as_path())
+        .args(["commit", "--all"])
+        .env("GIT_EDITOR", editor.as_path())
+        .env("EDITOR", editor.as_path())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the live commit starts");
+    let began: Instant = Instant::now();
+    while !ready.exists() {
+        assert!(began.elapsed() < HOLD_PATIENCE, "the live commit never opened its editor");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(lock.exists(), "the live commit holds index.lock through its editor");
+    assert!(pid_file.exists(), "and it wrote the PID file that names it");
+    let commit_pid: i64 = i64::from(commit.id());
+    let (_dead_pid, dead_identity) = a_dead_holder();
+    plant_record(repo.as_path(), &[("child", commit_pid, dead_identity)], "record-of-a-reused-number");
+    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
+    assert_eq!(after.code, Some(0), "the command that meets the lock goes on: {}", after.said);
+    assert!(after.lock_stands, "the live commit's lock must stay: {}", after.said);
+    assert!(pid_file.exists(), "the live commit's PID file must stay");
+    assert!(!after.said.contains("cleared"), "nothing may claim the live commit's lock was cleared: {}", after.said);
+    std::fs::write(let_go.as_path(), b"go\n").expect("let the editor finish");
+    let ended: std::process::ExitStatus = commit.wait().expect("the live commit ends");
+    assert_eq!(ended.code(), Some(0), "the live commit must finish with its index");
+    let subject: String = String::from_utf8_lossy(super::support::git(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).stdout.as_slice()).into_owned();
+    assert_eq!(subject.trim(), "the live commit", "the live commit landed");
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  A lock a non-dumpable writer of this account holds open is kept.
+/// Why:
+///  The review's finding 2:
+///  the kernel closes `/proc/<pid>/fd` of a process of this account that is not dumpable,
+///  and a scan that tolerates every `PID ` reason acts through it.
+///  The kernel's read lease is refused while any program has the lock open for writing,
+///  so the lock stays without reading any descriptor.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holder = nonDumpableWriter(lock); expect(runWrapped(['status']).code).toBe(0); expect(lockStands).toBe(true);
+/// ```
+#[test]
+fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
+    let (fixture, repo): (Fixture, PathBuf) = staged_fixture("non-dumpable-writer");
+    let (pid, identity) = a_dead_holder();
+    plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-dead-writer");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    let mut holder: Child = non_dumpable_writer(lock.as_path());
+    assert!(holds_open(lock.as_path(), i64::from(holder.id())), "the writer must hold the lock open before the wrapper runs");
+    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
+    assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
+    assert!(after.lock_stands, "a writer this account cannot look into keeps the lock: {}", after.said);
+    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    let _killed = holder.kill();
+    let _waited = holder.wait();
+    super::commit::remove_settled(&fixture);
+}
+
+/// A shell holding `lock` open for reading and writing,
+/// which then makes itself non-dumpable,
+/// so this account cannot read its descriptor directory.
+fn non_dumpable_writer(lock: &Path) -> Child {
+    use std::os::unix::process::CommandExt as _;
+    let mut starting: Command = Command::new("sh");
+    starting.args(["-c", "exec 9<>\"$1\"; exec sleep 120", "sh"]).arg(lock).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    // SAFETY: the closure runs between fork and exec and calls only `prctl`, which is async-signal-safe.
+    unsafe {
+        starting.pre_exec(|| {
+            libc::prctl(libc::PR_SET_DUMPABLE, 0);
+            return Ok(());
+        });
+    }
+    return starting.spawn().expect("a non-dumpable writer starts");
+}
+
+/// Whether `pid` holds `lock` open,
+/// read from its descriptor directory while this account may still read it.
+fn holds_open(lock: &Path, pid: i64) -> bool {
+    let began: Instant = Instant::now();
+    while began.elapsed() < Duration::from_secs(10) {
+        if let Ok(entries) = std::fs::read_dir(format!("/proc/{pid}/fd")) {
+            for entry in entries.flatten() {
+                if std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock; }) {
+                    return true;
+                }
+            }
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    return false;
 }
 
 /// What:

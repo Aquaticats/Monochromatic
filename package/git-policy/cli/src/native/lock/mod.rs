@@ -109,6 +109,14 @@ pub mod lock_holder_record_reads;
 /// and the one removal that acts on it.
 pub mod abandoned_lock_proving;
 
+/// The two lines a person reads about a lock: what was cleared, and what stands.
+pub mod abandoned_lock_words;
+
+/// Controls for the proof and the removal.
+#[cfg(test)]
+#[path = "abandoned_lock_proving_tests.rs"]
+mod abandoned_lock_proving_tests;
+
 /// The pass a command makes over its repository's lock files.
 pub mod abandoned_locks;
 

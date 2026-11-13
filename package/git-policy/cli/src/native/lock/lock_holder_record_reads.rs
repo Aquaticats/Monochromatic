@@ -25,6 +25,7 @@
 /// The record files and their lines.
 use crate::lock_holder_records::{CHILD_LINE, SELF_LINE, folder_of};
 /// The one judgement of a holder the commit service's marker also uses.
+use crate::process_identity::process_birth_identity;
 use crate::service_index_identity::{HolderState, holder_state};
 /// Reading a small file without following a link and without waiting on a pipe.
 use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
@@ -115,51 +116,78 @@ fn every_holder(common_dir: &Path) -> Vec<(PathBuf, Vec<(i64, String)>)> {
 }
 
 /// What:
-///  The identity a record of this repository names for `pid`,
-///  and the file it is in.
+///  Every identity the records of this repository name for `pid`,
+///  in file-name order.
 /// Why:
-///   Two records may name one number after a reuse;
-///  the identity then decides.
+///   Two records may name one number:
+///  the process that had it before,
+///  and a later one after a reuse.
+///  A caller deciding a lock judges them all,
+///  because the first one found is not the only fact about the number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [file, identity] = recordedIdentity(commonDir, pid) ?? [];
+/// const identities = recordedIdentities(commonDir, pid); // ['linux:1234#…', …]
 /// ```
-pub fn recorded_identity(common_dir: &Path, pid: i64) -> Option<String> {
+pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
     for (_, holders) in every_holder(common_dir) {
         for (holder, identity) in holders {
-            if holder == pid {
-                return Some(identity);
+            if holder == pid && !found.contains(&identity) {
+                found.push(identity);
             }
         }
     }
-    return None;
+    return found;
 }
 
 /// What:
 ///  The identity a record names for `pid`,
-///  when this wrapper's own account proves that holder gone.
+///  when the writer of a lock whose PID file names `pid` is proved gone.
 /// Why:
-///   This is the whole proof of `abandoned_lock_proving.rs`:
-///  a record of this repository,
-///  of this boot,
-///  this PID namespace and this machine,
-///  whose birth identity no running process has.
-///  An identity of another boot is gone as well,
-///  because a boot that ended ends every process in it;
-///  a record of another namespace or another machine answers unknown and is never read as gone.
+///  This is the whole proof of `abandoned_lock_proving.rs`,
+///  and it is a proof about the writer of the PID file, not about the number:
+///
+///  - a live process with that number keeps the lock, whatever the records say.
+///    Its birth either is a recorded one (then it is the recorded process, and it runs),
+///    or it is not (then the number was reused, and nothing tells the live Git that wrote the PID file from a later
+///    program that merely has the number).
+///    A process table read that fails answers the same way: keep.
+///  - with the number free,
+///    every record naming it must judge `gone`:
+///    a record of another boot is gone, because a boot that ended ends every process in it;
+///    a record of another PID namespace or another machine is unknown,
+///    and one unknown record keeps the lock,
+///    because a Git of that namespace or machine may be the writer.
+///  - no record at all is unknown, and keeps it.
+///
+///  A zombie holds no number here:
+///  `process_birth_identity` answers nothing for a process in an exited state,
+///  and a process that has exited cannot have written anything since.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = holderState([pid, recordedIdentity(commonDir, pid)]) === 'gone';
+/// const gone = pidIsFree(pid) && recordedIdentities(commonDir, pid).every((id) => holderState([pid, id]) === 'gone');
 /// ```
-pub fn proven_gone(common_dir: &Path, pid: i64) -> Option<String> {
-    let identity: String = recorded_identity(common_dir, pid)?;
-    let holder: (i64, String) = (pid, identity);
-    if holder_state(Some(&holder)) != HolderState::Gone {
+pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
+    let identities: Vec<String> = identities_recorded(common_dir, pid);
+    if identities.is_empty() {
         return None;
     }
-    return Some(holder.1);
+    // A number a process has now is no proof of anything: it may be the recorded process that runs, or a later program
+    //  that reused the number and wrote this very PID file. Either way the lock stays.
+    match process_birth_identity(pid) {
+        Ok(None) => {}
+        Ok(Some(_live)) => return None,
+        Err(_unreadable) => return None,
+    }
+    // Every record for the number must be a process of this boot, this PID namespace and this machine that has ended.
+    for identity in &identities {
+        if holder_state(Some(&(pid, identity.clone()))) != HolderState::Gone {
+            return None;
+        }
+    }
+    return identities.into_iter().next();
 }
 
 /// What:

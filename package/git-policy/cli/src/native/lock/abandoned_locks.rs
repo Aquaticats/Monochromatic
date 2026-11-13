@@ -30,6 +30,8 @@
 
 /// The proof and the removal of one lock.
 use crate::abandoned_lock_proving as proving;
+/// The words for what a clearance or a standing lock is.
+use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 /// The names a lock and its PID file have.
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
@@ -96,7 +98,7 @@ impl Outcome {
     pub fn notice(&self) -> String {
         let mut lines: String = String::new();
         for clearance in &self.cleared {
-            lines.push_str(proving::clearance_line(clearance).as_str());
+            lines.push_str(clearance_line(clearance).as_str());
         }
         for line in &self.unexplained {
             lines.push_str(line.as_str());
@@ -195,7 +197,7 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
             None => {
                 // A lock whose holder looks gone and whose number no record explains is the one a person must hear about:
                 //  it cannot release itself, and nothing here may remove it.
-                if let Some(line) = proving::unexplained_dead_holder_line(lock.as_path(), common_dir.as_path()) {
+                if let Some(line) = standing_lock_line(lock.as_path(), common_dir.as_path()) {
                     outcome.unexplained.push(line);
                 }
                 outcome.standing.push(lock.clone());
