@@ -53,6 +53,20 @@ const KEPT_FOLDER: &str = "refs/cli-git/kept/";
 /// so what the reading weighs is what only the kept references reach.
 const NOT_THE_KEPT_ONES: &str = "--exclude=refs/cli-git/kept/*";
 
+/// The references a kept commit must be reachable from to hold nothing:
+/// a local branch,
+/// a remote-tracking branch and a tag.
+/// Why:
+///  Every other reference is a holder in flight or a holder of its own:
+///  the landing's `refs/worktree/cli-git-service/<batch>`,
+///  the carried work of an isolated merge,
+///  a private fetch of a push,
+///  a person's stash.
+///  A pass that read any of them as a branch would remove the reference of a commit nothing else
+///  would keep once that holder goes,
+///  and say that nothing was lost.
+const THE_HOLDERS_THAT_SETTLE_A_COMMIT: [&str; 3] = ["--branches", "--remotes", "--tags"];
+
 /// What:
 ///  One kept reference of the repository.
 /// Why:
@@ -200,10 +214,11 @@ async fn listed_kept_references(git: &GitContext, common_dir: &Path) -> Result<V
 ///  The tips are given on standard input,
 ///  so a repository holding thousands of kept references asks no command line longer than its limit,
 ///  and `--not --exclude=<the kept folder> --all` is what leaves every other reference out.
-///  An object in the answer is reachable only through kept references;
-///  a kept commit that is not in it is reached by a branch,
-///  a remote-tracking reference or a tag,
-///  which is the one case where the reference holds nothing.
+///  This is the weight of what the kept references hold:
+///  an object in the answer stays only while a kept reference reaches it,
+///  and it is what the disk gives back when the reference goes.
+///  It is not the answer to whether a branch reaches a commit,
+///  which `objects_a_branch_does_not_reach` asks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,16 +236,93 @@ async fn objects_only_these_reach(git: &GitContext, common_dir: &Path, commits: 
     let mut request: GitRequest = GitRequest::new(common_dir, &["rev-list", "--objects", "--stdin", "--not", NOT_THE_KEPT_ONES, "--all"]);
     request.input = Some(input.into_bytes());
     let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
+    return Ok(objects_of(text.as_str()));
+}
+
+/// What:
+///  The objects reachable from `commits` and from no local branch,
+///  remote-tracking branch or tag,
+///  asked in one `rev-list`.
+/// Why:
+///  A kept commit that appears in this answer is reached by none of them,
+///  so the reference that holds it holds the only handle on it;
+///  one that does not appear is reached by one of them and holds nothing,
+///  which is the one rule that removes a reference whatever its age.
+///  The holders in flight (a landing's scratch reference,
+///  the carried work of a merge,
+///  a private fetch,
+///  a stash) are left out of the question on purpose:
+///  each of them goes away by itself,
+/// and a reference removed as "reached" because of one
+///  would lose the commit when that holder goes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aBranchDoesNotReach = (commits) => revList({ stdin: commits.join('\n') + '\n', args: ['rev-list', '--objects', '--stdin', '--not', ...THE_HOLDERS_THAT_SETTLE_A_COMMIT] });
+/// ```
+async fn objects_a_branch_does_not_reach(git: &GitContext, common_dir: &Path, commits: &[String]) -> Result<Vec<String>, String> {
+    if commits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut input: String = String::new();
+    for commit in commits {
+        input.push_str(commit.as_str());
+        input.push('\n');
+    }
+    let mut arguments: Vec<&str> = vec!["rev-list", "--objects", "--stdin", "--not"];
+    arguments.extend(THE_HOLDERS_THAT_SETTLE_A_COMMIT.iter().copied());
+    let mut request: GitRequest = GitRequest::new(common_dir, arguments.as_slice());
+    request.input = Some(input.into_bytes());
+    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
+    return Ok(objects_of(text.as_str()));
+}
+
+/// What:
+///  The object names of `rev-list --objects` output.
+/// Why:
+///  A line is the object and,
+/// below a tree,
+/// a tab and the path it is at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const objectsOf = (text) => text.split('\n').filter(Boolean).map((line) => line.split('\t')[0]);
+/// ```
+fn objects_of(text: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for line in text.lines() {
-        // A line is the object and, for anything below a tree, a tab and its path.
         if let Some((object, _path)) = line.split_once('\t') {
             found.push(String::from(object));
         } else if !line.is_empty() {
             found.push(String::from(line));
         }
     }
-    return Ok(found);
+    return found;
+}
+
+/// What:
+///  Whether a local branch,
+///  a remote-tracking branch or a tag reaches `commit`.
+/// Why:
+///   A pass asks this again immediately before it removes a reference for that reason,
+///  because a branch can move off the commit between the listing and the removal,
+///  and the conditional removal would not see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aBranchReaches = async (commit) => (await git(['rev-list', '--count', commit, '--not', ...THE_HOLDERS_THAT_SETTLE_A_COMMIT])).trim() === '0';
+/// ```
+pub async fn a_branch_reaches(git: &GitContext, common_dir: &Path, commit: &str) -> Result<bool, String> {
+    let mut arguments: Vec<&str> = vec!["rev-list", "--count", commit, "--not"];
+    arguments.extend(THE_HOLDERS_THAT_SETTLE_A_COMMIT.iter().copied());
+    let request: GitRequest = GitRequest::new(common_dir, arguments.as_slice());
+    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).trim().to_owned();
+    // A count of nothing is every commit of the question being where a branch, a remote-tracking reference or a tag
+    //  already holds it.
+    return match text.parse::<u64>() {
+        Ok(count) => Ok(count == 0),
+        Err(_not_a_count) => Ok(false),
+    };
 }
 
 /// What:
@@ -296,11 +388,11 @@ pub async fn read_the_kept_references(git: &GitContext, common_dir: &Path) -> Re
         return Ok(TheReading { kept, bytes_only_they_reach: 0 });
     }
     let commits: Vec<String> = commits_of(kept.as_slice());
-    let objects: Vec<String> = objects_only_these_reach(git, common_dir, commits.as_slice()).await?;
-    let unreached: HashSet<&String> = objects.iter().collect();
+    let unreached: HashSet<String> = objects_a_branch_does_not_reach(git, common_dir, commits.as_slice()).await?.into_iter().collect();
     for one in &mut kept {
         one.reached_a_branch = !unreached.contains(&one.commit);
     }
-    let bytes: u64 = bytes_of(git, common_dir, objects.as_slice()).await?;
+    let held: Vec<String> = objects_only_these_reach(git, common_dir, commits.as_slice()).await?;
+    let bytes: u64 = bytes_of(git, common_dir, held.as_slice()).await?;
     return Ok(TheReading { kept, bytes_only_they_reach: bytes });
 }

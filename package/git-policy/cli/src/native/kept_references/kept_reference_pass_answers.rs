@@ -80,6 +80,11 @@ pub enum WhyNotPruned {
     /// The pass removed the reference and Git refused,
     /// because the reference moved or another pass removed it first.
     TheRemovalWasRefused,
+    /// The pass reached its own time bound with this reference still to remove.
+    ThePassRanOutOfTime,
+    /// The commit was reached when the pass listed the repository,
+    /// and the question asked again before the removal found that no branch reaches it any more.
+    TheBranchMovedOffIt,
 }
 
 /// What:

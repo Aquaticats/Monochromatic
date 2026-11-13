@@ -45,7 +45,7 @@ fn a_pruning(why: WhyPruned) -> Pruned {
 /// and why it went.
 #[test]
 fn the_line_carries_what_a_person_needs_to_find_a_commit_that_went() {
-    let line: String = line_of(&a_pruning(WhyPruned::TooOld), 1_791_500_000_000, the_limits());
+    let line: String = line_of(&a_pruning(WhyPruned::TooOld), "pruned", 1_791_500_000_000, the_limits());
     let parsed: Value = serde_json::from_str(line.trim()).expect("one JSON line");
     assert_eq!(parsed["reference"], "refs/cli-git/kept/1794071191963902");
     assert_eq!(parsed["commit"], "deb10b333be2e7c350d4d5cce35b8d474161fbbc");
@@ -53,6 +53,7 @@ fn the_line_carries_what_a_person_needs_to_find_a_commit_that_went() {
     assert_eq!(parsed["worktree"], "/a worktree/with a space");
     assert_eq!(parsed["age_seconds"], 6 * 24 * 60 * 60);
     assert_eq!(parsed["why"], "too-old");
+    assert_eq!(parsed["outcome"], "pruned");
     assert!(parsed["why_words"].as_str().is_some_and(|words| { return words.contains("reached no branch"); }), "{line}");
     assert!(parsed["time"].as_str().is_some_and(|time| { return time.ends_with('Z'); }), "{line}");
 }
@@ -60,9 +61,9 @@ fn the_line_carries_what_a_person_needs_to_find_a_commit_that_went() {
 /// Each of the three reasons says whether anything was lost.
 #[test]
 fn each_reason_says_whether_the_commit_was_lost() {
-    let reached: String = line_of(&a_pruning(WhyPruned::ReachedABranch), 1_791_500_000_000, the_limits());
+    let reached: String = line_of(&a_pruning(WhyPruned::ReachedABranch), "pruned", 1_791_500_000_000, the_limits());
     assert!(reached.contains("so nothing was lost"), "{reached}");
-    let too_much: String = line_of(&a_pruning(WhyPruned::TooMuchKept), 1_791_500_000_000, the_limits());
+    let too_much: String = line_of(&a_pruning(WhyPruned::TooMuchKept), "pruned", 1_791_500_000_000, the_limits());
     assert!(too_much.contains("weighed more than"), "{too_much}");
 }
 

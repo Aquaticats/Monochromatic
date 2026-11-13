@@ -53,6 +53,8 @@ pub fn kept_words(why: WhyNotPruned, limits: KeptReferenceLimits) -> String {
         WhyNotPruned::UnderTheSizeLimit => format!("the objects only kept references reach weigh less than the {} bytes the size limit allows", limits.max_bytes),
         WhyNotPruned::ThisPassReachedItsCap => String::from("the pass that read it had reached the most removals one pass makes, so a later pass takes it"),
         WhyNotPruned::TheRemovalWasRefused => String::from("this pass planned to remove it and Git refused, because the reference moved or another pass removed it first"),
+        WhyNotPruned::ThePassRanOutOfTime => String::from("this pass reached the time it may spend and left it to the next pass"),
+        WhyNotPruned::TheBranchMovedOffIt => String::from("a branch reached its commit when this pass listed the repository and reaches it no more, so it holds the commit until the age limit takes it"),
     };
 }
 

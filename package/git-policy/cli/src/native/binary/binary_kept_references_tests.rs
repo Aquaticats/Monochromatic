@@ -192,6 +192,12 @@ fn log_lines(world: &World) -> Vec<String> {
         .collect();
 }
 
+/// The reference one line of the log is about.
+fn name_of_log_line(line: &str) -> String {
+    let parsed: serde_json::Value = serde_json::from_str(line).expect("one JSON line");
+    return String::from(parsed["reference"].as_str().expect("the line names the reference"));
+}
+
 /// A pass over the repository that has listed its references and removed none yet.
 struct Paused {
     /// The pass waiting for its release.
@@ -381,6 +387,43 @@ fn a_reference_that_is_no_kept_commit_is_never_touched() {
     remove(&world.fixture);
 }
 
+/// A commit a holder in flight reaches is not one a branch reaches:
+/// a landing's own scratch reference and the carried work of a merge go away by themselves,
+/// and a kept reference removed because of one of them would lose the commit when it goes.
+#[test]
+fn a_commit_a_holder_in_flight_reaches_is_kept() {
+    let world: World = world("kept-references-in-flight");
+    let commit: String = a_commit_no_branch_names(&world, "a commit a landing still holds");
+    reference(&world, "refs/cli-git/kept/1794071191963980", commit.as_str());
+    // The two holders of a landing and of an isolated merge name the same commit while they are in flight.
+    git(&world.fixture, world.repo.as_path(), &["update-ref", "--no-deref", "refs/worktree/cli-git-service/1794071191963980", commit.as_str()]);
+    git(&world.fixture, world.repo.as_path(), &["update-ref", "--no-deref", "refs/cli-git/carried/7", commit.as_str()]);
+    let report: String = pruning(&world, &[]);
+    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963980"), Some(commit), "the kept reference stays: {report}");
+    assert!(report.contains("No kept reference was pruned"), "{report}");
+    remove(&world.fixture);
+}
+
+/// A branch that moves off a commit between the listing and the removal leaves the reference that holds it,
+/// because the question the removal was planned from is asked again first.
+#[test]
+fn a_branch_that_moves_off_the_commit_between_the_listing_and_the_removal_leaves_it() {
+    let world: World = world("kept-references-moved-off");
+    let commit: String = a_commit_no_branch_names(&world, "a commit a branch reaches for a moment");
+    let before: String = names(&world, "refs/heads/main").expect("the branch's commit");
+    reference(&world, "refs/cli-git/kept/1794071191963981", commit.as_str());
+    git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", commit.as_str()]);
+    let paused: Paused = paused_pass(&world, &[]);
+    // The pass listed the repository with the branch on the commit and has removed nothing yet.
+    git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", before.as_str()]);
+    let output: Output = paused.released();
+    assert_eq!(output.status.code(), Some(0), "the pass ends well: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963981"), Some(commit), "the reference the branch left behind stays");
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    assert!(text.contains("No kept reference was pruned"), "the pass says it removed nothing: {text}");
+    remove(&world.fixture);
+}
+
 /// A reference written after a pass has listed the repository is not one that pass removes,
 /// and a listed reference another command moves is left at its new commit.
 #[test]
@@ -428,8 +471,16 @@ fn two_passes_at_once_end_where_one_would() {
     assert!(pruning(&one, &[(MAX_AGE_VARIABLE, "1")]).contains("pruned "));
     assert_eq!(references(&two), references(&one), "two passes leave what one leaves");
     assert!(references(&two).is_empty(), "both kept references went: {:?}", references(&two));
+    // Two passes met the same references, so one of them logged a line before each removal and then the refusal of a
+    //  reference the other had already taken: the line about a removal goes before the removal, because the reference is
+    //  the only handle on the commit.
     let lines: Vec<String> = log_lines(&two);
-    assert_eq!(lines.len(), 2, "each reference that went was logged once: {lines:?}");
+    let went: Vec<String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"pruned\""); }).map(|line| { return name_of_log_line(line); }).collect();
+    let mut sorted: Vec<String> = went.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted, vec![String::from("refs/cli-git/kept/1794071191963940"), String::from("refs/cli-git/kept/1794071191963941")], "each reference that went was logged: {lines:?}");
+    assert_eq!(lines.iter().filter(|line| { return line.contains("\"outcome\":\"refused\""); }).count(), 2, "the pass whose removals were refused said so: {lines:?}");
     remove(&two.fixture);
     remove(&one.fixture);
 }

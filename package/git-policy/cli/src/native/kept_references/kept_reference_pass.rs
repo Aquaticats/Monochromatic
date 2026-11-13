@@ -74,6 +74,14 @@ pub use crate::kept_reference_pass_answers::{Kept, Pruned, WhyNotPruned, WhyPrun
 ///  and the cap costs nothing until a repository's kept references actually accumulate.
 pub const THE_MOST_A_PASS_PRUNES: usize = 16;
 
+/// How long a record whose reference is gone is kept before a pass removes it.
+///  One hour:
+///  a record names the worktree the commit was built in,
+///  and a reference another command wrote after a pass listed the repository has one written a moment ago,
+///  so the file is kept long past the moment anything could still be arriving for it.
+///  The size it costs is nothing next to the reference it describes.
+pub const A_RECORD_OUTLIVES_ITS_REFERENCE_FOR: Duration = Duration::from_secs(60 * 60);
+
 /// How long one pass may spend planning and removing.
 ///  Twenty seconds:
 ///  the service's after-commit work starts housekeeping for thirty seconds a round
@@ -297,6 +305,7 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
     if let Err(error) = crate::transaction_phase::reach_transaction_phase(crate::transaction_phase::Phase::KeptReferencesListed, None) {
         return Err(format!("the phase marker of a control stopped the pass: {error}"));
     }
+    let mut refused: bool = false;
     for (at, one) in reading.kept.iter().enumerate() {
         let record: Option<&KeptReferenceRecord> = records[at].as_ref();
         let age_ms: u128 = age_at(records.as_slice(), at, now);
@@ -309,25 +318,82 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
             pass.pruned.push(pruned);
             continue;
         }
-        if let Some(refused) = remove_only_while_it_names(git, common_dir, one.reference.as_str(), one.commit.as_str()).await {
+        // A pass that runs out of its time leaves the rest to the next one, which no command waits for either.
+        if began.elapsed() >= A_PASS_WITHIN {
+            pass.stopped_early = true;
+            pass.kept.push(kept_one(one, record, now, WhyNotPruned::ThePassRanOutOfTime));
+            continue;
+        }
+        // A branch can move off the commit between the listing and this removal, and the removal's own condition
+        //  would not see it: the question is asked again, and a commit nothing reaches stays where it is.
+        if why == WhyPruned::ReachedABranch
+            && !crate::kept_references_reading::a_branch_reaches(git, common_dir, one.commit.as_str()).await?
+        {
+            pass.kept.push(kept_one(one, record, now, WhyNotPruned::TheBranchMovedOffIt));
+            refused = true;
+            continue;
+        }
+        // The line goes before the reference does, because the reference was the only handle on the commit:
+        //  a crash between the two must not leave the repository without either.
+        log_one_pruning(common_dir, &pruned, OUTCOME_PRUNED, now);
+        if let Some(words) = remove_only_while_it_names(git, common_dir, one.reference.as_str(), one.commit.as_str()).await {
             crate::service_warn!(
-                "the kept reference {} was not pruned ({refused}), so its commit {} is left where it is",
+                "the kept reference {} was not pruned ({words}), so its commit {} is left where it is",
                 one.reference,
                 one.commit
             );
+            log_one_pruning(common_dir, &pruned, OUTCOME_REFUSED, now);
             pass.kept.push(kept_one(one, record, now, WhyNotPruned::TheRemovalWasRefused));
+            refused = true;
             continue;
         }
         crate::kept_reference_record::remove_record(common_dir, one.reference.as_str());
-        log_one_pruning(common_dir, &pruned, now);
         pass.pruned.push(pruned);
+    }
+    // A removal another pass or another command refused leaves a reference the plan expected to go, so the figure the
+    //  report prints is read from the references that are still there.
+    if refused {
+        pass.bytes_after = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading.kept.as_slice(), planned_by_name(&pass, reading.kept.as_slice()).as_slice()).as_slice()).await?;
     }
     // A record whose reference is gone names nothing, and the folder it sits in is bounded by the references the
     //  repository holds: a grace of the floor keeps a record another command wrote a moment ago.
     if !dry_run {
-        crate::kept_reference_record::sweep_records_of_references_that_are_gone(common_dir, reading.kept.as_slice(), now, limits.floor);
+        crate::kept_reference_record::sweep_records_of_references_that_are_gone(common_dir, reading.kept.as_slice(), now, A_RECORD_OUTLIVES_ITS_REFERENCE_FOR);
     }
     return Ok(pass);
+}
+
+/// The word a log line carries when the pass is about to remove the reference it names.
+pub const OUTCOME_PRUNED: &str = "pruned";
+
+/// The word a log line carries when the removal the line before it announced was refused.
+pub const OUTCOME_REFUSED: &str = "refused";
+
+/// What:
+///  Which references the pass removed,
+///  as the plan the size question reads.
+/// Why:
+///  A removal another command refused leaves a reference the plan expected to go,
+///  and the weight of what a repository still holds is asked of the references that are there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plannedByName = (pass, kept) => kept.map((one) => !pass.pruned.some((pruned) => pruned.reference === one.reference));
+/// ```
+fn planned_by_name(pass: &ThePass, kept: &[OneKeptReference]) -> Vec<bool> {
+    let mut removed: Vec<bool> = Vec::with_capacity(kept.len());
+    for one in kept {
+        let mut gone: bool = false;
+        for pruned in &pass.pruned {
+            if pruned.reference == one.reference {
+                gone = true;
+                break;
+            }
+        }
+        // A reference still there is a survivor, which the commits of the survivors name.
+        removed.push(gone);
+    }
+    return removed;
 }
 
 /// What:

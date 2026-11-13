@@ -109,8 +109,9 @@ fn worktree_value(worktree: Option<&str>) -> Value {
 /// ```ts
 /// const lineOf = (pruned, now, limits) => JSON.stringify({ time_ms, time, reference, commit, batch, rescued, age_seconds, kept_at, worktree, why, why_words }) + '\n';
 /// ```
-pub fn line_of(pruned: &Pruned, now: u128, limits: crate::kept_reference_limits::KeptReferenceLimits) -> String {
+pub fn line_of(pruned: &Pruned, outcome: &str, now: u128, limits: crate::kept_reference_limits::KeptReferenceLimits) -> String {
     let mut object: Map<String, Value> = Map::new();
+    object.insert(String::from("outcome"), Value::from(outcome));
     object.insert(String::from("time_ms"), Value::from(u64::try_from(now).unwrap_or(u64::MAX)));
     object.insert(String::from("time"), Value::from(format_iso_milliseconds(i64::try_from(now).unwrap_or(i64::MAX))));
     object.insert(String::from("reference"), Value::from(pruned.reference.as_str()));
@@ -138,9 +139,9 @@ pub fn line_of(pruned: &Pruned, now: u128, limits: crate::kept_reference_limits:
 /// ```ts
 /// try { appendLine(logPath(commonDir), lineOf(pruned), UNPINNED_LOG); } catch (error) { debug(TAG, error) }
 /// ```
-pub fn log_one_pruning(common_dir: &Path, pruned: &Pruned, now: u128) {
+pub fn log_one_pruning(common_dir: &Path, pruned: &Pruned, outcome: &str, now: u128) {
     let limits = crate::kept_reference_limits::limits_from_the_environment();
-    let line: String = line_of(pruned, now, limits);
+    let line: String = line_of(pruned, outcome, now, limits);
     if let Err(error) = append_line(log_path(common_dir).as_path(), line.as_bytes(), &UNPINNED_LOG) {
         crate::diagnostic_log::warn(
             "keptReferenceLog",
