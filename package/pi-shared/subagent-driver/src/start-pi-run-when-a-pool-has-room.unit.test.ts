@@ -25,23 +25,33 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   ALREADY_RUNNING_EXIT_STATUS,
   BUILD_VOLUME,
+  BUILD_VOLUME_FLOOR_BYTES,
   BYTES_IN_A_GIBIBYTE,
-  FREE_SPACE_FLOOR_BYTES,
+  FOLDER_VOLUMES_VARIABLE,
   LAUNCHER_ENTRY_NAMES,
+  MACHINE_CAP_DEFAULT,
+  MACHINE_CAP_VARIABLE,
   NEURALWATT_DEEPSEEK_FLEX,
   NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
   NO_POOL_HAS_ROOM,
   NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
+  OTHER_AGENTS_GOING_VARIABLE,
   POOL_LIMITS_VARIABLE,
   PROVIDER_POOLS,
   type ProviderPool,
+  RUNS_FOLDER_FLOOR_BYTES,
+  SESSION_FILES_FLOOR_BYTES,
+  VOLUME_FREE_SPACE_BYTES_VARIABLE,
   firstDefaultPoolWithRoom,
-  freeSpaceFloorTextOf,
   freeSpaceTextOf,
+  freeSpaceUnderTheFloorTextOf,
+  machineCapCountsTextOf,
+  machineCapRefusalTextOf,
   poolTakesNoNewRun,
   roomIn,
+  sessionFolderOf,
   talliesOf,
 } from '../dist/final/node/index.mjs';
 
@@ -57,6 +67,12 @@ const execFileAsync = promisifyExecFile(execFile,);
 const GATE = new URL('start-pi-run-when-a-pool-has-room.ts', import.meta.url,).pathname;
 
 /**
+ The volumes of the test's own, which are none of this machine's: one holding the runs folder, and one holding Pi's session files.
+ */
+const TEST_RUNS_VOLUME = '/a-runs-volume-of-the-test';
+const TEST_SESSION_FILES_VOLUME = '/a-session-files-volume-of-the-test';
+
+/**
  A folder a test throws away, holding its own programs and runs folder.
 
  */
@@ -66,7 +82,12 @@ type BareFolder = {
   readonly runs: string;
   readonly processes: string;
   readonly log: string;
-  readonly freeSpaceBytes: string;
+  readonly buildVolumeRoom: string;
+  readonly runsVolumeRoom: string;
+  readonly sessionFilesVolumeRoom: string;
+  readonly runsFolderVolume: string;
+  readonly sessionFilesFolder: string;
+  readonly sessionFilesFolderVolume: string;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
 
@@ -77,11 +98,11 @@ type BareFolder = {
 
  @example
  ```ts
- const room = roomToSpareBytes();
+ const room = buildVolumeRoomToSpareBytes();
  ```
  */
-function roomToSpareBytes(): string {
-  return String(FREE_SPACE_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,);
+function buildVolumeRoomToSpareBytes(): string {
+  return String(BUILD_VOLUME_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,);
 }
 
 /**
@@ -91,11 +112,78 @@ function roomToSpareBytes(): string {
 
  @example
  ```ts
- const room = roomUnderTheFloorBytes();
+ const room = buildVolumeRoomUnderTheFloorBytes();
  ```
  */
-function roomUnderTheFloorBytes(): string {
-  return String(FREE_SPACE_FLOOR_BYTES - 1,);
+function buildVolumeRoomUnderTheFloorBytes(): string {
+  return String(BUILD_VOLUME_FLOOR_BYTES - 1,);
+}
+
+/**
+ Room on a test's own volume that lets a run start, which is above that volume's floor.
+
+ @param floorBytes - the floor a new run needs on that volume
+
+ @returns the room in bytes
+
+ @example
+ ```ts
+ const room = roomToSpareBytes(RUNS_FOLDER_FLOOR_BYTES);
+ ```
+ */
+function roomToSpareBytes(floorBytes: number,): string {
+  return String(floorBytes + BYTES_IN_A_GIBIBYTE,);
+}
+
+/**
+ Room on a test's own volume that a run does not start in, which is under that volume's floor.
+
+ @param floorBytes - the floor a new run needs on that volume
+
+ @returns the room in bytes
+
+ @example
+ ```ts
+ const room = roomUnderTheFloorBytes(RUNS_FOLDER_FLOOR_BYTES);
+ ```
+ */
+function roomUnderTheFloorBytes(floorBytes: number,): string {
+  return String(floorBytes - 1,);
+}
+
+/**
+ The room the test gave a volume, by the volume's path.
+
+ @param folder - the folder the test made
+
+ @param volume - the volume's path
+
+ @returns the room in bytes the gate was given for that volume
+
+ @throws Error when the test gave no room for that volume, so the expectation built from it could not hold
+
+ @example
+ ```ts
+ const room = roomTheTestGave({ folder, volume: TEST_RUNS_VOLUME });
+ ```
+ */
+function roomTheTestGave({
+  folder,
+  volume,
+}: {
+  readonly folder: BareFolder;
+  readonly volume: string;
+},): string {
+  if (volume === BUILD_VOLUME) {
+    return folder.buildVolumeRoom;
+  }
+  if (volume === TEST_RUNS_VOLUME) {
+    return folder.runsVolumeRoom;
+  }
+  if (volume === TEST_SESSION_FILES_VOLUME) {
+    return folder.sessionFilesVolumeRoom;
+  }
+  throw new Error(`the test gave no room for the volume ${volume}`,);
 }
 
 /**
@@ -140,32 +228,40 @@ function openDefaultPools(): readonly ProviderPool[] {
 
 /**
  Says the counts line names every pool the table ships, in the table's order, each with the count this test expects and its own
- limit, and ends with the room the build volume has.
+ limit, then the count of every agent on the machine against its cap, and ends with the room of each distinct volume, once.
 
  @param line - what the gate printed
 
  @param counts - the count each pool is at, by the pool's name
 
- @param freeSpaceBytes - the room the test gave the build volume
+ @param folder - the folder whose runs, volumes and rooms the gate was given
+
+ @param agentsGoing - every agent going on the machine, which the test counted in its process folder
+
+ @param cap - the cap the test gave the machine
 
  @example
  ```ts
- expectCountsLine({ line: ran.stdout.trim(), counts: new Map([[NEURALWATT_STANDARD.name, 1]]), freeSpaceBytes: roomToSpareBytes() });
+ expectCountsLine({ line: ran.stdout.trim(), counts: new Map([[NEURALWATT_STANDARD.name, 1]]), folder, agentsGoing: 0 });
  ```
  */
 function expectCountsLine({
   line,
   counts,
-  freeSpaceBytes,
+  folder,
+  agentsGoing,
+  cap = MACHINE_CAP_DEFAULT,
 }: {
   readonly line: string;
   readonly counts: ReadonlyMap<string, number>;
-  readonly freeSpaceBytes: string;
+  readonly folder: BareFolder;
+  readonly agentsGoing: number;
+  readonly cap?: number;
 },): void {
   /**
-   The pools, and the room the volume has, which the line names after a semicolon.
+   The pools, the machine's count, and the room of each volume, which the line names after a semicolon.
    */
-  const [summary, room,] = line.split('; ',);
+  const [summary, machine, ...rooms] = line.split('; ',);
   /**
    One entry per pool, in the order the line prints them.
    */
@@ -174,14 +270,47 @@ function expectCountsLine({
   for (const [index, pool,] of PROVIDER_POOLS.entries()) {
     expect(entries[index],).toBe(`${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(roomIn(pool,),)}`,);
   }
-  expect(room,).toBe(freeSpaceTextOf({
-    volume: BUILD_VOLUME,
-    freeBytes: Number(freeSpaceBytes,),
+  expect(machine,).toBe(machineCapCountsTextOf({
+    agentsGoing,
+    cap,
+  },),);
+  /**
+   The distinct volumes the gate was given, in the order it reads its needs: a volume two needs share is named once.
+   */
+  const distinctVolumes = [
+    BUILD_VOLUME,
+    folder.runsFolderVolume,
+    folder.sessionFilesFolderVolume,
+  ].filter(function isTheFirstTime(volume, index, volumes,) {
+    return volumes.indexOf(volume,) === index;
+  },);
+  expect(rooms,).toEqual(distinctVolumes.map(function roomOf(volume,) {
+    return freeSpaceTextOf({
+      volume,
+      freeBytes: Number(roomTheTestGave({
+        folder,
+        volume,
+      },),),
+    },);
   },),);
 }
 
 /**
- Makes a folder with a program folder, a runs folder and a log the stand-ins write to.
+ Makes a folder with a program folder, a runs folder and a log the stand-ins write to, and the volumes and rooms the gate is
+ given for it.
+
+ The runs folder is on the build volume unless a test says otherwise, which is the machine of 2026-11-12: the runs folder was
+ reached through a symbolic link onto the build volume while the drive that filled held Pi's own files.
+
+ @param buildVolumeRoom - the room the test gives the volume that holds the repository
+
+ @param runsFolderVolume - the volume the test says the runs folder is on
+
+ @param runsVolumeRoom - the room the test gives that volume
+
+ @param sessionFilesVolumeRoom - the room the test gives the volume holding Pi's session files
+
+ @param sessionFilesFolderVolume - the volume the test says Pi's session folder is on
 
  @returns the folder
 
@@ -191,9 +320,17 @@ function expectCountsLine({
  ```
  */
 async function makeBareFolder({
-  freeSpaceBytes = roomToSpareBytes(),
+  buildVolumeRoom = buildVolumeRoomToSpareBytes(),
+  runsFolderVolume = BUILD_VOLUME,
+  runsVolumeRoom = roomToSpareBytes(RUNS_FOLDER_FLOOR_BYTES,),
+  sessionFilesVolumeRoom = roomToSpareBytes(SESSION_FILES_FLOOR_BYTES,),
+  sessionFilesFolderVolume = TEST_SESSION_FILES_VOLUME,
 }: {
-  readonly freeSpaceBytes?: string;
+  readonly buildVolumeRoom?: string;
+  readonly runsFolderVolume?: string;
+  readonly runsVolumeRoom?: string;
+  readonly sessionFilesVolumeRoom?: string;
+  readonly sessionFilesFolderVolume?: string;
 } = {},): Promise<BareFolder> {
   /**
    The folder.
@@ -211,6 +348,10 @@ async function makeBareFolder({
    The process folder, holding no process at all.
    */
   const processes = join(path, 'proc',);
+  /**
+   The folder Pi keeps its session files in, which this test's home directory holds.
+   */
+  const sessionFilesFolder = sessionFolderOf({ home: path, },);
   await mkdir(bins,);
   await mkdir(runs,);
   await mkdir(processes,);
@@ -220,7 +361,12 @@ async function makeBareFolder({
     runs,
     processes,
     log: join(path, 'commands.log',),
-    freeSpaceBytes,
+    buildVolumeRoom,
+    runsVolumeRoom,
+    sessionFilesVolumeRoom,
+    runsFolderVolume,
+    sessionFilesFolder,
+    sessionFilesFolderVolume,
     async [Symbol.asyncDispose]() {
       await rm(path, { recursive: true, force: true, },);
     },
@@ -369,6 +515,10 @@ async function writeProcess({
 
  @param poolLimits - the limits the gate is told to use, when a test sets one
 
+ @param machineCap - the cap the gate is told to use, when a test sets one
+
+ @param otherAgentsGoing - the agents the caller says it has going, when a test sets some
+
  @returns the status and both streams
 
  @example
@@ -380,10 +530,14 @@ async function runTheGate({
   folder,
   words,
   poolLimits,
+  machineCap,
+  otherAgentsGoing,
 }: {
   readonly folder: BareFolder;
   readonly words: readonly string[];
   readonly poolLimits?: string;
+  readonly machineCap?: string;
+  readonly otherAgentsGoing?: string;
 }): Promise<{
   readonly status: number;
   readonly stdout: string;
@@ -414,8 +568,18 @@ async function runTheGate({
         FAKE_UNITS: '',
         FAKE_EXEC_START: '',
         PI_RUNS_PROCESS_FOLDER: folder.processes,
-        PI_RUNS_FREE_SPACE_BYTES: folder.freeSpaceBytes,
+        [VOLUME_FREE_SPACE_BYTES_VARIABLE]: [
+          `${BUILD_VOLUME}=${folder.buildVolumeRoom}`,
+          `${TEST_RUNS_VOLUME}=${folder.runsVolumeRoom}`,
+          `${TEST_SESSION_FILES_VOLUME}=${folder.sessionFilesVolumeRoom}`,
+        ].join(',',),
+        [FOLDER_VOLUMES_VARIABLE]: [
+          `${folder.runs}=${folder.runsFolderVolume}`,
+          `${folder.sessionFilesFolder}=${folder.sessionFilesFolderVolume}`,
+        ].join(',',),
         ...(poolLimits === undefined ? {} : { [POOL_LIMITS_VARIABLE]: poolLimits, }),
+        ...(machineCap === undefined ? {} : { [MACHINE_CAP_VARIABLE]: machineCap, }),
+        ...(otherAgentsGoing === undefined ? {} : { [OTHER_AGENTS_GOING_VARIABLE]: otherAgentsGoing, }),
       },
       encoding: 'utf8',
       timeout: 60_000,
@@ -496,13 +660,14 @@ await describe({
          */
         const ran = await runTheGate({
           folder,
-          words: ['--counts-only', '--runs-folder=/nowhere',],
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
         },);
         expect(ran.status,).toBe(0,);
         expectCountsLine({
           line: ran.stdout.trim(),
           counts: new Map([[NEURALWATT_STANDARD.name, 1,],],),
-          freeSpaceBytes: folder.freeSpaceBytes,
+          folder,
+          agentsGoing: 1,
         },);
         expect(await programsAsked(folder,),).toEqual([
           'systemctl --user list-units --state=active,activating --no-legend --plain pi-*.service',
@@ -524,7 +689,7 @@ await describe({
          */
         const ran = await runTheGate({
           folder,
-          words: ['--name=copy-route', '--runs-folder=/nowhere',],
+          words: ['--name=copy-route', `--runs-folder=${folder.runs}`,],
         },);
         expect(ran.status,).toBe(ALREADY_RUNNING_EXIT_STATUS,);
         expect(ran.stdout.trim(),).toBe('ALREADY RUNNING: copy-route',);
@@ -551,9 +716,14 @@ await describe({
          The process number the launchers are written under.
          */
         let pid = 100;
+        /**
+         How many launchers this test writes, which is one for every slot every open pool has.
+         */
+        let launchers = 0;
         for (const filled of pools) {
           for (let index = 0; index < filled.limit; index += 1) {
             pid += 1;
+            launchers += 1;
             // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher process after another, each a file of its own; see doc/lint/sequential-awaits.md
             await writeProcess({
               folder: folder.processes,
@@ -569,11 +739,12 @@ await describe({
           }
         }
         /**
-         What the gate answered.
+         What the gate answered, with the machine's cap set above the runs going so that the pools are what refuse it.
          */
         const ran = await runTheGate({
           folder,
-          words: ['--name=new-run', '--runs-folder=/nowhere',],
+          words: ['--name=new-run', `--runs-folder=${folder.runs}`,],
+          machineCap: String(launchers + 1,),
         },);
         expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
         expect(ran.stdout,).toContain('NO SLOT:',);
@@ -651,7 +822,7 @@ await describe({
     it({
       name: 'refuses to start a run while the build volume is under the floor, saying how much room there is and how much a run needs',
       fn: async () => {
-        await using folder = await makeBareFolder({ freeSpaceBytes: roomUnderTheFloorBytes(), },);
+        await using folder = await makeBareFolder({ buildVolumeRoom: buildVolumeRoomUnderTheFloorBytes(), },);
         await writeStandIns({
           folder: folder.bins,
           units: '',
@@ -662,14 +833,17 @@ await describe({
          */
         const ran = await runTheGate({
           folder,
-          words: ['--name=copy-route', '--runs-folder=/nowhere',],
+          words: ['--name=copy-route', `--runs-folder=${folder.runs}`,],
         },);
         expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
         expect(ran.stdout.trim(),).toBe(
-          `NO SLOT: ${freeSpaceTextOf({
-            volume: BUILD_VOLUME,
-            freeBytes: Number(roomUnderTheFloorBytes(),),
-          },)}, under the floor of ${freeSpaceFloorTextOf()}; not started: copy-route`,
+          `NO SLOT: ${freeSpaceUnderTheFloorTextOf({
+            space: {
+              volume: BUILD_VOLUME,
+              freeBytes: Number(buildVolumeRoomUnderTheFloorBytes(),),
+            },
+            floorBytes: BUILD_VOLUME_FLOOR_BYTES,
+          },)}; not started: copy-route`,
         );
         expect((await programsAsked(folder,)).some(function ranTheLauncher(line,) {
           return line.startsWith('systemd-run',);
@@ -724,13 +898,14 @@ await describe({
          */
         const closed = await runTheGate({
           folder,
-          words: ['--counts-only', '--runs-folder=/nowhere',],
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
         },);
         expect(closed.status,).toBe(0,);
         expectCountsLine({
           line: closed.stdout.trim(),
           counts: new Map(),
-          freeSpaceBytes: folder.freeSpaceBytes,
+          folder,
+          agentsGoing: 0,
         },);
         /**
          The room a caller gives the set-aside pool, which is another open pool's own limit rather than a number of the test's.
@@ -741,7 +916,7 @@ await describe({
          */
         const reopened = await runTheGate({
           folder,
-          words: ['--counts-only', '--runs-folder=/nowhere',],
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
           poolLimits: `${OPENCODE_GO.name}=${String(reopenedRoom,)},${NEURALWATT_STANDARD.name}=0`,
         },);
         expect(reopened.status,).toBe(0,);
@@ -752,7 +927,7 @@ await describe({
          */
         const refused = await runTheGate({
           folder,
-          words: ['--counts-only', '--runs-folder=/nowhere',],
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
           poolLimits: 'no-such-pool=1',
         },);
         expect(refused.status,).not.toBe(0,);
@@ -774,7 +949,7 @@ await describe({
          */
         const ran = await runTheGate({
           folder,
-          words: ['--counts-only', '--runs-folder=/nowhere',],
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
         },);
         expect(ran.status,).toBe(0,);
         expectCountsLine({
@@ -782,9 +957,211 @@ await describe({
           counts: new Map(PROVIDER_POOLS.map(function heldOnce(pool,) {
             return [pool.name, 1,] as const;
           },),),
-          freeSpaceBytes: folder.freeSpaceBytes,
+          folder,
+          agentsGoing: 1,
         },);
         expect(ran.stderr,).toContain('pool of unit pi-copy-route.service not read',);
+      },
+    },),
+    it({
+      name: 'refuses to start a run while the volume that holds the runs folder is under its own floor, before any program runs',
+      fn: async () => {
+        await using folder = await makeBareFolder({
+          runsFolderVolume: TEST_RUNS_VOLUME,
+          runsVolumeRoom: roomUnderTheFloorBytes(RUNS_FOLDER_FLOOR_BYTES,),
+        },);
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the gate answered while the volume holding the runs folder was under its floor.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--name=copy-route', `--runs-folder=${folder.runs}`,],
+        },);
+        expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(ran.stdout.trim(),).toBe(
+          `NO SLOT: ${freeSpaceUnderTheFloorTextOf({
+            space: {
+              volume: TEST_RUNS_VOLUME,
+              freeBytes: Number(roomUnderTheFloorBytes(RUNS_FOLDER_FLOOR_BYTES,),),
+            },
+            floorBytes: RUNS_FOLDER_FLOOR_BYTES,
+          },)}; not started: copy-route`,
+        );
+        expect((await programsAsked(folder,)).some(function ranTheLauncher(line,) {
+          return line.startsWith('systemd-run',);
+        },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'refuses to start a run while the volume that holds Pi\'s session files is under its own floor, which is the drive that filled on 2026-11-12',
+      fn: async () => {
+        await using folder = await makeBareFolder({
+          sessionFilesVolumeRoom: roomUnderTheFloorBytes(SESSION_FILES_FLOOR_BYTES,),
+        },);
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the gate answered while the drive holding Pi's session files was under its floor.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--name=copy-route', `--runs-folder=${folder.runs}`,],
+        },);
+        expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(ran.stdout.trim(),).toBe(
+          `NO SLOT: ${freeSpaceUnderTheFloorTextOf({
+            space: {
+              volume: TEST_SESSION_FILES_VOLUME,
+              freeBytes: Number(roomUnderTheFloorBytes(SESSION_FILES_FLOOR_BYTES,),),
+            },
+            floorBytes: SESSION_FILES_FLOOR_BYTES,
+          },)}; not started: copy-route`,
+        );
+      },
+    },),
+    it({
+      name: 'names the volume holding the runs folder once when the runs folder is reached through a link onto the build volume, which is this machine since 2026-10-11',
+      fn: async () => {
+        await using folder = await makeBareFolder({ runsFolderVolume: BUILD_VOLUME, },);
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the gate answered a caller that asked only for the counts.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
+        },);
+        expect(ran.status,).toBe(0,);
+        expectCountsLine({
+          line: ran.stdout.trim(),
+          counts: new Map(),
+          folder,
+          agentsGoing: 0,
+        },);
+        /**
+         How many times the line names the build volume, which both the repository and the runs folder are on.
+         */
+        const named = ran.stdout.trim()
+          .split(`free on ${BUILD_VOLUME}`,)
+          .length - 1;
+        expect(named,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'counts a launcher that has not made its unit yet against the cap a caller sets, and refuses the next start naming the count and the cap',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         A cap of the test's own, which the environment sets without a code change.
+         */
+        const cap = 1;
+        await writeProcess({
+          folder: folder.processes,
+          pid: '101',
+          words: [
+            '/usr/bin/node',
+            join(folder.path, LAUNCHER_ENTRY_NAMES[0] ?? '',),
+            '--name=already-going',
+          ],
+        },);
+        /**
+         What the gate answered for one agent too many.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--name=new-run', `--runs-folder=${folder.runs}`,],
+          machineCap: String(cap,),
+        },);
+        expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(ran.stdout.trim(),).toBe(
+          `NO SLOT: ${machineCapRefusalTextOf({
+            agentsGoing: cap,
+            cap,
+          },)}; not started: new-run`,
+        );
+        expect((await programsAsked(folder,)).some(function ranTheLauncher(line,) {
+          return line.startsWith('systemd-run',);
+        },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'refuses a cap or a count of other agents that is no whole number, naming the variable, rather than starting runs on another number',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the gate answered a cap that is no whole number.
+         */
+        const refusedCap = await runTheGate({
+          folder,
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
+          machineCap: 'half',
+        },);
+        expect(refusedCap.status,).not.toBe(0,);
+        expect(refusedCap.stderr,).toContain(MACHINE_CAP_VARIABLE,);
+        expect(refusedCap.stderr,).toContain('half',);
+        /**
+         What the gate answered a count of other agents that is no whole number.
+         */
+        const refusedCount = await runTheGate({
+          folder,
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
+          otherAgentsGoing: 'two',
+        },);
+        expect(refusedCount.status,).not.toBe(0,);
+        expect(refusedCount.stderr,).toContain(OTHER_AGENTS_GOING_VARIABLE,);
+        expect(refusedCount.stderr,).toContain('two',);
+      },
+    },),
+    it({
+      name: 'counts the agents a caller says it has going on the counts line, beside the runs the gate found',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         How many agents of its own the caller says it has going, which are no Pi run and so in no unit.
+         */
+        const otherAgentsGoing = 2;
+        /**
+         What the gate answered.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--counts-only', `--runs-folder=${folder.runs}`,],
+          otherAgentsGoing: String(otherAgentsGoing,),
+        },);
+        expect(ran.status,).toBe(0,);
+        expectCountsLine({
+          line: ran.stdout.trim(),
+          counts: new Map(),
+          folder,
+          agentsGoing: otherAgentsGoing,
+        },);
       },
     },),
   ],

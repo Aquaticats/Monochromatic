@@ -1,7 +1,8 @@
 /**
- What the runs going now hold of each provider pool, which pool a run may take, and the room the build volume has: the counts,
- the summary line, and the answer the pool gate gives. Everything here is read from the runs, the pools and the room a test
- hands over, so no unit, no process, no systemd and no disk of this machine is involved.
+ What the runs going now hold of each provider pool, which pool a run may take, how many agents the machine is carrying against its
+ cap, and the room each of the two volumes a new run fills has: the counts, the summary line, and the answer the pool gate gives.
+ Everything here is read from the runs, the pools, the cap and the room a test hands over, so no unit, no process, no systemd and
+ no disk of this machine is involved.
 
  @module
  */
@@ -13,12 +14,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   ALREADY_RUNNING_EXIT_STATUS,
+  BUILD_VOLUME_FLOOR_BYTES,
   BYTES_IN_A_GIBIBYTE,
   type FreeSpace,
-  FREE_SPACE_FLOOR_BYTES,
+  type FreeSpaceAgainstItsFloor,
   type GateOutcome,
   type GoingRun,
   type LauncherArguments,
+  MACHINE_CAP_DEFAULT,
+  type MachineCap,
   MODEL_OF_A_RUN_NAMING_NONE,
   MODEL_OPTION,
   NEURALWATT_DEEPSEEK_FLEX,
@@ -35,15 +39,20 @@ import {
   type PoolGateOptions,
   type PoolMembership,
   PoolLimitsError,
+  type PoolTallies,
   type ProviderPool,
   QWEN_PLAN_DEEPSEEK,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
+  RUNS_FOLDER_FLOOR_BYTES,
+  SESSION_FILES_FLOOR_BYTES,
   firstDefaultPoolWithRoom,
-  freeSpaceFloorTextOf,
   freeSpaceTextOf,
+  freeSpaceUnderTheFloorTextOf,
   gateOutcomeOf,
   launcherArgumentsOf,
   limitsIn,
+  machineCapCountsTextOf,
+  machineCapRefusalTextOf,
   membershipOf,
   poolChoiceFor,
   poolHasRoom,
@@ -61,6 +70,16 @@ import {
 
  */
 const TEST_VOLUME = '/a-build-volume-of-the-test';
+
+/**
+ The second volume a run fills, holding the runs folder and the scratch folders beside it, which is no volume of this machine.
+ */
+const TEST_RUNS_VOLUME = '/a-runs-volume-of-the-test';
+
+/**
+ The third volume a run fills, holding Pi's session files, which is no volume of this machine.
+ */
+const TEST_SESSION_FILES_VOLUME = '/a-session-files-volume-of-the-test';
 
 /**
  One run going now, in the pool a test names.
@@ -277,13 +296,13 @@ function expectCountsLineNamesEachPool({
 
  @example
  ```ts
- const room = roomToSpare();
+ const room = buildVolumeRoomToSpare();
  ```
  */
-function roomToSpare(): FreeSpace {
+function buildVolumeRoomToSpare(): FreeSpace {
   return {
     volume: TEST_VOLUME,
-    freeBytes: FREE_SPACE_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+    freeBytes: BUILD_VOLUME_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
   };
 }
 
@@ -294,13 +313,194 @@ function roomToSpare(): FreeSpace {
 
  @example
  ```ts
- const room = roomUnderTheFloor();
+ const room = buildVolumeRoomUnderTheFloor();
  ```
  */
-function roomUnderTheFloor(): FreeSpace {
+function buildVolumeRoomUnderTheFloor(): FreeSpace {
   return {
     volume: TEST_VOLUME,
-    freeBytes: FREE_SPACE_FLOOR_BYTES - 1,
+    freeBytes: BUILD_VOLUME_FLOOR_BYTES - 1,
+  };
+}
+
+/**
+ Room on the volume holding the runs folder well above its own floor, so a run can start in a test.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = runsFolderRoomToSpare();
+ ```
+ */
+function runsFolderRoomToSpare(): FreeSpace {
+  return {
+    volume: TEST_RUNS_VOLUME,
+    freeBytes: RUNS_FOLDER_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ Room on the volume holding the runs folder under its own floor, which is the fill of 2026-11-12 that this floor came from.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = runsFolderRoomUnderTheFloor();
+ ```
+ */
+function runsFolderRoomUnderTheFloor(): FreeSpace {
+  return {
+    volume: TEST_RUNS_VOLUME,
+    freeBytes: RUNS_FOLDER_FLOOR_BYTES - 1,
+  };
+}
+
+/**
+ Room on the volume that holds Pi's session files well above its own floor, so a run can start in a test.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = sessionFilesRoomToSpare();
+ ```
+ */
+function sessionFilesRoomToSpare(): FreeSpace {
+  return {
+    volume: TEST_SESSION_FILES_VOLUME,
+    freeBytes: SESSION_FILES_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ Room on the volume that holds Pi's session files under its own floor, which is the fill of 2026-11-12 that this floor came from.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = sessionFilesRoomUnderTheFloor();
+ ```
+ */
+function sessionFilesRoomUnderTheFloor(): FreeSpace {
+  return {
+    volume: TEST_SESSION_FILES_VOLUME,
+    freeBytes: SESSION_FILES_FLOOR_BYTES - 1,
+  };
+}
+
+/**
+ The machine's cap as the shipped default counts it, with no agent the gate cannot see going.
+
+ @returns the cap
+
+ @example
+ ```ts
+ const machineCap = theShippedCap();
+ ```
+ */
+function theShippedCap(): MachineCap {
+  return {
+    cap: MACHINE_CAP_DEFAULT,
+    otherAgentsGoing: 0,
+  };
+}
+
+/**
+ The volumes a new run cannot work without, with the floor each needs, as a test that cares about something else hands them over:
+ room on all three, each well above its floor.
+
+ @param buildVolumeSpace - the room the volume that holds the repository has
+
+ @param runsFolderSpace - the room the volume that holds the runs folder has
+
+ @param sessionFilesSpace - the room the volume that holds Pi's session files has
+
+ @returns one entry per volume, with its floor
+
+ @example
+ ```ts
+ const volumes = volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomUnderTheFloor() });
+ ```
+ */
+function volumesAnewRunFills({
+  buildVolumeSpace = buildVolumeRoomToSpare(),
+  runsFolderSpace = runsFolderRoomToSpare(),
+  sessionFilesSpace = sessionFilesRoomToSpare(),
+}: {
+  readonly buildVolumeSpace?: FreeSpace;
+  readonly runsFolderSpace?: FreeSpace;
+  readonly sessionFilesSpace?: FreeSpace;
+} = {},): readonly FreeSpaceAgainstItsFloor[] {
+  return [
+    { space: buildVolumeSpace, floorBytes: BUILD_VOLUME_FLOOR_BYTES, },
+    { space: runsFolderSpace, floorBytes: RUNS_FOLDER_FLOOR_BYTES, },
+    { space: sessionFilesSpace, floorBytes: SESSION_FILES_FLOOR_BYTES, },
+  ];
+}
+
+/**
+ The line the gate answers a caller that asks only for the counts, built from the texts the gate itself prints, so a test names
+ the shape of that line rather than copying it.
+
+ @param tallies - how many runs each pool holds
+
+ @param agentsGoing - every agent going on the machine
+
+ @param cap - how many the machine may carry at once
+
+ @param volumes - the room of each distinct volume, in the order the counts line prints them
+
+ @returns the counts line
+
+ @example
+ ```ts
+ const line = countsLineOf({ tallies, agentsGoing: 0, cap: MACHINE_CAP_DEFAULT, volumes: volumesAnewRunFills() });
+ ```
+ */
+function countsLineOf({
+  tallies,
+  agentsGoing,
+  cap,
+  volumes,
+}: {
+  readonly tallies: PoolTallies;
+  readonly agentsGoing: number;
+  readonly cap: number;
+  readonly volumes: readonly FreeSpaceAgainstItsFloor[];
+},): string {
+  return [
+    summaryTextOf(tallies,),
+    machineCapCountsTextOf({
+      agentsGoing,
+      cap,
+    },),
+    ...volumes.map(function roomOf(volume,) {
+      return freeSpaceTextOf(volume.space,);
+    },),
+  ].join('; ',);
+}
+
+/**
+ One volume's room with the floor a new run needs on it, as the refusal asks about one volume.
+
+ @param space - the room the volume has
+
+ @param floorBytes - how many bytes a new run needs free on it
+
+ @returns the room and the floor together
+
+ @example
+ ```ts
+ const room = againstTheFloor({ space: buildVolumeRoomUnderTheFloor(), floorBytes: BUILD_VOLUME_FLOOR_BYTES });
+ ```
+ */
+function againstTheFloor({ space, floorBytes }: FreeSpaceAgainstItsFloor,): FreeSpaceAgainstItsFloor {
+  return {
+    space,
+    floorBytes,
   };
 }
 
@@ -344,7 +544,7 @@ function gateOptions(options: {
 
  @example
  ```ts
- const outcome = await gateOutcomeOf({ options, runs: [], tallies, sessionFileOf: aSessionFile, freeSpace: roomToSpare(), });
+ const outcome = await gateOutcomeOf({ options, runs: [], tallies, sessionFileOf: aSessionFile, volumes, machineCap: theShippedCap(), });
  ```
  */
 async function aSessionFile(): Promise<string> {
@@ -880,6 +1080,10 @@ await describe({
              */
             const runs: readonly GoingRun[] = [];
             /**
+             The volumes a new run fills, each well above its floor.
+             */
+            const volumes = volumesAnewRunFills();
+            /**
              What the gate answered a caller that named no run.
              */
             const outcome: GateOutcome = await gateOutcomeOf({
@@ -887,10 +1091,16 @@ await describe({
               runs,
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes,
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('counts',);
-            expect(outcome.lines,).toEqual([`${summaryTextOf(talliesOf({ runs, },),)}; ${freeSpaceTextOf(roomToSpare(),)}`,],);
+            expect(outcome.lines,).toEqual([countsLineOf({
+              tallies: talliesOf({ runs, },),
+              agentsGoing: runs.length,
+              cap: theShippedCap().cap,
+              volumes,
+            },),],);
             expectCountsLineNamesEachPool({
               line: (outcome.lines[0] ?? '').split('; ',)[0] ?? '',
               runs,
@@ -915,7 +1125,8 @@ await describe({
               runs,
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('counts',);
           },
@@ -926,7 +1137,11 @@ await describe({
             /**
              What the volume holds while it is under the floor.
              */
-            const room = roomUnderTheFloor();
+            const room = buildVolumeRoomUnderTheFloor();
+            /**
+             The volumes a new run fills, one of them under its floor.
+             */
+            const volumes = volumesAnewRunFills({ buildVolumeSpace: room, });
             /**
              What the gate answered while the volume was that full.
              */
@@ -935,10 +1150,16 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
-              freeSpace: room,
+              volumes,
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('counts',);
-            expect(outcome.lines,).toEqual([`${summaryTextOf(talliesOf({ runs: [], },),)}; ${freeSpaceTextOf(room,)}`,],);
+            expect(outcome.lines,).toEqual([countsLineOf({
+              tallies: talliesOf({ runs: [], },),
+              agentsGoing: 0,
+              cap: theShippedCap().cap,
+              volumes,
+            },),],);
           },
         },),
         it({
@@ -950,7 +1171,8 @@ await describe({
                 runs: [],
                 tallies: talliesOf({ runs: [], },),
                 sessionFileOf: aSessionFile,
-                freeSpace: roomToSpare(),
+                volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+                machineCap: theShippedCap(),
               },);
             }
             catch (error) {
@@ -976,7 +1198,8 @@ await describe({
               runs,
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('already-running',);
             expect((outcome.action === 'already-running') ? outcome.status : 0,).toBe(ALREADY_RUNNING_EXIT_STATUS,);
@@ -998,7 +1221,8 @@ await describe({
               runs,
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomUnderTheFloor(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomUnderTheFloor(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('already-running',);
             expect(outcome.lines,).toEqual(['ALREADY RUNNING: copy-route',],);
@@ -1010,7 +1234,7 @@ await describe({
             /**
              What the volume holds while it is under the floor.
              */
-            const room = roomUnderTheFloor();
+            const room = buildVolumeRoomUnderTheFloor();
             /**
              What the gate answered while the volume was that full.
              */
@@ -1019,13 +1243,343 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
-              freeSpace: room,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: room, runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
             expect(outcome.lines,).toEqual([
-              `NO SLOT: ${freeSpaceTextOf(room,)}, under the floor of ${freeSpaceFloorTextOf()}; not started: copy-route`,
+              `NO SLOT: ${freeSpaceUnderTheFloorTextOf(againstTheFloor({
+                space: room,
+                floorBytes: BUILD_VOLUME_FLOOR_BYTES,
+              },),)}; not started: copy-route`,
             ],);
+          },
+        },),
+        it({
+          name: 'refuses to start a run while the volume that holds the runs folder is under its own floor, naming that volume and its room',
+          fn: async () => {
+            /**
+             What the volume holding the runs folder holds while it is under its floor.
+             */
+            const room = runsFolderRoomUnderTheFloor();
+            /**
+             What the gate answered while that volume was that full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: room, }),
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${freeSpaceUnderTheFloorTextOf(againstTheFloor({
+                space: room,
+                floorBytes: RUNS_FOLDER_FLOOR_BYTES,
+              },),)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'refuses to start a run while the volume that holds Pi\'s session files is under its own floor, naming that volume and its room',
+          fn: async () => {
+            /**
+             What the volume holding Pi's session files holds while it is under its floor.
+             */
+            const room = sessionFilesRoomUnderTheFloor();
+            /**
+             What the gate answered while that volume was that full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ sessionFilesSpace: room, }),
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${freeSpaceUnderTheFloorTextOf(againstTheFloor({
+                space: room,
+                floorBytes: SESSION_FILES_FLOOR_BYTES,
+              },),)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'refuses to start a run while every volume is under its floor, naming each of them once in one line',
+          fn: async () => {
+            /**
+             Each volume a new run fills, at the room it has while it is under its own floor.
+             */
+            const volumes = volumesAnewRunFills({
+              buildVolumeSpace: buildVolumeRoomUnderTheFloor(),
+              runsFolderSpace: runsFolderRoomUnderTheFloor(),
+              sessionFilesSpace: sessionFilesRoomUnderTheFloor(),
+            },);
+            /**
+             What the gate answered while every one of them was that full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              volumes,
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${volumes.map(function saidAsARefusal(volume,) {
+                return freeSpaceUnderTheFloorTextOf(volume,);
+              },)
+                .join(', and ',)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'refuses to start a run while both volumes are under their floors, naming every one of them in one line',
+          fn: async () => {
+            /**
+             What the volume holding the repository holds while it is under the floor.
+             */
+            const buildRoom = buildVolumeRoomUnderTheFloor();
+            /**
+             What the volume holding the runs folder holds while it is under its own floor.
+             */
+            const runsRoom = runsFolderRoomUnderTheFloor();
+            /**
+             What the gate answered while both were that full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildRoom, runsFolderSpace: runsRoom, }),
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${freeSpaceUnderTheFloorTextOf(againstTheFloor({
+                space: buildRoom,
+                floorBytes: BUILD_VOLUME_FLOOR_BYTES,
+              },),)}, and ${freeSpaceUnderTheFloorTextOf(againstTheFloor({
+                space: runsRoom,
+                floorBytes: RUNS_FOLDER_FLOOR_BYTES,
+              },),)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'starts a run while the machine is under its cap, and counts every run going against it',
+          fn: async () => {
+            /**
+             Runs going, one fewer than the machine takes.
+             */
+            const runs = Array.from(
+              { length: MACHINE_CAP_DEFAULT - 1, },
+              function named(_unused, index,) {
+                return aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-${String(index,)}`, inPool(NEURALWATT_DEEPSEEK_FLEX,),);
+              },
+            );
+            /**
+             What the gate answered for one more agent.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('start',);
+          },
+        },),
+        it({
+          name: 'refuses to start one more agent while the machine is at its cap, naming the count, the cap and the run it did not start',
+          fn: async () => {
+            /**
+             Runs going, as many as the machine takes.
+             */
+            const runs = Array.from(
+              { length: MACHINE_CAP_DEFAULT, },
+              function named(_unused, index,) {
+                return aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-${String(index,)}`, inPool(NEURALWATT_DEEPSEEK_FLEX,),);
+              },
+            );
+            /**
+             What the gate answered for one agent too many.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${machineCapRefusalTextOf({
+                agentsGoing: runs.length,
+                cap: MACHINE_CAP_DEFAULT,
+              },)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'refuses a start on the agents a caller says it has going alone, which the gate cannot see, and counts them beside every run it found',
+          fn: async () => {
+            /**
+             A cap the test sets, so the agents the gate cannot see are what fills it.
+             */
+            const machineCap: MachineCap = {
+              cap: MACHINE_CAP_DEFAULT,
+              otherAgentsGoing: MACHINE_CAP_DEFAULT,
+            };
+            /**
+             What the gate answered while no Pi run was going and the caller had that many agents of its own.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills(),
+              machineCap,
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${machineCapRefusalTextOf({
+                agentsGoing: machineCap.otherAgentsGoing,
+                cap: machineCap.cap,
+              },)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'counts a run no pool holds, such as an audit on another account, against the machine cap',
+          fn: async () => {
+            /**
+             Runs going which hold no slot in any pool, as many as the machine takes.
+             */
+            const runs = [
+              aRun('sol-audit-1',),
+              aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-own-provider`,),
+          ];
+            /**
+             A cap of the number of those runs, so the count against it is what a pool count would never see.
+             */
+            const machineCap: MachineCap = {
+              cap: runs.length,
+              otherAgentsGoing: 0,
+            };
+            /**
+             What the gate answered for one more agent.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills(),
+              machineCap,
+            },);
+            expect(talliesOf({ runs, },).counts.get(NEURALWATT_DEEPSEEK_FLEX.name,),).toBe(0,);
+            expect(outcome.action,).toBe('no-room',);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${machineCapRefusalTextOf({
+                agentsGoing: runs.length,
+                cap: machineCap.cap,
+              },)}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'says both the machine cap and the pools when a run would be refused by each of them',
+          fn: async () => {
+            /**
+             Every pool a run that names a default model could take, filled.
+             */
+            const filled = runsFilling(openDefaultPools(),);
+            /**
+             What the gate answered while every pool was full and the machine was over its cap.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: filled,
+              tallies: talliesOf({ runs: filled, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${machineCapRefusalTextOf({
+                agentsGoing: filled.length,
+                cap: MACHINE_CAP_DEFAULT,
+              },)}, and no pool has room (${summaryTextOf(talliesOf({ runs: filled, },),)}); not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
+          name: 'says the count against the cap, above it or not, on the counts line, while the runs it counted keep going: the cap refuses starts and stops nothing',
+          fn: async () => {
+            /**
+             Runs going, two more than the machine takes, as another session's starts and a lowered cap leave it.
+             */
+            const runs = Array.from(
+              { length: MACHINE_CAP_DEFAULT + 2, },
+              function named(_unused, index,) {
+                return aRun(`${NEURALWATT_DEEPSEEK_FLEX.name}-${String(index,)}`, inPool(NEURALWATT_DEEPSEEK_FLEX,),);
+              },
+            );
+            /**
+             What the gate answered a caller that asked only for the counts.
+             */
+            const counted = await gateOutcomeOf({
+              options: gateOptions({ countsOnly: true, }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills(),
+              machineCap: theShippedCap(),
+            },);
+            expect(counted.action,).toBe('counts',);
+            expect(counted.lines,).toEqual([countsLineOf({
+              tallies: talliesOf({ runs, },),
+              agentsGoing: runs.length,
+              cap: MACHINE_CAP_DEFAULT,
+              volumes: volumesAnewRunFills(),
+            },),],);
+            expect(counted.lines[0],).toContain(`every agent on the machine ${String(runs.length,)}/${String(MACHINE_CAP_DEFAULT,)}`,);
+            /**
+             What the gate answered for the next start while that many agents were going.
+             */
+            const next = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
+            },);
+            expect(next.action,).toBe('no-room',);
+            expect((next.action === 'no-room') ? next.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(next.lines[0],).toContain(machineCapRefusalTextOf({
+              agentsGoing: runs.length,
+              cap: MACHINE_CAP_DEFAULT,
+            },),);
           },
         },),
         it({
@@ -1043,7 +1597,8 @@ await describe({
               runs,
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('start',);
           },
@@ -1056,14 +1611,19 @@ await describe({
              */
             const filled = runsFilling(openDefaultPools(),);
             /**
-             What the gate answered while every one of them was full.
+             What the gate answered while every one of them was full, with the machine's cap set above the runs going so that the pools
+             are what refuse the start.
              */
             const outcome = await gateOutcomeOf({
               options: gateOptions({ name: 'copy-route', }),
               runs: filled,
               tallies: talliesOf({ runs: filled, },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: {
+                cap: filled.length + 1,
+                otherAgentsGoing: 0,
+              },
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
@@ -1086,7 +1646,8 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.lines[0],).toContain('goes on its own provider',);
@@ -1107,7 +1668,8 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain('--session=/sessions/a.jsonl',);
@@ -1136,7 +1698,8 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills({ buildVolumeSpace: buildVolumeRoomToSpare(), runsFolderSpace: runsFolderRoomToSpare(), }),
+              machineCap: theShippedCap(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain(

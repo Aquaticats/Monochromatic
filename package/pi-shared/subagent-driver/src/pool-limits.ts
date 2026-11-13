@@ -12,6 +12,8 @@
  @module
  */
 
+import { isWholeNumber, } from './is-whole-number.ts';
+
 /**
  One provider pool: the provider and model that share an account's room, how many runs it takes at once, and how long a run on
  it may last.
@@ -280,30 +282,6 @@ export function limitsIn({ listed, }: { readonly listed: string },): ReadonlyMap
     );
   }
   return limits;
-}
-
-/**
- Reads whether text is a whole number.
-
- @param text - the text to read
-
- @returns whether it is one or more digits and nothing else
-
- @example
- ```ts
- const whole = isWholeNumber('20',);
- ```
- */
-function isWholeNumber(text: string,): boolean {
-  if (text === '') {
-    return false;
-  }
-  for (const character of text) {
-    if ((character < '0') || (character > '9')) {
-      return false;
-    }
-  }
-  return true;
 }
 
 /**

@@ -24,15 +24,20 @@ import {
   BATCH_DEFAULT_WALL_SECONDS,
   BATCH_RETRY_PERIOD_SECONDS,
   BATCH_STAGGER_MILLISECONDS,
+  BUILD_VOLUME_FLOOR_BYTES,
   BYTES_IN_A_GIBIBYTE,
   BatchOptionsError,
   type CommandOutput,
-  FREE_SPACE_FLOOR_BYTES,
   type FreeSpace,
+  type FreeSpaceAgainstItsFloor,
   type GoingRun,
   GATE_OUTPUT_TAIL_CHARACTERS,
+  MACHINE_CAP_DEFAULT,
+  type MachineCap,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
   type ProviderPool,
+  RUNS_FOLDER_FLOOR_BYTES,
+  SESSION_FILES_FLOOR_BYTES,
   gateOutcomeOf,
   talliesOf,
   LAUNCHER_ENTRY_NAMES,
@@ -230,19 +235,98 @@ async function writeAStartThatWaits(file: string,): Promise<void> {
 const TEST_VOLUME = '/a-build-volume-of-the-test';
 
 /**
+ The second volume a run fills, holding the runs folder and the scratch folders beside it, which is no volume of this machine.
+ */
+const TEST_RUNS_VOLUME = '/a-runs-volume-of-the-test';
+
+/**
+ The third volume a run fills, holding Pi's session files, which is no volume of this machine.
+ */
+const TEST_SESSION_FILES_VOLUME = '/a-session-files-volume-of-the-test';
+
+/**
  Room on the build volume well above its floor, so nothing here is refused for want of disk.
 
  @returns the room, and the volume it is on
 
  @example
  ```ts
- const room = roomToSpare();
+ const room = buildVolumeRoomToSpare();
  ```
  */
-function roomToSpare(): FreeSpace {
+function buildVolumeRoomToSpare(): FreeSpace {
   return {
     volume: TEST_VOLUME,
-    freeBytes: FREE_SPACE_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+    freeBytes: BUILD_VOLUME_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ Room on the volume that holds the runs folder well above its own floor, so nothing here is refused for want of disk.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = runsFolderRoomToSpare();
+ ```
+ */
+function runsFolderRoomToSpare(): FreeSpace {
+  return {
+    volume: TEST_RUNS_VOLUME,
+    freeBytes: RUNS_FOLDER_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ Room on the volume that holds Pi's session files well above its own floor, so nothing here is refused for want of disk.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = sessionFilesRoomToSpare();
+ ```
+ */
+function sessionFilesRoomToSpare(): FreeSpace {
+  return {
+    volume: TEST_SESSION_FILES_VOLUME,
+    freeBytes: SESSION_FILES_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ The volumes a new run cannot work without, with the floor each needs, each well above its floor.
+
+ @returns one entry per volume, with its floor
+
+ @example
+ ```ts
+ const volumes = volumesAnewRunFills();
+ ```
+ */
+function volumesAnewRunFills(): readonly FreeSpaceAgainstItsFloor[] {
+  return [
+    { space: buildVolumeRoomToSpare(), floorBytes: BUILD_VOLUME_FLOOR_BYTES, },
+    { space: runsFolderRoomToSpare(), floorBytes: RUNS_FOLDER_FLOOR_BYTES, },
+    { space: sessionFilesRoomToSpare(), floorBytes: SESSION_FILES_FLOOR_BYTES, },
+  ];
+}
+
+/**
+ The machine's cap as the shipped default counts it, with no agent the gate cannot see going.
+
+ @returns the cap
+
+ @example
+ ```ts
+ const machineCap = theShippedCap();
+ ```
+ */
+function theShippedCap(): MachineCap {
+  return {
+    cap: MACHINE_CAP_DEFAULT,
+    otherAgentsGoing: 0,
   };
 }
 
@@ -535,7 +619,11 @@ await describe({
               sessionFileOf: async function noSession() {
                 return '';
               },
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills(),
+              machineCap: {
+                cap: full.length,
+                otherAgentsGoing: 0,
+              },
             },);
             expect(whileFull.action,).toBe('no-room',);
             expect(whileFull.lines[0],).toContain(`${pool.name} ${String(pool.limit,)}/${String(pool.limit,)}`,);
@@ -553,7 +641,11 @@ await describe({
               sessionFileOf: async function noSession() {
                 return '';
               },
-              freeSpace: roomToSpare(),
+              volumes: volumesAnewRunFills(),
+              machineCap: {
+                cap: full.length,
+                otherAgentsGoing: 0,
+              },
             },);
             expect(withRoom.action,).toBe('start',);
             expect(withRoom.lines[0],).toContain(`${pool.name} ${String(pool.limit - 1,)}/${String(pool.limit,)}`,);

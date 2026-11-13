@@ -10,16 +10,25 @@
  */
 
 import {
+  realpathSync,
   statfsSync,
+  statSync,
 } from 'node:fs';
+import { homedir, } from 'node:os';
 import {
   argv,
   env,
 } from 'node:process';
 import {
   BUILD_VOLUME,
+  BUILD_VOLUME_FLOOR_BYTES,
   type FreeSpace,
+  type FreeSpaceAgainstItsFloor,
+  RUNS_FOLDER_FLOOR_BYTES,
+  SESSION_FILES_FLOOR_BYTES,
+  type VolumeAgainstItsFloor,
   freeSpaceOnVolume,
+  strictestFloorPerVolume,
 } from './free-space-floor.ts';
 import {
   goingRunsNow,
@@ -27,9 +36,20 @@ import {
   REPLACED_LAUNCHER_ENTRY_NAMES,
 } from './going-runs.ts';
 import {
+  MACHINE_CAP_VARIABLE,
+  type MachineCap,
+  OTHER_AGENTS_GOING_VARIABLE,
+  machineCapIn,
+  otherAgentsGoingIn,
+} from './machine-cap.ts';
+import {
   POOL_GATE_USAGE,
   parsePoolGateOptions,
 } from './parse-pool-gate-options.ts';
+import {
+  SESSION_FOLDER_VARIABLE,
+  sessionFolderOf,
+} from './pi-session-folder.ts';
 import {
   limitsIn,
   POOL_LIMITS_VARIABLE,
@@ -44,6 +64,16 @@ import {
 import { sessionFileOfRun, } from './session-file-of-a-run.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
+import {
+  type AnswerAboutAFolder,
+  volumeOfFolder,
+} from './volume-of-a-folder.ts';
+import {
+  FOLDER_VOLUMES_VARIABLE,
+  VOLUME_FREE_SPACE_BYTES_VARIABLE,
+  givenFolderVolumes,
+  givenVolumeFreeSpaceBytes,
+} from './volume-settings.ts';
 
 // The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
 // or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
@@ -63,33 +93,140 @@ if (usageWasAsked({
 const PROCESS_FOLDER = env.PI_RUNS_PROCESS_FOLDER ?? '/proc';
 
 /**
- The variable that names the room the build volume has, in bytes, instead of reading the volume. A test sets it so that no test
- depends on how full this machine's disk is.
+ The map of the pairs each volume setting holds, which a test writes instead of naming this machine's disks and links.
  */
-const GIVEN_FREE_SPACE_BYTES_VARIABLE = 'PI_RUNS_FREE_SPACE_BYTES';
+const givenRooms = givenVolumeFreeSpaceBytes({ listed: env[VOLUME_FREE_SPACE_BYTES_VARIABLE] ?? '', },);
 
 /**
- The room the volume that holds the repository has, which a test may give instead of the machine reading its own disk.
+ The volume each folder was given, which a test writes instead of resolving this machine's symbolic links and devices.
  */
-const GIVEN_FREE_SPACE_BYTES = env[GIVEN_FREE_SPACE_BYTES_VARIABLE] ?? '';
+const givenVolumesOfFolders = givenFolderVolumes({ listed: env[FOLDER_VOLUMES_VARIABLE] ?? '', },);
 
 /**
- The room the volume that holds the repository has.
+ What a folder answers about itself, which is how the volume holding a folder of a run is found: the path it really is, with every
+ symbolic link resolved, and the device whose volume it is on.
+
+ A caller reaches these folders through symbolic links, here as much as anywhere: `~/temp` is a link to another drive on this
+ machine, and a volume named by the link would name neither drive.
+
+ @param folder - the folder to ask about
+
+ @returns the folder it really is, and the device whose volume holds it
+
+ @example
+ ```ts
+ const answer = answerAboutAFolder('/home/a/temp/agent/pi-runs',);
+ ```
  */
-const freeSpace: FreeSpace = (GIVEN_FREE_SPACE_BYTES === '')
-  ? freeSpaceOnVolume({
-    volume: BUILD_VOLUME,
-    statfs: statfsSync,
-  },)
-  : {
-    volume: BUILD_VOLUME,
-    freeBytes: Number(GIVEN_FREE_SPACE_BYTES,),
+function answerAboutAFolder(folder: string,): ReturnType<AnswerAboutAFolder> {
+  /**
+   The folder with every symbolic link on the way to it resolved.
+   */
+  const realPath = realpathSync(folder,);
+  return {
+    realPath,
+    device: statSync(realPath,).dev,
   };
+}
+
+/**
+ Reads the volume a folder is on, from the setting a caller gave for that folder or from the folder itself.
+
+ @param folder - the folder whose volume is read
+
+ @returns the volume's own path
+
+ @example
+ ```ts
+ const volume = volumeOf('/home/a/temp/agent/pi-runs',);
+ ```
+ */
+function volumeOf(folder: string,): string {
+  return givenVolumesOfFolders.get(folder,)
+    ?? volumeOfFolder({
+      folder,
+      answerAbout: answerAboutAFolder,
+    },);
+}
+
+/**
+ Reads how much room a volume has, from the setting a caller gave for that volume or from the disk itself.
+
+ @param volume - the volume whose room is read
+
+ @returns the room the volume has, and the volume it is on
+
+ @example
+ ```ts
+ const room = roomOf(BUILD_VOLUME,);
+ ```
+ */
+function roomOf(volume: string,): FreeSpace {
+  /**
+   The room a caller gave this volume, when it gave one.
+   */
+  const given = givenRooms.get(volume,);
+  return (given === undefined)
+    ? freeSpaceOnVolume({
+      volume,
+      statfs: statfsSync,
+    },)
+    : {
+      volume,
+      freeBytes: given,
+    };
+}
 
 /**
  What this run of the command was asked for.
  */
 const options = parsePoolGateOptions(argv.slice(2,),);
+
+/**
+ The folder Pi keeps its session files in, whose drive filled on 2026-11-12 while every floor read free.
+ */
+const sessionFolder = sessionFolderOf({
+  home: env.HOME ?? homedir(),
+  sessionFolder: env[SESSION_FOLDER_VARIABLE] ?? '',
+},);
+
+/**
+ Each volume a new run cannot work without, one entry per need, and the floor that need sets. A volume two needs share is read and
+ named once, at the strictest of those floors.
+ */
+const needs: readonly VolumeAgainstItsFloor[] = [
+  {
+    volume: BUILD_VOLUME,
+    floorBytes: BUILD_VOLUME_FLOOR_BYTES,
+  },
+  {
+    volume: volumeOf(options.runsFolder,),
+    floorBytes: RUNS_FOLDER_FLOOR_BYTES,
+  },
+  {
+    volume: volumeOf(sessionFolder,),
+    floorBytes: SESSION_FILES_FLOOR_BYTES,
+  },
+];
+
+/**
+ The room of each distinct volume, with the strictest floor set for it.
+ */
+const volumes: readonly FreeSpaceAgainstItsFloor[] = strictestFloorPerVolume({ volumes: needs, },)
+  .map(function withItsRoom(volume,) {
+    return {
+      space: roomOf(volume.volume,),
+      floorBytes: volume.floorBytes,
+    };
+  },);
+
+/**
+ How many agents the machine may carry at once, and how many of those this gate cannot see.
+ */
+const machineCap: MachineCap = {
+  cap: machineCapIn({ listed: env[MACHINE_CAP_VARIABLE] ?? '', },),
+  otherAgentsGoing: otherAgentsGoingIn({ listed: env[OTHER_AGENTS_GOING_VARIABLE] ?? '', },),
+};
 
 /**
  The pools this run counts against: the shipped table, with the limits a caller set in the environment overriding them, so a pool
@@ -126,7 +263,8 @@ const outcome = await gateOutcomeOf({
     runs,
     pools,
   },),
-  freeSpace,
+  volumes,
+  machineCap,
   sessionFileOf: function sessionFileOf(runFolder,) {
     return sessionFileOfRun({
       runsFolder: options.runsFolder,

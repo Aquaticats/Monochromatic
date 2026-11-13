@@ -9,11 +9,18 @@
 
 import type { GoingRun, } from './going-runs.ts';
 import {
-  type FreeSpace,
-  freeSpaceFloorTextOf,
+  type FreeSpaceAgainstItsFloor,
   freeSpaceIsUnderTheFloor,
   freeSpaceTextOf,
+  freeSpaceUnderTheFloorTextOf,
 } from './free-space-floor.ts';
+import {
+  type MachineCap,
+  agentsGoingOf,
+  machineCapCountsTextOf,
+  machineCapRefusalTextOf,
+  machineTakesNoMoreAgents,
+} from './machine-cap.ts';
 import {
   type LauncherArguments,
   launcherArgumentsOf,
@@ -41,8 +48,9 @@ import {
 } from './pool-tallies.ts';
 
 /**
- The status a gate exits with when it starts nothing for want of room, which is no pool having a slot free or the build volume
- being under its floor. The retrying command reads it to know it should ask again.
+ The status a gate exits with when it starts nothing for want of room, which is no pool having a slot free, the machine already
+ carrying its cap of agents, or one of the volumes a run fills being under its floor. The retrying command reads it to know it
+ should ask again.
  */
 export const NO_SLOT_EXIT_STATUS = 3;
 
@@ -199,7 +207,9 @@ export type GateOutcome =
 
  @param tallies - how many runs each pool holds, which were counted from the same runs
 
- @param freeSpace - the room the volume that holds the repository has, which a run does not start without
+ @param volumes - the room of each distinct volume a new run cannot work without, with the strictest floor set for it
+
+ @param machineCap - how many agents the machine may carry at once, and how many of those the gate cannot see
 
  @param sessionFileOf - reads the session file of the finished run this run resumes
 
@@ -207,32 +217,51 @@ export type GateOutcome =
 
  @example
  ```ts
- const outcome = await gateOutcomeOf({ options, runs, tallies: talliesOf({ runs, }), freeSpace, sessionFileOf, },);
+ const outcome = await gateOutcomeOf({ options, runs, tallies: talliesOf({ runs, }), volumes, machineCap, sessionFileOf, },);
  ```
  */
 export async function gateOutcomeOf({
   options,
   runs,
   tallies,
-  freeSpace,
+  volumes,
+  machineCap,
   sessionFileOf,
 }: {
   readonly options: PoolGateOptions;
   readonly runs: readonly GoingRun[];
   readonly tallies: PoolTallies;
-  readonly freeSpace: FreeSpace;
+  readonly volumes: readonly FreeSpaceAgainstItsFloor[];
+  readonly machineCap: MachineCap;
   readonly sessionFileOf: (runFolder: string) => Promise<string>;
 },): Promise<GateOutcome> {
   /**
    How full every pool is, as every answer names it.
    */
   const summary = summaryTextOf(tallies,);
+  /**
+   Every agent going on the machine, which the cap counts: every Pi run, in a pool or in none, and the agents its caller says it
+   has going, which are no Pi run and so appear in neither a launcher nor a unit.
+   */
+  const agentsGoing = agentsGoingOf({
+    runs,
+    otherAgentsGoing: machineCap.otherAgentsGoing,
+  },);
   // `--counts-only` starts nothing, which is how a coordinator fills the free slots it has just read. It answers the same
   // whoever asks, so it neither needs a run's name nor refuses because a run of that name is already going.
   if (options.countsOnly) {
     return {
       action: 'counts',
-      lines: [`${summary}; ${freeSpaceTextOf(freeSpace,)}`,],
+      lines: [[
+        summary,
+        machineCapCountsTextOf({
+          agentsGoing,
+          cap: machineCap.cap,
+        },),
+        ...volumes.map(function roomOf(volume,) {
+          return freeSpaceTextOf(volume.space,);
+        },),
+      ].join('; ',),],
     };
   }
   /**
@@ -262,15 +291,22 @@ export async function gateOutcomeOf({
     provider: options.provider ?? PROVIDER_OF_A_RUN_NAMING_NONE,
     model: options.model ?? MODEL_OF_A_RUN_NAMING_NONE,
   },);
-  // The volume that holds the repository, every agent worktree and every build folder filled on 2026-11-11, and every Pi driver
-  // then exited at once with no summary, so a run starts only while the room another agent's build needs is free.
-  if (freeSpaceIsUnderTheFloor(freeSpace,)) {
+  /**
+   Each volume under its floor, said as the refusal says one, so a refusal names every volume that is too full and the run it did
+   not start.
+   */
+  const underTheirFloors = volumes
+    .filter(function isUnderItsFloor(volume,) {
+      return freeSpaceIsUnderTheFloor(volume,);
+    },)
+    .map(function saidAsARefusal(room,) {
+      return freeSpaceUnderTheFloorTextOf(room,);
+    },);
+  if (underTheirFloors.length > 0) {
     return {
       action: 'no-room',
       status: NO_SLOT_EXIT_STATUS,
-      lines: [
-        `NO SLOT: ${freeSpaceTextOf(freeSpace,)}, under the floor of ${freeSpaceFloorTextOf()}; not started: ${runName}`,
-      ],
+      lines: [`NO SLOT: ${underTheirFloors.join(', and ',)}; not started: ${runName}`,],
     };
   }
   /**
@@ -281,11 +317,31 @@ export async function gateOutcomeOf({
     tallies,
     resumes: options.sessionOfRunFolder !== undefined,
   },);
-  if (choice.destination === 'no-room') {
+  /**
+   Whether the machine is already carrying its cap, so one more agent would go over it however much room every pool has.
+   */
+  const machineIsAtItsCap = machineTakesNoMoreAgents({
+    agentsGoing,
+    cap: machineCap.cap,
+  },);
+  if (machineIsAtItsCap || (choice.destination === 'no-room')) {
+    /**
+     Why the start is refused, each reason in its own words: the machine's cap, and the room of the pools. A run refused by both
+     says both, so a caller waiting for room knows which two limits it waits on.
+     */
+    const reasons: string[] = machineIsAtItsCap
+      ? [machineCapRefusalTextOf({
+        agentsGoing,
+        cap: machineCap.cap,
+      },)]
+      : [];
+    if (choice.destination === 'no-room') {
+      reasons.push(machineIsAtItsCap ? `no pool has room (${summary})` : summary,);
+    }
     return {
       action: 'no-room',
       status: NO_SLOT_EXIT_STATUS,
-      lines: [`NO SLOT: ${summary}, not started: ${runName}`,],
+      lines: [`NO SLOT: ${reasons.join(', and ',)}; not started: ${runName}`,],
     };
   }
   /**
