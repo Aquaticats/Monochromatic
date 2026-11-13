@@ -125,11 +125,11 @@ pub fn judge_abort_discard(facts: &mut dyn RepositoryFacts, command: GuardedComm
         Ok(_) => {}
         Err(message) => return unreadable(operation, ends, message.as_str()),
     }
-    // An abort's reset refuses an untracked file at a path the restored tree tracks
-    //  (measured for every abort form with Git 2.56.0): nothing is lost, the command does not run,
+    // An abort's reset refuses an untracked file at a path the restored tree tracks,
+    //  and so does a skip's (measured with Git 2.56.0 for every abort form and every skip form:
+    //  `Untracked working tree file 'victim.txt' would be overwritten by merge`, and the skip failed):
+    //  nothing is lost, the command does not run,
     //  and the person is told that it is Git that refuses and which file stands in the way.
-    //  A skip's reset writes that same tree over the worktree without a word (measured), so there the file is work
-    //  the command would lose, and the wrapper is what refuses.
     match facts.untracked_files_the_tree_tracks(restored.as_os_str()) {
         Ok(untracked) if !untracked.is_empty() => {
             return AbortVerdict::Refused(untracked_file_text(operation, ends, in_progress, restored.to_string_lossy().as_ref(), untracked.as_slice()));
