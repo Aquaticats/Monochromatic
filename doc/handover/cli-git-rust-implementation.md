@@ -358,9 +358,13 @@ What the release is built to do, read from its source:
 - `cargo-publish.yml` is started on `main` by a dispatch, and a run's commit is fixed when the run is made,
   so a commit after that moment cannot change what is built.
 - One gap the source shows and no run has shown: the publish is started with `--ref main` a moment after the bump is pushed, and nothing in it checks that the commit it runs on is the bump commit.
-  A commit to the crate's own paths landing in that moment would be published without the release's checks. Filed as an issue, not worked around by holding commits.
-- On this machine, a commit made on the local `main` while the remote gained the bump commit is a commit behind the remote, like any other;
-  what the wrapper does with it is in the next entry, from the commit that recorded this.
+  A commit to the crate's own paths landing in that moment would be published without the release's checks.
+  Filed as issue 6294, not worked around by holding commits.
+- On this machine, a commit made on the local `main` while the remote gained the bump commit is a commit behind the remote, like any other.
+  Tried at once: the commit that recorded this (`9dc6859dd5`, 11:18:02, 0.9 s) was made while the remote's `main` stood at the bump `1d0a829ac7`;
+  the wrapper merged the two as `52c16b435f` ("Merge origin/main into main") at 11:18:03 and pushed, and local and remote were equal ten seconds later.
+  The release went on undisturbed.
+- The other session was told the hold is withdrawn and why.
 
 #### Four more runs of 2026-11-12 ended on the full drive after the list of twenty was made
 
@@ -1549,6 +1553,8 @@ None of the four branches is in `main` or in 0.6.1-alpha.15.
   The late-runtime branch's window with exit status 4 is in it,
   as recorded at 10:10:08.
 - No commit goes to `main` between the release's dispatch and its publication.
+  (Withdrawn on 2026-11-13: a rule of this session's own with no failure behind it;
+  see "Integration pass 18 is finished and goes out as 0.6.1-alpha.16".)
 
 #### 0.6.1-alpha.14 published and installed (2026-11-12T11:03:05-05:00)
 
@@ -1657,6 +1663,7 @@ None of the four branches is in `main` or in 0.6.1-alpha.15.
   A waiter unit watches it.
   Nothing is committed to `main` until it is published;
   this section is committed after that.
+  (That hold was withdrawn on 2026-11-13 as a rule of this session's own with no failure behind it.)
 - Round 304,
   a qwen4 review of the fix,
   started through the package's launcher at 11:23:18.
