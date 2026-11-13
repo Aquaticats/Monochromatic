@@ -685,6 +685,107 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The owner: no archive stays tracked; five runs of 2026-11-12 that never took a turn are started again (2026-11-13T17:31:03-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own readings.
+
+##### Archives
+
+The owner,
+in the terminal at about 17:27:
+"Git ignore all common archive formats (gz, zip, tar) and remove anything already committed from the repo.
+If something would break,
+represent the data another way."
+
+Measured on `main` at 17:30
+(`~/temp/agent/tracked-archives-removed-and-their-data-kept-as-plain-files-2026-11-13/keep/`):
+
+- 139 tracked files carry an archive extension:
+  136 under `doc/` (gzip and zip, no tar),
+  and three Java archives
+  (`package/intellij-plugin/islands-black/islands-black.jar`
+  and the `gradle-wrapper.jar` of `package/linter/kotlin` and of `package/music-player/android-app`).
+- They hold 163,515,666 bytes packed and 1,132,068,531 unpacked;
+  the largest single unpacked file is 81,949,336 bytes.
+- Every one is named by another tracked file,
+  119 files in all,
+  so removing any of them without a replacement leaves a pointer to nothing.
+- The evidence files record each archive's path,
+  bytes and SHA-256,
+  and record the same of one another,
+  so a file that is edited stops matching the digest another file holds of it.
+- No code,
+  task or workflow under `package/`,
+  the root `mise.toml`,
+  `.github/` or `file-enforcer.config.jsonc` names them
+  (one search,
+  its control still to be run by the author).
+
+Adopted by the coordinating session as the reading of the owner's words,
+open to veto,
+and asked through the question tool where marked:
+
+- "From the repo" is read as from the tree.
+  History is not rewritten:
+  that would move every branch and worktree in flight and is the owner's to order (asked).
+- "Represent the data another way" is read as plain files in the tree:
+  a gzip of one text file becomes that file,
+  a zip becomes a folder of its members.
+  The cost is measured and stated to the owner:
+  each checkout grows by about 1.13 GB,
+  and the archives' bytes stay in history beside the new ones.
+- The three Java archives stay tracked and unignored for now:
+  the owner named gzip,
+  zip and tar,
+  and each of the three is read by a build
+  (`gradlew`,
+  and the plugin's `build.ts` with its reproducibility test),
+  so replacing one is a change to that package (asked).
+- A file whose bytes a recorded digest pins is not edited;
+  one record maps every removed archive to its replacement,
+  and files no digest pins are edited in place by rule `WR6`.
+
+The work is one run,
+`tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored`,
+on branch `chore/doc-tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored`,
+queued at 17:31
+(brief `~/temp/agent/pi-runs/tracked-archives-are-replaced-by-plain-files-and-archive-formats-are-ignored-prompt.md`).
+It stops and reports,
+instead of deciding,
+on a member that is not text or that Git LFS would take,
+on a credential-shaped string in an unpacked log,
+on a commit a guard refuses,
+and on a file near the forge's size bound.
+Nothing of it reaches `main` before its report is read and the change reviewed.
+
+##### Five runs of 2026-11-12 that never took a turn
+
+Found at 17:23 while reading which work has no run:
+the three runs of round 310,
+the run of round 311 and the run of round 313 each ended on 2026-11-12 as `prompt-rejected` with no turn,
+or left an empty run folder,
+and none was in the resume queue.
+Their worktrees held nothing
+(no path differing from `HEAD`,
+no commit `main` lacks,
+284 to 285 commits behind it),
+so the worktrees and branches were removed through the wrapper at 17:26
+and the five are queued as fresh runs from `main`,
+each brief given a paragraph on what changed since it was written:
+
+- `landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service`
+  (a commit got no answer for thirteen minutes on 2026-11-12);
+- `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit`;
+- `pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`;
+- `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`
+  (the rule is already broken at 1,600 paths by the measurement of 2026-11-13);
+- `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill`.
+
+Also queued:
+the review of the snapshot branch's answer to its second review,
+over `main...503200e087`.
+
 #### Sixteen agents held their hour and the level is thirty-two; the commit that does not list every reference passed its third review and has a pass of its own (2026-11-13T17:15:58-05:00)
 
 Not final and not approved:
