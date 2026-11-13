@@ -685,6 +685,35 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Four more runs ended by 15:31:30; the upstream project already has the rate-limit classification reported (2026-11-13T15:34:05-05:00)
+
+Not complete, and written by the coordinating session: every branch named here waits for a review or for its author.
+
+- **Upstream.** Asked whether the classification is reported to Pi's upstream project, the owner chose "Draft only, I post it" (answered between 15:30 and 15:32).
+  The search made for the draft found it reported already: issue 10656 in `earendil-works/pi`,
+  with a pull request (10677) scoped to the provider that the project's contributor gate closed unmerged.
+  So the draft is a comment with this machine's counts, not a new issue:
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/draft-for-the-owner-to-post-comment-on-upstream-pi-issue-10656.md`. Nothing was posted.
+  That thread names answers of the same provider that must stay final
+  (`PrepaidBillOverdue`, `PostpaidBillOverdue`, and the message "Free allocated quota exceeded", which holds the words of the passing one);
+  the run writing the plugin fix was given that as a note at 15:32:32.
+- **The `driver-failed` ending happened a second time**, to the LFS URL review, with the same position in its message (509) as the first.
+  Its review is final and stands. The run for issue 6299 is going and was given the second case as a note; the issue has it as a comment.
+- Reviews delivered, each sent to its author with a brief:
+  - discarding commands (the third start of its review): two defects reproduced end to end.
+    A failing `ls-tree` is read as "this form writes no path", so `checkout -f` of a name that exists only as a remote branch overwrites an untracked file;
+    and `--pathspec-from-file` naming a pipe nobody writes to holds the wrapper without a bound.
+  - LFS URL: two defects reproduced.
+    A typed push waits on its relayed pipes and not on Git, so a process that outlives Git and holds a pipe keeps the wrapper waiting;
+    and the streaming relay prints a `Bearer` credential that the whole-text mask hides, when it is split across reads.
+  - the snapshot of a person, review of its answer: one finding reproduced,
+    a person's file nested under a dead copy's `payload/` removed with the folder because only the top level is read.
+    The review left it to the owner as a documented boundary; it is treated as a defect and sent to the author,
+    because the first requirement is that nothing of a person's is discarded.
+- Author finished: abort and skip, answer to its review, tip `92591a71e6`:
+  the subtraction that lost an unstaged resolution is gone, and an abort follows one rule in every worktree (the owner's decision of 2026-11-13).
+  Its second review is queued over `main...92591a71e6`.
+
 #### Why the reviewer's rate limit ends a run, what is done about it, and the runs that ended between 14:58 and 15:21 (2026-11-13T15:24:13-05:00)
 
 Not complete, and written by the coordinating session: the fix it names is being written on a branch and is merged nowhere.
