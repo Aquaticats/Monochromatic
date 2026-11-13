@@ -17,14 +17,26 @@ the one for `multiple()`'s state holds up and is kept as a second patch,
 and the one for the token buffer slows other input and is not kept.
 A model from another vendor reviewed that section and the second patch as of commit `758946f3e1`,
 and its findings were folded in.
-What changed after that is not reviewed:
+What changed after that was reviewed by the same model in further passes:
 the fix it asked for,
-the timing on Node and Bun,
-and the timing rewritten as ratios,
-first in that section and then,
-on the owner's choice of 2026-11-13,
-through the whole document,
-where absolute times now stand only as scale.
+the timing on Node and Bun and the timing rewritten as ratios in that section,
+as of commit `9fd4f0e93e`;
+then the ratios through the whole document,
+written on the owner's choice of 2026-11-13,
+where absolute times now stand only as scale,
+as of commit `ce2cc36df5`.
+A fresh session of that model then read,
+as of commit `2907e3a444`,
+the repeat on Node and Bun of the comparison with upstream's pull request 1121
+and what the draft issue says from it.
+Each pass recomputed the figures it read from the records and found them to match,
+and each pass's findings,
+which were of wording,
+of a missing note and of what a status note claimed,
+are folded in.
+Not reviewed:
+the corrections made from that last pass,
+in commit `f8c6a64194` and after.
 No person has reviewed any of it.
 
 Status,
@@ -833,6 +845,12 @@ which is fixed,
 and one sentence the figures contradicted,
 which is corrected.
 The timing on Node and Bun and the present form of the timing parts came after that review.
+The same model read those as of commit `9fd4f0e93e` and recomputed their figures from the records;
+its two wording findings are folded in.
+A fresh session of that model read what was added after commit `ce2cc36df5`,
+as of commit `2907e3a444`:
+Deno's row and the note on which build carries which state code under "Timing of options and arguments alternating".
+It found them to match the records.
 No person has read the diffs or this section.
 
 The result:
@@ -847,8 +865,10 @@ The result:
    1,404 lines added across seven files.
 - The diff for the token buffer does not.
    Once it takes effect,
-   a command line that alternates options and arguments takes eleven to thirteen times as long on Node
-   and forty to seventy-seven times as long on Bun.
+   a command line that alternates options and arguments takes eleven to thirteen times as long as the base on Node
+   and forty to seventy-seven times as long on Bun;
+   against the state fix alone it takes thirteen to eighteen times as long on Node
+   and forty-eight to a hundred and five times as long on Bun.
    It is not kept as a patch;
    it is in the evidence archive for anyone who wants to repeat the measurement.
 - With both copies gone,
@@ -1532,7 +1552,8 @@ copy is most of what is left from about 32,000 arguments.
 It also bears on what #1121 leaves, on Node. As built packages, seven rounds with the arms rotated, a thousand
 paths after `--` took 1.37 times as long on #1121's merge as on 1.3.6 on Node (1.27 to 1.63) and 0.92 times with
 this patch on top (0.84 to 1.05, one of seven rounds slower). On Bun the merge took 1.95 times as long as 1.3.6
-(1.62 to 1.99) and the patch changed nothing at that size (1.92, 1.84 to 2.28).
+(1.62 to 1.99) and stayed at 1.92 times with the patch (1.84 to 2.28): at that size the patch makes no measurable
+difference there.
 
 The patch, with its tests: [link to the patch file in this repository at a commit].
 

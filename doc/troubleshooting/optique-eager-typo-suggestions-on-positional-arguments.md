@@ -696,8 +696,9 @@ Readiness check,
     not done on 2026-11-12.
     Done since:
     `Aquaticat/optique-parse-cost-reproduction`,
-    private,
-    with three workflow runs that fail on their asserting steps;
+    created private and public when read on 2026-11-13,
+    whose workflow runs fail on their asserting steps as its README says they do,
+    the latest for its commit `d99a8aec` that day;
     the scripts were also run on Node,
     Deno and Bun on 2026-11-13.
 8.  Verdict:
@@ -794,11 +795,11 @@ and 1.95 on Bun (1.62 to 1.99). On Node that agrees with your own figures. Main 
 What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. On
 Node a cost both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for
 that on top of #1121 the same parse took 0.92 times as long as 1.3.6 on Node (0.84 to 1.05, one of seven rounds
-slower); on Bun the patch changed nothing at a thousand paths (1.92, 1.84 to 2.28). On its own input, 8,000
-positional arguments and one option, the patched build takes 0.11 times as long as main on Node (0.10 to 0.12) and
-0.30 times on Bun (0.15 to 0.33). It keeps the entries in an immutable hash trie in place of the copied `Map`; the
-core suite passes with it on Deno, Node and Bun, and it applies to main as of that merge. It does not make the
-parse linear: two more per-argument copies sit behind it, in
+slower); on Bun it stayed at 1.92 times 1.3.6 (1.84 to 2.28), the patch making no measurable difference at a
+thousand paths there. On its own input, 8,000 positional arguments and one option, the patched build takes 0.11
+times as long as main on Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33). It keeps the entries in an
+immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno, Node and Bun, and it
+applies to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
 `multiple()` (the state array) and in every primitive that consumes a token (the buffer slice). I tried both. A
 second patch removes the state copy by making a state of more than 1,024 items an array-shaped view over an
 immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
