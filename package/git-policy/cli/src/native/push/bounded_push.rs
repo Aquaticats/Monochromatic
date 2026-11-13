@@ -81,7 +81,8 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// which `lfs_upload` reads for the upload it waits on itself.
 pub use crate::push_deadline_and_patience_settings::connected_window;
 /// The least traffic a push's connection must carry in one window to count as progress,
-/// which the push, the fetch it runs and the upload are judged on.
+/// which the push,
+/// the fetch it runs and the upload are judged on.
 pub use crate::push_minimum_rate::{DEFAULT_PUSH_MINIMUM_RATE_BYTES, PUSH_MINIMUM_RATE_VARIABLE, push_minimum_rate_bytes};
 /// The server a wait and a stop name,
 /// and the word a command gave as its destination.

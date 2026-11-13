@@ -8626,19 +8626,24 @@ returns while its keepalive moves five bytes every five seconds
 `src/native/push/push_minimum_rate.rs`).
 
 What is counted:
-the bytes the transport itself carried,
+the bytes of the transport,
 in both directions,
-which the kernel reports as `tcpi_bytes_acked` plus `tcpi_bytes_received` of the connected sockets
-a process of the run holds (`src/native/push/tcp_sockets.rs`).
-Two things are therefore not counted.
-Git's own progress lines, and the account a program prints of its own waiting, are not:
-those are the holder's own bytes, which `push_progress.rs` already refuses to call work,
-and `git-lfs` writes fourteen of them about every ten seconds.
-And the bytes of a process that holds no connection are not transport bytes,
-so they stay what they were:
-work, in the meter,
-but never traffic against the floor,
-which is why the pack a push is making and the delta search it runs are not mistaken for traffic.
+which are the traffic the remote really moved.
+Over a URL they are the connected socket's `tcpi_bytes_acked` plus `tcpi_bytes_received`
+(`src/native/push/tcp_sockets.rs`).
+Over a path they are the bytes the run's own processes read and wrote,
+because the pipe to `receive-pack` is the whole transport there:
+the pack goes down it,
+and the server's sideband comes back up it,
+which is why a local-path push is covered by the same floor.
+Not counted:
+the bytes of a process that holds the connection,
+which are its own polling and the account it prints of its own waiting
+(`git-lfs` writes fourteen of them about every ten seconds),
+and everything the run writes to files of its own.
+Processor time and a task able to run or waiting for the disk are work as they always were,
+so the pack a push is making and the delta search it runs never need to pass the floor:
+they show as work while they work.
 
 What the floor is:
 `DEFAULT_PUSH_MINIMUM_RATE_BYTES`,
@@ -8652,12 +8657,13 @@ empty or non-numeric is no setting at all,
 so a typo cannot remove the rule,
 as with every value of this kind).
 What the window is:
-the connected window,
-`CONNECTED_PUSH_QUIET_WINDOW`,
+the window that bounds silence in the state the run is in,
+which is the connected window (`CONNECTED_PUSH_QUIET_WINDOW`,
 150 seconds,
 which is fixed for every shipped run and is the window a control shortens with
 `CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`.
-The two are one rule and not two bounds, and the window is the silence window on purpose:
+The two are one rule and not two bounds,
+and the window is the silence window on purpose:
 see "A window that carries no bytes" below.
 
 What a window below the floor means:
@@ -8667,7 +8673,8 @@ nothing,
 so the rule that already bounds silence ends it,
 with the words of the window that fired:
 the connected window while a connection is open,
-and the stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 seconds by default) for a run that holds
+and the stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
+30 seconds by default) for a run that holds
 no connection.
 That is the whole mechanism:
 the floor does not add a bound of its own,
@@ -8703,14 +8710,22 @@ Git's keepalive is what a real server sends in that phase,
 so the floor is above it:
 `receive.keepAlive` defaults to 5 seconds and sends five bytes (`builtin/receive-pack.c`,
 `copy_to_sideband`),
-which is one byte per second and 750 bytes in a 150 second window at the chattiest setting the
-option allows (one second).
-A server that keeps the connection alive and does nothing else is thus ended at the connected window,
+which is one byte per second,
+150 bytes in the connected window and 30 bytes in the stall window,
+and never more than 750 bytes in the connected window at the chattiest setting the option allows
+(one second).
+A server that keeps the connection alive and does nothing else is thus ended by the window its state
+has,
 which is what a server that sends nothing at all gets,
-and that is the F3 defect closed.
+and that is the F3 defect closed:
+the audit's F3 was a push to a local path,
+whose keepalive packets arrive on the pipe the floor now judges,
+and it ended at 30.5 seconds with `receive.keepAlive` at 0;
+with the keepalive on it now ends at the same 30 seconds.
 
 The measurement the two values rest on
-(read-only records, and loopback servers this package's tests can build):
+(read-only records,
+and loopback servers this package's tests can build):
 the timing records of this repository's Git directory carry durations and no byte counts,
 so the bytes were measured with real pushes of this repository's own sizes to a loopback server
 offering Git's own `git http-backend`,
@@ -8721,9 +8736,9 @@ p99 26.4 s and 72.4 s at most over the 794 pushes that landed between 2026-10-20
 One push of this repository's own commits packs to 0.35 MB for one commit,
 0.72 MB for ten and 5.5 MB for a hundred (`git pack-objects` on this checkout),
 and shaped to 66 KB/s such a push lands.
-The slowest honest line the floor still lets through is therefore 1024 bytes per 150 seconds,
-about 7 bytes per second,
-and the 5.5 MB push would take about nine days on it and still land:
+The slowest honest line the floor still lets through is therefore 1024 bytes per window,
+about 7 bytes per second over a connection and 34 over a path,
+and the 5.5 MB push would take days on it and still land:
 no line a person has is that slow,
 the floor sits seven times above the chattiest keepalive a server can be configured to send,
 and eight orders of magnitude below a transfer measured here.

@@ -2104,8 +2104,10 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 Added 2026-11-12 by the owner's answer "Minimum rate (Recommended)"
 (`doc/handover/cli-git-rust-implementation.md`,
 "A slow server and a typed push"),
-after the audits of `0.6.1-alpha.12` (F14: a server that drips its answer holds a push for
-ever) and of `0.6.1-alpha.14` (F3: a hook that never answers is held alive by Git's keepalive,
+after the audits of `0.6.1-alpha.12` (F14:
+a server that drips its answer holds a push for
+ever) and of `0.6.1-alpha.14` (F3:
+a hook that never answers is held alive by Git's keepalive,
 five bytes every five seconds).
 
 - Where:
@@ -2118,20 +2120,27 @@ five bytes every five seconds).
   `SPEC.md`,
   "The least traffic that counts as progress".
 - Value:
-  1024 bytes in one connected window,
+  1024 bytes in one window:
   `CONNECTED_PUSH_QUIET_WINDOW`,
   150 seconds,
-  which is about 7 bytes per second;
+  while a connection is open,
+  which is about 7 bytes per second,
+  and `CLI_GIT_PUSH_DEADLINE_SECONDS`,
+  30 seconds by default,
+  for a remote that is a path,
+  which is about 34 bytes per second;
   variable `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
   a positive whole number of bytes,
   per run.
 - What counts:
-  the bytes the transport carried in either direction
-  (`tcpi_bytes_acked` plus `tcpi_bytes_received` of the sockets a process of the run holds),
-  never the holder's own output,
-  never Git's progress lines,
-  and never the bytes of a process that holds no connection,
-  which stay a sign of work of their own.
+  the bytes the transport carried in either direction:
+  `tcpi_bytes_acked` plus `tcpi_bytes_received` of the sockets a process of the run holds,
+  and,
+  for a remote that is a path,
+  the bytes the run's own processes read and wrote on the pipe to `receive-pack`,
+  which is where a path push's keepalive and sideband arrive.
+  Never the holder's own output,
+  and never Git's progress lines.
 - Bounds:
   the push,
   the reconcile fetch and the Git LFS upload.
@@ -2139,7 +2148,8 @@ five bytes every five seconds).
 - When a window carries less than the floor:
   it is not progress,
   so the run is judged as silent and the existing window ends it
-  (`limit=connected`, 150 seconds;
+  (`limit=connected`,
+  150 seconds;
   or `limit=stall` for a run with no connection),
   and the stop says how many bytes the connection carried,
   names the floor,
@@ -2147,7 +2157,12 @@ five bytes every five seconds).
   Exit code 124,
   the service plans a new try.
 - Citation:
-  measured on 2026-11-12.
+  measured on 2026-11-12,
+  and the F3 shape of it measured the same day through the built wrapper:
+  a push to a path whose hook never answers ends at the stall window with
+  `receive.keepAlive` at 1,
+  as it did with the keepalive at 0,
+  and is held for ever without the floor.
   The timing records of this repository's Git directory carry durations and no byte counts,
   so the bytes came from real pushes of this repository's own sizes to loopback servers serving Git's own
   `git http-backend`,

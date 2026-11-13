@@ -32,19 +32,20 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const relay = relayOf(projects, { writeChunk: 1, writePauseMs: 200 });
-//! const landed = await observe(wrappedCommit({ env: { CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS: '3' } }));
+//! const landed = await run(wrappedCommit({ env: { CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS: '3' } }));
 //! expect(pushReport(repo, landed.stderr)).toContain('limit=connected'); expect(tripwire.released()).toBe(true);
 //! ```
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::fault_remote::Tripwire;
 use super::support::{
-    Fixture, Observed, REAL_GIT, fixture, git, give_service_environment, observe, push_report, push_unfinished_words, repository, stderr_of,
+    Fixture, REAL_GIT, fixture, git, give_service_environment, push_unfinished_words, repository,
 };
-use git_policy_cli::bounded_push::PUSH_MINIMUM_RATE_VARIABLE;
+use git_policy_cli::bounded_push::{PUSH_DEADLINE_VARIABLE, PUSH_MINIMUM_RATE_VARIABLE};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::{Read, Write};
+use std::os::fd::AsRawFd;
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
@@ -58,12 +59,13 @@ use std::time::{Duration, Instant};
 /// The connected window the controls give the push,
 /// in whole seconds:
 /// short enough to wait for,
-/// and the window whose silence rule is what a sub-floor transfer is judged by.
-const WINDOW_SECONDS: u64 = 3;
+/// and wide enough that the phases of an honest push fit inside it
+/// (a host under load spends a second or more on a landing and a push between two windows).
+const WINDOW_SECONDS: u64 = 6;
 
 /// The least traffic a control's connection must carry in that window,
 /// where the control means the transfer to be under it:
-/// above any handshake and below the keepalive of five bytes per five seconds.
+/// above the answer's head and far above a keepalive.
 const FLOOR_ABOVE_A_TRICKLE: u64 = 4096;
 
 /// The least traffic a control's connection must carry where the control means an honest push to pass it:
@@ -88,14 +90,17 @@ const NO_RETRY_SECONDS: &str = "3600";
 const HANGING_HOOK_SECONDS: u64 = 1000;
 
 /// How long the hook of the control that says nothing and answers sleeps,
-/// longer than the floor's judgement and shorter than the connected window.
+/// well inside the connected window,
+/// so the control measures the floor and not the window.
 const SILENT_HOOK_SECONDS: u64 = 2;
 
-/// The payload of a control's commit, in bytes,
+/// The payload of a control's commit,
+/// in bytes,
 /// incompressible so the pack that is sent is about its size.
 const PAYLOAD_BYTES: usize = 64 * 1024;
 
-/// The pace a control's server moves bytes at, in each direction.
+/// The pace a control's server moves bytes at,
+/// in each direction.
 #[derive(Clone, Copy, Debug)]
 struct Pace {
     /// How many bytes are read from the client between two pauses.
@@ -114,7 +119,8 @@ struct Pace {
 }
 
 impl Pace {
-    /// An answer written whole, and a body read whole.
+    /// An answer written whole,
+    /// and a body read whole.
     const FAST: Pace =
         Pace { read_chunk: 65536, read_pause: Duration::ZERO, write_chunk: 65536, write_pause: Duration::ZERO, whole_advertisement: true };
 }
@@ -151,7 +157,8 @@ struct Relay {
     counts: Arc<Counts>,
     /// Set when the relay is being stopped.
     stopping: Arc<AtomicBool>,
-    /// The thread that accepts, and joins the threads that serve.
+    /// The thread that accepts,
+    /// and joins the threads that serve.
     acceptor: Option<JoinHandle<()>>,
 }
 
@@ -261,26 +268,181 @@ fn write_paced(stream: &mut TcpStream, bytes: &[u8], chunk: usize, pause: Durati
         stream.write_all(piece)?;
         let _counted = counts.written.fetch_add(u64::try_from(piece.len()).unwrap_or(0), Ordering::SeqCst);
         if !pause.is_zero() {
-            let _slept = std::thread::sleep(pause);
+            std::thread::sleep(pause);
         }
     }
     return Ok(());
 }
 
+/// How long a control's server waits for a client to finish saying what it wants,
+/// so a client that connects and says nothing ends its own thread instead of holding it.
+const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The longest one connection is served,
+/// whatever the backend and the client do:
+/// a backstop under the hook of the control that hangs,
+/// which sleeps far longer.
+const CONNECTION_CEILING: Duration = Duration::from_secs(120);
+
+/// How often the relay looks at the connection and at the backend between two reads of the answer.
+const RELAY_POLL_MILLISECONDS: libc::c_int = 200;
+
 /// What:
-///  Answer one connection: one request, its body read at a pace, and the answer `git http-backend` gives relayed at a
-///  pace.
+///  Set a descriptor non-blocking,
+///  so the relay can look at two of them at once.
 /// Why:
-///   The answer is streamed and not buffered,
-/// so the keepalives a `receive-pack` sends while its hook runs reach the client as they
-///  do from a real server,
-/// and a client that goes away ends the backend with everything the hook started.
+///   A hook that never answers makes the backend write nothing,
+/// and a plain read would hold this thread (and the hook,
+///  and the fixture) after the wrapper stopped the push and closed the connection.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { method, target, headers, body } = readRequest(stream, pace); const backend = spawn(httpBackend(env)); relay(backend.stdout, pace);
+/// file.setBlocking(false)
+/// ```
+fn make_nonblocking(file: &impl std::os::fd::AsRawFd) {
+    let descriptor: std::os::fd::RawFd = file.as_raw_fd();
+    // SAFETY: `fcntl` with `F_GETFL` and `F_SETFL` only reads and writes the flags of a descriptor this process owns.
+    unsafe {
+        let flags: libc::c_int = libc::fcntl(descriptor, libc::F_GETFL);
+        let _set: libc::c_int = libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK);
+    }
+}
+
+/// End the backend and everything it started:
+/// its own process group,
+/// through the kernel,
+/// so no program on `PATH` decides what the call means.
+fn end_backend(child: &std::process::Child) {
+    let group: i32 = -i32::try_from(child.id()).unwrap_or(i32::MAX);
+    // SAFETY: `kill` with a signal number only sends that signal; it reads and writes no memory of this process.
+    let _ended = unsafe { libc::kill(group, libc::SIGKILL) };
+}
+
+/// What:
+///  Relay the backend's answer to the client as it comes,
+///  and end the backend the moment the client goes away.
+/// Why:
+///   The answer is streamed so the keepalives a `receive-pack` sends while its hook runs reach the client as they do
+///  from a real server,
+/// and a push the wrapper stopped closes its connection,
+/// which is the signal that ends the
+///  backend,
+/// the hook it started and this thread together.
+///  The client is watched by its own end of the connection:
+/// a read of it that answers nothing at all is a client that
+///  closed it,
+/// and nothing else is read from it after the request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (polling(socket, backend.stdout)) { if (socketClosed) return kill(backend); relay(backend.stdout.read()); }
+/// ```
+fn relay_answer(
+    stream: &mut TcpStream,
+    mut output: std::process::ChildStdout,
+    child: &std::process::Child,
+    pace: Pace,
+    counts: &Counts,
+) {
+    let socket: std::os::fd::RawFd = stream.as_raw_fd();
+    let answer: std::os::fd::RawFd = output.as_raw_fd();
+    let mut head: Vec<u8> = Vec::new();
+    let mut chunk: Vec<u8> = vec![0; 4096];
+    let mut wrote_head: bool = false;
+    let mut advertisement: bool = false;
+    let began: Instant = Instant::now();
+    loop {
+        if began.elapsed() > CONNECTION_CEILING {
+            end_backend(child);
+            return;
+        }
+        let mut watched: [libc::pollfd; 2] = [
+            libc::pollfd { fd: socket, events: libc::POLLIN, revents: 0 },
+            libc::pollfd { fd: answer, events: libc::POLLIN, revents: 0 },
+        ];
+        // SAFETY: `poll` reads and writes only the two `pollfd` values it is given, both of which this process owns.
+        let ready: libc::c_int = unsafe { libc::poll(watched.as_mut_ptr(), 2, RELAY_POLL_MILLISECONDS) };
+        if ready < 0 {
+            end_backend(child);
+            return;
+        }
+        if watched[0].revents & libc::POLLIN != 0 {
+            let mut closed: [u8; 1] = [0];
+            match stream.read(&mut closed) {
+                // Nothing at all from a client that already sent its request: it closed the connection, which is what a
+                //  stopped push does.
+                Ok(0) | Err(_) => {
+                    end_backend(child);
+                    return;
+                }
+                Ok(_) => {}
+            }
+        }
+        if watched[1].revents & libc::POLLIN == 0 {
+            if watched[1].revents & (libc::POLLHUP | libc::POLLERR) != 0 {
+                return;
+            }
+            continue;
+        }
+        let read: usize = match output.read(&mut chunk) {
+            Ok(0) => return,
+            Ok(count) => count,
+            // Non-blocking: a look that found nothing is the next look's business.
+            Err(_) => continue,
+        };
+        if !wrote_head {
+            head.extend_from_slice(&chunk[..read]);
+            let Some(split) = head.windows(4).position(|window| { return window == b"\r\n\r\n"; }) else { continue };
+            let text: String = String::from_utf8_lossy(&head[..split]).into_owned();
+            advertisement = text.to_ascii_lowercase().contains("advertisement");
+            let mut status: String = String::from("200 OK");
+            let mut kept: String = String::new();
+            for line in text.lines() {
+                if let Some(value) = line.strip_prefix("Status:") {
+                    status = value.trim().to_owned();
+                } else if !line.is_empty() {
+                    kept.push_str(line);
+                    kept.push_str("\r\n");
+                }
+            }
+            let answer_head: String = format!("HTTP/1.1 {status}\r\n{kept}Connection: close\r\n\r\n");
+            if write_paced(stream, answer_head.as_bytes(), 65536, Duration::ZERO, counts).is_err() {
+                end_backend(child);
+                return;
+            }
+            wrote_head = true;
+            let rest: &[u8] = &head[split + 4..];
+            if !rest.is_empty() && relay_body(stream, rest, pace, advertisement, counts).is_err() {
+                end_backend(child);
+                return;
+            }
+            continue;
+        }
+        if relay_body(stream, &chunk[..read], pace, advertisement, counts).is_err() {
+            end_backend(child);
+            return;
+        }
+    }
+}
+
+/// What:
+///  Answer one connection:
+/// one request,
+/// its body read at a pace,
+/// and the answer `git http-backend` gives relayed at a
+///  pace.
+/// Why:
+///   The backend is Git's own,
+/// so the remote side of a push is Git's,
+/// and only the pace of the two directions is this
+///  file's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { method, target, headers, body } = readRequest(stream, pace); const backend = spawn(httpBackend(env)); relayAnswer(stream, backend);
 /// ```
 fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: &Counts) {
+    let _timeout = stream.set_read_timeout(Some(REQUEST_READ_TIMEOUT));
     let request_line: String = read_line(&mut stream);
     let mut words = request_line.split_whitespace();
     let (Some(method), Some(target)) = (words.next(), words.next()) else { return };
@@ -295,7 +457,7 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
         }
     }
     let mut body: Vec<u8> = Vec::new();
-    if headers.get("transfer-encoding").is_some_and(|value| value.contains("chunked")) {
+    if headers.get("transfer-encoding").is_some_and(|value| { return value.contains("chunked"); }) {
         loop {
             let size_line: String = read_line(&mut stream);
             let size: usize = usize::from_str_radix(size_line.split(';').next().unwrap_or("0"), 16).unwrap_or(0);
@@ -307,7 +469,7 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
             let _blank: String = read_line(&mut stream);
         }
     } else {
-        let length: usize = headers.get("content-length").and_then(|value| value.parse::<usize>().ok()).unwrap_or(0);
+        let length: usize = headers.get("content-length").and_then(|value| { return value.parse::<usize>().ok(); }).unwrap_or(0);
         if length > 0 {
             body = read_paced(&mut stream, length, pace, counts);
         }
@@ -339,56 +501,16 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
     // A group of its own, so a client that goes away ends the backend and the hook it runs.
     cgi.process_group(0);
     let Ok(mut child) = cgi.spawn() else { return };
-    let Some(mut input) = child.stdin.take() else { return };
-    let _written = input.write_all(body.as_slice());
-    drop(input);
     let _counted = counts.requests.fetch_add(1, Ordering::SeqCst);
-    let Some(mut output) = child.stdout.take() else { return };
-    let mut head: Vec<u8> = Vec::new();
-    let mut chunk: Vec<u8> = vec![0; 4096];
-    let mut relaying: std::io::Result<()> = Ok(());
-    // The CGI head, and then the body as it comes.
-    let mut wrote_head: bool = false;
-    let mut advertisement: bool = false;
-    loop {
-        let got: std::io::Result<usize> = output.read(&mut chunk);
-        let read: usize = match got {
-            Ok(0) | Err(_) => break,
-            Ok(count) => count,
-        };
-        if !wrote_head {
-            head.extend_from_slice(&chunk[..read]);
-            let Some(split) = head.windows(4).position(|window| window == b"\r\n\r\n") else { continue };
-            let text: String = String::from_utf8_lossy(&head[..split]).into_owned();
-            advertisement = text.to_ascii_lowercase().contains("advertisement");
-            let mut status: String = String::from("200 OK");
-            let mut kept: String = String::new();
-            for line in text.lines() {
-                if let Some(value) = line.strip_prefix("Status:") {
-                    status = value.trim().to_owned();
-                } else if !line.is_empty() {
-                    kept.push_str(line);
-                    kept.push_str("\r\n");
-                }
-            }
-            let answer: String = format!("HTTP/1.1 {status}\r\n{kept}Connection: close\r\n\r\n");
-            relaying = write_paced(&mut stream, answer.as_bytes(), 65536, Duration::ZERO, counts);
-            wrote_head = true;
-            let rest: &[u8] = &head[split + 4..];
-            if relaying.is_ok() && !rest.is_empty() {
-                relaying = relay_body(&mut stream, rest, pace, advertisement, counts);
-            }
-            continue;
-        }
-        if relaying.is_err() {
-            break;
-        }
-        relaying = relay_body(&mut stream, &chunk[..read], pace, advertisement, counts);
+    if let Some(mut input) = child.stdin.take() {
+        let _written = input.write_all(body.as_slice());
     }
-    // The client went away, or the answer is done: the backend ends either way, and what it started goes with it.
-    if relaying.is_err() {
-        let group: String = format!("-{}", child.id());
-        let _ended = Command::new("kill").args(["--signal=KILL", group.as_str()]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    match child.stdout.take() {
+        Some(output) => {
+            make_nonblocking(&output);
+            relay_answer(&mut stream, output, &child, pace, counts);
+        }
+        None => end_backend(&child),
     }
     let _reaped: Option<std::process::ExitStatus> = child.wait().ok();
     let _closed = stream.shutdown(std::net::Shutdown::Both);
@@ -414,8 +536,10 @@ fn remote(fixture: &Fixture, projects: &Path, keep_alive: Option<&str>, hook_sec
         git(fixture, remote.as_path(), &["config", "receive.keepAlive", value]);
     }
     if let Some(seconds) = hook_seconds {
+        // The hook says it ran, so a control that means a phase to have happened can check it: a push that ends before the
+        //  hook is reached would otherwise pass for one that waited the hook out.
         let hook: PathBuf = remote.join("hooks").join("pre-receive");
-        std::fs::write(hook.as_path(), format!("#!/bin/sh\nexec sleep {seconds}\n")).expect("the hook");
+        std::fs::write(hook.as_path(), format!("#!/bin/sh\nprintf ran > \"$GIT_DIR/hook-ran\"\nexec sleep {seconds}\n")).expect("the hook");
         std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the hook's mode");
     }
     return remote;
@@ -442,11 +566,25 @@ fn world(fixture: &Fixture, relay: &Relay) -> PathBuf {
     return repo;
 }
 
-/// Commit `payload.bin` through the wrapper,
-/// with the fixture's service told the floor and the window first,
-/// and the tripwire armed.
-fn commit_and_push(fixture: &Fixture, repo: &Path, floor: u64) -> (Observed, Tripwire) {
-    give_service_environment(fixture, "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS", WINDOW_SECONDS.to_string().as_str());
+/// What:
+///  Commit `payload.bin` through the wrapper,
+///  with the fixture's service told the floor and the window first,
+///  and the tripwire armed on the command that starts it.
+/// Why:
+///   The push runs in the fixture's commit service,
+/// and the service is started by the first wrapped command of the fixture,
+/// so
+///  the tripwire must be armed on that command:
+/// a pipe every process of the service inherits reports when the last of
+///  them has ended,
+/// which is how a helper left behind by a stopped push is seen at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// giveServiceEnvironment(fixture, { ... }); const tripwire = new Tripwire(); const landed = await run(arm(wrappedCommit(...), tripwire)); return [landed, headOid, tripwire];
+/// ```
+fn commit_and_push(fixture: &Fixture, repo: &Path, floor: u64, window_seconds: u64) -> (std::process::Output, String, Tripwire) {
+    give_service_environment(fixture, "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS", window_seconds.to_string().as_str());
     // A stopped push is planned for another try; a control that measured a stop does not need the service to try again, and the
     //  tries would talk to the relay long after the control's own push ended.
     give_service_environment(fixture, "CLI_GIT_PUSH_RETRY_SECONDS", NO_RETRY_SECONDS);
@@ -454,8 +592,89 @@ fn commit_and_push(fixture: &Fixture, repo: &Path, floor: u64) -> (Observed, Tri
     let tripwire: Tripwire = Tripwire::new();
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=payload", "--", "payload.bin"]);
     tripwire.arm(&mut command);
-    let landed: Observed = observe(&mut command, b"");
-    return (landed, tripwire);
+    // The command's own end is read here, without waiting for the service's whole queue: a push the control stops leaves the
+    //  after-commit maintenance of its commit behind the push's retry pause, which is a wait no control of this rule needs.
+    let landed: std::process::Output = command.output().expect("the wrapped commit runs");
+    let commit: String = git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    return (landed, commit, tripwire);
+}
+
+/// What:
+///  The name the service gives the push record of `commit` on `branch`.
+/// Why:
+///   A push has no signal a control could block on,
+/// so the record it leaves in the work directory is how a control knows it
+///  ended,
+/// and the record's own name carries the branch and the commit it is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new WorkItem({ kind: 'push', branchRef: branch, oid: commit }).id()
+/// ```
+fn push_record_id(branch: &str, commit: &str) -> String {
+    let item: git_policy_cli::work_item::WorkItem = git_policy_cli::work_item::WorkItem {
+        kind: git_policy_cli::work_item::WorkKind::Push,
+        repository: PathBuf::new(),
+        git_dir: PathBuf::new(),
+        branch_ref: String::from(branch),
+        oid: String::from(commit),
+        parent: String::new(),
+        created: String::new(),
+        tries: 0,
+    };
+    return item.id();
+}
+
+/// What:
+///  Wait,
+/// bounded,
+/// for the service to put the push of `commit` in its done or failed records.
+/// Why:
+///   A push runs after the command that committed returned,
+/// so the command's own output cannot say how it ended,
+///  and the whole queue cannot be waited for:
+/// a stopped push leaves the after-commit maintenance of its commit behind its
+///  retry pause,
+/// which is a wait no control of this rule needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitUntil(() => done(record).exists() || failed(record).exists());
+/// ```
+fn wait_for_the_push_record(git_dir: &Path, branch: &str, commit: &str) {
+    let work: PathBuf = git_dir.join("monochromatic-git-policy-cli/work");
+    let name: String = push_record_id(branch, commit);
+    let began: Instant = Instant::now();
+    while !work.join("done").join(name.as_str()).exists() && !work.join("failed").join(name.as_str()).exists() {
+        assert!(began.elapsed() < STOP_SLACK, "the service never finished the push of {commit} in {}", work.display());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// What:
+///  What a person reads about the push of `commit`:
+///  the command's own standard error and the notice the service left in the repository,
+///  worded as the next command shows it.
+/// Why:
+///   The notice is written after the commit returned,
+/// so it is read only once the push's own record is there,
+/// and never
+///  by waiting for the whole queue.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = stderr + pushFailures(gitDir).map((notice) => show(notice)).join('');
+/// ```
+fn report_of_the_push(repo: &Path, landed: &std::process::Output, commit: &str) -> String {
+    let git_dir: PathBuf = repo.join(".git");
+    wait_for_the_push_record(git_dir.as_path(), "refs/heads/main", commit);
+    let mut report: String = String::from_utf8_lossy(landed.stderr.as_slice()).into_owned();
+    for notice in git_policy_cli::push_failure_notice::push_failures(git_dir.as_path()) {
+        let mut shown: Vec<u8> = Vec::new();
+        let _written = notice.show(&mut shown);
+        report.push_str(String::from_utf8_lossy(shown.as_slice()).as_ref());
+    }
+    return report;
 }
 
 /// What:
@@ -475,11 +694,12 @@ fn commit_and_push(fixture: &Fixture, repo: &Path, floor: u64) -> (Observed, Tri
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(landed.code).toBe(0); expect(report).toContain('limit=connected'); expect(tripwire.released()).toBe(true);
+/// expect(landed.status.success()).toBe(true); expect(report).toContain('limit=connected'); expect(tripwire.released()).toBe(true);
 /// ```
-fn assert_stopped_and_contained(fixture: &Fixture, repo: &Path, relay: &Relay, landed: &Observed, tripwire: Tripwire, floor: u64) {
-    let report: String = push_report(repo, &stderr_of(landed));
-    assert_eq!(landed.code, Some(0), "the commit itself succeeds: {report}");
+fn assert_stopped_and_contained(fixture: &Fixture, repo: &Path, landed: &std::process::Output, commit: &str, tripwire: Tripwire, floor: u64) {
+    let report: String = report_of_the_push(repo, landed, commit);
+    assert!(report.contains(commit), "the report is about this commit and not another: {report}");
+    assert!(landed.status.success(), "the commit itself succeeds: {report}");
     assert!(report.contains(push_unfinished_words()), "the report says the push did not finish: {report}");
     assert!(report.contains("limit=connected"), "the stop names the window that ended it: {report}");
     assert!(report.contains("carried_bytes="), "the stop says what the connection carried: {report}");
@@ -493,9 +713,10 @@ fn assert_stopped_and_contained(fixture: &Fixture, repo: &Path, relay: &Relay, l
     std::fs::write(repo.join("second.txt"), b"second\n").expect("the second file");
     git(fixture, repo, &["add", "--", "second.txt"]);
     let mut next: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=second", "--", "second.txt"]);
-    let again: Observed = observe(&mut next, b"");
-    assert_eq!(again.code, Some(0), "the next commit lands: {}", stderr_of(&again));
-    assert!(relay.counts.read() > 0, "the server saw the push it stopped");
+    let again: std::process::Output = next.output().expect("the next commit runs");
+    assert!(again.status.success(), "the next commit lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
+    let second: String = git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    wait_for_the_push_record(repo.join(".git").as_path(), "refs/heads/main", second.as_str());
 }
 
 /// A server whose `pre-receive` hook never answers sends nothing but Git's own keepalive,
@@ -512,9 +733,9 @@ fn a_server_whose_hook_never_answers_is_ended_at_the_connected_window() {
     let relay: Relay = Relay::start(projects.as_path(), Pace::FAST);
     let repo: PathBuf = world(&root, &relay);
     let began: Instant = Instant::now();
-    let (landed, tripwire): (Observed, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE);
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
     let elapsed: Duration = began.elapsed();
-    assert_stopped_and_contained(&root, repo.as_path(), &relay, &landed, tripwire, FLOOR_ABOVE_A_TRICKLE);
+    assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
     assert!(
         elapsed < Duration::from_secs(WINDOW_SECONDS) + STOP_SLACK,
         "the push ended at its window and not later: {elapsed:?}"
@@ -523,28 +744,92 @@ fn a_server_whose_hook_never_answers_is_ended_at_the_connected_window() {
     remove_settled(&root);
 }
 
+/// What:
+///  A push to a remote that is a path,
+///  whose `pre-receive` hook never answers,
+///  is ended by the stall window although the server keeps sending its keepalive.
+/// Why:
+///   This is the audit's F3 exactly:
+/// the keepalive packets of a `receive-pack` reach the client through the pipe to it,
+///  and the meter
+/// took each of them for work,
+/// so the stall window never ran out and the push was held for over 167 seconds.
+///  The control beside it is the same run with `receive.keepAlive` at 0,
+/// which ends at the stall window as it always
+///  did (`a_silent_phase_after_the_upload_is_not_cut_by_the_floor` holds the other side:
+/// a phase of no bytes at
+///  all is not cut sooner).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remote = bareRemoteWithHangingHook({ receiveKeepAlive: '1' }); const landed = await run(wrappedCommit(...));
+/// expect(report).toContain('limit=stall');
+/// ```
+#[test]
+fn a_push_to_a_path_whose_hook_never_answers_is_ended_although_the_keepalive_moves() {
+    let root: Fixture = fixture("push-minimum-rate-path-keepalive");
+    let projects: PathBuf = root.root.join("projects");
+    std::fs::create_dir(&projects).expect("the projects");
+    // A remote that is a path, with the shortest keepalive Git allows and a hook that never returns.
+    let remote_path: PathBuf = remote(&root, projects.as_path(), Some("1"), Some(HANGING_HOOK_SECONDS));
+    let repo: PathBuf = repository(&root, OsStr::new("repo"));
+    git(&root, repo.as_path(), &["remote", "add", "origin", remote_path.to_str().expect("UTF-8")]);
+    keep_maintenance_in_the_foreground(&root, repo.as_path());
+    let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+    let payload: Vec<u8> = (0..PAYLOAD_BYTES)
+        .map(|_| {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            return u8::try_from(state >> 33).unwrap_or(0);
+        })
+        .collect();
+    std::fs::write(repo.join("payload.bin"), payload).expect("the payload");
+    git(&root, repo.as_path(), &["add", "--", "payload.bin"]);
+    // The stall window is the one that judges a remote that is a path, and a control cannot wait the shipped thirty seconds
+    //  twice over.
+    give_service_environment(&root, "CLI_GIT_PUSH_DEADLINE_SECONDS", WINDOW_SECONDS.to_string().as_str());
+    let (landed, commit, _tripwire): (std::process::Output, String, Tripwire) =
+        commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES, WINDOW_SECONDS);
+    let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
+    assert!(landed.status.success(), "the commit itself succeeds: {report}");
+    assert!(report.contains(push_unfinished_words()), "the report says the push did not finish: {report}");
+    assert!(report.contains("limit=stall"), "the stall window ended it, since the remote is a path: {report}");
+    assert!(
+        report.contains(PUSH_DEADLINE_VARIABLE),
+        "the window that judged the path's silence is named as the setting that moves it: {report}"
+    );
+    assert_eq!(git_text(&root, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2", "the commit is saved locally");
+    remove_settled(&root);
+}
+
 /// A server that drips its answer a byte at a time,
 /// as the audit's F14 server did,
-/// is ended at the connected window.
+/// carries too little for the push to count it as progress,
+/// and the push is ended at the connected window.
+///
+/// The answer dripped here is the ref advertisement,
+/// which Git writes before any hook runs,
+/// so the traffic is the server's own and the push is otherwise a landing:
+/// without the floor,
+/// each byte of it resets the window and the push is held for ever.
 #[test]
 fn a_server_that_drips_its_answer_is_ended_at_the_connected_window() {
     let root: Fixture = fixture("push-minimum-rate-dripped-answer");
     let projects: PathBuf = root.root.join("projects");
     std::fs::create_dir(&projects).expect("the projects");
-    // A hook that says nothing keeps the connection open with no payload at all, and the answer is then the only traffic
-    //  there is: it is dripped a byte every fifth of a second, which is what the audit's server did every three seconds.
-    let _remote: PathBuf = remote(&root, projects.as_path(), Some("0"), Some(HANGING_HOOK_SECONDS));
+    let _remote: PathBuf = remote(&root, projects.as_path(), Some("0"), None);
+    // A byte every fifth of a second is the shape of the audit's server, which dripped its answer every three seconds.
     let pace: Pace = Pace {
         read_chunk: 65536,
         read_pause: Duration::ZERO,
         write_chunk: 1,
         write_pause: Duration::from_millis(200),
-        whole_advertisement: true,
+        whole_advertisement: false,
     };
     let relay: Relay = Relay::start(projects.as_path(), pace);
     let repo: PathBuf = world(&root, &relay);
-    let (landed, tripwire): (Observed, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE);
-    assert_stopped_and_contained(&root, repo.as_path(), &relay, &landed, tripwire, FLOOR_ABOVE_A_TRICKLE);
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
+        commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
+    assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
     assert!(relay.counts.written() > 0, "the answer was relayed a byte at a time");
     drop(relay);
     remove_settled(&root);
@@ -569,8 +854,9 @@ fn a_server_that_reads_the_upload_slowly_is_ended_at_the_connected_window() {
     };
     let relay: Relay = Relay::start(projects.as_path(), pace);
     let repo: PathBuf = world(&root, &relay);
-    let (landed, tripwire): (Observed, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE);
-    assert_stopped_and_contained(&root, repo.as_path(), &relay, &landed, tripwire, FLOOR_ABOVE_A_TRICKLE);
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
+    assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
+    assert!(relay.counts.read() > 0, "the server read the upload the slow line was carrying");
     drop(relay);
     remove_settled(&root);
 }
@@ -594,12 +880,13 @@ fn an_honest_slow_push_above_the_floor_lands() {
     };
     let relay: Relay = Relay::start(projects.as_path(), pace);
     let repo: PathBuf = world(&root, &relay);
-    let (landed, tripwire): (Observed, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_BELOW_AN_HONEST_PUSH);
-    let report: String = push_report(repo.as_path(), &stderr_of(&landed));
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_BELOW_AN_HONEST_PUSH, WINDOW_SECONDS);
+    let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
     assert!(tripwire.released(), "no process of the push is left: {report}");
-    assert_eq!(landed.code, Some(0), "{report}");
+    assert!(landed.status.success(), "{report}");
     assert!(!report.contains("limit=connected"), "the push was not stopped: {report}");
     assert!(!report.contains(push_unfinished_words()), "the push landed: {report}");
+    assert!(relay.counts.read() > 0, "the server read the upload the slow line carried: {report}");
     assert_eq!(
         git_text(&root, remote_path.as_path(), &["rev-parse", "refs/heads/main"]).trim(),
         git_text(&root, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
@@ -611,7 +898,8 @@ fn an_honest_slow_push_above_the_floor_lands() {
 
 /// A server that answers the upload and then says nothing while its hook runs carried no byte at all,
 /// so the floor never judges it:
-/// it is bounded by the connected window, as it was before this rule,
+/// it is bounded by the connected window,
+/// as it was before this rule,
 /// and a hook shorter than that window lands.
 #[test]
 fn a_silent_phase_after_the_upload_is_not_cut_by_the_floor() {
@@ -623,14 +911,12 @@ fn a_silent_phase_after_the_upload_is_not_cut_by_the_floor() {
     let remote_path: PathBuf = remote(&root, projects.as_path(), Some("0"), Some(SILENT_HOOK_SECONDS));
     let relay: Relay = Relay::start(projects.as_path(), Pace::FAST);
     let repo: PathBuf = world(&root, &relay);
-    let began: Instant = Instant::now();
-    let (landed, tripwire): (Observed, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES);
-    let elapsed: Duration = began.elapsed();
-    let report: String = push_report(repo.as_path(), &stderr_of(&landed));
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES, WINDOW_SECONDS);
+    let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
     assert!(tripwire.released(), "no process of the push is left: {report}");
-    assert_eq!(landed.code, Some(0), "{report}");
+    assert!(landed.status.success(), "{report}");
     assert!(!report.contains("limit="), "the silent phase was not cut by a limit: {report}");
-    assert!(elapsed >= Duration::from_secs(SILENT_HOOK_SECONDS), "the push waited out the hook: {elapsed:?}");
+    assert!(remote_path.join("hook-ran").exists(), "the hook ran, so the silent phase happened: {report}");
     assert_eq!(
         git_text(&root, remote_path.as_path(), &["rev-parse", "refs/heads/main"]).trim(),
         git_text(&root, repo.as_path(), &["rev-parse", "HEAD"]).trim(),

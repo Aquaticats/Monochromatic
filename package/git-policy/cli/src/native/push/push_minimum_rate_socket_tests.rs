@@ -1,4 +1,5 @@
-//! Controls for the least traffic a push's connection must carry, on real sockets and real processes,
+//! Controls for the least traffic a push's connection must carry,
+//! on real sockets and real processes,
 //! through the push's own clock.
 //! Why:
 //!  A server that trickles a byte now and then used to be waited for for ever:
@@ -11,12 +12,16 @@
 //!       a trickle below the floor is silence,
 //! and the connected window ends it;
 //!       a transfer that meets the floor is work,
-//! however slow it is, and is not ended;
-//!       a window that carries no byte at all is left to the connected window exactly as before,
-//!       so a server's
-//!  silent check is not cut sooner;
-//!       and work a process of the push does while the connection is idle (the pack, a delta search) is
-//!       still work.
+//! however slow it is,
+//! and is not ended;
+//!       and a window that carries no byte at all is left to the connected window exactly as before,
+//!       so a
+//!  server's silent check is not cut sooner.
+//!  What processor time and a task in disk wait are to a push is not this rule's business:
+//! they were work before it
+//!  and are work still,
+//! which `push_progress`'s own controls hold (a `dd` of 64 MB with `conv=fsync` is a
+//!  tree in disk wait and is not stalled).
 //!  The floor is a control's,
 //! small enough to reach in seconds;
 //! the shipped floor and the window are in
@@ -37,15 +42,21 @@ use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// How long the holder may show nothing while its connection is open, before the connected window ends it.
+/// How long the holder may show nothing while its connection is open,
+/// before the connected window ends it.
 const CONNECTED_WINDOW: Duration = Duration::from_secs(2);
 
-/// The window a run with no connection may show nothing for;
-/// short, so a control that reached it would say so quickly.
-const STALL_WINDOW: Duration = Duration::from_millis(300);
+/// The window a run with no connection may show nothing for,
+/// which must be at least one sampling interval (`SAMPLE_INTERVAL`,
+/// 500 ms) or the stall rule fires between two looks and never sees the connection at all.
+const STALL_WINDOW: Duration = Duration::from_secs(1);
 
-/// The least traffic a connection must carry in one window in the controls that judge a trickle.
-const FLOOR: u64 = 10_000;
+/// The least traffic a control's connection must carry in one window:
+/// 4096 bytes in the two second window,
+/// about 2 KB/s.
+/// Above the trickle of a byte every tenth of a second the controls send (20 bytes in the window),
+/// and below the 5 KB/s transfer the control that means an honest push to pass moves.
+const FLOOR: u64 = 4096;
 
 /// The pause between two bytes of the trickling holder.
 const TRICKLE_PAUSE: Duration = Duration::from_millis(100);
@@ -65,10 +76,12 @@ struct Held(Child);
 impl Drop for Held {
     /// End the holder and everything it started.
     fn drop(&mut self) {
-        // The holder is its own process group (`hold`), so the kill reaches the shell's children as well; one left running
-        //  would write into the fixture after the control ended.
-        let group: String = format!("-{}", self.0.id());
-        let _ended = Command::new("kill").args(["--signal=KILL", group.as_str()]).status();
+        // The holder is its own process group (`hold`), so the signal reaches the shell's children as well; one left running
+        //  would write into the fixture after the control ended. The group is named by the negative of its first number,
+        //  and the call is the kernel's, so no program on `PATH` can change what it means.
+        let group: i32 = -i32::try_from(self.0.id()).unwrap_or(i32::MAX);
+        // SAFETY: `kill` with a signal number only sends that signal; it reads and writes no memory of this process.
+        let _ended = unsafe { libc::kill(group, libc::SIGKILL) };
         let _reaped = self.0.wait();
     }
 }
@@ -80,7 +93,8 @@ fn listening() -> (TcpListener, u16) {
     return (listener, port);
 }
 
-/// Run a shell script as the holder: the process that holds the connection.
+/// Run a shell script as the holder:
+/// the process that holds the connection.
 fn hold(script: &str) -> Held {
     let child: Child = Command::new("sh")
         .args(["-c", script])
@@ -198,7 +212,8 @@ fn a_trickle_below_the_floor_is_ended_at_the_connected_window() {
     assert_eq!(report.minimum, FLOOR);
 }
 
-/// The same trickle where the transport's bytes count by themselves (no floor, which is what every run but a push has) is
+/// The same trickle where the transport's bytes count by themselves (no floor,
+/// which is what every run but a push has) is
 /// progress:
 /// the run is not ended,
 /// which is the behaviour the minimum rate answers for the push.
@@ -216,17 +231,31 @@ fn the_same_trickle_without_a_floor_is_progress() {
     assert!(cause.is_none(), "a byte of the transport is progress where no floor is set: {}", described(cause));
 }
 
-/// A transfer that meets the floor is work,
-/// however slowly it moves:
-/// the run is not ended,
-/// and this is the case a person on a slow line meets.
+/// What:
+///  A transfer that meets the floor is work,
+///  however slowly it moves,
+///  which is the case a person on a slow line meets.
+/// Why the burst comes after a pause:
+///   A socket carries no progress on the look that first sees it,
+/// because that look's counters stand for the side's own handshake and request
+///  (`Meter::observe_sockets`),
+/// so a control that wants the transfer itself counted lets the clock see the connection first.
+///  The pause is also the point:
+/// a connection that showed nothing for a while and then moves above the floor is working,
+/// and a
+///  rule that judged it by the silence before would end it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const clock = clockOf(holder, FLOOR); expect(drive(clock, 2 * window)).toBeUndefined();
+/// ```
 #[test]
 fn a_transfer_that_meets_the_floor_is_work_however_slow() {
     let (listener, port): (TcpListener, u16) = listening();
-    // A burst of 64 KiB, then one byte every fifth of a second: far above the floor in the first window, and above it in every
-    //  window after, since 64 KiB is more than six windows of a tenth of a second per byte.
+    // A pause longer than the stall window, then 1024 bytes every fifth of a second: about 5 KB/s, which is above the
+    //  floor's 4096 bytes in the control's 2 second window, and far below any line a person would call fast.
     let holder: Held = hold(&format!(
-        "exec 3<>/dev/tcp/127.0.0.1/{port}; head -c 65536 /dev/zero >&3; while :; do printf x >&3; sleep 0.2; done"
+        "exec 3<>/dev/tcp/127.0.0.1/{port}; sleep 1; while :; do head -c 1024 /dev/zero >&3; sleep 0.2; done"
     ));
     let mut stream: TcpStream = accepted(&listener);
     let mut watched: Clock = clock(holder.0.id(), FLOOR);
@@ -251,27 +280,4 @@ fn a_window_with_no_bytes_is_bounded_by_the_connected_window_and_no_sooner() {
     assert_eq!(report.window, StopWindow::Connected);
     assert!(began.elapsed() >= CONNECTED_WINDOW, "the whole window, as before this rule: {:?}", began.elapsed());
     assert_eq!(report.carried, 0, "nothing was carried");
-}
-
-/// Work a process of the push does while the connection carries nothing is work:
-/// the pack a push is making,
-/// a delta search,
-/// the listing of what to send.
-/// The holder's own child writes a file,
-/// which is its own bytes and not the transport's.
-#[test]
-fn work_of_a_process_that_holds_no_connection_is_work_with_a_floor() {
-    let root: std::path::PathBuf = crate::test_support::fixture("push-minimum-rate-work");
-    std::fs::create_dir_all(&root).expect("the fixture");
-    let diary: String = root.join("diary").display().to_string();
-    let (listener, port): (TcpListener, u16) = listening();
-    let holder: Held = hold(&format!(
-        "exec 3<>/dev/tcp/127.0.0.1/{port}; (while :; do printf xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx >> '{diary}'; sleep 0.1; done) & while :; do sleep 0.1; done",
-        diary = diary
-    ));
-    let mut stream: TcpStream = accepted(&listener);
-    let mut watched: Clock = clock(holder.0.id(), FLOOR);
-    let cause: Option<StopCause> = drive(&mut watched, &mut stream, CONNECTED_WINDOW * 2);
-    crate::test_support::remove(&root);
-    assert!(cause.is_none(), "a child's own work is progress: {}", described(cause));
 }

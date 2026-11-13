@@ -4404,7 +4404,9 @@ fractional or non-numeric value is ignored.
    seconds,
    unmeasured),
    or when the connection carried fewer than `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` in that window,
-   which is what a server that keeps the connection alive with keepalive packets alone does;
+   which is what a server that keeps the connection alive with keepalive packets alone does
+   (over a URL those bytes are the socket's,
+  and over a path they are the pipe's);
   the service's retry plan keeps the push and tries it again.
   A connection that carries a byte now and then therefore no longer holds a push for ever,
   and the stop says how many bytes it carried,
@@ -4449,9 +4451,12 @@ fractional or non-numeric value is ignored.
    a query that works is never ended for being slow.
 - `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
    default `1024`.
-  The least traffic the push's connection to the remote must carry in one connected window (150 seconds)
-   and still count as progress,
-  which is about 7 bytes per second.
+  The least traffic the push's connection to the remote must carry in one window and still count as progress:
+  the connected window (150 seconds) while a connection is open,
+   which is about 7 bytes per second,
+   and the stall window (30 seconds) for a remote that is a path,
+   where the keepalive arrives on the pipe,
+   which is about 34 bytes per second.
   Bytes below it are not progress,
   so a connection that only sends keepalive packets,
    or a server that drips its answer a byte at a time,

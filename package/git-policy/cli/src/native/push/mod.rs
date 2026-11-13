@@ -114,9 +114,15 @@ pub mod stop_of_a_push_and_sweep_of_its_locks;
 /// so a stop is never decided by elapsed time alone.
 pub mod push_limit_held_for_an_ordering;
 
-/// The bytes a push and its processes move,
-/// sampled,
-/// and the clock that stops it on a stall.
+/// What one look at a push's tree finds:
+/// the bytes each process moved,
+/// the processor time it used,
+/// its tasks' states,
+/// and the connected sockets' own counts.
+pub mod push_progress_meter;
+
+/// The clock that stops a push on a stall,
+/// over what one look at its tree finds.
 pub mod push_progress;
 
 /// The least traffic a push's connection must carry in one window and still count as progress,
