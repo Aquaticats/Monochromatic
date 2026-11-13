@@ -56,6 +56,9 @@ pub const EARLIER_MERGE_INTENT_SCHEMA_VERSIONS: [i64; 1] = [1];
 /// Suffix of an intent record's file name.
 const RECORD_SUFFIX: &str = ".json";
 
+/// The extension of the sibling that says a record's carry has finished.
+const SETTLED_SUFFIX: &str = "settled";
+
 /// What:
 ///  One isolated merge that has created its commit and is about to move the branch to it.
 /// Why:
@@ -301,7 +304,72 @@ pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
     //  killed before its rename goes with them.
     let _landed: Result<(), _> = std::fs::remove_file(path.with_extension("landed"));
     let _writing: Result<(), _> = std::fs::remove_file(path.with_extension("landed.writing"));
+    // The marker of a finished carry goes with the record it belongs to: a marker that outlived its record would be read by
+    //  nobody, and a record written later under the same name (never, since names are transaction identifiers) would read as
+    //  finished.
+    let _settled: Result<(), _> = std::fs::remove_file(settled_marker(path));
     return Ok(());
+}
+
+/// What:
+///  The sibling file that says a record's carry has finished.
+/// Why:
+///   A record names a capture so a later command can carry the person's bytes into the checkout;
+/// once that carry has ended,
+/// the capture's objects are no longer needed by that record,
+/// and only its name has to be settled
+/// (`merge_isolation_carry.rs`,
+/// which decides who drops the ref).
+/// The marker is a sibling rather than a rewrite of the record,
+/// because a record is written once and never replaced,
+/// and because a marker that is lost costs one carry re-run and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// record.replace(/\.json$/, '.settled')
+/// ```
+pub fn settled_marker(record: &Path) -> PathBuf {
+    return record.with_extension(SETTLED_SUFFIX);
+}
+
+/// What:
+///  Say that the record's carry has finished,
+/// once,
+/// and answer whether the marker is there.
+/// Why:
+///   The finish is recorded before the capture's ref is decided,
+/// so the state a kill leaves between them is one the next command finishes:
+/// the marker says the carry needs nothing,
+/// and the refusal of a missing ref is the drop's own wish
+/// (`merge_isolation_carry.rs`).
+/// Two commands finishing the same record both write it; the second finds it,
+/// which is not a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { writeFileSync(marker, '', { flag: 'wx' }) } catch (e) { if (e.code !== 'EEXIST') throw e }
+/// ```
+pub fn mark_carry_finished(record: &Path) -> std::io::Result<()> {
+    return match write_exclusive_synced(settled_marker(record).as_path(), b"") {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(error),
+    };
+}
+
+/// What:
+///  Whether the record's carry has finished.
+/// Why:
+///   A reader that asks this may then leave the capture's objects to nobody,
+/// and a record whose marker cannot be read is read as unfinished,
+/// which only keeps the objects and the record a little longer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(record.replace(/\.json$/, '.settled'))
+/// ```
+pub fn carry_finished(record: &Path) -> bool {
+    return settled_marker(record).exists();
 }
 
 /// What:

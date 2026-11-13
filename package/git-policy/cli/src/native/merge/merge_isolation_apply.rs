@@ -323,11 +323,26 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         }
     }
     if carry_finished {
+        // The record's carry has ended, and that is written beside the record before the capture's ref is decided: a kill
+        //  between the two steps then leaves a record whose next settle needs nothing from the objects and drops a ref that is
+        //  dropped already or still there (`merge_isolation_journal.rs`, `mark_carry_finished`).
+        let finish_recorded: bool = match plan.carried {
+            Some(_) => match crate::merge_isolation_journal::mark_carry_finished(record.as_path()) {
+                Ok(()) => true,
+                Err(error) => {
+                    debug(TAG, format!("the finish of the merge's carried work could not be recorded: {error}").as_str());
+                    false
+                }
+            },
+            None => true,
+        };
         // The record was the last thing that named the capture, so its bytes are in the checkout and the ref goes first: a
         //  deletion another command's lock blocked keeps the record, and the next command's recovery retries it instead of the
-        //  name being left for a person to clean up (a cross-vendor audit of alpha.12).
+        //  name being left for a person to clean up (a cross-vendor audit of alpha.12). A finish that could not be recorded
+        //  keeps both, so the next command does both again rather than dropping the name this one could not vouch for.
         let gone: bool = match plan.carried {
-            Some(capture) => drop_capture_ref(&session.context, git_dir, root, capture, Some(record.as_path())),
+            Some(capture) if finish_recorded => drop_capture_ref(&session.context, git_dir, root, capture, Some(record.as_path())),
+            Some(_) => false,
             None => true,
         };
         if gone {
