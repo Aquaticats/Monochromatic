@@ -685,6 +685,122 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Old toolchains' build folders hold the build volume; the owner: delete two by hand, and each tool cleans up after itself; three more reviews routed (2026-11-13T18:33:32-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own measurements and the runs' reports.
+
+##### What takes the build volume
+
+- The walk of the shared cargo build folder
+  (`btrfs filesystem du --summarize`,
+  started 17:12:25,
+  stopped by hand at 18:24:20 once it had printed the toolchain folders)
+  gives,
+  as logical bytes that nothing else holds
+  (the volume is compressed,
+  so less on disk):
+  `toolchain/nightly-2026-11-10` 1,090 GiB,
+  `toolchain/nightly-2026-11-11` 885 GiB,
+  `toolchain/nightly-2026-11-12` 583 GiB,
+  `toolchain/nightly-2026-11-13` 107 GiB.
+  Its output is
+  `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/blocks-each-toolchain-folder-and-each-shard-of-the-cargo-build-folder-holds-alone-2026-11-13T1713.txt`.
+- Of the 23 runs going at 18:27,
+  none worked in a worktree that pins the toolchain of 2026-11-10 or 2026-11-11,
+  three in one that pins 2026-11-12,
+  twenty in one that pins 2026-11-13
+  (`keep/going-runs-by-the-toolchain-their-worktree-pins-2026-11-13T1827.txt` in that folder).
+- Free on the build volume:
+  1,488 GiB at 17:11:42 and 1,443 GiB at 18:25:44,
+  45 GiB in 74 minutes.
+
+##### The owner's answers
+
+- Asked at about 18:28 whether the folders of 2026-11-10 and 2026-11-11 may be deleted
+  (both watched,
+  the older alone,
+  or wait for the new drive):
+  "Delete both, watched.
+  and make our mpm-shadow auto cleanup old toolchains by size + last modified time."
+- Asked which of the two tools should own that cleanup
+  (the session offered mpm-shadow or cargo-shadow's cleaner as alternatives,
+  which they are not):
+  "What? Shouldn't it be both?
+  mpm-shadow cleans up after itself,
+  cargo-shadow also cleans up after itself."
+- So each tool removes,
+  by itself,
+  what it itself made,
+  chosen by size and last-modified time:
+  mpm-shadow the old versions it installed,
+  cargo-shadow the build folders of old toolchains.
+
+##### The deletion by hand
+
+- Unit `delete-build-folders-of-nightly-2026-11-10-and-11-20261113T1832`,
+  from 18:30:32,
+  at the lowest disk weight:
+  one shard at a time,
+  a write-and-sync reading of both drives before each shard
+  (recorded in the search's readings file with a `during` field),
+  and it ends itself at two readings in a row over five seconds.
+  Script and log:
+  `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/delete-the-build-folders-of-two-old-toolchains-shard-by-shard-and-stop-on-a-slow-drive.ts`
+  and `keep/deletion-of-the-build-folders-of-nightly-2026-11-10-and-11.log`.
+- Each folder was looked at first:
+  a plain directory,
+  256 shards,
+  nothing else in it,
+  no process of this account with its working folder inside.
+- By 18:33:15 it had removed 48 shards of the first folder with no slow reading,
+  and free room had gone from 1,439 GiB to 1,508 GiB.
+  One shard held a test fixture without permissions,
+  which the script opens and removes on its second try.
+- The probe of level thirty-two that had started when the walk ended was stopped at 18:30,
+  because its readings would fall in the deletion.
+  The hour that judges the level starts when the deletion has ended.
+
+##### The two cleanup runs
+
+Both queued at the head at 18:33,
+each a fresh run from `main`,
+each told to measure first and to delete nothing from this machine's real folders:
+
+- `mpm-shadow-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time`,
+  branch `feat/mpm-shadow-cli-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time`;
+- `cargo-shadow-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time`,
+  branch `feat/cargo-shadow-cli-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time`.
+  Its first step is to say why the cleaner that exists removed nothing of those folders.
+
+##### Three reviews routed
+
+- **Removal refuses a busy worktree** (`01d26607ce`):
+  its second review reproduced that a removal a person asks for takes a nested registered worktree's uncommitted edit to a tracked file,
+  with nothing of it in the deletions log,
+  and that one landed sweep examines and hands over the same worktree twice;
+  by reading,
+  that the kept-retry record is replaced by a remove and a write with a gap between them.
+  All three go back to the author:
+  the first as a refusal with an opt-out,
+  by the project's standing answer for a command that would discard a person's work
+  (`~/temp/agent/pi-runs/removal-refuses-answers-its-second-review-of-2026-11-13-prompt.md`).
+- **Push of a branch that is not checked out** (`b0c133f42b`):
+  every scenario its second review ran passed;
+  one race found,
+  shown with Git's own commands in the wrapper's order:
+  a `git switch` in the worktree whose branch is being moved,
+  between the check and the write of the branch,
+  leaves the merge's content staged on the branch switched to.
+  Back to the author
+  (`~/temp/agent/pi-runs/push-of-a-branch-answers-its-second-review-of-2026-11-13-prompt.md`).
+- **Removal goes around a subvolume**:
+  its author answered at 18:20:05
+  (tip `50d55b0b8d`);
+  the review of that answer,
+  over `main...50d55b0b8d`,
+  is queued.
+
 #### `0.6.1-alpha.18` installed; the owner keeps one author pool; sixteen stranded branches of 2026-11-11 and 12 are queued; two reviews go back to their authors (2026-11-13T18:06:17-05:00)
 
 Not final and not approved:
