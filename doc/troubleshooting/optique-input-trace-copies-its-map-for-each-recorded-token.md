@@ -17,14 +17,26 @@ the one for `multiple()`'s state holds up and is kept as a second patch,
 and the one for the token buffer slows other input and is not kept.
 A model from another vendor reviewed that section and the second patch as of commit `758946f3e1`,
 and its findings were folded in.
-What changed after that is not reviewed:
+What changed after that was reviewed by the same model in further passes:
 the fix it asked for,
-the timing on Node and Bun,
-and the timing rewritten as ratios,
-first in that section and then,
-on the owner's choice of 2026-11-13,
-through the whole document,
-where absolute times now stand only as scale.
+the timing on Node and Bun and the timing rewritten as ratios in that section,
+as of commit `9fd4f0e93e`;
+then the ratios through the whole document,
+written on the owner's choice of 2026-11-13,
+where absolute times now stand only as scale,
+as of commit `ce2cc36df5`.
+A fresh session of that model then read,
+as of commit `2907e3a444`,
+the repeat on Node and Bun of the comparison with upstream's pull request 1121
+and what the draft issue says from it.
+Each pass recomputed the figures it read from the records and found them to match,
+and each pass's findings,
+which were of wording,
+of a missing note and of what a status note claimed,
+are folded in.
+Not reviewed:
+the corrections made from that last pass,
+in commit `f8c6a64194` and after.
 No person has reviewed any of it.
 
 Status,
@@ -762,11 +774,58 @@ The pull request does not change the 8,000-token figure (1.00 against `main`,
 0.82 to 1.04),
 and the patch does not depend on it.
 
+The same comparison was repeated on Node 26.13.1 and Bun 1.4.4 with every arm a built package,
+after the owner asked on 2026-11-13 why a timing was on Deno only:
+seven rounds with the order of the arms rotated,
+`main` before the merge at `84f95710`,
+the merge `d26f1a24` with and without the patch,
+1.3.6 from npm,
+and the merge's package linked a second time as a same-code control.
+A thousand paths after `--`,
+paired by round:
+
+- The merge's package over itself:
+   Node 1.00 (0.96 to 1.03),
+   Bun 1.06 (0.95 to 1.09).
+- The pull request against 1.3.6:
+   Node 1.37 (1.27 to 1.63),
+   Bun 1.95 (1.62 to 1.99),
+   all seven rounds slower on each.
+- The patch on the merge against the merge:
+   Node 0.67 (0.61 to 0.76),
+   all seven faster;
+   Bun 1.07 (0.95 to 1.22),
+   five of seven slower,
+   a median inside the control's range.
+- The pull request with the patch against 1.3.6:
+   Node 0.92 (0.84 to 1.05),
+   one of seven slower;
+   Bun 1.92 (1.84 to 2.28),
+   all seven slower.
+
+With no separator the patch on the merge against the merge was 0.73 on Node (0.70 to 0.78),
+all seven faster,
+and 0.96 on Bun (0.72 to 1.15),
+three of seven slower.
+
+So at a thousand tokens the patch is a gain on Node and Deno and nothing measurable on Bun.
+On Bun its gain shows with more tokens:
+in the recheck's rounds on Bun,
+a run of positional tokens and one option,
+the patched build over `main` was 0.74 at 2,000 tokens,
+0.55 at 4,000 and 0.30 at 8,000
+(step `bun-sweep-with-main` of `keep/timing-summary.txt`,
+in the folder `two-remaining-copies-recheck-2026-11-13` of the evidence archive).
+The sentence that the patch brings the pull request level with 1.3.6 after `--` therefore holds on Node and Deno
+and not on Bun,
+where the pull request with the patch still takes about twice as long as 1.3.6.
+
 The records are in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
 folder `measurements-2026-11-13`:
 `cross-runtime/results.jsonl` for the three runtimes and the first patched comparison,
 `upstream-arms-results.jsonl` for the comparison with the pull request,
 and the container recipes and runners that produced them.
+The repeat on Node and Bun is in the folder `pull-request-1121-on-node-and-bun-2026-11-13` of the same archive.
 
 ### Prototypes for the two further copies
 
@@ -786,6 +845,12 @@ which is fixed,
 and one sentence the figures contradicted,
 which is corrected.
 The timing on Node and Bun and the present form of the timing parts came after that review.
+The same model read those as of commit `9fd4f0e93e` and recomputed their figures from the records;
+its two wording findings are folded in.
+A fresh session of that model read what was added after commit `ce2cc36df5`,
+as of commit `2907e3a444`:
+Deno's row and the note on which build carries which state code under "Timing of options and arguments alternating".
+It found them to match the records.
 No person has read the diffs or this section.
 
 The result:
@@ -800,8 +865,10 @@ The result:
    1,404 lines added across seven files.
 - The diff for the token buffer does not.
    Once it takes effect,
-   a command line that alternates options and arguments takes eleven to thirteen times as long on Node
-   and forty to seventy-seven times as long on Bun.
+   a command line that alternates options and arguments takes eleven to thirteen times as long as the base on Node
+   and forty to seventy-seven times as long on Bun;
+   against the state fix alone it takes thirteen to eighteen times as long on Node
+   and forty-eight to a hundred and five times as long on Bun.
    It is not kept as a patch;
    it is in the evidence archive for anyone who wants to repeat the measurement.
 - With both copies gone,
@@ -1186,8 +1253,21 @@ which holds the state fix constant and so shows what the buffer fix adds:
 - Bun:
    48.1 at 24,000 (24.1 to 65.0),
    105.0 at 48,000 (74.9 to 153.8).
+- Deno:
+   15.6 at 24,000 (12.0 to 22.6),
+   11.4 at 48,000 (9.5 to 12.8).
 
-Slower in every round on every runtime.
+On Deno both arms of that second comparison carry the state fix as the agent wrote it.
+On Node and Bun the build with both fixes carries the agent's and the other arm is the kept patch,
+which differs from it in the traps for writes,
+freezing and descriptors.
+That the two measure alike where the buffer fix is not in effect was checked in the same rounds:
+up to 12,000 tokens the same ratio had medians from 0.99 to 1.05 on Node,
+and from 0.96 to 1.10 on Bun,
+the 1.10 at 3,000 tokens,
+where all five rounds were slower.
+
+At 24,000 and 48,000 tokens every comparison was slower in every round on every runtime.
 At 12,000 tokens and below,
 where the buffer fix does not take effect,
 there is no such loss.
@@ -1447,9 +1527,10 @@ https://github.com/Aquaticat/optique-parse-cost-reproduction (*token-scaling.ts*
 I have a patch that keeps the entries in an immutable hash trie instead, so a write copies only the path to its
 key and earlier traces stay untouched. Run against the unpatched build in the same rounds, 8,000 arguments take
 0.11 times as long with it on Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), and the fitted exponent
-goes from about 1.8 to about 1.2 (that last from source on Deno); a thousand paths through a `git commit`-shaped
-parser took 0.78 times as long. The core suite passes on Deno, Node and Bun with it, and it applies cleanly to main
-as of #1121's merge.
+goes from about 1.8 to about 1.2 (that last from source on Deno). The gain grows with the count. In a separate
+measurement, a thousand paths with no `--` through a `git commit`-shaped parser took 0.73 times as long on Node
+(0.70 to 0.78) and showed no difference on Bun (0.96, 0.72 to 1.15). The core suite passes on Deno, Node and Bun
+with it, and it applies cleanly to main as of #1121's merge.
 
 It does not make the parse linear. Two more per-argument copies sit behind this one: `multiple()` rebuilds its
 state array for each item (*modifiers.ts*, `annotateFreshArray(context.state, [...])`), and each primitive slices
@@ -1459,18 +1540,20 @@ places in *primitives.ts*). Timed as built packages on Node 26 and Bun 1.4, five
 (0.20 to 0.32).
 
 I tried both. For the state I have a second patch: above 1,024 items the state becomes an array-shaped view (a
-`Proxy`) over an immutable vector, and below that nothing changes. On top of this patch, 16,000 arguments take
-0.24 times as long on Node and 0.50 on Bun, and 32,000 take 0.16 and 0.43. The core suite passes with it on Deno,
-Node and Bun, also with the threshold lowered to two so that nearly every state is a view. Its cost is that such a
+`Proxy`) over an immutable vector, and below that nothing changes. Against this patch alone, 16,000 arguments take
+0.24 times as long with both on Node and 0.50 on Bun, and 32,000 take 0.16 and 0.43. The core suite passes with it
+on Deno, Node and Bun, also with the threshold at two, where nearly every state is a view. Its cost is that such a
 state is a proxy: it prints as an empty array, `structuredClone()` and `Object.freeze()` throw on it, and in-place
-edits throw. For the buffer I have nothing to offer: with the state patch in place, also cutting a view in
+edits throw. For the buffer I have nothing to offer: with the state copy already removed, also cutting a view in
 `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and 48 to 105 times
 slower on Bun, because the other primitives then slice the view through the proxy. With the state fixed, the buffer
 copy is most of what is left from about 32,000 arguments.
 
-It also bears on what #1121 leaves. Measured the same way, seven rounds with the arms rotated, a thousand paths
-after `--` took 1.37 times as long on #1121's branch as on 1.3.6 (1.34 to 1.42), and 0.94 times with this patch
-on top (0.86 to 1.07, two of seven rounds slower).
+It also bears on what #1121 leaves, on Node. As built packages, seven rounds with the arms rotated, a thousand
+paths after `--` took 1.37 times as long on #1121's merge as on 1.3.6 on Node (1.27 to 1.63) and 0.92 times with
+this patch on top (0.84 to 1.05, one of seven rounds slower). On Bun the merge took 1.95 times as long as 1.3.6
+(1.62 to 1.99) and stayed at 1.92 times with the patch (1.84 to 2.28): at that size the patch makes no measurable
+difference there.
 
 The patch, with its tests: [link to the patch file in this repository at a commit].
 
