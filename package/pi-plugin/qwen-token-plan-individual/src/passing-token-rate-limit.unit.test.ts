@@ -207,27 +207,27 @@ await describe({
   children: [
     it({
       name: 'reads the recorded answer as the passing limit',
-      fn: () => {
+      fn: async () => {
         expect(readsAsPassingLimit(RECORDED_PASSING_LIMIT_ANSWER,),).toBe(true,);
       },
     },),
     it({
       name: 'reads both documented messages, and reads them in any letter case',
-      fn: () => {
+      fn: async () => {
         for (const answer of documentedPassingAnswers())
           expect(readsAsPassingLimit(answer,),).toBe(true,);
       },
     },),
     it({
       name: 'leaves every answer that must stay final untouched',
-      fn: () => {
+      fn: async () => {
         for (const answer of FINAL_ANSWERS)
           expect(readsAsPassingLimit(answer,),).toBe(false,);
       },
     },),
     it({
       name: 'leaves the documented words inside a longer sentence untouched',
-      fn: () => {
+      fn: async () => {
         const answer = answerText({
           status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
           body: bodyText({
@@ -240,7 +240,7 @@ await describe({
     },),
     it({
       name: 'leaves a documented message extended by a letter untouched',
-      fn: () => {
+      fn: async () => {
         const answer = answerText({
           status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
           body: bodyText({
@@ -252,7 +252,7 @@ await describe({
     },),
     it({
       name: 'leaves a body that is not JSON untouched, even with the documented words in it',
-      fn: () => {
+      fn: async () => {
         const answer = answerText({
           status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
           body:
@@ -262,21 +262,31 @@ await describe({
       },
     },),
     it({
-      name: 'leaves a body cut short untouched',
-      fn: () => {
+      name: 'leaves a body cut short untouched, whether the cut falls inside the message or after it',
+      fn: async () => {
+        /**
+         The body the provider sent, whole.
+         */
         const complete = bodyText({
           message: 'Allocated quota exceeded, please increase your quota limit.',
         },);
-        const answer = answerText({
-          status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
-          body: complete.slice(0, Math.floor(complete.length / 2,),),
-        },);
-        expect(readsAsPassingLimit(answer,),).toBe(false,);
+        /**
+         Where the documented message ends inside the body,
+         so a cut after it keeps every word the matcher would read.
+         */
+        const afterMessage = complete.indexOf('quota limit.',) + 'quota limit.'.length;
+        for (const cutAt of [Math.floor(complete.length / 2,), afterMessage,])
+          expect(
+            readsAsPassingLimit(answerText({
+              status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
+              body: complete.slice(0, cutAt,),
+            },),),
+          ).toBe(false,);
       },
     },),
     it({
       name: 'leaves a JSON body that is not an object untouched',
-      fn: () => {
+      fn: async () => {
         const answer = answerText({
           status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
           body: '["Allocated quota exceeded, please increase your quota limit."]',
@@ -286,7 +296,7 @@ await describe({
     },),
     it({
       name: 'leaves the documented words under any other status untouched',
-      fn: () => {
+      fn: async () => {
         for (const status of [400, 401, 402, 403, 500,])
           expect(
             readsAsPassingLimit(answerText({
@@ -301,7 +311,7 @@ await describe({
     },),
     it({
       name: 'leaves a 429 with other words untouched',
-      fn: () => {
+      fn: async () => {
         expect(
           readsAsPassingLimit(answerText({
             status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
@@ -315,7 +325,7 @@ await describe({
     },),
     it({
       name: 'leaves the documented message untouched when the code disagrees',
-      fn: () => {
+      fn: async () => {
         for (const code of ['Throttling.AllocationQuota', 'AllocationQuota.FreeTierOnly',])
           expect(
             readsAsPassingLimit(answerText({
@@ -331,7 +341,7 @@ await describe({
     },),
     it({
       name: 'leaves a body that names no code untouched',
-      fn: () => {
+      fn: async () => {
         const answer = answerText({
           status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
           body: JSON.stringify({
@@ -343,7 +353,7 @@ await describe({
     },),
     it({
       name: 'reads a body whose only code field is `type`',
-      fn: () => {
+      fn: async () => {
         const answer = answerText({
           status: QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
           body: JSON.stringify({
@@ -356,7 +366,7 @@ await describe({
     },),
     it({
       name: 'leaves text with no status in front untouched',
-      fn: () => {
+      fn: async () => {
         for (const errorMessage of [
           bodyText({
             message: 'Allocated quota exceeded, please increase your quota limit.',
@@ -383,7 +393,7 @@ await describe({
   children: [
     it({
       name: 'pi leaves the recorded answer alone and takes the rewritten one',
-      fn: () => {
+      fn: async () => {
         const recorded = assistantMessageFixture({
           errorMessage: RECORDED_PASSING_LIMIT_ANSWER,
         },);
@@ -401,7 +411,7 @@ await describe({
     },),
     it({
       name: 'the rewritten message carries the provider answer whole in a diagnostic',
-      fn: () => {
+      fn: async () => {
         const retried = messagePiRetriesInPlaceOfPassingTokenRateLimit({
           message: assistantMessageFixture({
             errorMessage: RECORDED_PASSING_LIMIT_ANSWER,
@@ -425,7 +435,7 @@ await describe({
     },),
     it({
       name: 'a diagnostic already on the message stays beside the new one',
-      fn: () => {
+      fn: async () => {
         const message = assistantMessageFixture({
           errorMessage: RECORDED_PASSING_LIMIT_ANSWER,
         },);

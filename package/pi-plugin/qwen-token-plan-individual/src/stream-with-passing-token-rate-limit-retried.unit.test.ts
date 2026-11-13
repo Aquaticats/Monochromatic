@@ -194,7 +194,7 @@ function answerEventsOf(message: AssistantMessage,): AssistantMessageEvent[] {
     },
     {
       type: 'error',
-      reason: message.stopReason,
+      reason: message.stopReason === 'aborted' ? 'aborted' : 'error',
       error: message,
     },
   ];

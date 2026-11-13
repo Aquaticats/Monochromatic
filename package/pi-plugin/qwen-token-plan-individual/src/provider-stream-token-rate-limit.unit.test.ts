@@ -190,11 +190,11 @@ function replyResponse({
  */
 async function settledMessageOf({
   model,
-  options,
+  fetch,
   simple = false,
 }: {
   readonly model: QwenTokenPlanIndividualPiModel;
-  readonly options: OpenAICompletionsOptions;
+  readonly fetch: OpenAICompletionsOptions['fetch'];
   readonly simple?: boolean
 },): Promise<AssistantMessage> {
   const { provider, } = createQwenTokenPlanIndividualProvider({
@@ -216,9 +216,9 @@ async function settledMessageOf({
    Options every request in this file carries beside its transport.
    */
   const requestOptions = {
-    ...options,
     apiKey: 'fixture-key',
     signal: new AbortController().signal,
+    ...(fetch === undefined ? {} : { fetch, }),
   };
   /**
    Stream the provider hands pi.
@@ -286,10 +286,8 @@ await describe({
          */
         const first = await settledMessageOf({
           model: fixtureModel(),
-          options: {
-            fetch: function fetch(): Promise<Response> {
-              return nextAnswer();
-            },
+          fetch: function takeNextAnswer(): Promise<Response> {
+            return nextAnswer();
           },
         },);
         expect(first.stopReason,).toBe('error',);
@@ -305,10 +303,8 @@ await describe({
          */
         const second = await settledMessageOf({
           model: fixtureModel(),
-          options: {
-            fetch: function fetch(): Promise<Response> {
-              return nextAnswer();
-            },
+          fetch: function takeNextAnswer(): Promise<Response> {
+            return nextAnswer();
           },
         },);
         expect(second.stopReason,).toBe('stop',);
@@ -324,13 +320,11 @@ await describe({
         const message = await settledMessageOf({
           model: fixtureModel(),
           simple: true,
-          options: {
-            fetch: function fetch(): Promise<Response> {
-              return Promise.resolve(failedAnswerResponse({
-                status: 429,
-                body: RECORDED_PASSING_LIMIT_BODY,
-              },),);
-            },
+          fetch: function answerWithThePassingLimit(): Promise<Response> {
+            return Promise.resolve(failedAnswerResponse({
+              status: 429,
+              body: RECORDED_PASSING_LIMIT_BODY,
+            },),);
           },
         },);
         expect(isRetryableAssistantError(message,),).toBe(true,);
@@ -386,10 +380,8 @@ await describe({
            */
           const message = await settledMessageOf({
             model: fixtureModel(),
-            options: {
-              fetch: function fetch(): Promise<Response> {
-                return Promise.resolve(failedAnswerResponse(answer,),);
-              },
+            fetch: function answerWithOneFinalAnswer(): Promise<Response> {
+              return Promise.resolve(failedAnswerResponse(answer,),);
             },
           },);
           expect(message.errorMessage,).toBe(answer.expected,);
