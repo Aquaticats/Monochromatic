@@ -405,6 +405,54 @@ fn a_kill_after_the_capture_ref_is_dropped_is_finished_by_the_next_command() {
     }
 }
 
+/// What:
+///  A saved merge whose kept ref was pruned away is finished by the next command,
+///  and a commit is made after it.
+/// Why:
+///  The record names the ref its merge commit was kept on,
+/// and a wrapper that prunes kept refs by age removes that name while the record still waits
+/// (`refs/cli-git/kept/`,
+/// the answers of 2026-11-12T11:58:45-05:00).
+/// The deletion of a name already gone is refused by Git,
+/// and the record then stayed for ever with the notice that a ref it keeps could not be removed
+/// (the second review of this branch,
+/// its first finding,
+/// whose shape the side ref shares with the capture's ref).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const saved = await wrapped(["merge", "--no-edit", "feature"]); git(["update-ref", "--no-deref", "-d", sideRefOf(saved.stderr)]);
+/// rm(lock); const after = await wrapped(["status"]); expect(after.code).toBe(0); expect(records()).toEqual([]);
+/// ```
+#[test]
+fn a_saved_merge_whose_kept_ref_was_pruned_is_finished_by_the_next_command() {
+    let fixture: Fixture = fixture("merge-kept-ref-pruned");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    std::fs::write(repo.join("f.txt"), b"my own edit of a file the merge changes\n").expect("the person's edit");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(lock.as_path(), b"").expect("a running program's lock");
+    std::fs::write(repo.join(".git/index~pid.lock"), format!("pid {}\n", std::process::id())).expect("the PID file of a process that runs");
+    let saved = super::commit::run_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
+    assert_eq!(saved.code, Some(0), "the merge is saved for a later finish: {said}");
+    let side: String = side_ref_of(said.as_str());
+    let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
+    // The prune of kept refs by age, which is another command's work, removes the name the record keeps.
+    git(&fixture, repo.as_path(), &["update-ref", "--no-deref", "-d", side.as_str()]);
+    assert_eq!(kept_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the kept ref is pruned away");
+    std::fs::remove_file(lock.as_path()).expect("the holder lets go");
+    let _pid = std::fs::remove_file(repo.join(".git/index~pid.lock"));
+    let finished = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    let out: String = String::from_utf8_lossy(&finished.stderr).into_owned();
+    assert_eq!(finished.code, Some(0), "the next command goes on: {out}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the saved merge is in the branch: {out}");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record goes: {out}");
+    assert!(!out.contains("could not be removed yet"), "no notice about a ref that is gone: {out}");
+    let committed = super::commit::run_commit(&fixture, repo.as_path(), &["commit", "--allow-empty", "--message=after the prune"]);
+    assert_eq!(committed.code, Some(0), "a commit is made: {}", String::from_utf8_lossy(&committed.stderr));
+    super::commit::remove_settled(&fixture);
+}
+
 ///  The side ref a deferred merge's line names.
 /// Why:
 ///  The control reads the merge commit from the very name the person is given,
