@@ -305,8 +305,8 @@ pub fn render(failure: &ClientFailure) -> String {
         ),
         ClientFailure::OtherRelease => format!(
             "The commit service that is running was started from another release of this git wrapper and did not stop when \
-             asked, so this commit was not made. Run the commit again: the next commit sets the service up from the units it \
-             installs and asks the manager to reload them. A service that still will not stop can be restarted with \
+             asked twice, so this commit was not made. Run the commit again: the next commit stops this worktree's unit and \
+             starts it from the units it installs. A service that still will not stop can be restarted with \
              `{RESTART_COMMAND}`. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
