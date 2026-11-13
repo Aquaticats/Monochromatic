@@ -661,8 +661,12 @@ because the thread moved:
    "Looking.
    ETA:
    In 24h with 90% certainty."
-   That day ended at 2026-11-13T13:52:56Z,
-   before this rewrite.
+   The owner followed it at 2026-11-13T14:27:49Z with
+   "Sorry,
+   I had some issues with my machine.
+   New ETA:
+   in 72h with 80% certainty.",
+   which runs to 2026-11-16T14:27:49Z.
 - The maintainer read this repository's documents without waiting,
    opened upstream issue 1120 from them at 2026-11-13T08:16:37Z,
    and opened pull request 1121 for it two hours later.
@@ -670,6 +674,23 @@ because the thread moved:
    it reports a measurement of the pull request.
 - The input-trace cost has its own document and a checked patch,
    `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+
+Decided by the owner on 2026-11-13,
+in answer to questions put that morning:
+
+- On when to answer:
+   "Wait for the review",
+   and
+   "I want to have everything figured out ourselves before giving replies."
+   So the draft is not posted until the independent review is folded in and the open points are settled.
+- On the input-trace patch:
+   "Keep it local for now."
+   and,
+   when an agent took that to mean the draft should leave the patch out:
+   "I only said to "keep it **local** for **now**",
+   which means it can be in the draft."
+   So the draft carries the patch paragraph,
+   and nothing about the patch is filed or posted until the owner posts the reply.
 
 ~~~md
 Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
@@ -703,8 +724,8 @@ What #1121 leaves looks like the `InputTraceImpl.set()` copy you set aside in #1
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
 input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
-to main and to #1121's branch. The write-up and the patch:
-https://github.com/Aquaticats/Monochromatic/blob/main/doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md
+to main and to #1121's branch. The write-up and the patch: [commit permalink to
+doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
 
 The patch was written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for it?
 
@@ -727,17 +748,20 @@ deleted, so our old 4.24 s and 0.89 s compared two different things.
 want to say about the cost not having been reported upstream in July.]
 ~~~
 
-Two things the draft depends on,
-as of 2026-11-13:
+The repository the draft links was created private on 2026-11-12T21:02:23Z
+and made public at 2026-11-13T14:41:43Z,
+on the owner's answer "Make public as it is".
+"As it is" refers to its first commit,
+which GitHub made when the repository was created and which carries the account's own address
+where the two later commits carry its noreply address;
+the owner was told and chose not to rewrite it.
+Three of its workflow runs fail on their asserting steps,
+as its README says they should
+(`43306241322`,
+`43306311950` and `43443075690`).
 
-- The repository it links was created private on 2026-11-12T21:02:23Z
-   and is not readable by the maintainer until the owner makes it public.
-   Three of its workflow runs fail on their asserting steps,
-   as its README says they should
-   (`43306241322`,
-   `43306311950` and `43443075690`).
-- The link to the input-trace write-up names the `main` branch;
-   replace it with a commit permalink on the day of posting.
+The draft's link to the input-trace write-up is a placeholder:
+put a commit permalink there on the day of posting.
 
 [object loop]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/constructs.ts#L5869-L5884
 [no-match 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L1232-L1271

@@ -172,7 +172,7 @@ The 1.0 and 1.2 lines were not run.
 
 `token-scaling.ts` in the reproduction repository,
 `Aquaticat/optique-parse-cost-reproduction`
-(private as of 2026-11-13;
+(public since 2026-11-13T14:41:43Z;
 commit `76b15277df53e5577cdc4e67bfeda3b7302b12c6`).
 Its parser and timed region,
 which are all that matter here:
@@ -289,6 +289,20 @@ Decision:
 a new report is warranted,
 since upstream has no issue for this and has said its own issue 1120 does not cover it;
 whether and how to send it is the owner's decision.
+
+The owner's decision,
+2026-11-13,
+asked whether to raise the patch in the reply,
+open the issue,
+open a discussion or keep it here:
+"Keep it local for now.
+I want to have everything figured out ourselves before giving replies."
+So nothing is filed for now.
+The owner added the same day that this
+"means it can be in the draft":
+the reply draft in `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md`
+reports the patch and asks whether upstream will take an issue,
+and the draft issue here waits on that.
 
 `.out-of-scope/`,
 read 2026-11-13:
@@ -553,14 +567,20 @@ and the container recipes and runners that produced them.
     in the container described under "Versions under test".
 7.  Reproduction runnable by others on a clean machine through CI:
     the repository exists and three runs fail on the asserting step.
-    It is private,
-    so the maintainer cannot read it yet.
+    The owner had it made public on 2026-11-13,
+    after every file,
+    commit message and commit author was read:
+    the files hold only the reproduction,
+    and its first commit,
+    made by GitHub when the repository was created,
+    carries the account's own address and not its noreply address,
+    which the owner was told before choosing.
 8.  Verdict:
-    the evidence is in place for a report.
-    Two things only the owner can do stand before posting:
-    upstream's policy requires a human to review and edit the text,
-    and the repository the draft links has to be public.
-    The risk named under "Upstream filing decision" comes with it.
+    the evidence is in place for a report,
+    and the owner has decided not to send one for now.
+    If that changes,
+    upstream's policy requires a human to review and edit the text first,
+    and the risk named under "Upstream filing decision" comes with posting.
 
 ### Draft issue (do not post as-is)
 

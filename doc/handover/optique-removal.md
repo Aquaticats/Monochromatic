@@ -768,55 +768,87 @@ Open:
   which is scratch and not committed
   (its first copy under `${HOME}/temp/agent` was gone after the reboot of 2026-11-13).
 
-### State on 2026-11-13T09:36:05-05:00
+### State on 2026-11-13T09:45:00-05:00
 
-Nothing has been sent upstream by this project.
+Nothing has been sent upstream by this project beyond the owner's own two short comments.
 Upstream moved on its own from this repository's public documents:
 
 - The owner answered the maintainer on the commit at 2026-11-12T13:52:56Z:
   "Looking.
   ETA:
   In 24h with 90% certainty."
-  That day ended at 2026-11-13T13:52:56Z with no reply posted.
+  and again at 2026-11-13T14:27:49Z:
+  "Sorry,
+  I had some issues with my machine.
+  New ETA:
+  in 72h with 80% certainty."
+  That runs to 2026-11-16T14:27:49Z.
 - The maintainer opened upstream issue 1120 at 2026-11-13T08:16:37Z,
   citing the research record and the short-option document at commit `249bbf19ea`,
   and pull request 1121 for it at 2026-11-13T10:10:30Z.
   Issue 1120 names the input-trace copy and puts it outside its own scope.
 
+Decided by the owner on 2026-11-13,
+each in answer to a question that gave the options:
+
+- When to answer the maintainer:
+  "Wait for the review".
+- The input-trace patch,
+  asked whether to raise it in the reply,
+  open an issue,
+  open a discussion or keep it here:
+  "Keep it local for now.
+  I want to have everything figured out ourselves before giving replies.
+  And I've already said my ETA had changed to 72h from now."
+  An agent then took the patch paragraph out of the reply draft,
+  and the owner corrected that:
+  "I only said to "keep it **local** for **now**",
+  which means it can be in the draft."
+  So the draft carries it,
+  and nothing about the patch is filed or posted before the owner posts the reply.
+- The reproduction repository,
+  told that its first commit carries the account's own address:
+  "Make public as it is".
+  Done at 2026-11-13T14:41:43Z.
+- The five `passThrough()` findings held back from this repository:
+  "Draft a private advisory (Recommended)",
+  meaning a local draft for the owner to review and submit through GitHub's private reporting.
+
 Where each piece stands:
 
 - The reply draft,
   in `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md`,
-  was rewritten on 2026-11-13 for that state.
-  It waits for the owner's edit,
-  disclosure and posting.
+  was rewritten on 2026-11-13.
+  It is not to be posted until the independent review is folded in and the open points are settled,
+  and then only by the owner after editing it.
 - The short-option finding needs no report;
   its document records upstream's issue and this project's measurement of pull request 1121.
 - The input-trace finding has its document,
   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
   a patch beside it,
-  and a draft issue.
-  The patch was written by an AI agent on 2026-11-12 and rechecked on 2026-11-13.
-  Whether to post the issue is the owner's decision.
-- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is private,
+  and a draft issue that is not to be filed for now.
+- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is public,
   at commit `76b15277df53e5577cdc4e67bfeda3b7302b12c6`.
-  Its README was corrected on 2026-11-13,
-  and its scripts were run on Node,
-  Deno and Bun that day.
   Three workflow runs fail on their asserting steps.
-  Before it is made public,
-  every file,
-  commit message and commit author has to be read,
-  as `.agents/skills/troubleshooting-doc/SKILL.md` asks;
-  that reading is not done.
 
-Not done:
+Open,
+to settle before a reply:
 
-- No reviewer from another vendor has read the rewritten reply draft or the input-trace document.
-- The owner has not yet been asked which of the remaining questions to send,
-  nor what to do with the findings that are held back from this repository
-  because upstream's `SECURITY.md` asks for a private report.
+- The independent review of the three documents and the patch:
+  qwen4-max-preview through Pi,
+  run name `optique-input-trace-and-reply-claim-check`,
+  started 2026-11-13;
+  its findings are to be weighed and folded in.
+- The private advisory draft for the `passThrough()` findings is not written.
+- What is left of the token-count growth after the patch (a fitted exponent near 1.2) is attributed only by the
+  patch's author and was not checked.
 - Upstream's full suite on Bun was not run against the patch with a baseline.
+- The 1.0 and 1.2 release lines were not measured.
+- Which of the drafted questions go into the reply.
+  The draft asks one,
+  whether offering every token to every option parser is the intended end state.
+  The one about a guard on how parse work grows is partly answered by pull request 1121,
+  which keeps a benchmark for its workload.
 
 Scratch,
 all under `${HOME}/temp/agent`,
