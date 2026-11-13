@@ -1054,6 +1054,11 @@ without the separator the pre-release is about twice as fast as 1.3.6,
 with it about 1.8 times slower.
 Nothing on upstream's tracker mentions this cost;
 a search of issues and pull requests for the scope functions' names returns the feature's own pull request and no report.
+That was so on 2026-11-12.
+On 2026-11-13 upstream's maintainer opened issue 1120 for it,
+citing this document,
+and pull request 1121;
+`doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md` has what followed.
 
 ### A cost that grows with the square of the token count
 
@@ -1088,6 +1093,13 @@ and no issue or pull request on upstream's tracker reports it:
 a search for `InputTrace` returns only the work that introduced it in March 2026.
 At the sizes most command lines have it is invisible,
 which is how it went unnoticed here too until suggestion work stopped dominating.
+
+Measured further on 2026-11-13,
+in `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`:
+across three runtimes and the release lines from 1.0 to 1.3 the exponent ranged from 1.56 to 1.93,
+wider than the 1.75 to 1.97 given here from one script on one machine;
+a patch for the copy was checked;
+and two smaller copies per token were found behind it.
 
 ### Facts read from source and record
 
