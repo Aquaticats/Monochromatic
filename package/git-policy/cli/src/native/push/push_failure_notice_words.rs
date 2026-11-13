@@ -93,9 +93,10 @@ pub(crate) fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason
         "The backup push of branch {branch} failed for commit {shown}, so that commit exists only on this computer for now. \
          It is saved in this repository and nothing was lost.\n{detail}\n\
          Fix what Git names, then run `git push`. If it says the remote has commits you do not have, run `git pull` first. \
-         The commit service runs with its own settings, not your terminal's, so a push that works in your terminal can \
-         fail here when it needs a variable only your terminal has; give the service such a variable with \
-         `systemctl --user set-environment NAME=value` and then `{RESTART_COMMAND}`.\n{PUSH_FAILED_NOTE}"
+         The commit service keeps the settings of the command that started it, not the ones you have now, so a push that \
+         works in your terminal can fail here when it needs a variable only your terminal has; give the service such a \
+         variable by exporting it in the shell this command runs in, then `{RESTART_COMMAND}` so the next command starts a \
+         service with it.\n{PUSH_FAILED_NOTE}"
     );
 }
 

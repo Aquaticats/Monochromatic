@@ -8,11 +8,12 @@
 //!  when it started,
 //! so advice to set the variable is not something a person can act on there.
 //! In the service the advice
-//!  names the user manager's own command and the restart that makes the service read the new value.
+//!  tells the person to end the service and run the command again, because a service the wrapper starts reads its
+//! environment when it starts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const advice = inService ? 'run `systemctl --user set-environment ...` and then `systemctl --user restart ...`' : 'set VARIABLE';
+//! const advice = inService ? 'set VARIABLE for the next command, which starts a fresh service' : 'set VARIABLE'
 //! ```
 
 use crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE;
@@ -38,9 +39,14 @@ fn runs_in_service() -> bool {
     return IN_SERVICE.load(Ordering::SeqCst);
 }
 
-/// The user manager's command that gives the service the variable at its next start.
+/// What:
+///  What a person does to give the commit service the variable at its next start.
+/// Why:
+///  The wrapper starts the service itself, with the environment of the command that started it,
+///  so the way to change what the service reads is to end it and let the next command start a fresh one:
+/// there is no manager to set an environment on, and no unit for it to restart.
 fn set_command() -> String {
-    return format!("systemctl --user set-environment {PUSH_DEADLINE_VARIABLE}={EXAMPLE_SECONDS}");
+    return format!("export {PUSH_DEADLINE_VARIABLE}={EXAMPLE_SECONDS}");
 }
 
 /// What:
@@ -56,7 +62,7 @@ fn set_command() -> String {
 pub fn extend_clause_for(service: bool) -> String {
     if service {
         return format!(
-            "run `{}` and then `{RESTART_COMMAND}` to allow longer (a variable set in a terminal never reaches the commit service)",
+            "run `{}` in the shell this command runs in, then `{RESTART_COMMAND}` so the next command starts a service with it (a service the wrapper already started keeps the environment it was started with)",
             set_command()
         );
     }

@@ -372,5 +372,10 @@ fn an_older_git_is_told_how_to_get_a_service_it_can_work_with() {
     assert!(text.contains("Update this git"), "the upgrade is still named: {text}");
     assert!(text.contains("install the release"), "the rollback is named: {text}");
     assert!(text.contains(NOTHING_CHANGED), "nothing landed: {text}");
-    assert!(!text.contains(RESTART_COMMAND), "a restart starts the newer service again, so it is not the remedy here: {text}");
+    // What: The remedy is to stop the newer service, and the line never promises that the wrapper replaces it by itself.
+    // Why:  A service of a newer protocol cannot be asked to leave by this release, so nothing but the installed
+    //       release's own command ends it; a line that said "run the commit again and the service is replaced" would be
+    //       false here, and this is the one message where a restart used to be that promise.
+    assert!(!text.contains("restart it with"), "the newer service is not restarted for the person: {text}");
+    assert!(text.contains("Update this git"), "the other way out is named: {text}");
 }

@@ -35,24 +35,36 @@ pub use crate::service_messages_of_a_wait_for_the_service::{
 /// The sentences about what the service last said it waited for are read by the failures below and by the two of an interrupt.
 pub(crate) use crate::service_messages_of_a_wait_for_the_service::{it_had_said, waiting_for};
 
-/// The command that shows why the service did not start (Linux with systemd).
-pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
+/// What:
+///  The command that shows where each worktree's service writes its lines.
+/// Why:
+///  The service has no unit and no journal of its own:
+/// it appends to one file per worktree, beside its address,
+/// and this command lists them so a person can open the one that matters.
+/// It was `journalctl --user --unit …` while a unit started the service.
+pub const LOG_COMMAND: &str = "ls -1 \"$XDG_RUNTIME_DIR/monochromatic-git-policy-cli\"";
 
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
-/// The command that restarts the commit service,
-/// so the manager starts the one the installed units name (Linux with systemd).
-pub const RESTART_COMMAND: &str = "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
-
-/// The command that stops the commit service,
-/// so the manager starts the one the installed units name on the next connection (Linux with systemd).
+/// What:
+///  The command that ends this worktree's commit service, so the next command starts a fresh one.
 /// Why:
-///   A restart starts the program the manager's unit names,
-/// which after a rollback is still the newer release's,
-/// so stopping the
-///  service is the one command that lets the older wrapper's own service answer.
-pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-cli@*.service'";
+///  There is no unit for a manager to restart:
+/// `service stop` asks the service to leave over its own address,
+/// and the first command after it starts the program the installed release holds.
+/// It was `systemctl --user restart …` while a unit started the service.
+pub const RESTART_COMMAND: &str = "git monochromatic-git-policy-cli service stop";
+
+/// What:
+///  The command that ends this worktree's commit service,
+/// so the next command starts the release that is installed now.
+/// Why:
+///   After a rollback the running service is the newer release's,
+/// and stopping it is the one command that lets the older wrapper's own service answer.
+/// The service has no unit, so `service stop` is the command:
+/// it asks the service to leave over its own address.
+pub const STOP_COMMAND: &str = "git monochromatic-git-policy-cli service stop";
 
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
@@ -278,11 +290,11 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::NothingAnswered { address, waited } => format!(
             "Nothing has answered at the commit service's address for this worktree ({address}) for {} seconds, so this \
              commit was not made. A service that is stopped inside its own process (a frozen control group, a debugger, a \
-             suspended machine, or a wait in the kernel that never ends) looks like that, and this git had no user service \
-             manager to ask to start or restart it. See what the service of this worktree is doing with \
-             `git monochromatic-git-policy-cli service status`, let it run again the way it was stopped, and run the commit \
-             again; from a session whose user service manager this git can reach (`loginctl enable-linger` turns one on for \
-             an account that is not logged in), the service is started or restarted for you. {NOTHING_CHANGED}",
+             suspended machine, or a wait in the kernel that never ends) looks like that, and this git starts a service \
+             only when the address is free, so it neither replaces nor ends one that is still there. See what the service \
+             of this worktree is doing with `git monochromatic-git-policy-cli service status`, let it run again the way it \
+             was stopped, or end it with `{STOP_COMMAND}` and run the commit again, which starts a fresh one. \
+             {NOTHING_CHANGED}",
             waited.as_secs().max(1)
         ),
         ClientFailure::NoActivation(platform) => format!(
@@ -305,9 +317,9 @@ pub fn render(failure: &ClientFailure) -> String {
         ),
         ClientFailure::OtherRelease => format!(
             "The commit service that is running was started from another release of this git wrapper and did not stop when \
-             asked, so this commit was not made. Run the commit again: the next commit sets the service up from the units it \
-             installs and asks the manager to reload them. A service that still will not stop can be restarted with \
-             `{RESTART_COMMAND}`. {NOTHING_CHANGED}"
+             asked, so this commit was not made. Run the commit again: the next commit asks it once more, and starts this \
+             release's own service as soon as the address is free. A service that still will not stop can be ended with \
+             `{STOP_COMMAND}`. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
             "There is no space left for {path}, so this commit was not made. Free some space and run the commit again. \

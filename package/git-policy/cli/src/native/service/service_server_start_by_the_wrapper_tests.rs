@@ -106,7 +106,9 @@ fn a_command_waits_at_an_address_that_accepts_and_greets_nothing() {
     let began: std::time::Instant = std::time::Instant::now();
     let attempt: StartAttempt = start(&server);
     assert_eq!(attempt, StartAttempt::AnotherCommandStartsIt, "the command waits for the service that is there");
-    assert!(began.elapsed() < Duration::from_secs(2), "and it waits neither a start nor a probe, but returns at once: {:?}", began.elapsed());
+    // Two greeting reads (the look, and the look after the marker) precede the decision, so the wait is seconds at most and
+    //  never the start wait a spawned server would be given.
+    assert!(began.elapsed() < Duration::from_secs(4), "it returns in seconds, not after a start wait: {:?}", began.elapsed());
     // Nothing was started: the log the program would have written is not there.
     assert!(!server.log().exists(), "no server was started beside the live one");
     std::mem::forget(holding);
