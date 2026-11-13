@@ -198,9 +198,19 @@ export const NEURALWATT_KIMI_FLEX: ProviderPool = {
  not shown. The owner, 2026-11-13T15:2x-05:00: "You're responsible for the driver, the wrapper, mpm, cargo. If you find a
  issue you or a subagent fix it."
 
- The limit is on tokens, so a count of runs stands in for it: raise the number by one after an hour in which no run on this
- model ended on that answer, and lower it by one when one does. When Pi itself retries the answer, an ending is one Pi's retry
- gave up on, and the same rule holds.
+ Corrected the same day at 15:45: five does not prevent the answer. Between 15:36:05 and 15:41:05 it ended three more runs with
+ only two and three runs on this model going (by minute then: two of the 297 minutes at five or fewer held an ending, against
+ eight of the 67 at six or more), and the runs it ended had contexts from 27,598 to 523,600 tokens while runs of 118,179 to
+ 599,191 finished, so neither the count of runs nor the size of a run's context tells which request is refused.
+
+ What the provider says of the plan (its Token Plan FAQ, read 2026-11-13,
+ https://docs.modelstudio.console.alibabacloud.com/en/model-studio/token-plan-personal-faq): the rate limits "are adjusted
+ dynamically based on overall load" and "cannot be increased"; a caller that is limited should "wait about 1 minute before
+ retrying"; and the concurrency it recommends for the personal edition is "1-2 Agents" on its smallest tier and "6-8 Agents" on
+ its largest. So five stays as a number inside what the largest tier is recommended, where 18 was more than twice it, and what
+ lets a run live through the answer is a retry after about a minute, not this number. A first form of this comment said to
+ lower the number by one at each such ending; that rule is withdrawn, because the answer comes at any count and the rule would
+ only walk the pool down to nothing.
  */
 export const QWEN_PLAN_QWEN4_MAX_PREVIEW: ProviderPool = {
   name: 'qwen-token-plan',
