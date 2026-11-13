@@ -72,7 +72,10 @@ fn plant(common_dir: &Path, name: &str, pid: i64, identities: &[String]) {
     let lock: PathBuf = common_dir.join(name);
     std::fs::create_dir_all(lock.parent().expect("the lock's folder")).expect("the lock's folder");
     std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
-    std::fs::write(pid_file_beside(lock.as_path()).as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
+    // The clearing controls need the order the gate asks for: the PID file born strictly after the lock, which a file
+    //  system of one tick cannot show for two files written at once. The helper makes it again until it can, and a file
+    //  system that records no birth times fails the control naming what it said instead of testing nothing.
+    crate::lock_birth_times::tests::write_after_the_lock(lock.as_path(), format!("pid {pid}\n").as_str());
     for (index, identity) in identities.iter().enumerate() {
         let file: PathBuf = folder_of(common_dir).join(format!("record-{name}-{index}"));
         std::fs::write(file, record_text(&[("child", pid, identity.clone())])).expect("the record");
@@ -91,9 +94,32 @@ fn plant(common_dir: &Path, name: &str, pid: i64, identities: &[String]) {
 /// const [pid, identity] = deadHolder();
 /// ```
 fn dead_holder() -> (i64, String) {
-    let mut child: Child = Command::new(crate::test_support::REAL_GIT).arg("--version").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a helper starts");
+    let mut helper: Command = Command::new("sleep");
+    helper.arg("600");
+    return end_a_helper(helper);
+}
+
+/// What:
+///  Start `program`,
+/// read the identity of the process that runs it while that process lives,
+///  then end it and collect it.
+/// Why:
+///   A helper that is already gone when its identity is read makes the control fail for the machine's
+///  speed and not for the logic it tests:
+///  a review of `d189162e3e` saw two of ten controls fail that way on `git --version`,
+///  which exits before a reader can look.
+///  A program that waits for its own end keeps the identity readable until this control ends it,
+///  and the bounds below say how long the wait for that identity may take.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = spawn('sleep 600'); const identity = identityOf(helper.pid); helper.kill(); helper.wait();
+/// ```
+fn end_a_helper(mut program: Command) -> (i64, String) {
+    let mut child: Child = program.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a helper starts");
     let pid: i64 = i64::from(child.id());
-    let identity: String = identity_of_process(pid).expect("an identity while it runs");
+    let identity: String = identity_of_process(pid).expect("the helper's identity is readable while it waits");
+    let _killed = child.kill();
     child.wait().expect("the helper ends");
     return (pid, identity);
 }
@@ -181,6 +207,53 @@ fn a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared() {
     assert_eq!(clearance.evidence, Evidence::PidFile);
     assert!(!pid_file_beside(common_dir.join("index.lock").as_path()).exists(), "the PID file of a cleared lock goes with it");
     remove(common_dir.as_path());
+}
+
+/// What:
+///  A lock and a PID file born in one tick of a coarse file system,
+///  or on one that records no birth time,
+///  leave the lock where it is:
+///  nothing shows whether the PID file was written for this lock.
+/// Why:
+///  This is the state the review of `d189162e3e` reached by planting a PID file beside a live Git's
+///  editor-phase lock:
+///  the two births carried one tick of this volume's clock,
+///  the pass removed the live lock,
+///  and the commit failed with `unable to write new index file`.
+///  A file system of a second's granularity gives that state to files written moments apart,
+///  and one without birth times gives it to every pair.
+///  The recorded-times run beside them is the positive control:
+/// the same fixture is cleared when the
+///  order is proven,
+///  so the two keepings are the gate's answer and not a pass that stopped working.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withBirthTimes({ kind: 'coarse', tickMs: 2000 }, () => expect(kept)).toBe(true);
+/// withBirthTimes({ kind: 'hidden' }, () => expect(kept)).toBe(true);
+/// ```
+#[test]
+fn equal_or_missing_birth_times_keep_the_lock() {
+    use crate::lock_birth_times::{BirthTimes, with_birth_times};
+    let coarse: PathBuf = a_git_directory("coarse-birth-times");
+    let (coarse_pid, coarse_identity) = dead_holder();
+    plant(coarse.as_path(), "index.lock", coarse_pid, &[coarse_identity]);
+    let kept: bool = with_birth_times(BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+        return matches!(looked(coarse.as_path(), "index.lock"), Ended::Kept);
+    });
+    assert!(kept, "a lock and its PID file in one tick prove no order, so the lock stays");
+    remove(coarse.as_path());
+    let hidden: PathBuf = a_git_directory("no-birth-times");
+    let (hidden_pid, hidden_identity) = dead_holder();
+    plant(hidden.as_path(), "index.lock", hidden_pid, &[hidden_identity]);
+    let kept: bool = with_birth_times(BirthTimes::Hidden, || { return matches!(looked(hidden.as_path(), "index.lock"), Ended::Kept); });
+    assert!(kept, "a file system that records no birth time proves no order, so the lock stays");
+    remove(hidden.as_path());
+    let recorded: PathBuf = a_git_directory("recorded-birth-times");
+    let (recorded_pid, recorded_identity) = dead_holder();
+    plant(recorded.as_path(), "index.lock", recorded_pid, &[recorded_identity]);
+    assert!(matches!(looked(recorded.as_path(), "index.lock"), Ended::Cleared(_)), "the same fixture is cleared when the order is proven");
+    remove(recorded.as_path());
 }
 
 /// What:

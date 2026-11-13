@@ -19,7 +19,7 @@
 //! plantDeadHolderLock(repo, 'index.lock'); expect(runWrapped(repo, ['add', 'a.txt']).code).toBe(0);
 //! ```
 
-use super::support::{Fixture, Observed, REAL_GIT, executable, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
+use super::support::{Fixture, Observed, executable, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
 use std::os::unix::process::CommandExt as _;
 use git_policy_cli::lock_holder_records::{folder_of, identity_of_process, record_text};
 use std::path::{Path, PathBuf};
@@ -67,9 +67,13 @@ fn quiet(program: &str) -> Command {
 /// const gone = deadHolderIdentity(); // 'linux:1234#<boot>#<scope>#<machine>'
 /// ```
 fn a_dead_holder() -> (i64, String) {
-    let mut child: Child = quiet(REAL_GIT).args(["--version"]).spawn().expect("a helper starts");
+    // A program that waits for its own end, so its identity is readable until this control ends it: a helper that is
+    //  already gone (`git --version`) made two of the unit controls fail for the machine's speed in a review of
+    //  `d189162e3e`, and nothing here should depend on that.
+    let mut child: Child = quiet("sleep").arg("600").spawn().expect("a helper starts");
     let pid: i64 = i64::from(child.id());
-    let identity: String = identity_of_process(pid).expect("the helper's identity is readable while it runs");
+    let identity: String = identity_of_process(pid).expect("the helper's identity is readable while it waits");
+    let _killed = child.kill();
     child.wait().expect("the helper ends");
     return (pid, identity);
 }
@@ -110,6 +114,45 @@ fn plant_record(repo: &Path, holders: &[(&str, i64, String)], name: &str) {
 }
 
 /// What:
+/// What:
+///  Write the PID file beside `lock`,
+/// again if need be,
+///  until its birth is strictly after the lock's.
+/// Why:
+///  A control that means to see a removal must give the gate a proven order;
+///  this volume gives two files written microseconds apart one birth tick most of the time,
+///  so the file is made again after a pause until the two stamps differ,
+///  and a file system that records no birth time fails the control naming what it said.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeAfterTheLock(lock, 'pid 42\n')
+/// ```
+fn write_after_the_lock(lock: &Path, content: &str) {
+    let pid_file: PathBuf = pid_file_of(lock);
+    let began: Instant = Instant::now();
+    loop {
+        let _ = std::fs::remove_file(pid_file.as_path());
+        std::thread::sleep(Duration::from_millis(2));
+        std::fs::write(pid_file.as_path(), content.as_bytes()).expect("the PID file");
+        let lock_born = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
+        let pid_born = std::fs::symlink_metadata(pid_file.as_path()).ok().and_then(|metadata| { return metadata.created().ok(); });
+        if let (Some(lock_at), Some(pid_at)) = (lock_born, pid_born)
+            && pid_at > lock_at
+        {
+            return;
+        }
+        assert!(
+            began.elapsed() < Duration::from_secs(5),
+            "this file system cannot show that {} was born after {}: the lock is {:?} and the PID file {:?}",
+            pid_file.display(),
+            lock.display(),
+            lock_born,
+            pid_born
+        );
+    }
+}
+
 ///  Plant one lock file,
 /// the PID file Git writes beside it,
 ///  and the record a killed command leaves.
@@ -127,7 +170,10 @@ fn plant_lock(repo: &Path, name: &str, pid: i64, identity: Option<&String>, reco
     // A Git writes the new index, the reference list or HEAD into the lock before it renames it, so a lock left by a kill
     //  holds bytes rather than nothing.
     std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
-    std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
+    // The gate names a holder only when the PID file is born strictly after the lock, which this volume gives two files
+    //  written at once only sometimes: the helper makes the file again until the order is proven, and a file system that
+    //  records no birth time fails the control naming what it said.
+    write_after_the_lock(lock.as_path(), format!("pid {pid}\n").as_str());
     if let Some(recorded) = identity {
         plant_record(repo, &[("child", pid, recorded.clone())], record_name);
     }
@@ -164,8 +210,29 @@ struct After {
 /// const after = afterRunning(fixture, repo, ['add', 'a.txt'], 'index.lock');
 /// ```
 fn after_running(fixture: &Fixture, repo: &Path, arguments: &[&str], name: &str) -> (After, Duration) {
+    return after_running_with(fixture, repo, arguments, name, &[]);
+}
+
+/// What:
+///  `after_running` with variables for the wrapper's own process,
+///  which a control uses to report birth times as another file system would.
+/// Why:
+///  The gate's answer depends on the two birth times,
+///  and this volume gives them one tick or two;
+///  a variable that fixes them makes the control state a fact instead of the machine's speed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// afterRunningWith(fixture, repo, ['status'], 'index.lock', [['CLI_GIT_TEST_ONLY_BIRTH_TIME', 'none']]);
+/// ```
+fn after_running_with(fixture: &Fixture, repo: &Path, arguments: &[&str], name: &str, environment: &[(&str, &str)]) -> (After, Duration) {
     let began: Instant = Instant::now();
-    let observed: Observed = run_wrapped(fixture, repo, arguments);
+    let mut command: Command = super::support::wrapped(fixture);
+    for (variable, value) in environment {
+        command.env(variable, value);
+    }
+    command.current_dir(repo).args(arguments);
+    let observed: Observed = super::support::observe(&mut command, b"");
     let elapsed: Duration = began.elapsed();
     return (
         After {
@@ -278,41 +345,115 @@ fn a_merge_killed_while_its_checkout_stalled(fixture: &Fixture, repo: &Path) -> 
 }
 
 /// What:
-///  The lock a killed wrapper command left is cleared by the next command,
-///  which goes on,
-/// and the commit the audit saw withdrawn lands.
+///  The lock a killed merge left is kept
+///  when its PID file and the lock were born in one tick,
+///  which is what this volume gives the two files one Git writes at once,
+///  and the next command says why instead of removing it.
 /// Why:
-///  This is the whole requirement,
-///  on the state a real kill leaves:
-///  one line says what was cleared and why,
-/// the command spends a moment rather than a minute,
-///  nothing of the person's is lost,
-/// and no file of the repository is left half-written.
+///  The gate removes a lock only when its PID file is born strictly after it
+///  (`Judge::pid_file_state`,
+/// `PidFile::Unproven`).
+///  A killed Git writes both files within microseconds,
+///  so on this volume they carry one birth stamp (measured:
+/// three samples of a checkout held by a stalled
+///  filter,
+/// one with identical stamps and two within 150 microseconds),
+///  and nothing shows whether the file was written for this lock or by an earlier holder.
+///  A review of `d189162e3e` found a live Git's editor-phase lock removed in exactly that state,
+///  and the fix reads an unproven order as "keep".
+///  The clearing itself is the control beside this one
+///  (`every_lock_file_a_killed_command_can_leave_is_cleared_on_the_same_proof`),
+/// whose fixture proves the order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lock = aMergeKilledWhileItsCheckoutStalled(fixture, repo); const status = runWrapped(repo, ['status']); expect(status.code).toBe(0);
+/// const lock = aMergeKilledWhileItsCheckoutStalled(); expect(runWrapped(['status']).said).toContain('cannot be told apart');
+/// expect(lock).toExist();
 /// ```
 #[test]
-fn an_index_lock_a_killed_merge_left_is_cleared_and_the_next_commit_lands() {
+fn an_index_lock_a_killed_merge_left_is_kept_when_its_birth_order_is_unproven() {
     let fixture: Fixture = fixture("killed-merge-lock");
     let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
     let lock: PathBuf = a_merge_killed_while_its_checkout_stalled(&fixture, repo.as_path());
     let pid_file: PathBuf = pid_file_of(lock.as_path());
     assert!(pid_file.exists(), "the kill leaves the PID file the lock's holder was named in");
+    // A file system of one-second ticks, which this control states rather than waits for: the two files one Git writes at
+    //  once then carry one birth stamp, and the order is not proven.
+    let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")]);
+    assert!(after.lock_stands, "an order the file system does not prove keeps the lock: {}", after.said);
+    assert!(after.said.contains("cannot be told apart") || after.said.contains("no birth time"), "the line says why nothing was removed: {}", after.said);
+    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    assert!(elapsed < GOES_ON_WITHIN, "the command that meets it still goes on at once: {elapsed:?}");
+    let _ = pid_file;
+    super::commit::remove_settled(&fixture);
+    return;
+}
+
+/// What:
+///  The lock a killed merge left is cleared,
+/// and the next commit lands,
+///  when the order the gate asks for is proven.
+/// Why:
+///  This is what the change exists for,
+/// on the state a real group kill leaves:
+///  the PID file names the Git the wrapper's own record names,
+///  and with the two births told apart the next command clears the lock and the person's commit lands.
+///  The control makes the order provable the way a file system of a finer clock would,
+///  because this volume gives the two files one tick most of the time
+///  (the control beside this one pins that half).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = aMergeKilledWhileItsCheckoutStalled(); rewritePidFileLater(lock); expect(runWrapped(['status']).cleared).toBe(true);
+/// expect(commit(['-m', 'next']).code).toBe(0);
+/// ```
+#[test]
+fn an_index_lock_a_killed_merge_left_is_cleared_and_the_next_commit_lands() {
+    let fixture: Fixture = fixture("killed-merge-lock-proven");
+    let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
+    let lock: PathBuf = a_merge_killed_while_its_checkout_stalled(&fixture, repo.as_path());
+    let pid_file: PathBuf = pid_file_of(lock.as_path());
+    let named: String = std::fs::read_to_string(pid_file.as_path()).expect("the PID file the kill left");
+    // The same number the kill left, written once more so that its birth is strictly after the lock's.
+    write_after_the_lock(lock.as_path(), named.as_str());
     let (after, elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
-    assert!(!after.lock_stands, "the next command must clear the lock of a holder the wrapper's record proves gone");
+    assert!(!after.lock_stands, "a proven order and a dead recorded writer clear the lock: {}", after.said);
     assert!(!pid_file.exists(), "the PID file of a cleared lock goes with it");
     assert!(after.said.contains("cleared"), "one line must say what was cleared: {}", after.said);
-    assert!(after.said.contains("index.lock"), "the line must name the lock: {}", after.said);
-    assert!(elapsed < GOES_ON_WITHIN, "the next command took {elapsed:?}, which is the wait this change removes");
+    assert!(elapsed < GOES_ON_WITHIN, "the next command took {elapsed:?}");
     assert_eq!(after.code, Some(0), "the command must go on: {}", after.said);
-    // The person's own change is made once the lock is gone, so the commit that must land has something to land.
     std::fs::write(repo.join("staged.txt"), "the person's change\n").expect("the person's change");
     git(&fixture, repo.as_path(), &["add", "staged.txt"]);
     commit_lands(&fixture, repo.as_path(), "after a killed merge");
-    // Nothing of the person's was lost: the staged change is the commit's, and the tree is the merge's.
-    git(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]);
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  A lock whose file system records no birth time is kept,
+///  and the line names the file and the fact that nothing shows the PID file was written for it.
+/// Why:
+///  This is the other file system the review named:
+///  one whose `statx` gives no birth time at all.
+///  Nothing can prove the order there,
+///  so the pass must keep every lock whose PID file it cannot pin,
+///  and tell the person what stands and what clears it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const after = afterRunningWith(fixture, repo, ['status'], 'index.lock', [['CLI_GIT_TEST_ONLY_BIRTH_TIME', 'none']]);
+/// expect(after.said).toContain('no birth time');
+/// ```
+#[test]
+fn a_lock_whose_file_system_records_no_birth_time_is_kept_and_named() {
+    let (fixture, repo): (Fixture, PathBuf) = staged_fixture("no-birth-time-lock");
+    let (pid, identity) = a_dead_holder();
+    plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-no-birth-time");
+    let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "none")]);
+    assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
+    assert!(after.lock_stands, "nothing proves the order, so the lock stays: {}", after.said);
+    assert!(after.said.contains("no birth time"), "the line says the file system records none: {}", after.said);
+    assert!(after.said.contains("removing the file"), "the line says what a person can do: {}", after.said);
+    assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}");
     super::commit::remove_settled(&fixture);
 }
 

@@ -9030,10 +9030,21 @@ which makes the judgement unknown instead of wrong.
 A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_proving.rs`):
 
 - its PID file names a number,
-  and it was born at or after the lock,
+  and it was born **strictly after** the lock,
   so it is this lock's holder rather than an earlier one's
   (`Judge::pid_file_state`,
-  the rule the reference locks already use);
+  `PidFile::Unproven`).
+  A birth time the file system does not record,
+  or one both files share because the file system's clock is coarse,
+  proves neither order and keeps the lock:
+  a review of `d189162e3e` found a live Git's editor-phase lock removed when a PID file and a lock
+  carried one tick of this volume's clock,
+  and the same stamps are what one Git gives the two files it writes at once,
+  so nothing local tells those two states apart
+  (`lock_birth_times.rs`);
+  a control states a file system of one-second ticks,
+  and one of no birth times,
+  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`;
 - **no live process has that number**.
   A number a process has now is no proof of anything:
   it may be the recorded process that still runs,

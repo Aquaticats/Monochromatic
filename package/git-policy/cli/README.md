@@ -3430,6 +3430,10 @@ each with the birth identity,
 boot ID,
 PID namespace and machine ID that the commit service's index lock marker already uses.
 A lock is cleared when its PID file names a number no live process has,
+its own birth is strictly later than the lock's (a file system that records no birth time,
+or one whose
+clock is coarse enough to give both files one tick,
+proves neither order and keeps the lock),
 every record of this repository naming that number is a process of this boot,
 this PID namespace and this machine that has ended,
 the file sits on a local file system,

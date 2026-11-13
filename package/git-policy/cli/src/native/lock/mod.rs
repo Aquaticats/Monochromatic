@@ -98,6 +98,9 @@ pub mod push_lock_clearing;
 /// The notice a forwarded fetch or push is preceded by when reference locks of a killed Git are found.
 pub mod forwarded_lock_notice;
 
+/// When a lock and its PID file were born, with the arm a control hides or coarsens.
+pub mod lock_birth_times;
+
 /// The record a command writes about the processes it starts in a repository,
 /// and the proof that one of them is gone.
 pub mod lock_holder_records;

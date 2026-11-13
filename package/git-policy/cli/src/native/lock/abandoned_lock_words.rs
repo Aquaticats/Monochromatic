@@ -73,40 +73,36 @@ pub fn clearance_line(clearance: &Clearance) -> String {
 /// standingLockLine(lock, commonDir) // '...names PID 42, which a live process has now...' | undefined
 /// ```
 pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
-    let born: Option<std::time::SystemTime> = std::fs::symlink_metadata(lock).ok().and_then(created_at);
-    let crate::stale_ref_lock_found::PidFile::Names(pid) = Judge::pid_file_state(lock, born) else {
-        return None;
+    let born: Option<std::time::SystemTime> = crate::lock_birth_times::birth_time_of(lock);
+    let standing: crate::stale_ref_lock_found::PidFile = Judge::pid_file_state(lock, born);
+    let pid: i64 = match standing {
+        crate::stale_ref_lock_found::PidFile::Names(found) => found,
+        // A PID file whose birth cannot be told apart from the lock's proves nothing either way,
+        //  so a lock whose record still proves the recorded writer gone is the one case worth a line:
+        //  the wrapper could not pin the file to this lock, and the person is told which file to remove
+        //  if no program is using the repository. A live writer's own lock has no such record and stays silent.
+        crate::stale_ref_lock_found::PidFile::Unproven(found) if crate::lock_holder_record_reads::proved_gone_writer(common_dir, found).is_some() => found,
+        crate::stale_ref_lock_found::PidFile::Unproven(_) | crate::stale_ref_lock_found::PidFile::Older(_) | crate::stale_ref_lock_found::PidFile::Absent => return None,
     };
     let recorded: bool = !identities_recorded(common_dir, pid).is_empty();
     let live: bool = matches!(crate::process_identity::process_birth_identity(pid), Ok(Some(_running)));
     let held: bool = crate::abandoned_lock_proving::a_writer_holds_it_open(lock);
-    let why: &str = match (live, recorded, held) {
+    let why: &str = match (standing, live, recorded, held) {
         // Nothing is claimed about a live number: the lock may be that program's, and its own command ends by itself.
-        (true, _, _) => "which a live process has now, so nothing here proves the lock is not its own write",
-        (false, false, _) => "which no process in this process table has, and no record of the processes this repository's own commands started names that number",
+        (_, true, _, _) => "which a live process has now, so nothing here proves the lock is not its own write",
+        // The record proves its writer gone, and the PID file still cannot be pinned to this lock.
+        (crate::stale_ref_lock_found::PidFile::Unproven(_), false, true, _) => {
+            "which no process in this process table has, and this repository's own record names a process that ended; its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them, so nothing shows the file was written for this lock"
+        }
+        (_, false, false, _) => "which no process in this process table has, and no record of the processes this repository's own commands started names that number",
         // The records may be dead and the writer may still be at work: a program holding the lock open for writing keeps its
         //  name, because it can still write into the file.
-        (false, true, true) => "which no process in this process table has, and a program holds it open for writing now, so its name may not go",
-        (false, true, false) => "which no process in this process table has, and whose records this repository holds name a process of another boot, another PID namespace or another machine, so nothing here proves it gone",
+        (_, false, true, true) => "which no process in this process table has, and a program holds it open for writing now, so its name may not go",
+        (_, false, true, false) => "which no process in this process table has, and whose records this repository holds name a process of another boot, another PID namespace or another machine, so nothing here proves it gone",
     };
     return Some(format!(
         "monochromatic-git-policy-cli: {}, whose PID file names {pid}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a number this table has never had. If no program is using this repository, the lock was left by a program that was killed or has ended, and removing the file {} lets the command run.\n",
         lock.display(),
         lock.display()
     ));
-}
-
-/// What:
-///  When a file was created,
-///  where its file system records that.
-/// Why:
-///  Git writes a lock's PID file after the lock,
-///  so the two times are what tells this lock's holder from an earlier one's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// statSync(path).birthtimeMs
-/// ```
-fn created_at(metadata: std::fs::Metadata) -> Option<std::time::SystemTime> {
-    return metadata.created().ok();
 }

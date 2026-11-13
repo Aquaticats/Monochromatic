@@ -267,15 +267,18 @@ fn marker_of(lock: &Path) -> Option<crate::service_index_marker::Marked> {
 ///  where this file system records that.
 /// Why:
 ///  Git creates a lock's PID file after the lock itself,
-///  so the two times are what tells this lock's holder from an earlier one's.
+///  so the two times are what tells this lock's holder from an earlier one's,
+///  and a time this file system does not record,
+///  or one both files share,
+///  proves neither order
+///  (`lock_birth_times.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// statSync(path).birthtimeMs
 /// ```
 fn born_of(path: &Path) -> Option<std::time::SystemTime> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
-    return metadata.created().ok();
+    return crate::lock_birth_times::birth_time_of(path);
 }
 
 /// What:
