@@ -2889,7 +2889,7 @@ fn a_merge_published_somewhere_else_names_the_branch_and_the_ref() {
 ///  and the wrong one would be written.
 #[test]
 fn the_worktree_holding_a_branch_is_read_from_gits_listing() {
-    use crate::auto_push_reconcile_branch_advance::worktree_holding;
+    use crate::auto_push_reconcile_branch_advance_elsewhere::worktree_holding;
     let listing: &[u8] = b"worktree /one\0HEAD 1111\0branch refs/heads/main\0\0worktree /two\0HEAD 2222\0branch refs/heads/feat/topic\0\0worktree /three\0HEAD 3333\0detached\0\0";
     assert_eq!(worktree_holding(listing, "refs/heads/feat/topic"), Some(PathBuf::from("/two")));
     assert_eq!(worktree_holding(listing, "refs/heads/main"), Some(PathBuf::from("/one")));

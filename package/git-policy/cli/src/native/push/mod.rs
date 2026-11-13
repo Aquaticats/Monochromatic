@@ -163,9 +163,13 @@ pub mod auto_push_reconcile_basics_and_limits;
 /// built in the object store without a worktree or an index.
 pub mod auto_push_reconcile_merge_commit;
 
-/// The move of the local branch after the merge was pushed,
+/// The move of the branch a push sent after its merge was pushed,
 /// and the checks that guard it.
 pub mod auto_push_reconcile_branch_advance;
+
+/// Which worktree holds the branch a push sent,
+/// and the move of that branch where the worktree is not the one the command runs in.
+pub mod auto_push_reconcile_branch_advance_elsewhere;
 
 /// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
 pub mod auto_push_refspec_judging;
@@ -287,6 +291,12 @@ pub mod push_failure_notice_words;
 /// The record of what a push that succeeded did,
 /// and the name it is kept under.
 pub mod push_failure_notice_reports;
+
+/// Git's words as a record keeps them:
+/// the credentials masked,
+/// the control characters dropped,
+/// and the last line kept whole when the text is cut.
+pub mod push_failure_notice_reason;
 
 /// The words that say how to change the push deadline,
 /// for the terminal and for the resident commit service.

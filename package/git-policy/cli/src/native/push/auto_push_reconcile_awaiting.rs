@@ -25,7 +25,7 @@ use crate::auto_push_reconcile_basics_and_limits::{
     MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
     unpublished, was_rejected_as_stale,
 };
-use crate::auto_push_reconcile_branch_advance::{Advanced, advance_pushed_branch_awaiting};
+use crate::auto_push_reconcile_branch_advance_elsewhere::{Advanced, advance_pushed_branch_awaiting};
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::auto_push_destination::{Destination, read_destination_awaiting};
