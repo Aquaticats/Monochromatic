@@ -155,7 +155,9 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         git_dir: inputs.git_dir.to_path_buf(),
         // The name the environment gave, which is what the enhancement's gate reads: a folder this program fell back to is
         //  no session, so no manager is asked for it.
-        named_runtime_dir: inputs.named_runtime_dir.filter(|named| *named == runtime_dir).map(Path::to_path_buf),
+        named_runtime_dir: inputs.named_runtime_dir.filter(|named| {
+            return *named == runtime_dir;
+        }).map(Path::to_path_buf),
         bus_address: inputs.bus_address.map(str::to_string),
     };
     return Some(Route { address: Bind::Path(socket), host: Some(host) });

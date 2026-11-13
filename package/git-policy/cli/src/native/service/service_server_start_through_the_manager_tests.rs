@@ -110,9 +110,9 @@ fn a_probe_that_does_not_answer_in_time_is_no_manager() {
 
     std::fs::create_dir_all(root.join("slow").as_path()).expect("folder");
     let slow: ManagerStart = ManagerStart { program: stand_in(root.join("slow").as_path(), 0, "30") };
-    let began: std::time::Instant = std::time::Instant::now();
+    let slow_began: std::time::Instant = std::time::Instant::now();
     assert!(!slow.probe(), "a manager that has not answered by the bound is not there for this command");
-    let waited: std::time::Duration = began.elapsed();
+    let waited: std::time::Duration = slow_began.elapsed();
     assert!(waited >= PROBE_WAIT && waited < PROBE_WAIT + Duration::from_secs(2), "the bound is the bound: {waited:?}");
 
     std::fs::create_dir_all(root.join("refused").as_path()).expect("folder");

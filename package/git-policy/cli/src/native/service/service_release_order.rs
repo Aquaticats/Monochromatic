@@ -68,10 +68,10 @@ pub fn compare(one: &str, other: &str) -> Option<std::cmp::Ordering> {
 }
 
 /// One release text as its parts, or nothing when it is not one.
-fn parse(text: &str) -> Option<Release> {
-    let (numbers, pre_release): (&str, Option<&str>) = match text.split_once('-') {
-        Some((numbers, pre_release)) => (numbers, Some(pre_release)),
-        None => (text, None),
+fn parse(spelled: &str) -> Option<Release> {
+    let (numbers, tail): (&str, Option<&str>) = match spelled.split_once('-') {
+        Some((numbers, tail)) => (numbers, Some(tail)),
+        None => (spelled, None),
     };
     let mut parts: std::str::Split<'_, char> = numbers.split('.');
     let mut found: [u64; 3] = [0; 3];
@@ -82,10 +82,10 @@ fn parse(text: &str) -> Option<Release> {
     if parts.next().is_some() {
         return None;
     }
-    let pre_release: Option<(String, u64)> = match pre_release {
+    let pre_release: Option<(String, u64)> = match tail {
         None => None,
-        Some(text) => {
-            let (name, number) = text.rsplit_once('.')?;
+        Some(spelling) => {
+            let (name, number) = spelling.rsplit_once('.')?;
             if name.is_empty() {
                 return None;
             }

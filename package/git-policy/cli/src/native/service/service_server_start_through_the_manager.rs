@@ -171,8 +171,8 @@ impl ManagerStart {
 /// busAddresses(env.DBUS_SESSION_BUS_ADDRESS).some((a) => path.dirname(a.path) === runtimeDir)
 /// ```
 pub fn bus_is_ours(runtime_dir: &Path, address: Option<&str>) -> bool {
-    let Some(address) = address else { return false };
-    for one in address.split(';') {
+    let Some(spelled) = address else { return false };
+    for one in spelled.split(';') {
         let Some(path) = one.strip_prefix("unix:path=") else { continue };
         let socket: &Path = Path::new(path);
         let Some(directory) = socket.parent() else { continue };
