@@ -66,10 +66,9 @@ pub const PROBE_WAIT: Duration = Duration::from_secs(2);
 /// ```ts
 /// // after the bound: child.kill(); thread(() => child.wait()); return false
 /// ```
-pub fn end_and_reap_off_the_path(child: std::process::Child) {
-    let mut child: std::process::Child = child;
-    let _ended = child.kill();
-    let _reaped = child.wait();
+pub fn end_and_reap_off_the_path(mut probe_child: std::process::Child) {
+    let _ended = probe_child.kill();
+    let _reaped = probe_child.wait();
 }
 
 /// The extra a start through the manager is given past the base's own start wait,
