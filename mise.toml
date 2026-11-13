@@ -965,10 +965,11 @@ run = "dprint check --list-different"
 # Cargo waits behind it (`src/util/cache_lock.rs`); running `cargo fetch --locked` for all thirty-five lock files took
 # that lock whether or not anything was to fetch, and that is what made agents on this machine wait on each other.
 # Measured on 2026-11-13 (`strace -e trace=flock` over one pass, and a second Cargo run beside a pass): one pass took
-# 70 exclusive acquisitions of the lock and 5.6 s to 5.9 s in a warm worktree, 27.2 s in a fresh one whose cargo
-# shadow still had to verify every workspace; a Cargo started beside a pass waited in 27 of 44 and 26 of 40 probes,
-# up to 293 ms and 349 ms, for that pass alone. After: 1.0 s to 1.1 s, zero acquisitions, and no wait that a pass
-# causes (0 of 8 probes in one reading; in another 5 of 7 waited on other agents' Cargo). Readings and controls:
+# 70 exclusive acquisitions of the lock and 5.6 s to 5.9 s, or 23.2 s and 27.2 s when the cargo shadow had to verify
+# every workspace again (a fresh worktree, a base that moved); a Cargo started beside a pass waited in 27 of 44 and 26
+# of 40 probes, up to 293 ms and 349 ms, for that pass alone. After: 1.0 s to 1.6 s, zero acquisitions, and no wait
+# that a pass causes (0 of 8 probes in one reading; in another 5 of 7 waited on other agents' Cargo). Readings and
+# controls:
 # `~/temp/agent/cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch-scratch/keep/`.
 #
 # The judgment reads Cargo's own markers and never decides that a fetch must not happen. A lock file it cannot read,
