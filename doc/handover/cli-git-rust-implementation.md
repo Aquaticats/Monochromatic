@@ -685,6 +685,106 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### Issue 6300: `mpm-shadow install` takes a tool, with the owner's three answers; two reviews with defects go back to their authors (2026-11-13T18:39:31-05:00)
+
+Not final and not approved:
+written by the coordinating session from the issue,
+the owner's answers and the reviews' own text.
+
+##### Issue 6300
+
+The owner sent the issue's address at about 18:35 and nothing else.
+The issue is mpm-shadow's,
+which the owner made this session's on 2026-11-13 at 15:26,
+so it was taken as work to do.
+It records the owner's direction:
+no separate `add` verb;
+the existing `install` (alias `i`) accepts a tool,
+as `pnpm i -g <package>` does.
+
+Three points the issue leaves open were asked through the question tool,
+each with its options ranked:
+
+- What the argument names
+  (a request or an existing id,
+  a request alone,
+  an existing id alone):
+  "Request or existing id (Recommended)".
+  `mpm i -g cargo:fastmod` adds and installs a new tool from a request with a route prefix;
+  `mpm i -g tokei` installs the entry the plan already holds under that id;
+  a bare name that is neither is refused and never guessed;
+  several tools in one command are allowed.
+- Whether it works without `--global`
+  (both scopes,
+  or global alone):
+  "Both scopes (Recommended)".
+  Without `--global` it writes this repository's plan and lock,
+  keeping every comment and the file's layout.
+- Where the how-to lives
+  (the READMEs,
+  or a runbook):
+  "READMEs (Recommended)".
+  The command and the entry shapes in `package/mpm-shadow/cli/README.md`;
+  the four `toolchain:*:global` tasks beside the local ones in the root README's section "Tool inventory and drift".
+
+`install` with no argument keeps its meaning.
+Left to the run to settle and report:
+which routes a prefix can select,
+how a new tool's binaries are found,
+how the JSONC plan is written without losing a comment,
+and what a kill between the plan's write and the lock's leaves.
+
+The run is queued at the head:
+`issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan`,
+branch `feat/mpm-shadow-cli-install-takes-a-tool-and-adds-it-to-the-plan`,
+brief `~/temp/agent/pi-runs/issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan-prompt.md`.
+The issue carries a comment with the three answers and the label `ready-for-agent`.
+It meets the cleanup run of the same package in what an install does.
+
+##### Two reviews
+
+- **Commit forms that real Git refuses** (`a757ab0894`):
+  its first review reproduced three defects through the built wrapper.
+  The question the wrapper asks Git is not always a dry run:
+  `--dry-run` is put before the first `--`,
+  also where that `--` is the value of `-m`,
+  so `git commit -m -- -i` with a staged file named `-i` makes a commit with the subject `--dry-run`,
+  outside the service,
+  while the wrapper says Git could not be started.
+  The caller's `-C` is applied twice,
+  so with a nested repository that commit lands in a repository the command never named.
+  And a pathless `-o --fixup=amend:` that Git accepts is refused.
+  All go back to the author
+  (`~/temp/agent/pi-runs/commit-forms-answers-its-review-of-2026-11-13-prompt.md`),
+  queued.
+- **The index lock** (`675771e759`):
+  its third review found nothing that removes a live holder's lock,
+  and reproduced three defects that leave a lock standing.
+  The record a forwarded command writes of itself has two spaces where the reader expects one,
+  so the branch's own case,
+  a killed forwarded Git,
+  is never repaired,
+  and those records are never swept;
+  a named pipe at a lock's PID-file name holds every command;
+  the sweep removes the only record of a lock the walk did not visit.
+  It also measured that on this machine's btrfs volume Git creates the lock and its PID file with equal birth times,
+  which the branch treats as unproven,
+  so the pass clears no lock that is not empty here.
+  All four go back to the author,
+  the last as work and not as a choice:
+  a proof that holds with equal births,
+  or the sequence that shows none can
+  (`~/temp/agent/pi-runs/index-lock-answers-its-third-review-of-2026-11-13-prompt.md`),
+  queued.
+  The review's run ended `driver-failed` with its review written,
+  the eleventh such ending of the day (issue 6299).
+
+##### The deletion, at 18:38:31
+
+176 of the first folder's 256 shards are gone with no slow reading,
+and the build volume has 1,763 GiB free
+(1,439 GiB when it began).
+
 #### Old toolchains' build folders hold the build volume; the owner: delete two by hand, and each tool cleans up after itself; three more reviews routed (2026-11-13T18:33:32-05:00)
 
 Not final and not approved:
