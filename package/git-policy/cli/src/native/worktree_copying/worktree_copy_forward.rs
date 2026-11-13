@@ -385,8 +385,9 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
         return finished;
     }
     // A removal Git makes itself deletes the files it ignores without a word, so what is there is read before Git runs and
-    //  recorded once it has gone (`worktree_removal_deletions.rs`, the owner's decision of 2026-11-12T13:04:14). The record
-    //  is made only when Git reported success: a refusal deletes nothing and must not look like a deletion.
+    //  written down then, and confirmed once it has gone (`worktree_removal_deletions.rs`, the owner's decision of
+    //  2026-11-12T13:04:14). A refusal Git makes leaves the first line and no confirmation, which is what it is: the
+    //  removal listed what it was about to delete and deleted nothing.
     let about_to_go: Option<(PathBuf, RemovalBegun)> = match (&facts.remove_plan, common_directory(&facts.identity)) {
         (Some(plan), Some(common)) => {
             // The list is read and written before Git runs, because a kill between Git's deletion and its record would leave
