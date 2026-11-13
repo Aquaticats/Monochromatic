@@ -355,26 +355,21 @@ export async function removeInto({
           },);
         continue;
       }
-      // A mount point inside the folder is another filesystem's file tree, which this run did not make: emptying it would
-      // delete what its owner keeps there, so it stays and the line says so.
-      if (mountPoints.has(resolve(path,),)) {
+      /**
+       Why that entry is another filesystem's, when it is.
+       */
+      const left = leftWhereItIsIn({
+        path,
+        mountPoints,
+        device: entry.info
+          .dev,
+        referenceDevice,
+      },);
+      if (left.reason !== undefined) {
         tally.leftBehind
           .push({
             path,
-            reason: 'it is a mount point, so emptying it would cross into a filesystem this run did not make',
-          },);
-        continue;
-      }
-      // The same guard for a bind mount or a mount this machine's list does not name: an entry on another device is not the
-      // folder's own file, so it stays.
-      if (entry.info
-        .dev
-        !== referenceDevice) {
-        tally.leftBehind
-          .push({
-            path,
-            reason: `it is on another filesystem (device ${String(entry.info
-              .dev,)}), so it was left as it is`,
+            reason: left.reason,
           },);
         continue;
       }
