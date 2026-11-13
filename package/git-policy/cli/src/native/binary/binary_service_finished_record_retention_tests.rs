@@ -119,17 +119,16 @@ fn write_finished_from(journal: &Path, repository: &Path, first: u64, count: usi
 fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
     return ClientConfig {
         address: Bind::Path(socket_for(runtime, git_dir)),
-        activation: Activation::Managed,
+        activation: Activation::StartedByTheWrapper,
         start_wait: PATIENCE,
         heartbeat_silence: PATIENCE,
-        start_watch: None,
+        starter: None,
         keep_fresh: None,
         answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING,
         withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING,
         extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
-        start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
+        start_ceiling: PATIENCE,
         waiting_notice_after: PATIENCE,
-        units_record_dir: None,
     };
 }
 
