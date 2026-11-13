@@ -402,10 +402,12 @@ The second patch,
 [`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
 goes on top of it and removes the state copy of `multiple()`.
 With both,
-8,000 positional tokens took 84 ms against 217 ms with the first patch alone and 1,401 ms on `main`,
-and 32,000 took 1.4 s against 7.3 s and 30.6 s
+a run of positional tokens took 0.49 times as long as with the first patch alone at 8,000 tokens (0.33 to 0.59),
+0.21 times at 16,000 and 0.18 times at 32,000,
+where the median was 1.4 s against 7.3 s,
+and 30.6 s on `main`
 (Deno 2.9.8,
-medians of five rounds).
+five rounds paired by round).
 
 Tradeoffs of the second:
 
@@ -414,10 +416,10 @@ Tradeoffs of the second:
    `structuredClone()` and `Object.freeze()` on it throw,
    and so does editing it in place,
    as listed under "What a caller can notice".
-- Just past that size it can cost about a tenth,
-   measured on a line that alternates options and arguments.
+- Just past that size it may cost up to about a tenth on a line that alternates options and arguments;
+   the runs that measured it do not agree.
 - It is unreviewed by upstream and by any person,
-   and adds about 600 lines of source and 700 of tests to maintain.
+   and adds about 600 lines of source and 750 of tests to maintain.
 - The buffer copy stays,
    and from about 32,000 positional tokens it is most of the parse.
 
@@ -776,10 +778,11 @@ and no third model has reviewed either.
 The result:
 
 - The diff for `multiple()`'s state holds up,
-   with three changes made in the recheck.
+   with four changes made in the recheck,
+   two of them fixes of flaws in how its view handles writes.
    It is kept as
    [`optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch`](optique-multiple-rebuilds-its-state-array-for-each-accepted-item.patch),
-   1,342 lines added across seven files.
+   1,378 lines added across seven files.
 - The diff for the token buffer does not.
    It makes a command line that alternates options and arguments about ten times slower once it takes effect,
    and it is not kept as a patch;
@@ -833,8 +836,8 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
       8,125 and 8,125,
       none failing.
    - With the kept patch:
-      782 (8,330 steps),
-      8,115 and 8,115,
+      782 (8,331 steps),
+      8,116 and 8,116,
       none failing,
       and `deno fmt --check`,
       `deno lint` and `deno check` clean on the six source files it adds or changes.
@@ -845,7 +848,9 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    so that nearly every state and buffer is a view,
    the suite still passes whole:
    784,
-   8,125 and 8,125.
+   8,125 and 8,125 on the agent's diffs,
+   and 782,
+   8,116 and 8,116 on the kept patch with its one threshold at two.
    With both set to zero,
    five of the agent's new tests fail and no test upstream had before does;
    each of the five sizes itself as the threshold less one and reads index -1 or a token that is not there.
@@ -873,7 +878,7 @@ a parse of a thousand paths through a parser with twenty-eight options took 1.59
    (three rounds),
    so annotations do not undo it.
 
-Three changes made in the recheck,
+Four changes made in the recheck,
 all in the kept patch:
 
 - The agent's parser-level tests only append to a long state.
@@ -888,9 +893,27 @@ all in the kept patch:
    The view now refuses to be made non-extensible,
    so a freeze still throws and the view stays readable;
    a test guards it and fails when the refusal is removed.
-- A source comment cited two of the agent's measurement scripts by name,
-   which upstream does not have,
-   and another said a view is built with no closures while each caller passes a function made per view.
+- The view refused a write only to an index it holds.
+   A write past its end went through to the empty target array:
+   `state[state.length] = x` raised nothing,
+   a `push()` threw only after it had written,
+   and either way the value then read back at that index and showed in `Object.keys()` while `length` stayed.
+   `Object.defineProperty()` on an index raised nothing either,
+   and on an index the view holds it made `Object.keys()` throw afterwards.
+   All of that was measured on the three runtimes on the agent's diffs.
+   The view now refuses every index,
+   in assignments and in `Object.defineProperty()`,
+   and a test guards it and fails when the refusal is narrowed again.
+- Comments:
+   one cited two of the agent's measurement scripts by name,
+   which upstream does not have;
+   one said a view is built with no closures while each caller passes a function made per view;
+   and two module headers and the error message spoke of the input buffer,
+   which the kept patch does not touch.
+
+The suite counts and the five deliberate breaks named here were run on the kept patch as it now is.
+The two probes were run on the agent's diffs and again on the kept patch,
+with the break of the state view made in the kept patch the second time.
 
 One of the nine full Bun runs made in the recheck failed one test,
 "Bash Readline file completion quoting > keeps backticks literal in a quoted tilde pattern",
@@ -913,12 +936,22 @@ with every state made a view):
    `Proxy([])` on Node.
    `JSON.stringify` and a spread show the items.
 - `structuredClone()` throws `DataCloneError`.
-- Writing an element or `length`,
+- Every write to an index or to `length` throws a `TypeError` and leaves the state as it was:
+   an assignment,
+   `Object.defineProperty()`,
+   `delete`,
    and `push`,
-   `sort` and `reverse`,
-   throw a `TypeError`,
-   where they changed that parse's own copy before.
-- `Object.freeze()` throws,
+   `pop`,
+   `unshift`,
+   `splice`,
+   `fill`,
+   `copyWithin`,
+   `sort` and `reverse`.
+   On a plain array each of them changed that parse's own copy.
+   A symbol-keyed property can still be set,
+   which is how the library attaches annotations.
+- `Object.freeze()`,
+   `Object.seal()` and `Object.preventExtensions()` throw,
    and `Object.isFrozen()` is false.
 
 A search of every upstream package's source for `Object.freeze`,
@@ -942,13 +975,19 @@ both;
 and both with the thresholds at zero.
 
 How much two runs of the same code differ sets what can be claimed.
-A later check ran the base twice per round for ten rounds:
+The five rounds carry their own measure of it:
+below its threshold an arm runs the very code of the base,
+and there the state fix over the base read 1.06 at 1,000 positional tokens with single rounds from 0.56 to 1.53,
+and the buffer fix over the base reached 1.42 in one round on alternating input of 12,000 tokens.
+Rounds two to five overlapped other containers of the same session,
+which is part of that spread.
+A later check with nothing else of this session running ran the base twice per round for ten rounds:
 the second run over the first had a median between 0.97 and 1.03 at every size,
 and single rounds from 0.75 to 1.25.
-Rounds two to five of the main run also overlapped other containers of the same session.
-So a median within a few hundredths of 1,
+So in the five rounds a median within a tenth of 1,
 or a range that straddles 1,
-is no finding in either direction.
+is no finding in either direction,
+and the ten-round check is the finer instrument where it was used.
 
 A run of positional arguments and one unused option (`token-scaling.ts`),
 median in milliseconds:
@@ -1102,8 +1141,11 @@ then 0.87,
 slower in none of thirty pairs.
 This input fills two states,
 which pass 1,024 items at about 3,100 tokens.
-So just past its threshold the fix costs about a tenth here,
-and the threshold that suits a positional run is somewhat low for this shape.
+A later five-round run at the same sizes read 1.17 at 4,500 for the same arm (0.88 to 1.65)
+and 0.99 for the kept patch (0.53 to 1.06).
+So just past its threshold the fix may cost up to about a tenth on this shape or nothing;
+the runs do not agree,
+and whether 1,024 is the right threshold for inputs other than a positional run is not settled.
 At 24,000 tokens it reads 0.70 (0.62 to 0.72),
 and at 48,000 it gains nothing (0.99).
 What takes the time in the base at 48,000 alternating tokens was not profiled.
@@ -1120,6 +1162,21 @@ twenty-eight options and the paths (`commit-paths.ts`):
    and 0.41 after `--` (0.31 to 0.74).
    The buffer fix reads 0.97 and 1.08,
    inside the spread.
+
+All of those timings ran on the agent's diffs.
+The kept patch differs from the agent's state fix in code that runs only when something writes to a state,
+and it was timed beside that arm and the base in five more rounds to make sure:
+
+- Against the base on a positional run:
+   0.39 at 8,000 tokens (0.33 to 0.59),
+   0.20 at 16,000 (0.15 to 0.28)
+   and 0.22 at 32,000 (0.14 to 0.33),
+   slower in none of fifteen pairs.
+- At 20,000 paths through the `git commit` shape:
+   0.42 (0.27 to 0.47).
+- Against the agent's arm:
+   between 0.93 and 1.16 at every positional size,
+   each range straddling 1.
 
 One smaller thing was tried on the side.
 Writing the same copy as

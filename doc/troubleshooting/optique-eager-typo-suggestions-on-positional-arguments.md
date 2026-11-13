@@ -744,11 +744,11 @@ On the published builds, 1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on 
 What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
 both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
 of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
-input, 8,000 positional arguments and one option, it takes a parse from 1,130 ms to 140 ms. It keeps the entries in
+input, 8,000 positional arguments and one option, it took a parse from 1,130 ms to 140 ms in that run. It keeps the entries in
 an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
 to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
-`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice); on Deno, 32,000
-arguments take 30.6 s on main and 7.3 s patched. I tried both. A second patch removes the state copy by making a
+`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice); in a later run on
+Deno, 32,000 arguments took 30.6 s on main and 7.3 s patched. I tried both. A second patch removes the state copy by making a
 state of more than 1,024 items an array-shaped view over an immutable vector: 32,000 arguments then take 1.4 s, and
 the core suite passes on Deno, Node and Bun. Its cost is that such a state is a `Proxy`, which prints as an empty
 array and throws on `structuredClone()`, `Object.freeze()` and in-place edits. For the buffer I have nothing to
