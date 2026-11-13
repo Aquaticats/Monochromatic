@@ -194,6 +194,8 @@ fn scene(name: &str) -> Scene {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     let journal: PathBuf = fixture.root.join("journal");
+    // A control that writes its journal before the service starts makes the folder the service would make.
+    std::fs::create_dir_all(journal.as_path()).expect("the journal's folder");
     let service: FixtureService = start_fixture_service(&fixture);
     return Scene { fixture, repo, service, journal };
 }
@@ -213,7 +215,7 @@ impl Scene {
     fn wrapped_commit(&self, message: &str) {
         std::fs::write(self.repo.join("a.txt"), format!("{message}\n")).expect("a file to commit");
         git(&self.fixture, &self.repo, &["add", "--", "a.txt"]);
-        let observed = run_commit(&self.fixture, &self.repo, &["--quiet", &format!("--message={message}")]);
+        let observed = run_commit(&self.fixture, &self.repo, &["commit", "--quiet", &format!("--message={message}"), "a.txt"]);
         assert_eq!(observed.code, Some(0), "{message}: the wrapped commit landed: {}", String::from_utf8_lossy(observed.stderr.as_slice()));
     }
 }
