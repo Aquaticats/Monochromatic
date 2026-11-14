@@ -39,8 +39,9 @@ use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::start_directory;
 use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
 use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
-use crate::worktree_remove_plan::{RemovePlan, operand_and_force};
-use crate::worktree_remove_registry::{Registration, git_worktree_for_operand, registration_of};
+use crate::worktree_identity::{WorktreeIdentity, common_directory};
+use crate::worktree_remove_plan::{RemovalShape, RemovePlan, removal_shape};
+use crate::worktree_remove_registry::{Registration, git_worktree_for_operand, registered_worktree};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -68,20 +69,44 @@ pub(crate) fn refusal_for_a_typed_removal<F: RepositoryFacts>(command: &Resolved
     if escaped_by_the_person || !names_a_removal(command) {
         return None;
     }
-    let common_dir: PathBuf = checks.facts.known_common_dir()?;
+    // Every way this question can end in "no answer" refuses rather than stands down: a removal handed to Git on a
+    // guess is the one case the guard exists for. The three refusals below are the whole set, and each says why and what
+    // to type (`unprovable_operand_refusal`).
+    let location: crate::repository_location::RepositoryLocation = match checks.facts.location() {
+        Ok(found) => found,
+        Err(reason) => return Some(unprovable_operand_refusal(command, format!("this command's repository cannot be read ({reason})").as_str())),
+    };
+    // Outside a worktree no worktree is removed: Git answers "not a git repository" and nothing is asked of a person.
+    if location.identity == WorktreeIdentity::OutsideWorktree {
+        return None;
+    }
+    let common_dir: PathBuf = match common_directory(&location.identity) {
+        Some(found) => found.to_path_buf(),
+        None => return Some(unprovable_operand_refusal(command, "this command's common Git directory is not one this program can name")),
+    };
+    match removal_shape(command.arguments.as_slice(), command.subcommand_index) {
+        // A forced removal is Git's own `--force` and deletes the same set.
+        RemovalShape::Served { force: true, .. } => return None,
+        RemovalShape::Served { force: false, .. } => {}
+        // Git answers this form with its usage and removes nothing.
+        RemovalShape::NotARemoval => return None,
+        RemovalShape::Unprovable(reason) => return Some(unprovable_operand_refusal(command, reason.as_str())),
+    }
     let context: GitContext = checks.facts.transaction_context();
     let plan: RemovePlan = match plan_of_the_removal(command, common_dir.as_path(), &context) {
         Ok(Some(found)) => found,
         // Git's own resolution names no worktree, so Git itself refuses the command and nothing is removed.
         Ok(None) => return None,
-        // Nothing here can say which worktree the operand names, and a guard that guessed would stand down on the one
-        // case it exists for: the person is asked to say it again with the opt-out, or with a name only one worktree answers.
+        // Nothing here can say which worktree the operand names: the person is asked to say it again with the opt-out,
+        // or with a name only one worktree answers.
         Err(reason) => return Some(unprovable_operand_refusal(command, reason.as_str())),
     };
-    if plan.force {
-        return None;
-    }
-    let registration: Registration = registration_of(common_dir.as_path(), plan.target.as_path(), plan.operand.as_os_str()).ok()?;
+    // The worktree Git picked, read by its directory: the operand question is already answered above, exactly as Git
+    // answers it, so nothing here asks the registration which name it goes by.
+    let registration: Registration = match registered_worktree(common_dir.as_path(), plan.target.as_path()) {
+        Ok(found) => found,
+        Err(reason) => return Some(unprovable_operand_refusal(command, format!("the registration of {} cannot be read ({reason})", plan.target.display()).as_str())),
+    };
     let mut reasons: Vec<String> = match git_work_a_removal_would_strand(&context, common_dir.as_path(), plan.target.as_path(), registration.admin.as_path()) {
         Ok(stranded) => stranded,
         Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing: {reason}")],
@@ -135,8 +160,11 @@ fn names_a_removal(command: &ResolvedCommand) -> bool {
 /// planOfTheRemoval(command, commonDir, context) // RemovePlan | undefined; throws the reason
 /// ```
 fn plan_of_the_removal(command: &ResolvedCommand, common_dir: &Path, context: &GitContext) -> Result<Option<RemovePlan>, String> {
-    let Some((operand, force)) = operand_and_force(command.arguments.as_slice(), command.subcommand_index) else {
-        return Ok(None);
+    let (operand, force): (std::ffi::OsString, bool) = match removal_shape(command.arguments.as_slice(), command.subcommand_index) {
+        RemovalShape::Served { operand, force } => (operand, force),
+        // Both are answered before this is asked: a form Git refuses is no removal, and a form this program cannot
+        // read has already been refused in words.
+        RemovalShape::NotARemoval | RemovalShape::Unprovable(_) => return Ok(None),
     };
     let current: PathBuf = std::env::current_dir().map_err(|error| return format!("the directory this command runs in cannot be read ({error})"))?;
     let start: PathBuf = match start_directory(&command.arguments[..command.subcommand_index], current.as_path()) {
@@ -203,10 +231,13 @@ fn case_folds(context: &GitContext, common_dir: &Path) -> Result<bool, String> {
 /// unprovableOperandRefusal(command, reason) // the report
 /// ```
 fn unprovable_operand_refusal(command: &ResolvedCommand, reason: &str) -> String {
-    let operand: String = match command.arguments.get(command.subcommand_index + 2) {
-        Some(word) => word.to_string_lossy().into_owned(),
-        None => String::new(),
-    };
+    // The words Git will read after `remove`: the operand a person typed, or nothing when the words name no directory.
+    let operand: String = command.arguments[command.subcommand_index + 2..]
+        .iter()
+        .filter(|word| return word.as_encoded_bytes() != b"--")
+        .last()
+        .map(|word| return word.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let quoted: String = crate::shell_quote::shell_quote(operand.as_bytes());
     return format!(
         "{PREFIX}nothing here proves which worktree the name {quoted} a removal names, so nothing was removed: {reason}. If that worktree must go anyway, `git worktree --no-enforce-worktree remove {quoted}` runs as real Git runs it and deletes all of it."

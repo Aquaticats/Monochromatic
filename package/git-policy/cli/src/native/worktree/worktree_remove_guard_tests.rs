@@ -1052,3 +1052,63 @@ fn a_removal_marks_its_record_before_it_calls_the_destroy() {
     assert!(marked.get(), "the record says the files leave the path before the call starts, but it did not: {outcome:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  A commit only the worktree's `HEAD` names, made while the proof of cleanliness runs,
+///  keeps the worktree.
+/// Why:
+///  The proof starts Git and walks every tracked file,
+///  and a commit made on a detached `HEAD` while it runs is Git work the destroy would leave named by nothing.
+///  The question is therefore asked again where the destroy is decided,
+///  and this hook is that window: the stand's proof runs its action after the real proof succeeded
+///  (a review of `9e6c8619a9`, finding 2).
+#[test]
+fn a_commit_made_during_the_proof_of_cleanliness_keeps_the_worktree() {
+    let root: PathBuf = fixture("remove-guard-late-commit");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let at: PathBuf = worktree.clone();
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        std::fs::write(at.join("more.txt"), b"more work\n").expect("a file in the worktree");
+        git(at.as_path(), &["checkout", "--quiet", "--detach"]);
+        git(at.as_path(), &["add", "more.txt"]);
+        git(at.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    }));
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    match &outcome {
+        RemoveOutcome::Refused(words) => assert!(words.contains("detached HEAD"), "the refusal names the commit's holder: {words}"),
+        other => panic!("a commit made during the proof keeps the worktree, but the removal answered {other:?}"),
+    }
+    assert!(worktree.join("more.txt").is_file(), "the commit's file is still there");
+    assert!(worktree.exists(), "and so is the worktree");
+    remove(root.as_path());
+}
+
+/// What:
+///  An edit hidden behind a mark, made while the proof of cleanliness runs,
+///  keeps the worktree.
+/// Why:
+///  The mark hides the edit from every command of Git,
+///  so the proof of cleanliness cannot see it,
+///  and the destroy would delete it unless the question is asked again where the destroy is decided
+///  (a review of `9e6c8619a9`, finding 2).
+#[test]
+fn a_hidden_edit_made_during_the_proof_of_cleanliness_keeps_the_worktree() {
+    let root: PathBuf = fixture("remove-guard-late-hidden-edit");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let at: PathBuf = worktree.clone();
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        git(at.as_path(), &["update-index", "--assume-unchanged", "tracked.txt"]);
+        std::fs::write(at.join("tracked.txt"), b"my edit, only here\n").expect("a hidden edit");
+    }));
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    match &outcome {
+        RemoveOutcome::Refused(words) => assert!(words.contains("tracked.txt"), "the refusal names the file: {words}"),
+        other => panic!("a hidden edit made during the proof keeps the worktree, but the removal answered {other:?}"),
+    }
+    assert_eq!(std::fs::read(worktree.join("tracked.txt")).expect("the edit is still there"), b"my edit, only here\n");
+    remove(root.as_path());
+}

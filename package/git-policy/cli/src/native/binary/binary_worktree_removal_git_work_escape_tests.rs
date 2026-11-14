@@ -215,7 +215,10 @@ fn the_spellings_the_wrapper_reads_run_and_the_one_after_remove_is_real_gits() {
     let task: String = scene.task.display().to_string();
     scene.hide_an_edit();
     let after: Observed = scene.remove_with(&["worktree", "remove", "--no-enforce-worktree", task.as_str()]);
-    assert_eq!(after.code, Some(129), "the option after `remove` reaches real Git: {}", stderr_of(&after));
+    let said: String = stderr_of(&after);
+    assert_eq!(after.code, Some(1), "the opt-out after `remove` is answered with where it goes: {said}");
+    assert!(said.contains("directly after `worktree`"), "and says where that is: {said}");
+    assert!(said.contains("`git worktree --no-enforce-worktree remove "), "with the command that runs it: {said}");
     assert!(scene.task.exists(), "and nothing was removed");
     remove(&scene.fixture);
 }
@@ -432,4 +435,134 @@ fn a_named_pipe_at_the_index_holds_neither_a_removal_nor_a_merge() {
     assert_eq!(merged.code, Some(0), "the merge ends, and keeps the worktree: {merge_words}");
     assert!(merging.task.exists(), "the sweep left it: {merge_words}");
     remove(&merging.fixture);
+}
+
+/// What one fixture holds when two worktrees share the last two components of their paths.
+struct SharedSuffix {
+    /// The fixture whose wrapper link every command starts.
+    fixture: Fixture,
+    /// The main checkout.
+    repo: PathBuf,
+    /// The worktree at `repo/proj/task`, which an operand of that suffix resolves to.
+    inside: PathBuf,
+    /// The worktree at `elsewhere/proj/task`, which the same suffix also ends.
+    outside: PathBuf,
+}
+
+/// What:
+///  A repository with two worktrees whose paths end in `proj/task`
+///  and a tracked file in each.
+/// Why:
+///  The suffix names both, which is Git's ambiguous case: Git falls to the operand as a path,
+///  and from the repository root that path is the one inside,
+///  so the guard has to answer the question for that worktree rather than stand down
+///  (a review of `9e6c8619a9`, finding 1).
+fn a_repository_whose_worktrees_share_a_suffix(name: &str) -> SharedSuffix {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(TRACKED), "base\n").expect("a tracked file");
+    git(&fixture, &repo, &["add", TRACKED]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=a tracked file"]);
+    let inside: PathBuf = repo.join("proj/task");
+    let outside: PathBuf = fixture.root.join("elsewhere/proj/task");
+    for (path, branch) in [(&inside, "one"), (&outside, "two")] {
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("the parent directory");
+        run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", branch, path.to_str().expect("a UTF-8 fixture path")]);
+    }
+    return SharedSuffix { fixture, repo, inside: std::fs::canonicalize(inside).expect("the worktree's real path"), outside: std::fs::canonicalize(outside).expect("the worktree's real path") };
+}
+
+/// What:
+///  An operand both registered paths end in is resolved as the path Git resolves it to,
+///  so the guard asks about the worktree Git will remove and refuses.
+/// Why:
+///  Git answers a suffix match only for exactly one registration and falls to the resolved path for two,
+///  so a guard that answered "no worktree" there stood down on the one name Git removes,
+///  and the removal destroyed a hidden edit or a commit nothing else names.
+///  The absolute operand is the control that the guard is active on the same worktree.
+#[test]
+fn a_suffix_two_worktrees_share_is_guarded_on_the_worktree_git_picks() {
+    // The hidden edit, named by the suffix both worktrees end in.
+    let scene: SharedSuffix = a_repository_whose_worktrees_share_a_suffix("removal-ambiguous-hidden-edit");
+    run_direct(&scene.fixture, scene.inside.as_path(), &["update-index", "--assume-unchanged", TRACKED]);
+    std::fs::write(scene.inside.join(TRACKED), "my edit, only here\n").expect("an edit to a tracked file");
+    let refused: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", "proj/task"]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the shared suffix is refused on the worktree Git picks: {said}");
+    assert!(said.contains(TRACKED), "and the refusal names the hidden edit: {said}");
+    assert!(scene.inside.join(TRACKED).exists(), "nothing was removed from it");
+    assert!(scene.outside.join(TRACKED).exists(), "and the other worktree is untouched");
+    // The control: the same worktree by a name only one registration answers.
+    let unique: String = scene.inside.display().to_string();
+    let refused_by_name: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", unique.as_str()]);
+    assert_eq!(refused_by_name.code, Some(1), "a unique name is refused on the same worktree: {}", stderr_of(&refused_by_name));
+    remove(&scene.fixture);
+
+    // The commit only a detached HEAD names, by the same shared suffix.
+    let scene: SharedSuffix = a_repository_whose_worktrees_share_a_suffix("removal-ambiguous-stranded");
+    std::fs::write(scene.inside.join("more.txt"), "more work\n").expect("a file in the worktree");
+    run_direct(&scene.fixture, scene.inside.as_path(), &["checkout", "--quiet", "--detach"]);
+    run_direct(&scene.fixture, scene.inside.as_path(), &["add", "more.txt"]);
+    run_direct(&scene.fixture, scene.inside.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    let named: std::process::Output = git(&scene.fixture, scene.inside.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+    let refused: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", "proj/task"]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the shared suffix is refused on the stranded commit too: {said}");
+    assert!(said.contains(&commit[..12]), "and names the commit: {said}");
+    assert!(scene.inside.exists(), "nothing was removed");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  `--no-force` is a force spelling Git reads as no force,
+///  so the guard asks its questions on that form too.
+/// Why:
+///  Git's `OPT__FORCE` accepts `--force`, `--no-force`, their unique prefixes and a cluster of `f`,
+///  and a reader that knew only `-f` and `--force` stood down on the `--no-force` form,
+///  which Git removes unforced, so a hidden edit went with it
+///  (a review of `9e6c8619a9`, finding 1, and the same class in the words).
+#[test]
+fn the_forms_git_reads_as_no_force_are_guarded() {
+    for words in [["--no-force"].as_slice(), ["-f", "--no-force"].as_slice(), ["--no-forc"].as_slice()] {
+        let scene: Scene = a_repository_with_a_recorded_worktree("removal-no-force-form");
+        let task: String = scene.task.display().to_string();
+        scene.hide_an_edit();
+        let mut arguments: Vec<&str> = vec!["worktree", "remove"];
+        arguments.extend(words.iter().copied());
+        arguments.push(task.as_str());
+        let refused: Observed = scene.remove_with(arguments.as_slice());
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{words:?} is no force to Git, so the guard asks: {said}");
+        assert!(said.contains(TRACKED), "and names the edit: {said}");
+        assert!(scene.task.join(TRACKED).exists(), "nothing was removed");
+        remove(&scene.fixture);
+    }
+}
+
+/// What:
+///  An option this program does not read is refused rather than handed to Git,
+///  and Git's own usage answers `-h`.
+/// Why:
+///  A word this program does not know could be an option a later Git accepts unforced,
+///  and standing down on it would hand the removal to Git without a question:
+///  the guard words the refusal instead, with the opt-out that runs Git's own reading.
+///  `-h` is Git's usage, which removes nothing, so it stays Git's.
+#[test]
+fn an_option_this_program_does_not_read_is_refused_and_usage_stays_gits() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-unread-option");
+    let task: String = scene.task.display().to_string();
+    scene.hide_an_edit();
+    let refused: Observed = scene.remove_with(&["worktree", "remove", "--quiet", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "an unread option is refused: {said}");
+    assert!(said.contains("--quiet"), "and named: {said}");
+    assert!(said.contains("--no-enforce-worktree"), "with the way out: {said}");
+    assert!(scene.task.join(TRACKED).exists(), "nothing was removed");
+    let usage: Observed = scene.remove_with(&["worktree", "remove", "-h"]);
+    assert_eq!(usage.code, Some(0), "Git answers its usage and removes nothing: {}", stderr_of(&usage));
+    let words: String = String::from_utf8_lossy(usage.stdout.as_slice()).into_owned();
+    assert!(words.contains("usage: git worktree remove"), "and that answer is Git's usage, on standard output: {words}");
+    assert!(scene.task.exists(), "and the worktree stays");
+    remove(&scene.fixture);
 }

@@ -287,10 +287,10 @@ pub fn git_worktree_for_operand(common_dir: &Path, operand: &OsStr, start: &Path
     if by_suffix.len() == 1 {
         return only_if_linked(by_suffix[0]);
     }
-    if by_suffix.len() > 1 {
-        // Two registrations end in the name: Git falls to the resolved path, and answers nothing here.
-        return Ok(None);
-    }
+    // Two registrations ending in the name is no answer either: Git's `find_worktree` takes the resolved path then
+    // (`find_worktree_by_suffix` answers only one, and `worktree.c` falls to `find_worktree_by_path`), so this reads the
+    // same second step for both no match and more than one. Answering nothing here stood the guard down on a name Git
+    // resolves and removes (a review of `9e6c8619a9`, finding 1).
     // Git's second step: the operand as a path, resolved, against every registration resolved the same way.
     let joined: PathBuf = match Path::new(operand).is_absolute() {
         true => PathBuf::from(operand),

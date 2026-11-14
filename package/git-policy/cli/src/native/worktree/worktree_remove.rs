@@ -257,6 +257,47 @@ impl RemoveOperations for LinuxOperations {
 }
 
 /// What:
+///  The report of a removal that would destroy Git work,
+///  or nothing when nothing of the person's is at stake,
+///  when the person forced the removal,
+///  or when the removal carries the guard's opt-out.
+/// Why:
+///  Two states ask nothing of this question:
+///  a forced removal,
+///  which is Git's own `--force` and deletes the same set,
+///  and one that carries the opt-out of `linked-worktree-only`,
+///  which runs as real Git runs it
+///  ("What never discarding a person's data means", `SPEC.md`).
+///  No command of the automatic routes can carry the opt-out: nobody typed anything there, so their worktree is kept.
+///  The question is one function so that the ask at the start of a removal and the ask in the window of its destroy
+///  cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitWorkInTheWay(request, admin) // the report | undefined
+/// ```
+fn git_work_in_the_way(request: &RemoveRequest<'_>, admin: &Path) -> Option<String> {
+    if request.plan.force || request.escaped_by_the_person {
+        return None;
+    }
+    let target: &Path = request.plan.target.as_path();
+    let mut reasons: Vec<String> = match git_work_a_removal_would_strand(request.context, request.common_dir, target, admin) {
+        Ok(stranded) => stranded,
+        Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing: {reason}")],
+    };
+    match hidden_edits_beneath(request.context, target, admin, request.common_dir) {
+        Ok(mut edits) => reasons.append(&mut edits),
+        Err(reason) => reasons.push(format!("nothing proves no edit there is hidden from Git: {reason}")),
+    }
+    if reasons.is_empty() {
+        return None;
+    }
+    let report: String = crate::worktree_removal_typed_git_work::git_work_refusal(target, reasons.as_slice());
+    warn(TAG, report.as_str());
+    return Some(report);
+}
+
+/// What:
 ///  After the destroy,
 /// remove the registration through the descriptors that were held,
 /// and report how that ended.
@@ -364,24 +405,10 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // removal hands to Git: a commit only the worktree's own state names, and an edit a mark hides from Git, are states
     // Git's own `worktree remove` deletes without a word, so a command that goes on to Git would destroy them
     // (`worktree_removal_keeps_git_work.rs`, `worktree_removal_hidden_edits.rs`).
-    // Two states ask nothing of this guard: a removal the person forced, which is Git's own `--force` and deletes the
-    // same set, and one that carries the opt-out of `linked-worktree-only`, which runs as real Git runs it
-    // ("What never discarding a person's data means", `SPEC.md`). No command of the automatic routes can carry the
-    // opt-out: nobody typed anything there, so their worktree is kept as before.
-    if !request.plan.force && !request.escaped_by_the_person {
-        let mut reasons: Vec<String> = match git_work_a_removal_would_strand(request.context, request.common_dir, target, registration.admin.as_path()) {
-            Ok(stranded) => stranded,
-            Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing: {reason}")],
-        };
-        match hidden_edits_beneath(request.context, target, registration.admin.as_path(), request.common_dir) {
-            Ok(mut edits) => reasons.append(&mut edits),
-            Err(reason) => reasons.push(format!("nothing proves no edit there is hidden from Git: {reason}")),
-        }
-        if !reasons.is_empty() {
-            let report: String = crate::worktree_removal_typed_git_work::git_work_refusal(target, reasons.as_slice());
-            warn(TAG, report.as_str());
-            return RemoveOutcome::Refused(report);
-        }
+    // It is asked again in the window of the destroy, below; the answer here is what keeps a removal that would fail
+    // anyway from paying the proof of cleanliness first.
+    if let Some(report) = git_work_in_the_way(request, registration.admin.as_path()) {
+        return RemoveOutcome::Refused(report);
     }
     if !operations.is_subvolume_root(target) {
         debug(TAG, format!("{} is not a subvolume; Git removes it file by file unless a volume it did not make stands below it", target.display()).as_str());
@@ -513,6 +540,15 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses.
     if let Err(reason) = last_look::before_the_destroy(request, target) {
         return RemoveOutcome::Refused(reason);
+    }
+    // The two questions of this removal are asked once more here, where the destroy is decided, because the proof of
+    // cleanliness above starts Git and walks every tracked file, and a commit made on a detached `HEAD`, or an edit a
+    // mark hides, written while that proof runs is Git work this destroy would delete. The window is then the one the
+    // specification accepts for this destroy, the few system calls between this reading and the kernel's
+    // (`SPEC.md`, "Other processes changing files", and the paragraph above: "These narrow the window to a few system
+    // calls; they do not close it"), where asking only at the start left it the whole proof.
+    if let Some(report) = git_work_in_the_way(request, registration.admin.as_path()) {
+        return RemoveOutcome::Refused(report);
     }
     if goes_around {
         return crate::worktree_remove_around::go_around(request, &held, &registration);
