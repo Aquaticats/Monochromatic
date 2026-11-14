@@ -13237,6 +13237,24 @@ each with its reason in the code and here:
   finishes it are one critical section of one non-blocking write;
   the waiter waits for one system call,
   never for the journal.
+- The mutex on the stock of drawn shadows (`service_shadow_draw.rs`):
+  the draw's own thread records a tree and every connection's answer takes one,
+  so two threads reach the list,
+  and a list of paths is not one word an atomic could hold.
+  Under it the list is changed and nothing else:
+  one `push` on the draw's thread and one `pop` where a commit's question is answered,
+  with no Git process,
+  no file and no other lock,
+  so a commit's question is answered from memory and never waits for a volume.
+- The mutex and the condition of the service's own log lines (`service_log_lines_off_the_calling_thread.rs`):
+  a caller hands a line and goes on,
+  and one thread takes lines and may wait on the stream as long as the reader takes,
+  so the hand and the take are the two ends of one queue;
+  under it one line is pushed or popped and the writer is handed out or given back,
+  and the write itself runs outside it.
+  A queue of `QUEUED_LINES` (256,
+  measured over the six slowest commits of 2026-11-12)
+  is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
   one reclaimer at a time,
   by the claim chain of placed files and process-identity judgements on every file system
