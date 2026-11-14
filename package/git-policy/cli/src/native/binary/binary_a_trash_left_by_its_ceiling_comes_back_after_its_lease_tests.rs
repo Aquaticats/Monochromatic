@@ -295,12 +295,18 @@ fn a_trash_left_by_its_ceiling_comes_back_after_its_lease_and_a_commit_lands_mea
     std::thread::sleep(THE_HOLD);
     setup.let_go();
     // The wave that began is finished, and the ceiling stops the next one.
-    wait_until("the held wave removed its entries and the record kept its claim", PATIENCE, &|| {
-        return setup.entries_present() < THE_ENTRIES && setup.record_state() == CLAIMED;
-    });
+    wait_until("the wave the control held removed the entries it named", PATIENCE, &|| { return setup.entries_present() < THE_ENTRIES; });
+    let state_after_the_wave: &'static str = setup.record_state();
+    assert_eq!(
+        state_after_the_wave, CLAIMED,
+        "a bound that ran out leaves the record claimed, which is the retry the answer asked for; the record stands in {state_after_the_wave}"
+    );
     let removed_before_the_retry: usize = THE_ENTRIES - setup.entries_present();
     assert!(removed_before_the_retry > 0, "the wave that began was finished, so the entries it named are gone");
-    assert!(setup.entries_present() > 0, "the ceiling stopped the next wave, so entries are left for a later round");
+    assert!(
+        setup.entries_present() > 0,
+        "the ceiling stopped the next wave, so its entries are left for a later round; {removed_before_the_retry} of {THE_ENTRIES} were removed and the rest went with them"
+    );
     assert!(setup.trash().is_dir(), "the trash directory keeps the identity its record proves it by, so the later round finds it");
     assert_eq!(setup.claimed_tries(), Some(0), "the round kept the claim it took, which is what the retry answers, and the claim is still the first try's");
     assert_eq!(setup.record_in(DONE), None, "the record is not done while entries are left");
