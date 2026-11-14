@@ -1111,3 +1111,80 @@ fn a_removal_whose_own_destroy_is_refused_leaves_the_delete_queued_for_a_round()
     assert!(!hidden.exists(), "the worktree's files are gone with it");
     remove(root.as_path());
 }
+
+/// What:
+///  A round of the service that settles the hand-over's record inside its own window,
+///  and a destroy of the renamed subvolume the kernel then refuses,
+///  leave the directory named by the leaving record and its delete queued for a round.
+/// Why:
+///   The record is queued before the rename,
+///  so a round may claim it and look while the directory still stands at the worktree's own name,
+///  and settle a delete it found nothing for.
+///  The command's own look at the queue repairs that,
+///  and its own destroy can be refused for a reason that lasts:
+///  a subvolume holding another one (`ENOTEMPTY`),
+///  a mount allowing no unprivileged destroy,
+///  a volume gone read-only.
+///  A command killed between the two leaves the state this control builds,
+///  and the leaving record written before the rename is then the only thing naming the person's files.
+///  Without it the directory stands under a hidden name that nothing names,
+///  which is what a review of the around-volume change found by reading
+///  (`worktree_removal_leaving_that_outlives_its_record.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// actAfterTheRename((renamed) => { settleTheQueuedDelete(renamed); subvolumeCreate(`${renamed}/inner`); });
+/// await handOverWith({ ..., told: new NobodyTold() });
+/// stopActing();
+/// expect(exists(deleting)).toBe(true); expect(leavingRecords(common).length).toBe(1);
+/// expect(pendingOf(item)).toBe(true);            // queued again, and no command has to be the same one
+/// ```
+#[test]
+fn a_settle_inside_the_window_with_a_refused_destroy_leaves_the_directory_named_and_queued() {
+    use crate::claim_time::ClaimTime;
+    use crate::work_item::{DONE, claim_next_of, settle};
+    let Some((root, made)) = made_subvolume("remove-window-settled") else { return };
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
+    let name: OsString = made.file_name().expect("name").to_os_string();
+    let parent: File = open_root(parent_path.as_path()).expect("parent handle");
+    let child: File = File::open(made.as_path()).expect("child handle");
+    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
+    let deleting: PathBuf = parent_path.join(deleting_name(id));
+    let work: PathBuf = crate::service_work::work_directory(common.as_path());
+    // The round that looked before the rename settled a delete it found nothing for, and what the subvolume holds now is a
+    // subvolume of its own, which the kernel refuses to destroy over.
+    crate::worktree_hand_over_test_support::act_after_the_rename(move |renamed: &Path| {
+        let claimed: crate::work_item::Claimed = claim_next_of(work.as_path(), &ClaimTime::read(), &[WorkKind::SubvolumeDelete])
+            .expect("a claim of the record the hand-over queued")
+            .expect("the record is queued and claimable");
+        settle(work.as_path(), &claimed, DONE).expect("a round settled the delete it found nothing for");
+        subvolume_create_at(renamed.join("inner").as_path()).expect("a subvolume inside it");
+    });
+    let answer: Result<(), String> = hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold);
+    crate::worktree_hand_over_test_support::stop_acting();
+    assert!(answer.is_ok(), "a refused destroy is never the removal's failure: {answer:?}");
+    assert!(deleting.is_dir(), "the person's files stand where the rename put them");
+    let records: Vec<(String, PathBuf)> = crate::worktree_removal_leaving_that_outlives_its_record::leaving_records(common.as_path());
+    assert_eq!(records.len(), 1, "one leaving names the directory the queue record no longer names");
+    let bytes: Vec<u8> = std::fs::read(records[0].1.as_path()).expect("the leaving record");
+    let leaving = crate::worktree_removal_leaving_that_outlives_its_record::read_the_leaving(bytes.as_slice()).expect("a record a command reads");
+    assert_eq!(leaving.item.parent, deleting.display().to_string(), "it names the exact place the rename made");
+    assert_eq!(leaving.item.oid, format!("{id:040x}"), "and the subvolume the kernel made");
+    assert!(!leaving.adopted, "a command of this program renamed it, so its own owner line is what bounds a look at it");
+    let pending: PathBuf = crate::worktree_remove_hand_over::pending_record_path(common.as_path(), &item);
+    assert!(pending.is_file(), "the delete is queued again for a round: {}", pending.display());
+    // The command that renamed the subvolume ended, which is the state the next command of the repository sees.
+    crate::worktree_removal_leaving_that_outlives_its_record::record_a_leaving_with_owner(common.as_path(), &item, Some("1:ended")).expect("the record of a command that ended");
+    // What the kernel refused is a subvolume inside it, and a round's own delete takes the subvolume once that is out.
+    let held_deleting: File = File::open(deleting.as_path()).expect("the renamed subvolume");
+    snapshot_destroy_in(&held_deleting, std::ffi::OsStr::new("inner"), deleting.join("inner").as_path()).expect("the control takes its own subvolume out");
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "a round's own delete takes the subvolume once nothing stands inside it");
+    let after: crate::worktree_removal_leavings_a_command_queues_again::Leavings = crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names(common.as_path());
+    assert!(!after.queued, "nothing is queued for a directory that is gone");
+    assert!(after.said.is_empty(), "and nothing is said: {:?}", after.said);
+    assert!(crate::worktree_removal_leaving_that_outlives_its_record::leaving_records(common.as_path()).is_empty(), "and the leaving goes with it");
+    remove(root.as_path());
+}

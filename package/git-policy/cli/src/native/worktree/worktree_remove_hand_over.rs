@@ -372,6 +372,11 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         return Err(format!("the subvolume of {} cannot be renamed out of the way ({error})", target.display()));
     }
     debug(TAG, format!("the subvolume of {} waits for the service's delete at {}", target.display(), Path::new(&item.parent).display()).as_str());
+    // What: The window between the rename and the look at the queue, where a round of the service can settle the record.
+    // Why:  A control settles it there to prove what the removal leaves when its own delete is then refused; the release
+    //       executable carries none of this.
+    #[cfg(test)]
+    crate::worktree_hand_over_test_support::after_the_rename(parent_path.join(deleting.as_os_str()).as_path());
     if !a_record_is_queued(common_dir, &item) {
         // A service settled the record, or claimed it and looked while the directory still stood at its old name, so nothing in
         //  the queue names the directory now:

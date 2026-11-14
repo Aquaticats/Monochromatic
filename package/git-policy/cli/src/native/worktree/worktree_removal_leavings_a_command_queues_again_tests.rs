@@ -251,3 +251,178 @@ fn a_repository_in_which_no_removal_left_anything_says_nothing() {
     assert!(!common.join(LEAVINGS_FOLDER).exists(), "no folder was made either");
     remove(root.as_path());
 }
+
+/// What:
+///  A repository whose worktrees stand in one directory,
+///  which is the directory this program renames a removed worktree's subvolume into,
+///  and a common directory no record of a removal has written anything to.
+/// Why:
+///   A leftover no record names can only be found where a removal renames,
+///  and the repository's own registrations are what names that directory,
+///  so the control writes one the way Git does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('leaving-by-name'); // { root, common, place }
+/// ```
+struct Place {
+    /// The fixture root the control removes when it ends.
+    root: PathBuf,
+    /// The common Git directory,
+    /// which is where the queue and the reports live.
+    common: PathBuf,
+    /// The directory the repository's worktrees stand in,
+    /// which is where a removal renames a subvolume aside.
+    place: PathBuf,
+}
+
+/// The name a person's or another program's directory takes in the controls below,
+/// which is the shape a removal gives a subvolume and is never enough proof on its own.
+const A_LEAVING_SHAPE: &str = "cli-git-deleting-";
+
+/// The fixture of one repository whose worktree stands beside the place a removal renames into.
+fn a_place_a_removal_renames_into(name: &str) -> Option<Place> {
+    let root: PathBuf = btrfs_fixture(name)?;
+    let place: PathBuf = root.join("worktrees");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(place.as_path()).expect("the directory the worktrees stand in");
+    std::fs::create_dir_all(common.join("worktrees").join("one").as_path()).expect("a registration");
+    let checkout: PathBuf = place.join("topic");
+    std::fs::create_dir(checkout.as_path()).expect("a worktree of the repository");
+    std::fs::write(common.join("worktrees").join("one").join("gitdir").as_path(), format!("{}/.git\n", checkout.display()).as_bytes()).expect("the registration's back-link");
+    return Some(Place { root, common, place });
+}
+
+/// The decimal id in the sixteen hexadecimal digits of a leaving name.
+fn name_of_the_id(id: u64) -> String {
+    return format!("{id:016x}");
+}
+
+/// What:
+///  A subvolume standing where a removal renames with a name no record names is queued for its delete,
+///  and the round that runs it leaves nothing of the person's files behind.
+/// Why:
+///  This is the state a release before the leaving record left:
+///  the rename happened, the queue record was settled by a round that looked too early,
+///  and nothing on disk names the directory any more.
+///  The name is the subvolume's own id, which only this program writes,
+///  so the look can prove what it found and queue a delete of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('leaving-by-name-found');
+/// const [id, hidden] = aSubvolumeNamed(place.place, nameOfTheId(someId));
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(true); expect(answer.said).toEqual([]);
+/// expect(exists(pendingOf(place, id))).toBe(true);
+/// expect(deleteSubvolumeOf(removalItem(place.common, place.place, id))).toBe('done');
+/// expect(exists(hidden)).toBe(false);
+/// expect(queueTheLeavingsARecordNoLongerNames(place.common).queued).toBe(false);
+/// ```
+#[test]
+fn a_leaving_no_record_names_is_queued_by_its_name_and_the_kernel_s_id() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("leaving-by-name-found") else { return };
+    let made: PathBuf = place.place.join("made");
+    subvolume_create_at(made.as_path()).expect("a subvolume a removal leaves");
+    let held: File = File::open(made.as_path()).expect("the subvolume");
+    let id: u64 = subvolume_id(&held, made.as_path()).expect("its own id");
+    let hidden: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(id)));
+    std::fs::rename(made.as_path(), hidden.as_path()).expect("the rename a removal makes");
+    std::fs::write(hidden.join("kept.txt").as_path(), b"what the worktree held\n").expect("a file of the worktree");
+    assert!(leaving_records(place.common.as_path()).is_empty(), "no record of this removal survived");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(answer.queued, "the name and the kernel's id agree, so the delete is queued: {:?}", answer.said);
+    assert!(answer.said.is_empty(), "and nothing is said, because the look could do what was owed: {:?}", answer.said);
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    let pending: PathBuf = state_directory(work_directory(place.common.as_path()).as_path(), PENDING).join(item.id());
+    assert!(pending.is_file(), "a round finds the delete: {}", pending.display());
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the round's own delete takes the subvolume");
+    assert!(!hidden.exists(), "the person's files are gone with it");
+    let again: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!again.queued, "nothing is queued for a directory that is gone");
+    assert!(again.said.is_empty(), "and nothing is said: {:?}", again.said);
+    assert!(leaving_records(place.common.as_path()).is_empty(), "the leaving the look wrote goes with the directory");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  A subvolume a person or another program put at a leaving name that is not its own id is never deleted,
+///  and the person reads one line about it with the command that removes it,
+///  once.
+/// Why:
+///  The name alone proves nothing:
+///  only this program writes a name holding the subvolume's own id,
+///  and a subvolume another id names is somebody else's,
+///  so a look that deleted by name would destroy another program's volume.
+///  The line stands until the person acts, so saying it on every command would be noise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('leaving-by-name-another-id');
+/// const [id, hidden] = aSubvolumeNamed(place.place, nameOfTheId(idOfAnotherSubvolume));
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(false); expect(answer.said.length).toBe(1);
+/// expect(readFile(hidden + '/mine.txt')).toBe('another program's bytes\n');
+/// expect(queueTheLeavingsARecordNoLongerNames(place.common).said).toEqual([]); // said once
+/// ```
+#[test]
+fn a_subvolume_at_a_leaving_name_that_is_not_its_own_id_is_left_as_it_is_and_named_once() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("leaving-by-name-other-id") else { return };
+    let made: PathBuf = place.place.join("made");
+    subvolume_create_at(made.as_path()).expect("a subvolume of another program's");
+    let held: File = File::open(made.as_path()).expect("the subvolume");
+    let id: u64 = subvolume_id(&held, made.as_path()).expect("its own id");
+    // The name holds another id than the one the kernel gives the directory, so nothing proves it this program's.
+    let hidden: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(id ^ 1)));
+    std::fs::rename(made.as_path(), hidden.as_path()).expect("another program's directory takes a leaving name");
+    let mine: PathBuf = hidden.join("mine.txt");
+    std::fs::write(mine.as_path(), b"another program's bytes\n").expect("a file of the other program's");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!answer.queued, "a subvolume another id names is never queued for a delete");
+    assert_eq!(answer.said.len(), 1, "the person reads one line about it: {:?}", answer.said);
+    let words: &str = answer.said[0].as_str();
+    assert!(words.contains(hidden.display().to_string().as_str()), "the line names the directory: {words}");
+    assert!(words.contains(format!("`btrfs subvolume delete {}", hidden.display()).as_str()), "and the command that removes a subvolume: {words}");
+    assert_eq!(std::fs::read(mine.as_path()).expect("the other program's file is still there"), b"another program's bytes\n");
+    let again: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(again.said.is_empty(), "the same line is not said on the next command: {:?}", again.said);
+    assert!(hidden.is_dir(), "and the directory stands exactly as it was");
+    snapshot_destroy_in(&File::open(place.place.as_path()).expect("the place"), hidden.file_name().expect("a name"), hidden.as_path()).expect("the control removes what it made");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  A plain directory at a leaving name is never deleted and is named once,
+///  because a rename of this program's moves a subvolume and nothing else.
+/// Why:
+///  The name is what a person reads first, so a person's own directory can carry it,
+///  and a look that acted on the name would empty it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('leaving-by-name-plain');
+/// const [id] = aSubvolumeNamed(place.place, nameOfTheId(anId)); destroyItByHand();
+/// mkdir(`${place.place}/cli-git-deleting-${nameOfTheId(id)}`); write(kept.txt);
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(false); expect(answer.said.length).toBe(1); expect(readFile(kept.txt))....
+/// ```
+#[test]
+fn a_plain_directory_at_a_leaving_name_is_left_as_it_is_and_named_once() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("leaving-by-name-plain") else { return };
+    let made: PathBuf = place.place.join("made");
+    subvolume_create_at(made.as_path()).expect("a subvolume this program once left");
+    let id: u64 = subvolume_id(&File::open(made.as_path()).expect("the subvolume"), made.as_path()).expect("its own id");
+    snapshot_destroy_in(&File::open(place.place.as_path()).expect("the place"), std::ffi::OsStr::new("made"), made.as_path()).expect("the subvolume goes and a plain directory can take its name");
+    let plain: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(id)));
+    std::fs::create_dir(plain.as_path()).expect("a person's directory at a leaving name");
+    let kept: PathBuf = plain.join("kept.txt");
+    std::fs::write(kept.as_path(), b"a person's bytes\n").expect("a file of the person's");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!answer.queued, "a plain directory is no leaving of this program's");
+    assert_eq!(answer.said.len(), 1, "the person reads one line about it: {:?}", answer.said);
+    assert!(answer.said[0].contains(plain.display().to_string().as_str()), "the line names the directory: {}", answer.said[0]);
+    assert_eq!(std::fs::read(kept.as_path()).expect("the person's file is still there"), b"a person's bytes\n");
+    let again: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(again.said.is_empty(), "the same line is not said again: {:?}", again.said);
+    remove(place.root.as_path());
+}

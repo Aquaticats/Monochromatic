@@ -164,6 +164,19 @@ pub mod worktree_removal_leaving_that_outlives_its_record;
 /// and a place this program may not act on is named for the person.
 pub mod worktree_removal_leavings_a_command_queues_again;
 
+/// What every command remembers about a place it already named to the person,
+/// so one directory this program may not act on is said once and not on every command.
+pub mod worktree_removal_leavings_already_reported;
+
+/// The leaving a name alone still shows:
+/// a directory of this program's shape that no record names,
+/// queued for its delete only while the name and the kernel agree on which subvolume it is.
+pub mod worktree_removal_leavings_no_record_names;
+
+/// The moment a hand-over has renamed its subvolume and not yet looked at the queue, for a control that acts there.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod worktree_hand_over_test_support;
+
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;

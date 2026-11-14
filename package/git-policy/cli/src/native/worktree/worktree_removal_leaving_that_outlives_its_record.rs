@@ -60,9 +60,13 @@ const OWNER_PREFIX: &str = "owner=";
 /// The prefix of the record's line that counts the times a command has queued this leaving's delete again.
 const TRIES_PREFIX: &str = "tries=";
 
+/// The prefix of the record's line that says a command found this leaving by its name alone,
+/// so no command of this program renamed it and none may still be between a record and a rename.
+const ADOPTED_PREFIX: &str = "adopted=";
+
 /// The most bytes of a leaving record this reads.
 /// What bounds it:
-/// three short lines and the JSON of one work item,
+/// four short lines and the JSON of one work item,
 /// which names three paths,
 /// and a path is at most the kernel's `PATH_MAX`,
 /// 4096 bytes.
@@ -92,6 +96,10 @@ pub struct Leaving {
     pub owner: Option<String>,
     /// How many times a command has queued this leaving's delete again.
     pub tries: u32,
+    /// Whether a command found this leaving by its name alone,
+    /// no command of this program having renamed anything into it,
+    /// which is the one state every command may decide about at once.
+    pub adopted: bool,
     /// The record of the delete:
     /// its `parent` is the directory the rename made,
     /// and its `oid` is the subvolume id it holds.
@@ -117,14 +125,18 @@ fn record_path(common_dir: &Path, id: &str) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bytes = (item, owner, tries) => `${owner ? 'owner=' + owner + '\n' : ''}tries=${tries}\n${item.encode()}`;
+/// // `adopted` is written only when it is true, so a record a command renamed into keeps the bytes an earlier reader wrote.
+/// const bytes = (item, owner, tries, adopted) => `${owner ? 'owner=' + owner + '\n' : ''}tries=${tries}\n${adopted ? 'adopted=1\n' : ''}${item.encode()}`;
 /// ```
-fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32) -> Vec<u8> {
+fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32, adopted: bool) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     if let Some(spelled) = owner {
         bytes.extend_from_slice(format!("{OWNER_PREFIX}{spelled}\n").as_bytes());
     }
     bytes.extend_from_slice(format!("{TRIES_PREFIX}{tries}\n").as_bytes());
+    if adopted {
+        bytes.extend_from_slice(format!("{ADOPTED_PREFIX}1\n").as_bytes());
+    }
     bytes.extend_from_slice(item.encode().as_bytes());
     return bytes;
 }
@@ -141,13 +153,13 @@ fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32) -> Vec
 /// ```ts
 /// await replacePrivateFile(join(commonDir, LEAVINGS_FOLDER, item.id()), bytes);
 /// ```
-fn write_the_leaving(common_dir: &Path, item: &WorkItem, owner: Option<&str>, tries: u32) -> Result<(), String> {
+fn write_the_leaving(common_dir: &Path, item: &WorkItem, owner: Option<&str>, tries: u32, adopted: bool) -> Result<(), String> {
     let folder: PathBuf = common_dir.join(LEAVINGS_FOLDER);
     if let Err(error) = create_private_directory_all(folder.as_path()) {
         return Err(format!("the folder {} cannot be made ({error})", folder.display()));
     }
     let path: PathBuf = record_path(common_dir, item.id().as_str());
-    return match replace_private_file_unsynced(path.as_path(), bytes_of_the_leaving(item, owner, tries).as_slice()) {
+    return match replace_private_file_unsynced(path.as_path(), bytes_of_the_leaving(item, owner, tries, adopted).as_slice()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("{} cannot be written ({error})", path.display())),
     };
@@ -204,8 +216,37 @@ pub fn record_a_leaving(common_dir: &Path, item: &WorkItem) -> Result<Leaving, S
 ///
 /// The words for a record that cannot be written.
 pub fn record_a_leaving_with_owner(common_dir: &Path, item: &WorkItem, owner: Option<&str>) -> Result<Leaving, String> {
-    write_the_leaving(common_dir, item, owner, 0)?;
-    return Ok(Leaving { owner: owner.map(str::to_owned), tries: 0, item: item.clone() });
+    write_the_leaving(common_dir, item, owner, 0, false)?;
+    return Ok(Leaving { owner: owner.map(str::to_owned), tries: 0, adopted: false, item: item.clone() });
+}
+
+/// What:
+///  Record a leaving a command found by its name alone,
+///  which no command of this program renamed into that place.
+/// Why:
+///   A directory whose name is the subvolume id it holds is one a removal of this program left,
+///  even when no record of it survived:
+///  an earlier release wrote only the queue record,
+///  and the first round that looked at it settled it.
+///  A command that writes the leaving it found gives the directory the same bound every other leaving has:
+///  the attempts a record may cost,
+///  and the line that names the directory and the command that removes it once those are spent.
+///  It names no owner,
+///  because no command of this program is between a record and a rename here,
+///  and it says so in its own line rather than in the absence of an owner,
+///  which a record an earlier release wrote also has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordALeavingFoundByAScan(commonDir, item); // the item a name and the kernel's id agree on
+/// ```
+///
+/// # Errors
+///
+/// The words for a record that cannot be written.
+pub(crate) fn record_a_leaving_found_by_a_scan(common_dir: &Path, item: &WorkItem) -> Result<Leaving, String> {
+    write_the_leaving(common_dir, item, None, 0, true)?;
+    return Ok(Leaving { owner: None, tries: 0, adopted: true, item: item.clone() });
 }
 
 /// What:
@@ -276,12 +317,18 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
     let mut rest: &[u8] = bytes;
     let mut owner: Option<String> = None;
     let mut tries: u32 = 0;
+    let mut adopted: bool = false;
     loop {
         let Some(split_at) = rest.iter().position(is_newline) else { break };
         let (line, after): (&[u8], &[u8]) = rest.split_at(split_at);
         let Ok(text) = std::str::from_utf8(line) else { break };
         if let Some(spelled) = text.strip_prefix(OWNER_PREFIX) {
             owner = Some(spelled.to_owned());
+            rest = after.strip_prefix(b"\n").unwrap_or(after);
+            continue;
+        }
+        if let Some(spelled) = text.strip_prefix(ADOPTED_PREFIX) {
+            adopted = spelled == "1";
             rest = after.strip_prefix(b"\n").unwrap_or(after);
             continue;
         }
@@ -300,7 +347,7 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
         Ok(text) => text,
         Err(_not_text) => return Err(String::from("the record of the delete it names is not text")),
     };
-    return Ok(Leaving { owner, tries, item: WorkItem::decode(item)? });
+    return Ok(Leaving { owner, tries, adopted, item: WorkItem::decode(item)? });
 }
 
 /// What:
@@ -371,7 +418,7 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
 /// ```
 fn note_the_attempt(common_dir: &Path, leaving: &Leaving) {
     let tries: u32 = leaving.tries.saturating_add(1);
-    if let Err(reason) = write_the_leaving(common_dir, &leaving.item, leaving.owner.as_deref(), tries) {
+    if let Err(reason) = write_the_leaving(common_dir, &leaving.item, leaving.owner.as_deref(), tries, leaving.adopted) {
         debug(TAG, format!("{reason}; the delete of {} is queued, and the count of its attempts is not", leaving.item.parent).as_str());
     }
 }

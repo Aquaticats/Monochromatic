@@ -43,6 +43,8 @@ use crate::service_work::{MAX_TRIES, work_directory};
 use crate::work_item::queued_ids;
 use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
 use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, RECORD_LIMIT, forget_the_leaving, leaving_records, queue_the_delete_again, read_the_leaving};
+use crate::worktree_removal_leavings_already_reported::{forget_the_report, report_once};
+use crate::worktree_removal_leavings_no_record_names::queue_the_leavings_no_record_names;
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use crate::worktree_remove_hand_over::{DELETE_REFERENCE, recorded_subvolume};
 use std::collections::HashSet;
@@ -81,30 +83,38 @@ pub struct Leavings {
 /// Why:
 ///   This is what every command of the repository runs,
 /// so a repository in which no removal left anything pays one open
-///  that finds no folder.
+///  that finds no folder and one listing of each directory a removal renames into.
 ///   A record whose command may still be running is left alone:
 ///  the record is written before the rename,
 ///  so only that command knows whether the rename happened,
 ///  and a look that decided before it did would drop the only record of a directory about to appear.
+///   A directory of this program's leaving shape that no record names at all,
+///  which a release before the leaving record left,
+///  is proved and queued as well (`worktree_removal_leavings_no_record_names.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const answer = { queued: false, said: [] };
 /// for (const [id, record] of leavingRecords(commonDir)) queueOneLeaving({ commonDir, record, id, answer });
+/// merge(answer, queueTheLeavingsNoRecordNames({ commonDir, work, named }));
 /// return answer;
 /// ```
 pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leavings {
     let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
     let records: Vec<(String, PathBuf)> = leaving_records(common_dir);
-    if records.is_empty() {
-        return answer;
-    }
     let work: PathBuf = work_directory(common_dir);
-    // One listing of each state a round acts on, asked only when a removal left something to decide about.
-    let owed: HashSet<String> = queued_ids(work.as_path());
-    for (id, record) in records {
-        queue_one_leaving(common_dir, record.as_path(), id.as_str(), &owed, &mut answer);
+    // The places the records name, so a leftover a record names stays that record's to decide and the search by name skips it.
+    let mut named: HashSet<PathBuf> = HashSet::new();
+    if !records.is_empty() {
+        // One listing of each state a round acts on, asked only when a removal left a record to decide about.
+        let owed: HashSet<String> = queued_ids(work.as_path());
+        for (id, record) in records {
+            queue_one_leaving(common_dir, record.as_path(), id.as_str(), &owed, &mut named, &mut answer);
+        }
     }
+    let found: Leavings = queue_the_leavings_no_record_names(common_dir, work.as_path(), &named);
+    answer.queued = answer.queued || found.queued;
+    answer.said.extend(found.said);
     return answer;
 }
 
@@ -188,9 +198,9 @@ fn is_gone(kind: std::io::ErrorKind) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// queueOneLeaving({ commonDir, record, id, owed, answer });
+/// queueOneLeaving({ commonDir, record, id, owed, named, answer });
 /// ```
-fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<String>, answer: &mut Leavings) {
+fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<String>, named: &mut HashSet<PathBuf>, answer: &mut Leavings) {
     let bytes: Vec<u8> = match read_plain_file(record, RECORD_LIMIT) {
         Ok(read) => read,
         Err(error) => {
@@ -203,14 +213,23 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
     let leaving: Leaving = match read_the_leaving(bytes.as_slice()) {
         Ok(found) => found,
         Err(reason) => {
-            answer.said.push(format!(
-                "{SAID} the record of a worktree removal's renamed subvolume {record:?} cannot be used ({reason}), so whatever stands where it named it was left exactly as it is; `btrfs subvolume delete <that directory>` removes it by hand."
-            ));
+            // A record that names no place leaves that place to the search by name, which needs no record; the line about the
+            // record itself is said once and the record dropped, because nothing can use it later either.
+            report_once(
+                common_dir,
+                record,
+                format!(
+                    "{SAID} the record of a worktree removal's renamed subvolume {record:?} cannot be used ({reason}), so whatever stands where it named it was left exactly as it is; `btrfs subvolume delete <that directory>` removes it by hand."
+                ),
+                &mut answer.said,
+            );
             forget_the_leaving(common_dir, id);
             return;
         }
     };
-    if owner_may_be_running(leaving.owner.as_ref()) {
+    let target: PathBuf = PathBuf::from(leaving.item.parent.as_str());
+    named.insert(target.clone());
+    if !leaving.adopted && owner_may_be_running(leaving.owner.as_ref()) {
         debug(TAG, format!("the record {record:?} was written by a command that may still be running, so it is left alone").as_str());
         return;
     }
@@ -227,11 +246,11 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
         forget_the_leaving(common_dir, id);
         return;
     };
-    let target: PathBuf = PathBuf::from(leaving.item.parent.as_str());
     match what_stands_at(target.as_path(), recorded) {
         Standing::Gone => {
             debug(TAG, format!("nothing of a removal's stands at {}, so its leaving is finished", target.display()).as_str());
             forget_the_leaving(common_dir, id);
+            forget_the_report(common_dir, target.as_path());
             return;
         }
         Standing::NotThisLeaving => {
@@ -251,10 +270,15 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
             return;
         }
         Standing::Unreadable(reason) => {
-            answer.said.push(format!(
-                "{SAID} {named} is where a removal renamed the subvolume of a worktree aside, and it cannot be looked at ({reason}), so no delete of it was queued; `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
-                named = target.display()
-            ));
+            report_once(
+                common_dir,
+                target.as_path(),
+                format!(
+                    "{SAID} {named} is where a removal renamed the subvolume of a worktree aside, and it cannot be looked at ({reason}), so no delete of it was queued; `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+                    named = target.display()
+                ),
+                &mut answer.said,
+            );
             return;
         }
         Standing::TheSubvolumeItNames => {}

@@ -125,13 +125,13 @@ fn ends_with_name_ignoring_case(candidate: &[u8], operand: &[u8]) -> bool {
 /// ```ts
 /// type RegisteredPath = { id: string | undefined; path: Uint8Array };
 /// ```
-struct RegisteredPath {
+pub(crate) struct RegisteredPath {
     /// The name of the administrative directory below `worktrees`,
     /// or nothing for the main checkout.
-    id: Option<OsString>,
+    pub(crate) id: Option<OsString>,
     /// The worktree path as Git's list holds it,
     /// bytes and all.
-    path: Vec<u8>,
+    pub(crate) path: Vec<u8>,
 }
 
 /// What:
@@ -159,7 +159,7 @@ struct RegisteredPath {
 /// ```ts
 /// function registeredPaths(commonDir: string): RegisteredPath[];
 /// ```
-fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<RegisteredPath>, String> {
+pub(crate) fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<RegisteredPath>, String> {
     let mut paths: Vec<RegisteredPath> = Vec::new();
     let main: &[u8] = common_dir.as_os_str().as_bytes();
     paths.push(RegisteredPath { id: None, path: main.strip_suffix(b"/.git").unwrap_or(main).to_vec() });
