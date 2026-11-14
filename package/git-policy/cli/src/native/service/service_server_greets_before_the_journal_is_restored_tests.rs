@@ -1,4 +1,5 @@
-//! Controls for a client's greeting, beats and landing while the journal of the after-commit work gives no answer:
+//! Controls for a client's greeting,
+//! beats and landing while the journal of the after-commit work gives no answer:
 //! the acceptor starts before the plan of the pushes waiting for a new try and the repositories an earlier
 //!  service was woken for are read,
 //! and those two are read on a thread of their own,
