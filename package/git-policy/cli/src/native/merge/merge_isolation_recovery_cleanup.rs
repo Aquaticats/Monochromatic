@@ -139,12 +139,40 @@ pub async fn drop_side_ref_awaiting(place: &RecoveryPlace, root: &Path, intent: 
     return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
         Ok(_dropped) => true,
         Err(error) => {
+            // A name already gone is what this deletion wanted: a kill between dropping a record's refs and removing the
+            //  record leaves exactly it, and a retry that refused it kept the record for ever (the second review of this
+            //  branch, its first finding, whose shape this shares with the capture's ref).
+            if the_name_is_gone(place, root, name).await {
+                debug(
+                    "settleFailedMerge",
+                    format!("the side ref {name} was already gone, which is what its deletion wanted: {error}").as_str(),
+                );
+                return true;
+            }
             debug(
                 "settleFailedMerge",
                 format!("the side ref {name} no longer holds the landed merge's commit, so it was left where it is: {error}").as_str(),
             );
             false
         }
+    };
+}
+
+/// What:
+///  Whether a ref names nothing at all.
+/// Why:
+///   The answer comes from Git rather than from the words of a refusal,
+/// and a read that fails is not proof of absence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function theNameIsGone({ place, root, name }): Promise<boolean>; // for-each-ref --count=1 --format=%(objectname) <name>
+/// ```
+async fn the_name_is_gone(place: &RecoveryPlace, root: &Path, name: &str) -> bool {
+    let arguments: [&str; 4] = ["for-each-ref", "--count=1", "--format=%(objectname)", name];
+    return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
+        Ok(output) => output.stdout.iter().all(|byte| { return byte.is_ascii_whitespace(); }),
+        Err(_) => false,
     };
 }
 
