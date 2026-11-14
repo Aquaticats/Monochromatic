@@ -6,16 +6,18 @@
 //!  The unload is a repair,
 //! not a precondition of a commit:
 //! a commit whose service is landing a batch,
-//! or whose manager stops
+//! whose manager stops
 //!  answering,
-//! must land through the service that is running and leave the record unwritten so the next commit
-//!  repairs the text,
-//! rather than fail with a diagnosis that is not true of the machine.
+//! or whose unit another command starts again inside the wait
+//! must land through whatever the manager runs and leave
+//!  the record unwritten so the next commit repairs the text,
+//! rather than fail with a diagnosis that is not true of the
+//!  machine.
 //! The manager here is a script,
 //! so none of these reach the account's own manager.
 
 use super::*;
-use crate::service_instance::{program_link, service_unit_instance, socket_unit_instance};
+use crate::service_instance::{program_link, service_unit_instance};
 use std::path::PathBuf;
 use crate::service_provision::unit_texts;
 use crate::test_support::{fixture, remove};
@@ -60,16 +62,66 @@ struct Scripted {
     service_asked: usize,
     socket_asked: usize,
     /// Every stop,
-    /// by unit,
+    /// by unit and by the mode it was sent in,
     /// in order.
     stops: Vec<String>,
+    /// What the service was doing when the last stop was sent,
+    /// which is the state no stop may end at a landing.
+    service_state_at_the_stop: Option<String>,
+    /// How the service answers from the socket's stop onwards,
+    /// which is where a control models a concurrent commit starting it inside the window.
+    after_the_socket_stop: Option<Answer>,
 }
 
 impl Scripted {
     /// A manager holding a running service and its socket,
     /// whatever happens after.
     fn new(service: Vec<Answer>, socket: Vec<Answer>) -> Self {
-        return Self { service, socket, service_asked: 0, socket_asked: 0, stops: Vec::new() };
+        return Self { service, socket, service_asked: 0, socket_asked: 0, stops: Vec::new(), service_state_at_the_stop: None, after_the_socket_stop: None };
+    }
+
+    /// Makes the service answer `answer` from the socket's stop onwards,
+    /// which is a concurrent commit starting it inside the unload's window.
+    fn started_again_after_the_socket_stop(mut self, answer: Answer) -> Self {
+        self.after_the_socket_stop = Some(answer);
+        return self;
+    }
+
+    /// What the service does when a stop job runs,
+    /// which is after any start a concurrent command made.
+    fn state_when_the_stop_runs(&mut self) -> Option<String> {
+        if let Some(answer) = self.after_the_socket_stop.clone() {
+            return match answer {
+                Answer::State(text) => Some(String::from(text)),
+                Answer::Gone | Answer::Silent => None,
+            };
+        }
+        return match Self::state_of(self, service_unit_instance(INSTANCE).as_str()) {
+            Answer::State(text) => Some(String::from(text)),
+            Answer::Gone | Answer::Silent => None,
+        };
+    }
+
+    /// What the script says the service does now,
+    /// which every question after the socket's stop is answered from when a control set that.
+    fn state_of(&mut self, unit: &str) -> Answer {
+        // What: The service a concurrent commit starts is there from the moment the first stop job is sent, and from then on.
+        // Why:  That start is what the look could not see, and the stop's job runs after it.
+        let window_opened: bool = !self.stops.is_empty();
+        if window_opened
+            && let Some(answer) = self.after_the_socket_stop.clone()
+            && unit == service_unit_instance(INSTANCE)
+        {
+            return answer;
+        }
+        return if unit == service_unit_instance(INSTANCE) {
+            Self::next(self.service.as_slice(), &mut self.service_asked)
+        } else if unit == socket_unit_instance(INSTANCE) {
+            Self::next(self.socket.as_slice(), &mut self.socket_asked)
+        } else {
+            // The earlier releases' units of this worktree are not held.
+            Answer::Gone
+        };
     }
 
     /// The next answer of one script,
@@ -93,24 +145,22 @@ impl Manager for Scripted {
     }
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
-        self.stops.push(unit.to_string());
+        // What: A stop in the mode that carries through `Requires=`, which no control here may see for a service.
+        // Why:  That mode is what ends a service another command started inside the unload's window, and the repair may not
+        //       use it (`service_provision_instance_unloaded.rs`).
+        self.service_state_at_the_stop = self.state_when_the_stop_runs();
+        self.stops.push(format!("stop {unit}"));
         return Ok(());
     }
 
     fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
-        self.stops.push(unit.to_string());
+        self.service_state_at_the_stop = self.state_when_the_stop_runs();
+        self.stops.push(format!("stop-alone {unit}"));
         return Ok(());
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
-        let answer: Answer = if unit == service_unit_instance(INSTANCE) {
-            Self::next(self.service.as_slice(), &mut self.service_asked)
-        } else if unit == socket_unit_instance(INSTANCE) {
-            Self::next(self.socket.as_slice(), &mut self.socket_asked)
-        } else {
-            // The earlier releases' units of this worktree are not held.
-            Answer::Gone
-        };
+        let answer: Answer = Self::state_of(self, unit);
         return match answer {
             Answer::State(text) => Ok(Some(String::from(text))),
             Answer::Gone => Ok(None),
@@ -283,41 +333,95 @@ fn a_program_link_that_cannot_be_pointed_leaves_the_commit_to_go_on() {
 }
 
 /// What:
-///  A manager that answers every question and still holds the unit after it was stopped ends the commit,
-/// because a start
-///  then reads the text it loaded rather than the files.
+///  A unit the manager still holds when the wait runs out leaves the commit to go on,
+/// and the record of what the
+///  manager read is not written.
 /// Why:
-///   This is the one case the refusal is true of,
-/// and it is kept so the repair cannot silently stop repairing:
-/// the
-///  message names the unit and says what a start would do.
+///   A unit another command started again inside this wait,
+/// or one whose collection the manager has not reached,
+///  is no
+/// reason to end a commit:
+/// the manager runs something that answers this commit or it does not,
+/// and what it
+///  runs is what the start and the client's own wait see.
+/// Reaching this wait is the one way a commit could have
+///  ended here before,
+/// and it does not any more.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await provisionWith(host, managerThatKeepsTheUnit)).toEqual({ couldNotStart: /still holds/ });
+/// expect(await provisionWith(host, managerWhichKeepsTheUnit)).toBe(undefined);
 /// ```
 #[test]
-fn a_unit_the_manager_keeps_after_the_stop_ends_the_commit_and_says_so() {
+fn a_unit_the_manager_keeps_past_the_wait_leaves_the_commit_to_go_on_and_the_record_unwritten() {
     let machine: Machine = machine("unload-unit-kept-lib", Duration::from_secs(10));
-    let mut manager: Scripted = Scripted::new(vec![Answer::State("active"), Answer::State("inactive"), Answer::State("active")], vec![Answer::State("active")]);
-    let failure: ClientFailure = crate::service_provision::provision_with(&machine.host, &mut manager).expect_err("a manager that keeps the unit after the stop ends the commit");
-    let ClientFailure::CouldNotStart(reason) = failure else {
-        panic!("the refusal names the unit and what a start would do: {failure:?}");
-    };
+    // What: The socket is stopped and gone,
+    // and the service is still there at every question after it.
+    // Why:  That is what a second command's start, or a collection the manager has not reached, leaves.
+    let mut manager: Scripted = Scripted::new(vec![Answer::State("active"), Answer::State("inactive")], vec![Answer::State("active")]);
+    let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
+        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a unit the manager keeps does not fail the commit");
+    })
+    .iter()
+    .map(|entry| { return entry.message.clone(); })
+    .collect();
     assert!(
-        reason.contains(instance_service().as_str()) || reason.contains(instance_socket().as_str()),
-        "the refusal names this worktree's own unit: {reason}"
+        said.iter().any(|line| { return line.contains("still holds this worktree's unit") && line.contains(INSTANCE); }),
+        "one line says the manager still holds one of this worktree's units, and the commit goes on: {said:?}"
     );
-    assert!(reason.contains("still holds") && reason.contains("the text it loaded"), "{reason}");
+    assert!(!record_says_read(&machine), "the text was not dropped, so the record stays unwritten and the next commit asks again");
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A commit that starts to land between the unload's look and its stop is never stopped:
+/// the socket is stopped
+///  alone,
+/// which cannot carry through `Requires=` to the service,
+/// and the service is asked to retire instead.
+/// Why:
+///   A plain stop of the socket ends the service the unit requires,
+/// so a service another command started inside that window was cut in the middle
+///  of a landing,
+/// with no retire ask made
+/// (the review of `575c585373`,
+/// its reproduction `unload-stop-race`).
+/// That is the
+///  one thing this repair must not do:
+/// a cut batch is where "not known whether it landed" comes from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await provisionWith(host, managerWhichStartsTheServiceInTheWindow).stops).toEqual(['stop-alone <socket>']);
+/// ```
+#[test]
+fn a_service_started_inside_the_unloads_window_is_never_stopped() {
+    let machine: Machine = machine("unload-stop-race-lib", Duration::from_millis(300));
+    // What: The first look finds the service at rest and its socket held,
+    // and a concurrent commit starts the service the moment the socket is stopped.
+    // Why:  That is the window: the look said nothing was running, and the stop's job runs after the start.
+    let mut manager: Scripted = Scripted::new(vec![Answer::State("inactive")], vec![Answer::State("active")])
+        .started_again_after_the_socket_stop(Answer::State("active"));
+    let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
+        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a service that is landing does not fail the commit");
+    })
+    .iter()
+    .map(|entry| { return entry.message.clone(); })
+    .collect();
+    // What: The only stop the unload sent, and what the service was doing when it was sent.
+    // Why:  A stop of the service, or a stop of the socket in the mode that carries through `Requires=`, is what cuts the
+    //       landing; the socket stopped alone leaves the service running.
+    assert_eq!(manager.stops, vec![format!("stop-alone {}", socket_unit_instance(INSTANCE))], "the only stop names the socket and leaves the service alone");
+    assert_eq!(manager.service_state_at_the_stop.as_deref(), Some("active"), "the service was landing when the socket was stopped, and nothing of it was stopped");
+    assert!(
+        said.iter().any(|line| { return line.contains("started again while its units were being dropped"); }),
+        "one line says the service started inside the wait and was left: {said:?}"
+    );
+    assert!(!record_says_read(&machine), "the units were not watched being dropped, so the record stays unwritten and the next commit asks again");
     remove(machine.root.as_path());
 }
 
 /// The service unit of the fixture's instance.
 fn instance_service() -> String {
     return service_unit_instance(INSTANCE);
-}
-
-/// The socket unit of the fixture's instance.
-fn instance_socket() -> String {
-    return socket_unit_instance(INSTANCE);
 }
