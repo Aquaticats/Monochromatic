@@ -1230,6 +1230,29 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's empty last answer goes back with three reproduced defects (2026-11-14T12:29:33-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+and what the coordinating session queued.
+
+- **The driver's empty last answer** (`ad5e48ef93`),
+  second review,
+  which drove the real `watchUntilEnded` with a scripted connection:
+  three reproduced,
+  each with a control arm.
+  A turn that begins and settles on a transient model error inside the read of work ends the run with a retryable error and no attempt,
+  which the tip commit brought against its own parent.
+  A wake refused by a turn that began ends the run `prompt-rejected` and aborts that turn,
+  in code the change moved.
+  And an inbox message refused the same way is kept as `.failed-<name>` and never delivered while the run ends `idle`,
+  which is older than the change.
+  The last is how a note from this session to a going run can go undelivered with no sign of it.
+  The author is resumed second,
+  asked for one rule for every send to Pi and not three patches
+  (`~/temp/agent/pi-runs/driver-empty-last-answer-answers-its-second-review-of-2026-11-14-prompt.md`).
+- The queue held 61 entries at 12:29:33.
+
 ##### Pass 39 and the mpm-shadow integration are in `main`; `0.6.1-alpha.29` is dispatched; the landed removal goes back; the fuzz seeds go to review (2026-11-14T12:23:45-05:00)
 
 Not final and not approved:
