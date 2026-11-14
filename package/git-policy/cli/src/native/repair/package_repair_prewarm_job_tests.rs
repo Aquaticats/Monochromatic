@@ -1815,7 +1815,7 @@ fn a_filling_killed_between_placing_a_resolution_and_restoring_is_finished_by_th
         resolution = resolution,
     );
     crate::test_support::executable(cargo.as_path(), body.as_bytes());
-    let child: std::process::Child = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
+    let mut child: std::process::Child = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
         .args(["--exact", "repair::package_repair_prewarm_job::tests::a_filling_killed_between_placing_a_resolution_and_restoring_is_finished_by_the_next_one", "--nocapture", "--test-threads=1"])
         .env(A_KILLED_FILLINGS_CHILD, "1")
         .env("CLI_GIT_TEST_SIXTH_REVIEW_ROOT", root.to_str().expect("the fixture root is text"))
@@ -1830,7 +1830,6 @@ fn a_filling_killed_between_placing_a_resolution_and_restoring_is_finished_by_th
         assert!(began.elapsed() < std::time::Duration::from_secs(60), "the child never reached its second clean");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    let mut child: std::process::Child = child;
     let _killed = child.kill();
     let _waited = child.wait();
     // The state the kill leaves: the lock holds the resolution, and the person's bytes are at a kept name with a note beside it.
