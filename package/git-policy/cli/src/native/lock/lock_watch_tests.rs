@@ -19,7 +19,7 @@
 //! ```
 
 use crate::lock_bindings::{self, Binding};
-use crate::lock_watch::{A_FINISHED_CHILD_FORGETS, Event, Tracker, Watched, Watch, wait_for_a_watched_child, watch_before_starting};
+use crate::lock_watch::{A_FINISHED_CHILD_FORGETS, BEFORE_A_TAKE_IS_PINNED, Event, Tracker, Watched, Watch, wait_for_a_watched_child, watch_before_starting};
 use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -509,4 +509,82 @@ fn a_run_of_many_takes_of_one_path_holds_no_more_than_the_bound() {
         peak <= BOUND,
         "a run of many takes of one path holds no more than {BOUND} records at any moment, and this one held {peak}"
     );
+}
+
+/// What:
+///  A take that finished in the gap between the look that reported it and the pin that records it
+///  leaves no record naming the Git that took it,
+///  though another Git took the same path in that gap.
+/// Why:
+///  The tracker reads the PID file at one instant and the record's pin takes the file's identity at
+///  another,
+///  and a Git that finishes its take and another that takes the path between the two leave a record
+///  that pins the new file and names the Git that no longer holds it.
+///  That record shadows the right one for a reader that stops at the first record pinning the inode,
+///  and on this volume a dead Git's lock then stands unproven and the next commit fails
+///  (a review of `5327cbbfa4`, finding 1).
+///  The record must therefore name a Git that held the file it pins:
+///  the writer looks at the PID file beside that file once more after it has pinned, and takes its own
+///  pin away when that file names another process.
+///  The control forces the gap at the code's own fault point `BEFORE_A_TAKE_IS_PINNED`,
+///  where it acts as the finishing Git and as the Git that takes the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(BeforeATakeIsPinned, () => { rename(lock, index); writeFileSync(lock); writeFileSync(pidFile, other) });
+/// expect(write(common, lock, [child, identity])).toBeUndefined();
+/// ```
+#[test]
+fn a_take_that_finished_before_it_was_pinned_is_not_recorded_for_that_git() {
+    let common: PathBuf = a_watched_git_directory("watch-take-finished-before-pinning");
+    let lock: PathBuf = common.join("index.lock");
+    let pid_file: PathBuf = common.join("index~pid.lock");
+    // The other Git's number: a process that has ended, so nothing in this fixture claims to run.
+    let (other_pid, _other_identity) = a_dead_holder_for_the_gap();
+    let hook_common: PathBuf = common.clone();
+    crate::service_fault::hooks::set(
+        BEFORE_A_TAKE_IS_PINNED,
+        std::rc::Rc::new(move || {
+            // The Git whose take was reported finishes it, and another Git takes the path in the gap.
+            std::fs::rename(hook_common.join("index.lock").as_path(), hook_common.join("index").as_path()).expect("the finished take is renamed away");
+            std::fs::write(hook_common.join("index.lock").as_path(), b"another Git's take\n").expect("the other take");
+            std::fs::write(hook_common.join("index~pid.lock").as_path(), format!("pid {other_pid}\n").as_bytes()).expect("the other Git's PID file");
+        }),
+    );
+    let started: Option<(Watch, Watched)> = watch_before_starting();
+    let mut child: Child = a_child_that_takes_the_lock(common.as_path(), "sleep 2");
+    crate::lock_holder_records::note_child_started(child.id());
+    let child_pid: i64 = i64::from(child.id());
+    let child_identity: String = crate::lock_holder_records::identity_of_process(child_pid).expect("the child's identity while it waits");
+    let waited = wait_for_a_watched_child(&mut child, started);
+    crate::service_fault::hooks::clear();
+    assert!(waited.is_ok(), "the run ends: {waited:?}");
+    let _unused: PathBuf = pid_file;
+    let named: Option<Binding> = lock_bindings::of(common.as_path(), lock.as_path());
+    let names_the_child: bool = matches!(&named, Some(bound) if bound.pid == child_pid && bound.identity == child_identity);
+    remove(common.as_path());
+    assert!(
+        !names_the_child,
+        "no record names the Git whose take finished before it was pinned: {named:?}"
+    );
+}
+
+/// What:
+///  A process that ran and ended,
+///  for the gap a control writes another Git's number into.
+/// Why:
+///   The other Git's PID file must name a process this machine does not have,
+///  so nothing in the fixture is mistaken for a live holder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [pid, identity] = deadHolder();
+/// ```
+fn a_dead_holder_for_the_gap() -> (i64, String) {
+    let mut child: Child = Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a helper starts");
+    let pid: i64 = i64::from(child.id());
+    let identity: String = crate::lock_holder_records::identity_of_process(pid).expect("the helper's identity while it waits");
+    let _killed = child.kill();
+    child.wait().expect("the helper ends");
+    return (pid, identity);
 }

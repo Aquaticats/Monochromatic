@@ -10048,23 +10048,73 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   and a writer whose temporary a sweep took away makes it again rather than leave a standing lock
   with no record.
 
-What a kill at each step of that leaves, and who removes it:
+#### The record's life, step by step, and what may run beside each step
 
-- after the path's text and before any record:
-  a file naming the path and no record.
-  The next write for that path reuses it,
-  and nothing needs removing,
-  because a record is a pin and there is none;
-- after the record: the whole record.
-  If the child then finished its lock,
-  the command takes it away as soon as its next look finds the lock gone;
-  if it was killed holding it, the record is what lets the next command clear the lock,
-  and the sweep keeps it as long as its pin names the file standing at the path;
-- inside a removal:
-  one `unlink`, which the kernel does whole,
-  so no half-removed record exists,
-  and a record a command wrote under a name its own run never reached again is litter the sweep
-  removes once its lock is gone.
+The steps below are the whole of a record's life.
+Each names what may run beside it and what a kill or another writer between it and the next step
+leaves;
+the controls of `lock_bindings_tests.rs` and `lock_watch_tests.rs` state the rows that can go wrong,
+and each row names its control where one states it.
+(The project writes no pipe tables, so the rows are a list.)
+
+1. **The path's text is written** (`name_the_path`):
+   `<digest>.lock-path.<writer pid>.<writer birth identity>.writing`,
+   then one `rename` to `<digest>.lock-path`.
+   Beside it: another command's sweep, which keeps that temporary while the Git writing it runs and
+   removes it once that Git is gone; and another write for the same path, whose text is the same
+   bytes, so either order leaves the same file.
+   A kill between the two leaves the temporary and no text, which the sweep removes once the writer
+   is gone; no record of that path can be read until a write writes the text again.
+   Control: `a_sweep_beside_a_path_text_write_leaves_the_record_of_a_standing_lock`.
+2. **The pin is made** (`write`, one `link`):
+   one file named `<digest>.<device>.<inode>.<pid>.<birth identity>.hold`,
+   which is already the whole record.
+   Beside it: another command's sweep, which keeps a pin whose inode is the file standing at its
+   path; and another write for the same path, which is a different take and so a different name.
+   A kill between the two leaves that one file and never half of a record, because a record is one
+   file.
+   Controls: `a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock`,
+   `a_run_of_many_takes_of_one_path_holds_no_more_than_the_bound`.
+3. **The record is published** (`write` returns, after the pin and the second look at the PID file
+   beside the lock):
+   the record names a Git that held the file it pins,
+   because the PID file beside that file named it when the record was finished.
+   Beside it: another command's sweep, which keeps it; another command's write for the same path,
+   which cannot name the same inode while this pin holds it; and the run's own next look.
+   A kill between this and the next step leaves the record, which is the proof that clears the lock
+   if this Git is killed holding it.
+   Controls: `a_take_that_finished_before_it_was_pinned_is_not_recorded_for_that_git`,
+   `killed_at_pin` in `reproductions/` of a review.
+4. **The record is read** (`of`, which returns every record pinning the file standing at the path,
+   and the pass, which judges each of them):
+   no record that cannot be the holder stops the reader,
+   so one that names a Git the PID file does not name is passed over and the right one is judged.
+   Beside it: another command's sweep or forget, so a record may vanish between two reads; the
+   removal of a lock re-checks its own last looks and never acts on a record it has not read.
+   A kill between this and the next step changes nothing on disk, because a read writes nothing.
+   Controls: `a_record_that_cannot_be_the_holder_does_not_stop_the_clearance`,
+   `shadowed_record` in `reproductions/` of a review.
+5. **The record is forgotten** (the run's own `forget_what_the_child_finished` on every look of the
+   wait, and the pass's removal of a lock it cleared):
+   one `unlink` of the one file.
+   Beside it: another command's sweep, whose own `unlink` of the same name is harmless; and another
+   command's write for the same path, which is a different name.
+   A kill between this and the next step leaves the record; the next look or the next sweep removes
+   it once its lock is gone, and keeps it while the lock stands.
+   Controls: `a_finished_child_takes_away_only_the_record_of_its_own_lock`,
+   `a_lock_made_again_at_the_path_is_not_the_pinned_file`.
+6. **The sweep** (`sweep`, once per command after its own look for locks):
+   removes each record whose pin does not name the file at the path its text names,
+   each file that is none of the three kinds above,
+   and each temporary of a path text whose writer is proven gone;
+   it keeps every record whose pin names the standing file, every path text, and every temporary
+   whose writer still runs.
+   Beside it: any writer, whose temporary and whose pin it keeps while they are live, and any forget,
+   which unlinks the same records harmlessly.
+   A kill between this and the next step leaves the rest of the folder for the next sweep.
+   Controls: `the_sweep_removes_the_record_of_a_lock_that_is_gone`,
+   `a_record_whose_path_cannot_be_read_is_kept`,
+   `a_file_that_is_not_a_record_decides_nothing_and_goes`.
 
 The events are the whole proof, so a queue the kernel dropped (`IN_Q_OVERFLOW`),
 a watch that ended,

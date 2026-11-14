@@ -44,6 +44,34 @@ fn a_lock(name: &str, lock_name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// What:
+///  A process that ran and ended,
+///  with the identity a record of its take would carry.
+/// Why:
+///   A record is written for a Git that has been killed in the cases it exists for,
+///  and a sweep must keep the temporary of the process still writing that record even though the Git
+///  the record is about is gone
+///  (a review of `5327cbbfa4`, finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [pid, identity] = deadHolder();
+/// ```
+fn a_holder_that_has_ended() -> (i64, String) {
+    let mut child: std::process::Child = std::process::Command::new("sleep")
+        .arg("600")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("a helper starts");
+    let pid: i64 = i64::from(child.id());
+    let identity: String = crate::lock_holder_records::identity_of_process(pid).expect("the helper's identity while it waits");
+    let _killed = child.kill();
+    child.wait().expect("the helper ends");
+    return (pid, identity);
+}
+
+/// What:
 ///  The identity a record carries for a holder,
 ///  as this boot and this process table spell one.
 /// Why:
@@ -322,7 +350,9 @@ fn a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock() {
 #[test]
 fn a_sweep_beside_a_path_text_write_leaves_the_record_of_a_standing_lock() {
     let (common_dir, lock) = a_lock("binding-sweep-beside-a-path-text", "index.lock");
-    let holder: (i64, String) = (42, an_identity());
+    // The Git whose take this record is about has been killed, which is the state the record exists for: the sweep that
+    //  runs at this instant must keep the temporary of the process still writing it, not read it as a dead run's litter.
+    let holder: (i64, String) = a_holder_that_has_ended();
     let swept_at: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
     let hook_common: PathBuf = common_dir.clone();
     let ran: std::rc::Rc<std::cell::Cell<bool>> = swept_at.clone();
@@ -374,4 +404,46 @@ fn a_second_take_of_one_path_leaves_a_record_of_the_file_that_stands() {
     sweep(common_dir.as_path());
     assert!(of(common_dir.as_path(), lock.as_path()).is_some(), "a sweep keeps the standing take's record");
     remove_fixture(common_dir.as_path());
+}
+
+/// What:
+///  A record that pins the standing file but names a Git the PID file beside it does not name
+///  does not stop the pass from clearing the lock through the record that does name it.
+/// Why:
+///  Two records can pin one inode:
+///  a record written for the wrong Git pins a file it does not describe
+///  (the state a review of `5327cbbfa4` reproduced by planting one),
+///  and a reader that returns the first record whose pin matches the inode
+///  (`of`) then has its judgement refused for a PID mismatch and never reaches the right record,
+///  so a dead Git's lock stands and the next commit fails on this volume.
+///  The reader must judge every record that pins the file,
+///  and the one that names the PID file's process and a Git that has ended clears the lock.
+///  The control writes the wrong record first, and this volume lists directory entries in creation
+///  order
+///  (`ls -U`, measured by the review that reported this), so a reader that stops at the first is
+///  stopped by the wrong one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantShadow(lock); plantRight(lock); expect(clearOne(lock)).toBeDefined()
+/// ```
+#[test]
+fn a_record_that_cannot_be_the_holder_does_not_stop_the_clearance() {
+    let (common_dir, lock) = a_lock("binding-shadowed-by-a-wrong-record", "index.lock");
+    let pid_file: PathBuf = common_dir.join("index~pid.lock");
+    let (shadow_pid, shadow_identity) = a_holder_that_has_ended();
+    let (right_pid, right_identity) = a_holder_that_has_ended();
+    // The wrong record first, when the PID file named it: it pins the standing file and names a Git that has ended.
+    std::fs::write(pid_file.as_path(), format!("pid {shadow_pid}\n").as_bytes()).expect("the PID file naming the wrong Git");
+    assert!(write(common_dir.as_path(), lock.as_path(), &(shadow_pid, shadow_identity)).is_some(), "the wrong record is written");
+    // Then the right one, pinning the same file, after the PID file came to name it.
+    std::fs::write(pid_file.as_path(), format!("pid {right_pid}\n").as_bytes()).expect("the PID file naming the right Git");
+    assert!(write(common_dir.as_path(), lock.as_path(), &(right_pid, right_identity)).is_some(), "the right record is written");
+    let met: Option<Binding> = of(common_dir.as_path(), lock.as_path());
+    let cleared = crate::abandoned_lock_proving::clear_one(lock.as_path(), common_dir.as_path());
+    let stood: bool = lock.exists();
+    remove_fixture(common_dir.as_path());
+    assert!(met.is_some(), "a record pinning the standing file is met (the wrong one, written first)");
+    assert!(cleared.is_some(), "the right record clears the lock though a wrong one pins the same file and is met first: {met:?}");
+    assert!(!stood, "the lock went");
 }

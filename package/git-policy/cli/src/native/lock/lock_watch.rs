@@ -94,6 +94,18 @@ const MOST_NAMES: usize = 1024;
 /// The most locks one run writes a record for.
 const MOST_LOCKS: usize = 32;
 
+/// The instant the tracker has reported a take of a lock path,
+/// and before the record of that take is pinned:
+/// the two looks the record's name and its holder come from are this one and the pinning itself.
+/// Why:
+///   A control states the interleaving between them:
+///  the Git whose take was reported finishes that take and another Git takes the path in the gap,
+///  and the record must not name a Git that did not hold the file it pins
+///  (`a_take_that_finished_before_it_was_pinned_is_not_recorded_for_that_git`).
+///  Named here so both halves of that promise reach one point,
+/// and inert unless the test variable or a control names it.
+pub const BEFORE_A_TAKE_IS_PINNED: &str = "before-a-take-is-pinned";
+
 /// The instant a command's Git has ended and the command is about to take away the record of a lock that no longer
 /// stands,
 /// after it decided that this lock is gone.
@@ -677,6 +689,9 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
         if written.iter().any(|held| { return held.lock == lock && lock_bindings::pin_holds_the_lock(held); }) {
             continue;
         }
+        // A control reaches here, with the take reported and its record not yet pinned, to act as the Git finishing
+        //  the take and another Git taking the path in the gap.
+        crate::service_fault::reach(BEFORE_A_TAKE_IS_PINNED);
         if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned())) {
             written.push(recorded);
         }
