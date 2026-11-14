@@ -1,0 +1,5 @@
+[profile] arm=1.3.2 repeat=40 count=1000 ok=true
+[profile] arm=1.4.0-dev.2664 repeat=30 count=1000 ok=true
+[profile-separator] arm=1.3.6 repeat=60 tokens=1000 ok=true
+[profile-separator] arm=1.4.0-dev.2664 repeat=40 tokens=1000 ok=true
+[profile-separator] arm=1.4.0-dev.2971 repeat=30 tokens=1000 ok=true
