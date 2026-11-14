@@ -1084,10 +1084,14 @@ fn replays_a_real_store_listing() {
                 .expect("set its write time");
         }
     }
+    // What: the size bound can be set for a measurement, and is the shipped one otherwise.
+    // Why: an arm that measures a pass with nothing to remove needs a bound above the replay's total,
+    // and the same test has to be the one that measures the removals.
     let bounds: TrimBounds = TrimBounds {
-        // The bounds the pass ships, with the work limit out of the way: the replay asks what the rule decides, while
-        // an install only does as much of it as its time limit allows.
-        size_bound_bytes: DEFAULT_SIZE_BOUND_BYTES,
+        size_bound_bytes: std::env::var("MPM_SHADOW_REPLAY_SIZE_BOUND")
+            .ok()
+            .and_then(|given| return parse_size(&given))
+            .unwrap_or(DEFAULT_SIZE_BOUND_BYTES),
         age_floor: Duration::from_secs(DEFAULT_AGE_FLOOR_SECONDS),
         work_limit: Duration::from_secs(24 * 3600),
     };
