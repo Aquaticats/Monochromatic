@@ -32,7 +32,9 @@ use crate::auto_push_single_flight::{
 };
 use crate::auto_push_dirty_paths::status_paths;
 /// The answers a move gives, the words of a refusal, and the steps both moves share.
-use crate::auto_push_reconcile_branch_advance::{Advanced, BRANCH_MOVED, advice_to_move, refusal_of};
+use crate::auto_push_reconcile_branch_advance::{Advanced, BRANCH_MOVED, Brought, advice_to_move, refusal_of};
+/// The repair that writes only what the index proves is the move's own content.
+use crate::auto_push_reconcile_branch_checkout::bring_the_checkout_to_its_branch_awaiting;
 use crate::auto_push_reconcile_branch_worktree::{git_at, live_holder_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 use crate::diagnostic_log::debug;
@@ -121,14 +123,21 @@ pub(crate) async fn move_the_ref_only_awaiting(
 
 /// What:
 ///  Bring a worktree's index and files from the pushed tip to the merge,
-/// for a checkout that took the branch while its reference moved.
+/// for a checkout that took the branch while its reference moved,
+///  and say what is true of that checkout when it cannot be brought there.
 /// Why:
 ///   The checkout read the branch before the reference moved and wrote the pushed tip's files,
 /// while the branch now names the merge:
 ///  the index holds a reversal of the merge that a commit there would publish.
-///  `git read-tree -u -m <pushed tip> <merge>` writes those paths and nothing else,
-/// and a person's own work at one of them keeps its bytes,
-///  so the checkout is brought to its branch without discarding anything.
+/// The repair writes only what it can prove is the pushed tip's own content
+/// (`bring_the_checkout_to_its_branch_awaiting`),
+///  and a person's edit to one of those files keeps its bytes.
+///  The reference has already moved, so a checkout that cannot be brought along is NOT a branch that stayed behind:
+/// the answer says the branch is at the merge and that worktree is not,
+///  names the paths, and gives the step that finishes it
+///  (a review of commit `6c39c3719a`, its defect 2:
+/// the answer here said the branch was not at the merge, which was false,
+///  and advised `git merge --ff-only`, which prints "Already up to date." there).
 /// The two questions before it are what proves this is the worktree meant:
 ///  it still has the branch checked out, and its `HEAD` is this merge.
 ///
@@ -160,23 +169,26 @@ async fn finish_the_checkout_that_raced_the_move(
             advice: advice_to_move(merge_oid, where_to.as_str()),
         });
     }
-    let written = run_query_awaiting(&there, &argv(&["read-tree", "-u", "-m", local, merge_oid])).await?;
-    if written.code != Some(0) {
-        return Ok(Advanced::Not {
-            reason: format!(
-                "{named} took {branch_ref} while its reference moved and its files could not be brought to the merge: {}",
-                refusal_of(&written.stderr)
-            ),
-            advice: advice_to_move(merge_oid, where_to.as_str()),
+    let brought: Brought = match bring_the_checkout_to_its_branch_awaiting(&there, branch_ref, local, merge_oid).await {
+        Ok(brought) => brought,
+        Err(error) => Brought::Left { paths: Vec::new(), reason: format!("{named} could not be read: {error}") },
+    };
+    if let Brought::Left { paths, reason } = brought {
+        return Ok(Advanced::WorktreeHolding {
+            worktree: place.to_path_buf(),
+            shows: Some(branch_ref.to_owned()),
+            paths,
+            reason: format!("{named} took {branch_ref} while its reference moved, and its files there are older than the merge: {reason}"),
         });
     }
-    record_streams(&["read-tree", "-u", "-m", local, merge_oid], &written.stdout, &written.stderr);
     let status_arguments = argv(&["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=no"]);
     let status = run_query_awaiting(&there, &status_arguments).await?;
     if status.code != Some(0) {
-        return Ok(Advanced::Not {
+        return Ok(Advanced::WorktreeHolding {
+            worktree: place.to_path_buf(),
+            shows: Some(branch_ref.to_owned()),
+            paths: Vec::new(),
             reason: format!("the status of {named} could not be read after its files were brought to the merge"),
-            advice: advice_to_move(merge_oid, where_to.as_str()),
         });
     }
     let kept: bool = !status_paths(&status.stdout).is_empty();

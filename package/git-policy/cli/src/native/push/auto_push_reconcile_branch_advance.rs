@@ -36,8 +36,11 @@ use crate::transaction_git::GitContext;
 use crate::transaction_owner::current_transaction_owner;
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 /// What a move's checkout came to, and the step that makes a checkout agree with its own branch.
-pub(crate) use crate::auto_push_reconcile_branch_checkout::Checkout;
+pub(crate) use crate::auto_push_reconcile_branch_checkout::{Checkout, Brought};
 use crate::auto_push_reconcile_branch_checkout::{bring_the_checkout_to_its_branch_awaiting, the_checkout_after_the_move_awaiting};
+/// The window of a move a control steps into.
+#[cfg(test)]
+use crate::auto_push_reconcile_branch_checkout::{Window, play_in_the_window};
 
 /// What:
 ///  What a move of the branch came to.
@@ -244,20 +247,19 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
             // Why: the reference has not moved yet, so a refusal here leaves the branch where it was and the checkout as the switch
             //      left it, and the report says the branch is not at the merge.
             if !still_on_the_branch(git, branch_ref, local).await? {
-                match bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await? {
-                    Ok(None) => {}
-                    Ok(Some(paths)) => {
+                match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await? {
+                    Brought::Right => {}
+                    Brought::Left { paths, reason } => {
                         return Ok(Err(format!(
-                            "another command checked out another branch while this fast-forward wrote its files, and the merge's changes to {} are still in that checkout and were left as they are",
+                            "another command checked out another branch while this fast-forward wrote its files, and the merge's changes to {} are still in that checkout and were left as they are: {reason}",
                             listed(&paths)
                         )));
                     }
-                    Err(reason) => return Ok(Err(reason)),
                 }
             }
         }
         #[cfg(test)]
-        crate::auto_push_reconcile_branch_checkout::play_before_the_branch_moves();
+        play_in_the_window(Window::BeforeTheBranchMoves);
         let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
         let moved = run_query_awaiting(git, &argv(&["update-ref", "-m", message.as_str(), branch_ref, merge_oid, local])).await?;
         if moved.code != Some(0) {
