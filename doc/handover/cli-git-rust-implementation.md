@@ -1198,7 +1198,7 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
-##### Two reviews with findings: the lock shim takes a live holder's lock three ways; the driver's ask can end a run that is at work (2026-11-14T10:03:30-05:00)
+##### Two reviews with findings: the lock shim takes a live holder's lock three ways; the driver's ask can end a run that is at work (2026-11-14T10:03:21-05:00)
 
 Not final and not approved:
 what two reviews report of themselves,
