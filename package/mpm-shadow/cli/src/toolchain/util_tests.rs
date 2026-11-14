@@ -135,6 +135,8 @@ fn the_new_content_is_only_ever_in_a_file_of_the_kept_mode_whatever_the_umask() 
     // The kept mode 0644 under the ambient umask is the third arm: even there the old write landed on 0644,
     // while a kept mode of 0640 must not become 0644 in the others' bit.
     let arms: [(u32, Option<u32>); 3] = [(0o600, Some(0o022)), (0o600, Some(0o000)), (0o640, None)];
+    // Every arm is measured, and the failures are reported together: one run then says which umasks go wrong.
+    let mut problems: Vec<String> = Vec::new();
     for (kept, umask_asked) in arms {
         let directory = crate::test_scratch::scratch();
         let target = directory.path().join("toolchain.plan.jsonc");
@@ -150,17 +152,22 @@ fn the_new_content_is_only_ever_in_a_file_of_the_kept_mode_whatever_the_umask() 
         };
         super::util::write_atomically_at(&target, plan.as_bytes(), Some(kept), &reader).expect("the write lands");
         let (seen_mode, seen_content) = seen.borrow().clone().expect("the kill point ran while the temporary held the bytes");
-        assert_eq!(
-            seen_content, plan,
-            "the temporary holds every byte of the new plan at the kill point (kept mode {kept:o})"
-        );
-        assert_eq!(
-            seen_mode, kept,
-            "the file holding the new plan carries the kept mode from its first byte, not the umask's (kept mode {kept:o}, umask {umask_asked:?})"
-        );
-        assert_eq!(mode_of(&target), kept, "and the renamed plan keeps it (kept mode {kept:o})");
-        assert_eq!(std::fs::read_to_string(&target).expect("read the plan"), plan);
+        if seen_content != plan {
+            problems.push(format!("the temporary holds every byte of the new plan (kept mode {kept:o})"));
+        }
+        if seen_mode != kept {
+            problems.push(format!(
+                "the file holding the new plan carries the kept mode {kept:o} from its first byte, and it carried {seen_mode:o} under umask {umask_asked:?}"
+            ));
+        }
+        if mode_of(&target) != kept {
+            problems.push(format!("the renamed plan keeps the mode {kept:o}, and it has {:o}", mode_of(&target)));
+        }
+        if std::fs::read_to_string(&target).expect("read the plan") != plan {
+            problems.push(format!("the renamed plan holds the new content (kept mode {kept:o})"));
+        }
     }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 /// What:

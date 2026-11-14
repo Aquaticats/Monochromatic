@@ -223,8 +223,9 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
 /// The plan is a file people own;
 /// a rename replaces its inode,
 /// so a plan kept readable by its owner alone would come back readable by everyone.
-/// The mode travels on the temporary file,
-/// so the plan is never visible under a wider mode at any point.
+/// The mode is asked for at the temporary's creation and put on it before its first byte,
+/// so neither the file that holds the plan's content nor the file a kill leaves behind is wider than the plan
+/// (`util::write_atomically_with_mode`, "what a kill leaves, step by step").
 /// A target that does not exist yet keeps the mode a new file gets,
 /// and a target whose mode cannot be read is a failure rather than a silent widening.
 ///
