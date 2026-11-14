@@ -421,6 +421,31 @@ listed so the reader can find the note:
   printed by `git show a6783a44ae7bdd43f9cd6995fcb6416eea1250d1:doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`.
   Its cited records are kept in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`.
 
+## The Firefox disk-responsiveness audit
+
+4 archives left the tree in this family.
+
+- `doc/audit/firefox-esr-disk-responsiveness.browser.json.gz`:
+  51260 bytes,
+  SHA-256 `2c5de6807a774e097b9fc0accdcfc9382197a1a6e4b88b04bdf9817665a92124`,
+  last changed in commit `b1b7669f03151c1f7417452987d4850923469eeb`,
+  printed by `git show b1b7669f03151c1f7417452987d4850923469eeb:doc/audit/firefox-esr-disk-responsiveness.browser.json.gz`.
+- `doc/audit/firefox-esr-disk-responsiveness.candidates.jsonl.gz`:
+  14511953 bytes,
+  SHA-256 `8f2edf54fa33e11cf832316a0abade2b34ed3cfe2d5c70e3cc628f1f8eff5f4f`,
+  last changed in commit `21f33ad9a32b541819f3491a9a10600adb8fab1d`,
+  printed by `git show 21f33ad9a32b541819f3491a9a10600adb8fab1d:doc/audit/firefox-esr-disk-responsiveness.candidates.jsonl.gz`.
+- `doc/audit/firefox-esr-disk-responsiveness.inventory.json.gz`:
+  14843647 bytes,
+  SHA-256 `2c190ba306eee8fb61c271ffabc48cfcc47f8b5bb9ba073186392ebe9ed2fb17`,
+  last changed in commit `21f33ad9a32b541819f3491a9a10600adb8fab1d`,
+  printed by `git show 21f33ad9a32b541819f3491a9a10600adb8fab1d:doc/audit/firefox-esr-disk-responsiveness.inventory.json.gz`.
+- `doc/audit/firefox-esr-disk-responsiveness.sources.json.gz`:
+  52384 bytes,
+  SHA-256 `2cc8f8102945a906e4256a26a7dead8246d0af235d69d8af861657ab18a13e44`,
+  last changed in commit `b1b7669f03151c1f7417452987d4850923469eeb`,
+  printed by `git show b1b7669f03151c1f7417452987d4850923469eeb:doc/audit/firefox-esr-disk-responsiveness.sources.json.gz`.
+
 ## Records kept in the tree for a removed archive
 
 1 of the removed archives are cited for something a reader can
