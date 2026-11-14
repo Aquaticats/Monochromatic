@@ -843,6 +843,63 @@ which ended at 18:49:22.
   `kimi-trials` 17 GiB,
   `module-test-logs` 11 GiB.
 
+##### The issue 6299 fix is written and the build-tree correction is in (2026-11-13T19:01:05-05:00)
+
+Not final and not approved:
+the coordinating session's reading of two runs that ended at 18:54:36 and 18:57:48.
+
+- **Issue 6299.**
+  The fix is on `fix/pi-shared-subagent-driver-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed`
+  (tip `7faa687169`;
+  report in `~/temp/agent/issue-6299-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed-scratch/keep/report.md`).
+  The cause its author measured:
+  `workTheToolReportedIn` parsed the `result` of a feed's `tool_end` line as JSON,
+  and that field is a preview cut at 500 characters with the length appended,
+  so an answer of four-digit length is cut inside a string at position 509.
+  The read runs at the idle check,
+  which is the 120 s after settling.
+  Fifteen summaries carried the error by 18:40,
+  the earliest from 2026-11-12T14:23-05:00;
+  of the newest 120 runs,
+  16 feeds could not be read by the reader as it was.
+  The run that wrote the fix ended `driver-failed` by the same defect with its work done.
+- The branch keeps a `process` answer whole in a feed record of its own,
+  has every reader of a feed or a session read whole lines only,
+  and keeps a failed read beside the end reason (`workProblem`) where it used to decide it.
+  Its author measured that a reader in the same process sees a line cut in half
+  in 17 and in 39 of 1,200 reads of a feed being appended to.
+- Limits its author names:
+  a run whose leftover work could not be read ends as the run it was,
+  not kept open;
+  a last line without its line feed is not read;
+  the growth of a long feed by the new record is not measured.
+- Routed:
+  its review is queued at the head
+  (`reviewOfBranch`, source `package/pi-shared/subagent-driver/src`);
+  the issue has a comment with the cause and the branch.
+- One unit test of the driver,
+  `the silence starts afresh when a compaction ends` in `src/wait-for-an-answer.unit.test.ts`,
+  failed once in three runs of the whole suite on that branch and passes alone.
+  By the rule `SUF` that is a contention or ordering defect until measured otherwise,
+  so a run of its own is queued
+  (`~/temp/agent/pi-runs/driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone-prompt.md`).
+- **Build tree of the wrapper.**
+  The author's correction is `446e9e7f6b`,
+  which changes `package/git-policy/cli/doc/development-profile-measurements.md` alone
+  (one file,
+  28 insertions and 6 deletions against the reviewed `bf9c397cf2`,
+  read from `git diff --stat`).
+  The author measured what the review had read:
+  the gate's two environment settings override the manifest's profile,
+  so the gate compiled without debug information before the change and after it.
+- Routed:
+  integration pass 26 for `0.6.1-alpha.24`,
+  pinned to `446e9e7f6b`,
+  queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-26-for-alpha-24-prompt.md`).
+  Pass 25 had started at 18:55:49,
+  so the two could not share a pass.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
