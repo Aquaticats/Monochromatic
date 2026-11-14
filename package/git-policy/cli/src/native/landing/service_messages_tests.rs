@@ -275,6 +275,13 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
+    // What: The failure that a program other than this release answers names the link whose pointing decides it.
+    // Why:  A link that cannot be pointed is what keeps that program being started, and a person can only look at it by name.
+    assert!(
+        render(&ClientFailure::OtherRelease).contains(crate::service_instance::PROGRAM_LINK),
+        "the ending names the link: {}",
+        render(&ClientFailure::OtherRelease)
+    );
     assert!(render(&ClientFailure::NoCommonVersion).contains(STOP_COMMAND));
     let unsure: String = render(&ClientFailure::MayNotHaveLanded);
     for command in CHECK_COMMANDS {

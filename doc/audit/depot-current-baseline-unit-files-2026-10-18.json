@@ -755,5 +755,17 @@
     "package/pi-shared/model-selection/src/version.unit.test.ts",
     "package/rolldown-plugin/import-attributes/src/import-attributes.unit.test.ts"
   ],
-  "count": 751
+  "count": 751,
+  "inTreeNow": [
+    {
+      "measuredOn": "2026-11-13",
+      "bytes": null,
+      "sha256": null,
+      "removedFromTree": true,
+      "historyCommand": "git show ac99991c648e7f703369ffb5acc7207ea020ff30:doc/audit/depot-current-baseline-unit-2026-10-18.log.gz",
+      "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+      "keptAs": null,
+      "note": null
+    }
+  ]
 }

@@ -48,17 +48,72 @@ locks/
 .npm/
 .node_repl_history
 
+# Archives, packed: no archive is tracked (owner, 2026-11-13: "Git ignore all common archive
+# formats (gz, zip, tar) and remove anything already committed from the repo").
+# The three formats the owner named are named in capitals too, because a gitignore pattern is
+# case-sensitive and a file from a Windows tool is still an archive: gzip `.gz`, `.tgz` and
+# `.tar.gz`; zip `.zip`; tar `.tar` with each of the compressed spellings below.
+# Each compressor is ignored alone as well, and `.zstd` and `.lzo` are other common names of
+# formats already ignored here. No spelling of a format the owner did not name is claimed.
+# What a document cites of a removed archive is plain text beside it:
+# doc/audit/removed-archives-and-where-history-holds-each.md.
+*.tar
+*.TAR
+*.gz
+*.GZ
+*.tgz
+*.TGZ
+*.tar.gz
+*.TAR.GZ
+*.bz2
+*.tbz
+*.tbz2
+*.tar.bz2
+*.xz
+*.txz
+*.tar.xz
+*.zst
+*.zstd
+*.tzst
+*.tar.zst
+*.tar.zstd
+*.lz4
+*.tlz4
+*.tar.lz4
+*.lzma
+*.tlz
+*.tar.lzma
+*.lz
+*.tar.lz
+*.lzo
+*.tar.lzo
+*.Z
+*.tar.Z
+*.zip
+*.ZIP
+*.7z
+*.tar.7z
+*.rar
+*.br
+*.tar.br
+
+# The three Java archives the owner overrode the `*.jar` ignore for ("Override allowlist
+# all 3"): the IntelliJ plugin users install, and the two Gradle wrappers the wrappers
+# beside them fetch. Negations are symptoms elsewhere (doc/decision/gitignore-negations.md);
+# here the owner ordered the exception.
+*.jar
+!/package/intellij-plugin/islands-black/islands-black.jar
+!/package/linter/kotlin/gradle/wrapper/gradle-wrapper.jar
+!/package/music-player/android-app/gradle/wrapper/gradle-wrapper.jar
+
 # Build outputs and generated code
 .dist/
 dist/
 target/
 *.bun-build
-*.br
 *.js
 *.map
 *.tsbuildinfo
-*.tgz
-*.zst
 .bin/
 *.bin
 jniLibs/
@@ -74,6 +129,13 @@ tmp/
 *.tmp
 *.log
 *.log.jsonl
+
+# Kept members of a removed archive that a run names `.log` are records, not scratch. The
+# re-include sits below `*.log` because the last matching pattern wins; it covers only the
+# optique evidence folder, whose every file is a verbatim member of the archive that folder
+# is named after.
+!doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/**/*.log
+
 logs/
 pids/
 *.pid
