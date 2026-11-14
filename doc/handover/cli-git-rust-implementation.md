@@ -1198,6 +1198,44 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The tracked archives are out of `main`; what one record says is kept goes back to the author (2026-11-14T09:04:01-05:00)
+
+Not final and not approved:
+what the coordinating session merged and queued,
+and what one review reports of itself.
+
+- **The archives' answer** (`091397b096`) was checked by its reviewer in its own session,
+  ended 08:58:57
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/review.md`).
+  By its report,
+  each point seen by a run of its own:
+  all six points of the first review are answered;
+  the kept members are 160 and the tree and the record agree;
+  nine ignore patterns hold in 117 cases;
+  the change and `main` touched no file in common;
+  a scan of 23,869 tracked files by content finds no archive but three `.jar` files.
+- Merged as `635539ca67` at 09:04:01,
+  which ends the hold on that branch.
+  Measured by this session after the merge:
+  `git ls-files` names no file ending in an archive extension but those three `.jar` files,
+  which `.gitignore` allows by name with the owner's override beside them.
+- **Left open by the reviewer, measured and not decided**:
+  one research record says the harness,
+  the check scripts,
+  the baked inputs and every raw record of both rounds are in its evidence archive;
+  of that archive's 240 files 160 are kept as plain text and 80 are in history alone,
+  none of the `scripts/` folder's 35 among the kept.
+- **Adopted from the record, open to veto**:
+  what that sentence names is kept as plain text.
+  The owner's words for the task
+  ("If something would break, represent the data another way")
+  and the rule that git history is no home for a durable fact answer it,
+  and the branch's own rule is that what documents cite is kept.
+  The author is resumed in its own session
+  (`~/temp/agent/pi-runs/tracked-archives-what-the-research-record-says-is-kept-is-kept-as-plain-text-prompt.md`),
+  told to list and not silently keep or drop a file that is not text or is large,
+  and to look once at the other removed archives for the same shape.
+
 ##### mpm-shadow's Clippy fix passed its review and goes into an integration with issue 6300; the journal after `0.6.1-alpha.27` is clean (2026-11-14T08:59:29-05:00)
 
 Not final and not approved:
