@@ -91,12 +91,30 @@ Every earlier name keeps working in this release:
    so an upgrade or a downgrade changes no unit text and nothing has to make the user manager re-read what it holds.
   A `systemctl --user status` of the service shows that link as its program.
   A unit the manager already holds at an older text is dropped and started again rather than reloaded,
-   which is this worktree's own unit and nobody else's.
+   which is this worktree's own unit and nobody else's,
+   and the socket is stopped in the mode that leaves the service alone,
+  so a landing another command began in the
+   meantime is never cut.
+  The link the releases before this one named (`service-program` in the notes folder) is pointed at the running
+   executable too,
+  so an instance whose loaded text is one of theirs starts this release instead of a program the
+   install removed.
   That repair never costs a commit:
   a service still landing a batch,
-  a manager that stops answering and a link that cannot be written are each one line,
+  a manager that stops answering,
+  a stop it does not take,
+  and a unit another command starts again inside the wait are each one line,
    the units are left as they are,
   and the commit lands through the service that is running.
+  The one failure a commit outlives rather than mends is the program link:
+   pointing it never ends a commit,
+  but what the link still names decides whether that commit lands.
+  A program of this release (a link a build of this release left at another path) greets as this release and the commit
+   lands;
+  another release's program that will not step aside ends the commit with the message that names the link and the runtime
+   directory that could not hold it;
+  and a path that cannot be executed starts nothing,
+  so the commit ends saying the service did not start.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -1057,9 +1075,11 @@ Read-only commands,
    `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
    means the service did not delete it yet:
      while a record for it is still queued,
-     the next command of that repository wakes the service that reads the
-   record,
-     which is every commit and every add.
+     a running service finds it by itself within five seconds
+   (`LOOK_AGAIN_AFTER`),
+     and the next command of that repository wakes the service that reads the record,
+     which is every commit
+   and every add.
      A delete the kernel refuses may pass,
      so the service tries it again,
      and it gives up once the attempts a record
@@ -4193,8 +4213,10 @@ none is waited out or retried on the moved head yet:
   A request is a JSON object and a framing newline,
   and the service takes it only when the whole line arrived:
   a line that ends with the connection instead of its newline is refused and never queued.
-  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
-  after an attempt that did, the same give-up is reported as a result that is not known,
+  So a commit is called "not made,
+  and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did,
+  the same give-up is reported as a result that is not known,
   and the commit's staged work and scratch tree stay where they are.
   A commit whose whole request did reach the service is never described as one a waking service cannot land:
   that message says the service may still make it and names `git log -1`.
@@ -4206,7 +4228,8 @@ none is waited out or retried on the moved head yet:
   whether the commit was made,
   that your staged changes and working files are as they were,
   and the three steps that end it.
-  Those steps are, in this order:
+  Those steps are,
+  in this order:
   `git monochromatic-git-policy-cli service status`,
   which says whether this worktree's service answers and names the unit that serves it;
   a restart of that one unit (`systemctl --user restart` and the name the status printed),
@@ -4217,7 +4240,8 @@ none is waited out or retried on the moved head yet:
   never the `@*` pattern of every service of the account,
   because restarting them all stops the commits of every other worktree.
   A service that wakes after the command ended makes no commit:
-  the request it still holds is dropped, because the command on that connection is gone.
+  the request it still holds is dropped,
+  because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
@@ -7305,6 +7329,26 @@ and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
 
+What the service has to do after a command returns is a record in the worktree's Git directory,
+and a command that writes one wakes the service with one line over its socket.
+A service that keeps running does not wait for that line:
+it reads the notes in its journal every five seconds (`LOOK_AGAIN_AFTER` in
+`src/native/landing/service_claim_watch.rs`)
+and lists the records waiting in each repository the notes name,
+so a client killed between a record and its wake,
+a wake lost on a socket that was full,
+and a wake that was never sent cost the record at most those five seconds and never a commit.
+The look reads nothing finished,
+so a repository whose records were all settled costs one listing of an empty directory,
+and it is not work:
+a service with nothing to do still ends at its idle bound
+(`IDLE_EXIT`).
+A service the manager starts also writes the Git directory of its own worktree into those notes,
+so the records a command left for it are found even when no landing of that process wrote one.
+A repository that no note of the journal names and no wake ever reached is the one case a running service cannot
+find,
+and its record waits for the next wake that names it or for a service that starts and reads the notes again.
+
 The repository is the one the command line names.
 `-C` moves the wrapper,
 and `--git-dir`,
@@ -7416,10 +7460,9 @@ and a commit that ends there names the journal command.
   (`src/native/service/service_provision_instance_unloaded.rs`).
   A service that is landing a batch when that repair asks it to retire is left running and the commit goes on
   through it,
-  and so is one whose manager stops answering:
+  and so is one whose manager stops answering or whose unit another command starts again inside the wait:
   the repair is repeated by the next commit,
-  and no
-  commit waits for a landing or fails for one.
+  and no commit waits for a landing or fails for one.
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
   (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,

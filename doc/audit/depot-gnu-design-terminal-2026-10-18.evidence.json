@@ -8,7 +8,19 @@
     "gzipSha256": "068977eea116b0c033c8a7ba286e776c38c0bf1f40ccfb26a528e818e6ed71c6",
     "uncompressedBytes": 10672101,
     "uncompressedSha256": "b95fc06a671cb9ce322f6ac8fbe469aeb4f8d6ef2e5e56fbad7a4a6b146355c7",
-    "bodies": 42
+    "bodies": 42,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 8d80a5ed1d4dbcbdb6d58b281437d40a0d85b146:doc/audit/depot-gnu-design-terminal-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "gnu": {
     "run": 39165688015,

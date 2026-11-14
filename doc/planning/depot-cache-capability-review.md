@@ -13,13 +13,15 @@ This review covers the eleven deployed Cache integration guides,
 69,290 captured source bytes and 50 claim-level findings.
 The [platform ledger](depot-platform-surface-ledger.json)
 keeps captured pages separate from reviewed claims and actual consumers.
-The [complete integration review](../audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz)
+The complete integration review (`../audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz`)
 joins the deployed source identities and substantive findings.
 The complete frozen Git inventory has 13,860 paths at
 `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`,
 with positive controls for the existing Mise and Kotlin Gradle owners.
 Named-manifest searches measure applicability;
 they do not assert that every source file was searched for integration names.
+`depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The [evaluation report](depot-expanded-ci-evaluation.md)
 and [cache measurements](depot-developer-pool-cache-research.md)
