@@ -365,7 +365,8 @@ fn publish_record(file: &Path, additions: &BTreeMap<PathBuf, PathBuf>, leaving: 
         }
         write_atomically(file, &render_record(&merged)?)?;
         let (after, _) = read_record(file);
-        let mine: bool = additions.iter().all(|(path, target)| after.get(path) == Some(target)) && leaving.iter().all(|path| !after.contains_key(path));
+        let mine: bool = additions.iter().all(|(path, target)| return after.get(path) == Some(target))
+            && leaving.iter().all(|path| return !after.contains_key(path));
         if mine {
             return Ok(RecordWrite::Settled);
         }

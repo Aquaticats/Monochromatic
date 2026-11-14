@@ -366,7 +366,16 @@ fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), Toolch
 /// export function publishPlan(scope: Scope, expected: Revision, text: string): void
 /// ```
 pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<(), ToolchainError> {
-    let guard: Guard = acquire_guard(scope)?;
+    let Some(guard) = acquire_guard(scope)? else {
+        return Err(ToolchainError::failure(format!(
+            "{} is held by {}, and this command waited {} s for it, so {} was not written and nothing was changed; \
+             run the command again when the other one has finished",
+            scope.guard_file.display(),
+            holder_of(scope),
+            GUARD_WAIT.as_secs(),
+            scope.plan_file.display()
+        )));
+    };
     let observed: Revisions = read_revisions(scope)?;
     if expected != &observed.plan {
         drop(guard);
