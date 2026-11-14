@@ -1236,6 +1236,35 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The first minutes of `0.6.1-alpha.30` are clean; the killed-Git lock's author answered a second time (2026-11-14T13:44:22-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+and what one author reports of itself.
+
+- **`0.6.1-alpha.30`**,
+  the user journal from 13:38:00 until 13:44:00:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  four services saying `0.6.1-alpha.30` at their start.
+  One more line says `0.6.1-alpha.23`:
+  its program is the debug build in the worktree of issue 6293's author,
+  run inside a `systemd-run` scope of that agent,
+  so it is a fixture's service and not one of this machine's.
+  It shows that a fixture's service writes into the real user journal,
+  and that the count of releases at start includes agents' fixtures.
+- **The lock a killed Git left** (tip `1ee73d2728`, ended 13:39:21):
+  the author reports the pair of pin and record replaced by one record published in one step,
+  the race of the second review answered,
+  `git add` and `git status` within the spread of the commit before
+  (`git status` at a ratio of 0.984),
+  and names what it left:
+  one small file for each lock path ever taken,
+  and three stash entries in its worktree that hold other work.
+  Review queued second (range `main...1ee73d2728`, ten code files).
+- The queue held 59 entries at 13:44:22.
+
 ##### `0.6.1-alpha.30` is installed (2026-11-14T13:38:16-05:00)
 
 Not final and not approved:
