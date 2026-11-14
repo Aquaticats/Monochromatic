@@ -73,3 +73,26 @@ impl Write for BlockedStream {
         return Ok(());
     }
 }
+
+/// What:
+///  A thread the system refuses is told apart from a job that did not answer,
+///  and the job is not run at all.
+/// Why:
+///  A caller that holds something until the work ends must give it back when nothing ran,
+/// and only this answer says that nothing ran:
+/// a job that was left waiting may still do its work and still holds what it was given.
+#[test]
+fn a_refused_thread_is_not_a_job_that_did_not_answer() {
+    let refused: ThreadsRefusedForTheControl = a_control_refuses_every_thread();
+    let ran: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let touched: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&ran);
+    let answered: TheAnswerOfAThreadOfWork<u8> = work_within_reporting(Duration::from_secs(5), move || {
+        touched.store(true, std::sync::atomic::Ordering::SeqCst);
+        return 7;
+    });
+    assert!(matches!(answered, TheAnswerOfAThreadOfWork::NoThreadToStart), "a refused thread is its own answer");
+    assert!(!ran.load(std::sync::atomic::Ordering::SeqCst), "the job of a refused thread never ran");
+    drop(refused);
+    assert_eq!(work_within(Duration::from_secs(5), || return 7), Some(7), "with threads the job runs and answers");
+    assert!(matches!(work_within_reporting(Duration::from_secs(5), || return 7), TheAnswerOfAThreadOfWork::Ran(7)), "and the same call reports that it ran");
+}

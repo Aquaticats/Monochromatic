@@ -33,6 +33,13 @@
 //! the repository is then found by its next commit,
 //! or by the work loop when this answer's wake arrives,
 //! and nothing is left to be found if this process is killed before that look.
+//!   The place of the one write is taken before the job and carried into it,
+//! so every path that does not write gives it back:
+//! the end of the write,
+//! and the system refusing the thread, which drops the closure and the place with it.
+//! A refused thread leaves the note owed like a write that gave no answer,
+//! and the landing is told which of the two happened,
+//! because something that never ran and something that may still be writing are not the same.
 //!   The publish is the same exclusive one the work loop uses,
 //! so a note written twice is one note,
 //! and a store that answers late writes nothing another writer has not.
@@ -43,14 +50,14 @@
 //! ```
 
 use crate::service_claim_watch::note_for_the_next_service;
-use crate::work_awaited_within_a_ceiling::work_within;
+use crate::work_awaited_within_a_ceiling::{TheAnswerOfAThreadOfWork, work_within_reporting};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 /// What became of a landing's note for the service that starts next.
 /// Why:
-///  The three answers are three different things for the person reading the service's log and for what the
+///  The four answers are four different things for the person reading the service's log and for what the
 /// landing does next,
 ///  so they are not one boolean.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,6 +69,12 @@ pub enum NoteForTheNextService {
     /// A note write an earlier landing handed over has not ended,
     /// so this store was not asked.
     AnEarlierWriteHasNotEnded,
+    /// The system gave no thread for the write,
+    /// so nothing ran:
+    /// the store was not asked,
+    /// the place of the one write is free again,
+    /// and the note is still owed to the work loop's own look or a later landing.
+    NoThreadToStart,
     /// The store gave no answer within the ceiling,
     /// and the write is left behind on a thread of its own.
     NoAnswer,
@@ -74,8 +87,23 @@ pub enum NoteForTheNextService {
 /// a place taken per landing would leave one thread per commit on a mount that never returns.
 static A_NOTE_WRITE_IS_OUTSTANDING: AtomicBool = AtomicBool::new(false);
 
-/// The place of the one note write,
-/// given back when the work ends or when the system refused the thread that would have run it.
+/// What:
+///  The place of the one note write,
+///  given back when the write ends and on every path that does not write.
+/// Why:
+///   The place is built by the frame that took it and carried into the job,
+/// so its `Drop` runs in both shapes of "no write":
+/// when the job's body ends, and when the system refused the thread and the closure holding it is dropped
+/// without ever running.
+/// A place built inside the body would survive a refused start,
+/// and a process whose first note write was refused would then never write a note again
+/// (the review of `4307d45a89`,
+/// finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheOneNoteWrite { [Symbol.dispose]() { A_NOTE_WRITE_IS_OUTSTANDING = false } }
+/// ```
 struct TheOneNoteWrite;
 
 impl Drop for TheOneNoteWrite {
@@ -92,27 +120,35 @@ impl Drop for TheOneNoteWrite {
 /// what this wait is for,
 /// what one write at a time keeps a stopped store from costing,
 /// and what makes up for a note that is given up on.
+/// The place of the one write is taken before the job and carried into it,
+/// so the four answers are the four things that can happen to it:
+/// the write ended,
+/// an earlier write has not,
+/// no thread could be started and the place is back,
+/// or the write is still out there holding the place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const theNote = noteForTheNextServiceWithin(ceiling, store, instance, gitDir);
 /// ```
 pub fn note_for_the_next_service_within(ceiling: Duration, store: &Path, instance: Option<&str>, git_dir: &Path) -> NoteForTheNextService {
-    // The place of the one write is taken here and given back when that work ends, whatever the store does.
+    // The place of the one write is taken here and carried into the job below, whatever the store does.
     if A_NOTE_WRITE_IS_OUTSTANDING.swap(true, Ordering::SeqCst) {
         return NoteForTheNextService::AnEarlierWriteHasNotEnded;
     }
+    let place: TheOneNoteWrite = TheOneNoteWrite;
     let asked: (PathBuf, Option<String>, PathBuf) = (store.to_path_buf(), instance.map(str::to_string), git_dir.to_path_buf());
-    let answered: Option<()> = work_within(ceiling, move || {
-        // The place is this job's from here on: it is given back when this body ends,
-        // and when the system refused the thread, the closure that captured it is dropped instead.
-        let _place: TheOneNoteWrite = TheOneNoteWrite;
+    let answered: TheAnswerOfAThreadOfWork<()> = work_within_reporting(ceiling, move || {
+        // The place came in with this closure: it is given back when this body ends, and a system that refused the
+        //  thread drops this closure, and the place with it, before anything is written.
+        let _place: TheOneNoteWrite = place;
         let (owned_store, owned_instance, owned_git_dir): (PathBuf, Option<String>, PathBuf) = asked;
         note_for_the_next_service(owned_store.as_path(), owned_instance.as_deref(), owned_git_dir.as_path());
     });
     return match answered {
-        Some(()) => NoteForTheNextService::Answered,
-        None => NoteForTheNextService::NoAnswer,
+        TheAnswerOfAThreadOfWork::Ran(()) => NoteForTheNextService::Answered,
+        TheAnswerOfAThreadOfWork::NoThreadToStart => NoteForTheNextService::NoThreadToStart,
+        TheAnswerOfAThreadOfWork::NoAnswer => NoteForTheNextService::NoAnswer,
     };
 }
 

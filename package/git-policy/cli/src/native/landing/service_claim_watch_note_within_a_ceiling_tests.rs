@@ -74,3 +74,31 @@ fn a_second_note_is_not_handed_over_while_the_first_has_not_ended() {
     assert_eq!(ClaimWatch::restored(store.as_path(), None).directories(), vec![git_dir], "the note the store answered with is there");
     let _removed = std::fs::remove_dir_all(&root);
 }
+
+/// What:
+///  A write the system refused a thread for gives the place of the one write back,
+///  so the next landing that asks a healthy store writes the note.
+/// Why:
+///  A place built inside the job would survive a refused start and no landing of that process would
+///  ever write a note again: a service killed before the work loop's own write then leaves a repository
+///  a restart never looks at, which is the unbounded wait the note exists to prevent
+///  (the review of `4307d45a89`, finding 1).
+/// The refusal is the code's own seam,
+///  not a process limit,
+/// so the control cannot be starved of threads by whatever else runs on the machine.
+#[test]
+fn a_note_whose_thread_was_refused_leaves_the_place_free_for_the_next_landing() {
+    let root: PathBuf = scratch("refused-thread");
+    let git_dir: PathBuf = git_dir_with_work(root.as_path(), "repo.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    let refused: crate::work_awaited_within_a_ceiling::ThreadsRefusedForTheControl = crate::work_awaited_within_a_ceiling::a_control_refuses_every_thread();
+    let refused_answer: NoteForTheNextService = note_for_the_next_service_within(A_HELD_NOTES_CEILING, store.as_path(), None, git_dir.as_path());
+    drop(refused);
+    assert_eq!(refused_answer, NoteForTheNextService::NoThreadToStart, "a refused thread is said as itself, not as a store that did not answer");
+    assert!(ClaimWatch::restored(store.as_path(), None).directories().is_empty(), "nothing ran, so no note was written yet");
+    // The next landing asks a store that answers, and the note is written: the place was given back.
+    let answered: NoteForTheNextService = note_for_the_next_service_within(A_NOTE_THAT_ANSWERS, store.as_path(), None, git_dir.as_path());
+    assert_eq!(answered, NoteForTheNextService::Answered, "the place of the one write was given back when the thread was refused");
+    assert_eq!(ClaimWatch::restored(store.as_path(), None).directories(), vec![git_dir], "the note that names the repository is written by the next landing");
+    let _removed = std::fs::remove_dir_all(&root);
+}
