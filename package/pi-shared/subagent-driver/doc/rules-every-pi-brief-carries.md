@@ -80,6 +80,21 @@ Each rule is the project's own requirement.
   had this machine's user manager start two commit service units for throwaway repositories;
   the run noticed,
   stopped and removed them.
+- A program built in a worktree cannot open connections to outside hosts on this machine.
+  Its application firewall (OpenSnitch) refuses a program it has no rule for:
+  each `connect` ends with `ECONNABORTED`,
+  and the firewall keeps a rule that rejects that program's path from then on.
+  `curl`,
+  `node`,
+  `python3`,
+  `cargo` and the installed tools are allowed.
+  So a test or a probe of a built program takes what it needs from disk or from a server the test starts itself,
+  and a report says so where a path through the network was left unrun for this reason.
+  The firewall and its rules are not a run's to change.
+  On 2026-11-13 a freshly built `mpm-shadow` could reach neither crates.io,
+  the npm registry nor go.dev,
+  while `curl` reached the same addresses from the same environment;
+  `/var/log/opensnitchd.log` holds the two rules saved for its debug and release paths.
 - The run has its own Git worktree on its own branch.
   Other agents work in other worktrees,
   and the main checkout holds other sessions' uncommitted changes.

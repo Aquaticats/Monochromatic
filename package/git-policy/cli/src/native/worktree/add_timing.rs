@@ -421,7 +421,7 @@ fn innermost_step(recorder: &Recorder) -> Option<String> {
 /// ```ts
 /// ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path'].includes(word)
 /// ```
-fn option_takes_value(word: &OsStr) -> bool {
+pub(crate) fn option_takes_value(word: &OsStr) -> bool {
     for known in ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"] {
         if word == OsStr::new(known) {
             return true;

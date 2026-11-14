@@ -96,6 +96,10 @@ pub mod journald_native;
 /// The address native journal entries are sent to.
 pub mod journald_native_socket_target;
 
+/// The service's log lines on standard error,
+/// written by a thread of their own so no landing waits for the stream.
+pub mod service_log_lines_off_the_calling_thread;
+
 /// The lines the commit service writes about its life and about the time each request took.
 pub mod service_timing;
 

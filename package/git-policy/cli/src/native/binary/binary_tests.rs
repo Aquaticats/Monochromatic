@@ -416,6 +416,12 @@ mod worktree_copy_forms;
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
+/// A removal goes around a subvolume or a mount point it did not make:
+/// the worktree and its registration go, what was not the removal's stays as it stood,
+/// and the person is told what frees the path.
+#[path = "binary_worktree_removal_around_a_volume_tests.rs"]
+mod worktree_removal_around_a_volume;
+
 /// Rung 1 of the cheap-worktree ladder:
 /// a snapshot of a clean subvolume worktree equals Git's own checkout.
 #[path = "binary_worktree_snapshot_tests.rs"]
