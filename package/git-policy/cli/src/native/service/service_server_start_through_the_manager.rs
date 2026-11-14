@@ -110,7 +110,10 @@ impl ManagerStart {
     pub fn probe(&self) -> bool {
         let mut command: std::process::Command = std::process::Command::new(&self.program);
         command.args(["--user", "--scope", "--quiet", "--", "/bin/true"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-        let Ok(mut child) = command.spawn() else { return false };
+        // What: The probe's own start rides out a system that refuses a process for a moment, as every other start here does.
+        // Why:  A refusal proves nothing about the manager: the probe then answers false and the base's start runs, but a start
+        //       the system refused once is a start the next attempt lands (`start_retry.rs`).
+        let Ok(mut child) = crate::start_retry::RetryStart::spawn_retrying(&mut command) else { return false };
         let deadline: std::time::Instant = std::time::Instant::now() + PROBE_WAIT;
         loop {
             match child.try_wait() {
