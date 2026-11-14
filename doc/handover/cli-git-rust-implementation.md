@@ -1091,6 +1091,11 @@ and of its own commands.
   because the scan finds no holder and could not look at 689 processes of other accounts.
   That is a merge that fails where the project says it waits,
   on any machine that runs containers and system services.
+  (Wrong in both halves,
+  corrected 2026-11-13T22:32:01-05:00 in the section "Two reviews with defects, two authors finished, and a correction":
+  the merge saves itself and exits 0,
+  `SPEC.md` says it never waits for another program's command,
+  and the two controls are the stale side.)
   A fresh run is queued near the head
   (`~/temp/agent/pi-runs/merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-prompt.md`).
 - Also from that author,
