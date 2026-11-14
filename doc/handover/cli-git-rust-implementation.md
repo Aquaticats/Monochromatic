@@ -1250,6 +1250,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's cleanup deletes a freshly installed copy in two of three rounds of a race, back to its author; the empty-answer author's second answer goes to review (2026-11-14T15:20:32-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session ran and queued.
+
+- **mpm-shadow removes by itself the old versions it installed** (`542b881860`),
+  fourth review:
+  recovery after a kill,
+  the repointing of `current`,
+  the detection of holds and the bounds are sound,
+  and 52 store tests pass.
+  Two reproduced in which a copy is lost.
+  The trim guards by a look at the modification time and renames several system calls later,
+  and after the move looks again only at `current` and at holds:
+  driving the real `apply_trim` beside a thread doing an install's atomic replace,
+  the freshly installed copy was deleted in 197 and then 209 of 300 rounds
+  (tools with no `current` link are exposed).
+  And where a name is taken the trim looks only at whether something exists,
+  so a held good copy can be deleted in favour of an install that is still going and then fails
+  (the cargo-binstall route).
+  The author is resumed second,
+  asked by what the trim knows at the instant of a deletion that the entry is the one it judged
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+  This and the stale launchers are the same shape in two branches of one package:
+  a pass that decides by a look and acts later while an install runs beside it.
+- **A driver run whose last answer is empty** (tip `3be9af7f1a`, ended 15:13:22):
+  the author reports the second review answered by one rule,
+  five controls,
+  and the package's build,
+  type check,
+  lint and tests passing at a tip that holds `main`;
+  it lists where four other branches of the package meet its files.
+  Review queued third (range `main...3be9af7f1a`, fifteen code files).
+- **`0.6.1-alpha.32`**,
+  the user journal from 15:15:30 until it was read at 15:19:42,
+  short of the six minutes:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  six starts saying `0.6.1-alpha.32`,
+  every one the installed program,
+  and no fixture's line.
+- Neither session resumed in this round or the last is named by the credential scan.
+  The check of queued entries at 15:20:32:
+  74 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  57 entries in the queue.
+
 ##### `0.6.1-alpha.32` is installed and its full gate is running by the owner's answer; the landing's fifth review finds three more waits; issue 6293's answer goes to review (2026-11-14T15:16:32-05:00)
 
 Not final and not approved:
