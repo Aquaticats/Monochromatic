@@ -372,7 +372,7 @@ fn a_broken_link_that_names_nothing_in_a_launcher_folder_is_left_alone() {
 
     assert!(exists_at(&link), "the link named a path in no launcher folder, so nothing proves mpm-shadow made it: {notices:?}");
     assert_eq!(fs::read_link(&link).expect("still the person's link"), elsewhere);
-    assert!(!exists_at(&launcher), "the launcher itself is still retired; the person's own broken link is not");
+    assert!(!exists_at(&launcher), "the launcher itself is still retired; the person's own broken link is not: {notices:?}");
 }
 
 //endregion
@@ -545,7 +545,7 @@ fn a_temporary_is_judged_only_when_its_maker_is_gone() {
 
 #[test]
 fn the_removal_asks_the_lock_on_disk_at_that_instant() {
-    let mut rig = rig_with_installed_shadow();
+    let rig = rig_with_installed_shadow();
     let mut newer = rig.lock.clone();
     let tool = newer.tools.iter_mut().find(|tool| return tool.declaration.id == SHADOW_TOOL).expect("the sample lock holds the tool");
     tool.declaration.bins.push(RENAMED_BIN.to_string());
@@ -554,12 +554,12 @@ fn the_removal_asks_the_lock_on_disk_at_that_instant() {
 
     // The rule, asked on its own: a name the lock on disk declares is not one a removal may take.
     assert_eq!(super::stale_launchers::still_undeclared(&context, &[], RENAMED_BIN, None), Some(false));
-    assert!(!super::stale_launchers::may_go(&context, &[], RENAMED_BIN, None));
+    assert!(!super::stale_launchers::may_remove(&context, &[], RENAMED_BIN, None));
 
     // And with a lock that declares it nowhere, the removal may go.
     fs::write(&rig.scope.lock_file, render_lock(&rig.lock)).expect("publish a lock without the name");
     let without = rig.context();
     assert_eq!(super::stale_launchers::still_undeclared(&without, &[], RENAMED_BIN, None), Some(true));
-    assert!(super::stale_launchers::may_go(&without, &[], RENAMED_BIN, None));
+    assert!(super::stale_launchers::may_remove(&without, &[], RENAMED_BIN, None));
     assert_eq!(super::stale_launchers::still_undeclared(&without, &[], RENAMED_BIN, None), Some(true));
 }

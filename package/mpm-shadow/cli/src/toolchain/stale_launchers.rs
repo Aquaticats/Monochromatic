@@ -634,7 +634,7 @@ fn retire_one_link(
             return;
         }
     };
-    match remove_if_still(path, judged, &|| return may_go(ctx, made_links, name, Some(path))) {
+    match remove_if_still(path, judged, &|| return may_remove(ctx, made_links, name, Some(path))) {
         Ok(Removal::Retired) => notices.retired.push(format!("retired the link {} because {reason} ({why})", path.display())),
         Ok(Removal::Gone) => {}
         Ok(Removal::Kept) => {}
@@ -846,7 +846,7 @@ fn retire_launchers(
                 return;
             }
         }
-        match remove_if_still(&launcher, proven.judged, &|| return may_go(ctx, made_links, &name, None)) {
+        match remove_if_still(&launcher, proven.judged, &|| return may_remove(ctx, made_links, &name, None)) {
             Ok(Removal::Retired) => notices.retired.push(format!(
                 "retired the launcher {} because the lock declares no bin of that name ({})",
                 launcher.display(),
@@ -878,7 +878,7 @@ fn retire_launchers(
                 continue;
             }
         };
-        match remove_if_still(&record, judged, &|| return may_go(ctx, made_links, &name, None)) {
+        match remove_if_still(&record, judged, &|| return may_remove(ctx, made_links, &name, None)) {
             Ok(Removal::Retired) => notices
                 .retired
                 .push(format!("retired the launcher record {} because the lock declares no bin of that name", record.display())),
@@ -950,7 +950,7 @@ fn retire_records_without_launchers(
                 return;
             }
         }
-        match remove_if_still(&record, judged, &|| return may_go(ctx, made_links, launcher_name, None)) {
+        match remove_if_still(&record, judged, &|| return may_remove(ctx, made_links, launcher_name, None)) {
             Ok(Removal::Retired) => notices
                 .retired
                 .push(format!("retired the launcher record {} because the lock declares no bin of that name", record.display())),
@@ -1106,12 +1106,12 @@ pub(super) fn a_live_installs_temporary(name: &str) -> bool {
 }
 
 /// What:
-/// The answer a removal passes to `remove_if_still`: keep the entry when the lock on disk declares it at this instant,
-/// and when the lock cannot be read at all.
+/// The answer a removal passes to `remove_if_still`: whether the entry may be removed, which the lock on disk says at
+/// this instant by declaring the name nowhere; a lock that cannot be read there says no.
 /// Why:
 /// That is the ownership test of a removal, asked where the entry is already in hand.
-pub(super) fn may_go(ctx: &Context, made_links: &[String], name: &str, link_path: Option<&Path>) -> bool {
-    return still_undeclared(ctx, made_links, name, link_path) != Some(true);
+pub(super) fn may_remove(ctx: &Context, made_links: &[String], name: &str, link_path: Option<&Path>) -> bool {
+    return still_undeclared(ctx, made_links, name, link_path) == Some(true);
 }
 
 /// What:
