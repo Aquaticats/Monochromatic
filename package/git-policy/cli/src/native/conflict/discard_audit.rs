@@ -100,9 +100,6 @@ pub enum AuditOutcome {
     ///  and the wrapper moved it whole beside the audit log first.
     SavedNestedRepository,
 
-    /// The command undid an operation that waited for its conflicts,
-    /// after the wrapper saved a copy of the work that was not the operation's own.
-    SavedAbort,
     /// The form is recorded and was never refused:
     ///  it runs as Git runs it,
     ///  by the owner's decision,
@@ -122,7 +119,6 @@ impl AuditOutcome {
             AuditOutcome::SavedConflict => return "saved-conflict",
             AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
 
-            AuditOutcome::SavedAbort => return "saved-abort",
             AuditOutcome::Logged => return "logged",
         }
     }

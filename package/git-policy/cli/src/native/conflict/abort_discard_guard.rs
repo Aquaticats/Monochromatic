@@ -1,196 +1,158 @@
 //! What:
-//!  The linked-worktree policy's carve-out for the abort forms
+//!  The linked-worktree policy's carve-out for the abort and skip forms
 //!  (`git merge --abort`,
 //!  `git rebase --abort`,
 //!  `git cherry-pick --abort`,
 //!  `git revert --abort`,
-//!  `git am --abort`)
+//!  `git am --abort` and the `--skip` forms of the same operations)
 //!  while the operation they undo waits for its conflicts.
 //! Why:
 //!  The guard rejects a form that can discard uncommitted work while the worktree holds any,
 //!  and an operation that stopped with conflicts makes the worktree hold its own state,
 //!  so every abort form was refused for exactly as long as it was the command a person needs.
-//!  The rule that protects the person is the owner's "save,
-//!  then allow" (2026-11-02),
-//!  which the conflict-side carve-out already follows:
-//!  the operation's own state is what the abort exists to let go,
-//!  the person's own work is copied beside the audit log first,
-//!  and the notice names where each copy is.
-//!  Where this command's own state is absent,
-//!  Git refuses the command itself and discards nothing,
-//!  so it is left to Git;
-//!  the state is read per command,
+//!  The rule that protects the person is the owner's:
+//!  a command that could destroy work which exists nowhere else is refused,
+//!  and the person who means it runs the command with the guard's opt-out
+//!  (`doc/handover/cli-git-rust-implementation.md`,
+//!  the answers of 2026-11-12T10:35:07,
+//! "Refuse with opt-out").
+//!  So this carve-out gives three answers and no copies:
+//!  a form whose own operation is absent is Git's to refuse and discards nothing,
+//!  a form whose only state is the operation's own runs as Git runs it,
+//!  and a form that would discard the person's own work is refused,
+//!  naming each path,
+//! what stands there,
+//! the quit form that keeps the work and the opt-out.
+//!  The state is read per command,
 //!  because an abort form can end another operation's state:
 //!  a `git rebase --rebase-merges` merge step,
 //!  or `git am --abort` during a rebase that applies patches.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const verdict = judgeAbortDiscard(facts, GuardedCommand.AbortMerge, identity, now(), limits);
-//! // 'left-to-git' | { kind: 'allowed', notice, copies } | { kind: 'copy-failed', text }
+//! const verdict = judgeAbortDiscard(facts, GuardedCommand.AbortMerge);
+//! // 'left-to-git' | 'allowed' | { kind: 'refused', text }
 //! ```
 
-use crate::conflict_sides::{SaveFailure, SavedCopy, prune_after_save, save_copies};
-use crate::discarded_prune::Limits;
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_facts_abort_discard::AbortDiscard;
-use crate::rule_abort_messages::{copy_failed_text, saved_before_abort_notice, staged_content_text};
-use crate::rule_abort_operation::{AbortOperation, aborted_operation, operation_name};
+use crate::rule_abort_messages::{discard_refusal_text, ignored_file_refusal_text, unreadable_refusal_text, untracked_file_text};
+use crate::rule_abort_operation::{AbortOperation, OperationEnd, ended_operation};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_linked_worktree_messages::ignored_file_message;
-use crate::worktree_identity::WorktreeIdentity;
 
-/// What the policy does with an abort form.
+/// What the policy does with an abort or a skip.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   Four different answers need four different effects:
+///   Three different answers need three different effects:
 ///  the usual rules,
 ///  Git's own refusal,
-///  a save and then the command,
-///  and a rejection because the save failed.
+///  the command as Git runs it,
+///  and a refusal that names what it would discard.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AbortVerdict {
-    /// Not an abort form,
-    /// no operation of its kind waits,
-    /// or the answer could not be read:
+    /// Not an abort or skip form,
+    /// or the answer could not be read in a way this carve-out can act on:
     /// the usual rules decide.
     NotApplicable,
-    /// No operation this command aborts waits:
+    /// No operation this command ends waits:
     /// Git refuses it and discards nothing,
-    /// so nothing is measured and nothing is saved.
+    /// so nothing is measured.
     LeftToGit,
-    /// The operation waits and the person's own work is on disk:
-    /// the command runs,
-    /// and the notice names the copies.
-    Allowed {
-        /// The notice to show the person before Git runs.
-        notice: String,
-        /// What was saved,
-        /// for the audit record.
-        copies: Vec<SavedCopy>,
-    },
-    /// A copy could not be written:
-    /// the command is rejected with this text,
-    /// because it would discard unsaved work.
-    CopyFailed(String),
+    /// The operation waits and its own state is all there is:
+    /// the command runs exactly as Git runs it,
+    /// and no line is added.
+    Allowed,
+    /// The command would discard work that stands nowhere else:
+    /// it is refused with this text,
+    /// and nothing was changed.
+    Refused(String),
 }
 
 /// What:
-///  The text of a rejected abort whose copy could not be written.
-///  `&SaveFailure` borrows what the save step reported.
+///  The refusal of a command whose reading failed.
+///  `operation` is the operation the command's word ends,
+///  which is the one the sentence can name without a measurement.
 /// Why:
-///   The rejection names the command,
-///  the operation in progress,
-///  the path or directory that failed and why,
-///  and keeps the hatch as the way through for a person who means it.
+///   A reading that failed cannot say the command is safe,
+///  and the refusal has to name the reason rather than fall back to a sentence about a dirty worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copyFailed(operation: AbortOperation, inProgress: AbortOperation, failure: SaveFailure): string;
+/// const text = unreadableRefusalText(operation, ends, operation, message);
 /// ```
-fn copy_failed(operation: AbortOperation, in_progress: AbortOperation, failure: &SaveFailure) -> String {
-    return copy_failed_text(operation, in_progress, failure.subject.as_str(), failure.reason.as_str());
+fn unreadable(operation: AbortOperation, ends: OperationEnd, message: &str) -> AbortVerdict {
+    return AbortVerdict::Refused(unreadable_refusal_text(operation, ends, operation, message));
 }
 
 /// What:
-///  The worktree root,
-///  the common directory and the identity of the repository the command runs in,
-///  or nothing when the identity has no worktree (which the guard rejects before this point).
-/// Why:
-///   A copy is written below the common Git directory and read from the worktree,
-///  so both are needed and both come from one identity.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function places(identity: WorktreeIdentity): { root: string; common: string } | undefined;
-/// ```
-fn places(identity: &WorktreeIdentity) -> Option<(&std::path::Path, &std::path::Path)> {
-    return match identity {
-        WorktreeIdentity::MainWorktree { common_dir, worktree_root, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, worktree_root, .. } => Some((worktree_root.as_path(), common_dir.as_path())),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => None,
-    };
-}
-
-/// What:
-///  Judge an abort form against the operation that waits,
-///  saving the person's own work when the command may run.
+///  Judge an abort or a skip against the operation that waits.
+///  `&mut dyn RepositoryFacts` lends any facts provider for writing.
 /// Why:
 ///   The order is the owner's:
-///  the command must be an abort form,
-///  the operation it aborts must be the one waiting,
-///  the person's own work must be on disk,
-///  and only then does the command run.
-///  An answer that cannot be read keeps the usual rejection,
+///  the command must be an abort or skip form,
+///  the operation it ends must be the one waiting,
+///  the person's own work must be found,
+///  and only then is the command refused or let through.
+///  An answer that cannot be read is a refusal,
 ///  which loses nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function judgeAbortDiscard(facts, command, identity, milliseconds, limits): AbortVerdict;
+/// function judgeAbortDiscard(facts, command): AbortVerdict;
 /// ```
-pub fn judge_abort_discard(
-    facts: &mut dyn RepositoryFacts,
-    command: GuardedCommand,
-    identity: &WorktreeIdentity,
-    milliseconds: i64,
-    limits: Limits,
-) -> AbortVerdict {
-    // Every other guarded form deletes or overwrites by itself, and this carve-out is only about the abort forms.
-    let Some(operation): Option<AbortOperation> = aborted_operation(command) else {
+pub fn judge_abort_discard(facts: &mut dyn RepositoryFacts, command: GuardedCommand) -> AbortVerdict {
+    // Every other guarded form deletes or overwrites by itself,
+    //  and this carve-out is only about the forms that end an operation.
+    let Some((operation, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
         return AbortVerdict::NotApplicable;
     };
     let discard: AbortDiscard = match facts.abort_discard(command) {
         Ok(answer) => answer,
-        // The state files or the listings could not be read: the usual rejection stands, and nothing is saved or let go.
-        Err(_message) => return AbortVerdict::NotApplicable,
+        Err(message) => return unreadable(operation, ends, message.as_str()),
     };
-    let AbortDiscard::Waiting { in_progress, restored, index_only, paths } = discard else {
+    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, baseline, worktree, staged, conflicted } = discard else {
         return AbortVerdict::LeftToGit;
     };
-    let Some((root, common)) = places(identity) else {
-        return AbortVerdict::NotApplicable;
-    };
-    // An ignored file at a path the restored tree tracks is where a person keeps their environment and their local secrets,
-    //  and the abort writes that tree back: it is rejected naming the paths, before anything is copied or changed.
+    debug_assert!(measured_ends == ends, "the reading of what this form ends is the same one the guard is judging");
+    // An ignored file at a path the restored tree tracks is where a person keeps their environment and their local
+    //  secrets, and the command writes that tree back: it is refused naming the paths.
     let revision: Option<&std::ffi::OsStr> = Some(restored.as_os_str());
     match facts.ignored_files_the_tree_tracks(revision) {
         Ok(shared) if !shared.is_empty() => {
-            return AbortVerdict::CopyFailed(format!(
-                "{} Nothing was saved and nothing changed: the {} in progress still waits.",
-                ignored_file_message(command, revision, shared.as_slice()),
-                operation_name(in_progress)
-            ));
+            return AbortVerdict::Refused(ignored_file_refusal_text(ignored_file_message(command, revision, shared.as_slice()), in_progress));
         }
         Ok(_) => {}
-        Err(message) => {
-            return AbortVerdict::CopyFailed(format!(
-                "monochromatic-git-policy-cli: {message} The {} in progress still waits, and nothing was saved or changed.",
-                operation_name(in_progress)
-            ));
+        Err(message) => return unreadable(operation, ends, message.as_str()),
+    }
+    // An abort's reset refuses an untracked file at a path the restored tree tracks,
+    //  and so does a skip's (measured with Git 2.56.0 for every abort form and every skip form:
+    //  `Untracked working tree file 'victim.txt' would be overwritten by merge`, and the skip failed):
+    //  nothing is lost, the command does not run,
+    //  and the person is told that it is Git that refuses and which file stands in the way.
+    match facts.untracked_files_the_tree_tracks(restored.as_os_str()) {
+        Ok(untracked) if !untracked.is_empty() => {
+            return AbortVerdict::Refused(untracked_file_text(operation, ends, in_progress, restored.to_string_lossy().as_ref(), untracked.as_slice()));
         }
+        Ok(_) => {}
+        Err(message) => return unreadable(operation, ends, message.as_str()),
     }
-    // Content the worktree no longer holds and the index does is work this abort would discard,
-    //  and the save step copies worktree files only: the command is rejected naming the paths.
-    if !index_only.is_empty() {
-        return AbortVerdict::CopyFailed(staged_content_text(operation, in_progress, index_only.as_slice()));
+    if worktree.is_empty() && staged.is_empty() {
+        // Only the operation's own state is there, which is what the command is for.
+        return AbortVerdict::Allowed;
     }
-    if paths.is_empty() {
-        // Only the operation's own state is there, which is what the abort is for.
-        return AbortVerdict::Allowed { notice: String::new(), copies: Vec::<SavedCopy>::new() };
-    }
-    match save_copies(root, common, paths.as_slice(), milliseconds) {
-        Ok(copies) => {
-            let unpruned: String = prune_after_save(common, copies.as_slice(), milliseconds, limits);
-            return AbortVerdict::Allowed {
-                notice: format!("{}{unpruned}", saved_before_abort_notice(operation, in_progress, copies.as_slice())),
-                copies,
-            };
-        }
-        Err(failure) => return AbortVerdict::CopyFailed(copy_failed(operation, in_progress, &failure)),
-    }
+    return AbortVerdict::Refused(discard_refusal_text(
+        operation,
+        ends,
+        in_progress,
+        baseline,
+        worktree.as_slice(),
+        staged.as_slice(),
+        conflicted.as_slice(),
+    ));
 }
 
-/// The verdict and the copies for one abort form.
+/// The verdict and its readings.
 #[cfg(test)]
 #[path = "abort_discard_guard_tests.rs"]
 mod tests;

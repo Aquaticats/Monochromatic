@@ -1121,6 +1121,280 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The index-lock author answered its third review; a lock a killed Git leaves is still never cleared on this volume (2026-11-13T20:47:05-05:00)
+
+Not final and not approved:
+the coordinating session's reading of a run that ended at 20:41:04.
+
+- Tip `e7474d6803` on `fix/git-policy-cli-index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`,
+  `main` merged in
+  (report in `~/temp/agent/index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone-scratch/keep/report-of-the-third-review.md`).
+- The author ran each of the review's reproductions against the reviewed build and against its own.
+  Three findings are answered,
+  each with controls shown failing first:
+  the record a command writes of itself reads back
+  (eight forwarded commands left eight records, now one);
+  a pipe at a PID file's name no longer holds a command
+  (15 s at the probe's bound before, 11 ms after);
+  the sweep takes no record when its walk was not whole.
+  Clippy clean;
+  381 unit tests and 16 binary tests of its modules pass.
+  Cost of twenty warm `git status`:
+  142 ms before, 131 ms after,
+  inside the spread.
+- **The fourth finding stands, as measured:**
+  on this volume real Git creates `index.lock` and `index~pid.lock` with equal birth stamps,
+  so the pass proves nothing by their order and clears no non-empty lock through the PID file.
+  After a killed Git the lock stands,
+  the next `git status` removes nothing,
+  and the next commit waited 61 s and failed.
+  The author tried eight proofs from what is on disk and gives the sequence that breaks each;
+  it found none and changed nothing of the gate.
+  It names one route:
+  a record the wrapper writes when its Git takes the lock,
+  carrying that Git's identity and the lock's device, inode and change time.
+- Routed:
+  the fourth review of the answer, over `main...e7474d6803`, is queued at the head.
+  The fourth finding gets a fresh run that starts at that tip
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-is-cleared-on-a-volume-where-births-are-equal-by-a-record-the-wrapper-wrote-prompt.md`),
+  queued near the head because it is a commit that fails behind a lock nobody holds.
+  Its first item is to say whether the route holds in every sequence,
+  and to stop at the report if a sequence clears a live holder's lock.
+  The wording of the advice
+  (remove the PID file with the lock)
+  is in the same brief.
+- Adopted while the owner was away,
+  open to veto:
+  starting that run without asking.
+  The record behind it is the owner's order of 2026-11-13 that jams come first
+  and that an issue found in the wrapper is fixed by the coordinating session or a run it starts;
+  the author's own question was whether the coordinating session wants it as a round of its own.
+- From that author's report,
+  now in the rules every brief carries
+  (`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`):
+  a fixture's own `HOME` and `XDG_RUNTIME_DIR` do not keep a program off this machine's session bus,
+  because `DBUS_SESSION_BUS_ADDRESS` is inherited.
+  Its measurement script had this machine's user manager start two commit service units for throwaway repositories;
+  it stopped and removed them.
+
+##### `0.6.1-alpha.21` is installed; the main checkout's commit service was left failed at the start limit (2026-11-13T20:37:32-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait` and `native:install`
+and from the user manager's journal
+(counted by `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/count-what-the-wrapper-units-did-between-two-times.ts`).
+
+- The release run ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.21` is published.
+  `native:install -- 0.6.1-alpha.21` began at 20:36:04 and committed the lock;
+  the sample commit took 1,050 ms and landed.
+  No manager-wide reload line in the journal from 20:36:00 on,
+  and no start that failed at the EXEC step.
+- **What the journal shows of the main checkout's own instance**
+  (`f30a114aaabc977cf77309db0f77f1ee`)
+  in the seconds after the sample commit:
+  its service started as `0.6.1-alpha.21` at 20:36:12;
+  about four seconds later the manager ended it and killed two processes left in its unit with `SIGKILL`
+  (one named `node-MainThread`);
+  then it was started four more times inside half a second,
+  each start saying `started release="0.6.1-alpha.21"`,
+  until the manager answered "Start request repeated too quickly".
+  The service ended `start-limit-hit` and its socket `service-start-limit-hit` at 20:36:17.
+  **At 20:37:32 both were still in the state `failed`.**
+  The lines are kept in
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/user-manager-journal-of-the-main-checkout-instance-at-the-install-of-0-6-1-alpha-21.txt`.
+- What that meant for the next commit in the main checkout,
+  the commit `c3b7e91393` that first recorded this section,
+  begun at 20:37:54.79:
+  it printed "Waiting for the commit service of this worktree...
+  nothing has answered at ...sock yet (the service manager says ...service is failed);
+  this wait ends as soon as it answers.",
+  landed with exit 0 in 2.17 s,
+  and left the service `active`.
+  So a commit repairs it.
+  For the ninety-seven seconds between,
+  nothing that is not a commit in that worktree could reach its service;
+  what waited in that time
+  (a push, the removal of a landed worktree, a relink)
+  is not known.
+- Routed:
+  the reload fix's author had started at about 20:38 on the two findings already sent.
+  This is more evidence for the first of them
+  (an install leaves no instance failing a start),
+  so it went into that run's inbox as a note
+  (`~/temp/agent/pi-runs/reload-fix-brought-onto-main-where-a-program-link-already-is-5/inbox/`),
+  with the correction in the last item of this list.
+- A correction to the section on the install of `0.6.1-alpha.20`:
+  it expected every worktree at work during that install to go through a failed second at its next commit.
+  Counted over the journal from 19:52:00 to 20:36:00,
+  one instance did,
+  the one already named,
+  with five failed starts;
+  no other wrapper service failed a start or reached the start limit in those forty-four minutes,
+  while sixteen services started as `0.6.1-alpha.20`.
+  The expectation was wrong;
+  why only that one instance still named the older program is for the author to say.
+
+##### The add-never-skips author answered its third review (2026-11-13T20:34:11-05:00)
+
+Not final and not approved:
+the coordinating session's reading of a run that ended at 20:29:19.
+
+- Tip `7f3b425d9a` on `fix/git-policy-cli-add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`,
+  `main` merged in.
+  The author ran both of the review's reproductions and saw both.
+- Through the wrapper built at the reviewed commit,
+  a `git worktree add` in a repository with a named pipe at `.git/info/exclude` was held the whole 120 s of the probe's bound.
+  `strace` showed the holding read was not the one the review named but another read of the same file in the same add,
+  the trash line's plain `std::fs::read`,
+  reached first.
+  Both reads now go through the wrapper's read of a regular file and refuse a pipe at once.
+  The patterns are now compared line by line and only the missing ones written,
+  so a list cut short by an earlier release or a torn append is completed;
+  before,
+  a lease file showed in `git status` and could be staged.
+- Five controls,
+  each shown failing with the older helper put back.
+  Cost per add:
+  about 3.4 µs more on the trash line and 4.2 µs per staged workspace.
+  Clippy clean;
+  194 tests of its modules pass.
+- Routed:
+  its fourth review over `main...7f3b425d9a` is queued at the head.
+- Found by it and left alone,
+  each now with an owner:
+  a Git child of the add's copy step that stalls is ended at its ceiling and the step is tried again with nothing bounding the whole
+  (with a ten-second ceiling the add had not answered after 240 s;
+  real Git itself waits on a pipe at that file),
+  for which a fresh run is queued
+  (`~/temp/agent/pi-runs/worktree-add-ends-within-a-total-bound-when-a-git-child-of-its-copy-stalls-again-and-again-prompt.md`);
+  and `service run --path` listens but nothing wakes its round in a session with no service manager,
+  which belongs to the review of the no-manager branch and is named in its next brief.
+- This run is the first of an author to end since the fix for issue 6299 reached `main`:
+  it ended `idle` with no `workProblem`.
+
+##### Pass 24, abort and skip, is in `main` and `0.6.1-alpha.21` is dispatched; the launcher change is in `main` (2026-11-13T20:27:05-05:00)
+
+Not final and not approved:
+written by the coordinating session from the pass's report,
+a review and its own commands' output.
+
+- **Pass 24** reported at 20:21:37 that its branch is fit to be released
+  (`~/temp/agent/integration-pass-24-for-alpha-22-scratch/keep/report.md`).
+  The reviewed commit `92591a71e6` merged with no conflict and needed no repair.
+  It merged `main` twice,
+  the second time after pass 22 had landed,
+  so its tip `aab65c5c01` holds `main` up to `1627c9dde4`,
+  release `0.6.1-alpha.20` included.
+  At that tip:
+  build,
+  both test compiles and Clippy pass;
+  the 43 controls the branch adds pass by name
+  (23 unit, 20 binary);
+  nine checks through its built wrapper pass,
+  among them the case real Git loses:
+  an unstaged hand resolution after `merge --strategy=resolve`,
+  which the wrapper refuses with the file kept,
+  where real Git alone replaced it.
+  A commit of one changed file through its debug build took 40 to 46 ms against real Git's 5 to 6 ms in the same round.
+- Before the merge:
+  `main` held three commits the pass's tip did not,
+  none under `package/git-policy/`.
+  Merged as `5fdce426c0` at 20:26:08.
+  It is released as `0.6.1-alpha.21`,
+  the next number,
+  though its branch is named for alpha.22:
+  run `43540602840` dispatched,
+  `native:release:wait` going in the unit `gpc-release-wait-0-6-1-alpha-21`.
+- The pass noticed that the installed wrapper
+  (`0.6.1-alpha.18` at that hour)
+  did not push its new branch by itself after its first two commits,
+  and pushed by hand.
+  Read from Git and the user manager's journal at 20:31:
+  the pass's branch got commits at 18:24:19 and 19:23:14,
+  and the journal holds no `pushed branch=` line of the commit service for it from 16:30 on;
+  the agent's hand push is there at 19:35:59,
+  seventy-one minutes after the first commit.
+  Pass 23's branch has no such line either.
+  In the same hours the service pushed the branches of pass 22 three times,
+  pass 25 once and pass 26 twice,
+  each within seconds of a commit.
+  The three it pushed have `branch.<name>.remote` and `.merge` in the repository's configuration;
+  the two it did not push have neither.
+  The cause is not established:
+  a branch with no upstream that the service never takes up,
+  or a push record lost across the installs of that evening.
+  These facts are added to the brief of the queued run on a pending push whose wake was lost
+  (`~/temp/agent/pi-runs/pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost-prompt.md`),
+  whose class this belongs to,
+  and that run is moved to the head of the author entries.
+- **The launcher change** (`d03da43a2d`:
+  manifests and tool configurations are reviewed).
+  Its review
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-a-change-to-a-build-manifest-or-task-file-is-reviewed/review.md`)
+  found no defect:
+  the new filter keeps everything the old one kept and more,
+  shown by reading and by two reproductions against the source,
+  one of them through real Git on a disposable repository
+  (a manifest-only change gets a brief that names `Cargo.toml`;
+  a notes-only change is still answered as nothing to review).
+  It set aside two things as no defect:
+  manifests of fixture packages are now reviewed too,
+  and `tsconfig.tsbuildinfo` would be kept if it were ever tracked,
+  which it is not.
+- `main` had gained the issue 6299 fix in the driver since that branch began,
+  in other files.
+  Merged as `d3bbc23245` at 20:26:36;
+  then in the main checkout the package was built,
+  its type check is clean,
+  and the unit tests of the review material pass
+  (`~/temp/agent/driver-type-check-on-main-after-the-issue-6299-merge-2026-11-13/keep/`).
+  From here on the launcher's review reads a change to a manifest.
+  The hand-written review folder is still needed for a change to tests alone.
+
+##### The warm request's connect has a bound and goes to review (2026-11-13T20:20:44-05:00)
+
+Not final and not approved:
+the coordinating session's reading of a run that ended at 20:16:02.
+
+- The run on `service_warm_request.rs:107` ended with seven commits on
+  `fix/git-policy-cli-warm-request-of-a-commit-connects-to-its-service-within-a-bound`
+  (tip `0378d82c37`,
+  `main` merged in;
+  report in `~/temp/agent/warm-request-of-a-commit-connects-to-its-service-within-a-bound-scratch/keep/report.md`).
+- It showed the jam through the built wrapper of `main` before changing anything:
+  with a stopped service whose accept queue was filled
+  (4,097 connections),
+  a commit whose rules are cold printed nothing and waited in `unix_wait_for_peer` for the whole twenty seconds of the probe's bound,
+  with nothing committed.
+- The change:
+  the warm request connects through the helper every client connect of `main` now uses,
+  under a ceiling of its own of 250 ms
+  (sixty times the slowest connect it measured,
+  and the value of the other request whose answer a command does not need);
+  a request that cannot be made is not sent and the command publishes the rules itself.
+  After it the same commit ends in 300 ms with the policy's answer.
+  The bound costs about one microsecond at the median of 2,000 alternating connects.
+- Its control fails on `main` at the harness's own bound and passes after.
+  A landing commit against a service that accepts nothing ends in 10,327 ms saying the service did not start:
+  bounded since `0.6.1-alpha.19`,
+  not landed.
+- It also corrected a test of the same file that could not pass
+  (a sleep equal to the 60 s ceiling it runs under),
+  outside what its brief named;
+  no product code changed for it,
+  and the review reads it with the rest.
+- Routed:
+  its review is queued at the head.
+  With it the one unbounded connect left on `main` in shipped code is the binding probe
+  (`service_server_socket_binding.rs:151`),
+  which is with the no-manager author.
+- One binary test failed once in that author's module run and passed three times after
+  (`commit_timing::the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires`,
+  61 s then 1.97 s).
+  By the rule `SUF` it gets a run of its own,
+  queued
+  (`~/temp/agent/pi-runs/binary-test-of-the-second-commit-finding-its-marker-passes-in-its-suite-as-it-does-alone-prompt.md`).
+
 ##### The guards-refuse answer passed its third review and is pass 27 (2026-11-13T20:15:36-05:00)
 
 Not final and not approved:
@@ -7622,6 +7896,78 @@ The first two qwen4 reviews under the new rule ended within about forty-five min
   Round 248 (`fix/git-policy-cli-review-findings-abort-saves-a-copy-before-every-abort`, from `main`) reproduces and fixes them,
   and reads Kimi's review of the same commit when it appears.
   Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
+
+Round 298 (`fix/git-policy-cli-abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+from the tip of round 250) carries out the owner's answer of 2026-11-12T10:35:07,
+"Refuse with opt-out", for the abort and skip forms,
+and takes the saving round 250 built out of the tree:
+`conflict/abort_save.rs`, `conflict/abort_save_again.rs` and their two test files,
+the `index-stage-0` copy, and the `saved-abort` and `saved-skip` audit outcomes.
+
+What the branch does, measured through the built wrapper in fixtures of its own:
+
+- An abort or a skip whose only change is the operation's own state runs exactly as Git runs it,
+  and the wrapper adds no line.
+- One that would discard work standing nowhere else is refused before anything is changed.
+  The refusal names the command, each path with the kind of work standing there
+  (a resolution or edit made since Git stopped at the conflict,
+  content only the index holds,
+  a staged resolution,
+  a staged edit,
+  and `a conflicted path` where Git recorded no result to compare with),
+  at most five paths with the rest counted,
+  the quit form that stops the operation and keeps the index and files,
+  and `--no-enforce-worktree` directly after the subcommand.
+  Nothing is copied and no sentence says a copy was made.
+- An untracked file at a path the restored tree tracks is where Git itself refuses the command,
+  for every abort form and every skip form (measured with Git 2.56.0),
+  and the words say so and name the file.
+- The same question is asked again immediately before the process becomes Git,
+  once; a difference found there refuses the command.
+  `SPEC.md` states the window that remains between that measurement and Git's own reset.
+- An abort is judged the same in the main worktree, in a linked one and outside a worktree
+  (the owner's decision of 2026-11-13, "Same rule everywhere",
+  in the section above),
+  which ended the older rule that every abort is refused in the main worktree:
+  two controls hold the two outcomes there,
+  and the refusal no longer says "rejected in the main git worktree".
+
+Two review findings of `87cd3d1dfa` are answered, both reproduced before the fix:
+
+- Finding 1, data loss: with no `AUTO_MERGE` recorded the reading subtracted the paths the operation
+  was still stopped at, so a resolution written in the worktree and never staged went with them
+  (`git merge -s resolve`, and `git cherry-pick --strategy=resolve` then `--skip`).
+  Those paths are now kept and named as `a conflicted path`, and the command is refused.
+  No proof was available to do better, and that is measured: `git checkout-index` has no
+  `--conflict` option in Git 2.56.0, and the `resolve` strategy's markers name its own temporary
+  files (`.merge_file_1xHykn`, fresh each run), so the text Git wrote cannot be reproduced.
+- Finding 2 is the owner's decision above.
+
+The fallback costs nothing on the waiting path: it asks the same `--diff-filter=U` question it asked
+before and only keeps the answer.
+An abort in a main worktree now costs what an abort in a linked one always cost:
+92 ms at the median against real Git's 5 ms over nine samples each, where the refusal it replaced
+cost 10 ms (measured through the built wrapper, `~/temp/agent/abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work-scratch/cost-of-a-main-worktree-abort`).
+
+Three readings the earlier rounds had wrong, each fixed with a control that failed first:
+`AUTO_MERGE` is recorded by a rebase, a cherry-pick and an `am` as well as by a merge,
+so every form compares both sides with it;
+a path the worktree no longer holds, and a staged deletion, hold no content the reset would lose,
+so they are no reason to refuse (the untracked-file advice itself moves a file out of the way);
+and a skip's reset refuses an untracked file in the way rather than writing over it.
+Every read of a file in the Git directory on this path is bounded and regular-file only:
+a pipe at `rebase-merge/orig-head` held `git rebase --abort` for good, and now it answers.
+
+Open for the coordinating session:
+
+- Merge the branch. It now holds `main` through integration pass 19,
+  including `afc0545123`, so the memory-cap workaround no longer applies to it.
+- The package linter reports findings in files this branch does not touch,
+  which are `main`'s and older than the linter; nothing it reports is in this branch's files.
+- Audit finding 5 of 0.6.1-alpha.14 (a refusal whose advice the same guard refuses) is answered here
+  by running every piece of advice these refusals give, in the state it was printed in.
+  The installed release still discards a hand resolution on `--skip` (audit item 8);
+  this branch refuses it, so the next release must carry the branch.
 
 The gate of `7e3b74281a` ended at 20:34 with `gate-exit-status=1` before it ran a test:
 the `native_binary` test target did not compile
