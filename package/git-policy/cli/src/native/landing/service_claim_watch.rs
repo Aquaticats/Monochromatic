@@ -2,9 +2,10 @@
 //!  The Git directories whose after-commit work this service instance has been woken for,
 //! kept on disk in the instance's own
 //!  journal,
-//! so that a service that starts again looks at them by itself.
+//! so that a service that starts again looks at them by itself,
+//! and a running service finds a record nothing announced.
 //! Why:
-//!  The service learns which repository to drain only from a client's wake,
+//!  The service learns which repository to drain from a client's wake,
 //! and a client wakes it only after a commit.
 //! A service
 //!  that was killed while it held a claim,
@@ -20,6 +21,21 @@
 //! The name is written by the worker thread before it drains a directory for the first time in a process,
 //! never by the
 //!  thread that lands commits.
+//!   A wake can also be lost while a service runs,
+//! and the record it would have run stays in `pending`:
+//! a wrapper killed
+//!  between promoting a landed commit's push and the wake,
+//! a message the service never read,
+//! and a service that was
+//!  starting at that instant all leave one.
+//! The same notes answer that: on every look (`look_again`,
+//! one every
+//!  `LOOK_AGAIN_AFTER`) the running service reads them again and lists the records waiting in each,
+//! so a record that exists
+//!  and is due is found whether or not anything woke it.
+//! A landing writes its repository's note before it answers the commit,
+//! so
+//!  even a service that started before that landing finds the promotion that follows it.
 //!
 //! Identity:
 //! an instance is named by a hash of the canonical path of its worktree's Git directory (`service_instance::instance_of`),
@@ -92,21 +108,37 @@ const WATCH_EXTENSION: &str = "watch";
 /// Five seconds rather than a minute because the record is a person's backup of a commit they
 ///  just made,
 /// and rather than a second because an idle service should not be made to work.
-/// Measured on this host on
-///  2026-11-13 (`measure-a-look.ts` in
-/// `${HOME}/temp/agent/pending-push-wake-scratch/measurements`):
-/// a look `ClaimWatch::look_again` makes is
-///  one listing of the notes,
-/// one small read for each note (one per repository this instance serves),
-/// a `stat` of the work
-///  directory and one listing of its `pending` directory,
-/// 13 to 22 microseconds for a repository with one note
-///  and no record waiting (five rounds of 200 looks each).
-/// At this interval that is 0.0004 % of one processor per running service,
-/// and
-///  the wait for a record whose wake was lost is five seconds at worst.
-/// The bound the words of a queued push name
-///  is this one (`queued_push_line` in `service_handoff.rs`).
+/// It is also the interval the
+///  client's own silence window has (`HEARTBEAT_SILENCE`),
+/// which is as long as this service lets anything wait without a word;
+/// a round that deferred housekeeping asks for its own wake at its own
+///  `LOOK_AGAIN_AFTER_DEFERRING` (`housekeeping_of_one_round.rs`),
+/// which is the same five seconds for the same reason.
+///  Measured on this host on 2026-11-13
+/// (`measure-idle.ts` in
+/// `${HOME}/temp/agent/pending-push-wake-scratch/measurements`,
+/// its log in
+///  `keep/measurements/idle-ten-minutes.log`):
+/// two services of the same repository shape,
+/// one built from `main` (9376f1722e) with no
+///  look and one from this change,
+/// ran side by side for ten minutes with nothing to do,
+/// each with one note in its journal and an
+///  empty `pending` (debug builds).
+/// Over its 120 looks the service with the look used four clock ticks more than the one without
+///  it, 0.040 s of processor, which is 0.0067 % of one,
+/// and 897 more context switches.
+/// That is at most 333
+///  microseconds of processor and 7.5 wake-ups for each look,
+/// so 355 services running together would cost 0.024 % of one processor and
+///  about 500 wake-ups a second between them.
+/// One look is one listing of the notes,
+/// one read for each note,
+/// one `stat` of the work directory it names and one listing of that
+///  directory's `pending` (`look_again`,
+/// traced with `strace` in the same folder).
+/// The bound the words of a queued push name is this one
+/// (`queued_push_line` in `service_handoff.rs`).
 pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
 
 /// The first words of a watch file,

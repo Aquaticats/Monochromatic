@@ -176,15 +176,26 @@ fn push_lines_naming(setup: &Setup, commit: &str) -> usize {
     return log.lines().filter(|line| { return line.contains("pushed branch=") && line.contains(commit); }).count();
 }
 
-/// The clock ticks one process of this fixture used,
-/// as the kernel counts them.
+/// What:
+///  The clock ticks the whole of one process of this fixture used,
+/// as the kernel counts them,
+/// over every thread of it.
+/// Why:
+///   `/proc/<pid>/stat` is the main thread's alone,
+/// and the look runs on a worker of the service's runtime:
+/// a reading of
+///  the main thread alone showed no processor time and no switch for a service that looked every five seconds.
 fn cpu_ticks(pid: u32) -> Option<u64> {
-    let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    let after_name: &str = stat.rsplit_once(')')?.1;
-    let fields: Vec<&str> = after_name.split_whitespace().collect();
-    let user: u64 = fields.get(11)?.parse().ok()?;
-    let system: u64 = fields.get(12)?.parse().ok()?;
-    return Some(user + system);
+    let mut used: u64 = 0;
+    for thread in std::fs::read_dir(format!("/proc/{pid}/task")).ok()?.flatten() {
+        let stat: String = std::fs::read_to_string(thread.path().join("stat")).ok()?;
+        let after_name: &str = stat.rsplit_once(')')?.1;
+        let fields: Vec<&str> = after_name.split_whitespace().collect();
+        let user: u64 = fields.get(11)?.parse().ok()?;
+        let system: u64 = fields.get(12)?.parse().ok()?;
+        used += user + system;
+    }
+    return Some(used);
 }
 
 fn ticks_per_second() -> f64 {

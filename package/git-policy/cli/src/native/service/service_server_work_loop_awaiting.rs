@@ -1,7 +1,8 @@
 //! What:
 //!  The loop of the commit service's after-commit work as a task of the runtime,
-//! and the three storage steps only it makes:
+//! and the storage steps only it makes:
 //! it waits for wakes and due retries,
+//! looks at the repositories a record waits in even when no wake came,
 //! runs a round of repository work for them,
 //!  and keeps the service from exiting idle while a repository waits to be looked at again.
 //! Why:
@@ -347,6 +348,18 @@ fn keep_what_the_watch_and_the_plan_owe(retries: &mut RetrySchedule, watch: &Cla
 /// and the wake for the earliest plan is kept in the same schedule as the lease wakes,
 /// so
 ///  the service neither forgets the plan nor exits idle while a try is pending.
+/// A wake may also never come at all,
+/// while the service runs and the record it would have run waits:
+/// so the wait below never
+///  outlasts `LOOK_AGAIN_AFTER`,
+/// and each time it ends there the loop asks its journal's notes which repositories hold a record in
+///  `pending`
+/// (`look_awaiting`).
+/// That look keeps nothing alive:
+/// a service with nothing to do still ends at its idle bound,
+/// and a
+///  look that found nothing runs no round,
+/// so the clock alone never makes the service work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
