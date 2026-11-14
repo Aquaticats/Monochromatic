@@ -1116,9 +1116,13 @@ so an install never waits on a long deletion.
 Before it moves a version aside it compares what it moved with the version it judged,
 so a version another command publishes at that name while the pass runs is put back and kept.
 
-Every program an install starts runs under a stated bound, and so does every lock it waits on;
-running out of one is reported, and nothing is lost.
-`doc/toolchain-version-cleanup.md` gives each bound, how it was sized, and what happens at it.
+Every program an install starts runs under a stated bound,
+and so does every lock it waits on;
+running out of one is reported,
+and nothing is lost.
+`doc/toolchain-version-cleanup.md` gives each bound,
+how it was sized,
+and what happens at it.
 
 It prints one line per version removed and per version kept on standard error,
 and nothing on a pass that judges nothing.
