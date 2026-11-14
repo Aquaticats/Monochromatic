@@ -1121,6 +1121,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The guards-refuse answer passed its third review and is pass 27 (2026-11-13T20:15:36-05:00)
+
+Not final and not approved:
+the coordinating session's reading of the review,
+which ended at 20:10:27.
+
+- The review of `193ad97fc6` over the whole change against `main`
+  (`~/temp/agent/change-reviews/git-policy-cli-guards-refuse-answers-after-its-second-review/review.md`)
+  found no concrete defect.
+  It read the sixteen changed source files whole,
+  built the wrapper at that commit,
+  and ran 331 tests of its modules
+  (208 of the conflict and merge-isolation modules,
+  54 of policy, commit selection, audit and pruning,
+  13 binary tests of the conflict side,
+  56 binary tests of merges),
+  with three reproductions of its own through the built wrapper:
+  a refusal of `checkout --theirs` on a conflicted file with the file kept byte for byte,
+  a merge that carries an edit and leaves no record and no reference,
+  and a kill at a named phase settled by the next command,
+  also after the reference was deleted and collected.
+- Two binary tests failed in its run and are not the change's:
+  the two lock-wait tests that are red on `main` on this machine,
+  whose run started at 19:43.
+- Limits it names:
+  power loss was not exercised
+  (the marker that a carry finished is written unsynced on purpose);
+  two records of one capture finishing at once were checked by reading and one unit test,
+  not by two processes.
+- Routed:
+  integration pass 27 for `0.6.1-alpha.25`,
+  pinned to `193ad97fc6`,
+  queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-27-for-alpha-25-prompt.md`).
+  Its brief tells the pass to compile both test targets after every merge of `main`,
+  because both meetings of the day sat in a test target with no conflict marker.
+- The author's question from two rounds ago stays open and is in the list of owner choices:
+  the refusal's advice on concluding assumes the whole index is the resolution,
+  and with other unmerged paths Git refuses the commit until each is resolved.
+- At 20:15 the author pool stood at 20 of 20 with 39 entries queued and one review going;
+  2,246 GiB free on the build volume.
+
 ##### Three runs read at 20:09: a race in the unload, two waits without a bound in a proof, the launcher change (2026-11-13T20:09:32-05:00)
 
 Not final and not approved:
