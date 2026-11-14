@@ -9,10 +9,8 @@
  */
 
 import {
-  chmod,
   mkdir,
   mkdtemp,
-  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -25,7 +23,9 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   isASetAsideRecordFile,
+  lockFileOfAQueue,
   putASetAsideEntryBack,
+  QueueLockHeldError,
   readQueueOfRuns,
   removeSetAsideRecord,
   setAsideAnEntryOfAQueue,
@@ -110,7 +110,6 @@ async function makeFolder(): Promise<AThrowawayFolder> {
     queueFolder,
     queueFile,
     async [Symbol.asyncDispose]() {
-      await chmod(queueFolder, 0o700,);
       await rm(path, { recursive: true, force: true, },);
     },
   };
@@ -212,14 +211,17 @@ await describe({
           },
         },),
         it({
-          name: 'loses nothing when a kill or a refused write comes between the record and the entry leaving the queue',
+          name: 'writes no record at all when another writer holds the queue, so a set-aside is one held step of both files',
           fn: async () => {
             await using folder = await makeFolder();
-            // The queue's own folder refuses every write, so the change that would take the entry out fails after the record
-            // was written: a kill or a refusal there leaves both files, and an entry that is in both is one the filling tries
-            // again. The folder was made unwritable at 2026-11-14, when the queue change takes a lock beside the queue, the
-            // lock's own file is the first write it attempts and it is refused the same way.
-            await chmod(folder.queueFolder, 0o500,);
+            // This test's own process holds the queue's lock, so the process number the lock names is alive and the wait runs out.
+            await writeFile(
+              lockFileOfAQueue({ queueFile: folder.queueFile, },),
+              `${JSON.stringify({
+                pid: process.pid,
+                at: '2026-11-14T00:00:00.000-05:00',
+              },)}\n`,
+            );
             /**
              What setting the entry aside threw.
              */
@@ -231,23 +233,38 @@ await describe({
                 record: THE_ENTRY,
                 reason: 'nothing to review under src in main...a',
                 now: Date.now,
+                waitMilliseconds: 30,
               },);
             }
             catch (error) {
               caught = error;
             }
-            // The refusal names the file it could not write, which is the queue path's own beside-file or lock, and the change
-            // is what did not happen: what the test proves is the state after it, not the wording.
-            expect(caught,).toBeInstanceOf(Error,);
-            expect(String(caught,),).toContain(folder.queueFile,);
-            expect(await setAsideRecordOf({ runsFolder: folder.runs, name: 'a', },),).toMatchObject({ entry: THE_ENTRY, },);
+            expect(caught,).toBeInstanceOf(QueueLockHeldError,);
+            // Before the lock covered both files, the record was written here even though another writer held the queue, which is
+            // the state a put-back could then delete.
+            expect(await setAsideRecordIsThere({ runsFolder: folder.runs, name: 'a', },),).toBe(false,);
             expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
               return entry.name;
             },),).toEqual(['a', 'b',],);
-            // What the filling does with a record whose entry never left the queue: it drops the record and tries the entry again.
-            await chmod(folder.queueFolder, 0o700,);
-            expect(await removeSetAsideRecord({ runsFolder: folder.runs, name: 'a', },),).toBe(true,);
-            expect(await setAsideRecordIsThere({ runsFolder: folder.runs, name: 'a', },),).toBe(false,);
+            await rm(lockFileOfAQueue({ queueFile: folder.queueFile, },), { force: true, },);
+          },
+        },),
+        it({
+          name: 'leaves a record a kill left with its entry still queued for the filling to finish or drop, losing nothing',
+          fn: async () => {
+            await using folder = await makeFolder();
+            // A kill between the record write and the queue write leaves both: the entry is queued and its record says why the
+            // start failed. The put-back must not delete that record; the filling's sweep decides inside its own held step.
+            await writeSetAsideRecord({
+              runsFolder: folder.runs,
+              record: {
+                name: 'a',
+                entry: THE_ENTRY,
+                reason: 'nothing to review under src in main...a',
+                setAsideAt: '2026-11-14T09:00:00.000-05:00',
+              },
+            },);
+            expect(await setAsideRecordIsThere({ runsFolder: folder.runs, name: 'a', },),).toBe(true,);
             expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
               return entry.name;
             },),).toEqual(['a', 'b',],);
@@ -326,7 +343,7 @@ await describe({
           },
         },),
         it({
-          name: 'removes only the record when the entry was still in the queue, which an interrupted set-aside leaves',
+          name: 'leaves the record of an entry that is still queued alone, because deleting it would lose an entry in flight',
           fn: async () => {
             await using folder = await makeFolder();
             await writeSetAsideRecord({
@@ -347,11 +364,13 @@ await describe({
               name: 'a',
               position: 0,
             },);
-            expect(put.line,).toContain('was still in the queue',);
+            expect(put.line,).toContain('is still in the queue',);
+            expect(put.line,).toContain('the filling finishes or drops it',);
             expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
               return entry.name;
             },),).toEqual(['a', 'b',],);
-            expect(await readFile(folder.queueFile, 'utf8',),).not.toContain('a-set-aside',);
+            // The record is the only copy of why the entry failed; the filling's sweep keeps or drops it inside a held step.
+            expect(await setAsideRecordIsThere({ runsFolder: folder.runs, name: 'a', },),).toBe(true,);
           },
         },),
       ],

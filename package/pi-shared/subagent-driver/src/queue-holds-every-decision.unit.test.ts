@@ -29,10 +29,17 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  acquireTheQueueLock,
+  BUILD_VOLUME,
+  fillFreePlacesFromAQueue,
+  type FillingSeams,
+  type FreeSpace,
   putAQueueEntryIn,
   putASetAsideEntryBack,
   putEndedReviewsBack,
+  QueueLockHeldError,
   readQueueOfRuns,
+  setAsideAnEntryOfAQueue,
   setAsideFileOf,
   setAsideRecordIsThere,
   writeQueueOfRuns,
@@ -289,6 +296,150 @@ await describe({
             // Before the fix the position came from a read taken before the insert and the second pass jumped past the review in
             // most rounds; the review's own script measured 250 of 250.
             expect(reviewsAhead,).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'an operation that would decide on the queue while another writer holds it',
+      children: [
+        it({
+          name: 'writes no set-aside record and takes no entry out, so a record cannot appear while the queue is another writer\'s',
+          fn: async () => {
+            await using folder = await makeFolder([
+              THE_ENTRY,
+              { name: 'b', branch: 'feat/b', },
+            ],);
+            await using lock = await acquireTheQueueLock({ queueFile: folder.queueFile, },);
+            /**
+             What setting the entry aside threw.
+             */
+            let caught: unknown;
+            try {
+              await setAsideAnEntryOfAQueue({
+                queueFile: folder.queueFile,
+                runsFolder: folder.runs,
+                record: THE_ENTRY,
+                reason: 'the entry failed its start',
+                now: Date.now,
+                waitMilliseconds: 30,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(QueueLockHeldError,);
+            // Before the fix the record was written here although another writer held the queue, which is the state a put-back could
+            // then delete while the entry was in flight.
+            expect(await setAsideRecordIsThere({
+              runsFolder: folder.runs,
+              name: THE_ENTRY.name,
+            },),).toBe(false,);
+            expect(await namesIn(folder.queueFile,),).toEqual(['a', 'b',],);
+          },
+        },),
+        it({
+          name: 'drops no record in a filling pass that cannot take the queue, because the sweep decides inside the held step',
+          fn: async () => {
+            await using folder = await makeFolder([
+              THE_ENTRY,
+              { name: 'b', branch: 'feat/b', },
+            ],);
+            await writeSetAsideRecord({
+              runsFolder: folder.runs,
+              record: {
+                name: THE_ENTRY.name,
+                entry: THE_ENTRY,
+                reason: 'the entry failed its start',
+                setAsideAt: '2026-11-14T09:00:00.000-05:00',
+              },
+            },);
+            await using lock = await acquireTheQueueLock({ queueFile: folder.queueFile, },);
+            /**
+             The room the build volume is said to have, so the pass reaches its sweep and nothing else.
+             */
+            const room: FreeSpace = {
+              volume: BUILD_VOLUME,
+              freeBytes: 1_000 * 1_024 * 1_024 * 1_024,
+            };
+            /**
+             The pass's seams, none of which may be asked anything: the sweep comes first and the queue is another writer's.
+             */
+            const seams: FillingSeams = {
+              runsGoing: function runsGoing() {
+                return Promise.reject(new Error('the pass reached the count of runs, which the sweep should have stopped',));
+              },
+              freeSpace: function freeSpace() {
+                return room;
+              },
+              start: function start() {
+                return Promise.reject(new Error('the pass reached a start, which the sweep should have stopped',));
+              },
+              setAside: function setAside() {
+                return Promise.reject(new Error('the pass reached a set-aside, which the sweep should have stopped',));
+              },
+              wait: function wait() {
+                return Promise.resolve();
+              },
+              report: function report() {
+                return undefined;
+              },
+            };
+            /**
+             What the pass threw.
+             */
+            let caught: unknown;
+            try {
+              await fillFreePlacesFromAQueue({
+                request: {
+                  queueFile: folder.queueFile,
+                  runsFolder: folder.runs,
+                  level: 1,
+                  lockWaitMilliseconds: 30,
+                },
+                seams,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(QueueLockHeldError,);
+            // Before the fix the sweep read the queue itself and dropped this record while another writer held the queue.
+            expect(await setAsideRecordIsThere({
+              runsFolder: folder.runs,
+              name: THE_ENTRY.name,
+            },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'puts no review back when the queue is another writer\'s, so no position is decided on a queue it does not hold',
+          fn: async () => {
+            await using folder = await makeFolder([{ name: 'integration-pass-1', branch: 'feat/p1', },],);
+            await writeAReviewTheRateLimitEnded({
+              folder,
+              review: 'review-x',
+            },);
+            await using lock = await acquireTheQueueLock({ queueFile: folder.queueFile, },);
+            /**
+             What putting the ended reviews back threw.
+             */
+            let caught: unknown;
+            try {
+              await putEndedReviewsBack({
+                queueFile: folder.queueFile,
+                runsFolder: folder.runs,
+                reviewsFolder: folder.reviews,
+                since: 0,
+                going: new Set(),
+                now: Date.now,
+                waitMilliseconds: 30,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(QueueLockHeldError,);
+            expect(await namesIn(folder.queueFile,),).toEqual(['integration-pass-1',],);
           },
         },),
       ],

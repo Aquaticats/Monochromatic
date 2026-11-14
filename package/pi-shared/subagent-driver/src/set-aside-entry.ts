@@ -2,9 +2,15 @@
  Where an entry whose start failed is taken out of the way: one JSON file per entry beside the runs, holding the entry itself, the
  reason its start failed, and when, so a person and a session both find it where every other record of a run is.
 
- The record is written before the entry is taken out of the queue. A kill between the two therefore leaves the entry in both places,
- which loses nothing: the filling reads a record whose name the queue still holds as an unfinished set-aside, drops the record, and
- starts the entry again. The other order would leave a kill with the entry out of the queue and nowhere else.
+ The record is written before the entry is taken out of the queue, both inside one held step of the queue's lock (`withTheQueueLock`),
+ so no other command can see the record of an entry that is still queued unless a kill left it there. A kill between the two leaves
+ the entry in both places, which loses nothing: the filling reads a record whose name the queue still holds as an unfinished
+ set-aside, drops the record inside the same held step, and starts the entry again. The other order would leave a kill with the entry
+ out of the queue and nowhere else.
+
+ Two commands must therefore never touch a record outside that step: a put-back that finds the entry still queued leaves the record
+ alone (removing it there, as it did before the second review, is how an entry in flight could be lost), and the filling's sweep
+ makes its decision on the queue as it is inside the step, never on a snapshot.
 
  @module
  */
@@ -21,10 +27,8 @@ import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   isQueueRecord,
-  putAQueueEntryIn,
   type QueueRecord,
-  readQueueOfRuns,
-  takeAQueueEntryOut,
+  withTheQueueLock,
 } from './queue-of-runs.ts';
 
 /**
@@ -424,6 +428,8 @@ export async function setAsideRecordIsThere({
 
  @param now - the reading the record's time is written from
 
+ @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
+
  @returns the record's path, and how many entries the queue holds afterwards
 
  @throws SetAsideRecordError when the record cannot be written, which leaves the entry queued
@@ -440,6 +446,7 @@ export async function setAsideAnEntryOfAQueue({
   reason,
   keptOutputAt,
   now,
+  waitMilliseconds,
 }: {
   readonly queueFile: string;
   readonly runsFolder: string;
@@ -447,42 +454,54 @@ export async function setAsideAnEntryOfAQueue({
   readonly reason: string;
   readonly keptOutputAt?: string;
   readonly now: () => number;
+  readonly waitMilliseconds?: number;
 },): Promise<{
   readonly file: string;
   readonly left: number;
 }> {
-  /**
-   The record's path, written before the entry leaves the queue.
-   */
-  const file = await writeSetAsideRecord({
-    runsFolder,
-    record: {
-      name: record.name,
-      entry: record,
-      reason,
-      setAsideAt: new Date(now(),).toISOString(),
-      ...((keptOutputAt === undefined) ? {} : { keptOutputAt, }),
+  return await withTheQueueLock({
+    queueFile,
+    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+    work: async function setItAside({
+      entries,
+      write,
+    },) {
+      // The record is written first, inside this step: a kill before the queue write leaves the entry queued with its record, which
+      // the filling's sweep drops in its own held step, so the entry is tried again and nothing is lost.
+      /**
+       The record's path.
+       */
+      const file = await writeSetAsideRecord({
+        runsFolder,
+        record: {
+          name: record.name,
+          entry: record,
+          reason,
+          setAsideAt: new Date(now(),).toISOString(),
+          ...((keptOutputAt === undefined) ? {} : { keptOutputAt, }),
+        },
+      },);
+      /**
+       The queue without the entry.
+       */
+      const kept = entries.filter(function isAnother(entry,) {
+        return entry.name !== record.name;
+      },);
+      await write(kept,);
+      return {
+        file,
+        left: kept.length,
+      };
     },
   },);
-  /**
-   The queue without the entry.
-   */
-  const { entries } = await takeAQueueEntryOut({
-    queueFile,
-    name: record.name,
-  },);
-  return {
-    file,
-    left: entries.length,
-  };
 }
 
 /**
  Puts a set-aside entry back into the queue, at a position counted from the head.
 
- The entry goes into the queue before its record goes away. A kill between the two leaves both, which the filling reads as an
- unfinished set-aside and starts the entry, so nothing is lost either way. An entry the queue already holds is only its record
- going away, which is what an interrupted set-aside left.
+ The entry goes into the queue before its record goes away, both inside one held step of the queue's lock. A kill between the two
+ leaves both, and the filling's sweep drops the record because the queue holds the entry, so nothing is lost either way. An entry the
+ queue still holds is left alone: its record is from an interrupted set-aside, and the sweep decides inside the same held step.
 
  @param queueFile - the queue's path
 
@@ -491,6 +510,8 @@ export async function setAsideAnEntryOfAQueue({
  @param name - the entry's name
 
  @param position - where it goes, counted from the head, `0` being the head
+
+ @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
 
  @returns the line to print
 
@@ -506,45 +527,69 @@ export async function putASetAsideEntryBack({
   runsFolder,
   name,
   position,
+  waitMilliseconds,
 }: {
   readonly queueFile: string;
   readonly runsFolder: string;
   readonly name: string;
   readonly position: number;
+  readonly waitMilliseconds?: number;
 },): Promise<{ readonly line: string }> {
-  /**
-   The record the entry is put back from.
-   */
-  const record = await setAsideRecordOf({
-    runsFolder,
-    name,
+  return await withTheQueueLock({
+    queueFile,
+    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+    work: async function putItBack({
+      entries,
+      write,
+    },) {
+      /**
+       The record the entry would be put back from, read inside this step.
+       */
+      const record = await setAsideRecordOf({
+        runsFolder,
+        name,
+      },);
+      if (record === NO_SET_ASIDE_RECORD) {
+        return { line: `no entry named ${name} is set aside beside the runs in ${runsFolder}; nothing changed`, };
+      }
+      if (entries.some(function isNamed(entry,) {
+        return entry.name === name;
+      },)) {
+        // The entry is still queued, which only a kill between a record and its entry leaving the queue leaves. The record is left
+        // for the filling's sweep, which decides inside the same held step; removing it here is how an entry in flight was lost.
+        return {
+          line: `${name} is still in the queue, so it is not set aside: its record is from an interrupted set-aside, and the filling `
+            + `finishes or drops it (${record.reason}). Nothing changed.`,
+        };
+      }
+      /**
+       Where the entry lands, which is the tail of a queue shorter than the position.
+       */
+      const at = Math.min(
+        position,
+        entries.length,
+      );
+      /**
+       The queue with the entry in it.
+       */
+      const next = [
+        ...entries.slice(
+          0,
+          at,
+        ),
+        record.entry,
+        ...entries.slice(at,),
+      ];
+      // The entry goes in before its record goes away: a kill between the two leaves both, and the sweep drops the record because
+      // the queue holds the entry, so nothing is lost.
+      await write(next,);
+      await removeSetAsideRecord({
+        runsFolder,
+        name,
+      },);
+      return {
+        line: `put ${name} back at position ${String(at,)} of ${String(next.length,)}; it was set aside at ${record.setAsideAt} for: ${record.reason}`,
+      };
+    },
   },);
-  if (record === NO_SET_ASIDE_RECORD) {
-    return { line: `no entry named ${name} is set aside beside the runs in ${runsFolder}; nothing changed`, };
-  }
-  /**
-   Whether the queue holds the entry already, which an interrupted set-aside leaves.
-   */
-  const queued = (await readQueueOfRuns({ queueFile, },)).some(function isNamed(entry,) {
-    return entry.name === name;
-  },);
-  /**
-   Where it landed, when this put it in.
-   */
-  const at = queued
-    ? undefined
-    : await putAQueueEntryIn({
-      queueFile,
-      entry: record.entry,
-      position,
-    },);
-  await removeSetAsideRecord({
-    runsFolder,
-    name,
-  },);
-  return {
-    line: (at === undefined)
-      ? `${name} was still in the queue, so only its set-aside record was removed: ${record.reason}`
-      : `put ${name} back at position ${String(at.position,)} of ${String(at.count,)}; it was set aside at ${record.setAsideAt} for: ${record.reason}`,
-  };
 }

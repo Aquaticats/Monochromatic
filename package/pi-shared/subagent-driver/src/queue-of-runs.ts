@@ -269,6 +269,91 @@ export type ChangeOfAQueue<Answer> = (entries: readonly QueueRecord[]) => {
 };
 
 /**
+ The queue while one caller holds it: the entries it holds at that moment, and the one write that replaces them.
+
+ A caller that decides anything about an entry's set-aside record must make that decision and write both files here, because the
+ record and the queue are two files and a decision on one of them made outside this step is a decision on a state another writer may
+ have changed: that is how a put-back deleted the record of a set-aside a filling was still committing, and how a second filling's
+ sweep deleted a record a first had just written.
+ */
+export type HeldQueueOfRuns = {
+  /**
+   The entries the queue holds, read under the lock.
+   */
+  readonly entries: readonly QueueRecord[];
+
+  /**
+   Replaces the queue's entries with these, through a file beside the queue that is renamed over it.
+   */
+  readonly write: (entries: readonly QueueRecord[]) => Promise<void>;
+};
+
+/**
+ Holds a queue's lock while one caller reads it, decides on it and writes it, and writes any set-aside record that decision governs.
+
+ Every decision this package acts on is made here: which entry leaves the queue when it is set aside, which record goes when its
+ entry is put back or when a killed set-aside is swept up, and where a put-back review goes. The lock is the one file beside the
+ queue (`queue-lock.ts`), and it is given back when this block ends, answered or thrown.
+
+ @param queueFile - the queue's path
+
+ @param work - the decision and its writes, asked for the entries the queue holds under the lock
+
+ @param now - the clock the lock's wait and age are read from
+
+ @param wait - the pause between two attempts to take the lock
+
+ @param waitMilliseconds - how long to keep asking for the lock before refusing
+
+ @returns what the work answered
+
+ @throws QueueFileError when the queue cannot be read or written, which leaves it as it was
+
+ @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
+
+ @example
+ ```ts
+ const answer = await withTheQueueLock({ queueFile: '/runs/queue.json', work: async ({ entries, write }) => { await write(entries); return entries.length; } });
+ ```
+ */
+export async function withTheQueueLock<Answer>({
+  queueFile,
+  work,
+  now,
+  wait,
+  waitMilliseconds,
+}: {
+  readonly queueFile: string;
+  readonly work: (held: HeldQueueOfRuns) => Promise<Answer>;
+  readonly now?: () => number;
+  readonly wait?: (milliseconds: number) => Promise<unknown>;
+  readonly waitMilliseconds?: number;
+},): Promise<Answer> {
+  /**
+   The queue's lock, given back when this block ends whether the work answered or threw.
+   */
+  await using lock = await acquireTheQueueLock({
+    queueFile,
+    ...(now === undefined ? {} : { now, }),
+    ...(wait === undefined ? {} : { wait, }),
+    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+  },);
+  /**
+   The queue as it stands under the lock.
+   */
+  const entries = await readQueueOfRuns({ queueFile, },);
+  return await work({
+    entries,
+    write: function writeTheQueue(next,) {
+      return writeTheQueueWhole({
+        queueFile,
+        entries: next,
+      },);
+    },
+  },);
+}
+
+/**
  Changes a queue while no other writer can: the read, the change and the write happen under the queue's lock.
 
  The change is asked for the entries the queue holds at that moment, so no entry another session queued meanwhile is written away.
@@ -308,30 +393,25 @@ export async function changeTheQueueOfRuns<Answer>({
   readonly wait?: (milliseconds: number) => Promise<unknown>;
   readonly waitMilliseconds?: number;
 },): Promise<Answer> {
-  /**
-   The queue's lock, given back when this block ends whether the change answered or threw.
-   */
-  await using lock = await acquireTheQueueLock({
+  return await withTheQueueLock({
     queueFile,
     ...(now === undefined ? {} : { now, }),
     ...(wait === undefined ? {} : { wait, }),
     ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+    work: async function changeIt({
+      entries,
+      write,
+    },) {
+      /**
+       What the change made of the queue.
+       */
+      const changed = await Promise.resolve(change(entries,),);
+      if (changed.entries !== entries) {
+        await write(changed.entries,);
+      }
+      return changed.answer;
+    },
   },);
-  /**
-   The queue as it stands under the lock.
-   */
-  const entries = await readQueueOfRuns({ queueFile, },);
-  /**
-   What the change made of it.
-   */
-  const changed = change(entries,);
-  if (changed.entries !== entries) {
-    await writeTheQueueWhole({
-      queueFile,
-      entries: changed.entries,
-    },);
-  }
-  return changed.answer;
 }
 
 /**

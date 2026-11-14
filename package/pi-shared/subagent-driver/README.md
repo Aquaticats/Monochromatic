@@ -523,8 +523,11 @@ and the entry behind it starts in the same pass.
 
 The queue file is read whole and written whole through a file beside it that is renamed over it,
 so a reader never meets half a queue.
-Every edit reads the queue, changes it and writes it while the queue's lock is held,
-so two commands at once cannot both read before either writes and drop one another's entry.
+Every decision this package acts on is made inside one held step of the queue's lock:
+the queue is read there, the decision is made on that read, and the queue and any set-aside record the decision governs
+are written before the step ends.
+Two commands at once therefore cannot both read before either writes and drop one another's entry,
+and no command can decide on one of the two files while another is writing the other.
 
 ### One writer at a time
 
@@ -573,9 +576,31 @@ What a kill at each step leaves:
 - a file written beside the queue and renamed or linked into place is never read as anything,
   and a killed writer leaves at most one such file, which the next writer's own name never collides with.
 
-A queue file in the shape it had before the lock is the shape it still has,
-so nothing is carried over: the first command that changes it takes the lock and changes it as it is,
-and the only new name in its folder is the lock's own, which no change leaves behind.
+### What one held step covers
+
+The lock is the queue's, and a queue's decisions reach two files:
+the queue itself, and the record of one entry set aside (`<runs>/<name>-set-aside.json`).
+Each operation below reads, decides and writes inside one held step:
+
+- putting, taking or moving an entry: reads the queue, decides the duplicate, the position or which entries bear the name,
+  writes the queue;
+- setting an entry aside: writes the record **first**, then takes the entry out of the queue, both in the step,
+  so a kill between them leaves the entry queued with its record, which the filling's sweep recovers;
+- a filling pass's sweep: reads the queue **inside** the step and drops the record of a name the queue still holds,
+  which is exactly the state a kill between a record and its entry leaving the queue leaves.
+  A sweep that decided on a snapshot read before the step is how a second filling once deleted a record a first had just written;
+- putting a set-aside entry back: reads the record **and** the queue in the step, and writes the queue before it removes the record.
+  An entry the queue still holds is left alone and the command says so:
+  its record is from an interrupted set-aside, and deleting it there is how an entry in flight was lost.
+  The sweep finishes or drops that record inside its own held step;
+- putting the rate-limited reviews back: decides where each goes from the queue **as it is at the instant of the insert**,
+  after every leading `integration-pass-*` entry, so a pass queued at the head meanwhile stays ahead.
+
+A queue file, and a set-aside record, in the shape they had before the lock are the shapes they still have,
+so nothing is carried over: the first command that changes them takes the lock and changes them as they are.
+The only new name in the queue's folder is the lock's own, which no change leaves behind.
+If a queue ever seems stuck, `<queue>.lock` names the process and the time it took the queue;
+the next command breaks it when that process is gone, and removing it by hand is the remedy for a live but wedged holder.
 
 ### The entries a queue holds
 
@@ -660,11 +685,11 @@ and the two are told apart by the step that refused:
   and the pass stops rather than starting a later entry into the place the earlier one waits for.
   The next round tries it again.
 
-A record is written **before** its entry leaves the queue.
+A record is written **before** its entry leaves the queue, both inside one held step of the queue's lock.
 A kill between the two therefore leaves the entry in both places,
 which loses nothing:
 the next round reads a record whose name the queue still holds as an unfinished set-aside,
-drops the record and tries the entry again.
+drops the record inside its own held step and tries the entry again.
 
 ### `list-the-entries-a-queue-set-aside` and `put-a-set-aside-entry-back-into-a-queue`
 

@@ -12,10 +12,12 @@
 
 export {
   type ChangeOfAQueue,
+  type HeldQueueOfRuns,
   type QueueRecord,
   QueueFileError,
   changeTheQueueOfRuns,
   moveAQueueEntryTo,
+  withTheQueueLock,
   putAQueueEntryIn,
   readQueueOfRuns,
   takeAQueueEntryOut,
@@ -47,6 +49,7 @@ export {
   REVIEWS_PUT_BACK_LOOKBACK_SECONDS,
   type EndedReviewsPutBack,
   newestAttemptOfEachReview,
+  rateLimitReviewPromptFileIn,
   putBackSince,
   putEndedReviewsBack,
 } from './putting-ended-reviews-back.ts';

@@ -35,6 +35,7 @@ import {
   readQueueOfRuns,
   type QueueRecord,
   takeAQueueEntryOut,
+  withTheQueueLock,
 } from './queue-of-runs.ts';
 import {
   removeSetAsideRecord,
@@ -261,40 +262,64 @@ function setAsideLineOf({
  Drops every set-aside record whose entry is still in the queue, which is what a kill between writing a record and taking its entry
  out leaves.
 
- @param entries - the queue's entries
+ The decision is made on the queue as it is inside the queue's held step, never on a snapshot read before it: a snapshot taken
+ outside the step that drops a record is how a second filling deleted the record of a set-aside a first was still committing, and
+ the entry was then lost. The sweep writes no queue: the entries stay where they are, and only the records of entries still queued go.
+
+ @param queueFile - the queue's path
 
  @param runsFolder - folder the driver writes its runs into
 
  @param report - where the pass says what it found
 
+ @param now - the clock the lock's wait and age are read from
+
+ @param wait - the pause between two attempts to take the lock
+
+ @param lockWaitMilliseconds - how long to keep asking for the queue's lock before refusing
+
  @example
  ```ts
- await dropUnfinishedSetAsides({ entries: [], runsFolder: '/runs', report: () => {} });
+ await dropUnfinishedSetAsides({ queueFile: '/runs/q.json', runsFolder: '/runs', report: () => {} });
  ```
  */
 async function dropUnfinishedSetAsides({
-  entries,
+  queueFile,
   runsFolder,
   report,
+  now,
+  wait,
+  lockWaitMilliseconds,
 }: {
-  readonly entries: readonly QueueRecord[];
+  readonly queueFile: string;
   readonly runsFolder: string;
   readonly report: (line: string) => void;
+  readonly now?: () => number;
+  readonly wait?: (milliseconds: number) => Promise<unknown>;
+  readonly lockWaitMilliseconds?: number;
 },): Promise<void> {
-  for (const record of entries) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one entry after another, and each record is its own file
-    if (await setAsideRecordIsThere({
-      runsFolder,
-      name: record.name,
-    },)) {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- the record of the entry just read
-      await removeSetAsideRecord({
-        runsFolder,
-        name: record.name,
-      },);
-      report(`${new Date().toISOString()} ${record.name}: a set-aside record was written and its entry never left the queue, so the record is dropped and the entry is tried again\n`,);
-    }
-  }
+  await withTheQueueLock({
+    queueFile,
+    ...(now === undefined ? {} : { now, }),
+    ...(wait === undefined ? {} : { wait, }),
+    ...(lockWaitMilliseconds === undefined ? {} : { waitMilliseconds: lockWaitMilliseconds, }),
+    work: async function dropThem({ entries, },) {
+      for (const entry of entries) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- one entry after another, and each record is its own file
+        if (await setAsideRecordIsThere({
+          runsFolder,
+          name: entry.name,
+        },)) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- the record of the entry just read
+          await removeSetAsideRecord({
+            runsFolder,
+            name: entry.name,
+          },);
+          report(`${new Date().toISOString()} ${entry.name}: a set-aside record was written and its entry never left the queue, so the record is dropped and the entry is tried again\n`,);
+        }
+      }
+    },
+  },);
 }
 
 /**
@@ -321,6 +346,7 @@ export async function fillFreePlacesFromAQueue({
     readonly level: number;
     readonly startsAtMost?: number;
     readonly staggerMilliseconds?: number;
+    readonly lockWaitMilliseconds?: number;
   };
   readonly seams: FillingSeams;
 },): Promise<FillingOutcome> {
@@ -342,9 +368,10 @@ export async function fillFreePlacesFromAQueue({
    */
   const queueAsItStands = await readQueueOfRuns({ queueFile: request.queueFile, },);
   await dropUnfinishedSetAsides({
-    entries: queueAsItStands,
+    queueFile: request.queueFile,
     runsFolder: request.runsFolder,
     report: say,
+    ...(request.lockWaitMilliseconds === undefined ? {} : { lockWaitMilliseconds: request.lockWaitMilliseconds, }),
   },);
   /**
    The runs going now, and the pools they hold.
