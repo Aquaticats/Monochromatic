@@ -1082,20 +1082,36 @@ Read-only commands,
      so the service tries it again,
      and it gives up once the attempts a record
    may cost have run out:
-     the directory then stays,
-     the record is kept in the repository's `failed` work state,
+     the record is then kept in the repository's `failed` work state,
      and the service says in
    `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
    (a worktree a program still has open,
    or a mount
    without `user_subvol_rm_allowed`,
-     for two),
-   so the files are yours to remove with `btrfs subvolume delete`.
+     for two).
+     A directory is not left to the service alone:
+     the removal writes a record of its own before it renames anything,
+     and nothing settles that record,
+     so a command of the repository whose output no program reads looks at it,
+     proves the directory is the subvolume the record names,
+     and queues the delete again.
+     That is what finishes a directory whose queue record was settled before the rename,
+     one whose command was killed between the rename and its own repair,
+     and one the service gave up on.
+     After the queueings such a record may cost,
+   which is the three attempts a record may cost,
+     that command
+   prints one line naming the directory,
+   the `journalctl --identifier=monochromatic-git-policy-cli` line holding the service's reason,
+   and the `btrfs subvolume delete` command that removes it,
+     so the files are yours to remove by hand and the space comes back.
      The service deletes one subvolume and nothing else:
      a directory another
    command has put at that name,
-   or a directory that is not a subvolume,
-     is left exactly as it is and named in the journal.
+   or a directory that is not that subvolume,
+     is never queued for a delete:
+     the id the record holds proves what stands there,
+     and the command names the directory and leaves it exactly as it is.
      Nothing of yours is in the removed directory unless you forced the removal:
    a removal without `--force` runs only after the wrapper proved the worktree clean and unlocked,
    and a forced
