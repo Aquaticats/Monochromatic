@@ -1198,6 +1198,71 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Four reviews: the watch note and the renamed subvolume pass and join the commit forms in pass 38; the landing branch and mpm-shadow's stale launchers go back (2026-11-14T09:22:56-05:00)
+
+Not final and not approved:
+what four reviews report of themselves,
+each having built its commit and run,
+and what the coordinating session queued.
+
+- **The landing that never waits** (`95de6573c6`, the whole branch against `main`):
+  reproduced with a blocked `recv()` standing in for a stalled filesystem call,
+  no dead mount mounted:
+  the branch moved the withdrawal decision and the beat note's read onto budgeted jobs whose wait for a place has no ceiling,
+  so four routing looks that stall hold every place,
+  a queued client's withdrawal waits without a bound,
+  the client ends saying "not known",
+  and new commits end as `Unavailable`.
+  The part of the branch this is in was reviewed twice before with no finding.
+  It did not run the two controls at four CPUs;
+  the author's own report does.
+  Back to the author,
+  resumed second in the queue
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-third-review-of-2026-11-14-prompt.md`).
+  Read and not run by it:
+  the service's exit waits without a bound behind a sync that stalls,
+  which has its own run from an earlier tip.
+  **So passes 29 and 34 stay where they are**,
+  and the commit forms no longer wait with them.
+- **Integration pass 38**,
+  queued first:
+  the commit forms Git refuses (`b631f80970`,
+  found fit by itself in pass 29),
+  the watch note's read (`47f44b0ef9`) and the renamed subvolume (`8950df3253`)
+  (`~/temp/agent/pi-runs/integration-pass-38-with-commit-forms-the-watch-note-and-the-renamed-subvolume-prompt.md`).
+- **The watch note's read**:
+  the change is sound and discards no valid note;
+  seventeen tests of the module pass.
+  Two older weaknesses of the same file,
+  each with a fresh run queued:
+  the note a landing writes before it answers a commit is written on the landing thread with no ceiling
+  (read, not run);
+  `a_note_that_may_be_missing` skips the check for a foreign repository,
+  so a retry writes another instance's note into this service's journal
+  (reproduced, low).
+- **The renamed subvolume**:
+  no defect;
+  thirteen and twenty-five controls pass,
+  and a concurrent reproduction of its own passed three times.
+  One concern it examined and dismissed:
+  a repository whose every command is machine-read never requeues a stranded leaving.
+- **mpm-shadow's stale launchers** (`82ea47018c`):
+  two reproduced
+  (a postinstall link left by a killed first install dangles for good after a rename;
+  a person's broken symlink is removed because its name matches a local launcher)
+  and two races read.
+  Back to the author,
+  resumed third
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-review-of-2026-11-14-prompt.md`).
+- Going at 09:22:56:
+  seventeen Pi runs with the cap at twenty-four.
+  The probe at twenty-four has not ended:
+  one of its twenty-nine readings to 09:22:48 was slow,
+  7,754 ms at 08:55:36 with eight agents going and no snapshot service running
+  (an earlier wording of this line said there was none;
+  it was written before the readings were read).
+  The queue held 63 entries.
+
 ##### The tracked archives are out of `main`; what one record says is kept goes back to the author (2026-11-14T09:04:01-05:00)
 
 Not final and not approved:
@@ -1225,12 +1290,12 @@ and what one review reports of itself.
   the baked inputs and every raw record of both rounds are in its evidence archive;
   of that archive's 240 files 160 are kept as plain text and 80 are in history alone,
   none of the `scripts/` folder's 35 among the kept.
-- **Adopted from the record, open to veto**:
-  what that sentence names is kept as plain text.
-  The owner's words for the task
-  ("If something would break, represent the data another way")
-  and the rule that git history is no home for a durable fact answer it,
-  and the branch's own rule is that what documents cite is kept.
+- **Decided by the owner at about 09:05**,
+  through the question tool,
+  after this session had adopted the same from the record:
+  "Keep as plain text (Recommended)".
+  What that sentence names is kept as plain text
+  ("Owner decisions in force", "Answers on the owner's return").
   The author is resumed in its own session
   (`~/temp/agent/pi-runs/tracked-archives-what-the-research-record-says-is-kept-is-kept-as-plain-text-prompt.md`),
   told to list and not silently keep or drop a file that is not text or is large,
@@ -25914,6 +25979,20 @@ the owner picked the first option of each.
   the commit is not made and the words say why and what to change.
   The wrapper does not fall back to real Git;
   `SPEC.md`'s rule that the service is the only writer stands.
+- **The files of a removed archive that a document says are kept**
+  (asked separately,
+  answered by 09:05:56-05:00,
+  after the archives' removal reached `main` as `635539ca67`):
+  "Keep as plain text (Recommended)".
+  One research record says its harness,
+  check scripts,
+  baked inputs and every raw record are in its evidence archive;
+  eighty of that archive's 240 files were in history alone.
+  The files the sentence covers are extracted beside the 160 already kept;
+  any that is not text or is large is listed,
+  and neither silently kept nor silently dropped;
+  each is checked against the archive in history by digest.
+  The three `.jar` files stay tracked by the owner's earlier override in `.gitignore`.
 
 ## Working rules for this effort
 
