@@ -1127,11 +1127,11 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
 ///  and a nonzero exit is no proof that the clean which runs afterwards refuses,
 ///  so the clean stops rather than running on a guess;
 ///  the one clean Git refuses itself is known from its region before any reading;
-///  one force is Git's own protection of every nested repository,
+///  one force removes a bare repository, so a clean at one force is read too,
 ///  and an interactive clean is answered after Git starts,
 ///  so its repositories are kept out of that menu by the fixed transform instead of being moved before it.
 #[test]
-fn a_clean_with_a_second_force_asks_what_git_would_delete() {
+fn a_clean_is_read_at_every_force_count() {
     let two_forces: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-X"];
     // The one clean Git refuses itself is known from the region: it deletes nothing, and Git's own words answer it.
     let refused_region: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-x", "-X"];
