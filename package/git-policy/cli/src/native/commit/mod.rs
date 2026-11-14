@@ -12,6 +12,14 @@
 //! // commit/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// Which forms of `git commit` real Git refuses,
+///  read from the options the person wrote.
+pub mod rule_commit_region_git_refuses;
+
+/// The refusal Git prints for such a form,
+///  asked of Git itself.
+pub mod commit_form_refusal_from_git;
+
 /// Pure core of the index-against-`HEAD` check.
 pub mod rule_commit_index;
 
