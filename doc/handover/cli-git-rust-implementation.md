@@ -757,6 +757,21 @@ Questions kept for the owner's return:
   (two stale tests of the journal's start),
   got one from a hand-written brief,
   and that review found coverage lost.
+- May the three files of the old name `cli-git-native` be moved out of the main checkout's `.cache`
+  (`toolchain-launchers/cli-git-native`,
+  `toolchain-launchers/cli-git-native.launch`,
+  `toolchain-bin/cli-git-native`)?
+  They are why every new worktree's relink is given up after three installs
+  (the section "Why relinks are given up is found" has the evidence).
+  The link still resolves to a working program dated 2026-11-04,
+  the wrapper as it was before its rename.
+  No file of this repository outside documents and tests runs that name,
+  and the four Claude Code settings files hold no mention of it;
+  a shell alias or another tool of the owner's could.
+  Two fixes are on their way that make the move unnecessary
+  (the wrapper removes the copied record;
+  mpm-shadow stops leaving it),
+  each a review and a release away.
 
 ##### The deletion ended at 18:49:59
 
@@ -1120,6 +1135,119 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Why relinks are given up is found; two more authors finished; three reviews queued (2026-11-13T21:59:23-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message,
+nothing here rerun by it except where a command is named.
+
+Relinks given up
+(run `package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not-1`,
+ended 21:54:17,
+tip `8da5f23325`,
+report `~/temp/agent/package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not-scratch/keep/report.md`):
+
+- **The cause, by its report**:
+  the main checkout still holds a launcher and its record for `cli-git-native`,
+  the name the wrapper's program had before its release 0.6.0.
+  A new worktree is a copy that brings the ignored `.cache` along,
+  `mpm-shadow install --frozen-lockfile` rewrites only the names the lock declares,
+  so each worktree arrives with one record no install can rewrite;
+  the wrapper counts it stale after an install that otherwise worked,
+  tries three times and gives up.
+  It counts 352 such journal lines on 2026-11-13,
+  always exactly one record,
+  142 of 160 worktrees carrying the leftover,
+  and seven of 638 `relink` records that ever reached `done`.
+  All five sightings sent to it between 21:12 and 21:22 are this cause,
+  each read.
+- Read by the coordinating session in the main checkout:
+  `.cache/toolchain-launchers/cli-git-native` and `cli-git-native.launch`,
+  both dated 2026-11-07 05:33,
+  the record naming `/var/home/user/Monochromatic/toolchain.lock.json`;
+  a link `.cache/toolchain-bin/cli-git-native` to that launcher;
+  and the program the record names,
+  dated 2026-11-04,
+  still in the store.
+- **What it changed in the wrapper**:
+  a record whose name the lock declares nowhere is removed with its launcher and no longer fails the relink;
+  the notice quotes the reason of the last try and is written in the relinked worktree's own Git directory,
+  where it used to go to the adding worktree's,
+  which is why notices about other worktrees arrived in the main checkout's commits.
+  Four controls shown failing first;
+  cost on `git worktree add` +0.7 ms of 45 ms,
+  on a commit none measurable.
+- Its review is queued at the head
+  (`review-of-package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`).
+- **The tool that leaves the leftover is mpm-shadow**:
+  a fresh run is queued
+  (`mpm-shadow-install-leaves-no-launcher-record-or-link-of-a-name-its-lock-no-longer-declares`).
+- **Not done by hand**:
+  moving the three stale files out of the main checkout would stop every new worktree from arriving with the record,
+  hours before either fix is released.
+  It was left,
+  because the old name still resolves to a working program and what else on this machine runs it was not established;
+  the question is in "Questions kept for the owner's return".
+- The report corrects the section "The wrapper's own work queue in this repository: deletions pending for an hour,
+  341 relinks given up":
+  `tries` is no longer 0 for all
+  (199 of 631 gave up at three tries)
+  and `done` holds seven relinks.
+  It also says the notice's remedy `mise run toolchain:install` cannot fix this cause,
+  and that the day's `pnpm` offline failures cannot be finished by the command the notice names.
+- The run ended `driver-failed` with issue 6295's message;
+  its driver was started at 17:25:54,
+  before `47a403a0e2`.
+
+The landed removal keeps Git work
+(run `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit-3`,
+ended 21:52:57,
+tip `2ef29614c6` on `7771aa14fc`):
+
+- Four losses of the audit reproduced on both routes before and gone after,
+  by its report:
+  a nested worktree with a detached `HEAD` now keeps its parent;
+  an edit hidden by `assume-unchanged` or `skip-worktree` keeps the worktree,
+  and the typed removal refuses and names the file;
+  a commit only a detached `HEAD` holds keeps the worktree,
+  with a notice that says to give it a branch;
+  a reference under `refs/worktree/` keeps it too.
+  What is decided to go (ignored directories,
+  a nested repository) still goes,
+  and the line now names each.
+- Sixteen new controls,
+  805 tests of `worktree::` pass at its tip,
+  cost within the spread.
+- It expects conflicts with three branches in `worktree_remove*.rs` and `worktree_removal_second_look.rs`,
+  and says the held-commit branch `c79d17060e` does not close the detached-`HEAD` loss.
+- Its review is queued at the head
+  (`review-of-landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit`).
+- Also `driver-failed` with issue 6295's message;
+  driver started 17:37:39.
+
+Removal goes around a foreign volume,
+the answer to its second review
+(run `removal-goes-around-a-subvolume-or-mount-it-did-not-make-4`,
+ended 21:55:29 as `idle`,
+tip `82e4f12f6e`,
+`main` merged):
+
+- The emptied-around path has an ending of its own and no longer prints the destroy notice;
+  a clean worktree in the racy second after its add is removed around the volume without force,
+  proven clean by the files themselves,
+  where it was refused with words about missing entries.
+  Controls failing first for each;
+  36 of 36 of the second review's filter pass.
+- It left two things:
+  the landed sweep's line on the emptied-around path still says which files freed the snapshot's space,
+  which is wrong there;
+  and the cost of the content proof on the refusal path is not measured.
+  Both are open with no run and go to the reviewer's eyes with the change.
+- Its review is queued at the head
+  (`review-git-policy-cli-removal-goes-around-answers-after-its-second-review`,
+  range `main...82e4f12f6e`).
+  Pass 25 carries the commit reviewed before these (`50d55b0b8d`).
 
 ##### Commit forms and the landing that never waits each passed a review; pass 29 carries both (2026-11-13T21:41:57-05:00)
 
