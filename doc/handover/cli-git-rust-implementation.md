@@ -1100,6 +1100,59 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.20` is installed; the upgrade made another worktree's service fail five starts (2026-11-13T19:54:14-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait` and `native:install`,
+the commit timing log and the user manager's journal.
+
+- The release run ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.20` is published
+  with its archives for both Linux targets.
+- `native:install -- 0.6.1-alpha.20` began at 19:52:07 and committed the lock.
+  The sample commit took 1,779 ms and landed at the first attempt
+  (526 ms of preparation).
+  The main checkout's instance was stopped,
+  its socket closed and opened,
+  and its service started as `0.6.1-alpha.20` at 19:52:16.
+  **The user manager's journal holds no line of a manager-wide reload from 19:52:00 to 19:53:30**,
+  where the installs of `0.6.1-alpha.13` and `0.6.1-alpha.14` each recorded one of 487 ms.
+  That is issue 6286's fix seen on this machine.
+- **What the upgrade also did,
+  seen once so far.**
+  At 19:52:35 a commit in the worktree of integration pass 26 reached its own instance
+  (`70108cc4c62995125d8164346e61879b`).
+  The manager started the service from the unit text loaded under `0.6.1-alpha.19`,
+  whose program is `/run/user/1000/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`,
+  and that file was gone.
+  Five starts failed with `status=203/EXEC` inside one second,
+  the service ended `start-limit-hit` and its socket `service-start-limit-hit`.
+  One second later the socket listened again,
+  the service started as `0.6.1-alpha.20`,
+  and the commit's push ended `outcome=done`.
+  The commit landed.
+  The journal of that minute is kept in
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/user-manager-journal-of-the-wrapper-units-19-52-to-19-53.txt`.
+- Read of it:
+  the first command of the new release took away the program every other loaded instance of the older release still names,
+  so each worktree at work during the install goes through the same failed second at its next commit,
+  once.
+  No commit is known to have failed by it:
+  the commit timing log of this repository holds two commits since the install,
+  both landed.
+  Whether a start that is not a new-release command
+  (an older command still running,
+  a housekeeping wake)
+  leaves a unit failed for good is not known.
+  The pass's container measurement had one worktree,
+  so it could not show this.
+- Routed:
+  the reload fix's author is resumed on it,
+  with a second worktree asked for in the container fixture
+  (`~/temp/agent/pi-runs/reload-fix-answers-what-its-first-install-on-this-machine-showed-prompt.md`),
+  queued near the head.
+  Its two earlier commits stay under review as they are.
+- The next version is `0.6.1-alpha.21`.
+
 ##### The journal tests' review finds coverage lost; the rate-limit retry is written (2026-11-13T19:49:14-05:00)
 
 Not final and not approved:
