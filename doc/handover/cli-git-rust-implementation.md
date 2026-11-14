@@ -1256,6 +1256,57 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A killed driver drops an inbox message it had claimed, back to the empty-answer author; the stale launchers' cost is attributed to `main` and goes to a fresh run; two reviews met the rate limit and were put back (2026-11-14T15:54:34-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session read and queued.
+
+- **A driver run whose last answer is empty** (`3be9af7f1a`),
+  third review,
+  run against a scripted Pi connection:
+  the empty-answer flow and the inbox's held,
+  refused and kept flows are right.
+  One reproduced:
+  a kill between the claim of an inbox message
+  (a rename to `.claimed-<uuid>`)
+  and its delivery leaves the message as an opaque hidden file that no start recovers and no summary names.
+  The claim is older than the change;
+  the change widens the window.
+  An inbox holds what this session and a person send a run,
+  so it is a loss of what a person wrote.
+  The author is resumed
+  (`~/temp/agent/pi-runs/driver-empty-last-answer-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (tip `eb37545001`, ended 15:49:20):
+  the author reports a retirement that reads the lock on disk again at the instant it acts and takes the item by a step that fails when it changed,
+  a put-back by hard link that never writes over a newer file,
+  the four false sentences corrected,
+  810 tests passing and Clippy clean.
+  The three-arm cost over seven interleaved rounds:
+  `main` 73.06 ms (65.63 to 75.42),
+  `649a45b459` 64.24 ms (61.22 to 79.91),
+  the tip 75.72 ms (74.10 to 89.19);
+  the tip against `main` at 1.04 with 28 more system calls,
+  one read of the lock for each install.
+  So the branch's own cost is small and the condition this file set at 14:27 is met by measurement.
+  Review queued (range `main...eb37545001`, nine code files).
+- **What that measurement shows of `main`**:
+  an install with nothing to do makes 4,913 system calls on `main` against 4,404 at the base,
+  1,023 `openat` against 854,
+  close to one more open for each of the 174 declared bins,
+  at a ratio of 1.14 in time whose ranges overlap.
+  It came with the change that lets `install` take a tool
+  (`0.2.7-alpha.11`).
+  A fresh run is queued for it
+  (`~/temp/agent/pi-runs/mpm-shadow-install-with-nothing-to-do-costs-what-it-did-before-install-took-a-tool-prompt.md`).
+- **Two reviews ended on the provider's rate limit** at 15:46:53 and 15:47:53
+  (the queue filling's and the watch-note ceiling's);
+  the filling unit put both back at the head of the queue at 15:50:05,
+  to go on from their sessions,
+  and started the second at 15:50:33.
+- The resumed session is not named by the credential scan.
+  The queue held 67 entries at 15:54:34.
+
 ##### Eleven of the gate's failing tests fail on this machine too, so they are red in the released code; seven fresh runs are queued for the 25; pass 45 carries the package state; the drawn tree goes back (2026-11-14T15:49:46-05:00)
 
 Not final and not approved:
