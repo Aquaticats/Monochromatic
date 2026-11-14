@@ -153,7 +153,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             //      makes a path foreign and is left alone, as everywhere else (a review of commit `c15fc5a7b1`, finding 3).
             let predecessor_only: bool =
                 match index_standings_awaiting(place, root, intent.old_oid.as_str(), changes.as_slice()).await {
-                    Ok(standings) => !standings.is_empty() && standings.iter().all(|standing| *standing == Standing::Old),
+                    Ok(standings) => !standings.is_empty() && standings.iter().all(|standing| return *standing == Standing::Old),
                     // An index that cannot be read may hold the merge, so a command must not read the checkout past this.
                     Err(error) => return Err(MergeRefusal { error, began: true }),
                 };
