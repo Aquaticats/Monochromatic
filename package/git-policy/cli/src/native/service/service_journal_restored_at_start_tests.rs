@@ -24,11 +24,12 @@ use std::time::Instant;
 /// and a wait that reaches this bound has found a break rather than a slow disk.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The ceiling the two controls whose read is held give it.
+/// The ceiling the journal's controls give its read.
 /// Why:
-///   The read is held and can never answer inside any ceiling,
-/// so this value only decides how long those controls take,
-/// and nothing in them depends on the machine's speed.
+///   The held control's read never answers inside a ceiling,
+/// so this value only decides how long that control takes and nothing in it depends on the machine's speed;
+/// the other control's journal answers its listing with an error at once,
+/// so no ceiling decides what the start makes of it either.
 const SHORT_CEILING: Duration = Duration::from_millis(100);
 
 /// The ceiling the pipe's control gives its read.
