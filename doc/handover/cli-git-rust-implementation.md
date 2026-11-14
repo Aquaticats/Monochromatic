@@ -736,6 +736,33 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T11:41-05:00,
+  each from an author's report of that morning and none blocking work:
+  - A commit that waits and receives `SIGINT` or `SIGTERM`:
+    `main` replaces an ignore of those signals that the wrapper inherited from its caller.
+    Does an inherited ignore stay ignored during the wait
+    (this session's reading from the record,
+    adopted on 2026-11-14 and open to veto),
+    or is the replacement kept?
+    (`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it`, tip `771d34e0fa`.)
+  - A watch note that names a directory of another repository is refused by the guard of tip `130519d862`.
+    Is refusing right,
+    or is such a note routed to that repository's own service?
+    And does `SPEC.md` state which repository a note may name?
+  - The commit service started by the wrapper itself (tip `77f5d525e3`):
+    does a scope's service that answers after `START_WAIT` get a grace period,
+    and is the claim file,
+    which is now transient,
+    given another name?
+  - mpm-shadow's cleanup (tip `3a96da6dbf`):
+    are one year for the work limit and one hundred years for the age floor the right largest values,
+    and does a global pass look for a repository above the working folder to read worktree locks?
+  - The lock shim of Pi under the adopted reading (tip `37287ade63`):
+    a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
+    Is that accepted for the time until every Pi was started under the new shim?
+  - One string after `PNPR_SECRET=` in a Claude Code transcript of 2026-09-15 that no tracked file holds:
+    is it a deployed server's secret?
+    (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`.)
 - Is the lock of Pi's files to be cleared by hand again if it is left again before the shim is fixed?
   It was cleared once at 02:02:59 on 2026-11-14 after twenty minutes in which no Pi run could start
   (the section of 2026-11-14T02:05:16-05:00);
