@@ -331,7 +331,11 @@ fn the_first_commit_provisions_and_the_second_does_not() {
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "the marker names the writer");
         assert!(!text.contains("@SERVICE_BINARY@") && !text.contains("@GIT@"), "no placeholder is left");
     }
-    assert!(socket_unit.contains("ListenStream=%t/monochromatic-git-policy-cli/%i.sock"), "one socket per worktree instance");
+    let instance: String = git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
+    assert!(
+        socket_unit.contains(&format!("ListenStream={}", git_policy_cli::service_address_of_a_worktree::listen_stream_of(runtime.as_path(), instance.as_str()))),
+        "one socket per worktree instance, at the address this runtime directory takes: {socket_unit}"
+    );
     assert!(service_unit.contains(&fixture.root.join("wrapper/monochromatic-git-policy-cli").display().to_string()), "{service_unit}");
     std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
     let second: Output = commit(&fixture, &repo, runtime.as_path(), true);

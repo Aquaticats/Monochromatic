@@ -23,12 +23,13 @@
 //! if (serviceRuns(instanceOf(gitDir))) { connect(socketFor(runtime, gitDir)).write(encode({ type: 'warm', gitDir, repository })); }
 //! ```
 
+use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
 use crate::service_route::non_empty_path_variable;
-use crate::service_instance::{instance_of, socket_for};
+use crate::service_instance::{instance_of};
+use crate::service_client_listen_and_ask_to_retire::{Reached, connect};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
 use std::io::Write;
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 /// Whether a process of the table is the commit service of `instance`:
@@ -100,11 +101,12 @@ pub fn service_process_runs(instance: &str, proc_root: &Path) -> bool {
 /// ```
 pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
     let Some(runtime) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
-    let socket: PathBuf = socket_for(runtime.as_path(), git_dir);
-    if !socket.exists() || !service_process_runs(instance_of(git_dir).as_str(), Path::new("/proc")) {
+    let instance: String = instance_of(git_dir);
+    let address: crate::service_server::Bind = socket_address_of(runtime.as_path(), instance.as_str());
+    if !the_address_is_there(&address) || !service_process_runs(instance.as_str(), Path::new("/proc")) {
         return false;
     }
-    let Ok(mut connection) = UnixStream::connect(&socket) else { return false };
+    let Reached::Ours(mut connection) = connect(&address) else { return false };
     let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();

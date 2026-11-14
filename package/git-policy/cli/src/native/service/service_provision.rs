@@ -90,7 +90,8 @@ use crate::service_provision_refusals_before_the_wait::{
 };
 use crate::service_provision_loaded_unit_texts::{record as record_loaded_texts, remembers as manager_was_told};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
-use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_address_of_a_worktree::{listen_stream_of, socket_address_of, the_address_is_in, the_address_is_there};
+use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_unit_instance};
 use crate::service_units_of_removed_worktrees::note_worktree;
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
@@ -98,6 +99,11 @@ use std::path::{Path, PathBuf};
 /// The socket template's text,
 /// with the marker on its first line.
 pub const SOCKET_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.socket");
+
+/// The socket template's placeholder for the value of its `ListenStream=`,
+/// which `listen_stream_of` fills in with the address form this runtime directory takes
+/// (`service_address_of_a_worktree.rs`).
+const LISTEN_STREAM_PLACEHOLDER: &str = "@LISTEN_STREAM@";
 
 /// The service template's text,
 /// with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
@@ -113,15 +119,27 @@ const BINARY_PLACEHOLDER: &str = "@SERVICE_BINARY@";
 const GIT_PLACEHOLDER: &str = "@GIT@";
 const STOP_TIMEOUT_PLACEHOLDER: &str = "@STOP_TIMEOUT_SECONDS@";
 
-/// The two unit files for a host,
+/// What:
+///  The two unit files for a host,
 /// as written.
+/// Why:
+///   The socket unit's `ListenStream=` is the address this runtime directory's service listens at,
+/// whether that is a file under the runtime directory or an abstract name,
+/// and the instance is left to the unit's own `%i`.
+/// The service unit's text is the same whatever the address is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unitTexts(host) // [['…@.socket', '…ListenStream=%t/…/%i.sock…'], ['…@.service', '…']]
+/// ```
 pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
     let program: PathBuf = program_of(host.runtime_dir.as_path(), host.service_binary.as_path());
+    let socket: String = SOCKET_UNIT.replace(LISTEN_STREAM_PLACEHOLDER, listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str()).as_str());
     let service: String = SERVICE_UNIT
         .replace(BINARY_PLACEHOLDER, program.to_string_lossy().as_ref())
         .replace(GIT_PLACEHOLDER, host.git.to_string_lossy().as_ref())
         .replace(STOP_TIMEOUT_PLACEHOLDER, STOP_TIMEOUT_SECONDS.to_string().as_str());
-    return [(SOCKET_UNIT_NAME, SOCKET_UNIT.to_string()), (SERVICE_UNIT_NAME, service)];
+    return [(SOCKET_UNIT_NAME, socket), (SERVICE_UNIT_NAME, service)];
 }
 
 /// What:
@@ -181,7 +199,7 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
         }
     }
     earlier_left = earlier_left || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
-    if !all_current || !manager_holds || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
+    if !all_current || !manager_holds || earlier_left || !the_address_is_in(proc_root, &socket_address_of(host.runtime_dir.as_path(), host.instance.as_str())) {
         return false;
     }
     // The earlier release's socket of this worktree: a listener there starts the earlier helper on a connection, so the stop
@@ -277,15 +295,16 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
     //       never started, which no service reads and the next provisioning writes again.
     note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
-    // What: A provisioning that found the units and the record as it would write them, the socket file there and no earlier
+    // What: A provisioning that found the units and the record as it would write them, the address there and no earlier
     //       socket of this worktree listening asks the manager nothing at all.
     // Why:  Everything such a call would ask is either already true or is repaired by the client's own wait for the service:
     //       a unit the manager reports `inactive` is started there, and a service of another release is asked to retire there.
     //       Asking anyway cost three manager round trips on a commit whose only change was the program link, and a manager that
     //       is reading every unit again answers those round trips only after that read (`service_client_reach_service.rs`).
-    let socket: PathBuf = socket_path(host.runtime_dir.as_path(), host.instance.as_str());
+    //       An address is there when its socket file is, or when the table of unix sockets lists the abstract name this runtime
+    //       directory's services take (`service_address_of_a_worktree.rs`).
     let earlier_socket_listens: bool = earlier_socket_of_instance_listens(Path::new("/proc"), host.instance.as_str());
-    if !reload && known && written.is_empty() && socket.exists() && !earlier_socket_listens {
+    if !reload && known && written.is_empty() && the_address_is_there(&socket_address_of(host.runtime_dir.as_path(), host.instance.as_str())) && !earlier_socket_listens {
         return Ok(());
     }
     let notice: SlowManagerNotice = SlowManagerNotice::arm(socket_unit_instance(host.instance.as_str()).as_str());

@@ -5,24 +5,52 @@
 //! and anything less has no route.
 
 use super::*;
-use crate::service_instance::socket_for;
+use crate::service_address_of_a_worktree::socket_address_of;
+use crate::service_instance::{instance_of, socket_for};
 use crate::test_support::{fixture, remove};
 
 const GIT: &str = "/usr/bin/git";
 
 struct Machine {
     root: PathBuf,
+    /// The runtime directory a person's session would have:
+    /// short enough to carry a socket path.
     runtime: PathBuf,
     wrapper: PathBuf,
     /// The worktree's own Git directory.
     git_dir: PathBuf,
 }
 
+/// What:
+///  A runtime directory whose socket path fits one socket address.
+/// Why:
+///   The fixture root under the build directory is far too long to hold a socket name,
+/// and a runtime directory a regular file can be written into but no socket can proves nothing about
+///  the route a person's commit takes: this directory is what an account's session has,
+///  and the long one has its own control (`a_runtime_directory_too_long_for_a_socket_path_is_routed_at_its_abstract_name`).
+/// A number names it rather than the test's own name,
+///  because one of these must stay under the forty bytes a socket path leaves a session's runtime directory.
+fn session_runtime_directory() -> PathBuf {
+    static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let number: usize = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
+        .join("temp/agent")
+        .join(format!("ro{}-{number}", std::process::id()));
+    std::fs::create_dir_all(&runtime).expect("the runtime directory");
+    assert!(
+        runtime.as_os_str().len() < crate::service_instance::longest_runtime_directory("0123456789abcdef0123456789abcdef"),
+        "a session's runtime directory leaves room for a socket path: {} is {} bytes",
+        runtime.display(),
+        runtime.as_os_str().len()
+    );
+    crate::test_support::track_for_this_thread(runtime.as_path());
+    return runtime;
+}
+
 fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
-    let runtime: PathBuf = root.join("run");
+    let runtime: PathBuf = session_runtime_directory();
     let programs: PathBuf = root.join("programs");
-    std::fs::create_dir_all(&runtime).expect("runtime");
     std::fs::create_dir_all(&programs).expect("programs");
     let git_dir: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&git_dir).expect("git directory");
@@ -51,6 +79,48 @@ fn add_program(machine: &Machine) -> PathBuf {
     // The service is a mode of the wrapper's own executable, so the wrapper is the program the unit names.
     std::fs::write(&machine.wrapper, b"program").expect("the wrapper's own executable");
     return machine.wrapper.clone();
+}
+
+/// What:
+///  A runtime directory too long for a socket path is routed at the abstract name its service answers at,
+///  and a route exists only once something listens there.
+/// Why:
+///   The address is what a commit connects to,
+/// so the route has to name the one the service really listens at,
+///  and a route handed back for nothing listening would spend the whole start ceiling on an address no
+///  service will take.
+/// The bus case is the other half:
+///  with a bus and the wrapper's own program the provisioning check is handed back whatever the address form is.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_runtime_directory_too_long_for_a_socket_path_is_routed_at_its_abstract_name() {
+    use std::os::linux::net::SocketAddrExt;
+    let parent: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    std::fs::create_dir_all(&parent).expect("the scratch directory");
+    let runtime: PathBuf = parent.join(format!("route-abstract-{}-{}", std::process::id(), "x".repeat(40)));
+    std::fs::create_dir_all(&runtime).expect("a runtime directory no socket path can name");
+    crate::test_support::track_for_this_thread(runtime.as_path());
+    let mut machine: Machine = machine("route-abstract");
+    machine.runtime = runtime;
+    let instance: String = instance_of(machine.git_dir.as_path());
+    let Bind::Abstract(name) = socket_address_of(machine.runtime.as_path(), instance.as_str()) else {
+        panic!("a runtime directory this long is an abstract name")
+    };
+    assert_eq!(choose_route(&inputs(&machine, None)), None, "nothing listens, and no route is handed back for an address nobody holds");
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("the name fits");
+    let _listening = std::os::unix::net::UnixListener::bind_addr(&address).expect("the socket the manager would have made");
+    assert_eq!(
+        choose_route(&inputs(&machine, None)),
+        Some(Route { address: Bind::Abstract(name.clone()), provision: None }),
+        "the service answers at the name, so the commit is routed to it"
+    );
+    let bus: String = add_bus(&machine);
+    add_program(&machine);
+    match choose_route(&inputs(&machine, Some(bus.as_str()))) {
+        Some(Route { address, provision: Some(_host) }) => assert_eq!(address, Bind::Abstract(name), "a bus does not change the address"),
+        other => panic!("the provisioning check is still handed back: {other:?}"),
+    }
+    remove(machine.root.as_path());
 }
 
 /// A socket that exists is used as it is,

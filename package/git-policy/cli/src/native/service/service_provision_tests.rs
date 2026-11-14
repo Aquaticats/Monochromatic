@@ -7,6 +7,7 @@
 //! The manager is a recorder.
 
 use super::*;
+use crate::service_instance::socket_path;
 use crate::service_provision_unit_file_ownership_and_writes::remove_settled;
 use crate::service_messages::render;
 use crate::test_support::{fixture, remove};

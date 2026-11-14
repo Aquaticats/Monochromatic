@@ -36,7 +36,9 @@ use crate::repo_read_layout::{RepoLayout, read_layout_in};
 /// A pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
-use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
+use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
+use crate::service_instance::{SOCKET_DIRECTORY, try_instance_of};
+use crate::service_client_listen_and_ask_to_retire::Reached;
 use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
 use crate::service_server::Bind;
 use crate::systemd_dbus::session_bus_path;
@@ -140,18 +142,18 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     // A Git directory that cannot be resolved (a link to a drive that is not mounted) names no instance: no socket path or
     // unit instance is made for it.
     let instance: String = try_instance_of(inputs.git_dir).ok()?;
-    let socket: PathBuf = socket_path(runtime_dir, instance.as_str());
-    let socket_exists: bool = socket.exists();
+    let socket: Bind = socket_address_of(runtime_dir, instance.as_str());
+    let socket_exists: bool = the_address_is_there(&socket);
     // A bus socket that is not there is no bus to provision through.
     let bus: PathBuf = match session_bus_path(inputs.bus_address, Some(runtime_dir)) {
         Some(path) if path.exists() => path,
-        _ => return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None },
+        _ => return if socket_exists { Some(Route { address: socket, provision: None }) } else { None },
     };
     // The service is a mode of the wrapper's own executable (`service_main.rs`), so the unit names that file; a path that
     //  is not a file (a deleted executable) is no program for a unit to name.
     let service_binary: PathBuf = match inputs.own_executable {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
-        _ => return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None },
+        _ => return if socket_exists { Some(Route { address: socket, provision: None }) } else { None },
     };
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: runtime_dir.to_path_buf(),
@@ -163,7 +165,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         git_dir: inputs.git_dir.to_path_buf(),
         retirement_wait: RETIREMENT_WAIT,
     };
-    return Some(Route { address: Bind::Path(socket), provision: Some(host) });
+    return Some(Route { address: socket, provision: Some(host) });
 }
 
 /// What `git monochromatic-git-policy-cli service status` prints and exits with.
@@ -393,17 +395,21 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
 }
 
 /// What:
-///  Whether something listens on the socket:
-/// a connection to it succeeds.
+///  Whether something listens at the address:
+/// a connection to it succeeds,
+/// and the process that took it is this account's.
 /// Why:
-///  A service is running when its socket takes a connection.
+///  A service is running when its address takes a connection.
+/// An address another account's process took is no service of this command,
+/// which is what an address no file system protects is held to
+///  (`service_address_of_a_worktree.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const serviceAnswers = async (socket: string) => { try { await connect(socket); return true; } catch { return false; } };
+/// const serviceAnswers = async (address) => reach(address).kind === 'ours';
 /// ```
-fn service_answers(socket: &Path) -> bool {
-    return std::os::unix::net::UnixStream::connect(socket).is_ok();
+fn service_answers(address: &Bind) -> bool {
+    return matches!(crate::service_client_listen_and_ask_to_retire::connect(address), Reached::Ours(_stream));
 }
 
 /// What:
@@ -426,7 +432,7 @@ fn any_socket_answers(directory: &Path) -> bool {
             Some(extension) => extension == "sock",
             None => false,
         };
-        if is_socket_file && service_answers(path.as_path()) {
+        if is_socket_file && service_answers(&Bind::Path(path)) {
             return true;
         }
     }
@@ -452,7 +458,7 @@ fn any_socket_answers(directory: &Path) -> bool {
 pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> StatusReport {
     let (answered, what): (bool, &str) = match (runtime_dir, git_dir) {
         (Some(runtime), Some(git)) => match try_instance_of(git) {
-            Ok(instance) => (service_answers(socket_path(runtime, instance.as_str()).as_path()), "The commit service of this worktree"),
+            Ok(instance) => (service_answers(&socket_address_of(runtime, instance.as_str())), "The commit service of this worktree"),
             Err(unreachable) => {
                 return StatusReport {
                     code: 1,
