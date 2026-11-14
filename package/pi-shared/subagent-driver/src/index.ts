@@ -342,3 +342,8 @@ export * from './index-of-starting-a-run.ts';
  The library surface of the review commands, kept in a file of its own for the same reason.
  */
 export * from './index-of-reviewing-a-change.ts';
+
+/**
+ The library surface of the queue of runs waiting for a free place, kept in a file of its own for the same reason.
+ */
+export * from './index-of-filling-a-queue.ts';

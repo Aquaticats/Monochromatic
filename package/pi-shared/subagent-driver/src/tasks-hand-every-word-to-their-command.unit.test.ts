@@ -40,6 +40,13 @@ const TASKS_RUNNING_A_COMMAND: readonly string[] = [
   'write-a-brief-for-a-review',
   'start-reviews-of-finished-branches',
   'write-a-fix-brief-for-each-review',
+  'fill-free-places-from-a-queue',
+  'put-an-entry-into-a-queue',
+  'take-an-entry-out-of-a-queue',
+  'move-an-entry-of-a-queue',
+  'list-the-entries-a-queue-set-aside',
+  'put-a-set-aside-entry-back-into-a-queue',
+  'put-ended-reviews-back-at-the-head-of-a-queue',
 ];
 
 /**

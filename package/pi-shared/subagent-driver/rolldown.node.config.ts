@@ -28,6 +28,13 @@ const config: NodeFlavorConfig = nodeConfig({
     'write-a-brief-for-a-review': './src/write-a-brief-for-a-review.ts',
     'start-reviews-of-finished-branches': './src/start-reviews-of-finished-branches.ts',
     'write-a-fix-brief-for-each-review': './src/write-a-fix-brief-for-each-review.ts',
+    'fill-free-places-from-a-queue': './src/fill-free-places-from-a-queue.ts',
+    'put-an-entry-into-a-queue': './src/put-an-entry-into-a-queue.ts',
+    'take-an-entry-out-of-a-queue': './src/take-an-entry-out-of-a-queue.ts',
+    'move-an-entry-of-a-queue': './src/move-an-entry-of-a-queue.ts',
+    'list-the-entries-a-queue-set-aside': './src/list-the-entries-a-queue-set-aside.ts',
+    'put-a-set-aside-entry-back-into-a-queue': './src/put-a-set-aside-entry-back-into-a-queue.ts',
+    'put-ended-reviews-back-at-the-head-of-a-queue': './src/put-ended-reviews-back-at-the-head-of-a-queue.ts',
   },
 },);
 

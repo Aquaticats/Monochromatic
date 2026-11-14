@@ -106,3 +106,31 @@ run = "node src/list-runs-that-ended-since.ts"
 [tasks."wait-for-a-unit-to-become-active"]
 description = "Wait, bounded, until a systemd user unit is active, then say whether it came up and what it was doing if it did not"
 run = "node src/wait-for-a-unit-to-become-active.ts"
+
+[tasks."fill-free-places-from-a-queue"]
+description = "Fill the places free under a level from a queue of runs, round after round: start the entries in the queue's order, set aside an entry whose own start fails, leave the machine's failures in place, and say on the desktop when the filling stalls"
+run = "node src/fill-free-places-from-a-queue.ts"
+
+[tasks."put-an-entry-into-a-queue"]
+description = "Put one entry into a queue of runs at a position counted from its head, from the entry as the queue writes it; an entry of that name is refused rather than queued twice"
+run = "node src/put-an-entry-into-a-queue.ts"
+
+[tasks."take-an-entry-out-of-a-queue"]
+description = "Take the entry of one name out of a queue of runs and print it, changing nothing when the filling started it meanwhile"
+run = "node src/take-an-entry-out-of-a-queue.ts"
+
+[tasks."move-an-entry-of-a-queue"]
+description = "Move the entry of one name to a position counted from a queue's head"
+run = "node src/move-an-entry-of-a-queue.ts"
+
+[tasks."list-the-entries-a-queue-set-aside"]
+description = "Name every entry the filling took out of the way, with the time it was set aside, the reason its start failed and the record that holds it whole"
+run = "node src/list-the-entries-a-queue-set-aside.ts"
+
+[tasks."put-a-set-aside-entry-back-into-a-queue"]
+description = "Put an entry the filling took out of the way back into the queue, at the head or at a position the caller names"
+run = "node src/put-a-set-aside-entry-back-into-a-queue.ts"
+
+[tasks."put-ended-reviews-back-at-the-head-of-a-queue"]
+description = "Put every review run that the reviewer's provider ended on its rate limit back at the head of the queue, to go on from its session"
+run = "node src/put-ended-reviews-back-at-the-head-of-a-queue.ts"

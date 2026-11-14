@@ -13,6 +13,17 @@ Four more commands start those runs:
 `retry-pi-run-start-until-a-pool-has-room` waits for a slot,
 and `start-pi-runs-from-a-batch-list` starts a whole list of runs.
 
+One command fills the free places from a queue of entries,
+round after round and without a session awake,
+and six edit that queue:
+`fill-free-places-from-a-queue`,
+`put-an-entry-into-a-queue`,
+`take-an-entry-out-of-a-queue`,
+`move-an-entry-of-a-queue`,
+`list-the-entries-a-queue-set-aside`,
+`put-a-set-aside-entry-back-into-a-queue`
+and `put-ended-reviews-back-at-the-head-of-a-queue`.
+
 Two more commands read the same runs folder:
 `watch-overdue-pi-runs` ends when a run should have come back,
 and `check-in-on-pi-runs` describes one run that has not.
@@ -502,6 +513,167 @@ a flex pool's doubled wall clock and the wakes that may resume it.
 Both streams go to the list's own name and `.out` beside it,
 and nowhere else,
 because a unit has no terminal.
+
+## Filling the free places from a queue
+
+A queue file is one JSON array of entries, in the order they are to start,
+and the filling starts them in that order while the level it is given leaves places free.
+An entry whose start fails is taken out of the way at that failure,
+and the entry behind it starts in the same pass.
+
+The queue file is read whole and written whole through a file beside it that is renamed over it,
+so a reader never meets half a queue.
+Every edit reads the queue again at the moment of writing and changes only the entry it was asked about,
+so an entry another session queued meanwhile is never written away with a list read before it.
+
+### The entries a queue holds
+
+A run entry is a batch list's entry, field for field:
+`name` and `branch` required,
+and `prompt`,
+`base`,
+`sessionOf`,
+`wall`,
+`provider`,
+`model`,
+`cpu`,
+`memory`,
+`tasks`,
+`run` and
+`session` when the entry names them.
+An entry with `sessionOf` resumes that finished run's session,
+which is how a review the rate limit ended goes on.
+
+A review of a range is the entry
+`{"name": "review-<change>", "reviewOfRange": "main...<commit>", "commit": "<commit>", "source": "<folder>"}`.
+Its brief is written by this package's own writer of review briefs,
+and the review runs on the provider and model `reviewer-of-a-change.ts` names once,
+so no queue file carries a model's name.
+
+An entry naming a field its shape does not read,
+or one holding a value of the wrong type,
+is refused as the entry's own failure rather than started with the field dropped.
+
+### `fill-free-places-from-a-queue`
+
+`--queue`, `--level`, `--runs-folder`, `--reviews-folder`, `--checkout-folder`,
+`--starts-a-round` (two by default),
+`--seconds` (eight hours by default),
+`--round-seconds` (150 by default),
+`--deadline-seconds` (two hours by default),
+`--once`,
+and `--without-putting-ended-reviews-back`.
+
+Each round first puts the reviews the provider's rate limit ended back at the head of the queue,
+then counts the agents going against `--level`,
+then starts at most the places that leaves and at most `--starts-a-round` entries,
+twenty seconds apart.
+The count is taken once a round and every entry the round starts is counted against the next one it asks about,
+because a run just started has no unit for some seconds and a second count would read its place as free.
+A place asked for counts from the moment its batch is asked for:
+every `launch-*` unit that is still active is read back to the list beside the runs it starts,
+and each entry of that list whose `pi-*` unit has not appeared holds a place.
+That closes the gap a count of `pi-*` units alone leaves:
+on 2026-11-14 a filling at a level of 24 passed it by four,
+because a review it had asked for waited in a launcher with no unit yet.
+
+Nothing a round starts waits for this command:
+each entry is handed to a unit of its own,
+and a failure after that point belongs to that batch,
+whose output file beside its list and whose run's summary hold what happened.
+
+### A failure of the entry, and a failure of the machine
+
+An entry's start fails either because of the entry or because of the machine,
+and the two are told apart by the step that refused:
+
+- The entry's own failure is what its own contents decide:
+  it names no run or review this package reads,
+  its range names no commit,
+  the change under its range leaves nothing to read under its source folder,
+  a unit of its name already exists,
+  or a field it would drop is named.
+  Such an entry is **set aside**: a record is written beside the runs holding the entry whole,
+  the reason its start failed and the time,
+  the whole of what the failed start printed is appended to `<runs>/<name>-start-failure.log`,
+  and only then does the entry leave the queue.
+  The pass goes on with the next entry.
+- The machine's failure is what every entry shares:
+  no place in a provider's pool,
+  a lock another process holds,
+  a drive with no room,
+  a `PATH` or a checkout that cannot be read,
+  or a manager that refused the unit.
+  The entry keeps its place and its position,
+  nothing is set aside,
+  and the pass stops rather than starting a later entry into the place the earlier one waits for.
+  The next round tries it again.
+
+A record is written **before** its entry leaves the queue.
+A kill between the two therefore leaves the entry in both places,
+which loses nothing:
+the next round reads a record whose name the queue still holds as an unfinished set-aside,
+drops the record and tries the entry again.
+
+### `list-the-entries-a-queue-set-aside` and `put-a-set-aside-entry-back-into-a-queue`
+
+`list-the-entries-a-queue-set-aside` takes `--runs-folder` and prints one block per entry set aside:
+the time, the entry's name, whether it is a run or a review of a range,
+the reason its start failed, the record that holds it whole and where the whole of its start was kept.
+`put-a-set-aside-entry-back-into-a-queue` takes `--queue`, `--name`, `--runs-folder` and `--position`
+and puts the entry back into the queue from that record, at the head unless a position is named.
+The entry goes into the queue before its record goes away,
+so a kill between the two leaves it queued and the next round starts it.
+
+### `put-an-entry-into-a-queue`, `take-an-entry-out-of-a-queue` and `move-an-entry-of-a-queue`
+
+`put-an-entry-into-a-queue` takes `--queue`, `--entry` (the entry as JSON) and `--position`,
+and refuses an entry of a name the queue already holds,
+because two runs of one name collide in every folder, unit and worktree that name gives them.
+`take-an-entry-out-of-a-queue` takes `--queue` and `--name` and prints the entry it took out,
+changing nothing when no entry has that name.
+`move-an-entry-of-a-queue` takes `--queue`, `--name` and `--position`.
+
+### `put-ended-reviews-back-at-the-head-of-a-queue`
+
+`--queue`, `--runs-folder`, `--reviews-folder` and `--since` (eight hours before now by default).
+
+A review run is put back as an entry that goes on from its own session when it is the newest attempt of its name,
+its summary says `model-error` and names the provider's quota answer,
+no unit of that name is going,
+the queue does not hold it already,
+and its review file is not marked final.
+The prompt it goes on with is written beside the runs, so no queue file needs one a person wrote.
+An integration pass waiting at the head keeps its place:
+a review goes in after the leading `integration-pass-*` entries.
+Why: on 2026-11-13 twenty-one review runs ended on "429 ... Allocated quota exceeded",
+Pi never retries that answer, and the provider's own page says to wait about a minute.
+
+### The notice a stalled filling owes
+
+A filling that has started nothing for half an hour while entries stand and places are free
+says so on the desktop through `notify-send`, the path this repository's other tools use,
+once a bound rather than once a round.
+The line it prints names the same facts, so the journal and the desktop agree.
+The bound is twelve rounds of 150 seconds:
+the filling unit's journal of 2026-11-14 holds one refusal every about 153 seconds from 04:00:14 to 08:40:02,
+while the pass that started the next entry did so within two minutes of the blocked entry being taken out by hand.
+
+### Changing a scratch filling over
+
+Each command takes the same queue file and the same entry shapes the coordinator's scratch scripts used,
+so a caller changes over with one command:
+
+- the eight-hour loop: `mise run //package/pi-shared/subagent-driver:fill-free-places-from-a-queue -- --queue=<file> --level=<n> --seconds=<n>`
+  (a filling unit starts it the same way it started the scratch loop);
+- one pass that starts at most *n*: the same command with `--once --starts-a-round=<n>`;
+- the next single entry: the same command with `--once --starts-a-round=1`;
+- put one entry at a position: `put-an-entry-into-a-queue --queue=<file> --entry='<json>' --position=<n>`;
+- take one entry out by name: `take-an-entry-out-of-a-queue --queue=<file> --name=<name>`;
+- move one entry to a position: `move-an-entry-of-a-queue --queue=<file> --name=<name> --position=<n>`;
+- put the rate-limited reviews back: `put-ended-reviews-back-at-the-head-of-a-queue --queue=<file>`;
+- read what is set aside: `list-the-entries-a-queue-set-aside`;
+- put one set-aside entry back: `put-a-set-aside-entry-back-into-a-queue --queue=<file> --name=<name>`.
 
 ## Reviewing a change
 

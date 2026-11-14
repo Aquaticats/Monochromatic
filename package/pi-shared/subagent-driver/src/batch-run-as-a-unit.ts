@@ -45,14 +45,15 @@ export const BATCH_UNIT_TASK_COUNT = 4_096;
 export const BATCH_UNIT_IO_WEIGHT = 10;
 
 /**
- The start of the unit name of a batch. It is not `pi-`, which every slot count reads as a run.
+ The start of the unit name of a batch. It is not `pi-`, which every slot count reads as a run, and a place asked for is found by
+ it, so a reader of the queue's filling can tie a `launch-*` unit back to the list it starts.
  */
-const BATCH_UNIT_START = 'launch-';
+export const BATCH_UNIT_START = 'launch-';
 
 /**
  The extension a batch list carries.
  */
-const LIST_EXTENSION = '.json';
+export const LIST_EXTENSION = '.json';
 
 /**
  What starting one batch's unit needs.
