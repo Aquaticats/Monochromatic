@@ -1256,6 +1256,95 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Eleven of the gate's failing tests fail on this machine too, so they are red in the released code; seven fresh runs are queued for the 25; pass 45 carries the package state; the drawn tree goes back (2026-11-14T15:49:46-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what two reviews and two authors report of themselves,
+and what it queued.
+
+- **The 28 tests that failed in the gate, run once by name on this machine** at `5eca8b84cf`,
+  in the gate's worktree and a capped unit,
+  with `DBUS_SESSION_BUS_ADDRESS` set to nothing
+  (15:42:08 until 15:46:30;
+  whole outputs in `~/temp/agent/gate/keep/host-run-of-the-library-tests-…` and `…-binary-tests-…`):
+  - the three on `main`'s red list fail here too,
+    which shows the run can show a failure;
+  - eleven more fail here too:
+    the five `fault_remote::` and the one `package_repair::`
+    ("the service never settled the after-commit work",
+    after about 60 s,
+    a `maintenance-` item pending or a `relink-` item claimed),
+    the two that find `cli-git-lock-holders` in a Git directory,
+    the two `service_mode::`,
+    and `service_provision::a_runtime_directory_no_address_can_hold_is_refused_at_once`;
+  - fourteen pass here:
+    the seven that meet Git 2.56.1 in the container
+    (three version lines,
+    three `resolution::`,
+    the six configuration keys),
+    the five of pass 42's long runtime directory,
+    the owed-push fixture and the lock proof's other boot.
+  So the guess that put the two `service_mode::` with the Git version was wrong,
+  and they form a group of their own with the `service_provision::` one.
+  The eleven are red in the code of `0.6.1-alpha.32` as installed;
+  that the after-commit work of a commit whose push fails is left with an item pending is the gravest reading,
+  and it is a reading until its run finds the cause.
+- **Seven fresh runs for the 25**,
+  one cause group each,
+  each brief naming the branches in flight that change the same files and asking for the group's tests at those tips first
+  (`which-branches-in-flight-change-the-files-of-the-tests-that-failed-in-the-gate.ts` beside the gate logs found:
+  the no-service-manager and issue 6293 branches change the service start and provision files,
+  the killed-Git lock branch the lock proof,
+  the package-state branch the package repair's binary tests,
+  the watch-note branch the owed-push tests,
+  the discarding branch `repo_read/git_metadata.rs`;
+  no queued or going brief names any of the 25):
+  after-commit work that never settles (second in the queue);
+  the lock-holders folder;
+  the controls of a refused service start;
+  the Git of the gate's container;
+  the long runtime directory controls in the container;
+  the owed-push fixture;
+  the record of another boot.
+  Briefs under `~/temp/agent/pi-runs/`,
+  each named for its task.
+- **The package state of a new worktree** (`51217078af`),
+  fourth review:
+  no defect in the change;
+  all 64 tests of the changed modules pass;
+  the whole library suite at that tip gave 7,816 passed and four failed in modules the change does not touch;
+  the `native_binary` target was not run.
+  **Integration pass 45** is queued first with it,
+  asked to run the failing `package_repair::` control at `main` and at its merged tip and report both
+  (`~/temp/agent/pi-runs/integration-pass-45-with-the-package-state-of-a-new-worktree-relinked-or-said-why-not-prompt.md`).
+- **The drawn shadow tree** (`993ce53493`),
+  third review,
+  one reproduced at the library's level in the window the author's own report named:
+  between the service's answer that hands a tree out and the commit's claim,
+  a sweep is answered that nobody holds the tree and removes it after the client has claimed it;
+  Git in the vanished shadow exits 128 and the commit fails with no second try.
+  The author is resumed,
+  asked that a tree has one owner at every instant and that a commit whose shadow is gone in the middle does not fail for it
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The lock a killed Git left** (tip `5327cbbfa4`, ended 15:41:15):
+  the author reports the third review answered with a bound on what one Git run holds.
+  Review queued (range `main...5327cbbfa4`, ten code files).
+  It also reports,
+  for the second time by its own word,
+  that the package's build task said "Finished" in 0.34 s while the program at `target/debug/` was one of 2026-11-11 without a string its sources hold,
+  so a run through it measured old code.
+  Nobody has reproduced that;
+  a fresh run is queued to find where a worktree's built program comes from and which tool owns the defect
+  (`~/temp/agent/pi-runs/build-that-says-finished-leaves-the-binary-of-the-sources-in-front-of-it-prompt.md`),
+  since every control that runs through a built program is evidence only when the program is the sources' own.
+- **The failure-variant test** (tip `3d36e278fd`, ended 15:41:56):
+  the author reports both forms of the review refused before the test can run.
+  Its reviewer is resumed to check it,
+  the change being tests alone.
+- Neither session resumed in this round is named by the credential scan.
+  The queue held 65 entries at 15:49:46.
+
 ##### The first gate after a release fails 28 of 8,994 tests, 25 of them not on `main`'s red list; the discarding commands' fifth review reproduces three; the lock shim's answer goes to its reviewer (2026-11-14T15:43:16-05:00)
 
 Not final and not approved:
