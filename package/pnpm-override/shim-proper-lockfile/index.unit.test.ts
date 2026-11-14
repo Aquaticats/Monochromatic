@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess, } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess, } from 'node:child_process';
 import { once, } from 'node:events';
 import {
   chmodSync,
@@ -9,7 +9,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
-import { mkdtemp, rm, } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, } from 'node:fs/promises';
 import { basename, dirname, join, resolve, } from 'node:path';
 import { setTimeout as sleep, } from 'node:timers/promises';
 import { fileURLToPath, } from 'node:url';
@@ -40,8 +40,16 @@ const HOLDER_RELEASE_DELAY_MS = 5;
  stall beyond it still fails.
  */
 const ASYNC_CASE_TIMEOUT_MS = 30_000;
-/** Longest a case waits for a child process to leave its report, in milliseconds. */
-const CHILD_REPORT_TIMEOUT_MS = 30_000;
+/**
+ Longest a case waits for a child process to leave its report, in milliseconds.
+
+ This is half the case budget on purpose: a child that never reports must fail its own case with the child named, which
+ the harness's case timeout cannot say. The whole suite, every child included, finishes in 0.3 to 1.1 s on this
+ machine, so this is fifteen to fifty times the work it waits for.
+ */
+const CHILD_REPORT_TIMEOUT_MS = 15_000;
+/** Longest a case waits for a killed child to be reaped, in milliseconds, so a process in uninterruptible sleep cannot hold the suite. */
+const CHILD_EXIT_TIMEOUT_MS = 10_000;
 /** How often a case looks again for a child's report or a compromise, in milliseconds. */
 const POLL_MS = 10;
 /** Lock conflict code the upstream contract defines. */
@@ -68,6 +76,8 @@ const SHORT_STALE_MS = 500;
 const AGED_LOCK_MS = 10 * 60 * 1_000;
 /** A boot id no boot has, standing in for the boot a record was written in before a machine restarted. */
 const EARLIER_BOOT_ID = '00000000-0000-4000-8000-000000000000';
+/** A dollar sign, named so a fragment can hold one without this file reading it as a variable. */
+const DOLLAR_SIGN = '$';
 /** The system path a namespaced holder is started with, because `spawn` looks its program up in the child's own PATH. */
 const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
 /** Longest the shim may take to refuse a lock it cannot judge, far under the thirty seconds the caller's own loop allows. */
@@ -103,8 +113,9 @@ const SHIM_PATH = fileURLToPath(new URL('index.cjs', import.meta.url,),);
  */
 const HOLDER_SOURCE = [
   "const { writeFileSync } = require('node:fs');",
-  "const lockfile = require(process.env['SHIM_PATH']);",
   "const reportPath = process.env['REPORT_PATH'];",
+  "writeFileSync(reportPath + '.started', '1');",
+  "const lockfile = require(process.env['SHIM_PATH']);",
   'try {',
   "  const release = lockfile.lockSync(process.env['LOCK_TARGET'], { realpath: false });",
   '  // Never released: the case ends this process instead, which is what leaves the lock behind.',
@@ -125,6 +136,7 @@ const HOLDER_SOURCE = [
  */
 const TAKER_SOURCE = [
   "const { writeFileSync } = require('node:fs');",
+  "writeFileSync(process.env['REPORT_PATH'] + '.started', '1');",
   "const lockfile = require(process.env['SHIM_PATH']);",
   "const reportPath = process.env['REPORT_PATH'];",
   "const barrier = Number(process.env['BARRIER_AT']);",
@@ -150,6 +162,7 @@ const TAKER_SOURCE = [
  */
 const OLD_HOLDER_SOURCE = [
   "const { mkdirSync, writeFileSync } = require('node:fs');",
+  "writeFileSync(process.env['REPORT_PATH'] + '.started', '1');",
   'mkdirSync(process.env.LOCK_PATH);',
   "writeFileSync(process.env.REPORT_PATH, 'held');",
   '// Never released: the holder keeps the directory until its case ends this process.',
@@ -162,6 +175,7 @@ const OLD_HOLDER_SOURCE = [
  */
 const NAMESPACED_HOLDER_SOURCE = [
   "const { writeFileSync } = require('node:fs');",
+  "writeFileSync(process.env['REPORT_PATH'] + '.started', '1');",
   "const lockfile = require(process.env['SHIM_PATH']);",
   "const release = lockfile.lockSync(process.env['LOCK_TARGET'], { realpath: false });",
   "writeFileSync(process.env.REPORT_PATH, 'held');",
@@ -215,10 +229,12 @@ function takeoverPathFor(lockPath: string,): string {
 /**
  Creates a scratch directory with one lockable target file.
 
+ @param fragment - bytes the scratch directory's own name carries, so a case can put them in the lock's path
+
  @returns the fixture; declare it with `await using` so the scratch directory is removed at the end of the scope
  */
-async function makeTarget(): Promise<ScratchTarget> {
-  const root = await mkdtemp(join(scratchRoot(), 'shim-proper-lockfile-',),);
+async function makeTarget(fragment = 'shim-proper-lockfile',): Promise<ScratchTarget> {
+  const root = await mkdtemp(join(scratchRoot(), `${fragment}-`,),);
   const target = join(root, 'auth.json',);
   writeFileSync(target, '{}',);
   return {
@@ -230,6 +246,57 @@ async function makeTarget(): Promise<ScratchTarget> {
       await rm(root, { recursive: true, force: true, },);
     },
   };
+}
+
+/**
+ Plants one unjudgeable lock of each shape a person may have to clear in one scratch directory whose name carries the
+ awkward bytes, runs each command the shim prints through a shell exactly as printed, and requires each lock gone.
+
+ The three shapes are the three commands: an empty lock directory, a lock directory holding an entry, and a lock file
+ whose bytes are not a record.
+
+ @param fragment - bytes the scratch directory's own name carries
+ */
+async function expectPrintedCommandsToClear(fragment: string,): Promise<void> {
+  await using fixture = await makeTarget(fragment,);
+  const shapes: readonly { readonly name: string; readonly verb: string; readonly plant: (lockPath: string,) => void }[] = [
+    {
+      name: 'an empty lock directory',
+      verb: 'rmdir',
+      plant: (lockPath,) => mkdirSync(lockPath,),
+    },
+    {
+      name: 'a lock directory holding an entry',
+      verb: 'rm -r',
+      plant: (lockPath,) => {
+        mkdirSync(lockPath,);
+        writeFileSync(join(lockPath, 'holder-note',), 'still here',);
+      },
+    },
+    {
+      name: 'a lock file whose bytes are not a record',
+      verb: 'rm -f',
+      plant: (lockPath,) => writeFileSync(lockPath, '',),
+    },
+  ];
+
+  for (const shape of shapes) {
+    const target = join(fixture.root, `${shape.verb}.json`,);
+    writeFileSync(target, '{}',);
+    const lockPath = lockPathFor(target,);
+    shape.plant(lockPath,);
+
+    const thrown = caughtFrom(() => {
+      lockfile.lockSync(target,);
+    },);
+    const refused = expectUnjudgeable(thrown, { lockPath, verb: shape.verb, },);
+    // The lock is there, and the command as printed is what clears it.
+    expect(existsSync(lockPath,),).toBe(true,);
+    const printed = runAsPrinted(refused.remedy,);
+    expect(printed.stderr,).toBe('',);
+    expect(printed.ok,).toBe(true,);
+    expect(existsSync(lockPath,),).toBe(false,);
+  }
 }
 
 /**
@@ -267,27 +334,70 @@ async function rejectionFrom(call: () => Promise<unknown>,): Promise<unknown> {
 }
 
 /**
- Waits until a child process leaves its report file, and reads it.
- The wait is bounded, so a child that never reports fails its own case instead of hanging the suite.
- An empty file is treated as absent: a reader can see a report file between the write that creates it and the write
- that fills it, and only a non-empty file is a report.
+ Reads a child's report file, saying whether it is there.
+
+ The read is asynchronous, so a stat on this machine's drive, which stalls, yields to the rest of the suite instead of
+ blocking the timers of every other case in this one process.
+
+ @param path - file to read
+
+ @returns whether it exists, and its text when it does
+ */
+async function readReportFile(path: string,): Promise<{ readonly present: boolean; readonly text: string }> {
+  try {
+    return { present: true, text: await readFile(path, 'utf8',), };
+  }
+  catch (error) {
+    if (isMissingFileError(error,))
+      return { present: false, text: '', };
+    throw error;
+  }
+}
+
+/**
+ Whether a failure is a file that is not there, told apart from every other read failure.
+
+ @param error - what a read threw
+
+ @returns `true` when the operating system reported that the file does not exist
+ */
+function isMissingFileError(error: unknown,): boolean {
+  if (!Error.isError(error,))
+    return false;
+  return ('code' in error) && (error.code === MISSING_CODE);
+}
+
+/**
+ Waits until a child process leaves its report, and reads it.
+ The wait is bounded, so a child that never reports fails its own case instead of hanging the suite, and its failure
+ names the child and whether it began at all: every child writes `<report>.started` before it loads the shim.
+ An empty report file is treated as absent: a reader can see a report file between the write that creates it and the
+ write that fills it, and only a non-empty file is a report.
 
  @param reportPath - file the child writes its report in
+
+ @param child - the child writing it, named in the failure
 
  @param deadline - epoch milliseconds after which the case stops waiting
 
  @returns the report text
  */
-async function reportOfChild(reportPath: string, deadline: number,): Promise<string> {
-  if (existsSync(reportPath,)) {
-    const text = readFileSync(reportPath, 'utf8',);
-    if (text !== '')
-      return text;
+async function reportOfChild({ reportPath, child, deadline, }: {
+  readonly reportPath: string;
+  readonly child: ChildProcess;
+  readonly deadline: number;
+},): Promise<string> {
+  const report = await readReportFile(reportPath,);
+  if (report.present && (report.text !== ''))
+    return report.text;
+  if (Date.now() >= deadline) {
+    const began = (await readReportFile(`${reportPath}.started`,)).present;
+    const reached = began ? 'began and did not report' : 'never began';
+    const waited = `the child process ${String(child.pid,)} ${reached} within ${String(CHILD_REPORT_TIMEOUT_MS,)} ms`;
+    throw new Error(`${waited}; its report is ${reportPath}`,);
   }
-  if (Date.now() >= deadline)
-    throw new Error(`a child process left no report at ${reportPath} in time`,);
   await sleep(POLL_MS,);
-  return await reportOfChild(reportPath, deadline,);
+  return await reportOfChild({ reportPath, child, deadline, },);
 }
 
 /**
@@ -309,9 +419,17 @@ function childFinished(child: ChildProcess,): boolean {
 async function killChild(child: ChildProcess,): Promise<void> {
   if (childFinished(child,))
     return;
-  const exited = once(child, 'exit',);
+  const exited = once(child, 'exit', { signal: AbortSignal.timeout(CHILD_EXIT_TIMEOUT_MS,), },);
   child.kill('SIGKILL',);
-  await exited;
+  try {
+    await exited;
+  }
+  catch (error) {
+    throw new Error(
+      `the child process ${String(child.pid,)} did not end within ${String(CHILD_EXIT_TIMEOUT_MS,)} ms of SIGKILL`,
+      { cause: error, },
+    );
+  }
 }
 
 /**
@@ -334,7 +452,11 @@ async function startHolder(target: string, reportPath: string,): Promise<Holder>
       await killChild(child,);
     },
   };
-  const report = await reportOfChild(reportPath, Date.now() + CHILD_REPORT_TIMEOUT_MS,);
+  const report = await reportOfChild({
+    reportPath,
+    child,
+    deadline: Date.now() + CHILD_REPORT_TIMEOUT_MS,
+  },);
   if (report !== HELD_REPORT) {
     await killChild(child,);
     throw new Error(`a holder process reported ${report} instead of holding`,);
@@ -363,7 +485,11 @@ async function startOldStyleHolder(lockPath: string, reportPath: string,): Promi
       await killChild(child,);
     },
   };
-  const report = await reportOfChild(reportPath, Date.now() + CHILD_REPORT_TIMEOUT_MS,);
+  const report = await reportOfChild({
+    reportPath,
+    child,
+    deadline: Date.now() + CHILD_REPORT_TIMEOUT_MS,
+  },);
   if (report !== HELD_REPORT) {
     await killChild(child,);
     throw new Error(`an old-style holder process reported ${report} instead of holding`,);
@@ -403,7 +529,11 @@ async function startHolderInOwnPidNamespace(target: string, reportPath: string,)
       await killChild(child,);
     },
   };
-  const report = await reportOfChild(reportPath, Date.now() + CHILD_REPORT_TIMEOUT_MS,);
+  const report = await reportOfChild({
+    reportPath,
+    child,
+    deadline: Date.now() + CHILD_REPORT_TIMEOUT_MS,
+  },);
   if (report !== HELD_REPORT) {
     await killChild(child,);
     throw new Error(`a namespaced holder process reported ${report} instead of holding`,);
@@ -417,15 +547,36 @@ async function startHolderInOwnPidNamespace(target: string, reportPath: string,)
 
  @param thrown - what the call threw
 
- @param expected - the lock path, and the command that clears it
+ @param expected - the lock path, and the verb the clearing command starts with
+
+ @returns what was thrown, so a case can run the command it carries
  */
-function expectUnjudgeable(thrown: unknown, expected: { readonly lockPath: string; readonly command: string },): void {
+function expectUnjudgeable(
+  thrown: unknown,
+  expected: { readonly lockPath: string; readonly verb: string },
+): Error & { readonly remedy: string } {
   expect(thrown,).toHaveProperty('code', HELD_CODE,);
-  const { message, } = thrown as Error;
+  const refused = thrown as Error & { readonly remedy: string };
+  const { message, remedy, } = refused;
   expect(message,).toContain(expected.lockPath,);
-  expect(message,).toContain(expected.command,);
+  expect(remedy.startsWith(`${expected.verb} `),).toBe(true,);
+  // The words carry the very command, so a person can copy it from them.
+  expect(message,).toContain(remedy,);
   expect(message,).toContain('proven gone',);
   expect(message,).not.toContain('Lock file is already being held',);
+  return refused;
+}
+
+/**
+ Runs a clearing command through a shell exactly as the shim printed it, the way a person who copies it does.
+
+ @param command - the command as printed
+
+ @returns whether the shell reported success, and what it wrote on stderr
+ */
+function runAsPrinted(command: string,): { readonly ok: boolean; readonly stderr: string } {
+  const done = spawnSync('/bin/sh', ['-c', command,], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe',], },);
+  return { ok: (done.status === 0) && (done.error === undefined), stderr: done.stderr ?? '', };
 }
 
 /**
@@ -471,7 +622,11 @@ async function raceFor(target: string, barrierAt: number, reportPath: string,): 
     },
     stdio: ['ignore', 'ignore', 'ignore',],
   },);
-  const report = await reportOfChild(reportPath, Date.now() + CHILD_REPORT_TIMEOUT_MS,);
+  const report = await reportOfChild({
+    reportPath,
+    child,
+    deadline: Date.now() + CHILD_REPORT_TIMEOUT_MS,
+  },);
   return { child, report, };
 }
 
@@ -744,11 +899,11 @@ await describe({
 
             expectUnjudgeable(syncThrown, {
               lockPath: fixture.lockPath,
-              command: `rmdir ${fixture.lockPath}`,
+              verb: 'rmdir',
             },);
             expectUnjudgeable(asyncThrown, {
               lockPath: fixture.lockPath,
-              command: `rmdir ${fixture.lockPath}`,
+              verb: 'rmdir',
             },);
             expect(childFinished(holder.child,),).toBe(false,);
             expect(existsSync(fixture.lockPath,),).toBe(true,);
@@ -776,11 +931,11 @@ await describe({
 
             expectUnjudgeable(syncThrown, {
               lockPath: fixture.lockPath,
-              command: `rm -f ${fixture.lockPath}`,
+              verb: 'rm -f',
             },);
             expectUnjudgeable(asyncThrown, {
               lockPath: fixture.lockPath,
-              command: `rm -f ${fixture.lockPath}`,
+              verb: 'rm -f',
             },);
             expect((syncThrown as Error).message,).toContain('could not read',);
             expect(childFinished(holder.child,),).toBe(false,);
@@ -807,7 +962,7 @@ await describe({
 
             expectUnjudgeable(thrown, {
               lockPath: fixture.lockPath,
-              command: `rm -f ${fixture.lockPath}`,
+              verb: 'rm -f',
             },);
             expect(thrown,).toHaveProperty('reason', 'unwritten-record',);
             expect(existsSync(fixture.lockPath,),).toBe(true,);
@@ -826,7 +981,7 @@ await describe({
 
             expectUnjudgeable(thrown, {
               lockPath: fixture.lockPath,
-              command: `rm -f ${fixture.lockPath}`,
+              verb: 'rm -f',
             },);
             expect((thrown as Error).message,).toContain('PID namespace',);
             expect(holder.child.exitCode,).toBe(null,);
@@ -840,7 +995,7 @@ await describe({
             },);
             expectUnjudgeable(afterDeath, {
               lockPath: fixture.lockPath,
-              command: `rm -f ${fixture.lockPath}`,
+              verb: 'rm -f',
             },);
             expect(afterDeath,).toHaveProperty('reason', 'other-namespace',);
           },
@@ -861,7 +1016,7 @@ await describe({
 
             expectUnjudgeable(thrown, {
               lockPath: fixture.lockPath,
-              command: `rmdir ${fixture.lockPath}`,
+              verb: 'rmdir',
             },);
             // The shim adds no wait of its own: the caller's thirty-second loop is the only bound.
             expect(elapsed,).toBeLessThan(NO_WAIT_BOUND_MS,);
@@ -872,6 +1027,89 @@ await describe({
       ],
     },),
     //endregion A lock this shim cannot judge
+
+    //region The wait for a child process
+
+    describe({
+      name: 'the wait for a child process',
+      children: [
+        it({
+          name: 'names the child, its process number and whether it began, instead of leaving the case timeout to speak',
+          fn: async () => {
+            await using fixture = await makeTarget();
+            const reportPath = join(fixture.root, 'never.report',);
+            const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);',], {
+              stdio: ['ignore', 'ignore', 'ignore',],
+            },);
+
+            const neverBegan = await rejectionFrom(async () => await reportOfChild({
+              reportPath,
+              child,
+              deadline: Date.now() - 1,
+            },),);
+            writeFileSync(`${reportPath}.started`, '1',);
+            const began = await rejectionFrom(async () => await reportOfChild({
+              reportPath,
+              child,
+              deadline: Date.now() - 1,
+            },),);
+            await killChild(child,);
+
+            expect((neverBegan as Error).message,).toContain(`the child process ${String(child.pid,)}`,);
+            expect((neverBegan as Error).message,).toContain('never began',);
+            expect((neverBegan as Error).message,).toContain(reportPath,);
+            expect((began as Error).message,).toContain('began and did not report',);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+      ],
+    },),
+    //endregion The wait for a child process
+
+    //region The command this shim prints
+
+    describe({
+      name: 'the command this shim prints',
+      children: [
+        it({
+          name: 'clears the lock at a path holding a space when it is run as printed',
+          fn: async () => {
+            await expectPrintedCommandsToClear('with a space',);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'clears the lock at a path holding a single quote when it is run as printed',
+          fn: async () => {
+            await expectPrintedCommandsToClear('with a single \' quote',);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'clears the lock at a path holding a double quote when it is run as printed',
+          fn: async () => {
+            await expectPrintedCommandsToClear('with a "double" quote',);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'clears the lock at a path holding a dollar sign when it is run as printed',
+          fn: async () => {
+            // A dollar sign and a brace expansion, which a shell would otherwise read as a variable.
+            await expectPrintedCommandsToClear(`with a ${DOLLAR_SIGN}dollar and ${DOLLAR_SIGN}{brace}`,);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'clears the lock at a path holding a line break when it is run as printed',
+          fn: async () => {
+            await expectPrintedCommandsToClear('with a\nline break',);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+      ],
+    },),
+    //endregion The command this shim prints
 
     //region Release when the lock is no longer the holder's
 

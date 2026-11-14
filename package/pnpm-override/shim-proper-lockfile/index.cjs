@@ -450,17 +450,37 @@ function lockTextAt(lockPath,) {
 }
 
 /**
+ * One path written so a shell reads it as a single word, whatever bytes it holds.
+ *
+ * Single quotes make every byte between them literal, and are the only construct
+ * that does: a space, a quote, a dollar sign, a backtick and a line break all pass
+ * through untouched. A single quote is the one byte they cannot hold, so each one
+ * closes the quotes, is escaped outside them, and reopens them.
+ *
+ * The encoding happens here, at the last interpolation before the text becomes a
+ * shell command, and never earlier, so the path itself is never rewritten.
+ *
+ * @param {string} path
+ * @returns {string} The path as a shell word
+ */
+function shellWord(path,) {
+  return `'${path.replaceAll("'", "'\\''",)}'`;
+}
+
+/**
  * The command that clears one lock this shim will not take over, for the caller's
- * message to name.
+ * message to name. It runs as printed in a shell, which is the only way a person
+ * reads it.
  *
  * @param {{ what: string, entries?: number }} inspection
  * @param {string} lockPath
  * @returns {string}
  */
 function clearingCommand(inspection, lockPath,) {
+  const word = shellWord(lockPath,);
   if (inspection.entries !== undefined)
-    return inspection.entries === 0 ? `rmdir ${lockPath}` : `rm -r ${lockPath}`;
-  return `rm -f ${lockPath}`;
+    return inspection.entries === 0 ? `rmdir ${word}` : `rm -r ${word}`;
+  return `rm -f ${word}`;
 }
 
 /**

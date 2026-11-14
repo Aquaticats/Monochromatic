@@ -73,15 +73,23 @@ That covers:
 - a record written in another PID namespace,
   whose process number names nothing this process can look up.
 
+The command in those words runs as printed in a shell:
+the path is written as one shell word,
+single-quoted,
+with each single quote in it closed,
+escaped and reopened,
+so a space,
+a quote,
+a dollar sign,
+a backtick or a line break in an agent directory's path still names one file to remove.
+The words are the whole of it,
+and `error.remedy` carries the same command for a caller that wants to show it.
 The code is `ELOCKED`,
 so a caller's own retry loop is what bounds the wait and what ends it,
-and the caller's own last
-error carries the words.
+and the caller's own last error carries the words.
 The shim never waits by itself and never guesses:
-an unjudgeable lock stays until a person removes it with the command
-the message names,
-which is the recovery `doc/decision/proper-lockfile-removal.md` records for what the shim cannot
-settle.
+an unjudgeable lock stays until a person removes it with the command the message names,
+which is the recovery `doc/decision/proper-lockfile-removal.md` records for what the shim cannot settle.
 
 The takeover record `.<basename>.lock.takeover` arbitrates between callers that find the same dead lock in the same
 instant:

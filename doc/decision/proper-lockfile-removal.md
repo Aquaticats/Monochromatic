@@ -644,3 +644,35 @@ an unjudgeable lock is answered on the caller's first attempt,
   no freshness writes,
   and no signal to a holder except `onCompromised`,
    as recorded above.
+
+## Amendment, 2026-11-14T15:13:55-05:00: the printed command is one shell word
+
+The amendment above promises that a caller who cannot judge a lock is told the one command that clears it,
+and a review
+of that version found the promise broken for a path a shell splits:
+the command was built as `rmdir <path>` with the path interpolated raw,
+so for an agent directory whose path holds a space the printed `rmdir` failed and the printed `rm -f` ended with status
+0 and removed nothing,
+and a person who followed the words met the same refusal again with no sign of why.
+
+The path is now encoded at the last interpolation,
+where the text becomes a shell command and nowhere earlier:
+single-quoted,
+with each single quote inside it closed,
+escaped outside the quotes and reopened.
+That is the one quoting that holds every byte a path can carry,
+a space,
+a single quote,
+a double quote,
+a dollar sign,
+a backtick and a line break among them,
+and it is what the package's controls now run through `/bin/sh` for each of those five,
+with the lock required gone
+afterwards.
+
+Nothing else changed:
+the words are still the refusal,
+the code is still `ELOCKED`,
+`error.remedy` still carries the
+command,
+and the shim still never removes a lock it cannot judge.
