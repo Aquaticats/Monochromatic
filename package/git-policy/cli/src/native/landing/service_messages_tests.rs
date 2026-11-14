@@ -363,8 +363,10 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
 /// Why:
 ///  The review of this change showed the landing's client-gone check losing to the connection writer's heartbeat,
 ///  so a service that wakes can land a request whose command is gone:
-/// the branch read shows "not made" only at the moment it was read, and the words may say no more than that.
-///  A commit whose request never arrived whole is the other case, and its words say the reason that is true.
+/// the branch read shows "not made" only at the moment it was read,
+/// and the words may say no more than that.
+///  A commit whose request never arrived whole is the other case,
+/// and its words say the reason that is true.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

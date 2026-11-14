@@ -12,7 +12,9 @@
 //! the starter marker names its owner by process birth identity,
 //! so a marker a killed command left is recognised as nobody's and taken over,
 //! and no lock is taken and no command ever waits on a lock
-//! (`AGENTS.md`, the freedom from locks, and `single_owner_claim.rs` for the same idiom).
+//! (`AGENTS.md`,
+//! the freedom from locks,
+//! and `single_owner_claim.rs` for the same idiom).
 //! The socket itself stays the ownership:
 //! a leaked marker costs a duplicated start and never two servers,
 //! because only one bind succeeds.
@@ -55,7 +57,9 @@ pub enum StartAttempt {
     AnotherCommandStartsIt,
     /// A service of this worktree is alive at its address and has not greeted yet,
     /// which is a service still recovering the batches an earlier service left open.
-    /// Nothing was started here: the service is its own, and the wait for it is the caller's.
+    /// Nothing was started here:
+    /// the service is its own,
+    /// and the wait for it is the caller's.
     ServiceIsPreparing {
         /// The service the note beside the address names,
         /// which is the process that is still that process.
@@ -121,7 +125,8 @@ impl ServerToStart {
     }
 
     /// The arguments the service's mode is started with.
-    /// The address is given, never inherited:
+    /// The address is given,
+    /// never inherited:
     /// nothing hands this process a socket.
     pub fn arguments(&self) -> Vec<std::ffi::OsString> {
         // The three words that select the service mode, then the ones it needs to serve this worktree.
@@ -246,7 +251,9 @@ pub fn answered(socket: &Path) -> bool {
     return matches!(listen(&mut reader), Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }));
 }
 
-/// Waits, bounded, for the service to greet.
+/// Waits,
+/// bounded,
+/// for the service to greet.
 /// The wait has a deadline of its own rather than a count of tries,
 /// so a slow start is never cut short by a slow look.
 pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
@@ -275,7 +282,8 @@ pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
 /// const marker = createExclusive(`${instance}.starting`, `${pid} ${identity}`) ?? takeOverIfOwnerIsGone(path);
 /// ```
 ///
-/// `take` gives nothing when another live command holds the marker, and an error when the marker could not be created at all.
+/// `take` gives nothing when another live command holds the marker,
+/// and an error when the marker could not be created at all.
 struct StarterMarker {
     /// The file to remove when this command's start is over.
     path: PathBuf,
@@ -352,7 +360,8 @@ fn live_service_that_is_preparing(note: &Path) -> Option<crate::service_server_p
 }
 
 /// Whether the marker's owner is still a process with that birth identity.
-/// A marker that cannot be read or parsed names nobody, so it is nobody's.
+/// A marker that cannot be read or parsed names nobody,
+/// so it is nobody's.
 fn holder_is_alive(path: &Path) -> bool {
     let Ok(text) = std::fs::read_to_string(path) else { return false };
     let Some((number, identity)) = text.trim_end().split_once(' ') else { return false };

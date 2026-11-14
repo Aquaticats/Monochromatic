@@ -5334,7 +5334,8 @@ because nothing else can make it:
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
   so a repository with both lists leaves them to the service;
-- a service that takes no connection within its bound, or a look at the processes that gives no answer.
+- a service that takes no connection within its bound,
+  or a look at the processes that gives no answer.
   The request's look is made within 250 ms (`wait_ceilings.rs`,
   `WARM_SCAN_CEILING`) and its connection within 250 ms (`WARM_REQUEST_CONNECT_CEILING`),
   so a process stuck in the kernel and a service whose queue of unaccepted connections is full,

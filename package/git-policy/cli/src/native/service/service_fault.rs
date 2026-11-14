@@ -153,27 +153,32 @@ pub fn fails(point: &str) -> bool {
 /// Environment variable naming a pipe the service waits on in the window between its address being bound and its first greeting,
 /// which is what holds it where a slow recovery of the batches an earlier service left open holds it.
 /// Why:
-///   To a command, a service in that window is a service that is alive and greets nothing yet,
+///   To a command,
+/// a service in that window is a service that is alive and greets nothing yet,
 /// and that is the state the fourth review of issue 6293 (finding 1) read its chain in.
 /// A control that waited for a recovery of more than the start wait would be a wait made of load:
-/// the step it needs held is a kernel read, which the control holds and releases.
+/// the step it needs held is a kernel read,
+/// which the control holds and releases.
 /// The hold ends when the control writes one byte,
 /// and at `HOLD_PATIENCE` in any case,
 /// so a stale variable cannot wedge a service.
 pub const HOLD_BEFORE_SERVING_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_HOLD_BEFORE_SERVING";
 
-/// The longest a service waits on the pipe a control holds, and what it waits in all.
+/// The longest a service waits on the pipe a control holds,
+/// and what it waits in all.
 pub const HOLD_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// How often the hold looks whether the control wrote its byte.
 pub const HOLD_POLL: std::time::Duration = std::time::Duration::from_millis(10);
 
 /// What:
-///  Holds the service before its first greeting, while the control named by the variable holds the other end of a pipe.
+///  Holds the service before its first greeting,
+/// while the control named by the variable holds the other end of a pipe.
 /// Why:
 ///   The pre-greeting window is where a service is alive with an address and nothing answering,
 /// and no control can make a recovery last by itself without manufacturing load.
-/// The pipe is the control's own: the byte it writes ends the hold,
+/// The pipe is the control's own:
+/// the byte it writes ends the hold,
 /// and the patience ends it if the control never does.
 ///
 /// In TS you'd write (pseudocode):

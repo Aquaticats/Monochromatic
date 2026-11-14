@@ -5,7 +5,9 @@
 //!  and the note that names its process,
 //!  made when it starts and removed when it ends.
 //! Why:
-//!   The wrapper starts the server itself, so nothing else creates the folder, sets the socket's mode,
+//!   The wrapper starts the server itself,
+//! so nothing else creates the folder,
+//! sets the socket's mode,
 //!  writes the note or removes them.
 //! A service manager used to do all four through the unit.
 //! The folder is 0700 and the socket 0600 because the socket carries a standards-review credential
@@ -18,7 +20,8 @@
 //! but only by identity:
 //! a service removes the note and the address only while the note still names it,
 //! so an instance that ended never deletes the address of the service that took the instance over
-//! (the fourth review of issue 6293, finding 1:
+//! (the fourth review of issue 6293,
+//! finding 1:
 //! an ending service removed its successor's address and note by path).
 //! A service that was killed leaves both,
 //! and the next service recognises them as stale by the note's birth identity.
@@ -79,7 +82,8 @@ impl OwnFiles {
     /// The note is the identity of the service that owns the two files:
     /// when it names another process,
     /// that process's service took the instance over and its address is not this one's to delete
-    /// (the fourth review of issue 6293, finding 1).
+    /// (the fourth review of issue 6293,
+    /// finding 1).
     /// A file that cannot be removed is noise for the next sweep and never a failure of the end.
     ///
     /// In TS you'd write (pseudocode):
@@ -124,16 +128,15 @@ impl OwnFiles {
 /// and the note must name this process before the address can be contended,
 /// so a second service that finds a live note never binds and never takes the address over.
 /// A note written only after the bind would leave the moment of the bind unnamed,
-/// which is exactly when a second service looks (the fourth review of issue 6293, finding 1).
+/// which is exactly when a second service looks (the fourth review of issue 6293,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// ensurePrivate(dirname(socket)); claimPidNote(pidNote); return { socket, pidNote };
 /// ```
 pub fn claim(socket: &Path, instance: &str) -> std::io::Result<OwnFiles> {
-    let directory: &Path = socket.parent().unwrap_or_else(|| {
-        return Path::new(".");
-    });
+    let directory: &Path = socket.parent().unwrap_or(Path::new("."));
     ensure_private(directory)?;
     let note: PathBuf = pid_note_path(directory, instance);
     claim_the_note(note.as_path(), i32::try_from(std::process::id()).unwrap_or(0))?;

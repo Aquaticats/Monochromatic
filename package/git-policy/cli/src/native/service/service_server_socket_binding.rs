@@ -136,7 +136,8 @@ pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Opti
 /// whether or not it has greeted yet:
 /// it may still be recovering the batches an earlier service left open,
 /// and the address taken from it would leave two services of one instance
-/// (the fourth review of issue 6293, finding 1).
+/// (the fourth review of issue 6293,
+/// finding 1).
 /// Any other file is the person's,
 /// and a connection that answers belongs to a running service.
 /// Two services started on one path at the same
@@ -163,7 +164,7 @@ pub(crate) fn bind_path(path: &std::path::Path, holder_note: Option<&std::path::
     // Why:  The note names the process that owns the instance; while that process is alive the socket is its own, and the service it
     //       belongs to may be in its recovery before its first greeting. Taking the address then is what put two live services of one
     //       instance in the fourth review's finding 1.
-    if !is_socket || holder_note.is_some_and(|note| { return crate::service_server_pid_note_of_an_instance::held_by_another_live_process(note).is_some(); }) {
+    if !is_socket || holder_note.is_some_and(crate::service_server_pid_note_of_an_instance::another_live_process_holds) {
         return Err(first);
     }
     // What: With no live service of the instance holding it, a socket is taken over when nothing greets on it: a connection refused,

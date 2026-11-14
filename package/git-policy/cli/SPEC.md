@@ -3504,8 +3504,12 @@ That removal then refuses with one report that says what the command itself did,
 names each volume,
 gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
-`git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
-stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
+`git worktree remove --force`,
+which removes every other entry of the tree and leaves the volume exactly as it
+stands,
+and,
+for a tree whose entries are all present,
+clearing or moving what Git would delete.
 The status a removal reads is one of three,
 and the report says which of them it read:
 Git names nothing at all,
@@ -3612,7 +3616,9 @@ it is `RemovedAround`,
 which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
-files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+files it removed are gone,
+the worktree is still registered,
+and the report says which of the two happened.
 A pass that found the volume gone when it ended is reported as its own ending:
 the worktree's entries went one by one in this command,
 the empty root went with one `rmdir`,

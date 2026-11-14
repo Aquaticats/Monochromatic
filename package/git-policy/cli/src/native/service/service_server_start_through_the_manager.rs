@@ -1,14 +1,17 @@
 //! What:
-//!  The enhancement: where a service manager of this account is there and is the account's own,
+//!  The enhancement:
+//! where a service manager of this account is there and is the account's own,
 //!  the server is started as a transient scope of it,
 //!  so it gets a cgroup of its own and is neither killed with nor charged to the command that
 //!  happened to start it.
 //! Why:
 //!   The base needs no manager
-//! (`service_server_start_by_the_wrapper.rs`), so this is added on top of it and never
+//! (`service_server_start_by_the_wrapper.rs`),
+//! so this is added on top of it and never
 //!  under it:
 //!  every way this file can fail or be absent leaves the base's start exactly as it was,
-//!  within a bound, with no message a person has to act on.
+//!  within a bound,
+//! with no message a person has to act on.
 //! Bazel's client does the same (`src/main/tools/daemonize.cc`:
 //!  `systemd-run --user --scope -- /bin/true` as the probe,
 //!  then `systemd-run --user --scope -- /bin/bash <script>`,
@@ -44,20 +47,25 @@ use std::time::Duration;
 
 /// The longest the probe may take before the manager is treated as not there for this command.
 /// Why:
-///   A manager re-reading its units answers after the reload, which was measured at 139,770 ms on this
+///   A manager re-reading its units answers after the reload,
+/// which was measured at 139,770 ms on this
 ///  machine on 2026-11-12;
-///   a commit may not pay that, so a probe that outlasts this bound is a manager this command does without.
-///  It is also what a person pays at most for the enhancement's absence: two seconds on a first commit in a worktree,
+///   a commit may not pay that,
+/// so a probe that outlasts this bound is a manager this command does without.
+///  It is also what a person pays at most for the enhancement's absence:
+/// two seconds on a first commit in a worktree,
 ///  and nothing on any later one.
 pub const PROBE_WAIT: Duration = Duration::from_secs(2);
 
 /// The longest the probe waits for the child it ended to be reaped,
 /// after `PROBE_WAIT` has ended the wait for its answer.
 /// Why:
-///   The probe's child is `/bin/true`, so a child the stop does not end at once is one the kernel is holding in a call it has not
+///   The probe's child is `/bin/true`,
+/// so a child the stop does not end at once is one the kernel is holding in a call it has not
 ///  returned from,
 /// and waiting for it is a wait on the kernel with no bound at all
-/// (the fourth review of issue 6293, finding 2:
+/// (the fourth review of issue 6293,
+/// finding 2:
 /// the kill was followed by a `wait()` that had none).
 /// A tenth of a second is ten times the look that finds a child that has ended,
 /// and a child still there then is handed to the thread that collects it when the kernel lets go,
@@ -71,7 +79,8 @@ pub const REAP_WAIT: Duration = Duration::from_millis(100);
 ///  a start that needs more than that is a manager or a scope in a state this command does not wait for.
 pub const MANAGER_START_EXTRA: Duration = Duration::from_secs(1);
 
-/// The manager's program, as the account's session has it.
+/// The manager's program,
+/// as the account's session has it.
 pub const PROGRAM: &str = "systemd-run";
 
 /// One service manager this command may ask for a scope.
@@ -91,7 +100,8 @@ impl ManagerStart {
     /// asking it would put this run's service in the account's manager and its cgroup,
     /// which is what a private runtime directory must never cause (issue 6293).
     /// A folder the wrapper fell back to (`~/.run`) is not a session either:
-    /// no manager runs with it, and asking would reach whatever bus the account happens to have.
+    /// no manager runs with it,
+    /// and asking would reach whatever bus the account happens to have.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -111,10 +121,15 @@ impl ManagerStart {
     /// Why:
     ///   This is Bazel's probe (`systemd-run --user --scope -- /bin/true`):
     /// the manager's own program decides whether a scope can be made,
-    /// and a refusal, a missing manager, a bus that is not there or a busy manager all answer the same way, in time.
-    /// The probe is not detached, unlike a start:
+    /// and a refusal,
+    /// a missing manager,
+    /// a bus that is not there or a busy manager all answer the same way,
+    /// in time.
+    /// The probe is not detached,
+    /// unlike a start:
     /// it is a child of this command for the length of one `true`,
-    /// so its own exit status is what answers, and a probe still running at the bound is asked to go and given `REAP_WAIT` to be
+    /// so its own exit status is what answers,
+    /// and a probe still running at the bound is asked to go and given `REAP_WAIT` to be
     ///  reaped in;
     /// a child the kernel holds past that is left to the reaper rather than waited for.
     ///
@@ -138,9 +153,12 @@ impl ManagerStart {
     /// Why:
     ///   `systemd-run --user --scope -- <program> <words>` runs the program itself as its child in the caller's
     ///  environment and returns when the program ends (`systemd-run(1)`),
-    /// so the wrapper's own detaching (a session of its own, `/dev/null`, one log) applies to `systemd-run`,
+    /// so the wrapper's own detaching (a session of its own,
+    /// `/dev/null`,
+    /// one log) applies to `systemd-run`,
     /// and the server is the leader's child in the scope the manager made.
-    /// Nothing of the manager's own bookkeeping is named: no unit file is written and no reload is asked for.
+    /// Nothing of the manager's own bookkeeping is named:
+    /// no unit file is written and no reload is asked for.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -171,7 +189,8 @@ impl ManagerStart {
 /// a child the kernel holds past that cannot be ended by any signal here,
 ///  so it is handed to the thread that collects it when the kernel lets go,
 /// and neither this call nor the commit waits for it
-///  (the fourth review of issue 6293, finding 2).
+///  (the fourth review of issue 6293,
+/// finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,7 +234,8 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
     return None;
 }
 
-/// Ends a leader and everything in its group, which is the scope's own group.
+/// Ends a leader and everything in its group,
+/// which is the scope's own group.
 pub fn end_the_group_of(pid: i32) {
     // SAFETY: a negative number names the process group the leader was made the head of (`setsid` in the spawn).
     let _signalled: libc::c_int = unsafe { libc::kill(-pid, libc::SIGKILL) };

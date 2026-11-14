@@ -290,7 +290,9 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
 ///  The line a command prints when a service of another release serves it.
 /// Why:
 ///  A person reading a test's log or a slow commit should know which program served it;
-/// the line is one, on standard error, and it asks nothing of them.
+/// the line is one,
+/// on standard error,
+/// and it asks nothing of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

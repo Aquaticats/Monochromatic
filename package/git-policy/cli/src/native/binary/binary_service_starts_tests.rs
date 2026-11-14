@@ -185,12 +185,18 @@ fn a_start_that_cannot_greet_names_its_log() {
 }
 
 /// What:
-///  A stand-in for the account's manager, in the fixture's own `bin`, which records every word it is given and then runs the
+///  A stand-in for the account's manager,
+/// in the fixture's own `bin`,
+/// which records every word it is given and then runs the
 ///  command it was asked to run.
 /// Why:
-///  The enhancement's gain is that the server is started as a scope of the manager, and the only honest way to see that
-///  without this machine's manager is a program of the run's own that plays it: it records the words, then does what
-///  `systemd-run --user --scope` does, which is to run the command as its child in the caller's environment.
+///  The enhancement's gain is that the server is started as a scope of the manager,
+/// and the only honest way to see that
+///  without this machine's manager is a program of the run's own that plays it:
+/// it records the words,
+/// then does what
+///  `systemd-run --user --scope` does,
+/// which is to run the command as its child in the caller's environment.
 fn stand_in_manager(fixture: &Fixture, sleeps_seconds: u32) -> PathBuf {
     let calls: PathBuf = fixture.root.join("manager-calls.txt");
     let programme: PathBuf = fixture.root.join("bin/systemd-run");
@@ -207,7 +213,10 @@ fn stand_in_manager(fixture: &Fixture, sleeps_seconds: u32) -> PathBuf {
     return calls;
 }
 
-/// A commit whose command may ask a manager: the runtime directory is named, and the bus is inside it, which is what makes
+/// A commit whose command may ask a manager:
+/// the runtime directory is named,
+/// and the bus is inside it,
+/// which is what makes
 /// it this session's own.
 fn commit_with_a_manager_of_this_session(fixture: &Fixture, repo: &Path, runtime: &Path) -> Output {
     let mut command = wrapped_commit(fixture, repo, &["commit", "-m", "subject", "--", "a.txt"]);
@@ -219,10 +228,16 @@ fn commit_with_a_manager_of_this_session(fixture: &Fixture, repo: &Path, runtime
 }
 
 /// What:
-///  With a manager of this session there, the server is started as a scope of it, and the commit lands.
+///  With a manager of this session there,
+/// the server is started as a scope of it,
+/// and the commit lands.
 /// Why:
-///  This is the whole of what the enhancement gives: the service's cgroup is the scope's, so it is not killed with, nor charged
-///  to, the command that started it;
+///  This is the whole of what the enhancement gives:
+/// the service's cgroup is the scope's,
+/// so it is not killed with,
+/// nor charged
+///  to,
+/// the command that started it;
 ///  and the words prove the base's own service words travel inside the manager's.
 #[test]
 fn with_a_manager_of_this_session_the_service_is_started_as_its_scope() {
@@ -247,10 +262,15 @@ fn with_a_manager_of_this_session_the_service_is_started_as_its_scope() {
 }
 
 /// What:
-///  With a manager that does not answer in time, the result is exactly the base's: one server, the same files, one commit.
+///  With a manager that does not answer in time,
+/// the result is exactly the base's:
+/// one server,
+/// the same files,
+/// one commit.
 /// Why:
 ///  An enhancement that can fail a commit is not one;
-/// the probe's bound is what makes a busy manager (one re-reading its units answers after the reload, which took 139,770 ms
+/// the probe's bound is what makes a busy manager (one re-reading its units answers after the reload,
+/// which took 139,770 ms
 ///  once on this machine) cost a first commit at most `PROBE_WAIT` and nothing at all afterwards.
 #[test]
 fn with_a_manager_that_does_not_answer_in_time_the_base_starts_the_service() {
@@ -276,13 +296,20 @@ fn with_a_manager_that_does_not_answer_in_time_the_base_starts_the_service() {
 }
 
 /// What:
-///  A client keeps a service of a newer release, serves every command through it, and asks it to leave not once.
+///  A client keeps a service of a newer release,
+/// serves every command through it,
+/// and asks it to leave not once.
 /// Why:
 ///  The audit of 2026-08-... measured one client sending `retire` a hundred times in ten seconds to a healthy service of a
-/// newer release, and failing after ten seconds with the edit still staged. Each ask made the newer service leave and the
-///  account's manager start the newer program again, which is a changeover spending a commit on a program that was there
-///  and better. `service_release_order.rs` is the client's half of the fix and the service's one-ask rule the other.
-/// The count is the service's own log, which is where an ask that was honoured leaves its line.
+/// newer release,
+/// and failing after ten seconds with the edit still staged.
+/// Each ask made the newer service leave and the
+///  account's manager start the newer program again,
+/// which is a changeover spending a commit on a program that was there
+///  and better.
+/// `service_release_order.rs` is the client's half of the fix and the service's one-ask rule the other.
+/// The count is the service's own log,
+/// which is where an ask that was honoured leaves its line.
 #[test]
 fn a_client_keeps_a_service_of_a_newer_release_and_asks_it_to_leave_not_once() {
     let (fixture, repo, runtime) = prepared("starts-newer-release-kept");
@@ -313,19 +340,22 @@ fn a_client_keeps_a_service_of_a_newer_release_and_asks_it_to_leave_not_once() {
 }
 
 /// The most a control waits for the service it started to reach the state it is about,
-/// far beyond what the state needs, so only a service that never gets there reaches it.
+/// far beyond what the state needs,
+/// so only a service that never gets there reaches it.
 const SETTLED: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// What:
 ///  A service of this worktree that is alive and has not greeted yet is waited for by the next command and never started
-///  over, and a commit reaches it once its recovery ends.
+///  over,
+/// and a commit reaches it once its recovery ends.
 /// Why:
 ///  The fourth review of issue 6293 (finding 1):
 /// a service in its recovery before its first greeting answered nothing,
 /// so the next start took its address away,
 /// the worktree had two live services,
 /// and the one that ended first deleted the other's address and note.
-/// The recovery is held by the service's own hold, which this control releases,
+/// The recovery is held by the service's own hold,
+/// which this control releases,
 /// so nothing here is a wait made of load.
 #[test]
 fn a_live_service_that_has_not_greeted_yet_is_waited_for_and_never_started_over() {

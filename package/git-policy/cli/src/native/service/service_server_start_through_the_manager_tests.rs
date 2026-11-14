@@ -3,14 +3,18 @@
 //! and the bound on a manager that does not answer.
 //! Why:
 //!  An enhancement that can fail a commit is not one;
-//! what is proven here is that a bus of another session, a folder this program fell back to, and a manager that
-//!  does not answer all leave the base's start untouched, and that a manager of this session is asked in
+//! what is proven here is that a bus of another session,
+//! a folder this program fell back to,
+//! and a manager that
+//!  does not answer all leave the base's start untouched,
+//! and that a manager of this session is asked in
 //!  exactly the words `systemd-run` takes.
 
 use super::*;
 use std::os::unix::fs::PermissionsExt;
 
-/// A folder of this test's own, short enough for a socket address where one is needed.
+/// A folder of this test's own,
+/// short enough for a socket address where one is needed.
 fn folder(name: &str) -> PathBuf {
     let root: PathBuf = crate::test_support::fixture("manager-gate").join(name);
     crate::test_support::track_for_this_thread(root.as_path());
@@ -33,7 +37,8 @@ fn stand_in(root: &Path, status: i32, sleep_seconds: &str) -> PathBuf {
     return programme;
 }
 
-/// A host whose runtime directory the environment named, and whose bus is inside it.
+/// A host whose runtime directory the environment named,
+/// and whose bus is inside it.
 fn host(runtime: &Path, bus_address: Option<String>) -> ServiceHost {
     return ServiceHost {
         runtime_dir: runtime.to_path_buf(),
@@ -50,8 +55,12 @@ fn host(runtime: &Path, bus_address: Option<String>) -> ServiceHost {
 /// What:
 ///  A manager is asked only for a session this command belongs to.
 /// Why:
-///  A folder the program fell back to (`~/.run`) is no session, a bus elsewhere is another session's manager, and without
-///  the manager's program there is nothing to ask; each answer is the base's start, with nothing a person must act on.
+///  A folder the program fell back to (`~/.run`) is no session,
+/// a bus elsewhere is another session's manager,
+/// and without
+///  the manager's program there is nothing to ask;
+/// each answer is the base's start,
+/// with nothing a person must act on.
 #[test]
 fn a_manager_is_asked_only_for_this_commands_own_session() {
     let root: PathBuf = folder("session");
@@ -80,8 +89,10 @@ fn a_manager_is_asked_only_for_this_commands_own_session() {
 ///  A manager that does not answer within the probe's bound is a manager this command does without,
 ///  and one that answers well is asked.
 /// Why:
-///  A manager re-reading its units answers after the reload (139,770 ms was measured once), and a commit may not pay that:
-///  the probe is the only wait the enhancement adds, and it ends at `PROBE_WAIT`.
+///  A manager re-reading its units answers after the reload (139,770 ms was measured once),
+/// and a commit may not pay that:
+///  the probe is the only wait the enhancement adds,
+/// and it ends at `PROBE_WAIT`.
 #[test]
 fn a_probe_that_does_not_answer_in_time_is_no_manager() {
     let root: PathBuf = folder("probe");
@@ -137,8 +148,10 @@ fn a_probe_child_the_kernel_does_not_let_go_is_left_to_a_reaper() {
 /// What:
 ///  The start through the manager is `systemd-run --user --scope -- <program> <the service's own words>`.
 /// Why:
-///  `--scope` is what makes the run a cgroup of its own with the caller's environment (identical to the base's), and the
-///  service's words after `--` are exactly the base's, so the service a manager starts is the service the base starts.
+///  `--scope` is what makes the run a cgroup of its own with the caller's environment (identical to the base's),
+/// and the
+///  service's words after `--` are exactly the base's,
+/// so the service a manager starts is the service the base starts.
 #[test]
 fn the_start_through_the_manager_wraps_the_bases_own_words() {
     let root: PathBuf = folder("words");

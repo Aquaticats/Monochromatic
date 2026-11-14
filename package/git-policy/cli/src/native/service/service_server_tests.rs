@@ -48,8 +48,10 @@ fn a_path_whose_socket_file_is_stale_is_bound_again() {
 /// Why:
 ///   A service of this release greets a connection before it restores anything,
 /// so a socket that accepts and says nothing is held by a process that is leaving or stopped inside itself.
-/// Measured 2026-11-12: an instance stopped 287 ms after it started kept its address for 33 s and a commit waited
-/// 37 s on it, so the next server takes the name instead of waiting for a process that is already on its way out.
+/// Measured 2026-11-12:
+/// an instance stopped 287 ms after it started kept its address for 33 s and a commit waited
+/// 37 s on it,
+/// so the next server takes the name instead of waiting for a process that is already on its way out.
 #[test]
 fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_over() {
     use std::io::Write;

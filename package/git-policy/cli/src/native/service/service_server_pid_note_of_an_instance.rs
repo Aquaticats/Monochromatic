@@ -13,7 +13,9 @@
 //! the kernel reuses numbers,
 //! and killing a stranger because it inherited the number would be a defect nobody would find.
 //! The birth identity is the repository's own answer to that
-//! (`process_identity.rs`: the start tick from `/proc/<pid>/stat`, field 22),
+//! (`process_identity.rs`:
+//! the start tick from `/proc/<pid>/stat`,
+//! field 22),
 //! and every lock in this program already records an owner this way.
 //! The note is written after the socket is bound,
 //! so a note that exists always means "this process had the socket",
@@ -31,7 +33,8 @@ use std::path::{Path, PathBuf};
 /// The ending of the note that names an instance's process.
 pub const PID_NOTE_ENDING: &str = ".pid";
 
-/// One running commit service, as its note names it.
+/// One running commit service,
+/// as its note names it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServerProcess {
     /// The process number the service had.
@@ -40,7 +43,8 @@ pub struct ServerProcess {
     pub identity: String,
 }
 
-/// The note of one instance, beside its socket.
+/// The note of one instance,
+/// beside its socket.
 pub fn path(socket_directory: &Path, instance: &str) -> PathBuf {
     return socket_directory.join(format!("{instance}{PID_NOTE_ENDING}"));
 }
@@ -120,6 +124,12 @@ pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
 /// ```ts
 /// heldByAnotherLiveProcess(note) // the note's server when its pid is not this process's and it is still that process
 /// ```
+/// Whether another process that is still that process holds the instance the note names,
+/// for the one question a bind asks.
+pub fn another_live_process_holds(note: &Path) -> bool {
+    return held_by_another_live_process(note).is_some();
+}
+
 pub fn held_by_another_live_process(note: &Path) -> Option<ServerProcess> {
     let held: ServerProcess = read(note)?;
     if held.pid == i32::try_from(std::process::id()).unwrap_or(0) || !is_still_the_process(&held) {
@@ -128,7 +138,8 @@ pub fn held_by_another_live_process(note: &Path) -> Option<ServerProcess> {
     return Some(held);
 }
 
-/// The note as text, or nothing when it is not there.
+/// The note as text,
+/// or nothing when it is not there.
 pub fn read(note: &Path) -> Option<ServerProcess> {
     return parse(std::fs::read_to_string(note).ok()?.as_str());
 }

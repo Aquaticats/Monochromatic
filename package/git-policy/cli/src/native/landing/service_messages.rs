@@ -185,7 +185,9 @@ pub enum ClientFailure {
     /// is
     ///  saved in `file`.
     BranchSwitched { branch: String, now: String, file: Option<String> },
-    /// The service, once it greeted, said nothing for longer than it ever stays silent while it works,
+    /// The service,
+    /// once it greeted,
+    /// said nothing for longer than it ever stays silent while it works,
     /// so the request is given up rather than asked again.
     ServiceSilent,
     /// The service took no part of the request,
