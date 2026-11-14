@@ -257,9 +257,11 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 ///  The index lock before a merge's own apply,
 /// looked at once and never waited for:
 ///  the dead owner whose lock the merge may clear is named,
-///  and a lock that is held, by a holder proven alive or by an owner nothing proves, ends the apply there.
+///  a lock a holder proven alive holds ends the apply there,
+///  and a lock nothing proves the owner of ends it there too.
 /// Why:
-///   Three owners are met here, and none of them is waited for.
+///   Three owners are met here,
+///  and none of them is waited for.
 ///  A number this process table does not have is what a killed Git leaves,
 ///  and no process here will release it,
 ///  so the lock is named and the merge clears it on the commit service's proof of disuse
