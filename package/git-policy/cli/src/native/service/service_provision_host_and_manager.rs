@@ -13,7 +13,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type ProvisionHost = { runtimeDir: string; userUnitDir?: string; bus: string; serviceBinary: string; git: string; instance: string; retirementWait: number };
-//! interface Manager { reload(): void; start(unit: string): void; stop(unit: string): void; activeState(unit: string): string | undefined }
+//! interface Manager { within(wait: number): void; resetFailed(unit: string): void; start(unit: string): void; stop(unit: string): void; stopAlone(unit: string): void; activeState(unit: string): string | undefined; listen(unit: string): string[] | undefined }
 //! ```
 
 use crate::service_messages::{ClientFailure, Platform};
@@ -54,23 +54,6 @@ pub struct ProvisionHost {
     pub retirement_wait: std::time::Duration,
 }
 
-/// What:
-///  The runtime directory whose record of the unit texts the manager was told about belongs to this host,
-/// for the
-///  client that drops it when the manager and the files disagree.
-/// Why:
-///   The client is built from this host,
-/// and a closure at the construction site would say the same thing in
-///  every one of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unitsRecordDirOf = (host: ProvisionHost): string => host.runtimeDir;
-/// ```
-pub fn units_record_dir_of(host: &ProvisionHost) -> PathBuf {
-    return host.runtime_dir.clone();
-}
-
 /// How long the earlier single service may take to stop;
 /// it finishes the batch it holds first.
 /// The wait and every question to
@@ -101,12 +84,14 @@ pub const STOP_TIMEOUT_SECONDS: u64 = crate::stop_of_the_service_noticed_by_its_
 
 /// What the manager is asked to do,
 /// so a control can record it instead of reaching a manager.
+/// Nothing here reloads the manager:
+/// every call names one unit of this wrapper,
+/// so its cost is that unit's own
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 pub trait Manager {
     /// Gives the calls that follow `wait` from now in all,
     /// so that each phase of provisioning has a time of its own.
     fn within(&mut self, wait: std::time::Duration);
-    /// Reloads the unit files.
-    fn reload(&mut self) -> Result<(), CallError>;
     /// Clears a unit's failed state and start-rate counter.
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError>;
     /// Starts a unit.
@@ -137,10 +122,6 @@ pub trait Manager {
 impl Manager for Bus {
     fn within(&mut self, wait: std::time::Duration) {
         Bus::within(self, wait);
-    }
-
-    fn reload(&mut self) -> Result<(), CallError> {
-        return Bus::reload(self);
     }
 
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {

@@ -129,7 +129,6 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
         extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
         waiting_notice_after: PATIENCE,
-        units_record_dir: None,
     };
 }
 
