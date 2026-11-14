@@ -1248,6 +1248,180 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 31 is in `main` and `0.6.1-alpha.26` is dispatched; pass 29 is not fit: two controls need five CPUs; the pending push is pass 36 (2026-11-14T02:59:44-05:00)
+
+Not final and not approved:
+what the coordinating session merged,
+measured and queued,
+and what five runs report of themselves,
+which this session has not checked unless a line says so.
+Their last messages are kept in `~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0248-to-0253/keep/`.
+
+- **Pass 31** (the warm request's look at the processes within a ceiling) reported at 02:52:42 that its branch is fit to be released
+  (`~/temp/agent/integration-pass-31-warm-request-of-a-commit-look-at-the-processes-at-a-ceiling-scratch/keep/report.md`).
+  By its report:
+  the reviewed commit `f09d836d55` merged with no conflict and needed no repair commit;
+  build,
+  both test compiles and Clippy pass at its tip `a106505855`;
+  the six library controls and the two binary controls the branch adds pass by name;
+  through its release build a commit took 30.7 ms with nothing running,
+  25.8 ms with a service accepting and 268.1 ms with the look held past its 250 ms ceiling
+  (medians of three rounds),
+  and a one-file commit added 28 to 48 ms over real Git in every round but the stalled ones.
+- **Measured by this session before the merge**:
+  the tip is in the local repository,
+  holds pass 30 (`37d1c10b45`),
+  and `git log a106505855..main` listed one commit,
+  the handover of 02:50:19,
+  so the merged wrapper is the tree the pass checked.
+  Merged as `a9c8cc0100` at 02:57:29.
+- The release dispatch was refused once:
+  `origin/main` lacked twenty-four commits of local `main`,
+  the merge among them.
+  `git push origin main`,
+  which the refusal names,
+  sent them;
+  the second dispatch started run `43573575149` for `0.6.1-alpha.26`.
+  `native:release:wait` is going;
+  then the install,
+  a sample commit and the journal count.
+- **Pass 29 is not fit, and one thing is missing**
+  (`~/temp/agent/integration-pass-29-for-alpha-21-scratch/keep/report.md`).
+  By its report:
+  both reviewed commits merged
+  (`b631f80970`, the commit forms Git refuses,
+  clean;
+  `08d7a82212`, the landing that never waits behind slow work,
+  with three hunks resolved by hand keeping both sides);
+  build,
+  both test compiles and Clippy pass at its tip `2d3d754c7d`,
+  which is on the remote and held `main` at `0fb1d0cc6a`.
+  Two controls of the landing branch,
+  `two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place_it_may` and
+  `a_commit_lands_while_every_kind_of_work_is_held`,
+  pass when the process may use five CPUs or more and fail at four and at two
+  (same tip, alternating: four fails, 181.5 s;
+  five passes, 1.8 s;
+  memory changed nothing).
+  The package's gate container gives four
+  (`bin/native-gate-container-limits.ts`, `gateContainerCpus = 4`;
+  read by this session in `main`).
+  Its reading of the cause:
+  at four CPUs the service keeps one place for slow work where the controls need two,
+  and the cap a control asks for cannot raise a budget.
+  It names two ways out,
+  the controls holding their own room or a larger gate,
+  and calls the second the owner's.
+- **Routed**:
+  the first way needs no owner,
+  so the landing branch's author is resumed in its own session,
+  first in the queue,
+  to make both controls pass at any CPU count and still fail when what they pin is broken
+  (`~/temp/agent/pi-runs/landing-never-waits-two-controls-hold-their-own-room-at-any-cpu-count-prompt.md`).
+  When that is reviewed,
+  pass 29 is resumed to take it.
+  Pass 34 carries the whole of the same branch;
+  it and the other passes still going
+  (32, 33, 35)
+  were told at 02:59:36 what pass 29 measured,
+  that `main` holds pass 31,
+  and to run their own branch's controls once at four CPUs
+  (`~/temp/agent/notes-to-send/note-for-the-passes-still-going-that-main-holds-pass-31-2026-11-14T0300.md`;
+  the name's minute is a guess,
+  the clock read 02:59:36).
+  The commit forms wait in pass 29 behind another branch's controls until then.
+- **What pass 29 repaired, and what it left**:
+  four controls that prove a refusal changed nothing by walking every file began to fail when pass 28 made the wrapper write `.git/cli-git-lock-holders/<pid>.<digest>`;
+  its repair `33271fe5ed` leaves that folder out of the walk.
+  Left alone and read by this session in `main`:
+  `variant_index` in `landing/service_messages_tests.rs` gives `ReferenceLocked` and `RepositoryFrozen` the same number 25,
+  so `every_failure_variant_is_rendered` passes with one sample fewer than its comment claims to demand
+  (thirty-five variants over thirty-four numbers,
+  counted from the match;
+  not run).
+  A fresh run is queued from `a9c8cc0100`
+  (`~/temp/agent/pi-runs/failure-variant-rendering-test-fails-when-two-variants-share-a-number-prompt.md`).
+  One of the twelve red library tests,
+  `merge_isolation_recovery::tests::a_capture_another_record_still_names_keeps_its_ref`,
+  passed for that pass in three of three runs alone and once in the set.
+- **What pass 31 left**:
+  its two binary controls each leave the `sleep 600` of their stand-in service behind,
+  reparented to the user's service manager and keeping their scope alive for up to ten minutes
+  (four caught,
+  three ended by the pass).
+  It is in `main` now with the branch.
+  The author is resumed in its own session to show it,
+  fix it and add a control that fails when a stand-in outlives its test
+  (`~/temp/agent/pi-runs/warm-request-controls-leave-no-stand-in-process-behind-prompt.md`).
+  It also saw the installed wrapper print "the push has not been made yet" for a commit after the push was made:
+  that is what the pending-push branch settles,
+  listed here under pass 36.
+- **The pending push** (`b878fc87a2`):
+  its review ended at 02:50:30 with no defect,
+  having rebuilt the commit,
+  run the branch's nine controls and written two reproductions of its own
+  (a wrapper killed between promote and wake;
+  a queued record a push by hand had delivered),
+  both passing.
+  It is integration pass 36,
+  queued
+  (`~/temp/agent/pi-runs/integration-pass-36-with-the-pending-push-a-running-service-makes-when-its-wake-was-lost-prompt.md`),
+  told to run its controls at four CPUs too.
+  One thing the review noted and did not count:
+  while aged pending records stand,
+  every command that prints notices starts one `git merge-base --is-ancestor` child per record.
+  Weighed:
+  not sent back,
+  since it is bounded and stands only while such records do;
+  the pass is asked to measure it,
+  and a measured cost that shows on a command's time goes to a run of its own.
+- **mpm-shadow's Clippy under `nightly-2026-11-14`** (`682b1072df`, ended 02:48:35):
+  by its report eighteen findings before and none after,
+  sixteen expressions in eight files,
+  no `allow` and no lint configuration,
+  731 of 731 tests.
+  Review queued (range `main...682b1072df`).
+  Its commit body lacks a possessive;
+  weighed and left,
+  since nothing it says is untrue.
+  It counts 71 uses of the same shape under `package/` outside this package,
+  which no run of this session covers.
+- **mpm-shadow's cleanup of old versions**:
+  the author answered both review findings
+  (tip `86bf09f20e`, ended 02:51:52).
+  By its report:
+  both reproductions showed against `e4c7243bbe` and neither shows now;
+  pending removals are found by walking the store and finished before any lock is read;
+  every version of a plan is renamed out of its name first,
+  the process table is then read once for the whole batch,
+  and a version something holds is renamed back;
+  776 of 776 tests;
+  the second look costs about 150 ms a pass.
+  It names what is left open:
+  a process the kernel will not describe or another account's,
+  and a read of `/proc/<pid>/maps` that has no bound of its own.
+  Review of the answer queued (range `main...86bf09f20e`);
+  the unbounded read is read again with that review.
+- **The five library controls again**:
+  read by this session in `main`,
+  not run:
+  `service/service_log_lines_off_the_calling_thread.rs` came to `main` through pass 23
+  (`b0af2f97c2`, 2026-11-13T22:12:20-05:00) with a `Mutex`,
+  a `Condvar` and a thread start;
+  `main`'s lock inventory does not name it and nothing under `source_guard/` does;
+  the branch `ec658fd836` meets `main` before that merge.
+  So the branch merged with `main` would leave two of its five controls red.
+  Its author is resumed in its own session to merge `main` and make the guards true for what `main` gained,
+  or to report what cannot truthfully be listed
+  (`~/temp/agent/pi-runs/five-library-controls-are-true-again-for-the-log-lines-module-main-gained-prompt.md`).
+  The review of `ec658fd836`,
+  resumed to run what it had only read,
+  started at 02:51:08 and goes on beside it.
+- Going at 02:59:44:
+  sixteen Pi runs,
+  the cap.
+  The queue held 69 entries.
+
 ##### Level seventeen fails and the cap is sixteen; the no-manager answer goes to review; a review that ran nothing goes on (2026-11-14T02:49:30-05:00)
 
 Not final and not approved:
