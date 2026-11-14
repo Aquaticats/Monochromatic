@@ -1250,6 +1250,54 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.32` is installed and its full gate is running by the owner's answer; the landing's fifth review finds three more waits; issue 6293's answer goes to review (2026-11-14T15:16:32-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what one review and one author report of themselves,
+and what it queued.
+
+- **The owner answered "Gate after release."**
+  to the question on the full container gate
+  (recorded under "Owner decisions in force",
+  "The wrapper's full gate runs after each release").
+- **`0.6.1-alpha.32`** (pass 42):
+  published by 15:15:43,
+  installed here from 15:15:43 to 15:15:53,
+  sample commit 1,588 ms,
+  `--version` answering `0.6.1-alpha.32`.
+  Its gate was started at 15:16:04 on `5eca8b84cf`,
+  the commit `main` pointed at with the release's bump and the lock
+  (unit `gpc-gate-wrapper-next-alpha-on-5eca8b84cf-20261114T151604-0500`,
+  log of the same name under `~/temp/agent/gate/`);
+  a bounded wait for its verdict runs in the background.
+  The journal checks of the release's first minutes are still to run.
+- **A landing never waits behind housekeeping** (`4768e9e809`),
+  fifth review:
+  the withdrawal,
+  the deferred requeue of a trash disposal and the refusal pairing are sound.
+  One reproduced with the real function on a runtime of one worker:
+  the trash is listed with a synchronous `read_dir` on the runtime worker with no ceiling,
+  the one storage step outside the module's own rule;
+  a probe's longest gap grew from at most 0.4 ms to 12.5 ms at 15,000 entries and 51 ms at 60,000.
+  Two by reading:
+  `drain()` waits with no bound on the service's exit paths,
+  which a stalled trash can now hang;
+  and a commit's routing look still fails the commit as unavailable when stalled storage holds every general place.
+  The reviewer made no stalled filesystem.
+  The author is resumed first,
+  asked for the list of every storage call on those paths and a guard that fails on the next one
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+  Passes 29 and 34 go on waiting for this branch.
+- **Issue 6293** (tip `963ff67934`, ended 15:09:48):
+  the author reports its fourth review answered,
+  386 of 386 tests of the changed modules and nine binary start-path controls passing,
+  and three places where its branch meets the no-service-manager branch,
+  with one control of that branch failing on this one for a message this branch cannot produce.
+  Review queued second (range `main...963ff67934`, 74 code files).
+  Its run's summary holds the same `ESRCH` work problem as three earlier runs of today.
+- The queue held 56 entries at 15:16:32.
+
 ##### Pass 42 is in `main` and `0.6.1-alpha.32` is dispatched; the drawn tree's answer goes to review (2026-11-14T15:06:58-05:00)
 
 Not final and not approved:
@@ -27968,6 +28016,35 @@ The reading stands in `package/crate-release/cli/README.md` ("What an alpha rele
 and `package/git-policy/cli/README.md` ("Development"),
 with those quotes and dates,
 so he can veto it.
+
+### The wrapper's full gate runs after each release (2026-11-14, answered by 15:15:27-05:00)
+
+Asked through the question tool whether the package's full container gate
+(`native:test:container`:
+the whole suite and Clippy in bounded containers)
+runs for each alpha release,
+with three options
+(after each merge without blocking,
+as now with no gate,
+before every release)
+and what was so by then:
+`0.6.1-alpha.28` to `0.6.1-alpha.32` went out on each integration pass's own checks,
+and three library tests are red on `main`,
+so the gate does not pass today.
+
+- The owner's answer,
+  typed and not one of the three:
+  "Gate after release."
+- What this session does by it:
+  a release is dispatched,
+  awaited and installed as before,
+  on the pass's report;
+  then `mise run //package/git-policy/cli:native:gate:main-tip` starts the gate on the commit `main` points at,
+  which holds the release's bump,
+  and `native:gate:verdict` reads its verdict.
+  The verdict is recorded with the release in this file.
+  A failure the red list of `main` does not explain goes to an author as a finding;
+  it does not hold the next release.
 
 ### Answers on the credentials Pi runs showed their model providers (2026-11-14, answered by 10:38:24-05:00)
 
