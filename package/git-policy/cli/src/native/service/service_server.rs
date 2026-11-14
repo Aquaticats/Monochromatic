@@ -44,6 +44,7 @@ use crate::service_land::LandContext;
 use crate::service_timing::{ExitReason, exit_line, log};
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
+use crate::service_server_own_worktree_question::own_worktree_gone_now;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
@@ -244,29 +245,6 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
 ///  remembers (`DONE_RETAINED`),
 /// since a client that withdrew sends nothing more for its request.
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
-
-/// What:
-///  Whether this service should stop serving because the worktree whose units are its own is gone.
-/// Why:
-///   Every wake of a service whose worktree is known asks this:
-/// the removal that takes a worktree while its service runs is what leaves a socket listening for a directory that is gone.
-/// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
-/// so an unmounted device and an instance nothing names keep the service serving.
-/// The question is asked before the busy count and before the idle bound:
-/// after-commit work that counts itself busy,
-/// and a service that has served nothing for hours,
-/// both answer it the same way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (ownWorktreeGoneNow(settings, untilIdle)) stopOwnUnitsAndEnd();
-/// ```
-fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool {
-    if settings.own_git_dir.is_none() || until_idle <= settings.own_worktree_check {
-        return false;
-    }
-    return settings.own_git_dir.as_deref().is_some_and(crate::service_units_of_removed_worktrees::worktree_is_gone);
-}
 
 /// What:
 ///  Runs the service until it is told to retire.

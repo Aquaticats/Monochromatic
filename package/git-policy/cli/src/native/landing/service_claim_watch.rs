@@ -28,7 +28,8 @@
 //! a message the service never read,
 //! and a service that was
 //!  starting at that instant all leave one.
-//! The same notes answer that: on every look (`look_again`,
+//! The same notes answer that:
+//! on every look (`look_again`,
 //! one every
 //!  `LOOK_AGAIN_AFTER`) the running service reads them again and lists the records waiting in each,
 //! so a record that exists
@@ -126,7 +127,9 @@ const WATCH_EXTENSION: &str = "watch";
 /// each with one note in its journal and an
 ///  empty `pending` (debug builds).
 /// Over its 120 looks the service with the look used four clock ticks more than the one without
-///  it, 0.040 s of processor, which is 0.0067 % of one,
+/// it,
+/// 0.040 s of processor,
+/// which is 0.0067 % of one,
 /// and 897 more context switches.
 /// That is at most 333
 ///  microseconds of processor and 7.5 wake-ups for each look,
@@ -618,7 +621,8 @@ impl ClaimWatch {
 
 /// Whether a record of `git_dir` waits to be claimed.
 /// Why:
-///  `look_again` asks this of every repository the notes name, and the answer is the whole of what a look finds:
+/// `look_again` asks this of every repository the notes name,
+/// and the answer is the whole of what a look finds:
 /// a listing
 ///  of one directory and nothing read,
 /// so a repository whose records are all settled costs one call.

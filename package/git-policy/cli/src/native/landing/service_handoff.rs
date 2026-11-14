@@ -24,6 +24,7 @@ use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, pid_of, 
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
+use crate::service_handoff_queued_push_words::queued_push_line;
 use crate::service_messages::ClientFailure;
 use crate::service_work::work_directory;
 use crate::service_review_key::{ReviewKey, key_from_environment};
@@ -458,68 +459,6 @@ fn pid_text(holder: &str) -> String {
         Some(pid) => pid.to_string(),
         None => String::from("of unknown number"),
     };
-}
-
-/// What:
-///  The one sentence the worktree says about a push that is queued and has not been made.
-/// Why:
-///   What is known is that the record is queued and that no service has taken it,
-/// and what a running service does with it:
-/// it
-///  looks at the repositories its journal names by itself every `LOOK_AGAIN_AFTER`,
-/// so the record needs no commit and no wake
-///  to be run;
-/// the sentence names that bound,
-/// so a person can tell a push that is about to go from one nothing is looking at.
-/// A
-///  record that has waited longer than the bound is said with how long it has waited,
-/// because that is the case in which no service
-///  looked at the repository at all,
-/// and the person needs the number that says so.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// queuedPushLine(branchRef, commit, waited)
-/// ```
-pub fn queued_push_line(reference: &str, commit: &str, waited: std::time::Duration) -> String {
-    let bound: String = crate::kept_reference_words::span_words(crate::service_claim_watch::LOOK_AGAIN_AFTER);
-    let from: String = match reference.is_empty() {
-        true => String::new(),
-        false => format!(" from {reference}"),
-    };
-    if waited > crate::service_claim_watch::LOOK_AGAIN_AFTER {
-        return format!(
-            "the commit {commit} is queued for its push{from}: the push has not been made yet, and this record has waited {}, longer than the {bound} in \
-             which a running commit service looks at this repository's records by itself, so no service has looked at this repository since the \
-             record was written; the push needs no further commit",
-            waited_words(waited)
-        );
-    }
-    return format!(
-        "the commit {commit} is queued for its push{from}: the push has not been made yet, and a running commit service looks at this repository's \
-         records by itself every {bound}, so the push needs no further commit"
-    );
-}
-
-/// What:
-///  A wait in the words a person reads.
-/// Why:
-///   `age_words` is written for days and hours of a kept reference and prints `0 minutes` for a wait of seconds,
-/// which says
-///  nothing here;
-/// a wait this line names is one from fifteen seconds to hours,
-/// so seconds are said as seconds and anything longer
-///  reads as `age_words` prints it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const waitedWords = (waited) => waited < 2 * 60_000 ? `${Math.floor(waited / 1000)} seconds` : ageWords(waited);
-/// ```
-fn waited_words(waited: std::time::Duration) -> String {
-    if waited.as_secs() < 120 {
-        return format!("{} {}", waited.as_secs(), crate::kept_reference_words::counted(u128::from(waited.as_secs()), "second"));
-    }
-    return crate::kept_reference_words::age_words(waited.as_millis());
 }
 
 /// What:

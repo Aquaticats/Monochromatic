@@ -6941,7 +6941,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   a removed worktree's subvolume,
   a push record,
   and the work after a landing).
-  The record is durable, a running service looks at it by itself every `LOOK_AGAIN_AFTER` (five seconds),
+  The record is durable,
+  a running service looks at it by itself every `LOOK_AGAIN_AFTER` (five seconds),
   and every later command of the repository wakes the same service,
   so an answer that does not come costs one look or one later wake and never the work.
   Twice the slowest of the 52 measured cold starts,

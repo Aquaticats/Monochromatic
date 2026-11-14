@@ -234,7 +234,9 @@ fn a_service_that_starts_pushes_the_queued_record_with_no_further_commit() {
 }
 
 /// What:
-///  A push record waiting for a service is settled, and not named, once the person's own push has made the commit,
+/// A push record waiting for a service is settled,
+/// and not named,
+/// once the person's own push has made the commit,
 /// and the command that finds it asks the service to look.
 /// Why:
 ///   The line reads the record,
@@ -243,7 +245,8 @@ fn a_service_that_starts_pushes_the_queued_record_with_no_further_commit() {
 ///  `integrate/git-policy-cli-pass-25-for-alpha-23` said "the push has not been made yet" on every command after
 ///  `git push origin HEAD` had put `HEAD` on its upstream.
 /// A line that says a push has not been made while `git status` shows it
-///  on the remote is untrue, and Git's own record of the branch's upstream is the proof that settles it
+/// on the remote is untrue,
+/// and Git's own record of the branch's upstream is the proof that settles it
 /// (`held_push_commit_on_the_remote.rs`).
 #[test]
 fn a_queued_record_whose_commit_a_person_pushed_is_settled_and_not_named() {

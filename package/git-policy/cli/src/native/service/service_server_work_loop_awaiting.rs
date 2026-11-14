@@ -241,7 +241,8 @@ fn restore_in_a_job(mut retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
 ///  time,
 /// so the job takes it and hands it back,
 /// and nothing locks it.
-/// A look that could not run says nothing: it is
+/// A look that could not run says nothing:
+/// it is
 ///  asked again at the next bound,
 /// and a journal that stopped answering is said by the notes' own retry
 ///  (`retry_awaiting`),
@@ -486,10 +487,16 @@ pub async fn work_loop_awaiting(
             let (back, waiting): (ClaimWatch, Vec<PathBuf>) = look_awaiting(watch).await;
             watch = back;
             for directory in waiting {
-                if wakes.iter().any(|(named, _)| return named == &directory) {
-                    continue;
+                // A wake already named this repository, and its round takes the same records: one drain, not two.
+                let mut named_already: bool = false;
+                for (named, _) in &wakes {
+                    if named == &directory {
+                        named_already = true;
+                    }
                 }
-                wakes.push((directory, None));
+                if !named_already {
+                    wakes.push((directory, None));
+                }
             }
             // A look that leaves the store owing a read is asked for less often until its pause runs out, so a journal that
             //  stopped answering cannot fill the blocking pool with looks of it.

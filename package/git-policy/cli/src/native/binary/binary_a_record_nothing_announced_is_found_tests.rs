@@ -208,7 +208,8 @@ fn ticks_per_second() -> f64 {
 ///  A service that was already running when the wrapper died before its wake pushes the record by itself,
 /// within the bound it says it looks in.
 /// Why:
-///   This is the state the audit of `0.6.1-alpha.14` left (`report.md`, finding F2):
+/// This is the state the audit of `0.6.1-alpha.14` left (`report.md`,
+/// finding F2):
 /// a `pending` push record that
 ///  nothing ran for 229 seconds,
 /// while a service ran the whole time.
