@@ -966,6 +966,37 @@ Read-only commands,
    ioctl and deletes its administrative directory when the mount has `user_subvol_rm_allowed`
    (the doctor prints the commands that set it);
    in every other case Git removes it.
+  A subvolume or a mount point below the worktree's root that this wrapper did not make is removed around:
+     the wrapper removes every other entry of the worktree,
+     leaves the volume and the directories that lead to it exactly as they stand,
+     deletes the administrative directory so Git forgets the worktree,
+     prints what was left and what frees the path,
+     and exits 0,
+     because the worktree is gone from Git's records.
+     A nested worktree of this repository that stands inside it stays with its registration,
+     its branch and its files.
+  A removal without `--force` whose tree holds such a volume is never handed to Git,
+     whose own removal would delete what is mounted at a mount point;
+     when Git would also refuse what is untracked or modified there,
+     the wrapper refuses with its own report,
+     which names the volumes and words the way on by what the tree in front of it is,
+     and `--force` removes everything around a volume and still leaves it.
+     A tree whose only trouble is entries missing from it is the shape a removal left:
+     the wrapper writes a record of the worktree, its registration and its path before it deletes the first
+     entry,
+     and the same unforced command reads it and finishes the removal,
+     so a command killed in that pass costs the person one more run of what they typed.
+     Without such a record the report says what the command itself did,
+     names `--force`,
+     and says that moving a volume out cannot finish a tree whose tracked entries are gone.
+  A later `git worktree add` at that path meets a directory that is not empty:
+     Git's own line says only that it exists,
+     and the wrapper adds one line naming each volume a removal left and what frees the path.
+  The words are the same ones the automatic removal prints,
+     and an automatic removal is recorded in
+   `<common Git directory>/monochromatic-git-policy-cli/left-in-place-notices`,
+     which the next wrapper command of any worktree of that repository shows once,
+     because a merge's own output is easily missed and the path it names is still taken.
   A forced removal is served without the cleanliness proof,
      because Git's own `--force` removal deletes a worktree that holds changes whatever it holds
      (`builtin/worktree.c`:
@@ -1160,9 +1191,6 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    never its own working folder,
    so a program that spawns a wrapped merge with a linked worktree as that folder
    leaves the worktree kept by this rule;
-- no subvolume and no mount point stands below its root,
-   because the kernel can never destroy a subvolume that contains another one,
-   and Git's own removal would delete the files of the worktree inside it;
 - no subvolume and no mount point stands below its Git directory that this wrapper did not make,
    because a registration holding one can never be emptied;
    the wrapper's own folder there is taken first,
@@ -1171,14 +1199,26 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    no tracked file is modified or staged there and no untracked file exists.
 
 A worktree that fails one of those is kept and the report says why.
-A nested worktree of this repository inside it is named with the branch it is on,
-or with the fact that it is on a detached `HEAD`,
-and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
- uncommitted.
-A subvolume or a mount point that is no worktree of this repository is named with what it is,
-with the move or the unmount that keep every file of it first,
-and with a `btrfs subvolume delete` last and for what it destroys,
- because a subvolume there may be another repository's worktree.
+A subvolume or a mount point below the worktree's own root that this wrapper did not make is no longer a reason to
+ keep it:
+the removal goes around it.
+Everything else in the worktree is removed,
+the volume and the directories that lead to it stay exactly as they stand,
+Git forgets the worktree,
+and the line the merge prints names each volume,
+what it is,
+where it stands,
+that the worktree is otherwise gone,
+and what frees the path;
+the same words are recorded in
+ `<git-dir>/monochromatic-git-policy-cli/left-in-place-notices`
+and the next wrapper command of any worktree of that repository shows them once.
+The kernel cannot destroy a subvolume that contains another one,
+and Git's own removal would delete what is mounted at a mount point,
+so neither route may take such a worktree:
+a nested worktree of this repository that stands inside it therefore stays,
+and stays registered,
+with its branch and its files.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -1214,6 +1254,12 @@ The service proves every condition above again,
  the records its Git directory holds,
  the record that this program made the worktree,
  and every commit a reference lock holds.
+It then makes the same look for a subvolume or a mount point it did not make,
+ and goes around one exactly as the merge's own removal does:
+ Git is never started on a tree that holds one,
+ because its removal would delete what is mounted at a mount point.
+A volume that appeared after the merge handed the removal over is therefore left rather than deleted through,
+ and the person reads what stands there and what frees the path on their next command.
 A worktree that no longer meets one of them stays,
  and the next wrapper command in that repository names it once,
  with the path,
@@ -5182,19 +5228,21 @@ Two requirements bound the latency the wrapper adds,
 and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- Every commit made through the wrapper adds at most the larger of `5,000 ms` and twice native Git's own time for the same
-  commit
-  (each commit,
-  not a percentile of them):
-  a commit real Git takes 50 ms to make may gain five seconds,
-  and one it takes 30 s to make under disk pressure may gain 60 s.
-  The owner changed the rule on 2026-11-12:
-  "Change the 5s rule to max(5s, double what native git takes)",
-  read as the extra over real Git.
+- Every commit made through the wrapper must not add more than the larger of `5,000 ms` and twice the time the same commit
+  takes with native Git:
+  the wrapper's time minus native Git's time is at most `max(5,000 ms, 2 x native time)`,
+  for each commit,
+  not a percentile of them.
+  The owner changed this rule on 2026-11-12 ("Change the 5s rule to max(5s,
+  double what native git takes)"),
+  read as the extra over real Git,
+  so a commit that native Git needs 30 seconds for under disk pressure may take the wrapper 60 seconds more,
+  while one native Git makes in 50 milliseconds may take the wrapper five seconds more.
   A wrapper time alone says nothing under it,
-  so every wrapper commit is measured beside a native Git commit of the same change set,
+  so every measurement of it pairs the wrapper's commit with native Git's commit of the same state,
   alternating with it,
-  in the same repository and under the same conditions.
+  in the same repository and under the same conditions,
+  and never compares a wrapper time with a read-only native Git query.
   The `native:perf` judge still fails a commit whose paired delta reaches `5,000 ms`,
   which is stricter than this requirement for any commit whose real Git time is over 2.5 s;
   its judge is to be changed to this rule.
@@ -5206,6 +5254,9 @@ which the rule above replaced as the measure of a commit:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
+
+The rule's size changed on 2026-11-12 to `max(5,000 ms, 2 x native time)`;
+the measure stayed the paired one.
 
 The 5-second `timeout --signal=KILL` of the binary tests is a hang guard of the test harness
 (`TIME_BOUND_SECONDS` in `src/native/binary/binary_support.rs`),

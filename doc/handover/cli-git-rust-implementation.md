@@ -757,6 +757,64 @@ Questions kept for the owner's return:
   (two stale tests of the journal's start),
   got one from a hand-written brief,
   and that review found coverage lost.
+- May the three files of the old name `cli-git-native` be moved out of the main checkout's `.cache`
+  (`toolchain-launchers/cli-git-native`,
+  `toolchain-launchers/cli-git-native.launch`,
+  `toolchain-bin/cli-git-native`)?
+  They are why every new worktree's relink is given up after three installs
+  (the section "Why relinks are given up is found" has the evidence).
+  The link still resolves to a working program dated 2026-11-04,
+  the wrapper as it was before its rename.
+  No file of this repository outside documents and tests runs that name,
+  and the four Claude Code settings files hold no mention of it;
+  a shell alias or another tool of the owner's could.
+  Two fixes are on their way that make the move unnecessary
+  (the wrapper removes the copied record;
+  mpm-shadow stops leaving it),
+  each a review and a release away.
+- Should a binary test's fixture repository be reachable by another account at all?
+  The fixture root is under `/var/mnt/encrypted/cargo-build/…/tmp/`,
+  mode 0755 all the way from a 0777 mount,
+  and a lock written there is 0644,
+  so a process of another account can hold it open.
+  The removal of an unheld lock counts processes of other accounts as unable to hold this account's files
+  (`OTHER_ACCOUNTS_PROCESS_REASON` in `service_index_unheld_removal.rs`),
+  which is true of a home directory and not of these fixtures.
+  The levers named by the agent that found it:
+  `CLI_GIT_TEST_ROOT`,
+  or the build directory's mode.
+- `index_lock_holders.rs`'s module text says a caller that would unlink a lock must keep it when a process of this account refuses a look at its descriptors;
+  the removal counts that process as unseen and removes,
+  by the owner's answer of 2026-11-07 ("Service removes it").
+  Which of the two is changed to match the other?
+  The answer on record points at the module text.
+- Where no address can reach a commit service
+  (a runtime directory too long for a socket path,
+  on a system without abstract socket names),
+  a commit stops with its reason.
+  May the wrapper make that commit through real Git instead?
+  `SPEC.md` says the service is the only writer,
+  and "Commits should never fail." pulls the other way.
+- OpenSnitch saves a reject rule for each program an agent builds that tries the network
+  (two for one run's `mpm-shadow` on 2026-11-13,
+  named in `/var/log/opensnitchd.log`).
+  Are those rules wanted as they are,
+  and is there a rule the owner would add so that a built tool's own network path can be tested here?
+- cargo-shadow's cleanup of old toolchains' build folders,
+  written and under review,
+  carries three bounds its author proposes and nobody decided:
+  it starts removing when the build volume has less than 296 GiB free
+  (a 100 GiB floor,
+  plus five hours at 36 GiB an hour,
+  plus 16 GiB,
+  in its report's own sum);
+  it never removes a folder whose last build through the shadow is younger than six hours;
+  and one pass removes for at most thirty minutes.
+  The owner's words were "by size + last modified time",
+  with no numbers.
+  It also removes a toolchain that checkouts still pin when its folder is old enough,
+  at the price of a rebuild;
+  the report gives its reasons in its section 9.
 
 ##### The deletion ended at 18:49:59
 
@@ -1060,6 +1118,11 @@ and of its own commands.
   because the scan finds no holder and could not look at 689 processes of other accounts.
   That is a merge that fails where the project says it waits,
   on any machine that runs containers and system services.
+  (Wrong in both halves,
+  corrected 2026-11-13T22:32:01-05:00 in the section "Two reviews with defects, two authors finished, and a correction":
+  the merge saves itself and exits 0,
+  `SPEC.md` says it never waits for another program's command,
+  and the two controls are the stale side.)
   A fresh run is queued near the head
   (`~/temp/agent/pi-runs/merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-prompt.md`).
 - Also from that author,
@@ -1120,6 +1183,1255 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Three authors answered, the add-never-skips answer has four reproduced defects, and the queue is longer than at 21:00 (2026-11-13T22:53:57-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and three runs' last messages,
+nothing here rerun by it.
+
+- **Discarding commands**
+  (run `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file-4`,
+  ended 22:47:34,
+  tip `1edafc6c7d`,
+  `main` merged twice):
+  the author saw all ten losses of its second review on the old build and answered each,
+  with real Git measured for every rule the fixes rest on
+  (an empty pathspec file,
+  C-quoting,
+  the last `--source`,
+  one force deleting a bare repository).
+  Each control quoted failing without its fix.
+  Its whole binary suite:
+  1,163 of 1,180,
+  the seventeen red ones in families whose files equal `main`'s.
+  Its third review is queued at the head
+  (`review-git-policy-cli-discarding-commands-answers-after-its-second-review`,
+  range `main...1edafc6c7d`).
+- **The push of a branch that is not checked out**
+  (run `push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-4`,
+  ended 22:47:41,
+  tip `6c39c3719a`,
+  level with `main`):
+  the review's reproduction showed a switch in the instant before the branch moves carrying the merge's content onto the other branch.
+  After the reference moves,
+  the move now looks at what the checkout shows and puts back,
+  path by path,
+  what it wrote and no person changed;
+  no lock.
+  Two controls,
+  one of them in another session's worktree,
+  each failing without the look.
+  Cost:
+  about 17 ms for a move in this repository,
+  3.7 ms in a fixture of two worktrees.
+  Its review is queued at the head
+  (`review-git-policy-cli-push-of-a-branch-not-checked-out-answers-after-its-second-review`,
+  range `main...6c39c3719a`).
+  It noticed that the landed sweep's notice says another worktree's branch "is now on" the merged branch,
+  which reads as if that worktree's `HEAD` had moved.
+  Open,
+  no run.
+- **Add never skips, fifth review**
+  (`~/temp/agent/change-reviews/git-policy-cli-add-never-skips-answers-after-its-fourth-review/review.md`,
+  ended 22:48:23,
+  on `c69516c715`):
+  the rollback window and the bounded reads are sound,
+  and four defects are reproduced,
+  all weighed as standing.
+  The placement deletes a person's own lock when that is what stood at the lock as the filling began,
+  and a kill or a restore that cannot write then leaves it nowhere,
+  against the two sentences the last answer put into `SPEC.md`.
+  A lock over the new read limit of 1 MiB is treated as absent and the add's restore deletes the tracked file.
+  The check for the wrapper's exclude line trims a leading space and a trailing tab that Git keeps,
+  so the trash can be staged.
+  Two fillings of one workspace delete each other's resolution mirror.
+  Back to the author
+  (`add-never-skips-answers-its-fifth-review-of-2026-11-13-prompt.md`,
+  queued).
+  This is the fifth review of this branch,
+  and each found something new in what the answer before it added;
+  the brief says so and asks the author to read its own diff as that reviewer would before writing.
+- **The driver's unit test of the silence after a compaction**
+  (run `driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone-1`,
+  ended 22:50:29,
+  tip `e816c1dc7b`,
+  one test file):
+  the test decided its outcome by ten milliseconds of real time between two timers armed one after the other;
+  measured by hand,
+  a stall of 9 ms between them fails it with the recorded assertion.
+  The test now holds a clock of its own and moves it by hand.
+  A change to a test file alone,
+  so its review has a hand-written brief
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-unit-test-of-the-silence-after-a-compaction-holds-its-own-clock/brief.md`,
+  queued at the head),
+  which lets the reviewer plant one break at a time.
+  It read its worktree's package links,
+  as the note about the relink asked:
+  none names another checkout.
+  It saw two other tests of the driver fail in the suite and pass alone
+  (a run's wall clock of three seconds has to hold a stand-in's start);
+  a fresh run is queued
+  (`driver-two-unit-tests-of-a-run-that-ends-at-its-wall-clock-pass-in-their-suite-as-they-do-alone`).
+- **The queue**:
+  46 entries at 22:53,
+  where it held about 40 at 21:00,
+  though some twenty-five runs ended in between.
+  Each ended run is answered with one to three new entries
+  (a review,
+  an author's answer,
+  a run for a defect seen on the way),
+  and the author pool the owner keeps at twenty is full throughout.
+  Reviews drain within the hour on their own pool;
+  authors' entries far from the head,
+  the sixteen stranded continuations among them,
+  have not moved since they were queued.
+
+##### The removal-around answer passed its third review and is pass 30; cargo-shadow's cleanup of old toolchains is written (2026-11-13T22:46:59-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing here rerun by it except where a command is named.
+
+The removal around a volume,
+the answer to its second review
+(review `~/temp/agent/change-reviews/git-policy-cli-removal-goes-around-answers-after-its-second-review/review.md`,
+ended 22:39:39,
+on `82e4f12f6e`):
+
+- No defect that loses data,
+  fails a commit or waits without bound.
+  Eight reproductions of its own through the built wrapper:
+  around a subvolume and around a bind mount,
+  a kill inside the pass and the resume,
+  a resume that meets a person's new file or edit and refuses,
+  two removals of one worktree at once (destroyed exactly once),
+  a merge whose sweep removes a landed worktree and lands once.
+  Not exercised end to end:
+  the commit service's own delete of a handed-over subvolume,
+  since no service runs in its fixtures.
+- **Pass 30** is queued at the head for that commit
+  (`integration-pass-30-with-the-removal-around-a-volume-answers`).
+- One false warning reproduced,
+  words only,
+  and in release `0.6.1-alpha.22` too:
+  a removal resumed after a kill says its pass "is not recorded" with `File exists`,
+  while the earlier pass's record stands and the resume finishes.
+  With the two other false notices already on record
+  (the landed sweep's line on the path where the volume was gone;
+  the hand-over notice from the one of two removals that destroyed the subvolume itself)
+  it goes to the author as one task,
+  as commits after `82e4f12f6e`
+  (`removal-around-a-volume-says-only-what-happened-in-three-notices-prompt.md`,
+  queued).
+- Its fourth reproduction shows the nested registered worktree with an uncommitted edit going with the outer one,
+  in the wrapper as in real Git.
+  The review counts that as Git's own bar;
+  the project's record counts an edit to a tracked file as Git work,
+  and the removal-refuses branch has the guard.
+- **Observed in its fixture**:
+  the wrapper's own proof that a worktree is clean gave up on a tree of `HEAD` that was in a pack
+  ("the tree of HEAD is unreadable"),
+  so a worktree holding a foreign volume was refused where it is meant to be removed around.
+  The review kept its fixtures' objects loose to get past it.
+  This repository's own removals go through in one step with most of their trees packed
+  (515,249 objects in two packs,
+  9,740 loose,
+  by `git count-objects -v`),
+  so the proof reads some packed stores and not others.
+  A fresh run is queued
+  (`clean-proof-of-a-worktree-reads-the-tree-of-head-from-a-pack`):
+  which forms of store the reader reads,
+  by its own runs,
+  and each one it does not is read or is named where it gives up.
+
+cargo-shadow removes the build folders of old toolchains by itself
+(run `cargo-shadow-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time-1`,
+ended 22:43:05,
+tip `744824fdc2`,
+four commits,
+report `~/temp/agent/cargo-shadow-old-toolchain-cleanup-2026-11-13-scratch/keep/report.md`):
+
+- **Why the existing cleaner removed nothing**:
+  it decides about one build tree at a time and never about a toolchain's folder.
+  The trees of the old toolchains were each inside a seven-day period,
+  and a folder of a bare name that 53 checkouts still pin was not counted as retired.
+  Two passes of 2026-11-13 judged 60,400 and 62,259 trees and kept every one.
+- **The rule**:
+  a new mechanism of `cargo-shadow lean run`,
+  first in its order,
+  run by the installed `cargo-shadow-lean.service`.
+  While the volume's free space is under a bound,
+  the toolchain folder with the oldest own modified time goes first;
+  the shadow sets that time on every build it hands to the toolchain.
+  Kept:
+  the pass's own toolchain,
+  anything younger than an age,
+  anything a running process works in or holds open,
+  anything that changed since it was looked at.
+  A name that checkouts pin is on purpose no reason to keep.
+  Removal is a rename into a retiring folder and then one shard at a time,
+  with the drive read before and after each,
+  stopping on two slow readings in a row.
+- **Three bounds are its own proposals and have no decision behind them**:
+  296 GiB free,
+  six hours of age,
+  thirty minutes for a pass.
+  They are in "Questions kept for the owner's return".
+- Fifteen new tests,
+  each control shown failing first;
+  885 pass.
+  On this machine today it would remove nothing
+  (2,223 GiB free against the bound).
+  It needs a release of cargo-shadow and `toolchain:update` to take effect.
+- Its review is queued at the head
+  (`review-of-cargo-shadow-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time`,
+  source `package/cargo-shadow/cli/src`).
+- It read,
+  at 19:51,
+  the main checkout's `.cache/toolchain-bin/cargo-shadow` as a link into its own worktree's launcher,
+  which would break the installed service's start when that worktree is removed.
+  Checked at 22:44:
+  the link names the main checkout's own launcher (since the install of 22:26),
+  and no link in that folder names a worktree.
+  How the link came to name a worktree is not established;
+  the sighting is in the brief of the queued mpm-shadow run about launchers.
+
+##### Two authors finished: a commit under a long runtime directory, and `mpm-shadow install` taking a tool; this machine's firewall refuses built programs (2026-11-13T22:35:29-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message,
+nothing here rerun by it except where a command is named.
+
+A commit is made when the runtime directory's path is too long for a socket
+(run `commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket-1`,
+ended 22:29:24,
+tip `1032d1ec91`):
+
+- A runtime directory whose socket path fits keeps the socket file,
+  and the unit text is byte for byte what it was.
+  One whose path does not fit is listened at under a Linux abstract name
+  (`@monochromatic-git-policy-cli/<uid>/<digest of the directory's real path>/<instance>`),
+  and both ends read the kernel's `SO_PEERCRED`:
+  the service refuses another account's process before it says a word,
+  and a client refuses a connection such a process took.
+- Measured:
+  a path of 107 bytes binds and 108 is refused;
+  the unit form was accepted by a real systemd 262 in a container;
+  with the new form switched off,
+  the long-directory control fails as `main` does.
+  Cost:
+  paired ratio 1.07 of a commit of about 30 ms,
+  range 0.65 to 1.38.
+- It corrected two numbers in the package's documents
+  (the boundary is 39 bytes,
+  where they said 40).
+- **Its brief was wrong in one thing**,
+  which it says and did not follow:
+  no route exists by which the wrapper lands a commit without its service,
+  and `SPEC.md` says twice that the service is the only writer.
+  Where no address can reach a service,
+  a commit still stops,
+  named and explained.
+  Whether a commit may fall back to real Git there is a design question,
+  kept for the owner.
+- It removed another session's symbolic link `~/temp/agent/sa14` while cleaning up and put it back.
+  Checked at 22:34:
+  the link stands and names `~/temp/agent/sonnet-audits/alpha-14-commit-landing-service-push-and-changeover`.
+- Its review is queued at the head
+  (`review-of-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket`).
+- Ended `driver-failed` with issue 6295's message;
+  its driver was started at 16:57:10.
+
+Issue 6300,
+`mpm-shadow install` takes a tool and adds it to the plan
+(run `issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan-1`,
+ended 22:32:13,
+tip `f4296268c3`,
+seven commits,
+the last carrying `Closes #6300`):
+
+- A request with a prefix adds an entry for three routes
+  (`cargo:`,
+  `npm:`,
+  `go:`);
+  every other origin is refused with the plan file and the README section named,
+  because its entry needs more than a request says.
+  Binaries come from the owning source.
+  The plan is written by a text splice that keeps comments,
+  order and indentation byte for byte,
+  under the scope's lock,
+  the plan first and the lock second;
+  a kill leaves the state a plain `install` finishes.
+- 776 tests pass;
+  seventeen kept runs show each control failing before its fix;
+  `install --global cargo:fastmod` ran end to end in a disposable home.
+- **Not run end to end**:
+  the lookup of a request at crates.io,
+  npm or go.dev by the built program itself,
+  for the reason in the next item.
+- It needs a release of mpm-shadow and `toolchain:update mpm-shadow` before the command works on this machine.
+- Its review is queued at the head
+  (`review-of-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan`,
+  source `package/mpm-shadow/cli/src`).
+- Read and not run by it:
+  an update of some tools hands the subset to the step that retires every recorded link the given tools do not declare.
+  `git` in a checkout is such a link.
+  A fresh run is queued
+  (`mpm-shadow-update-of-some-tools-retires-no-link-of-a-tool-outside-them`),
+  which tests the claim first.
+
+**This machine's application firewall refuses a program built in a worktree.**
+
+- The issue 6300 author saw every `connect` of its built `mpm-shadow` end with `ECONNABORTED`,
+  while `curl`,
+  `python3`,
+  `node`,
+  `cargo` and `cargo-binstall` reached the same hosts from the same environment.
+- Read by the coordinating session:
+  `opensnitch.service` is running,
+  and `/var/log/opensnitchd.log` holds
+  "Saved new rule: reject if process.path is '…/pi-issue-6300-…/package/mpm-shadow/cli/target/debug/mpm-shadow'" at 01:55:16 of its own clock,
+  and the same for `target/release` at 02:17:17.
+- So it is the firewall,
+  it is not a defect of mpm-shadow,
+  and the rules it saved stay.
+  Now in `rules-every-pi-brief-carries.md`:
+  a built program takes what it needs from disk or from a server the test starts,
+  and the firewall is not a run's to change.
+- For the owner:
+  the firewall now holds reject rules for paths inside agent worktrees,
+  one for each built program that tried the network,
+  and they outlive the worktree.
+
+##### Two reviews with defects, two authors finished, and a correction: a merge that met a held lock never failed (2026-11-13T22:32:01-05:00)
+
+Not final and not approved:
+read by the coordinating session from two review files and two runs' last messages,
+nothing here rerun by it except where a command is named.
+
+The journal after the install of `0.6.1-alpha.22`,
+counted again at 22:32 for 22:26:00 to 22:32:00:
+729 lines,
+no manager-wide reload,
+no start that failed at the EXEC step,
+no service at the start limit,
+two services that said `0.6.1-alpha.22` at their start.
+
+**Corrected**:
+the section "The issue 6299 fix is in `main`; two authors' answers go to review; two lock-wait tests are red on `main`" (2026-11-13T19:38:05-05:00) says of those two tests "That is a merge that fails where the project says it waits".
+Both halves are wrong.
+The merge did not fail:
+on `main` it saves its commit on `refs/cli-git/kept/<n>` and exits 0.
+And the project does not say it waits:
+`SPEC.md` says a merge is "preceded by one look at `index.lock` that never waits for another program's command",
+from the owner's answer for a live foreign `index.lock`,
+put in by `4de623c55e` on 2026-11-12 ("The owner forbids waiting on another agent's command").
+The two binary controls assert the wait that commit removed;
+they are the stale side.
+The brief written from the wrong sentence asked an agent to make the merge wait.
+
+The merge that meets a held lock
+(run `merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-1`,
+ended 22:24:09,
+commits `feb4917f02` and `e42d2fd76a`):
+
+- Its author found both errors of the brief by running the controls,
+  and found that the processes of other accounts change the words and never the verdict.
+- Then,
+  as the brief asked,
+  it made a merge wait up to `MERGE_LOCK_CEILING` for a lock nothing proves the owner of
+  (61 s in its own cost list where `main` saves at once in 215 ms),
+  and asked in its report whether that is acceptable.
+  By the record it is not:
+  its own report names the case,
+  a person's `git commit` at its editor holds the lock with no descriptor open and no PID file,
+  which is another program's live command.
+- Adopted while the owner was away,
+  from `SPEC.md`'s sentence and its source:
+  the branch goes back to one look and no wait,
+  the two controls are rewritten to state what `main` does,
+  and what does not depend on the wait is kept
+  (the count that names processes,
+  controls that hold the lock open from a child process where the old ones rested on the test binary's name starting with `git`,
+  the control of what unseen processes do to each verdict).
+  The author is resumed with that
+  (`merge-that-meets-a-held-index-lock-keeps-the-rule-that-a-merge-never-waits-prompt.md`,
+  queued near the head).
+- Three things it noticed:
+  `merge_isolation_recovery::tests::a_capture_another_record_still_names_keeps_its_ref` fails alone,
+  four times in a row,
+  where the earlier reading had it pass alone
+  (added to the brief of the run that has those four tests);
+  a binary fixture's root under the build volume can be reached by another account
+  (mode 0755 all the way,
+  the lock 0644),
+  so the removal's tolerance of other accounts' processes rests on a fact the fixtures do not meet;
+  and `index_lock_holders.rs`'s module text disagrees with the removal about a process of this account whose descriptors the kernel refuses.
+  The last two are in "Questions kept for the owner's return".
+- The run ended as `pi-not-stopped` with `piExit.code` 0:
+  its feed has the exit and,
+  one millisecond later,
+  "Pi was still running 5000 ms after SIGKILL",
+  137 s after the agent settled with its whole report.
+  A fresh run on the driver is queued
+  (`driver-run-whose-pi-exited-as-the-last-bound-ran-out-is-not-recorded-as-pi-not-stopped`).
+
+The relink fix's review
+(`~/temp/agent/change-reviews/git-policy-cli-package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not/review.md`,
+ended 22:24:40,
+on `8da5f23325`):
+
+- Two defects,
+  both reproduced against the library,
+  both weighed as standing:
+  the reason a relink failed is forgotten before its record durably reaches `failed`,
+  so a kill between the two leaves a record that is told again every lease period and never settles,
+  and later a notice that says no tool ever answered;
+  and the new read of `toolchain.lock.json` has no guard against a file that is not regular,
+  so a named pipe there holds the add or a service job without end.
+- Sound:
+  where the notice is written,
+  how the reason is keyed,
+  the removal of a copied record.
+- Back to the author in its own session
+  (`relink-fix-of-the-wrapper-answers-its-review-of-8da5f23325-prompt.md`,
+  queued near the head).
+- The review file calls its model `pai/glm-5.2`.
+  The run's feed says `"model":"qwen4-max-preview"`,
+  which is what the launcher starts;
+  the file's own line is the model's guess about itself.
+
+The landed removal's review
+(`~/temp/agent/change-reviews/git-policy-cli-landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit/review.md`,
+ended 22:26:32,
+on `2ef29614c6`):
+
+- **A loss, reproduced**:
+  the typed,
+  unforced removal of a worktree that is a btrfs subvolume destroys a second registered worktree inside it under an ignored directory,
+  with its uncommitted edit to a tracked file.
+  The typed route asks about stranded commits and hidden edits and never about registrations inside;
+  the sweep's looks do.
+  Its control:
+  the same removal with the nested worktree detached at a commit nothing else names is refused.
+- Read and not reproduced:
+  a `HEAD` that is neither a `ref:` line nor an object name is answered as "not detached",
+  where the function's doc says an unreadable record keeps the worktree.
+- The loss is the one the removal-refuses author closed on its own branch in the same hour
+  (the next item here),
+  for the typed route,
+  by the record under "How far the protection of a worktree being removed reaches".
+  So the landed-removal author is resumed
+  (`landed-removal-keeps-git-work-answers-its-review-of-2ef29614c6-prompt.md`,
+  queued near the head)
+  to fix the unreadable `HEAD` and,
+  for the loss,
+  to write no second guard:
+  it runs the review's scripts on a scratch merge of the two branches and says whether the loss still shows and where the two meet.
+  The two branches land together or the second after the first,
+  never the landed-removal branch alone.
+
+The removal that refuses a busy worktree,
+the answer to its review
+(run `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes-4`,
+ended 22:26:09,
+tip `d34ecbc2ac`,
+`main` merged):
+
+- Three findings answered,
+  each control shown failing first:
+  a nested worktree's changed or staged tracked file,
+  or a commit no reference names,
+  now refuses the typed removal with an opt-out
+  (new `worktree_nested_git_work.rs`;
+  a clean nested worktree still does not keep the outer one);
+  a worktree that is both a fresh candidate and a remembered keep is examined once;
+  the kept record is replaced by one rename.
+- Cost:
+  none measurable with no nested worktree,
+  2 to 4 ms for one clean nested worktree.
+- Its review is queued at the head
+  (`review-git-policy-cli-removal-refuses-a-busy-worktree-answers-after-its-review-of-01d26607ce`,
+  range `main...d34ecbc2ac`).
+
+##### `0.6.1-alpha.22` is installed; the removal's probes pass against the installed program (2026-11-13T22:27:20-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait`,
+`native:install` and its own probe run.
+
+- The release run ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.22` is published with its archives for both Linux targets
+  (`cargo-publish.yml` run 43551019300).
+  It carries passes 26,
+  23 and 25.
+- `native:install -- 0.6.1-alpha.22` exited 0 between 22:26:29 and 22:26:44;
+  `git --version` reads `monochromatic-git-policy-cli 0.6.1-alpha.22`;
+  the sample commit of `toolchain.lock.json` took 1,646 ms
+  (its timing line reads `totalMs` 1,624,
+  outcome `landed`).
+  The output is `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0-6-1-alpha-22-output.txt`.
+- The journal of the wrapper's units from 22:26:00,
+  counted at 22:27:20 by `count-what-the-wrapper-units-did-between-two-times.ts`:
+  105 lines,
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at the start limit,
+  one service that said `0.6.1-alpha.22` at its start.
+  After `0.6.1-alpha.21` the main checkout's service had failed within seconds of the install;
+  this time it did not.
+  The count is taken again when the next run ends,
+  since other worktrees' services start later.
+- **The probes of the removal, against the installed program**,
+  to cover what the check of the meeting did not run:
+  pass 25's own probe script,
+  copied with the installed program's path
+  (`~/temp/agent/probes-of-the-removal-around-a-volume-against-installed-0-6-1-alpha-22-2026-11-13/`,
+  the log in its `keep/`).
+  Every scene behaves as the pass reported for its own build:
+  aged files with the volume ignored,
+  exit 0 in 13 ms with the around report;
+  fresh files,
+  exit 1 and nothing changed;
+  the same after a status in the same second,
+  exit 1;
+  after a status a second and a half later,
+  exit 0;
+  the volume not ignored,
+  exit 1 unforced and exit 0 with `--force`.
+  In every scene the foreign volume is still a subvolume root with mode 755 and its file has the same bytes.
+  The ordinary removal:
+  exit 0 in 15 ms,
+  nothing left.
+  A commit of one changed file added 27,
+  27 and 26 ms over real Git's 7,
+  6 and 6 ms.
+  The probe's fixtures were deleted afterwards.
+- The next release is `0.6.1-alpha.23`.
+
+##### Pass 25 is in `main` and `0.6.1-alpha.22` is dispatched; a run ended on an empty answer; the add-never-skips author answered (2026-11-13T22:19:52-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own commands' output and two runs' last messages.
+
+- **The meeting of passes 23 and 25**,
+  checked in a worktree of the coordinating session's own
+  (`.claude/worktrees/meeting-of-passes-23-and-25-before-alpha-22`;
+  the pass's worktree had been removed when its run ended),
+  every log in `~/temp/agent/meeting-of-passes-23-and-25-before-release-0-6-1-alpha-22-2026-11-13/keep/`:
+  the merge of `main` at `b0af2f97c2` into pass 25's branch was clean (`b50ad2d330`,
+  3.5 s);
+  build 107.0 s,
+  the library test compile 52.6 s,
+  the binary test compile 9.0 s,
+  Clippy 43.0 s,
+  all exit 0;
+  `Summary [1.315s] 33 tests run: 33 passed` for the controls pass 23 adds,
+  `Summary [0.231s] 32 tests run: 32 passed` for the removal's library filter
+  (six `btrfs_` controls among them ran and passed,
+  with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` unset),
+  `Summary [1.517s] 10 tests run: 10 passed` for its binary controls.
+  Not run by this check:
+  the pass's probes through a release build,
+  which it ran at its own tip.
+- `git log b50ad2d330..main -- package/git-policy/` listed nothing.
+  **Pass 25** merged into `main` as `b72d0524f1` (2026-11-13T22:18:10-05:00).
+- **`0.6.1-alpha.22`** dispatched:
+  `native:release -- 0.6.1-alpha.21 0.6.1-alpha.22`,
+  `crate-release.yml` run 43550931395.
+  It carries passes 26,
+  23 and 25.
+  `native:release:wait` is going;
+  then `native:install -- 0.6.1-alpha.22`,
+  a sample commit,
+  and the journal read with the counting script for failed starts.
+- Passes 27,
+  28 and 29,
+  all going,
+  were told by a note in each inbox at 22:20:
+  a pass is fit only at a tip that holds `b72d0524f1`,
+  with the files each of the two merges changed.
+  When two of them report within minutes of each other,
+  the second is checked the same way.
+- **A run that ended on an empty answer**:
+  `five-library-controls-of-main-that-state-what-main-changed-are-true-again-1` ended `idle` after five turns and 285 s.
+  Its feed's last answer has no text and no tool call (`"stop":"stop"`,
+  twelve output tokens,
+  61 s after the turn began);
+  the driver settled it as a run that finished,
+  and the summary's `lastAssistantText` is an earlier turn's
+  ("I'll start by reading the required rules file.").
+  Nothing was changed or reported.
+  The run is queued again in its own session,
+  and a fresh run on the driver is queued
+  (`driver-run-whose-last-answer-is-empty-is-asked-to-go-on-and-never-ends-as-finished`):
+  an empty last answer is told apart,
+  the agent is asked to go on a named number of times,
+  and a run that stays empty says so in a field of its own.
+  Until that is in `main`,
+  a run with few turns and a last message that reports nothing is read from its feed before it is taken as finished.
+- **Add never skips**
+  (run `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-5`,
+  ended 22:16:45,
+  tip `c69516c715`,
+  `main` merged at `9b2d9d6e90`):
+  the author ran the fourth review's three programs and saw each result
+  (the newer write deleted;
+  both reads held by a pipe),
+  then the same interleavings with its new steps:
+  the newer write is kept at a named path,
+  and a pipe is refused in microseconds.
+  Every read of a lock file goes through one reader
+  (a regular file only,
+  opened without following a link and without blocking,
+  stopped at 1 MiB);
+  the placing deletes only its own bytes.
+  Five controls,
+  each shown failing with its fix taken out.
+  Cost:
+  about 8.6 µs more for each read of the lock.
+  Its fifth review is queued at the head
+  (`review-git-policy-cli-add-never-skips-answers-after-its-fourth-review`,
+  range `main...c69516c715`).
+
+##### Passes 23 and 25 report fit; pass 23 is in `main`; pass 25 is being checked against it (2026-11-13T22:12:20-05:00)
+
+Not final and not approved:
+written by the coordinating session from the two passes' reports and its own commands' output.
+
+- **Pass 23** (a commit no longer starts Git to list every reference) reported fit at 22:07:08,
+  tip `5e60cf7cfc`,
+  which holds `5fdce426c0` and `2e28e65b65`
+  (`~/temp/agent/integration-pass-23-for-alpha-21-scratch/keep/report.md`).
+  Build,
+  both test compiles and Clippy with exit 0 at every one of its four tips;
+  the 33 controls the branch adds and the 83 of the modules it touches pass at each.
+  It resolved two hunks by hand with both meanings kept:
+  `service/service_timing.rs`
+  (the journal's stream and every sink inside the service go to `main`'s writer that never waits;
+  the wrapper's own standard error goes to the branch's queue thread,
+  with `main`'s direct write as the fallback when the queue cannot hold the line)
+  and the README's latency requirement.
+- What it measured,
+  three arms in rotation (real Git,
+  the wrapper built from `main`,
+  the wrapper built from its tip),
+  61 rounds,
+  on the route where the wrapper builds the commit itself:
+  in a repository of two thousand and one references the branch was faster in 40 of 61 rounds,
+  paired median 3 ms of a commit of about 40 ms;
+  in one of six references,
+  paired median 0 ms.
+  Counted as processes:
+  `main`'s wrapper started nine children for one commit,
+  one of them `git for-each-ref`;
+  the branch's started eight and no `for-each-ref`.
+- **What it found that the brief did not ask**:
+  a commit that names a path is built by real Git in a scratch repository and never takes the snapshot,
+  so that route gains nothing from this change.
+  Commits made by agents here name their paths.
+  Open,
+  no run:
+  whether the named-path route should be built by the wrapper too is a design question.
+- Checked before merging:
+  `git log 5e60cf7cfc..main -- package/git-policy/` listed nothing.
+  Merged into `main` as `b0af2f97c2` (2026-11-13T22:12:20-05:00).
+- **Pass 25** (removal goes around a foreign volume) reported fit at 22:09:06,
+  tip `d061db840c`,
+  two clean merges of `main`,
+  36 of 36 controls,
+  its probes as in its first part
+  (`~/temp/agent/integration-pass-25-for-alpha-23-scratch/keep/report.md`,
+  part two).
+  It finished two minutes after pass 23,
+  so its tip does not hold pass 23.
+  The two passes change two files in common,
+  `README.md` and `SPEC.md` of the package.
+- **How the meeting is checked**,
+  changed from sending the pass back:
+  the coordinating session merges `main` into pass 25's branch in that pass's own worktree and runs there what a pass runs after a merge of `main`
+  (build,
+  both test compiles,
+  Clippy,
+  the 33 controls pass 23 adds,
+  the removal's library and binary controls),
+  with every log kept in `~/temp/agent/meeting-of-passes-23-and-25-before-release-0-6-1-alpha-22-2026-11-13/keep/`.
+  Passes that finish minutes apart would otherwise each be sent back by the other's merge,
+  round after round.
+  One release then carries both.
+- What pass 25 saw of the installed release,
+  both sent on:
+  after each of its merges the wrapper said the commit service did not start and left the push to a `git push` by hand;
+  and every later Git command in that worktree printed that the commit "is queued for its push",
+  after the push had been made and `HEAD` equalled its upstream.
+
+##### The no-manager branch's review found three defects, one of them a deleted directory (2026-11-13T22:04:27-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing here rerun by it.
+
+Review `~/temp/agent/change-reviews/git-policy-cli-commit-service-needs-no-service-manager-answers-of-2026-11-13/review.md`,
+ended 21:58:54,
+on `76a08c9fac`,
+the whole branch against `main` (56 files read),
+the wrapper built from the tip and run on disposable repositories.
+
+- **A directory deleted whole with no check that it is the program's**,
+  reproduced:
+  `service/service_server_earlier_release_units.rs` near line 89 removes any directory named `monochromatic-git-policy-cli-worktree-notes` under `<runtime>/systemd/user` with `remove_dir_all`,
+  at the first reach of any service,
+  where the file's own doc says a folder that holds no note of the program is left.
+  A file put there was gone after one commit.
+- **A reap without a bound on a commit's path**,
+  found by reading:
+  the same file near lines 140 to 141 kills the `systemctl` child after its bounded ask and then waits for it without end,
+  the pattern the same branch took off the waiting path for the probe's child.
+- **Two live services for one worktree**,
+  reproduced with a forced window:
+  `service_server_socket_binding.rs` near lines 173 to 181 takes over a stale socket by probe,
+  unlink,
+  bind,
+  so two servers that probe the same stale socket both bind,
+  and one stays alive and unreachable.
+  Two ways two servers start together without a tracer:
+  the starter's marker is created before its owner is written and is removed by path by whoever finishes
+  (an empty marker was taken over by a real commit);
+  and a manager start that got no process number leaves a `systemd-run` that can start its server late.
+  Thirty unforced rounds did not hit the window.
+- Found sound:
+  the client's waits,
+  the request framing,
+  `service stop`,
+  the journal's removal,
+  a service removing only files still its own,
+  the manager gate,
+  the detached spawn.
+  The author's two choices against `main` (`CONNECT_CEILING` at one second,
+  the deleted `service_provision_instance_unloaded.rs`) drew no finding.
+- All three weighed as standing and sent back to the author,
+  resumed in its own session
+  (`no-manager-commit-service-answers-its-review-of-76a08c9fac-prompt.md`,
+  queued near the head).
+  The branch stays out of a pass,
+  and the issue 6293 branch that stands on it with it.
+- **Beside its scope**,
+  read and not run,
+  in code `main` has too:
+  `wake` in `service/service_client.rs` answers `Ok` when the service took no byte of the wake line,
+  and the hand-over of a new worktree's relink reads that as delivered and skips its own relink.
+  A fresh run from `main` is queued
+  (`wake-that-the-commit-service-took-no-byte-of-is-not-answered-as-delivered`),
+  which tests the claim first and then lists what every caller of `wake` does with each answer.
+
+##### Why relinks are given up is found; two more authors finished; three reviews queued (2026-11-13T21:59:23-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message,
+nothing here rerun by it except where a command is named.
+
+Relinks given up
+(run `package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not-1`,
+ended 21:54:17,
+tip `8da5f23325`,
+report `~/temp/agent/package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not-scratch/keep/report.md`):
+
+- **The cause, by its report**:
+  the main checkout still holds a launcher and its record for `cli-git-native`,
+  the name the wrapper's program had before its release 0.6.0.
+  A new worktree is a copy that brings the ignored `.cache` along,
+  `mpm-shadow install --frozen-lockfile` rewrites only the names the lock declares,
+  so each worktree arrives with one record no install can rewrite;
+  the wrapper counts it stale after an install that otherwise worked,
+  tries three times and gives up.
+  It counts 352 such journal lines on 2026-11-13,
+  always exactly one record,
+  142 of 160 worktrees carrying the leftover,
+  and seven of 638 `relink` records that ever reached `done`.
+  All five sightings sent to it between 21:12 and 21:22 are this cause,
+  each read.
+- Read by the coordinating session in the main checkout:
+  `.cache/toolchain-launchers/cli-git-native` and `cli-git-native.launch`,
+  both dated 2026-11-07 05:33,
+  the record naming `/var/home/user/Monochromatic/toolchain.lock.json`;
+  a link `.cache/toolchain-bin/cli-git-native` to that launcher;
+  and the program the record names,
+  dated 2026-11-04,
+  still in the store.
+- **What it changed in the wrapper**:
+  a record whose name the lock declares nowhere is removed with its launcher and no longer fails the relink;
+  the notice quotes the reason of the last try and is written in the relinked worktree's own Git directory,
+  where it used to go to the adding worktree's,
+  which is why notices about other worktrees arrived in the main checkout's commits.
+  Four controls shown failing first;
+  cost on `git worktree add` +0.7 ms of 45 ms,
+  on a commit none measurable.
+- Its review is queued at the head
+  (`review-of-package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`).
+- **The tool that leaves the leftover is mpm-shadow**:
+  a fresh run is queued
+  (`mpm-shadow-install-leaves-no-launcher-record-or-link-of-a-name-its-lock-no-longer-declares`).
+- **Not done by hand**:
+  moving the three stale files out of the main checkout would stop every new worktree from arriving with the record,
+  hours before either fix is released.
+  It was left,
+  because the old name still resolves to a working program and what else on this machine runs it was not established;
+  the question is in "Questions kept for the owner's return".
+- The report corrects the section "The wrapper's own work queue in this repository: deletions pending for an hour,
+  341 relinks given up":
+  `tries` is no longer 0 for all
+  (199 of 631 gave up at three tries)
+  and `done` holds seven relinks.
+  It also says the notice's remedy `mise run toolchain:install` cannot fix this cause,
+  and that the day's `pnpm` offline failures cannot be finished by the command the notice names.
+- The run ended `driver-failed` with issue 6295's message;
+  its driver was started at 17:25:54,
+  before `47a403a0e2`.
+
+The landed removal keeps Git work
+(run `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit-3`,
+ended 21:52:57,
+tip `2ef29614c6` on `7771aa14fc`):
+
+- Four losses of the audit reproduced on both routes before and gone after,
+  by its report:
+  a nested worktree with a detached `HEAD` now keeps its parent;
+  an edit hidden by `assume-unchanged` or `skip-worktree` keeps the worktree,
+  and the typed removal refuses and names the file;
+  a commit only a detached `HEAD` holds keeps the worktree,
+  with a notice that says to give it a branch;
+  a reference under `refs/worktree/` keeps it too.
+  What is decided to go (ignored directories,
+  a nested repository) still goes,
+  and the line now names each.
+- Sixteen new controls,
+  805 tests of `worktree::` pass at its tip,
+  cost within the spread.
+- It expects conflicts with three branches in `worktree_remove*.rs` and `worktree_removal_second_look.rs`,
+  and says the held-commit branch `c79d17060e` does not close the detached-`HEAD` loss.
+- Its review is queued at the head
+  (`review-of-landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit`).
+- Also `driver-failed` with issue 6295's message;
+  driver started 17:37:39.
+
+Removal goes around a foreign volume,
+the answer to its second review
+(run `removal-goes-around-a-subvolume-or-mount-it-did-not-make-4`,
+ended 21:55:29 as `idle`,
+tip `82e4f12f6e`,
+`main` merged):
+
+- The emptied-around path has an ending of its own and no longer prints the destroy notice;
+  a clean worktree in the racy second after its add is removed around the volume without force,
+  proven clean by the files themselves,
+  where it was refused with words about missing entries.
+  Controls failing first for each;
+  36 of 36 of the second review's filter pass.
+- It left two things:
+  the landed sweep's line on the emptied-around path still says which files freed the snapshot's space,
+  which is wrong there;
+  and the cost of the content proof on the refusal path is not measured.
+  Both are open with no run and go to the reviewer's eyes with the change.
+- Its review is queued at the head
+  (`review-git-policy-cli-removal-goes-around-answers-after-its-second-review`,
+  range `main...82e4f12f6e`).
+  Pass 25 carries the commit reviewed before these (`50d55b0b8d`).
+
+##### Commit forms and the landing that never waits each passed a review; pass 29 carries both (2026-11-13T21:41:57-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two review files,
+nothing here rerun by it.
+
+- **Commit forms real Git refuses**
+  (review `~/temp/agent/change-reviews/git-policy-cli-commit-forms-answers-after-its-first-review/review.md`,
+  ended 21:37:24,
+  on `b631f80970`):
+  no defect found.
+  Twelve refused forms through the built wrapper beside real Git:
+  the same status and the same words byte for byte,
+  the repository's `HEAD`,
+  references and index unchanged,
+  no lock left.
+  A kill at nine moments of a refusal left nothing behind and the next commit landed;
+  eight refusals at once beside a real commit landed that commit once.
+  The rule is exactly as wide as Git 2.56.0,
+  the only Git measured.
+  Two things it names and does not count as defects:
+  a question that hangs is waited for about 607 s before the wrapper answers in its own words;
+  and `--pathspec-from-file` beside `-i` or `-o` is not asked about,
+  as before the change,
+  where real Git refuses an empty or missing file.
+- **The landing that never waits**
+  (review `~/temp/agent/change-reviews/git-policy-cli-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service/review.md`,
+  ended 21:36:21,
+  on `08d7a82212`):
+  no defect found.
+  The branch's controls pass,
+  a commit landed in 42 ms with every kind of slow work held,
+  and six candidates were dismissed by reading with the lines that dismiss them
+  (double removal of trash,
+  a wave with no worker,
+  a permit held across sub-steps,
+  a withdrawn request that later lands,
+  heartbeats under a full pool,
+  hold points in a shipped run).
+  Its limit,
+  which the author's report names too:
+  the path from an item of trash at its ceiling to the round that takes it up again has no control from end to end.
+- **Pass 29** is queued at the head for both,
+  commit forms first
+  (`integration-pass-29-with-commit-forms-and-the-landing-that-never-waits`,
+  branch `integrate/git-policy-cli-pass-29-commit-forms-git-refuses-and-landing-never-waits-behind-slow-work`).
+  The landing branch stands on `main` before four releases;
+  the brief says where it meets `main` (`service/service_client.rs`:
+  every connect bounded,
+  and a withdrawal before the client gives up)
+  and that a branch that cannot be merged with both meanings kept is left out while the other still makes a pass.
+- The landing author is resumed for the missing control and nothing else
+  (`landing-never-waits-gets-a-control-of-an-item-of-trash-that-reaches-its-ceiling-prompt.md`,
+  queued near the head):
+  a commit after `08d7a82212`,
+  reviewed and merged after the pass.
+- The two things the commit-forms review names are open with no run:
+  the size of the bound on a hung question,
+  and the pathspec-file forms.
+  The second is a difference from real Git that the change did not make;
+  it belongs with the next change to `commit/rule_commit_region_git_refuses.rs`.
+
+##### The index-lock fix passed its fourth review and is pass 28; the issue 6293 answer has two reproduced defects (2026-11-13T21:36:20-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two review files,
+nothing here rerun by it.
+
+The index-lock fix
+(review `~/temp/agent/change-reviews/git-policy-cli-index-lock-fix-answers-after-its-third-review/review.md`,
+ended 21:29:51,
+on `e7474d6803`):
+
+- No defect found.
+  It read eighteen files and the modules they lean on,
+  ran eight reproduction scripts of its own through the built wrapper and 36 tests of the proof.
+  A dead holder's lock was cleared with the staged content unchanged;
+  a live holder's lock stayed,
+  with and without the file open for writing;
+  a reused process number kept the lock;
+  eight commands at once cleared it exactly once;
+  a service killed at a fault point left no lock and its commit landed once.
+- **Pass 28** is queued at the head for that branch at that commit
+  (`integration-pass-28-with-the-index-lock-fix`,
+  branch `integrate/git-policy-cli-pass-28-index-lock-left-by-a-killed-wrapper-is-cleared`).
+  Its brief names no release number;
+  the number is given when it is released.
+- What the review named beside its verdict,
+  each weighed:
+  - Read and not run:
+    the repair looks at the repository of the working directory,
+    so `git -C <other>` would not clear a lock in the repository it names.
+    Agents here run most commands that way,
+    so a fresh run from `e7474d6803` is queued
+    (`abandoned-lock-is-cleared-in-the-repository-a-commands-own-options-name`),
+    which first tests the claim by running each form.
+  - Seen once in an eight-way race:
+    a command that gives up on a lock another command is clearing prints the notice for a standing lock.
+    The end state was right and no commit or wait was touched.
+    No run is started for it;
+    it is open,
+    and belongs with the next change to `lock/abandoned_lock_proving.rs`.
+- The case of equal birth stamps on this volume stays with its queued run from the same tip.
+
+The issue 6293 answer
+(review `~/temp/agent/change-reviews/git-policy-cli-issue-6293-answers-after-its-first-review/review.md`,
+ended 21:33:10,
+on `6db694c52c`):
+
+- Every resolved place of the merge `541f5e3ec7` keeps both sides' meaning,
+  the manager probe's retry is bounded,
+  and the session boundary is sound.
+- Two findings,
+  both reproduced with a crate that links the library and calls the real functions on real Git's output,
+  both weighed as standing:
+  - A push that delivered and then failed is recorded under the newest claimed commit and not under the commit it sent
+    (`landing/service_work.rs` near line 523,
+    where the arm for exit 0 a few lines before uses `sent_up_to`).
+    A commit that lands between the claim and the push gets its words filed under another commit's name,
+    over an unread report of that commit.
+  - Once one address delivered,
+    a failure the project treats as final on another address (a hook's decline,
+    a login the service lacks) is retried without end
+    (`landing/service_work_failed_push_verdict.rs` near lines 113 to 119 never asks `final_failure`).
+    Before the change the verdict was `Failed` once.
+- Both go back to the author,
+  resumed in its own session,
+  queued behind pass 28
+  (`issue-6293-answers-its-second-review-of-2026-11-13-prompt.md`).
+
+##### The no-manager author answered two findings; the archives run stopped at four archives (2026-11-13T21:20:50-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message and report,
+nothing here rerun by it except where a command is named.
+
+The commit service that needs no service manager
+(run `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-6`,
+ended 21:13:31,
+tip `76a08c9fac`,
+`main` merged four times,
+the last as `baa64cb13a`):
+
+- It reproduced the first finding with the review's own script on the tip before its change:
+  a commit against a stopped service with a full queue was still running after 30 s,
+  in the kernel's `unix_wait_for_peer`.
+  At its tip the same commit ends with exit 1 after 15.8 s and says the service did not start and that nothing changed.
+- Every connect in release code now goes through `connect_within`;
+  the probe's child is ended and reaped on a thread of its own,
+  so the probe answers at its bound.
+  Each control was shown failing without its guard
+  (three by running to nextest's kill at about 200 s,
+  one at 32 s against its bound).
+- Two things it decided against `main`,
+  open to veto:
+  `CONNECT_CEILING` is one second where `main` has five
+  (its reason:
+  a command's whole wait is ten seconds and a look has to fit several times;
+  one second is 16 times the slowest of `main`'s 2,000 measured connects),
+  and `main`'s `service_provision_instance_unloaded.rs` with its control is deleted with the units it serves.
+- Its whole library suite:
+  7,588 of 7,598 passed;
+  the ten red ones it places in files equal to `main`'s.
+- Its review is queued at the head
+  (`review-git-policy-cli-commit-service-needs-no-service-manager-answers-of-2026-11-13`,
+  range `main...76a08c9fac`).
+  The issue 6293 branch stands on this one and lands after it.
+
+The tracked archives
+(run `tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-1`,
+ended 21:13:59,
+six commits pushed,
+report `~/temp/agent/tracked-archives-removed-and-their-data-kept-as-plain-files-2026-11-13/keep/report.md`):
+
+- 132 archives removed in five families;
+  `.gitignore` carries one block of archive shapes with the three Java archives kept;
+  a record of every removed archive with its bytes,
+  digest,
+  last commit and the command that prints it from history
+  (`doc/audit/removed-archives-and-where-history-holds-each.md`);
+  all 132 printed from history and matched by digest.
+  Of 337 pairs of an archive and a file naming it,
+  328 needed a pointer alone and nine kept data.
+- **Four archives are still tracked**,
+  each a stop the brief asked for:
+  two where one record names bytes and a digest that are not the tracked blob's;
+  one whose naming file records its own digest;
+  one whose kept file the forbidden-strings guard refused
+  (`hashicorp-tf-password`,
+  on fixture markers of `SCCACHE_WEBDAV_PASSWORD`),
+  so the author restored the archive and bypassed nothing.
+- **Adopted while the owner was away**,
+  from the owner's "remove anything already committed from the repo.
+  If something would break,
+  represent the data another way." and the recorded answer that what is kept is trimmed to what documents cite:
+  all four are removed.
+  For the two with a disagreeing record,
+  the removal record states both pairs and which commit of history,
+  if any,
+  holds the one the record names.
+  For the self-recording file,
+  its note says the digest it carries cannot be current.
+  For the refused one,
+  the kept file is trimmed to the two cited Dockerfile records;
+  if those two carry what the guard refuses,
+  the archive stays and the lines come back for a decision.
+  The author's own session continues with that
+  (`tracked-archives-run-finishes-the-four-archives-it-stopped-at-prompt.md`,
+  queued near the head);
+  then a hand-written review and the merge.
+- Its open questions,
+  neither acted on:
+  whether `doc/planning`,
+  `doc/research` and `doc/handover` get family indexes
+  (they have none),
+  and whether digest notes in the last commit and not in each family's commit is acceptable.
+- The run ended as `driver-failed`
+  (`SyntaxError: Unterminated string in JSON at position 509`)
+  after its report was written and pushed.
+  That message,
+  character for character,
+  is issue 6295's
+  ("Issue 6295: the Pi driver records a finished run as failed"):
+  the driver parsed a `process` tool result out of the feed,
+  which keeps only a cut-short preview of it.
+  The run's feed holds ten `process` results.
+  Its driver was started at 17:56:40;
+  the driver in `main` since `47a403a0e2` (19:36:16) catches that parse
+  (`package/pi-shared/subagent-driver/src/work-the-run-left-running.ts`,
+  the `try` around the parse of `record.result`),
+  and runs started after it have ended `idle`.
+
+Retracted at 21:24:
+a commit written without a deletion it named.
+
+- The archives author reported that the wrapper's commit of named paths "wrote a commit without the archive deletion when the same pathspec list also named a new directory".
+  The first version of this section took that as a possible wrapper defect and queued a fresh run for it.
+- Read whole from the run's Pi session file
+  (`~/temp/agent/archives-run-commit-that-left-out-a-deletion-read-from-its-pi-session-2026-11-13/keep/the-two-commit-commands-and-their-results.txt`):
+  the first commit named the new folder and the `.zip`,
+  and the wrapper refused it before anything landed,
+  as real Git does,
+  because the new folder was untracked
+  (`explicit-path-commit/pathspec-matches-nothing`,
+  with the advice to `git add` it).
+  The author then added the folder and committed again with a list that no longer held the `.zip`.
+  Commit `e1b703cd03` holds exactly what its command named.
+- So no defect of the wrapper is shown.
+  The run was taken out of the queue before it started and its brief deleted.
+  The archives author's continuation brief says what happened,
+  so its next commits name deleted paths too.
+
+##### Pass 26, the smaller build tree, is in `main`; no release is made for it alone (2026-11-13T21:14:18-05:00)
+
+Not final and not approved:
+written by the coordinating session from the pass's report and its own commands' output.
+
+- **Pass 26** reported at 21:09:09 that its branch is fit for what a pass owns
+  (`~/temp/agent/integration-pass-26-for-alpha-24-scratch/keep/report.md`),
+  at tip `a31fcc2333`,
+  which holds both releases `main` took while it worked (`33ba2a906b` and `5fdce426c0`).
+  It built,
+  compiled both test targets and ran Clippy after each of its merges of `main`,
+  all with exit 0.
+- What the change is:
+  the package's `[profile.dev]` keeps line tables only and writes no incremental data,
+  and one new document of measurements.
+  The pass read Cargo's unit graph for both profiles,
+  showed the release profile blocks byte for byte equal to `main`'s,
+  and showed a failing test under the new profile still naming its file and line
+  (with a control built without debug information that names none).
+- Its sizes:
+  1,847 MiB for the build folder and `target/` together after one build,
+  both test compiles and Clippy;
+  3,926 MiB at the end of the pass,
+  of which 2,046 MiB are three generations of the package's own artifacts,
+  because Cargo keeps every unit's earlier outputs.
+- A commit of one changed file through the wrapper built from its tip added 21 to 44 ms over real Git's 4 to 18 ms,
+  and 284 and 321 ms in the first measured round at each of two tips.
+- Checked before merging:
+  `git log a31fcc2333..main -- package/git-policy/` listed nothing,
+  and `git diff --stat main...a31fcc2333` listed the two files and 469 insertions.
+- Merged into `main` as `2e28e65b65` (2026-11-13T21:12:33-05:00) and pushed.
+- Passes 23,
+  25 and 27,
+  all going,
+  were told by a note in each inbox at 21:15
+  (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/note-for-the-passes-still-going-that-main-holds-pass-26-2026-11-13T2115.md`):
+  a pass is fit only at a tip that holds `2e28e65b65`,
+  and the profile change makes the first build after that merge a full one.
+  Before merging any of them:
+  `git merge-base --is-ancestor 2e28e65b65 <tip>`.
+- **No release for it alone**,
+  under "Adopted while the owner was away":
+  the released binary would differ from `0.6.1-alpha.21` in its version alone.
+  The next pass that changes the wrapper's behaviour is released as `0.6.1-alpha.22` and carries it.
+- **One test failure it could not name.**
+  The slice `native:test:host -- push_progress` failed once at its last tip
+  (`5/21 tests were not run due to test failure`,
+  exit 100)
+  between passing runs with no code change;
+  the pass had piped the run through `tail`,
+  so the name is lost.
+  None of the twelve red tests of `main` is in that slice
+  (`red-main.txt` of the issue 6293 author's run names none under `push_progress`).
+  A fresh run is queued
+  (`push-progress-tests-of-the-library-never-decide-by-how-long-the-machine-took`):
+  what each test of the slice decides by,
+  each cause a slow step can reach reproduced by a held step,
+  and removed.
+- **What it noticed in the document**,
+  for the document's author when that branch is next touched,
+  no run started:
+  the sizes cover one clean tree and not a tree rebuilt across merges;
+  "build script outputs: 8 MiB" does not match 696 MiB under `debug/build/` for the other crates in its tree
+  (not investigated);
+  Cargo's summary line prints `[unoptimized + debuginfo]` for a line-tables-only build.
+- **A relink given up**:
+  the merge printed that the package state of the worktree
+  `pi-driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone`
+  was not relinked after 3 tries.
+  The run in that worktree was told by a note in its inbox at 21:13,
+  with the remedy the wrapper printed.
+  Two more came during the commit of 21:21,
+  for the worktrees of the two reviews started together
+  (landing-never-waits and the commit-forms answer).
+  The run for relinks that are given up is going
+  (`package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`,
+  since 17:25)
+  and was told of all three by a note in its inbox.
+  The commit of 21:22:23 printed two more,
+  for the worktrees of two authors resumed minutes before
+  (add-never-skips and the warm request),
+  sent to the same run by a second note:
+  five in ten minutes.
+  Corrected at 21:22:
+  this line first said that run was in the queue.
+
+##### The commit-forms author answered its first review; the landing that never waits is written; both go to review (2026-11-13T21:11:17-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message,
+nothing here rerun by it.
+
+Commit forms real Git refuses
+(run `commit-forms-real-git-refuses-are-refused-with-gits-own-message-3`,
+ended 21:04:37,
+tip `b631f80970`,
+`main` merged):
+
+- The author reports each of the review's defects reproduced with the review's own scripts and then gone:
+  the question put to real Git is always `commit --dry-run` with an index of its own,
+  a `-C` is applied once,
+  the rule for `-o` without a path is as wide as Git's,
+  and each answer says what it means.
+  Each control was shown failing before its fix.
+- Cost it measured:
+  a plain commit 38.1 ms before and 38.5 ms after,
+  a refusal 2.1 ms more.
+- It leaves open:
+  what the private index costs on a large repository,
+  and what a dry run that ends with status 1 should answer.
+- Its second review is queued at the head
+  (`review-git-policy-cli-commit-forms-answers-after-its-first-review`,
+  range `main...b631f80970`).
+
+The landing of a commit never waits behind housekeeping,
+a push or a package repair in its service
+(run `landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service-1`,
+ended 21:06:50,
+tip `08d7a82212`,
+branch `fix/git-policy-cli-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service`):
+
+- What it reports changed:
+  some places in the service are kept free of slow work,
+  the long jobs that had no budget are counted as slow work,
+  one trash item has a ceiling (`TRASH_ITEM_CEILING`) and items go in waves,
+  a client withdraws its request before it gives up
+  (new endings `ServiceGoneNotLanded` and `ServiceGoneUnconfirmed`),
+  and the look that routes a landing is bounded by `LANDING_STATE_CEILING`.
+- What it measured:
+  a commit landed in 41 to 51 ms with every kind of slow work held,
+  against 40 to 55 ms with the service idle.
+- Weaker points it names itself:
+  no arm per kind of slow work,
+  and no end-to-end control of an item that never finishes.
+- The branch stands on `main` at `f9ec05f3c0`,
+  four releases behind.
+  A pass that carries it merges `main` first;
+  a meeting in `service_client.rs` is expected.
+- The author edited files in the main checkout by mistake and took the edits back with a reverse patch.
+  Checked at 21:10:
+  `git status --short` of the main checkout lists the six files other sessions hold open and none of the wrapper's.
+- Its first review is queued at the head
+  (`review-of-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service`).
 
 ##### Two reviews with reproduced defects, the issue 6293 answer, and twelve red library tests on `main` (2026-11-13T21:03:15-05:00)
 
@@ -1834,6 +3146,16 @@ each from a record:
   one message's condition).
   Both are answered on the author's branch (`ca3b4f34d5`) and under review;
   the pass was pinned to the reviewed commit by the rule that a commit after a review has not been reviewed.
+- Pass 26 (the development profile of the wrapper package) is merged and not released by itself
+  (2026-11-13T21:14:18-05:00).
+  No record settles this one;
+  it is the coordinating session's judgement,
+  taken because it is the choice that can be undone:
+  a release can be dispatched at any time,
+  and an install is not free here
+  (after the install of `0.6.1-alpha.21` the main checkout's commit service stood failed for 97 s).
+  The pass showed the release profile untouched,
+  so the binary would change in its version alone.
 
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
