@@ -474,6 +474,70 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 
+/// The longest a command waits for a connection to a service it only has to tell about work it does itself either way:
+/// the `warm` request that asks a running service to compile this repository's forbidden-strings rules.
+///  Why:
+///   The request is a help and never a part of the command:
+/// the command that needs the rules compiles them itself when the request cannot be made
+/// (`policy_forbidden_strings.rs`,
+/// `cache_access`).
+///  A connect is a kernel step that returns at once until the listening socket's queue of unaccepted connections is full,
+/// and a queue is full because the service accepts nothing
+/// (it is stopped inside its own process,
+/// a debugger holds it,
+/// a kernel wait nothing ends),
+/// so the wait can only end when that service resumes.
+/// The owner's rule is "nothing should ever wait forever or indefinitely".
+///  Measured on this host,
+/// 2026-11-13,
+/// 2,000 connections to a socket whose listener accepts,
+/// asked plain and with the bound in one alternating loop,
+/// three runs:
+/// the plain connect took 9 to 10 us at the median,
+/// 15 to 17 us at the 99th percentile and 1,089 to 1,359 us at the slowest;
+/// the bounded connect 10 to 11 us at the median,
+/// 16 to 19 us at the 99th percentile and 3,217 to 4,190 us at the slowest,
+/// so bounding the wait costs about one microsecond of three extra calls.
+/// 250 ms is 60 times the slowest of those and the bound the other courtesy ask to a service has
+/// (`service_client_shadow_hand_out.rs`,
+/// `DRAWN_ANSWER_DEADLINE`),
+/// because both ask a service for something the command does without when it does not answer.
+/// The connection itself is made through the same helper as every other connection to a service
+/// (`service_client_connect_within_a_bound.rs`),
+/// with its `connect_within_for`,
+/// so one connect into a service queue is bounded one way and this ceiling is its one difference.
+pub const WARM_REQUEST_CONNECT_CEILING: Duration = Duration::from_millis(250);
+
+/// The longest the warm request waits for the look at the processes that tells whether the service of the worktree
+/// runs,
+/// which is the step before its connection.
+///  Why:
+///   Reading another process's command line takes that process's address-space lock,
+/// which a process stuck in the kernel holds without end
+/// (`PROCESS_LOOK_CEILING`,
+/// `landing/earlier_service_process_look.rs`),
+/// and this look is made for a request the command does without anyway,
+/// so it is no reason for a command to keep waiting:
+/// the owner's rule is "nothing should ever wait forever or indefinitely".
+///  Ten seconds is what a look whose answer a command needs is granted
+/// (`PROCESS_LOOK_CEILING`),
+/// and it is far more than a courtesy request may cost: a commit that finds its rules cold
+/// would wait it before the connect's own ceiling even starts.
+///  Measured on this host,
+/// 2026-11-13,
+/// 25 whole looks at the processes of this user
+/// (`/proc` with about 1,300 processes, no service of the looked-for instance running):
+/// 12.3 ms at the median,
+/// 18.7 ms at the 99th percentile and 18.7 ms at the slowest.
+/// The package's own record of the same look under a load average of 56 of 8 threads read 23.0 ms at the median,
+/// 43.0 ms at the 90th percentile and 54.1 ms at the slowest
+/// (`PROCESS_LOOK_CEILING`).
+/// 250 ms is 13 times the slowest look measured here and 4.6 times the slowest of that record,
+/// and it is `WARM_REQUEST_CONNECT_CEILING`,
+/// so the two steps of one courtesy request share one budget of half a second
+/// when the request cannot be made.
+pub const WARM_SCAN_CEILING: Duration = WARM_REQUEST_CONNECT_CEILING;
+
 /// The longest one connection to the commit service is waited for before the client gives it up.
 ///  Why:
 ///   A connect to a local socket is a kernel step that returns at once,
