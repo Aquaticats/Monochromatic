@@ -477,6 +477,10 @@ pub mod service_round;
 /// records and the wake.
 pub mod service_handoff;
 
+/// The words a waiting push record is named with:
+/// the bound a running service looks in and how long the record has waited.
+pub mod service_handoff_queued_push_words;
+
 /// Whether Git's own record of a branch's remote says a held push's commit has reached it.
 pub mod held_push_commit_on_the_remote;
 

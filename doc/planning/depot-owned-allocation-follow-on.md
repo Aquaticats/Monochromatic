@@ -396,6 +396,8 @@ The current archive includes that compact control as its `35th` source record.
 The owner seal `depot-current-host-owner-complete-2026-10-18.evidence.json.gz`
 has compressed SHA-256 `d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35`.
 Its selected allocation rows match a fresh scoped jobs response for run `39148580870`:
+`depot-current-host-owner-complete-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 - Mac job `117737397487` ran from `17:13:37Z` to `17:19:36Z`,
   measuring `359` seconds at the documented `USD 0.08/minute` list rate.
@@ -478,3 +480,5 @@ Subsequent owner states are recorded without inventing terminal cost rows:
   has owner-reported SHA-256 `c11ce61387c8675f99c303cad6093d444a13bc7c42adf24eb77f2bdd1f1677b7`.
   Its measured resource context requires a separate source join;
   it does not replace the preserved original `d29c7887` owner seal or create another allocation.
+  `depot-current-host-owner-comparison-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.

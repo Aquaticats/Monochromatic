@@ -115,7 +115,14 @@ Each rule is the project's own requirement.
   `printenv`,
   `set`,
   `export -p`,
-  even piped through a filter),
+  `mise env` in any form,
+  `sops --decrypt`,
+  even piped through a filter or `head`),
+  never print a file that holds credentials
+  (`~/.bashrc`,
+  `~/.pi/agent/models.json`,
+  `~/.pi/agent/auth.json`,
+  `.env.local.json` decrypted),
   and never read another process's environment (`/proc/<pid>/environ`,
   `ps e`,
   `ps -E`):

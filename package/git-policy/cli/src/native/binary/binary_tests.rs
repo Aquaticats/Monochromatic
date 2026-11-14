@@ -628,6 +628,13 @@ mod push_failure;
 #[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
 mod push_queued_after_a_killed_wrapper;
 
+/// A record that waits and nothing announced it:
+/// a running service finds every kind of record by itself,
+/// acts on it once,
+/// and does nothing while there is nothing to do.
+#[path = "binary_a_record_nothing_announced_is_found_tests.rs"]
+mod a_record_nothing_announced_is_found;
+
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,
 /// so no command says the opposite of `git status`.
@@ -665,6 +672,12 @@ mod push_trigger;
 /// described and kept otherwise.
 #[path = "binary_stale_ref_lock_tests.rs"]
 mod stale_ref_lock;
+
+/// The lock files a killed wrapper command leaves:
+/// cleared when the wrapper's own record proves the holder gone,
+/// kept when it does not.
+#[path = "binary_killed_holder_lock_tests.rs"]
+mod killed_holder_lock;
 
 
 /// The message and identity options through the service,

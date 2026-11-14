@@ -1,0 +1,29 @@
+# Adds the newest patch release of the 1.0, 1.1 and 1.2 lines of @optique/core to the cross-runtime image, so the
+# token-count growth can be measured on the release lines that were not run on 2026-11-13. The versions are resolved
+# from the registry at build time and recorded in /arm/older-lines.txt; the run has no network.
+#
+#   podman build --tag localhost/optique-older-lines:2026-11-13 --file Containerfile.older-lines .
+#   podman run --rm --network none --cpus 2 --memory 4g --pids-limit 512 --blkio-weight 10 \
+#     localhost/optique-older-lines:2026-11-13
+
+FROM localhost/optique-cross-runtime:2026-11-13
+
+COPY run-older-lines.ts /run-older-lines.ts
+
+RUN set -eux; \
+    : > /arm/older-lines.txt; \
+    for line in 1.0 1.1 1.2; do \
+      version="$(npm view "@optique/core@~$line.0" version --json | node --input-type=module --eval 'let text = ""; for await (const chunk of process.stdin) text += chunk; const parsed = JSON.parse(text); console.log(Array.isArray(parsed) ? parsed.at(-1) : parsed);')"; \
+      arm="/arm/$version"; \
+      mkdir --parents "$arm"; \
+      cp /repo/package.json /repo/mismatch-count.ts /repo/commit-paths.ts /repo/token-scaling.ts "$arm/"; \
+      cd "$arm"; \
+      npm pack "@optique/core@$version"; \
+      sha256sum "optique-core-$version.tgz" >> /arm/older-lines.sha256; \
+      npm install --no-save --no-package-lock --no-audit --no-fund "./optique-core-$version.tgz"; \
+      echo "$version" >> /arm/older-lines.txt; \
+    done; \
+    npm cache clean --force; \
+    cat /arm/older-lines.txt /arm/older-lines.sha256
+
+ENTRYPOINT ["node", "/run-older-lines.ts"]

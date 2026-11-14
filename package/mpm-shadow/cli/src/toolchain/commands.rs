@@ -32,8 +32,8 @@ use super::bin_paths::{bin_paths_output, render_bin_paths};
 use super::cargo_installs::older_lock_warnings;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
-/// Imports `Host` from `super::context`.
-use super::context::Host;
+/// Imports what this module uses from `super::context`.
+use super::context::{Context, Host};
 /// Imports `connect_or_explain` from `super::http`.
 use super::http::connect_or_explain;
 /// Imports what this module uses from `super::lock_cmd`.
@@ -50,8 +50,10 @@ use super::runner::ProcessRunner;
 use super::scope::{EnvMap, Scope, resolve_scope};
 /// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
+/// Imports what this module uses from `super::install_argument`.
+use super::install_argument::{AddRefusal, AddReport, add_named_tools, nothing_stops_the_run};
 /// Imports what this module uses from `super::sync`.
-use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync_with};
+use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync_with_named};
 /// Imports the lines `install` prints for a sync.
 use super::sync_report_text::{format_sync_report, locked_line, rewritten_line};
 /// Imports `is_ci` from `super::ci_detect`.
@@ -186,6 +188,50 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             } else {
                 LockPolicy::Frozen(FrozenReason::Ci)
             };
+            let arguments: Vec<String> = match matches.get_many::<String>("tool") {
+                Some(given) => given.cloned().collect(),
+                None => Vec::new(),
+            };
+            let http = connect_or_explain();
+            let host: Host = Host::current();
+            let mut named: Vec<String> = Vec::new();
+            if !arguments.is_empty() {
+                let refusal: Option<AddRefusal> = if lockfile_only && matches!(policy, LockPolicy::Frozen(_)) {
+                    Some(AddRefusal::FrozenCheck)
+                } else if offline {
+                    Some(AddRefusal::Offline)
+                } else {
+                    None
+                };
+                let context: Context = Context {
+                    scope: &scope,
+                    env: &env,
+                    runner: &ProcessRunner,
+                    http: http.as_ref(),
+                    host: &host,
+                    tools: &[],
+                };
+                let additions: AddReport = match add_named_tools(&context, &arguments, refusal, nothing_stops_the_run) {
+                    Ok(report) => report,
+                    Err(error) => return Some(report(&error)),
+                };
+                for declaration in &additions.added {
+                    println!(
+                        "toolchain install: added {} to {}: request {}, route {}, bins {}",
+                        declaration.id,
+                        scope.plan_file.display(),
+                        declaration.request.text(),
+                        declaration.route.as_str(),
+                        declaration.bins.join(", ")
+                    );
+                    println!(
+                        "toolchain install: no comment says why {} is there; write one beside its entry in {}",
+                        declaration.id,
+                        scope.plan_file.display()
+                    );
+                }
+                named = additions.added_ids();
+            }
             if lockfile_only {
                 // A frozen lock check writes nothing and needs no network.
                 if matches!(policy, LockPolicy::Frozen(_)) && scope.lock_file.exists() {
@@ -194,8 +240,7 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 if offline {
                     return Some(print_lock_outcome("install", &scope, run_lock(&scope, LockMode::Write)));
                 }
-                let http = connect_or_explain();
-                return Some(match run_lockfile_only(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), policy) {
+                return Some(match run_lockfile_only(&scope, &env, &ProcessRunner, http.as_ref(), &host, policy) {
                     Ok(prepared) => {
                         for (id, version) in &prepared.resolved {
                             print!("{}", locked_line(id, version));
@@ -214,12 +259,11 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                     Err(error) => report(&error),
                 });
             }
-            let http = connect_or_explain();
-            return Some(match run_sync_with(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), policy) {
+            return Some(match run_sync_with_named(&scope, &env, &ProcessRunner, http.as_ref(), &host, policy, &named) {
                 Ok(sync_report) => {
                     println!(
                         "toolchain install: platform {}, root {}, exposure {}",
-                        Host::current().platform,
+                        host.platform,
                         scope.toolchain_root.display(),
                         scope.exposure_dir.display()
                     );

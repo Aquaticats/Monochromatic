@@ -150,6 +150,9 @@ pub mod service_server_files_of_a_running_instance;
 /// The commit service's loop.
 pub mod service_server;
 
+/// The question the serving loop asks about the worktree whose units are its own.
+pub mod service_server_own_worktree_question;
+
 /// The loop of the commit service's after-commit work asked by a thread outside the runtime.
 pub mod service_server_work_loop;
 
@@ -205,6 +208,8 @@ pub mod service_client_waiting_words;
 
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+/// The same re-export for the request's control point.
+pub use service_warm_request::the_controls_window as service_warm_request_control_window;
 
 /// The signals a waiting commit answers by withdrawing its request,
 /// and the flag they set for the wait.

@@ -38,6 +38,12 @@ pub(crate) use crate::service_messages_of_a_wait_for_the_service::{it_had_said, 
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
 
+/// The name of the link the commit service's unit starts its program from,
+/// which the failure for another release names when that link is what could not be pointed
+/// (`service_instance.rs`,
+/// `PROGRAM_LINK`).
+pub use crate::service_instance::PROGRAM_LINK;
+
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
@@ -148,7 +154,9 @@ pub enum ClientFailure {
     /// The installed service speaks no protocol this wrapper speaks,
     /// after a replacement attempt.
     NoCommonVersion,
-    /// A service started from another release of the wrapper is still running after it was asked to exit.
+    /// A service started from another release of the wrapper is still running after it was asked to retire and its unit was
+    /// restarted,
+    /// so the units start a program that is not the release this command runs.
     OtherRelease,
     /// The repository has no room left.
     RepositoryFull(String),
@@ -335,10 +343,14 @@ pub fn render(failure: &ClientFailure) -> String {
              belongs to and stop the newer service with `{STOP_COMMAND}`; then run the commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::OtherRelease => format!(
-            "The commit service that is running was started from another release of this git wrapper and did not stop when \
-             asked twice, so this commit was not made. Run the commit again: the next commit stops this worktree's unit and \
-             starts it from the units it installs. A service that still will not stop can be restarted with \
-             `{RESTART_COMMAND}`. {NOTHING_CHANGED}"
+            "The commit service that is running was started from another release of this git wrapper, and it did not step \
+             aside when it was asked to retire nor when this worktree's unit was restarted, so this commit was not made. Run the \
+             commit again: a service that was only still finishing the work it held is replaced by the next commit, which stops this \
+             worktree's unit and starts the program the units install. If this message comes back, the program those units start \
+             is not the release you are running: the log of the command that set the service up names the link \
+             `{PROGRAM_LINK}` it could not point at this release, and a runtime directory that cannot hold that link keeps \
+             every commit here from being made, so set `XDG_RUNTIME_DIR` to a runtime directory this account can write. A \
+             service that still will not stop can be restarted with `{RESTART_COMMAND}`. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
             "There is no space left for {path}, so this commit was not made. Free some space and run the commit again. \

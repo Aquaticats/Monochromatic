@@ -17888,7 +17888,19 @@
     "sha256": "1a6f6aaee60910a6fe44c653308648ba8a19abf2dc3713ebe05e227ff1390369",
     "rawBytesEqual": true,
     "mismatchedDigestRejected": true,
-    "finalCohortManifest": "not yet frozen or published"
+    "finalCohortManifest": "not yet frozen or published",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": "This entry records its own file's digest, 1a6f6aaee60910a6fe44c653308648ba8a19abf2dc3713ebe05e227ff1390369 of the 1043537 bytes at commit 8c70741076b02238bc9dab9fc10443dd9aea77e2. A note that carries this file's own digest changes the file, so the pair here is not and cannot be current, and bytes and sha256 are null because no current pair can be written in this file."
+      }
+    ]
   },
   "desktopSessionContinuationPreparation": {
     "harnessRevision": "bb475f636f51a00864710454c6499fcd3db6b8a4",
@@ -37671,7 +37683,19 @@
       "bytes": 426661,
       "sha256": "adc0a5e7a443843c07362fb479e5f7d951a71bcd6996e4d6166ea6de80eeb0ef",
       "includesExactOriginalProviderArchives": true,
-      "includesExactOriginalWorkflowLogArchive": true
+      "includesExactOriginalWorkflowLogArchive": true,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 9c4121a4a43255323184d203dddf4740137323a8:doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     "actualCohortBinding": false,
     "actualFinalProviderAcceptance": false
