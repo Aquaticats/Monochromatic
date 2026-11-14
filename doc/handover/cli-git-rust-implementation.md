@@ -1198,6 +1198,68 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Four reviews: the watch note and the renamed subvolume pass and join the commit forms in pass 38; the landing branch and mpm-shadow's stale launchers go back (2026-11-14T09:22:56-05:00)
+
+Not final and not approved:
+what four reviews report of themselves,
+each having built its commit and run,
+and what the coordinating session queued.
+
+- **The landing that never waits** (`95de6573c6`, the whole branch against `main`):
+  reproduced with a blocked `recv()` standing in for a stalled filesystem call,
+  no dead mount mounted:
+  the branch moved the withdrawal decision and the beat note's read onto budgeted jobs whose wait for a place has no ceiling,
+  so four routing looks that stall hold every place,
+  a queued client's withdrawal waits without a bound,
+  the client ends saying "not known",
+  and new commits end as `Unavailable`.
+  The part of the branch this is in was reviewed twice before with no finding.
+  It did not run the two controls at four CPUs;
+  the author's own report does.
+  Back to the author,
+  resumed second in the queue
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-third-review-of-2026-11-14-prompt.md`).
+  Read and not run by it:
+  the service's exit waits without a bound behind a sync that stalls,
+  which has its own run from an earlier tip.
+  **So passes 29 and 34 stay where they are**,
+  and the commit forms no longer wait with them.
+- **Integration pass 38**,
+  queued first:
+  the commit forms Git refuses (`b631f80970`,
+  found fit by itself in pass 29),
+  the watch note's read (`47f44b0ef9`) and the renamed subvolume (`8950df3253`)
+  (`~/temp/agent/pi-runs/integration-pass-38-with-commit-forms-the-watch-note-and-the-renamed-subvolume-prompt.md`).
+- **The watch note's read**:
+  the change is sound and discards no valid note;
+  seventeen tests of the module pass.
+  Two older weaknesses of the same file,
+  each with a fresh run queued:
+  the note a landing writes before it answers a commit is written on the landing thread with no ceiling
+  (read, not run);
+  `a_note_that_may_be_missing` skips the check for a foreign repository,
+  so a retry writes another instance's note into this service's journal
+  (reproduced, low).
+- **The renamed subvolume**:
+  no defect;
+  thirteen and twenty-five controls pass,
+  and a concurrent reproduction of its own passed three times.
+  One concern it examined and dismissed:
+  a repository whose every command is machine-read never requeues a stranded leaving.
+- **mpm-shadow's stale launchers** (`82ea47018c`):
+  two reproduced
+  (a postinstall link left by a killed first install dangles for good after a rename;
+  a person's broken symlink is removed because its name matches a local launcher)
+  and two races read.
+  Back to the author,
+  resumed third
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-review-of-2026-11-14-prompt.md`).
+- Going at 09:22:56:
+  seventeen Pi runs with the cap at twenty-four,
+  and no slow reading of the home drive since the cap was raised
+  (the probe has not ended).
+  The queue held 63 entries.
+
 ##### The tracked archives are out of `main`; what one record says is kept goes back to the author (2026-11-14T09:04:01-05:00)
 
 Not final and not approved:
