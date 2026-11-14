@@ -1241,6 +1241,37 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's cleanup of old versions is answered a third time and goes to review (2026-11-14T14:48:42-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it queued.
+
+- **mpm-shadow removes by itself the old versions it installed** (tip `542b881860`, ended 14:43:53):
+  the author reports the third review answered with five controls,
+  a pass that keeps a version by undoing a removal,
+  `main` merged with none of its three modules touched,
+  834 tests of the whole suite passing and the type check clean;
+  cost against the commit before at a median ratio of 1.02
+  (0.89 to 1.05 with nothing to remove,
+  0.95 to 1.02 with 63 removals),
+  inside each arm's own spread.
+  It says the review's harness for one scenario asks whether a held file exists at one name,
+  where a restore puts it back at the other,
+  and leaves one window open:
+  a `current` link can dangle until the next sync repairs it,
+  unless a lock over the whole store closes it.
+  The project's rule on concurrency reads lock-free first with a lock over the smallest unit,
+  so no store-wide lock is adopted here,
+  open to the owner's veto;
+  what a dangling `current` link costs a tool that starts meanwhile is for the review to show.
+  Review queued second (range `main...542b881860`, six code files).
+- **`0.6.1-alpha.31`**:
+  the release workflow ended with success at 14:41:37 and the release was published at 14:48:15 with its archives;
+  the install follows in the command that waits for it.
+- The queue held 60 entries at 14:48:42.
+
 ##### Three reviews each reproduce something: an ambiguous operand reaches real Git unguarded, a file put back over a newer one, a path outside ASCII dropped from a brief; all three go back (2026-11-14T14:45:27-05:00)
 
 Not final and not approved:
