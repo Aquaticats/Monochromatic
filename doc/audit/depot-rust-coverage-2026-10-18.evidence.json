@@ -36,6 +36,18 @@
         "count": 3,
         "closureSha256": "5ee0118ddc071211b253a508cd7403c3458f85a583b5d65e7fdbd593e2cfef3e"
       }
+    ],
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
     ]
   },
   "budget": {
@@ -202968,14 +202980,38 @@
     "compressedBytes": 88936,
     "compressedSha256": "d99bc51f9e5220240aa62e673d53f596772956e458a46d6ade4947e03e41431a",
     "rawBytes": 482127,
-    "rawSha256": "dc24e815e150ac748e6f055adcd92f465c60f7f4971877aa674fae402abf3d65"
+    "rawSha256": "dc24e815e150ac748e6f055adcd92f465c60f7f4971877aa674fae402abf3d65",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+        "note": null
+      }
+    ]
   },
   "rawReceipts": {
     "path": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
     "bytes": 11483893,
     "sha256": "a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f",
     "uncompressedBytes": 62124078,
-    "uncompressedSha256": "acb1337c95fb91a34b194ec962545aaa0ba9a0301fe2872ad7aa01acbe36b70c"
+    "uncompressedSha256": "acb1337c95fb91a34b194ec962545aaa0ba9a0301fe2872ad7aa01acbe36b70c",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+        "note": null
+      }
+    ]
   },
   "accounting": {
     "cumulativeConservativeTimestampComputeProxyUsd": 4.213,

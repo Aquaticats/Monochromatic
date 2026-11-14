@@ -13,7 +13,19 @@
     "path": "doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz",
     "bytes": 12512,
     "sha256": "537a75bf0542f03cca5ea03fcdf0299f979aac67a5365d5691790c0d4a0ec617",
-    "uncompressedBytes": 85609
+    "uncompressedBytes": 85609,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show d5e3e0e9101560fc716b19b967004e00ddfb60e0:doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "resources": {
     "requestedCpu": 2,

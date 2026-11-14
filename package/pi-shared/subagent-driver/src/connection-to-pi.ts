@@ -54,6 +54,8 @@ export type {
 
  @param standardErrorFile - file for Pi's standard error
 
+ @param standardErrorAppends - whether that file is added to rather than replaced, for a run whose Pi is started more than once
+
  @param listeners - what the run wants to hear about
 
  @param graceMilliseconds - how long Pi gets at each stage of ending
@@ -71,6 +73,7 @@ export function startConnectionToPi(
     workingFolder,
     environment,
     standardErrorFile,
+    standardErrorAppends = false,
     listeners,
     graceMilliseconds = SHUTDOWN_GRACE_MILLISECONDS,
   }: ConnectionRequest,
@@ -106,6 +109,7 @@ export function startConnectionToPi(
     source: child.stderr,
     file: standardErrorFile,
     onProblem: listeners.onProblem,
+    append: standardErrorAppends,
   },);
   /**
    What changes while Pi runs.

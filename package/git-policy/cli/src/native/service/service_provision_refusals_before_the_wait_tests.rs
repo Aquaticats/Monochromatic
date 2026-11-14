@@ -12,7 +12,7 @@
 //! because a refusal that is wrong fails a commit that would have landed.
 
 use super::*;
-use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, socket_path, socket_path_suffix_bytes};
+use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, service_unit_instance, socket_path, socket_path_suffix_bytes, socket_unit_instance};
 use crate::service_provision::{in_place, provision, provision_with};
 use crate::service_provision_host_and_manager::Manager;
 use crate::systemd_dbus::CallError;
@@ -76,9 +76,13 @@ impl Manager for Addressing {
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
         self.calls.push(format!("state {unit}"));
-        // An earlier release's unit for this worktree never runs in these controls, and a unit the manager dropped is not
-        //  held any more.
-        return Ok(if unit.contains("cli-git@") || self.stopped.contains(unit) { None } else { Some(String::from("inactive")) });
+        // What: What this manager holds.
+        // Why:  An earlier release's unit for this worktree never runs in these controls; a unit it dropped is not held; and a
+        //       service unit whose socket was dropped is collected by the manager once it is at rest, which is the collection a
+        //       stop of the socket alone leaves to the manager (`service_provision_instance_unloaded.rs`).
+        let socket_dropped: bool = self.stopped.contains(&socket_unit_instance(INSTANCE));
+        let collected: bool = unit == service_unit_instance(INSTANCE) && socket_dropped;
+        return Ok(if unit.contains("cli-git@") || self.stopped.contains(unit) || collected { None } else { Some(String::from("inactive")) });
     }
 
     fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {

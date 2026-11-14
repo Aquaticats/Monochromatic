@@ -45,7 +45,9 @@ lists Windows and Apple Silicon Mac compute.
 Developer makes Depot Windows available;
 Mac eligibility starts with Startup
 ([current eligibility and allowance sources](../audit/depot-included-allowance-2026-10-18.evidence.json);
-[public pricing feature rows](../audit/depot-live-public-pricing-2026-10-18.evidence.json.gz)).
+public pricing feature rows (`../audit/depot-live-public-pricing-2026-10-18.evidence.json.gz`)).
+`depot-live-public-pricing-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Correction (2026-10-18):
 the earlier citation pointed only to the allowance JSON,
@@ -371,7 +373,7 @@ Repeated final-failure lines are not extra executed cases.
 The original duplicate-argument adapter ran zero bodies and retains no test credit;
 the corrected result preserves unchanged source assertions.
 The extra GNU watch failure's cause and repeat rate remain unmeasured
-([retained GNU identities and original-member hashes](../audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz)).
+(retained GNU identities and original-member hashes (`../audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz`)).
 The matched Depot Windows GNU run executes the same 1494 binary/case identities:
 1493 pass and the unreadable-session-path/logging case fails,
 with one separate summary-only skip.
@@ -382,6 +384,8 @@ release `10.0.26100`,
 four available/logical CPUs,
 16827592704 bytes of memory and CPU model `AMD EPYC 9R45`
 ([matched GNU and design terminal receipt](../audit/depot-gnu-design-terminal-2026-10-18.evidence.json)).
+`depot-current-host-gnu-owner-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ### Execution infrastructure
 

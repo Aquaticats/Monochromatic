@@ -13,12 +13,14 @@ Application source is `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.
 The tested generator is
 `package/file-enforcer/core/generator/Containerfile`,
 SHA-256 `16c174c71e32066baa7e8cd9de77c774fe89f32ec8b450533ad00ca94e43f7ef`.
-The [compressed receipt][receipt] retains the full input,
+The compressed receipt (`../planning/depot-complete-coverage-file-enforcer-git-config.json.gz`) retains the full input,
 exact task body,
 command arguments,
 exit statuses,
 configuration snapshots,
 and exact-version Git source.
+`depot-complete-coverage-file-enforcer-git-config.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 `package/file-enforcer/core/generator/Containerfile` was removed on 2026-10-31 in `e7b5130459`
 (feat(*):
@@ -218,5 +220,4 @@ No duplicate search or contribution-policy inference is needed for a report that
   no Git patch was produced;
   both consumer-side configuration controls were executed against an active rewrite.
 
-[receipt]: ../planning/depot-complete-coverage-file-enforcer-git-config.json.gz
 [git-source]: https://github.com/git/git/tree/v2.56.0

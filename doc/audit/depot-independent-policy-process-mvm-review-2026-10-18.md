@@ -112,6 +112,12 @@ The original compressed bundles have these SHA-256 values:
   `ae7580dcf37185b3422befd024f4f1fd7fa342e79f3c4d92c3dffafceb899d4e`.
 - `depot-mvm-kvm-2026-10-18.archives.json.gz`:
   `9ec38d2f8c3605e9400b0960a24d29196ad012c19f89fb9ce042c4b8e8d2a38f`.
+  `depot-job-policy-history-2026-10-18.archives.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-mvm-kvm-2026-10-18.archives.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-process-timeouts-2026-10-18.archives.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Every decoded text member was included in credential-pattern inspection.
 Manual inspection of every resulting candidate found QEMU help placeholders
@@ -345,6 +351,10 @@ The additional compressed bundles have SHA-256 values:
   `1d548493228ec9950b9de34d9b70b1107734a72a600e7ee9a7ad3218fc1a6b20`.
 - `depot-runtime-pr-2026-10-18.archives.json.gz`:
   `fa455b4dd47abbfa7dce33d590a6ee1b0edf9d9d3657d35a829c0c6a1a062c1c`.
+  `depot-runtime-pr-2026-10-18.archives.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-service-containers-2026-10-18.archives.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Credential-pattern and broader keyword/context inspection covered all additional members
 and the decoded checkout-source files.

@@ -1,0 +1,9 @@
+{"round":0,"arm":"1.1.1","paths":1000,"parsedPaths":1000,"medianMs":32.9,"minMs":32.3}
+{"round":0,"arm":"1.3.6","paths":1000,"parsedPaths":1000,"medianMs":47.1,"minMs":37.9}
+{"round":0,"arm":"1.4.0-dev.2971","paths":1000,"parsedPaths":1000,"medianMs":73.7,"minMs":71.5}
+{"round":1,"arm":"1.3.6","paths":1000,"parsedPaths":1000,"medianMs":38.2,"minMs":37.2}
+{"round":1,"arm":"1.4.0-dev.2971","paths":1000,"parsedPaths":1000,"medianMs":80.5,"minMs":73.5}
+{"round":1,"arm":"1.1.1","paths":1000,"parsedPaths":1000,"medianMs":48.4,"minMs":40.1}
+{"summary":"1.1.1","script":"coordinator-check/separator-variant.ts","roundMedians":[32.9,48.4]}
+{"summary":"1.3.6","script":"coordinator-check/separator-variant.ts","roundMedians":[38.2,47.1]}
+{"summary":"1.4.0-dev.2971","script":"coordinator-check/separator-variant.ts","roundMedians":[73.7,80.5]}

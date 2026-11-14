@@ -6,8 +6,10 @@
 
 import { parseArgs, } from 'node:util';
 import {
+  MILLISECONDS_PER_SECOND,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
+  START_PAUSE_MILLISECONDS,
 } from './driver-constants.ts';
 import type { DriverOptions, } from './driver-types.ts';
 import {
@@ -21,7 +23,7 @@ import {
  The driver's command line, for the error message.
  */
 export const DRIVER_USAGE =
-  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--pi-argument=<word>]...';
+  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--start-pause-seconds=<n>] [--pi-argument=<word>]...';
 
 /**
  A command line the driver cannot use.
@@ -166,6 +168,7 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         'turn-cap': { type: 'string', },
         'retry-cap': { type: 'string', },
         'retry-base-seconds': { type: 'string', },
+        'start-pause-seconds': { type: 'string', },
       },
     },);
     return {
@@ -215,6 +218,12 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
           name: 'retry-base-seconds',
         },),
       ),
+      startPauseSeconds: (values['start-pause-seconds'] === undefined)
+        ? START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND
+        : requiredSeconds(optionOf({
+          value: values['start-pause-seconds'],
+          name: 'start-pause-seconds',
+        },),),
     };
   }
   catch (error) {
