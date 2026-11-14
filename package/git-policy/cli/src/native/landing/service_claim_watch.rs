@@ -153,6 +153,13 @@ pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
 /// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
 
+/// The point at which the landing writes its note for the service that starts next,
+/// for a control that holds that write (`service_fault_hooks_test_support.rs`).
+/// The work loop writes the same note through `write_down` and never reaches this point,
+/// so a hold here is the landing's own write and nothing else.
+#[cfg(test)]
+pub(crate) const IN_THE_NEXT_SERVICE_NOTE: &str = "in-the-next-service-note";
+
 /// How a read of a watch file is done;
 /// a control replaces it to make a read fail.
 pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
@@ -671,6 +678,10 @@ fn a_record_waits(git_dir: &Path) -> bool {
 /// const noteForTheNextService = (store, instance, gitDir) => { if (!ofAnotherInstance(instance, gitDir)) writeDown(store, gitDir); };
 /// ```
 pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: &Path) {
+    // A control holds this write on whichever thread runs it, which `note_for_the_next_service_within` made a thread of its own
+    //  (`service_claim_watch_note_within_a_ceiling.rs`).
+    #[cfg(test)]
+    crate::service_fault::hooks::run_on_any_thread(IN_THE_NEXT_SERVICE_NOTE);
     if of_another_instance(instance, git_dir) {
         return;
     }
@@ -713,3 +724,10 @@ fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 #[path = "service_claim_watch_tests.rs"]
 mod tests;
+
+/// The measurement of what one write of a note costs,
+/// and so of what the bound costs a commit,
+/// stays out of the release executable.
+#[cfg(test)]
+#[path = "service_claim_watch_cost_measurement_tests.rs"]
+mod cost_measurement_tests;
