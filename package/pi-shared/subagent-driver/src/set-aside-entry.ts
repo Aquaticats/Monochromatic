@@ -191,6 +191,10 @@ export function setAsideRecordIn({
 /**
  Writes one entry's set-aside record, through a file beside it that is renamed over it.
 
+ The caller holds the queue's lock: a record is state of its entry, and writing one outside a held step is how a put-back could
+ delete the record of a set-aside a filling was still committing, losing the entry. Every command of this package writes a record
+ through `setAsideAnEntryOfAQueue`, which holds the step.
+
  @param runsFolder - folder the driver writes its runs into
 
  @param record - what the record says
@@ -337,6 +341,9 @@ export async function setAsideRecordsIn({ runsFolder, }: { readonly runsFolder: 
 
 /**
  Deletes one entry's set-aside record.
+
+ The caller holds the queue's lock and decides on the queue inside that step: a removal made on a snapshot of the queue is how a
+ second filling deleted the record of a set-aside a first was still committing.
 
  @param runsFolder - folder the driver writes its runs into
 
