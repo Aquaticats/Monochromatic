@@ -15,12 +15,17 @@
 //! reached through the session
 //!  bus;
 //! the manager's own private socket is documented as private to systemd.
-//! Only `Reload`,
-//! `ResetFailedUnit`,
+//! Only `ResetFailedUnit`,
 //!  `RestartUnit`,
 //! `StartUnit`,
 //! `StopUnit` and the state query (`GetUnit`,
 //! then a property read) are needed.
+//! `Reload` is deliberately absent:
+//! it makes the manager re-read every unit it holds,
+//! so its cost grows with
+//!  everything else the manager runs and it holds the manager's own event loop while it lasts
+//! (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+//! Nothing here may ask for it.
 //! The owner chose `zbus` 6 over the
 //!  hand-written client that stood here (2026-11-07:
 //! "zbus 6,
@@ -72,9 +77,6 @@ pub const MANAGER_NAME: &str = "org.freedesktop.systemd1";
 /// `Hello` on the bus daemon,
 /// the first call of every connection.
 pub const HELLO: Target<'static> = Target { destination: BUS_NAME, path: BUS_PATH, interface: BUS_NAME, member: "Hello" };
-
-/// `Reload` on the user manager.
-pub const RELOAD: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "Reload" };
 
 /// `StartUnit` on the user manager.
 pub const START_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
@@ -318,7 +320,7 @@ impl Bus {
     ///  One method call of the user manager with `body` as its arguments,
     /// answered by the reply that belongs to it.
     /// Why:
-    ///   A return is the receiver's confirmation (a reload returns after the units are read);
+    ///   A return is the receiver's confirmation (a start returns once the job is queued);
     /// an error reply comes back
     ///  with its name and text so the caller can say what to do.
     ///
@@ -334,11 +336,6 @@ impl Bus {
         return bounded(self.deadline, async move {
             return connection.call_method(Some(MANAGER_NAME), MANAGER_PATH, Some(MANAGER_INTERFACE), member, &body).await.map_err(zbus_failure);
         });
-    }
-
-    /// Reloads the user manager's unit files.
-    pub fn reload(&mut self) -> Result<(), CallError> {
-        return self.call_manager("Reload", ()).map(drop);
     }
 
     /// Clears a unit's failed state and its start-rate counter,
