@@ -165,7 +165,14 @@ export {
   fileSystemOfARun,
   fileSystemPropertiesOf,
   refuseUnlessTheWorktreeIsThere,
+  worktreeGoneWordsOf,
 } from './file-system-of-a-run.ts';
+export {
+  type TheRunAUnitLeft,
+  theRunAUnitLeftIn,
+  theRunThatOutlivedItsWorktreeLineOf,
+  theWorktreeThatWentLineIn,
+} from './the-run-a-unit-left.ts';
 export {
   PathThatIsNotAbsoluteError,
   pathInAUnitProperty,

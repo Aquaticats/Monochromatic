@@ -31,6 +31,7 @@ import {
   refuseUnlessTheWorktreeIsThere,
   WorktreeGoneError,
 } from './file-system-of-a-run.ts';
+import { theWorktreeThatWentLineIn, } from './the-run-a-unit-left.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
@@ -383,23 +384,23 @@ const status = (waited.ended === 'the-unit-ended')
   ? (waiter.exitCode ?? 0)
   : 1;
 
-// A removal that landed between the last look at the worktree and the manager's own namespace setup leaves a unit that never
-// started and a status the manager chose (226, a namespace failure). The words below say which folder went and what to do, so a
-// start that failed this way does not end on that bare status. A run that ended with a status of its own is left alone: another
-// launcher of this name removing a finished worktree afterwards is not a failure of this run.
-if ((!readOnlyInMain) && (status !== 0)) {
-  try {
-    await refuseUnlessTheWorktreeIsThere({
-      worktree,
-      runName: options.name,
-      runFolder,
-    },);
-  }
-  catch (error) {
-    if (!(error instanceof WorktreeGoneError)) {
-      throw error;
-    }
-    console.error(`${options.name}: the unit did not start: ${error.message}`,);
+// The manager collects a unit once its waiter ends, so nothing of the unit's own record is left to ask; what a run leaves in its
+// folder is its feed from the first moment and its summary last. A worktree that is gone now was removed by a launcher of
+// another start of this name, and the line below says which of the two things happened: a run that ran, with what it kept and
+// where, or a unit that never started and so ran nothing. It is never read off the unit's status and a missing folder alone.
+if (!readOnlyInMain) {
+  /**
+   What the run's worktree left to say, which is nothing while it is still there.
+   */
+  const { line: worktreeWent, } = await theWorktreeThatWentLineIn({
+    worktree,
+    runName: options.name,
+    runFolder,
+    branch: options.branch,
+    unitStatus: status,
+  },);
+  if (worktreeWent !== undefined) {
+    console.error(`${options.name}: ${worktreeWent}`,);
   }
 }
 

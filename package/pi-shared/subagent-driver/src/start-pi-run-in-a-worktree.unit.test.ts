@@ -1092,5 +1092,140 @@ await describe({
         expect(ended.stderr,).toContain('Start the run again',);
       },
     },),
+    it({
+      name: 'says the run ended and what it kept when the worktree went after a run that ran, and never that no run happened',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run worked in.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in, whose only folder is the run's own.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         The worktree the stand-in manager removes as it ends, which another launcher of this name would have removed.
+         */
+        const worktree = join(
+          checkout,
+          '.claude',
+          'worktrees',
+          'pi-refused',
+        );
+        /**
+         The run's own folder, which the launcher makes before it asks for the unit and which holds what the run left.
+         */
+        const runFolder = join(
+          runs,
+          'refused-1',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses: the base names a commit, and the worktree is made.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The unit manager: the unit ran, wrote its summary, ended with a status of its own, and the shared worktree was removed
+         by a launcher of another start of this name.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `printf '%s\\n' '{"endReason":"pi-exited"}' > '${runFolder}/summary.json'\nprintf '%s\\n' '{"t":0,"kind":"turn_start","n":1}' > '${runFolder}/feed.jsonl'\nrmdir '${worktree}'\nprintf '%s\\n' 'Finished with result: exit-code' >&2\nexit 1\n`,
+        },);
+        /**
+         The manager this test reads a unit's name from, which is free because no unit holds it.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `case "$*" in\n  *LoadState*)\n    printf '%s\\n' 'not-found' ;;\nesac\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          branch: 'probe-branch',
+          base: 'a-commit',
+        },);
+        expect(ended.code,).not.toBe(0,);
+        // The run happened, so the launcher says so, with what it kept and where, and never that no run happened.
+        expect(ended.stderr,).toContain('the run ended as pi-exited',);
+        expect(ended.stderr,).toContain(runFolder,);
+        expect(ended.stderr,).toContain('summary.json',);
+        expect(ended.stderr,).toContain('probe-branch',);
+        expect(ended.stderr,).not.toContain('no run happened',);
+        expect(ended.stderr,).not.toContain('the unit did not start',);
+      },
+    },),
   ],
 },);

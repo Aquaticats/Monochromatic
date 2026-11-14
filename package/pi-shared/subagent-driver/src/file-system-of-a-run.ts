@@ -358,7 +358,48 @@ export async function refuseUnlessTheWorktreeIsThere({
   if (await isThere({ folder: worktree, },)) {
     return;
   }
-  throw new WorktreeGoneError(
-    `the worktree ${worktree} is gone, and this start read it a moment ago, so no unit was started and no run happened. Most likely a launcher of another start of the name ${runName} finished just now, and a launcher removes a finished worktree once its unit has ended. Nothing of that work is lost: its commits are in the Git directory the worktree named. Start the run again; the run folder ${runFolder} holds this start's refusal and no run.`,
-  );
+  throw new WorktreeGoneError(worktreeGoneWordsOf({
+    worktree,
+    runName,
+    runFolder,
+  },),);
+}
+
+/**
+ Writes the words for a start whose worktree has gone before its unit was asked for, so no run happened.
+
+ @param worktree - the worktree that has gone
+
+ @param runName - the run's name, which names the worktree a launcher of another start of it would remove
+
+ @param runFolder - the run's own folder, which holds no run
+
+ @returns the words to print
+
+ @example
+ ```ts
+ const words = worktreeGoneWordsOf({ worktree: '/repo/.claude/worktrees/pi-a', runName: 'a', runFolder: '/runs/a-1', });
+ ```
+ */
+export function worktreeGoneWordsOf({
+  worktree,
+  runName,
+  runFolder,
+}: {
+  /**
+   The worktree that has gone.
+   */
+  readonly worktree: string;
+
+  /**
+   The run's name, which names the worktree a launcher of another start of it would remove.
+   */
+  readonly runName: string;
+
+  /**
+   The run's own folder, which holds no run.
+   */
+  readonly runFolder: string;
+},): string {
+  return `the worktree ${worktree} is gone, and this start read it a moment ago, so no unit was started and no run happened. Most likely a launcher of another start of the name ${runName} finished just now, and a launcher removes a finished worktree once its unit has ended. Nothing of that work is lost: its commits are in the Git directory the worktree named. Start the run again; the run folder ${runFolder} holds this start's refusal and no run.`;
 }

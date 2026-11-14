@@ -364,10 +364,15 @@ before anything is made.
 The run's worktree is read once more immediately before the launcher asks for the unit,
 because a launcher of another start of the same name removes a finished worktree,
 and it can do so in the moment between the first read and the unit.
-A start whose worktree has gone ends with words naming the worktree,
-the launcher that most likely removed it and the run folder,
-and the same words follow a unit the manager refused to start for that reason,
-so such a start never ends on the manager's status alone.
+When the worktree has gone after the unit ended,
+the launcher says which of the two things happened,
+and it reads that from what the run left rather than from the unit's status and a missing folder:
+a run that ran is named with how its summary says it ended,
+with what it left in its run folder and where its branch and its commits are,
+and only a unit that never started is reported as a start where no run happened.
+The unit's own record is not read:
+the launcher asks for its unit with `--collect`,
+and the manager has collected it by the time its waiter ends.
 
 The wait for the unit is the launcher's own:
 it starts the waiter,
