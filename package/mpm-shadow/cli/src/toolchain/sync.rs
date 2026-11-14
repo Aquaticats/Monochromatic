@@ -273,6 +273,9 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     // declares (one another install has just placed) is kept. What that does not cover is an item a newer lock does NOT
     // declare and another install is placing right now: the move-aside then takes that install's new entry, finds it is not
     // the one proved, and puts it back, so it is never deleted.
+    // Asked before this run writes any link: a record that was lost before it says which links this tool made, and a
+    // launcher must not be removed while that is unknown (a killed run's link can sit in a folder nothing can find).
+    let link_set_known: bool = super::postinstall_links::record_is_readable(ctx);
     match sync_postinstall_links(ctx, &entries) {
         Ok(notices) => {
             report.retired_links = notices.retired;
@@ -288,7 +291,7 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     // A bin the plan renamed or dropped leaves a launcher, its record and an exposed link that no later install rewrites;
     // the pass retires what it can prove mpm-shadow made, and names what it cannot. It runs after the links of the lock are made,
     // so a name this run linked is never taken for a leftover.
-    let notices = retire_undeclared_launchers(ctx, &linked_bins);
+    let notices = retire_undeclared_launchers(ctx, &linked_bins, link_set_known);
     report.retired_launchers = notices.retired;
     report.warnings.extend(notices.warnings);
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync

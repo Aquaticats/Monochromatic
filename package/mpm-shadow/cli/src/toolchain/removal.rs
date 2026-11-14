@@ -57,6 +57,8 @@ pub(crate) enum Removal {
     Gone,
     /// Something that was not judged stood there: it was put back and left alone.
     Replaced,
+    /// The entry was the one judged, and was put back because the caller said to keep it.
+    Kept,
 }
 
 /// How many hidden names beside an entry are tried before a removal refuses to move it aside.
@@ -180,8 +182,13 @@ pub(crate) fn put_back(path: &Path, temporary: &Path) -> Result<(), String> {
 }
 
 /// What:
-/// Removes `path` only when the entry standing there is still the one judged,
+/// Removes `path` only when the entry standing there is still the one judged and `keep` says it may go,
 /// and puts back whatever else stands there.
+/// Why:
+/// `keep` is asked after the entry is in hand and before anything is deleted,
+/// which is the instant the removal happens:
+/// the caller re-reads the lock on disk there and keeps the entry when it declares it now,
+/// so a decision taken on a lock loaded earlier never deletes what a newer lock declares.
 /// Why:
 /// Moving the entry aside is one atomic step,
 /// so whatever stood there is in hand and can be compared with the judged entry before anything is deleted;
@@ -192,7 +199,7 @@ pub(crate) fn put_back(path: &Path, temporary: &Path) -> Result<(), String> {
 /// ```ts
 /// export function removeIfStill(path: string, judged: Judged): Removal  // throws
 /// ```
-pub(crate) fn remove_if_still(path: &Path, judged: Judged) -> Result<Removal, String> {
+pub(crate) fn remove_if_still(path: &Path, judged: Judged, keep: &dyn Fn() -> bool) -> Result<Removal, String> {
     let temporary: PathBuf = temporary_name_beside(path)?;
     match fs::rename(path, &temporary) {
         Ok(()) => {}
@@ -203,6 +210,12 @@ pub(crate) fn remove_if_still(path: &Path, judged: Judged) -> Result<Removal, St
     if moved != Some(judged) {
         return match put_back(path, &temporary) {
             Ok(()) => Ok(Removal::Replaced),
+            Err(reason) => Err(reason),
+        };
+    }
+    if keep() {
+        return match put_back(path, &temporary) {
+            Ok(()) => Ok(Removal::Kept),
             Err(reason) => Err(reason),
         };
     }

@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use super::cargo_installs::current_link;
 use super::fakes::{Rig, write_executable};
+use super::lock::render_lock;
 use super::model::{LockedTool, Postinstall, PostinstallLink};
 use super::postinstall_links::{LinkNotices, sync_postinstall_links};
 use super::sync::SyncReport;
@@ -51,7 +52,10 @@ fn declare(rig: &mut Rig, link: Option<PostinstallLink>) {
 }
 
 /// One postinstall pass over every tool of the rig's lock.
+/// The lock the pass names is written to the tree first: a removal is decided by the lock on disk, as an install leaves
+/// it.
 fn sync(rig: &Rig) -> LinkNotices {
+    fs::write(&rig.scope.lock_file, render_lock(&rig.lock)).expect("write the lock this pass names");
     let tools: Vec<&LockedTool> = rig.lock.tools.iter().collect();
     return sync_postinstall_links(&rig.context(), &tools).expect("the pass succeeds");
 }
@@ -269,10 +273,14 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
     tool.declaration.options.postinstall = Some(Postinstall::Link(PostinstallLink { link_dir: None, ..link.clone() }));
     let path = global.link_dir.join(&link.link_name);
     let linked: Vec<&LockedTool> = tools.iter().collect();
+    fs::create_dir_all(global.lock_file.parent().expect("a parent")).expect("make the global config directory");
+    fs::write(&global.lock_file, render_lock(&super::lock::Lock { tools: tools.clone() })).expect("write the global lock");
     sync_postinstall_links(&global_context(&rig, &global, &tools), &linked).expect("the first pass succeeds");
     assert!(exists_at(&path), "the global pass links into the user's bin directory");
 
     tools.iter_mut().find(|candidate| return candidate.declaration.id == LINKED).expect("the tool").declaration.options.postinstall = None;
+    fs::create_dir_all(global.lock_file.parent().expect("a parent")).expect("make the global config directory");
+    fs::write(&global.lock_file, render_lock(&super::lock::Lock { tools: tools.clone() })).expect("write the global lock");
     let dropped: Vec<&LockedTool> = tools.iter().collect();
     let notices = sync_postinstall_links(&global_context(&rig, &global, &tools), &dropped).expect("the second pass succeeds");
     assert!(!exists_at(&path), "the dropped global link is gone");

@@ -37,6 +37,8 @@ use super::context::Context;
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::exposure`.
 use super::exposure::{MadeLink, link_directory, make_postinstall_links};
+/// Imports what this module uses from `super::lock`.
+use super::lock::{Lock, current_lock};
 /// Imports `LockedTool` and `Postinstall` from `super::model`.
 use super::model::{LockedTool, Postinstall};
 /// Imports `ScopeKind` from `super::scope`.
@@ -58,6 +60,35 @@ const RECORD_WRITE_ATTEMPTS: usize = 8;
 /// The JSON key holding the links,
 /// as an object of link path to link target.
 const LINKS_KEY: &str = "links";
+
+/// What:
+/// Whether the record of postinstall links can be read now,
+/// which says that the set of links this tool made is known.
+/// Why:
+/// A launcher's removal can leave a link dangling when a killed run made one and never recorded it:
+/// the folders the retirement knows cannot be the whole answer, so a launcher is removed only while the record is
+/// readable and the links it names are therefore all the links there may be.
+pub fn record_is_readable(ctx: &Context) -> bool {
+    let file: PathBuf = record_file(ctx);
+    if fs::symlink_metadata(&file).is_err() {
+        // A record that is not there names no links, and a killed run can have made links it never recorded: the set is
+        // unknown, not empty.
+        return false;
+    }
+    let (_, unreadable) = read_record(&file);
+    return unreadable.is_none();
+}
+
+/// What:
+/// Whether the lock on disk declares the postinstall link at `path` at this instant,
+/// or `None` when the lock cannot be read now.
+/// Why:
+/// `reconcile`'s own retirement decided on the lock the run loaded, and a link another install has just made again is
+/// declared by the lock it published; this is the same rule the launcher retirement follows.
+fn declared_now(ctx: &Context, path: &Path) -> Option<bool> {
+    let lock: Lock = current_lock(ctx.scope)?;
+    return Some(declared_link_paths_of(ctx.scope, &lock.tools).contains(path));
+}
 
 /// What a pass of the cleanup did:
 /// one line per link retired,
@@ -295,7 +326,7 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
             Held::Nothing => {
                 leaving.insert(path.clone());
             }
-            Held::OwnLink(judged) => match remove_if_still(path, judged) {
+            Held::OwnLink(judged) => match remove_if_still(path, judged, &|| return declared_now(ctx, path) != Some(false)) {
                 Ok(Removal::Retired) => {
                     leaving.insert(path.clone());
                     notices.retired.push(format!(
@@ -307,6 +338,7 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
                 Ok(Removal::Gone) => {
                     leaving.insert(path.clone());
                 }
+                Ok(Removal::Kept) => {}
                 Ok(Removal::Replaced) => {
                     leaving.insert(path.clone());
                     notices.warnings.push(format!(

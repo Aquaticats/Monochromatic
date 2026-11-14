@@ -84,7 +84,8 @@ fn make_link(rig: &Rig, name: &str, target: &Path) -> PathBuf {
 
 /// One pass over the rig's folders.
 fn retire(rig: &Rig) -> LauncherNotices {
-    return retire_undeclared_launchers(&rig.context(), &[]);
+    // The tests' fixtures ask as if the record of postinstall links were readable, except the one that asks otherwise.
+    return retire_undeclared_launchers(&rig.context(), &[], true);
 }
 
 /// Whether anything (even a dangling link) exists at `path`.

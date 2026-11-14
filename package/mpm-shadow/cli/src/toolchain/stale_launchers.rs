@@ -72,6 +72,8 @@ use super::lock::{Lock, current_lock};
 use super::model::{LockedTool, Postinstall};
 /// Imports what this module uses from `super::postinstall_links`.
 use super::postinstall_links::{declared_link_paths_of, recorded_link_paths};
+/// Imports the answer to "is the process that made this temporary name gone".
+use super::util::process_is_gone;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 /// Imports what this module uses from `super::removal`.
@@ -606,6 +608,9 @@ fn links_reaching(ctx: &Context, launcher: &Path) -> Vec<PathBuf> {
 /// The proof is what the link points at, never the link's own name:
 /// the same rule and the same sentences serve the farm and the folders a tool's postinstall step links into.
 fn retire_one_link(
+    ctx: &Context,
+    made_links: &[String],
+    name: &str,
     reason: &str,
     path: &Path,
     judged: Judged,
@@ -626,9 +631,10 @@ fn retire_one_link(
             return;
         }
     };
-    match remove_if_still(path, judged) {
+    match remove_if_still(path, judged, &|| return may_go(ctx, made_links, name, Some(path))) {
         Ok(Removal::Retired) => notices.retired.push(format!("retired the link {} because {reason} ({why})", path.display())),
         Ok(Removal::Gone) => {}
+        Ok(Removal::Kept) => {}
         Ok(Removal::Replaced) => notices.warnings.push(format!(
             "left {} alone: {reason}, but something replaced the link between deciding that and removing it, so it was put back",
             path.display()
@@ -664,7 +670,8 @@ fn retire_farm_links(
         let path: PathBuf = entry.path();
         // A postinstall link may be declared inside the farm (`linkDir` names it), and then the path, not the bin name,
         // is what makes it the lock's own.
-        if started.links.contains(&name) || started.paths.contains(&path) {
+        // A temporary whose maker is alive belongs to an install placing a link this instant, never a leftover.
+        if started.links.contains(&name) || started.paths.contains(&path) || a_live_installs_temporary(&name) {
             continue;
         }
         let metadata = match fs::symlink_metadata(&path) {
@@ -697,6 +704,9 @@ fn retire_farm_links(
             }
         }
         retire_one_link(
+            ctx,
+            made_links,
+            &name,
             "the lock declares no bin of that name",
             &path,
             judged_of_metadata(&metadata),
@@ -740,7 +750,7 @@ fn retire_other_links(
         for entry in sorted_entries(&folder, notices) {
             let name: String = entry.file_name().to_string_lossy().to_string();
             let path: PathBuf = entry.path();
-            if started.paths.contains(&path) {
+            if started.paths.contains(&path) || a_live_installs_temporary(&name) {
                 continue;
             }
             let metadata = match fs::symlink_metadata(&path) {
@@ -766,6 +776,9 @@ fn retire_other_links(
                 }
             }
             retire_one_link(
+                ctx,
+                made_links,
+                &name,
                 "the lock declares no postinstall link there",
                 &path,
                 judged_of_metadata(&metadata),
@@ -830,13 +843,14 @@ fn retire_launchers(
                 return;
             }
         }
-        match remove_if_still(&launcher, proven.judged) {
+        match remove_if_still(&launcher, proven.judged, &|| return may_go(ctx, made_links, &name, None)) {
             Ok(Removal::Retired) => notices.retired.push(format!(
                 "retired the launcher {} because the lock declares no bin of that name ({})",
                 launcher.display(),
                 proven.why
             )),
             Ok(Removal::Gone) => {}
+            Ok(Removal::Kept) => continue,
             Ok(Removal::Replaced) => {
                 notices.warnings.push(format!(
                     "left {} alone: something replaced it between proving it mpm-shadow's own and removing it, so it was put back",
@@ -861,11 +875,12 @@ fn retire_launchers(
                 continue;
             }
         };
-        match remove_if_still(&record, judged) {
+        match remove_if_still(&record, judged, &|| return may_go(ctx, made_links, &name, None)) {
             Ok(Removal::Retired) => notices
                 .retired
                 .push(format!("retired the launcher record {} because the lock declares no bin of that name", record.display())),
             Ok(Removal::Gone) => {}
+            Ok(Removal::Kept) => continue,
             Ok(Removal::Replaced) => notices.warnings.push(format!(
                 "left {} alone: something replaced the record between reading it and removing it, so it was put back",
                 record.display()
@@ -932,11 +947,12 @@ fn retire_records_without_launchers(
                 return;
             }
         }
-        match remove_if_still(&record, judged) {
+        match remove_if_still(&record, judged, &|| return may_go(ctx, made_links, launcher_name, None)) {
             Ok(Removal::Retired) => notices
                 .retired
                 .push(format!("retired the launcher record {} because the lock declares no bin of that name", record.display())),
             Ok(Removal::Gone) => {}
+            Ok(Removal::Kept) => {}
             Ok(Removal::Replaced) => notices.warnings.push(format!(
                 "left {} alone: something replaced the record between reading it and removing it, so it was put back",
                 record.display()
@@ -1061,6 +1077,40 @@ fn unreadable_lock_again(ctx: &Context) -> String {
     );
 }
 
+/// The process number a hidden temporary name carries, when it is one of this tool's (`.<name>.<pid>.tmp` or
+/// `.<name>.<pid>.<n>.retired`).
+fn maker_of(name: &str) -> Option<u32> {
+    let parts: Vec<&str> = name.split('.').collect();
+    let index: usize = match parts.last() {
+        Some(&"tmp") => parts.len().checked_sub(2)?,
+        Some(&"retired") => parts.len().checked_sub(3)?,
+        _ => return None,
+    };
+    return parts.get(index)?.parse().ok();
+}
+
+/// What:
+/// Whether a hidden entry is a temporary whose maker is still running.
+/// Why:
+/// A temporary carries its maker's process number,
+/// and a maker that is alive is an install placing a link this instant:
+/// its temporary is never a leftover, and deleting it fails that install's rename.
+fn a_live_installs_temporary(name: &str) -> bool {
+    if !name.starts_with('.') {
+        return false;
+    }
+    return maker_of(name).is_some_and(|pid| return !process_is_gone(pid));
+}
+
+/// What:
+/// The answer a removal passes to `remove_if_still`: keep the entry when the lock on disk declares it at this instant,
+/// and when the lock cannot be read at all.
+/// Why:
+/// That is the ownership test of a removal, asked where the entry is already in hand.
+fn may_go(ctx: &Context, made_links: &[String], name: &str, link_path: Option<&Path>) -> bool {
+    return still_undeclared(ctx, made_links, name, link_path) != Some(true);
+}
+
 /// What:
 /// What a pass of the retirement did:
 /// one sentence per file removed,
@@ -1079,6 +1129,8 @@ pub struct LauncherNotices {
 
 /// What:
 /// Retires the launchers, records and links of names this lock declares nowhere.
+/// `link_set_known` says whether the record of postinstall links could be read before this run made any:
+/// a launcher is kept while it could not be, because a killed run may have made a link in a folder nothing can find.
 /// Why:
 /// This is the one place `install` cleans up after a bin the plan renamed or dropped.
 /// `made_links` are the exposed names this run itself linked,
@@ -1091,7 +1143,7 @@ pub struct LauncherNotices {
 /// ```ts
 /// export function retireUndeclaredLaunchers(ctx: Context, madeLinks: string[]): LauncherNotices
 /// ```
-pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String]) -> LauncherNotices {
+pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String], link_set_known: bool) -> LauncherNotices {
     let mut notices: LauncherNotices = LauncherNotices::default();
     // One listing per folder: an install with nothing to do compares names against the lock and reads no file.
     let launchers: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.launcher_dir, &mut notices);
@@ -1113,6 +1165,31 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String]) -> Laun
     // The links go before the launchers they point at, so no link is ever left naming a file that is gone.
     retire_farm_links(ctx, made_links, &farm, &started, &declared_tools, &mut proofs, &mut notices);
     retire_other_links(ctx, made_links, &started, &declared_tools, &mut proofs, &mut notices);
+    // A launcher goes only while the record of postinstall links says which links this tool made:
+    // a killed run can have made one in a folder nothing can find (a `linkDir` the plan no longer declares),
+    // and removing the launcher from under it would leave it dangling for good.
+    if !link_set_known {
+        let mut would_go: usize = 0;
+        for entry in &launchers {
+            let launcher: PathBuf = entry.path();
+            let name: String = entry.file_name().to_string_lossy().to_string();
+            if name.ends_with(RECORD_SUFFIX) || name.starts_with('.') || started.launchers.contains(&name) {
+                continue;
+            }
+            if proofs.own(&launcher, &declared_tools).is_ok() {
+                would_go += 1;
+            }
+        }
+        if would_go > 0 {
+            notices.warnings.push(format!(
+                "left {would_go} launcher(s) whose name this lock declares nowhere in place: {} cannot be read, so which links \
+                 this tool made cannot be told, and removing a launcher could leave a link pointing at nothing; make the record \
+                 readable (or delete it if it is damaged) and install again",
+                ctx.scope.launcher_dir.join(".postinstall-links.json").display()
+            ));
+        }
+        return notices;
+    }
     retire_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut proofs, &mut notices);
     retire_records_without_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut notices);
     return notices;

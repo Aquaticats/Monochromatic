@@ -219,7 +219,7 @@ fn keep_mode(_temporary: &fs::File, _mode: Option<u32>) -> std::io::Result<()> {
 /// function processIsGone(pid: number): boolean
 /// ```
 #[cfg(target_os = "linux")]
-fn process_is_gone(pid: u32) -> bool {
+pub(crate) fn process_is_gone(pid: u32) -> bool {
     if pid == std::process::id() || !Path::new("/proc/self").exists() {
         return false;
     }
@@ -229,7 +229,7 @@ fn process_is_gone(pid: u32) -> bool {
 /// Whether the process `pid` is gone;
 /// no platform but Linux can answer, so the answer is no.
 #[cfg(not(target_os = "linux"))]
-fn process_is_gone(_pid: u32) -> bool {
+pub(crate) fn process_is_gone(_pid: u32) -> bool {
     return false;
 }
 
