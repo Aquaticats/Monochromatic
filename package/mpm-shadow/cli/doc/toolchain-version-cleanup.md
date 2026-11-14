@@ -219,8 +219,11 @@ and a later pass removes it once nothing holds it,
 and the link names another version.
 Nothing deletes a removal marker on a name alone:
 a marker left by another run is put back under the version's own name,
-and the plan of that same pass judges it again with the entry's identity, the locks and the holds in hand,
-so a copy a lock names, a person wants or a process holds comes back instead of going.
+and the plan of that same pass judges it again with the entry's identity,
+the locks and the holds in hand,
+so a copy a lock names,
+a person wants,
+or a process holds comes back instead of going.
 What a kill leaves at each step is the same in both cases:
 before a rename,
 nothing changed;
