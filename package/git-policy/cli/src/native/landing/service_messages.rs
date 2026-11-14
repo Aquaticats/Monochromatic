@@ -136,6 +136,12 @@ pub enum ClientFailure {
     },
     /// The platform cannot start the service on demand.
     NoActivation(Platform),
+    /// An exchange with the user service manager ran out of the time it was given,
+    /// which says nothing about whether the manager is there.
+    ManagerDidNotAnswer {
+        /// The time that exchange was given.
+        waited: Duration,
+    },
     /// The service on the socket belongs to another account.
     OtherAccount,
     /// The service stopped before it confirmed the commit.
@@ -174,7 +180,9 @@ pub enum ClientFailure {
     /// is
     ///  saved in `file`.
     BranchSwitched { branch: String, now: String, file: Option<String> },
-    /// The service, once it greeted, said nothing for longer than it ever stays silent while it works,
+    /// The service,
+    /// once it greeted,
+    /// said nothing for longer than it ever stays silent while it works,
     /// so the request is given up rather than asked again.
     ServiceSilent,
     /// The service took no part of the request,
@@ -204,6 +212,10 @@ pub enum ClientFailure {
     Interrupted {
         /// The signal the person sent.
         signal: i32,
+        /// The process that sent it,
+        /// where the kernel named one;
+        /// nothing for the terminal's own interrupt.
+        sender: Option<i32>,
         /// What the service last said it was waiting for.
         blocker: Option<String>,
     },
@@ -213,6 +225,9 @@ pub enum ClientFailure {
     InterruptedNotKnown {
         /// The signal the person sent.
         signal: i32,
+        /// The process that sent it,
+        /// where the kernel named one.
+        sender: Option<i32>,
         /// What the service last said it was waiting for.
         blocker: Option<String>,
     },
@@ -316,6 +331,7 @@ pub fn render(failure: &ClientFailure) -> String {
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)
         ),
+        ClientFailure::ManagerDidNotAnswer { waited } => crate::service_messages_of_a_manager_that_did_not_answer::did_not_answer(*waited),
         ClientFailure::OtherAccount => format!(
             "Another account runs the commit service here, so this commit was not made. Use your own account, or ask \
              the other account to stop its service, then run the commit again. {NOTHING_CHANGED}"
@@ -402,8 +418,8 @@ pub fn render(failure: &ClientFailure) -> String {
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
         // The two ends of an interrupted commit are worded beside this file, because this one is at its line bound.
-        ClientFailure::Interrupted { signal, blocker } => crate::service_messages_of_an_interrupted_commit::interrupted(*signal, blocker.as_deref()),
-        ClientFailure::InterruptedNotKnown { signal, blocker } => crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref()),
+        ClientFailure::Interrupted { signal, blocker, .. } => crate::service_messages_of_an_interrupted_commit::interrupted(*signal, blocker.as_deref()),
+        ClientFailure::InterruptedNotKnown { signal, blocker, .. } => crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref()),
         ClientFailure::StepTooSlow => format!(
             "A Git step of this commit ran longer than the commit service allows and was ended, so this commit was not made and will not \
              land later by itself. The step is named above, and the commit built for you is kept on the side ref named there when one \
@@ -460,38 +476,10 @@ pub fn render(failure: &ClientFailure) -> String {
     };
 }
 
-/// What:
-///  The remedy sentence for a platform.
-/// Why:
-///   Windows and the BSD systems have no activation yet;
-/// Linux without user services can turn them on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// platformRemedy(platform)
-/// ```
-pub fn platform_remedy(platform: Platform) -> String {
-    return match platform {
-        Platform::Windows => String::from(
-            "Committing through this wrapper is not supported on Windows yet. Use the Linux or macOS machine for commits \
-             to this repository.",
-        ),
-        Platform::Bsd => String::from(
-            "Committing through this wrapper is not supported on this system yet. Use a Linux or macOS machine for \
-             commits to this repository.",
-        ),
-        Platform::LinuxWithoutUserServices => format!(
-            "This account has no user service manager. Turn it on with `{LINGER_COMMAND}` (the system must run \
-             systemd), or commit from a system that does."
-        ),
-        Platform::Other => String::from(
-            "Committing through this wrapper is not supported on this system. Use a Linux or macOS machine for \
-             commits to this repository.",
-        ),
-    };
-}
-
-
+/// The remedy sentence for a platform is declared beside this file
+/// (`service_messages_of_a_platform.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_of_a_platform::platform_remedy;
 
 /// The texts that must never reach a user:
 /// implementation terms the system should have resolved itself.
@@ -507,6 +495,11 @@ pub const DENYLIST: [&str; 22] = [
 pub fn path_text(path: &Path) -> String {
     return path.display().to_string();
 }
+
+/// The word a failure goes by in the timing record is declared beside this file
+/// (`service_messages_of_a_failure.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_of_a_failure::failure_code;
 
 
 /// Message controls stay out of the release executable.

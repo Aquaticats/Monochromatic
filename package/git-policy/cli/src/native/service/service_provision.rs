@@ -651,7 +651,10 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     }
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {
         Ok(connected) => connected,
-        Err(_refused) => return Err(ClientFailure::NoActivation(platform_without_manager())),
+        // A bus that never answered the connection answers nothing an exchange with it would reach, so the commit names that
+        //  exchange rather than a platform without a manager it never asked; a bus that refused the connection is the
+        //  platform's own answer and says so.
+        Err(refused) => return Err(refusal(refused)),
     };
     return provision_with(host, &mut bus);
 }
@@ -697,7 +700,7 @@ pub(crate) fn provision_when_needed(named: Option<&ProvisionHost>, provisioned: 
     let provided = provision(host);
     *timing += began.elapsed();
     if let Err(failure) = provided {
-        return Err(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));
+        return Err(crate::commit_transaction::client_stop(failure));
     }
     return Ok(true);
 }

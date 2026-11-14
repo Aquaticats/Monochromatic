@@ -121,7 +121,7 @@ pub(crate) fn after_a_prepare_again(
     let branch: String = ready.reference.short().spoken();
     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
         let failure: crate::service_messages::ClientFailure = crate::service_messages::ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 };
-        return AfterAPrepareAgain::Stopped(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));
+        return AfterAPrepareAgain::Stopped(crate::commit_transaction::client_stop(failure));
     }
     return match crate::service_replay::retry_of(invocation.context, invocation.cwd, ready, landed) {
         Ok(next) => AfterAPrepareAgain::Retry(next),

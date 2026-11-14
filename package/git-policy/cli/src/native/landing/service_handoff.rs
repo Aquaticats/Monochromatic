@@ -346,6 +346,7 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
 fn not_handed_over(failure: ClientFailure) -> ClientFailure {
     let reason: &str = match &failure {
         ClientFailure::NoActivation(_) => "this account cannot start the commit service on demand",
+        ClientFailure::ManagerDidNotAnswer { .. } => "the user service manager did not answer within the time one exchange is given",
         ClientFailure::ServiceSilent => "the commit service stopped answering",
         ClientFailure::DidNotStart => "the commit service did not start",
         ClientFailure::NoCommonVersion => "the commit service that is running was started from a newer release of this git wrapper",

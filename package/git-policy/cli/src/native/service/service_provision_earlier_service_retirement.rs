@@ -142,6 +142,8 @@ fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFai
         match manager.stop(name) {
             Ok(()) => {}
             Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            // What: The stop calls follow the one exchange's time the retirement sets before them.
+            // Why:  A stop that ran out of that time names it, and every other refusal leaves the time unread.
             Err(error) => return Err(refusal(error)),
         }
     }
@@ -230,6 +232,8 @@ fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[
             let state: Option<String> = match manager.active_state(name) {
                 Ok(found) => found,
                 Err(CallError::TimedOut) => return Err(still_stopping(host, name)),
+                // A question that is answered with anything else leaves this wait; a timeout above is the retirement's
+                //  own budget, and the time the exchange gets is what a refusal itself names.
                 Err(error) => return Err(refusal(error)),
             };
             if matches!(&state, Some(text) if !matches!(text.as_str(), "inactive" | "failed")) {

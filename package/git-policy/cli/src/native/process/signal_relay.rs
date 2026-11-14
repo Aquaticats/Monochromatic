@@ -69,6 +69,14 @@ use std::process::Command;
 use crate::forwarding::ChildOutcome;
 /// The record of a step the wait had to end itself at its ceiling.
 use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
+/// What the kernel's own report of a signal says:
+/// whether a process sent it,
+/// and which one.
+///
+/// Why a sibling file:
+/// `rust/max-lines` and the report's own controls live beside it
+/// (`process/signal_report.rs`).
+use crate::signal_report::read_report;
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -199,26 +207,6 @@ static PENDING: [std::sync::atomic::AtomicI32; 4] =
 #[cfg(unix)]
 static RELAYING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// What:
-///  The first three fields of `siginfo_t` on every Unix system:
-/// signal number,
-/// error number and code.
-/// Why:
-///   The C struct's fields differ in name and union layout across systems;
-/// these three share one layout,
-///  and reading them through this view avoids the platform accessors.
-#[cfg(unix)]
-#[repr(C)]
-struct SignalHeader {
-    /// Signal number.
-    signal: c_int,
-    /// Error number,
-    /// unused here.
-    error: c_int,
-    /// Sender code,
-    /// `SI_USER` for `kill` and so on.
-    code: c_int,
-}
 
 /// What:
 ///  The handler for each relayed signal.
@@ -239,12 +227,8 @@ extern "C" fn relay_handler(
     info: *mut libc::siginfo_t,
     _context: *mut std::ffi::c_void,
 ) {
-    if info.is_null() {
-        return;
-    }
-    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`; its first three fields are the header.
-    let code: c_int = unsafe { (*info.cast::<SignalHeader>()).code };
-    if !is_process_sender(code) {
+    let (from_process, sender): (bool, Option<i32>) = read_report(info);
+    if !from_process {
         return;
     }
     // A plain loop, because this is a signal handler: it must not allocate or call anything that is not async-signal-safe.
@@ -260,9 +244,10 @@ extern "C" fn relay_handler(
     };
     PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);
     // The two signals a waiting commit answers are noted as well, because the child this one is relayed to may be gone, and
-    //  the command that waits must still learn that the person stopped it (`signal_relay_relayed_stop.rs`).
+    //  the command that waits must still learn that the person stopped it (`signal_relay_relayed_stop.rs`); the process the
+    //  kernel named is kept with the signal, so the record of that commit can tell a tool's bound from a keyboard's interrupt.
     if signal == libc::SIGINT || signal == libc::SIGTERM {
-        crate::signal_relay_relayed_stop::note(signal);
+        crate::signal_relay_relayed_stop::note(signal, sender);
     }
     relay_pending();
 }
@@ -613,7 +598,8 @@ pub struct CeilingDuty<'a> {
     pub while_held: Option<&'a std::sync::mpsc::SyncSender<String>>,
     /// The one decision this ceiling shares with the notice's thread,
     /// so neither enforcer can end the step at the usual ceiling after the other has stood aside;
-    /// nothing when no notice thread watches this step, and the wait then decides on its own.
+    /// nothing when no notice thread watches this step,
+    /// and the wait then decides on its own.
     pub stall: Option<&'a crate::scratch_step_stall_decided_once::TheStallDecidedOnce>,
 }
 

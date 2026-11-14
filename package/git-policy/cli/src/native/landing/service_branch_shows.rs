@@ -15,8 +15,8 @@
 //!  (`what_the_branch_shows_awaiting`,
 //! `the_silent_service_after_a_prepare_awaiting`),
 //! which awaits every Git child on the runtime.
-//! A branch is named by the bytes Git printed for it, so the question is built from those bytes
-//! (`ref_name.rs`).
+//! A branch is named by the bytes Git printed for it,
+//! so the question is built from those bytes (`ref_name.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -45,7 +45,6 @@ use crate::service_prepare::Ready;
 /// A command that stops without a result.
 use crate::commit_transaction::TransactionStop;
 /// The words of a failure.
-use crate::service_messages::render;
 /// The name of a reference as a message states it.
 use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 
@@ -137,7 +136,7 @@ pub async fn what_the_branch_shows_awaiting(context: &GitContext, cwd: &Path, re
 /// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
 pub(crate) fn branch_moved(ready: &Ready) -> TransactionStop {
     let branch: String = ready.reference.short().spoken();
-    return TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }));
+    return crate::commit_transaction::client_stop(ClientFailure::BranchMoved { branch });
 }
 
 /// What:
@@ -183,7 +182,7 @@ pub(crate) fn refused_when_the_branch_switched(
         now: switched_branch_name(reference),
         file: fixed_message.map(display_text),
     };
-    return Some(TransactionStop::Message(render(&failure)));
+    return Some(crate::commit_transaction::client_stop(failure));
 }
 
 /// What:

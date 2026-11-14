@@ -52,6 +52,8 @@ fn an_unanswered_submission_keeps_the_tree_and_a_definite_refusal_does_not() {
         ClientFailure::Refused,
         ClientFailure::DidNotStart,
         ClientFailure::NoActivation(crate::service_provision::platform_without_manager()),
+        // The manager was never answered, so the request was never sent and no landing can read this tree.
+        ClientFailure::ManagerDidNotAnswer { waited: std::time::Duration::from_secs(20) },
         // The request never reached the service as one line, and a line the service may have is never answered whole:
         //  measured in a fixture whose service stopped with `SIGSTOP` in the write of a 652,332-byte request.
         ClientFailure::ServiceNotReading { took_nothing: true },
