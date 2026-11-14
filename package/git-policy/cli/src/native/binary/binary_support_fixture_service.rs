@@ -72,22 +72,158 @@ thread_local! {
 /// The child must lead a group of its own already (`process_group(0)`
 ///  before the start),
 /// so what it starts is killed with it.
+///  A child that does not lead one is a defect of its control, not a helper:
+/// the number registered here would name no group,
+/// the kill below would send its signal nowhere,
+/// and what the helper started would outlive the test.
+/// So the group is read back and a control that got this wrong fails here,
+/// naming the child and the group it is in.
 pub fn own_group(child: &Child) {
-    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    let group: libc::pid_t = group_of(child);
+    assert_eq!(
+        group, libc::pid_t::try_from(child.id()).expect("a pid fits the pid type"),
+        "the helper {} was registered as a process group but is in group {group}: it must be started with `process_group(0)` (spawn_owned does that), or nothing it starts dies with the test",
+        child.id()
+    );
     OWNED_GROUPS.with(|owned| { owned.groups.borrow_mut().push(group); });
 }
 
 /// What:
-///  Start a helper process in a group of its own that dies with the test thread that started it.
+///  Start a helper process in a group of its own that dies with the test thread that started it,
+///  and with this process however this process ends.
 /// Why:
 ///   The same reason as `own_group`,
-/// for a child started here.
+/// for a child started here,
+/// and one more: a test binary killed outright runs no guard at all,
+/// so the child carries `PR_SET_PDEATHSIG` and the kernel kills it when the thread that started it is gone
+/// (which is the thread's end, or every thread's at once when the process is killed).
 pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
+    // SAFETY: between fork and exec only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
+    unsafe {
+        command.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            return Ok(());
+        });
+    }
     let child: Child = command.spawn()?;
     own_group(&child);
     return Ok(child);
+}
+
+/// What:
+///  The process group `child` is in, asked while the child is still there.
+/// Why:
+///   A helper a control started right leads its own group,
+///  and one it started wrong is in its parent's;
+///  the number has to be read before the child is ended and reaped,
+///  or the question cannot be answered at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const group = getpgid(child.pid)
+/// ```
+pub fn group_of(child: &Child) -> libc::pid_t {
+    let pid: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    // SAFETY: `getpgid` answers for a child of this process and touches no memory.
+    let group: libc::pid_t = unsafe { libc::getpgid(pid) };
+    assert!(group > 0, "the group of the helper {pid} is asked while it is there: {}", std::io::Error::last_os_error());
+    return group;
+}
+
+/// What:
+///  Every process still in `group`,
+///  except this process and the programs that started it,
+///  each with the command line that names it.
+/// Why:
+///   A helper that a control started in a group of its own takes its children into that group,
+///  and a child keeps its group even when it is reparented to the manager,
+///  so the group is where a stand-in that outlived its test is still visible
+///  (integration pass 31,
+///  2026-11-14,
+///  its report's first finding).
+///  A helper started outside a group of its own shares the group of the test,
+///  so that group's other members are this process and its own starters,
+///  which are not what a control is looking for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = procTable().filter((p) => p.pgrp === group && !ours.has(p.pid)); left.map((p) => [p.pid, p.cmdline]);
+/// ```
+pub fn processes_in_group(group: libc::pid_t) -> Vec<(u32, String)> {
+    let ours: Vec<u32> = this_process_and_its_starters();
+    let mut found: Vec<(u32, String)> = Vec::new();
+    let Ok(table) = std::fs::read_dir("/proc") else { return found };
+    for entry in table.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.is_empty() || !name.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+            continue;
+        }
+        let Ok(pid) = name.parse::<u32>() else { continue };
+        if ours.contains(&pid) {
+            continue;
+        }
+        let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else { continue };
+        // The group is the fifth field of `stat`, after the program's name, which may hold spaces and brackets.
+        let Some((_before, after_name)) = stat.rsplit_once(')') else { continue };
+        let fields: Vec<&str> = after_name.split_whitespace().collect();
+        let Some(in_group) = fields.get(2).and_then(|text| { return text.parse::<libc::pid_t>().ok(); }) else { continue };
+        if in_group != group {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else { continue };
+        let said: String = String::from_utf8_lossy(bytes.as_slice()).replace('\0', " ");
+        found.push((pid, said.trim_end().to_owned()));
+    }
+    return found;
+}
+
+/// What:
+///  This process and the programs that started it, by process number,
+///  up to the first one whose parent is outside them.
+/// Why:
+///   A helper started outside a group of its own shares the group of this process,
+///  and a check that listed that group's members would answer with the test binary, the test runner and the shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ours = [pid, ...ancestors(pid)]
+/// ```
+fn this_process_and_its_starters() -> Vec<u32> {
+    let mut ours: Vec<u32> = vec![std::process::id()];
+    let mut parent: u32 = parent_of(std::process::id());
+    while parent != 0 && !ours.contains(&parent) {
+        ours.push(parent);
+        parent = parent_of(parent);
+    }
+    return ours;
+}
+
+/// The process number that started `pid`,
+/// or 0 when it cannot be read.
+fn parent_of(pid: u32) -> u32 {
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return 0 };
+    let Some((_before, after_name)) = stat.rsplit_once(')') else { return 0 };
+    let fields: Vec<&str> = after_name.split_whitespace().collect();
+    return fields.get(1).and_then(|text| { return text.parse::<u32>().ok(); }).unwrap_or(0);
+}
+
+/// What:
+///  Fails the control when any process of `group` is still there after the control ended its helper.
+/// Why:
+///  A helper that outlives its control keeps the `systemd-run` scope of the test alive,
+///  and holds a process nothing will ever read;
+///  a control that started one asserts this before it ends,
+///  so such a leak fails a test instead of waiting for someone to notice it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(processesInGroup(group)).toEqual([])
+/// ```
+pub fn assert_nothing_in_group(group: libc::pid_t) {
+    let left: Vec<(u32, String)> = processes_in_group(group);
+    assert!(left.is_empty(), "processes of the group this control's helper was in are still there after the control ended it: {left:?}");
 }
 
 /// The commit services of one fixture,
