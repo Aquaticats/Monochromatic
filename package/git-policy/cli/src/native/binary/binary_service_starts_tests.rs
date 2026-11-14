@@ -124,7 +124,8 @@ fn two_starts_at_once_leave_one_service() {
     let (fixture, repo, runtime) = prepared("starts-race");
     let instance: String = instance_of(repo.join(".git").as_path());
     let server = ServerToStart {
-        socket: socket_for(runtime.as_path(), repo.join(".git").as_path()),
+        address: git_policy_cli::service_server::Bind::Path(socket_for(runtime.as_path(), repo.join(".git").as_path())),
+        directory: git_policy_cli::service_instance::socket_path(runtime.as_path(), instance.as_str()).parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return runtime.clone(); }),
         instance: instance.clone(),
         journal: fixture.root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),

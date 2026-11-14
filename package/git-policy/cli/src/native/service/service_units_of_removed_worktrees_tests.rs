@@ -127,7 +127,7 @@ fn a_service_removes_a_leftover_claim_file_and_leaves_a_held_one() {
     let socket: PathBuf = socket_path(runtime.as_path(), instance);
     let claim_path: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
     let listening = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("this service's address");
-    let files = crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)).expect("the address is this process's");
+    let files = crate::service_server_files_of_a_running_instance::take(Some(socket.as_path()), socket.parent().unwrap_or(std::path::Path::new(".")), Some(instance)).expect("the address is this process's");
     // A file a killed command left: nobody holds it.
     std::fs::write(claim_path.as_path(), b"").expect("a claim file a killed taker left");
     files.remove();
@@ -136,7 +136,7 @@ fn a_service_removes_a_leftover_claim_file_and_leaves_a_held_one() {
 
     // A file another process holds: this claim stands where that process's would.
     let again = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the address again");
-    let files_again = crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)).expect("the address is this process's again");
+    let files_again = crate::service_server_files_of_a_running_instance::take(Some(socket.as_path()), socket.parent().unwrap_or(std::path::Path::new(".")), Some(instance)).expect("the address is this process's again");
     let held = match crate::service_address_takeover_claim::claim(socket.as_path()).expect("the claim is made") {
         crate::service_address_takeover_claim::Claim::Held(held) => held,
         crate::service_address_takeover_claim::Claim::AnotherProcessTakesOver => panic!("nothing held this claim"),

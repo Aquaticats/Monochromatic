@@ -232,7 +232,8 @@ fn config_with_a_gate(socket: &std::path::Path, runtime: &std::path::Path) -> Cl
     let mut settings: ClientConfig = config("gate-is-open");
     settings.address = Bind::Path(socket.to_path_buf());
     settings.starter = Some(crate::service_server_start_by_the_wrapper::ServerToStart {
-        socket: socket.to_path_buf(),
+        address: Bind::Path(socket.to_path_buf()),
+        directory: socket.parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
         journal: runtime.join("journal"),
         git: std::path::PathBuf::from("/usr/bin/git"),

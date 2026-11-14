@@ -64,8 +64,24 @@ pub enum StartAttempt {
 /// What one start needs.
 #[derive(Clone, Debug)]
 pub struct ServerToStart {
-    /// Where the service listens.
-    pub socket: PathBuf,
+    /// What:
+    ///  Where the service listens:
+    ///  a socket file when the runtime directory's path fits one address,
+    ///  and the kernel's own name for it when it does not (`service_address_of_a_worktree.rs`).
+    /// Why:
+    ///  A runtime directory is the person's to choose, and a path too long for a socket address made every commit in it
+    /// fail where real Git made the commit.
+    pub address: Bind,
+    /// What:
+    ///  The folder the instance's own files sit in:
+    ///  the note that names its process,
+    ///  its log,
+    ///  the marker of the command that starts it,
+    ///  and the claim on its address.
+    /// Why:
+    ///  They are files beside the socket's name, and an address the kernel names has no file there at all, so the folder
+    /// is what they are made in either way.
+    pub directory: PathBuf,
     /// The worktree's instance name,
     /// which names its files beside the socket.
     pub instance: String,
@@ -100,14 +116,7 @@ pub struct ServerToStart {
 impl ServerToStart {
     /// The folder the instance's files sit in.
     pub fn directory(&self) -> PathBuf {
-        return self.socket.parent().map_or_else(
-            || {
-                return PathBuf::from(".");
-            },
-            |folder| {
-                return folder.to_path_buf();
-            },
-        );
+        return self.directory.clone();
     }
 
     /// The file the service's output is appended to.
@@ -130,19 +139,33 @@ impl ServerToStart {
     /// nothing hands this process a socket.
     pub fn arguments(&self) -> Vec<std::ffi::OsString> {
         // The three words that select the service mode, then the ones it needs to serve this worktree.
-        return vec![
+        let mut words: Vec<std::ffi::OsString> = vec![
             text_argument("monochromatic-git-policy-cli"),
             text_argument("service"),
             text_argument("run"),
-            text_argument("--path"),
-            crate::service_server_start_spawns_a_detached_process::argument(self.socket.as_path()),
+        ];
+        match &self.address {
+            Bind::Path(path) => {
+                words.push(text_argument("--path"));
+                words.push(crate::service_server_start_spawns_a_detached_process::argument(path.as_path()));
+            }
+            Bind::Abstract(name) => {
+                words.push(text_argument("--abstract"));
+                words.push(text_argument(name.as_str()));
+            }
+            // A server this command starts is given its address; it is never handed a descriptor, and the service refuses
+            // an address it was told nothing about.
+            Bind::Inherited => {}
+        }
+        words.extend(vec![
             text_argument("--journal"),
             crate::service_server_start_spawns_a_detached_process::argument(self.journal.as_path()),
             text_argument("--git"),
             crate::service_server_start_spawns_a_detached_process::argument(self.git.as_path()),
             text_argument("--instance"),
             text_argument(self.instance.as_str()),
-        ];
+        ]);
+        return words;
     }
 }
 
@@ -172,7 +195,7 @@ fn ask_the_manager(manager: &ManagerStart, server: &ServerToStart) -> std::io::R
 /// `start` with the manager's start given by the caller,
 /// so a control can hand in a scope that leaves no process number and starts its server late.
 pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>) -> StartAttempt {
-    if answered(server.socket.as_path()) {
+    if answered(&server.address) {
         return StartAttempt::Greeted;
     }
     // What: The folder the address and the marker live in is made before a marker is taken.
@@ -188,7 +211,7 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
     };
     let _held = starter;
     // The command that held the marker before this one may have finished between the two looks.
-    if answered(server.socket.as_path()) {
+    if answered(&server.address) {
         return StartAttempt::Greeted;
     }
     // What: Something that accepts a connection but greets nothing is a service that is alive and slow, and no server is started
@@ -197,7 +220,7 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
     //       would fail to bind and exit; the command that needs the service waits instead, until the address frees or its own
     //       ceiling passes. This is the wait that keeps a slow recovery or a starved acceptor from failing a commit, and it is
     //       the reason the takeover that used to skip it is gone.
-    if accepts(server.socket.as_path()) {
+    if accepts(&server.address) {
         return StartAttempt::AnotherCommandStartsIt;
     }
     let log: PathBuf = server.log();
@@ -232,7 +255,7 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
             // A manager that refused made no scope, and nothing of its is coming.
             Err(_refused) => (false, None),
         };
-        let greeted: bool = leader.is_some() && waits_for_a_greeting(server.socket.as_path(), START_WAIT);
+        let greeted: bool = leader.is_some() && waits_for_a_greeting(&server.address, START_WAIT);
         if greeted {
             return StartAttempt::Greeted;
         }
@@ -245,7 +268,7 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
             // What: A service that answers is not ended, whatever the scope's wait came to.
             // Why:  One that greeted after the bound is a service other commands may be waiting on, and ending it takes
             //       their service away (the review of `55f236a0a8`, finding 1).
-            if answered(server.socket.as_path()) {
+            if answered(&server.address) {
                 return StartAttempt::Greeted;
             }
             let _ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(server.directory().as_path(), server.instance.as_str());
@@ -255,12 +278,12 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
     if spawn(&detached).is_err() {
         return StartAttempt::DidNotGreet(log);
     }
-    return match waits_for_a_greeting(server.socket.as_path(), START_WAIT) {
+    return match waits_for_a_greeting(&server.address, START_WAIT) {
         true => StartAttempt::Greeted,
         // What: A start that did not greet, while the address still takes a connection, is a service that was already there and
         //       is leaving: the server this command started could not bind and exited, and the caller keeps waiting.
         // Why:  Failing here would fail a commit whose service is about to be free, and the caller's own ceiling bounds the wait.
-        false if accepts(server.socket.as_path()) => StartAttempt::AnotherCommandStartsIt,
+        false if accepts(&server.address) => StartAttempt::AnotherCommandStartsIt,
         false => StartAttempt::DidNotGreet(log),
     };
 }
@@ -274,11 +297,10 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// accepts(socket) // connect succeeds
+/// accepts(address) // connect succeeds
 /// ```
-pub fn accepts(socket: &Path) -> bool {
-    let address: Bind = Bind::Path(socket.to_path_buf());
-    return match connect(&address) {
+pub fn accepts(address: &Bind) -> bool {
+    return match connect(address) {
         // The connection was made: a process holds this address.
         Ok(_stream) => true,
         // What: A connection the bound ended is still a process holding the address: its queue is full and it takes no more.
@@ -298,11 +320,10 @@ pub fn accepts(socket: &Path) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// answered(socket) // connect + read one line in 1 s
+/// answered(address) // connect + read one line in 1 s
 /// ```
-pub fn answered(socket: &Path) -> bool {
-    let address: Bind = Bind::Path(socket.to_path_buf());
-    let Ok(stream) = connect(&address) else { return false };
+pub fn answered(address: &Bind) -> bool {
+    let Ok(stream) = connect(address) else { return false };
     let _timeout = stream.set_read_timeout(Some(GREETING_READ));
     let mut reader: BufReader<std::os::unix::net::UnixStream> = BufReader::new(stream);
     return matches!(listen(&mut reader), Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }));
@@ -318,10 +339,10 @@ pub fn answered(socket: &Path) -> bool {
 ///  Without that, a look at a service whose queue is full waited for the service to move, and the wait's own
 /// deadline sat after a call that never returned (`CONNECT_CEILING`, and the review of `3d5c1a0d8c`).
 ///  The wait can outlast its bound by at most one look, which is what the caller's own ceiling allows for.
-pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
+pub fn waits_for_a_greeting(address: &Bind, bound: Duration) -> bool {
     let deadline: Instant = Instant::now() + bound;
     loop {
-        if answered(socket) {
+        if answered(address) {
             return true;
         }
         if Instant::now() >= deadline {

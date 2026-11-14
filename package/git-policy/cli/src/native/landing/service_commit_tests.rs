@@ -4,20 +4,6 @@ use super::arguments_after_subcommand;
 use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 use std::ffi::OsString;
 
-/// A host whose runtime directory carries a socket path,
-/// so the unit is the one every ordinary account gets.
-fn a_host(runtime_dir: &str) -> ProvisionHost {
-    return ProvisionHost {
-        runtime_dir: PathBuf::from(runtime_dir),
-        user_unit_dir: None,
-        bus: PathBuf::from("/run/user/1000/bus"),
-        service_binary: PathBuf::from("/opt/monochromatic-git-policy-cli/monochromatic-git-policy-cli"),
-        git: PathBuf::from("/usr/bin/git"),
-        instance: String::from("0123456789abcdef0123456789abcdef"),
-        git_dir: PathBuf::from("/work/repo/.git"),
-        retirement_wait: std::time::Duration::from_millis(400),
-    };
-}
 
 /// The command's own words start after the subcommand,
 /// whatever stands before it,

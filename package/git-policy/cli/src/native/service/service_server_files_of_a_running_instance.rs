@@ -116,19 +116,23 @@ impl OwnFiles {
 /// ```ts
 /// ensurePrivate(dirname(socket)); keepOnlyItsOwner(socket); writePidNote(pidNote); return { socket, pidNote };
 /// ```
-pub fn take(socket: &Path, instance: Option<&str>) -> std::io::Result<OwnFiles> {
+pub fn take(socket: Option<&Path>, directory: &Path, instance: Option<&str>) -> std::io::Result<OwnFiles> {
     use std::os::unix::fs::MetadataExt;
-    let directory: &Path = socket.parent().unwrap_or_else(|| {
-        return Path::new(".");
-    });
     ensure_private(directory)?;
-    keep_only_its_owner(socket)?;
-    // What: The socket's identity is read from the file this process just bound.
-    // Why:  It is the only proof available at the end that the path still names this service's own socket
-    //       (`remove`).
-    let identity: Option<(u64, u64)> = std::fs::symlink_metadata(socket).ok().map(|metadata| {
-        return (metadata.dev(), metadata.ino());
-    });
+    // What: An address the kernel names instead of a file leaves no socket file to keep to this account or to compare later.
+    // Why:  What protects such an address is who took the connection (`service_address_of_a_worktree.rs`), and the note and
+    //       the claim are the only files of its instance.
+    let identity: Option<(u64, u64)> = match socket {
+        Some(path) => {
+            keep_only_its_owner(path)?;
+            // What: The socket's identity is read from the file this process just bound.
+            // Why:  It is the only proof available at the end that the path still names this service's own socket (`remove`).
+            std::fs::symlink_metadata(path).ok().map(|metadata| {
+                return (metadata.dev(), metadata.ino());
+            })
+        }
+        None => None,
+    };
     let note: Option<PathBuf> = instance.map(|name| {
         return pid_note_path(directory, name);
     });
@@ -139,7 +143,7 @@ pub fn take(socket: &Path, instance: Option<&str>) -> std::io::Result<OwnFiles> 
         // A note that was not written (a platform without a birth identity) leaves nothing to compare, and nothing is removed.
         note_text = crate::service_server_pid_note_of_an_instance::text(pid).ok();
     }
-    return Ok(OwnFiles { socket: Some(socket.to_path_buf()), socket_identity: identity, pid_note: note, note_text });
+    return Ok(OwnFiles { socket: socket.map(Path::to_path_buf), socket_identity: identity, pid_note: note, note_text });
 }
 
 /// Controls of the files stay out of the release executable.

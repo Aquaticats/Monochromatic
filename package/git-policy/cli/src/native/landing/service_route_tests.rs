@@ -4,52 +4,24 @@
 //! and nothing here needs a session bus or a service manager.
 
 use super::*;
-use crate::service_address_of_a_worktree::socket_address_of;
-use crate::service_instance::{instance_of, socket_for};
+use crate::service_instance::socket_for;
 use crate::test_support::{fixture, remove};
 
 const GIT: &str = "/usr/bin/git";
 
 struct Machine {
     root: PathBuf,
-    /// The runtime directory a person's session would have:
-    /// short enough to carry a socket path.
     runtime: PathBuf,
     wrapper: PathBuf,
     /// The worktree's own Git directory.
     git_dir: PathBuf,
 }
 
-/// What:
-///  A runtime directory whose socket path fits one socket address.
-/// Why:
-///   The fixture root under the build directory is far too long to hold a socket name,
-/// and a runtime directory a regular file can be written into but no socket can proves nothing about
-///  the route a person's commit takes: this directory is what an account's session has,
-///  and the long one has its own control (`a_runtime_directory_too_long_for_a_socket_path_is_routed_at_its_abstract_name`).
-/// A number names it rather than the test's own name,
-///  because one of these must stay under the forty bytes a socket path leaves a session's runtime directory.
-fn session_runtime_directory() -> PathBuf {
-    static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let number: usize = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
-        .join("temp/agent")
-        .join(format!("ro{}-{number}", std::process::id()));
-    std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    assert!(
-        runtime.as_os_str().len() < crate::service_instance::longest_runtime_directory("0123456789abcdef0123456789abcdef"),
-        "a session's runtime directory leaves room for a socket path: {} is {} bytes",
-        runtime.display(),
-        runtime.as_os_str().len()
-    );
-    crate::test_support::track_for_this_thread(runtime.as_path());
-    return runtime;
-}
-
 fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
-    let runtime: PathBuf = session_runtime_directory();
+    let runtime: PathBuf = root.join("run");
     let programs: PathBuf = root.join("programs");
+    std::fs::create_dir_all(&runtime).expect("runtime");
     std::fs::create_dir_all(&programs).expect("programs");
     let git_dir: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&git_dir).expect("git directory");

@@ -56,7 +56,7 @@ use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
 use crate::service_units_of_removed_worktrees::{OwnWorktree, own_worktree_state, stop_own_socket_when_the_worktree_is_gone};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// The words,
@@ -332,11 +332,15 @@ pub fn run(arguments: &[String]) -> i32 {
     // Why:  A note written before the bind could name a process nothing can reach, and the folder's mode and the address's
     //       mode are what keeps the review credential this service carries to this account.
     let mut own_files: Option<crate::service_server_files_of_a_running_instance::OwnFiles> = None;
-    if let (Bind::Path(socket), Some(instance)) = (&address, named_instance.as_deref()) {
-        match crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)) {
+    if let (Some(instance), Some(directory)) = (named_instance.as_deref(), socket_directory_of(&address)) {
+        let socket: Option<&Path> = match &address {
+            Bind::Path(path) => Some(path.as_path()),
+            Bind::Abstract(_) | Bind::Inherited => None,
+        };
+        match crate::service_server_files_of_a_running_instance::take(socket, directory.as_path(), Some(instance)) {
             Ok(taken) => own_files = Some(taken),
             Err(error) => {
-                crate::service_error!("cannot keep the address {} to this account alone: {error}", socket.display());
+                crate::service_error!("cannot keep the address {} to this account alone: {error}", crate::service_server::address_text(&address));
                 return EXIT_NOT_LISTENING;
             }
         }
@@ -375,6 +379,17 @@ pub fn run(arguments: &[String]) -> i32 {
         files.remove();
     }
     return 0;
+}
+
+/// The folder an instance's own files sit in:
+/// the sockets' folder under the runtime directory,
+/// which is there for every address an instance can have.
+fn socket_directory_of(address: &Bind) -> Option<PathBuf> {
+    return match address {
+        Bind::Path(path) => path.parent().map(Path::to_path_buf),
+        Bind::Abstract(_) | Bind::Inherited => crate::service_route::non_empty_path_variable("XDG_RUNTIME_DIR")
+            .map(|runtime: PathBuf| { return runtime.join(crate::service_instance::SOCKET_DIRECTORY); }),
+    };
 }
 
 /// Mode controls stay out of the release executable.

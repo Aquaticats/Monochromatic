@@ -417,7 +417,7 @@ enum Answered {
 }
 
 /// What:
-///  What the commit service at `address` does when it is asked,
+///  What the commit service at `socket` does when it is asked,
 /// waited for no longer than the wait a hand-over grants a greeting.
 /// Why:
 ///   A service greets a connection before it restores anything,
@@ -425,16 +425,13 @@ enum Answered {
 /// and a connection taken and never greeted is a program that stopped inside itself
 /// (`wait_ceilings.rs`,
 /// `HAND_OVER_GREETING_WAIT`).
-/// The address is the one the commit itself uses, a socket file or an abstract name (`service_address_of_a_worktree.rs`),
-/// and a connection another account's process took is no service of this command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answered = asking(address); // 'greeted' | 'said-nothing' | 'nothing'
+/// const answered = asking(socket); // 'greeted' | 'said-nothing' | 'nothing'
 /// ```
-fn asking(address: &Bind) -> Answered {
-    let Reached::Ours(stream) = crate::service_client_listen_and_ask_to_retire::reach(address) else {
-        // Nothing took the connection, or a process of another account did, which is no service of this command.
+fn asking(socket: &Path) -> Answered {
+    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(&Bind::Path(socket.to_path_buf())) else {
         return Answered::Nothing;
     };
     let _timeout = stream.set_read_timeout(Some(HAND_OVER_GREETING_WAIT));
@@ -447,46 +444,27 @@ fn asking(address: &Bind) -> Answered {
 }
 
 /// What:
-///  Whether any commit service of the account greets a connection at a runtime directory.
+///  Whether any commit service of the account greets a connection in a directory of sockets.
 /// Why:
 ///   Without a worktree to ask about,
 /// any service of the account counts,
 /// and one that takes a connection and says nothing does not.
-/// A service holds either a socket file under the folder of the sockets or, where that folder's path is too long for one
-/// socket address, an abstract name, which has no file to be found by
-/// (`service_address_of_a_worktree.rs`).
-/// The instances of an account are the ones the notes name, which provisioning writes for every instance and the sweep
-/// reads for the same reason (`instances_with_units`), and each names its own address;
-/// the files still answer for an instance whose note is gone, which a process killed in provisioning leaves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// readdir(directory).some((name) => name.endsWith('.sock') && asking(join(directory, name)) === 'greeted')
-///   || instancesWithUnits(runtime).some((instance) => asking(socketAddressOf(runtime, instance)) === 'greeted')
 /// ```
-fn any_service_greets(runtime_dir: &Path) -> bool {
-    // What: A folder of sockets that is not there holds no socket file, and is not the end of the question.
-    // Why:  An account served at abstract names has no such folder until something makes it (the fixture of a control does,
-    //       a person's runtime directory of a long path never does), and the names below are where its services are found.
-    if let Ok(entries) = std::fs::read_dir(runtime_dir.join(SOCKET_DIRECTORY)) {
-        for entry in entries.flatten() {
-            let path: PathBuf = entry.path();
-            let is_socket_file: bool = match path.extension() {
-                Some(extension) => extension == "sock",
-                None => false,
-            };
-            if is_socket_file && asking(&Bind::Path(path)) == Answered::Greeted {
-                return true;
-            }
-        }
-    }
-    // What: The names this runtime directory's services hold, asked at each of them.
-    // Why:  A name has no file to be found by, and the table of unix sockets is where it is visible without connecting;
-    //       `listening_names_of` reads only the names whose account and place are this runtime directory's, so a service of
-    //       another account, or of another runtime directory, is never counted. A path-form instance is the socket file
-    //       asked above and is not in that list.
-    for name in crate::service_address_of_a_worktree::listening_names_of(runtime_dir, Path::new("/proc")) {
-        if asking(&Bind::Abstract(name)) == Answered::Greeted {
+fn any_service_greets(directory: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path: PathBuf = entry.path();
+        let is_socket_file: bool = match path.extension() {
+            Some(extension) => extension == "sock",
+            None => false,
+        };
+        if is_socket_file && asking(path.as_path()) == Answered::Greeted {
             return true;
         }
     }
@@ -528,9 +506,9 @@ pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> Sta
         _ => None,
     };
     let answered: Answered = match (runtime_dir, instance.as_deref()) {
-        (Some(runtime), Some(found)) => asking(&socket_address_of(runtime, found)),
+        (Some(runtime), Some(found)) => asking(socket_path(runtime, found).as_path()),
         (Some(runtime), None) => {
-            if any_service_greets(runtime) {
+            if any_service_greets(runtime.join(SOCKET_DIRECTORY).as_path()) {
                 Answered::Greeted
             } else {
                 Answered::Nothing

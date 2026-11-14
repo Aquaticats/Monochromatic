@@ -20,8 +20,9 @@
 use crate::action::Action;
 use crate::service_client_listen_and_ask_to_retire::{ask_to_retire, START_WAIT};
 use crate::service_host_of_a_worktree::runtime_directory;
-use crate::service_instance::socket_path;
+use crate::service_address_of_a_worktree::socket_address_of;
 use crate::service_route::non_empty_path_variable;
+use crate::service_server::Bind;
 use crate::service_server_start_by_the_wrapper::answered;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -68,8 +69,8 @@ pub fn plan_service_stop(environment: &[(std::ffi::OsString, std::ffi::OsString)
             stderr: format!("{COMMAND}: this account names no runtime directory and no home, so there is nowhere its commit services could listen.\n"),
         };
     };
-    let socket: PathBuf = socket_path(runtime_dir.as_path(), instance.as_str());
-    return stop(socket.as_path(), instance.as_str());
+    let address: Bind = socket_address_of(runtime_dir.as_path(), instance.as_str());
+    return stop(&address, instance.as_str());
 }
 
 /// What:
@@ -83,18 +84,18 @@ pub fn plan_service_stop(environment: &[(std::ffi::OsString, std::ffi::OsString)
 /// ```ts
 /// stopAt(socket) // 'left' | 'none' | 'did-not-leave'
 /// ```
-fn stop(socket: &Path, instance: &str) -> Action {
-    if !answered(socket) {
+fn stop(address: &Bind, instance: &str) -> Action {
+    if !answered(address) {
         return Action::Exit {
             code: 0,
             stdout: format!("No commit service answers for this worktree (instance {instance}), so there was nothing to stop.\n"),
             stderr: String::new(),
         };
     }
-    ask_to_retire(socket);
+    ask_to_retire(address);
     let deadline: Instant = Instant::now() + START_WAIT;
     loop {
-        if !answered(socket) {
+        if !answered(address) {
             return Action::Exit {
                 code: 0,
                 stdout: format!("The commit service of this worktree (instance {instance}) was asked to leave and has.\n"),

@@ -101,7 +101,10 @@ impl ServiceHost {
     /// What starting this worktree's service needs.
     pub fn server(&self) -> ServerToStart {
         return ServerToStart {
-            socket: self.socket(),
+            address: crate::service_address_of_a_worktree::socket_address_of(self.runtime_dir.as_path(), self.instance.as_str()),
+            directory: crate::service_instance::socket_path(self.runtime_dir.as_path(), self.instance.as_str()).parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| {
+                return self.runtime_dir.clone();
+            }),
             instance: self.instance.clone(),
             journal: self.journal(),
             git: self.git.clone(),

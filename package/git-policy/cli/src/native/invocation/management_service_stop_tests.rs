@@ -70,7 +70,7 @@ fn a_service_that_answers_is_asked_to_leave_and_the_command_says_so() {
             }
         }
     });
-    let stopped = stop(socket.as_path(), "3f9a");
+    let stopped = stop(&crate::service_server::Bind::Path(socket.clone()), "3f9a");
     told.recv_timeout(std::time::Duration::from_secs(5)).expect("the service was asked to leave");
     assert_eq!(stdout_of(&stopped), "The commit service of this worktree (instance 3f9a) was asked to leave and has.\n");
     assert_eq!(stderr_of(&stopped), "", "nothing is asked of the person");
@@ -87,7 +87,7 @@ fn a_service_that_answers_is_asked_to_leave_and_the_command_says_so() {
 ///  A worktree whose service has exited is the ordinary state between commands.
 #[test]
 fn an_address_nothing_answers_on_is_nothing_to_stop() {
-    let stopped = stop(address("none").as_path(), "3f9a");
+    let stopped = stop(&crate::service_server::Bind::Path(address("none")), "3f9a");
     assert!(stdout_of(&stopped).starts_with("No commit service answers for this worktree"), "{}", stdout_of(&stopped));
     assert_eq!(stderr_of(&stopped), "");
     match &stopped {

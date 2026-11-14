@@ -38,9 +38,9 @@ fn a_marker_whose_owner_is_gone_is_taken_over() {
 fn only_a_service_that_greets_answers() {
     let root = folder("greeting");
     let socket = root.join("3f9a.sock");
-    assert!(!answered(socket.as_path()), "nothing at a path that is not there answers");
+    assert!(!answered(&crate::service_server::Bind::Path(socket.to_path_buf())), "nothing at a path that is not there answers");
     let listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a socket");
-    assert!(!answered(socket.as_path()), "a connection nothing answers on is not a greeting");
+    assert!(!answered(&crate::service_server::Bind::Path(socket.to_path_buf())), "a connection nothing answers on is not a greeting");
     let greeter = std::thread::spawn(move || {
         use std::io::Write;
         // Every connection is greeted, because the probes before the start left connections nobody read. The loop ends after
@@ -55,7 +55,7 @@ fn only_a_service_that_greets_answers() {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
     });
-    assert!(waits_for_a_greeting(socket.as_path(), START_WAIT), "a service that greets answers");
+    assert!(waits_for_a_greeting(&crate::service_server::Bind::Path(socket.to_path_buf()), START_WAIT), "a service that greets answers");
     // The greeter's thread ends by itself; a control that waited for it would wait on the socket it still holds.
     std::mem::forget(greeter);
 }
@@ -65,7 +65,7 @@ fn only_a_service_that_greets_answers() {
 fn a_wait_with_nothing_at_the_address_ends_at_its_bound() {
     let root = folder("wait");
     let began = std::time::Instant::now();
-    assert!(!waits_for_a_greeting(root.join("none.sock").as_path(), Duration::from_millis(50)));
+    assert!(!waits_for_a_greeting(&crate::service_server::Bind::Path(root.join("none.sock")), Duration::from_millis(50)));
     assert!(began.elapsed() < Duration::from_secs(5), "the bound is the bound");
 }
 
@@ -92,7 +92,9 @@ fn a_command_waits_at_an_address_that_accepts_and_greets_nothing() {
         }
     });
     let server = ServerToStart {
-        socket: socket.clone(),
+        address: crate::service_server::Bind::Path(socket.clone().to_path_buf()),
+
+        directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
@@ -128,7 +130,7 @@ fn an_address_whose_queue_is_full_is_not_answered_on_within_the_bound() {
     let queued = crate::test_support::fill_a_socket_backlog(socket.as_path());
     assert!(!queued.is_empty(), "the kernel queued at least one connection");
     let began = std::time::Instant::now();
-    assert!(!answered(socket.as_path()), "a socket that takes no connection is not answered on");
+    assert!(!answered(&crate::service_server::Bind::Path(socket.to_path_buf())), "a socket that takes no connection is not answered on");
     let took = began.elapsed();
     assert!(
         took < crate::wait_ceilings::CONNECT_CEILING + Duration::from_secs(1),
@@ -136,7 +138,9 @@ fn an_address_whose_queue_is_full_is_not_answered_on_within_the_bound() {
     );
     // And the start of a server there waits rather than spawning one that cannot bind.
     let server = ServerToStart {
-        socket: socket.clone(),
+        address: crate::service_server::Bind::Path(socket.clone().to_path_buf()),
+
+        directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
@@ -229,7 +233,9 @@ fn a_scope_that_reports_no_process_number_does_not_hold_the_base_start_back() {
     std::fs::write(program.as_path(), format!("#!/bin/sh\nprintf 'started\\n' >> '{}'\n", base_started.display())).expect("the stand-in is written");
     std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the stand-in runs");
     let server: ServerToStart = ServerToStart {
-        socket: socket.clone(),
+        address: crate::service_server::Bind::Path(socket.clone().to_path_buf()),
+
+        directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
@@ -331,7 +337,9 @@ fn a_scope_that_made_nothing_answer_ends_its_own_service_and_no_other() {
         }
     });
     let server: ServerToStart = ServerToStart {
-        socket: socket.clone(),
+        address: crate::service_server::Bind::Path(socket.clone().to_path_buf()),
+
+        directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
         journal,
         git: PathBuf::from("/usr/bin/git"),

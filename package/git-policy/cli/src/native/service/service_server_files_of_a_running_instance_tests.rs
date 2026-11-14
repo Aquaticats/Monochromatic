@@ -13,7 +13,7 @@ fn the_files_are_made_and_removed() {
     let root = folder("take");
     let socket = root.join("3f9a.sock");
     let _listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a socket");
-    let files = take(socket.as_path(), Some("3f9a")).expect("the files are taken");
+    let files = take(Some(socket.as_path()), socket.parent().unwrap_or(std::path::Path::new(".")), Some("3f9a")).expect("the files are taken");
     let note = files.pid_note.clone().expect("the note is beside the address");
     assert_eq!(read_note(note.as_path()).expect("the note reads").pid, i32::try_from(std::process::id()).expect("a process number"));
     files.remove();
@@ -34,7 +34,7 @@ fn a_service_leaves_files_that_are_not_its_own() {
     let socket = root.join("3f9a.sock");
     // What this service bound and wrote.
     let mine = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("this service's socket");
-    let files = take(socket.as_path(), Some("3f9a")).expect("the files are taken");
+    let files = take(Some(socket.as_path()), socket.parent().unwrap_or(std::path::Path::new(".")), Some("3f9a")).expect("the files are taken");
     let note = files.pid_note.clone().expect("the note is beside the address");
     // A later server's: another socket bound at the same path, and a note naming another process.
     std::fs::remove_file(socket.as_path()).expect("the address is freed for the later server");
@@ -50,7 +50,7 @@ fn a_service_leaves_files_that_are_not_its_own() {
     // And what is still this service's own goes.
     std::fs::remove_file(socket.as_path()).expect("clean up the later socket");
     std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a socket to remove");
-    let again = take(socket.as_path(), Some("3f9a")).expect("the files are taken again");
+    let again = take(Some(socket.as_path()), socket.parent().unwrap_or(std::path::Path::new(".")), Some("3f9a")).expect("the files are taken again");
     again.remove();
     assert!(!socket.exists() && !note.exists(), "a service's own files are removed");
 }
