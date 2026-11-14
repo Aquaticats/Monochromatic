@@ -162,123 +162,177 @@ async fn the_paths_held_unlike_the_branch_awaiting(
 }
 
 /// What:
-///  The paths among `paths` whose worktree file differs from the index.
+///  What became of the checkout a move wrote,
+/// and what of the merge is still in it.
 /// Why:
-///   A file that differs is a person's own change made since the move wrote it,
-/// and writing the branch's tree over it would throw their bytes away.
+///   The move writes the checkout before it writes the reference,
+/// and the repair after it must never replace bytes it cannot prove are the move's or a switch's:
+///  a person's staged edit and their worktree edit are told apart from those by what the index holds,
+/// not by how quickly the repair looks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const edited = diffPaths((await git(['diff','--name-only','-z','--no-renames','--',...paths])).stdout);
+/// type Brought = { kind: 'right' } | { kind: 'left'; paths: Uint8Array[]; reason: string };
 /// ```
-async fn the_paths_changed_since_awaiting(
-    git: &PushGit,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let mut arguments: Vec<OsString> = argv(&["diff", "--name-only", "-z", "--no-renames", "--"]);
-    arguments.extend(paths.iter().map(|path| return crate::path_bytes::os_from_path_bytes(path.as_slice())));
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: String::from("diff --name-only -z --no-renames --"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    return Ok(diff_paths(&listed.stdout));
+pub(crate) enum Brought {
+    /// The checkout agrees with the branch it shows on the paths this move wrote.
+    Right,
+    /// These paths still hold something else, and were left exactly as they were.
+    Left {
+        /// The paths of the move that do not hold what the branch has.
+        paths: Vec<Vec<u8>>,
+        /// Why they were left,
+        /// in Git's own words when its write refused.
+        reason: String,
+    },
 }
 
 /// What:
-///  Write the branch's own tree over the paths this move wrote and the checkout holds otherwise,
-/// leaving a path a person changed since as it is.
-///  `Ok(None)` is a checkout that agrees with its branch;
-/// `Ok(Some(paths))` the paths that still hold the merge;
-/// `Err(reason)` a checkout that could not be put right.
+///  Bring the checkout to the branch it shows on the paths this move wrote,
+/// writing only what the index proves is the move's or a switch's content,
+/// or say which paths were left and why.
 /// Why:
-///   The branch the checkout shows is at the merge or at its own tip,
-/// and either way its tree is what the checkout must hold on those paths;
-///  `git restore --source=HEAD --staged --worktree` writes exactly those paths from it,
-/// and a path the branch does not have is removed rather than left behind.
-/// The restriction to the move's paths is what keeps a person's staged entry elsewhere,
-///  and the earlier question about the worktree keeps their edits.
+///   `git read-tree -u -m <from> <to>` writes a path only when the index holds `<from>`'s content
+/// and the worktree still matches the index there,
+/// and it refuses every other path:
+///  a staged edit, a worktree edit and an untracked file all stop it,
+/// which is the proof this step needs and what a look followed by an overwriting write cannot give.
+/// The pair it is given is the tree of the branch the checkout shows:
+/// from the pushed tip to the merge for the pushed branch,
+///  and from the merge to that branch's own tree for any other,
+/// so the write puts the branch's content in and the merge's carried content out,
+///  and only over bytes whose stored identity is exactly one of those two.
+///  Two attempts at most:
+/// a switch that lands between the look and the write leaves the checkout on another branch whose tree
+/// the second attempt writes from,
+///  and each attempt refuses rather than overwrites.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function bringTheCheckoutToItsBranch({ git, local, mergeOid }): Promise<{ paths, reason } | undefined>;
+/// async function bringTheCheckoutToItsBranch({ git, branchRef, local, mergeOid }): Promise<Brought>;
 /// ```
 pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
     git: &PushGit,
+    branch_ref: &str,
     local: &str,
     merge_oid: &str,
-) -> Result<Result<Option<Vec<Vec<u8>>>, String>, SingleFlightError> {
+) -> Result<Brought, SingleFlightError> {
     let paths: Vec<Vec<u8>> = the_moves_paths_awaiting(git, local, merge_oid).await?;
     if paths.is_empty() {
-        return Ok(Ok(None));
+        return Ok(Brought::Right);
     }
-    let held: Vec<Vec<u8>> = the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?;
-    if held.is_empty() {
-        return Ok(Ok(None));
+    if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
+        return Ok(Brought::Right);
     }
-    let changed: Vec<Vec<u8>> = the_paths_changed_since_awaiting(git, held.as_slice()).await?;
-    let writeable: Vec<Vec<u8>> = held.iter().filter(|path| return !changed.contains(path)).cloned().collect();
-    if !writeable.is_empty() {
-        let mut arguments: Vec<OsString> = argv(&["restore", "--source=HEAD", "--staged", "--worktree", "--"]);
-        arguments.extend(writeable.iter().map(|path| return crate::path_bytes::os_from_path_bytes(path.as_slice())));
-        let written = run_query_awaiting(git, &arguments).await?;
+    let mut refusal: String = String::new();
+    for _attempt in 0..2 {
+        let shows: Option<String> = shows_awaiting(git).await?;
+        let (from, to): (String, String) = match shows.as_deref() {
+            Some(named) if named == branch_ref => (local.to_owned(), merge_oid.to_owned()),
+            _ => (merge_oid.to_owned(), String::from("HEAD")),
+        };
+        let written = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", from.as_str(), to.as_str()])).await?;
         if written.code != Some(0) {
-            return Ok(Err(format!(
-                "the checkout could not be brought to the branch it shows: {}",
-                crate::auto_push_reconcile_branch_advance::refusal_of(&written.stderr)
-            )));
+            refusal = crate::auto_push_reconcile_branch_advance::refusal_of(&written.stderr);
+            break;
         }
-        crate::inner_git_words::record_streams(&["restore", "--source=HEAD", "--staged", "--worktree", "--"], &written.stdout, &written.stderr);
+        // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
+        crate::inner_git_words::record_streams(&["read-tree", "-u", "-m", from.as_str(), to.as_str()], &written.stdout, &written.stderr);
+        if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
+            return Ok(Brought::Right);
+        }
     }
-    if changed.is_empty() {
-        return Ok(Ok(None));
+    let left: Vec<Vec<u8>> = the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?;
+    if left.is_empty() {
+        return Ok(Brought::Right);
     }
-    return Ok(Ok(Some(changed)));
+    if refusal.is_empty() {
+        refusal = String::from("a switch of the checkout landed while the branch moved, and the branch's own tree is not what those paths hold");
+    }
+    return Ok(Brought::Left { paths: left, reason: refusal });
 }
 
-// The step a control plays in the instant between the last look at the checkout and the write of the reference, as
-// another command's `git switch` finishing there; nothing outside a control.
+/// The two instants of a move a control can step into.
+/// Why:
+///   Each is a window this file closes,
+/// and a control that proves the closure must stop there by its own hand:
+///  a `git switch` in the first carries the merge's content onto another branch,
+/// and a person's staged or unstaged edit in the second is what the repair must leave alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Window = 'before-the-branch-moves' | 'after-the-branch-moved';
+/// ```
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Window {
+    /// Between the last look at the checkout and the write of the reference.
+    BeforeTheBranchMoves,
+    /// Between the write of the reference and the look that puts the checkout right.
+    AfterTheBranchMoved,
+}
+
+// The step a control plays in one of those instants, as another command finishing there; nothing outside a control.
 #[cfg(test)]
 thread_local! {
-    /// The step of the control running on this thread.
-    static BEFORE_THE_BRANCH_MOVES: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+    /// The steps of the controls running on this thread, one per window.
+    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 2]> = const { std::cell::RefCell::new([None, None]) };
+}
+
+/// The slot of one window in the thread's list.
+#[cfg(test)]
+fn slot_of(window: Window) -> usize {
+    return match window {
+        Window::BeforeTheBranchMoves => 0,
+        Window::AfterTheBranchMoved => 1,
+    };
 }
 
 /// What:
-///  Plays `step` in the window this file closes:
-/// between the last look at the checkout and the write of the reference,
-///  until the guard drops.
+///  Plays `step` in `window` until the guard drops.
 /// Why:
-///   That is the instant a `git switch` carries the merge's content onto another branch,
-/// so a control that proves the fix must be able to stop there by its own hand.
+///   That is the instant the fix has to survive,
+/// so a control that proves it must be able to stop there by its own hand.
 #[cfg(test)]
-pub(crate) fn before_the_branch_moves_in_a_control(step: impl Fn() + 'static) -> BeforeTheBranchMovesGuard {
-    BEFORE_THE_BRANCH_MOVES.with(|slot| { *slot.borrow_mut() = Some(Box::new(step)); });
-    return BeforeTheBranchMovesGuard;
+pub(crate) fn in_the_window_in_a_control(window: Window, step: impl Fn() + 'static) -> WindowGuard {
+    let slot: usize = slot_of(window);
+    IN_THE_WINDOW.with(|steps| {
+        steps.borrow_mut()[slot] = Some(Box::new(step));
+    });
+    return WindowGuard { window };
 }
 
 /// Ends the control's step when dropped.
 #[cfg(test)]
-pub(crate) struct BeforeTheBranchMovesGuard;
+pub(crate) struct WindowGuard {
+    /// The window whose step this guard set.
+    window: Window,
+}
 
 #[cfg(test)]
-impl Drop for BeforeTheBranchMovesGuard {
+impl Drop for WindowGuard {
     fn drop(&mut self) {
-        BEFORE_THE_BRANCH_MOVES.with(|slot| { *slot.borrow_mut() = None; });
+        let slot: usize = slot_of(self.window);
+        IN_THE_WINDOW.with(|steps| {
+            steps.borrow_mut()[slot] = None;
+        });
     }
 }
 
-/// Plays the control's step,
+/// Plays the control's step for `window`,
 /// if one is set.
 #[cfg(test)]
-pub(crate) fn play_before_the_branch_moves() {
-    let played: Option<Box<dyn Fn()>> = BEFORE_THE_BRANCH_MOVES.with(|slot| { return slot.borrow_mut().take(); });
+pub(crate) fn play_in_the_window(window: Window) {
+    let slot: usize = slot_of(window);
+    // The step borrows nothing of the caller, so it runs here rather than through a reference that would hold the borrow.
+    let played: Option<Box<dyn Fn()>> = IN_THE_WINDOW.with(|steps| {
+        return steps.borrow_mut()[slot].take();
+    });
     if let Some(step) = played {
         step();
-        BEFORE_THE_BRANCH_MOVES.with(|slot| { *slot.borrow_mut() = Some(step); });
+        IN_THE_WINDOW.with(|steps| {
+            steps.borrow_mut()[slot] = Some(step);
+        });
     }
 }
 
@@ -299,20 +353,21 @@ pub(crate) async fn the_checkout_after_the_move_awaiting(
     merge_oid: &str,
 ) -> Result<Checkout, SingleFlightError> {
     let shows: Option<String> = shows_awaiting(git).await?;
-    let (paths, reason): (Vec<Vec<u8>>, String) = match bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await {
-        Ok(Ok(None)) => (Vec::new(), String::new()),
-        Ok(Ok(Some(paths))) => (
-            paths,
-            String::from("a change in those files is not this command's to overwrite"),
-        ),
-        Ok(Err(reason)) => (Vec::new(), reason),
-        Err(error) => (Vec::new(), format!("the checkout could not be read: {error}")),
+    #[cfg(test)]
+    play_in_the_window(Window::AfterTheBranchMoved);
+    let brought: Brought = match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await {
+        Ok(brought) => brought,
+        Err(error) => Brought::Left { paths: Vec::new(), reason: format!("the checkout could not be read: {error}") },
     };
-    if !reason.is_empty() {
-        return Ok(Checkout::Holding { shows, paths, reason });
-    }
-    return Ok(match shows.as_deref() {
-        Some(named) if named == branch_ref => Checkout::Followed,
-        _ => Checkout::WentTo { shows },
+    let shows_now: Option<String> = match shows {
+        Some(found) => Some(found),
+        None => shows_awaiting(git).await?,
+    };
+    return Ok(match brought {
+        Brought::Right => match shows_now.as_deref() {
+            Some(named) if named == branch_ref => Checkout::Followed,
+            _ => Checkout::WentTo { shows: shows_now },
+        },
+        Brought::Left { paths, reason } => Checkout::Holding { shows: shows_now, paths, reason },
     });
 }
