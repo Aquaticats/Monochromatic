@@ -681,7 +681,7 @@ fn remove_here_or_hand_over(
         RemoveOutcome::RemovedAround(left) => return Attempt::RemovedAround(left, went),
         // The volume went away during the pass, so the emptied root went with one `rmdir` and the worktree is gone: the line the
         // sweep prints for a removal says what became of the worktree, and no line of it promises a queued delete.
-        RemoveOutcome::RemovedAroundNothingLeft => return Attempt::Removed,
+        RemoveOutcome::RemovedAroundNothingLeft => return Attempt::Removed(went),
         RemoveOutcome::LeftToGit => {}
     }
     let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {

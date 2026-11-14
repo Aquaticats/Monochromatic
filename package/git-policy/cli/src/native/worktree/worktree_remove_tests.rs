@@ -628,7 +628,7 @@ fn btrfs_a_volume_gone_when_the_pass_ends_leaves_the_around_routes_own_ending() 
         std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
         std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
     });
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     crate::subvolume_remove_listing_test_support::stop_acting();
     let ended: String = format!("{outcome:?}");
     assert!(
@@ -662,7 +662,7 @@ fn btrfs_a_volume_gone_when_the_pass_ends_ends_the_same_way_in_a_plain_directory
         std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
         std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
     });
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     crate::subvolume_remove_listing_test_support::stop_acting();
     let ended: String = format!("{outcome:?}");
     assert!(

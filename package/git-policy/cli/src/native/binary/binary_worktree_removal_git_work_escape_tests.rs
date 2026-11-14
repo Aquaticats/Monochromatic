@@ -20,7 +20,7 @@
 //! const ran = runWrapped(fixture, repo, printedWords(refused)); // exit 0, the worktree is gone
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, fixture, git, remove, repository, run_direct, run_wrapped, stderr_of};
 use git_policy_cli::worktree_added_by_the_wrapper::record;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -37,8 +37,6 @@ struct Scene {
     fixture: Fixture,
     /// The main checkout.
     repo: PathBuf,
-    /// The common Git directory.
-    common: PathBuf,
     /// The worktree every control removes.
     task: PathBuf,
 }
@@ -107,7 +105,7 @@ fn a_repository_with_a_recorded_worktree(name: &str) -> Scene {
     std::fs::write(task.join("task-file.txt"), "task work\n").expect("a file in the worktree");
     run_direct(&fixture, task.as_path(), &["add", "task-file.txt"]);
     run_direct(&fixture, task.as_path(), &["commit", "--quiet", "--message=task work"]);
-    return Scene { fixture, repo, common, task };
+    return Scene { fixture, repo, task };
 }
 
 /// What:
