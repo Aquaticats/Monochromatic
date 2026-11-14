@@ -92,6 +92,10 @@ const HOLD_SUFFIX: &str = ".hold";
 /// What the file naming one path's text ends with.
 const LOCK_PATH_SUFFIX: &str = ".lock-path";
 
+/// What sits between one path's digest and the writer of its text,
+/// in the temporary the text is published from.
+const PATH_TEXT_TEMP_INFIX: &str = ".lock-path.";
+
 /// The longest text one read of a path's file takes:
 /// a path and nothing else.
 const LOCK_PATH_LIMIT: u64 = 64 * 1024;
@@ -314,7 +318,7 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<W
     let seen: LockMetadata = crate::index_lock_evidence::read_lock_metadata(lock).ok()??;
     let file: (u64, u64) = (seen.device, seen.inode);
     let digest: String = digest_of_path(lock);
-    name_the_path(folder.as_path(), digest.as_str(), lock)?;
+    name_the_path(folder.as_path(), digest.as_str(), lock, holder)?;
     let name: String = pin_name(digest.as_str(), file, holder)?;
     let pin: PathBuf = folder.join(name.as_str());
     // A file of a killed run of this very take, or a planted one, goes first: this name belongs to this one take.
@@ -344,12 +348,21 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<W
 ///  so a record of the path never exists beside a half-written one;
 ///  a text that differs from the lock's own path is a planted or damaged file and is replaced,
 ///  because this folder's name is that path's digest and no other path belongs in it.
+///  The text is made under a temporary name that carries the writing Git's process number and birth
+///  identity,
+///  and the rename into place is tried twice,
+///  because a sweep of another command that lands between the two may take the temporary away:
+///  a sweep keeps a temporary whose writer runs and removes one whose writer is gone
+///  (`sweep`),
+///  and a writer whose temporary went anyway makes it again rather than leaving the lock with no
+///  record
+///  (the second note of a review of `1ee73d2728`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (readFileSync(pathFile) !== lockPath) writeFileSync(pathFile, lockPath)
+/// if (readFileSync(pathFile) !== lockPath) for (let attempt = 0; attempt < 2; attempt++) writeTempThenRename()
 /// ```
-fn name_the_path(folder: &Path, digest: &str, lock: &Path) -> Option<()> {
+fn name_the_path(folder: &Path, digest: &str, lock: &Path, holder: &(i64, String)) -> Option<()> {
     use std::os::unix::ffi::OsStrExt as _;
     let text: PathBuf = lock_path_file(folder, digest);
     let wanted: &[u8] = lock.as_os_str().as_bytes();
@@ -357,11 +370,39 @@ fn name_the_path(folder: &Path, digest: &str, lock: &Path) -> Option<()> {
     if matches!(present.as_deref(), Some(bytes) if bytes == wanted) {
         return Some(());
     }
-    let temporary: PathBuf = folder.join(format!("{digest}{LOCK_PATH_SUFFIX}.writing"));
-    std::fs::write(temporary.as_path(), wanted).ok()?;
-    // A control reaches here to act as another command whose pass sweeps the folder at this instant.
-    crate::service_fault::reach(A_PATH_TEXT_IS_BEING_WRITTEN);
-    return std::fs::rename(temporary.as_path(), text.as_path()).ok();
+    let temporary: PathBuf = folder.join(format!("{digest}{PATH_TEXT_TEMP_INFIX}{}.{}.writing", holder.0, holder.1));
+    for _attempt in 0..2 {
+        std::fs::write(temporary.as_path(), wanted).ok()?;
+        // A control reaches here to act as another command whose pass sweeps the folder at this instant.
+        crate::service_fault::reach(A_PATH_TEXT_IS_BEING_WRITTEN);
+        if std::fs::rename(temporary.as_path(), text.as_path()).is_ok() {
+            return Some(());
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The process number and birth identity of the Git that is writing one path's text,
+///  from the name of its temporary file,
+///  or nothing when the name is not one of those.
+/// Why:
+///   A sweep that removes a temporary a live writer is still publishing takes that writer's record
+///  away,
+///  so the sweep has to know whose temporary it is before it decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writerOfPathTemp('lock-path.4242.linux:1#…​.writing') // [4242, identity]
+/// ```
+fn writer_of_path_temp(rest: &str) -> Option<(i64, String)> {
+    // `rest` is the name after the digest and its dot, so the infix is matched without its own leading dot.
+    let fields: &str = rest.strip_prefix(PATH_TEXT_TEMP_INFIX.trim_start_matches('.'))?.strip_suffix(".writing")?;
+    let (pid, identity) = fields.split_once('.')?;
+    if identity.is_empty() {
+        return None;
+    }
+    return Some((pid.parse::<i64>().ok()?, identity.to_owned()));
 }
 
 /// What:
@@ -479,6 +520,10 @@ pub fn pin_holds_the_lock(written: &Written) -> bool {
 ///  command's lock.
 ///  A record that was written, and whose command was killed before it could take it away, goes here once
 ///  its lock is gone.
+///  A path's text being published is kept while the Git writing it runs and removed once that Git is
+///  gone,
+///  so a sweep never takes away the temporary of a live writer and a killed writer's temporary does
+///  not stay.
 ///  A pin whose path's text cannot be read is kept:
 ///  nothing shows which file it stands for, and a record kept is a clearance that may still be made.
 ///  The two files of the earlier format of this folder
@@ -505,6 +550,13 @@ pub fn sweep(common_dir: &Path) {
         };
         if rest == LOCK_PATH_SUFFIX.trim_start_matches('.') {
             // The path's own text: the one file of a path that is written before any of its records.
+            continue;
+        }
+        if let Some(writer) = writer_of_path_temp(rest) {
+            // A text being published: kept while the Git writing it runs, and taken away once that Git is gone.
+            if crate::service_index_identity::holder_state(Some(&writer)) == crate::service_index_identity::HolderState::Gone {
+                let _removed = std::fs::remove_file(entry.path().as_path());
+            }
             continue;
         }
         if !rest.ends_with(HOLD_SUFFIX) || holder_of_pin_name(digest, name.as_ref()).is_none() {

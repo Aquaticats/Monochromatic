@@ -10016,12 +10016,28 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   and no command can take away the record of a lock that another command's Git holds or was killed
   holding;
 - a record whose lock the child finished, by renaming it over its target or rolling it back,
-  is taken away as the child ends,
-  and one whose lock no longer stands is swept by the next command
+  is taken away as soon as a look of the waiting command finds that lock gone,
+  not only when the child ends,
+  and one a killed run left is swept by the next command
   (`sweep`).
+  What one run holds for one lock path is therefore **one take, and two in the instant between a take
+  and the next**:
+  a Git of many takes, such as a `git rebase` or `git am` of many commits, takes the same path once
+  per pick,
+  and each record is a hard link that keeps a whole copy of the index alive,
+  so a record per take would hold every intermediate copy until the run ended and could exhaust the
+  disk
+  (a review of `1ee73d2728`, finding F1,
+  which measured one rebase holding 46 records and 2.64 MB mid-run,
+  and the commit before it one per path).
+  The bound does not depend on the length of the run.
   A record whose lock still stands is kept.
   The sweep judges a record by the path its digest's text names and the inode its own file pins,
   and removes one file by its own name.
+  A path's text being published is made under a temporary named for the Git writing it,
+  which a sweep keeps while that Git runs and removes once it is gone,
+  and a writer whose temporary a sweep took away makes it again rather than leave a standing lock
+  with no record.
 
 What a kill at each step of that leaves, and who removes it:
 
@@ -10032,7 +10048,7 @@ What a kill at each step of that leaves, and who removes it:
   because a record is a pin and there is none;
 - after the record: the whole record.
   If the child then finished its lock,
-  the command takes it away as the child ends;
+  the command takes it away as soon as its next look finds the lock gone;
   if it was killed holding it, the record is what lets the next command clear the lock,
   and the sweep keeps it as long as its pin names the file standing at the path;
 - inside a removal:

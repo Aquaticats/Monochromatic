@@ -33,8 +33,9 @@
 //!    because a record is a pin and there is none;
 //!  - after the record, which is one file:
 //!    a record whose pin names the lock,
-//!    which this command takes away when its child finished the lock
-//!    (`forget_what_the_child_finished`)
+//!    which this command takes away as soon as a look finds the child finished that lock
+//!    (`forget_what_the_child_finished`, called on every look and not only at the child's end,
+//!    so one run of many takes holds at most the take that stands and the one just finished)
 //!    and which the next commands keep while the pin names the file standing at the path,
 //!    because it is the proof that clears a lock a killed child left;
 //!  - inside a removal:
@@ -640,11 +641,15 @@ pub fn wait_and_bind(
         if let Some(status) = child.try_wait()? {
             tracker.feed(watch.read_events().as_slice());
             bind_what_the_child_took(&tracker, common_dir, child_pid, identity, &mut bound);
-            forget_what_the_child_finished(&bound);
+            forget_what_the_child_finished(&mut bound);
             return Ok(status);
         }
+        // Each lock's creation and each lock's rename away wake this wait, so a take that is gone is taken away
+        //  before the next one is written: what this run holds for one path is one take, and two in the instant
+        //  between them.
         tracker.feed(watch.wait(watch.step()).as_slice());
         bind_what_the_child_took(&tracker, common_dir, child_pid, identity, &mut bound);
+        forget_what_the_child_finished(&mut bound);
     }
 }
 
@@ -695,22 +700,34 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
 ///  (a review of `f8f5cba090`,
 /// finding 1).
 ///  The record this child's run wrote is named for the take it belongs to,
-///  the path's digest with that Git's process number and birth identity,
+///  the path's digest with the file the take made and that Git's process number and birth
+///  identity,
 ///  which no other command's write produces,
 ///  so a later lock at that path has a record of its own and this one is never it.
+///  This runs on every look the wait takes, not only when the child ends:
+///  a Git of many takes, such as a rebase of many commits, takes the same path once per pick,
+///  and every record still held keeps one whole copy of the index alive on disk
+///  (a review of `1ee73d2728`, finding F1).
+///  What this run holds for one path is therefore at most the take standing at it and the take whose
+///  rename the wait has not yet looked at, whatever the length of the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const written of bound) if (!pinHoldsTheLock(written)) removeBinding(written);
+/// for (const written of bound) if (!pinHoldsTheLock(written)) { removeBinding(written); bound.delete(written) }
 /// ```
-fn forget_what_the_child_finished(bound: &[Written]) {
-    for written in bound {
+fn forget_what_the_child_finished(bound: &mut Vec<Written>) {
+    let mut finished: Vec<Written> = Vec::new();
+    bound.retain(|written| {
         if lock_bindings::pin_holds_the_lock(written) {
-            continue;
+            return true;
         }
+        finished.push(written.clone());
+        return false;
+    });
+    for written in finished {
         // A control reaches here to act as a command whose Git takes the freed name at this instant.
         crate::service_fault::reach(A_FINISHED_CHILD_FORGETS);
-        lock_bindings::remove(written);
+        lock_bindings::remove(&written);
     }
 }
 

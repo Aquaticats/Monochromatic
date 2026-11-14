@@ -482,8 +482,10 @@ fn a_run_of_many_takes_of_one_path_holds_no_more_than_the_bound() {
     let watched: std::thread::JoinHandle<std::io::Result<std::process::ExitStatus>> = std::thread::spawn(move || {
         return wait_for_a_watched_child(&mut child, started);
     });
-    let held = |folder: &Path| -> usize {
-        return std::fs::read_dir(folder).map(|entries| { return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".hold"); }).count(); }).unwrap_or(0);
+    let held = |where_records_are: &Path| -> usize {
+        return std::fs::read_dir(where_records_are)
+            .map(|entries| { return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".hold"); }).count(); })
+            .unwrap_or(0);
     };
     // Sample the whole run, bounded, and remember the most this path ever held at one moment.
     let mut peak: usize = 0;
