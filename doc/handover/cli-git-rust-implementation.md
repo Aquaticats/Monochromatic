@@ -1256,6 +1256,67 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock shim passes its third review and waits for the owner's word on its merge; the watch note's ceiling passes and pass 46 carries it; the queue filling loses an entry between two records, back to its author (2026-11-14T16:08:15-05:00)
+
+Not final and not approved:
+what three reviews and one author report of themselves,
+and what the coordinating session did and queued.
+
+- **The filling unit was restarted** at 15:55:07
+  (`fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T155507`,
+  the one of 08:54:33 stopped first,
+  since it would have ended about 16:54).
+  The check of queued entries now reads both units' journals:
+  88 names queued by this session since 08:54,
+  none missing,
+  none twice,
+  at 15:55:19.
+- **The lock shim of Pi** (`578bc34738`),
+  third review by the reviewer of the first two:
+  no new defect.
+  The printed command works as printed for every awkward path it tried (24 of 24);
+  the suite passed three runs of three with no child-process timeout,
+  and the author's change to the test removes causes
+  (asynchronous reads where synchronous polls blocked the event loop,
+  a bounded reap of killed children)
+  and widens no tolerance;
+  the one commit changes nothing else of what it had verified.
+  It could not rebuild the author's end-to-end starts of Pi a second time:
+  with the author's configuration the extension loads and never takes the planted lock,
+  so those six arms stay the author's measurement alone.
+  The branch is not merged:
+  it changes how every new Pi run takes the lock of the models store,
+  and it adds three amendments to `doc/decision/proper-lockfile-removal.md`,
+  which only the owner's acceptance unlocks.
+  Asked through the question tool at 16:08.
+- **A watch note written within a ceiling** (`72dd53f89e`),
+  second review after one that ended on the rate limit and was put back:
+  "no concrete defect found";
+  nine `within_a_ceiling` controls and five `watch_note` controls run and passing.
+  **Integration pass 46** is queued first with it,
+  its brief carrying the one whole-suite run
+  (`~/temp/agent/pi-runs/integration-pass-46-with-the-watch-note-a-landing-writes-within-a-ceiling-prompt.md`).
+- **The queue of runs filled from the package** (`01a855c051`),
+  second review,
+  three reproduced:
+  an entry is lost for good when a put-back of a set-aside runs between the take-out and the record of the set-aside
+  (with the order held;
+  the natural window met it in none of 150 rounds);
+  a pass that drops unfinished set-asides deletes a record committed after its snapshot;
+  and a review put back from a stale read lands ahead of an integration pass queued meanwhile
+  (250 of 250 rounds).
+  The lock the author added covers one file's change and not a decision across two records.
+  The author is resumed,
+  asked to list what every operation reads,
+  decides and writes and to choose once between one held step and a queue with no lock
+  (`~/temp/agent/pi-runs/queue-of-runs-filled-from-the-package-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **The landed removal's guard** (tip `e615fb599b`, ended 16:01:52):
+  the author reports that no name the guard cannot resolve reaches real Git,
+  the two questions asked where the destroy is decided,
+  847 tests of `worktree::` and both guard modules passing after merging `main`.
+  Review queued second (range `main...e615fb599b`, nineteen code files).
+- The queue held 68 entries at 16:08:15.
+
 ##### A killed driver drops an inbox message it had claimed, back to the empty-answer author; the stale launchers' cost is attributed to `main` and goes to a fresh run; two reviews met the rate limit and were put back (2026-11-14T15:54:34-05:00)
 
 Not final and not approved:
