@@ -7,28 +7,38 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **20** agents run on this machine at once,
+At most **17** agents run on this machine at once,
 counted across every session
 (raised from 4 to 8 on 2026-11-13 at 11:57,
 from 8 to 16 at 12:58:50
 and from 16 to 32 at 17:12,
 each time when the level before had held its hour;
-lowered from 32 to 24 on 2026-11-14 at 01:16:46
-and from 24 to 20 at 01:21:35,
+lowered from 32 to 24 on 2026-11-14 at 01:16:46,
+from 24 to 20 at 01:21:35,
+from 20 to 18 at 01:42:18
+and from 18 to 17 at 02:03:15,
 each time when the level before failed its criterion,
 by the rule under "What counts as the ceiling":
 halve the gap between the last level that held, sixteen, and the one that failed).
 Twenty-four stopped no start:
 the provider pools take about twenty-five at most,
 and twenty to twenty-two agents were going at both failures.
-Twenty does:
-with twenty-one going at 01:21,
-nothing new starts until a run ends,
+The levels from twenty down do:
+nothing new starts until fewer are going,
 and no run that is going is stopped.
-Should level twenty fail,
-the same rule gives eighteen.
+Should level seventeen fail,
+the search ends at sixteen,
+the last level that held,
+and goes no lower without the owner:
+the probe then runs for readings only.
+**The search is no longer measuring the count.**
+The last failing pair came with seventeen and sixteen agents going,
+at or below the count of the level that held,
+and after the daily update had ended.
 The readings and what is not established about their cause are under
-"Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00".
+"Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00",
+"Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00" and
+"Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00".
 The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
 not in `main`,
 carries the number in a file of its own that still reads sixteen;
@@ -722,3 +732,133 @@ The cause is not established and none is claimed.
   The question whether an hour that holds the daily update may judge a level is kept for the owner
   (`doc/handover/cli-git-rust-implementation.md`,
   "Questions kept for the owner's return").
+
+#### Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+The cause is not established and none is claimed.
+
+- **The readings at level twenty**
+  (home drive write-and-sync in ms,
+  agents going beside each;
+  the filling unit was at twenty from 01:21:35):
+  01:25:57 2 (21);
+  01:26:57 540 (21);
+  01:28:06 1 (19);
+  01:29:06 70,462 (18);
+  01:31:16 233 (19);
+  01:32:18 33 (20);
+  01:33:18 87 (19);
+  01:34:19 1 (20);
+  01:35:19 11 (20);
+  01:36:19 187 (20);
+  01:37:37 143,475 (20);
+  01:41:00 57,262 (18).
+  The build volume in the same readings:
+  6 to 47 ms.
+- **Level twenty fails at 01:41:00**:
+  143,475 ms and 57,262 ms,
+  two readings in a row,
+  with twenty and eighteen agents going.
+  The probe ended with status 3.
+  The rule gives eighteen.
+  The filling unit at twenty was stopped and one at eighteen started at 01:42:18
+  (`fill-free-places-and-put-ended-reviews-back-at-level-18-20261114T0142`,
+  eight hours,
+  no successor);
+  the probe runs again since then
+  (`disk-ceiling-probe-level-18-since-the-filler-is-at-18-20261114T0142`,
+  eight hours).
+- **What else ran in those minutes**:
+  `toolchain-daily-update.service` until 01:40:01,
+  so the first of the two readings falls wholly inside it
+  and the second began about three seconds after it ended;
+  and this session's own work in the main checkout:
+  one run of `package/mpm-shadow/cli`'s Clippy task from 01:36
+  (in a scope with `IOWeight=1`,
+  its build folder on the build volume),
+  and the merge of integration pass 28 at 01:38:12 with its push
+  (26 files,
+  4,112 lines).
+  None of these is shown to be the cause.
+- **The control hour starts here**:
+  the daily update has ended,
+  so readings from 01:42 on are the same machine without it.
+  If the stalls stop while eighteen to twenty agents go,
+  that is evidence about the daily update and none about the count,
+  and the level is still the one the criterion gave;
+  raising it again is the owner's question already kept.
+  (They did not stop:
+  the section that follows has the readings.)
+
+#### Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No cause is claimed.
+
+- **The readings at level eighteen**
+  (home drive write-and-sync in ms,
+  agents going beside each;
+  the daily update ended at 01:40:01):
+  01:42:20 45,431 (18);
+  01:44:06 4 (18);
+  01:45:06 59,278 (18);
+  01:47:05 27 (17);
+  01:48:09 47,148 (17);
+  01:49:56 63 (count not read);
+  01:51:33 141,638 (17);
+  01:54:55 24,317 (16).
+  The build volume in the same readings:
+  6 to 62 ms.
+- **Level eighteen fails at 01:54:55**:
+  141,638 ms and 24,317 ms,
+  two readings in a row,
+  with seventeen and sixteen agents going.
+  The rule gives seventeen.
+  A filling unit at seventeen runs since 02:03:15
+  (`fill-free-places-and-put-ended-reviews-back-at-level-17-20261114T0204`,
+  eight hours,
+  no successor),
+  and the probe since 02:04
+  (`disk-ceiling-probe-level-17-readings-20261114T0204`).
+  Between 01:54:52 and 02:03:15 no filling unit ran,
+  for a reason of its own
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T02:05:16-05:00:
+  a lock left in Pi's folder stopped every new start).
+- **What the control showed**:
+  five stalls of 24 to 142 s came after the daily update had ended.
+  So the stalls do not go with the daily update,
+  and the question kept for the owner about hours that hold it is withdrawn.
+- **The count**:
+  every other reading at this level is a stall,
+  with sixteen to eighteen agents going.
+  The level that held its hour on 2026-11-13 from 18:51 to 19:49 had twenty to twenty-two.
+  Fewer agents and more stalls:
+  the criterion keeps failing and the count does not explain it.
+- **A lead, read from the system's journal and not tested**:
+  `snapper-cleanup.service` started at 00:00:07 and was still running at 01:55:53.
+  At 00:14:49 it logged the deletion of a batch of snapshots of the root configuration in one second
+  (numbers 11 to 22 among them;
+  the whole count was not read),
+  and the kernel logged in the same second a quota scan of the home filesystem completed
+  (`BTRFS info (device dm-1): qgroup scan completed`),
+  after `qgroup marked inconsistent` at 00:00:20.
+  The first slow answer of the user service manager that night was asked at 00:16:27,
+  98 s after those deletions.
+  `snapper-timeline.service` started at 01:00:55 and had not ended at 01:55:53.
+  `btrfs-zstd-policy.service` showed 977 restarts.
+  The cleanup did not run in the hour that held:
+  its only start since noon of 2026-11-13 is the one at 00:00:07.
+  The home folder is the `home` subvolume of a btrfs filesystem on `dm-1`,
+  mounted with `discard=async`;
+  the kernel's qgroup lines for `dm-1` show quota groups in use there.
+  These are system units:
+  this session stops none of them and cannot read their I/O
+  (the per-unit sample of 01:17 covers the user's units only).
+- **What would test the lead**:
+  readings after the cleanup has ended;
+  and whether a night without it stalls.
+  Both are readings the probe gives if it is left running.

@@ -220,8 +220,8 @@ pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, conseq
 /// ```
 pub fn unproven_removal_advice(lock_path: &Path) -> String {
     return format!(
-        "monochromatic-git-policy-cli: nothing proves a program is still using {lock}. If no program is using this repository, the lock was left by a program that was killed, \
-         and removing the file {lock} lets the command run.\n",
+        "monochromatic-git-policy-cli: nothing proves a program is still using {lock}. If no program is using this repository, the lock was left by a program that was killed or \
+         has ended, and removing the file {lock} lets the command run.\n",
         lock = lock_path.display()
     );
 }
@@ -276,8 +276,9 @@ pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was lef
 /// ```
 pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str, ending: &str) -> String {
     return format!(
-        "monochromatic-git-policy-cli: {lock} holds the PID number {pid}, which this process table does not have (a Git of another PID namespace writes a number this table \
-         has never had), so no process here will release it. {consequence}; {ending}.\n",
+        "monochromatic-git-policy-cli: {lock} holds the PID number {pid}, which no process in this process table has. A Git in another PID namespace, or one on \
+         another machine that shares this repository, writes a number this table has never had, and no record of the processes this repository's own commands \
+         started names {pid}, so nothing here proves the holder is gone. {consequence}; {ending}.\n",
         lock = lock_path.display()
     );
 }
