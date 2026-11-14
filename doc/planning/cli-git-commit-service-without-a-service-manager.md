@@ -1598,3 +1598,67 @@ settled:
   `journalctl`; they name `service stop` and the log folder now, as finding 9 requires.
 - A module main added for the manager path (`service_provision_instance_unloaded.rs`) and its
   control go with that path.
+
+## The review of `76a08c9fac`: three places a service could take what is not its own
+
+Status: answered, not approved. The review reproduced two of the three findings with the built
+binary and found the third by reading. All three stood.
+
+### What was seen running the review's reproductions
+
+Against the reviewed tip (`76a08c9fac`, built in the worktree it was reviewed from, with the
+review's own scripts pointed at that build and a runtime directory of this run's own):
+`r1-notes-directory-deleted.ts` printed `after: directory exists=false, file exists=false` and
+`RESULT: REPRODUCED`; `r2-two-servers-one-stale-socket.ts` printed one survivor in thirty
+rounds and `NOT REPRODUCED`, as the review says; `r2c-forced-takeover-window.ts` printed two
+listening sockets naming one path and `RESULT: REPRODUCED`.
+
+Against this branch's answer (`8f3ebcc8b3`): R1 prints `after: directory exists=true, file
+exists=true` and `NOT REPRODUCED`; R2 prints `NOT REPRODUCED` in thirty rounds; R2c prints
+`A took the path back=false` and `A service alive=true, B service alive=false`, so
+`NOT REPRODUCED`. The claim is what made the forced window lose its effect: the second taker
+cannot enter the takeover while the first holds it, so it exits on the address instead of
+unlinking the winner's socket. R2c's own line `B: greeted=true` is the script attributing the
+*first* taker's greeting to the second, which never binds; the verdict line is right.
+
+### What changed
+
+- **A notes folder is emptied entry by entry.** `remove_the_notes_of_this_program` removes a
+  file whose name is an instance name and whose text is `gitdirHex=` bytes or the earlier
+  release's path, and the `service-program` link, leaves everything else, names what it left on
+  the warning line, and removes the folder only once nothing is in it. The removal now reports
+  each note as well as the folder.
+- **The stop of an earlier release's units never waits for a child it cannot end.**
+  `stop_with_the_managers_client_seamed` ends and reaps the client on a thread of its own, as
+  the manager probe already did, and its answer is due at `PROBE_WAIT`.
+- **One process takes an address over at a time.** `service_address_takeover_claim` claims
+  `<address>.taking-over` with the kernel's own `flock`, held across the refusal probe, the
+  unlink and the bind; a second taker that finds it held returns `AddrInUse` and touches
+  nothing. The claim has no owner text and no stale state, so it never needs taking over, and
+  it is on the lock inventory with its reason (`AGENTS.md`: lock-free first, a lock only where
+  nothing else decides, covering the smallest unit).
+- **The starter marker is published whole and removed only by its own holder.**
+  `publish_a_whole_marker` writes the owner into a private file and links it into place, so a
+  reader sees a marker that names a live command or no marker; a marker found at the name is
+  moved aside with one `rename` and put back when it turns out to name a live command, so the
+  question and the removal are one step over one inode; and `Drop` removes the marker only
+  while it still holds this command's own text.
+- **A scope that reports no process number is waited for.** `Ok(None)` from a manager's start
+  means the middle process wrote no number, and the scope may still start a server: this
+  command waits `MANAGER_START_EXTRA` for a greeting before the base's start makes one beside
+  it, and the address's claim is what keeps a scope that lands later from binding.
+
+### What was noticed and not fixed here
+
+- The blocking-code guard also flags `service/service_log_lines_off_the_calling_thread.rs`
+  (main's file, `thread-start`), and the lock inventory has no entry for it; both are main's
+  twelve red library tests.
+- That guard's `unretried-start` findings in this branch's two service files were pre-existing
+  and are cleared by starting those children through `RetryStart::spawn_retrying`, which a
+  refused fork now retries instead of losing the ask.
+- `SPEC.md` on `main` described `SERVICE_GREETING_SILENCE`, a constant this tree does not
+  have (main's own `wait_ceilings_tests.rs` asserts it is absent); the merge dropped the bullet.
+- `main`'s `RUNTIME_BUILD_PATIENCE` prose says a service that ends lets "the service manager"
+  start it again, which this branch's design does not do; left as main wrote it.
+- The lockfile still named `zruntime`, which no manifest of this package or of `main` names;
+  `cargo generate-lockfile --offline` (the package's `native:lock` task) regenerated it.
