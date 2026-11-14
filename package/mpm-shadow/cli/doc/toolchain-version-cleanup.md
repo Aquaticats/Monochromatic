@@ -243,17 +243,21 @@ so the next install runs the pass even when it installs nothing.
 
 ## Where a deletion is allowed
 
-Every deletion goes through one function, `delete_for_good`,
+Every deletion goes through one function,
+`delete_for_good`,
 and each call names the proof it has at that instant:
 
-- **the entry a pass judged**: same device and inode number,
+- **the entry a pass judged**:
+  same device and inode number,
   same write time,
   checked once more at the delete;
 - **bytes this pass moved aside a moment ago**:
   the archives it renamed under a marker,
   whose name no other program writes;
-- **a duplicate**: a finished copy of the same version stands at the version's own name;
-- **orphaned archives**: their version stands at neither name any more.
+- **a duplicate**:
+  a finished copy of the same version stands at the version's own name;
+- **orphaned archives**:
+  their version stands at neither name any more.
 
 A name proves nothing about what stands under it,
 and four reviews each found a copy lost by a deletion that trusted one:
