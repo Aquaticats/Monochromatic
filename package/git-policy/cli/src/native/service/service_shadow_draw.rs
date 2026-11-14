@@ -187,16 +187,32 @@ impl DrawnShadows {
     ///  A tree that is not there is no tree a commit can be handed,
     ///  and a stock that counted one would draw nothing in its place (`start`),
     ///  so the question is asked at every landing,
-    ///  on the landing's own thread and never on an answer's.
+    ///  on the landing's own thread and never on an answer's,
+    ///  and never while the stock's lock is held:
+    ///  an answer that waited for this lock would wait on the volume through it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// stock.dropWhatIsGone() // how many entries went
     /// ```
     pub fn drop_what_is_gone(&self) -> usize {
+        // The paths are read under the lock and asked about without it, so no volume call is made inside the lock.
+        let paths: Vec<PathBuf> = {
+            let ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            ready.iter().map(|waiting| { return waiting.path.clone(); }).collect()
+        };
+        let mut gone: Vec<PathBuf> = Vec::new();
+        for path in paths {
+            if std::fs::symlink_metadata(path.as_path()).is_err() {
+                gone.push(path);
+            }
+        }
+        if gone.is_empty() {
+            return 0;
+        }
         let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let counted: usize = ready.len();
-        ready.retain(|waiting| { return std::fs::symlink_metadata(waiting.path.as_path()).is_ok(); });
+        ready.retain(|waiting| { return !gone.contains(&waiting.path); });
         return counted - ready.len();
     }
 
