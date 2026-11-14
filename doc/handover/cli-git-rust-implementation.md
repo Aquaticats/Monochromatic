@@ -720,9 +720,9 @@ by the rules that already stand:
   and no change to the pools:
   about twenty-five agents stays the most.
 - The units this depends on and when each ends by itself:
-  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-20-20261114T0123`
-  (started 2026-11-14T01:21:35-05:00 for eight hours,
-  so it is started again by 09:21;
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-18-20261114T0142`
+  (started 2026-11-14T01:42:18-05:00 for eight hours,
+  so it is started again by 09:42;
   the one of 17:12:16 at level thirty-two ended at 01:12:16),
   and the waiter of the moment
   (eight hours from its start,
@@ -1224,6 +1224,119 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Pass 28 is in `main` and `0.6.1-alpha.24` is dispatched; the daily update left Clippy red for mpm-shadow and cargo-shadow (2026-11-14T01:41:12-05:00)
+
+Not final and not approved:
+what the coordinating session merged,
+measured and queued.
+
+- **Pass 28**
+  (`integrate/git-policy-cli-pass-28-index-lock-left-by-a-killed-wrapper-is-cleared`,
+  tip `246a358fce`,
+  report `~/temp/agent/integration-pass-28-for-the-index-lock-fix-scratch/keep/report.md`)
+  reported fit at 01:33:07.
+  It merged the reviewed `e7474d6803` with no conflict and no repair commit,
+  and `main` nine times after it.
+  At its tip:
+  build,
+  both test compiles and Clippy pass;
+  the 52 controls the branch adds pass by name
+  (36 library,
+  16 binary);
+  through its build in disposable repositories,
+  a lock a killed service left is cleared by the next command with a line saying what proved it,
+  the staged content byte for byte the same,
+  a live holder's lock stays,
+  and a commit through the service lands after the clearing;
+  a commit of one file adds 37 to 55 ms over real Git's 4 to 8 ms
+  (ratios 7.5 to 10.6,
+  nine rounds alternating).
+  The two lock-wait binary controls red on `main` stay red and are not changed by it.
+- Checked before the merge:
+  the tip holds `63b55a57d0`,
+  and `git log 246a358fce..main` names no commit under `package/git-policy/`,
+  `toolchain.lock.json` or `Cargo.lock`.
+  Merged at 01:38:12 as `1d6ee5e105`.
+  The six passes still going were told at 01:41:12
+  (`~/temp/agent/notes-to-send/note-for-the-passes-still-going-that-main-holds-pass-28-2026-11-14T0142.md`).
+- **Release `0.6.1-alpha.24`**:
+  the first dispatch was refused,
+  rightly,
+  because the remote did not hold the merge yet
+  ("25 commits of local main that origin/main do not have");
+  the push arrived within two minutes and the second dispatch started run 43567512343.
+  Its waiter is going.
+- **Noticed by pass 28, not its task**:
+  a commit whose service died mid-landing waits 12.1 to 12.3 s before it returns 0
+  (the wait pass 29's branch answers);
+  the first commit of a fresh service took 283 to 1,829 ms where later ones take 40 to 70 ms,
+  with the service's own landing at 18 to 20 ms,
+  which no run measures yet;
+  two prestaged marker files stand in a repository after a commit,
+  collected at the next service start.
+- **The daily update ended at 01:40:01**
+  (`toolchain-daily-update.service`,
+  started 00:16:48,
+  result `success`).
+  It checked 260 package checks,
+  landed the repository toolchain lock at 00:34:23
+  (`2527839f38`:
+  `rust` to `nightly-2026-11-14`,
+  `harper-cli` 3.2.0,
+  `cargo-nextest` 0.9.152),
+  left the machine-global toolchain unchanged,
+  landed the dependency locks at 00:45:56,
+  and then ran the checks again.
+- **Red after it and green before it**,
+  by its log:
+  the Clippy tasks of `package/mpm-shadow/cli`,
+  `package/cargo-shadow/cli`,
+  `package/browserslist/core-rust`,
+  `package/music-player/desktop-app`,
+  `package/search-shadow/cli` and `package/wg/cli-quicker-exempt`,
+  all with one message,
+  "unnecessary use of `.to_string()`".
+  Run by this session on `main` at `07a1828633`:
+  `mise run //package/mpm-shadow/cli:lint:clippy` ends with status 101 and eighteen findings of `clippy::unnecessary_to_owned`
+  (`~/temp/agent/mpm-shadow-clippy-on-main-after-the-daily-update-check-failed-2026-11-14/keep/clippy-of-mpm-shadow-on-main.txt`).
+  The wrapper's Clippy passed in the update's check and in pass 28.
+  Fresh runs are queued at the head for the two packages this session answers for
+  (`mpm-shadow-clippy-passes-under-the-nightly-of-2026-11-14`,
+  `cargo-shadow-clippy-passes-under-the-nightly-of-2026-11-14`).
+  An mpm-shadow branch whose author reported Clippy clean before merging that lock meets this when it merges `main`.
+- **Red before it as well**:
+  the type check of `package/git-policy/cli.fuzz`
+  (`E0046` before the update,
+  "failed to download `zruntime v0.2.3`" after),
+  so the wrapper's fuzz sidecar no longer compiles against the wrapper;
+  a fresh run is queued at the head
+  (`fuzz-sidecar-of-the-wrapper-type-checks-against-the-wrapper-of-main`).
+  Not this session's packages,
+  and with no run:
+  the type checks of about forty TypeScript packages
+  (most `TS2305` or `TS2307`,
+  `package/or-throw/core` and `package/pi-shared/model-review` among them),
+  and the Clippy tasks of `package/ide/app`,
+  `package/linter/monochromatic-lint-closure` (`E0797`) and `package/forbidden-strings/cli`.
+  Whether the TypeScript ones are `main` itself or links gone stale in the main checkout is not measured.
+- **The drive, and the cap is eighteen**:
+  at level twenty the probe read 70 s at 01:29:06,
+  then 143 s at 01:37:37 and 57 s at 01:41:00,
+  two in a row,
+  with twenty and eighteen agents going.
+  Level twenty fails by the criterion and the rule gives eighteen,
+  since 01:42:18
+  (`doc/handover/agents-at-once-on-this-machine.md`,
+  "Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00";
+  filling unit `fill-free-places-and-put-ended-reviews-back-at-level-18-20261114T0142`,
+  until 09:42,
+  no successor).
+  A failure at eighteen gives seventeen,
+  and then the search ends at sixteen.
+  The daily update's end at 01:40:01 gives the control hour:
+  readings from 01:42 on without it.
+- The queue held 60 entries at 01:40:50.
 
 ##### Six runs read and routed: pending push, landed removal, the issue 6293 review, five library controls, three removal notices, mpm-shadow's stale launchers (2026-11-14T01:33:09-05:00)
 
