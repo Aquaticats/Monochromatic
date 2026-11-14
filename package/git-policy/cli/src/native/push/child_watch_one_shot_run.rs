@@ -178,6 +178,8 @@ pub fn output_watched_within_for_a_stop(
         release_write_ends(command);
     }
     let child: Child = spawned?;
+    // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
+    crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
