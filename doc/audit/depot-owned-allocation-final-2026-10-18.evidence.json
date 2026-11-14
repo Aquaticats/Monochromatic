@@ -12,12 +12,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 809905,
-        "sha256": "3c7f5e39153e1e2a42b4388beb9bd483182745e0cd631c4f2b614e460f3df887",
+        "bytes": 837207,
+        "sha256": "6de1ddfc8f3306b2119dd9e286b5ecff5e130ee6fa50c2010f92fa50b998a2e7",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -31,7 +32,19 @@
       "bytes": 392421,
       "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
       "uncompressedBytes": 3179766,
-      "records": 41
+      "records": 41,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     "rootVerification": {
       "schemaVersion": 1,
@@ -48,17 +61,30 @@
           "bytes": 392421,
           "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
           "uncompressedBytes": 3179766,
-          "records": 41
+          "records": 41,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 142562,
-            "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+            "bytes": 143088,
+            "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -92,12 +118,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 142562,
-        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "bytes": 143088,
+        "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -3343,7 +3370,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 24ce11c66aeddc012458b05b10e6b940343469f4:doc/audit/depot-owned-allocation-final-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

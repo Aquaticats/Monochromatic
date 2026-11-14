@@ -3652,7 +3652,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 9c112c357a1f3403d50db060725ca777a285e448:doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -3749,7 +3750,8 @@
               "removedFromTree": false,
               "historyCommand": null,
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": null
+              "keptAs": null,
+              "note": null
             }
           ]
         },
@@ -3786,7 +3788,8 @@
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -3813,7 +3816,8 @@
               "removedFromTree": false,
               "historyCommand": null,
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": null
+              "keptAs": null,
+              "note": null
             }
           ]
         },
@@ -3855,7 +3859,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 9c112c357a1f3403d50db060725ca777a285e448:doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }

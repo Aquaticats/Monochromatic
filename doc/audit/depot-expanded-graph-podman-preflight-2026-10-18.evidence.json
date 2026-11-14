@@ -556,7 +556,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 5edbdadcc278cb95484aa1d4033495317513c75c:doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

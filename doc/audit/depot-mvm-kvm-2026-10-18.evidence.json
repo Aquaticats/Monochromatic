@@ -18317,7 +18317,8 @@
         "removedFromTree": true,
         "historyCommand": "git show f86e1ee1da76ae8bd4a6a08a6fd30fac238e5265:doc/audit/depot-mvm-kvm-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

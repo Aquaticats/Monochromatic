@@ -13,17 +13,30 @@
       "bytes": 387034,
       "sha256": "a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2",
       "uncompressedBytes": 3121960,
-      "records": 35
+      "records": 35,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": "The pair this entry records, 387034 bytes and SHA-256 a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2, is an earlier version of the same path, held by commit 39ef85953417eb49705aef425c07d29e5da4e455; the version tracked last is 392421 bytes and SHA-256 872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d, printed by historyCommand."
+        }
+      ]
     },
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 142562,
-        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "bytes": 143088,
+        "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -67,7 +80,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 846d2c13016c642da994b952f320988d17993940:doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

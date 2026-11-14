@@ -15,7 +15,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 9d19767001013fb3d7cdee990a3a1135ab301689:doc/planning/depot-complete-coverage-packages.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

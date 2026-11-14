@@ -42,7 +42,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 922faafef162af0f153f1b83e1d761b210651f1a:doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

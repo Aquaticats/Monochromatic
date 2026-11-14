@@ -22,7 +22,8 @@
         "removedFromTree": true,
         "historyCommand": "git show d5e3e0e9101560fc716b19b967004e00ddfb60e0:doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

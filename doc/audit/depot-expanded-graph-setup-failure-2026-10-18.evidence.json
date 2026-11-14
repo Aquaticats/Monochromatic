@@ -36,7 +36,8 @@
         "removedFromTree": true,
         "historyCommand": "git show eabb44a5e6ac03320cbbb488ed643c2d995e2877:doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

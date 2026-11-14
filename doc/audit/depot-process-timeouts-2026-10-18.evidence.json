@@ -852,7 +852,8 @@
         "removedFromTree": true,
         "historyCommand": "git show d43f5c400319d6f5f33b919dccc3817aaf070aa9:doc/audit/depot-process-timeouts-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

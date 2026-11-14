@@ -888,7 +888,8 @@
         "removedFromTree": true,
         "historyCommand": "git show e212b700ab7e1e80c9bee61e800da42889dd458d:doc/audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

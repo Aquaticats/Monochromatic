@@ -1941,7 +1941,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 8b358eaa515d03e99f26e4b765592d3fbfbf0244:doc/audit/depot-job-policy-history-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

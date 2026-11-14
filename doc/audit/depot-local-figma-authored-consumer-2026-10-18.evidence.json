@@ -177,7 +177,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 5a52544d1e65e8f29de9ce315e0698965b532c26:doc/audit/depot-local-figma-authored-consumer-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

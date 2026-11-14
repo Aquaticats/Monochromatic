@@ -9,12 +9,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 40343,
-        "sha256": "95ea90235f833c2e74af5da5d445e47812cba258d36b6a3863ae18a7ff02510e",
+        "bytes": 40389,
+        "sha256": "5e5fdee9ef110b4e2b2c94a1035a3e5ed9289a21202c61bab1afdf060b61af5a",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -34,7 +35,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

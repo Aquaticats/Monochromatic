@@ -10,12 +10,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 15824,
-          "sha256": "8d7bfea2bb24572a8447e1f9edb39ca8fc9a0bf0575f8fa6fdfa3b82b1de039c",
+          "bytes": 15846,
+          "sha256": "bf14180cc00d623e1ab5fc099f0738bc104f94cd8676d11c8e86cbff78f41f1c",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -26,12 +27,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 11234,
-          "sha256": "d8b581cfbba49d7e1f3f69868337badd6fd75b9b2af4de60ee40c738f7b18e85",
+          "bytes": 11256,
+          "sha256": "e8b993b376fda5a4e1863266f67622cb34ef1aab12108d090e5983eac4f891e7",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -42,12 +44,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 5504,
-          "sha256": "396a0995e1b0c4dc87b26a7a8afccc130c5a085d4c00c1199b7eb0ed864c118c",
+          "bytes": 5604,
+          "sha256": "9a3bf8d4f203e15ab72dbfd80f948c7f2a1c4cb430223c66166e217bfcddab81",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }
@@ -103,7 +106,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 655373399364dbfc4d3a6fcb9f2e35b99d8248a0:doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

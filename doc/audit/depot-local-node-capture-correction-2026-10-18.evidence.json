@@ -9,12 +9,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 6920,
-        "sha256": "44fec10dd1a14ef383e2772f7f0f3419634c20a39b798e44fa78c16fcc90b5a2",
+        "bytes": 6942,
+        "sha256": "e0d8c9504afaf7ddaa882d4dbc61f9be75d060278d6be90fdbf8ab80e4ec2d9d",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -1082,7 +1083,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 9412e49ee6259e4e9cacfc0b36d27660882d081c:doc/audit/depot-local-node-capture-correction-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

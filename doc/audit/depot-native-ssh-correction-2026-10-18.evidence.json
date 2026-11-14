@@ -309,7 +309,8 @@
         "removedFromTree": true,
         "historyCommand": "git show a90cb3ef079b2ca868556b8bfc1fe72705c50af6:doc/audit/depot-native-ssh-correction-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

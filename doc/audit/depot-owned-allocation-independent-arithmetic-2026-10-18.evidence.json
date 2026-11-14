@@ -23,19 +23,21 @@
           "removedFromTree": true,
           "historyCommand": "git show 9341e215df4df5a1462d9a39fa0462a357a4c779:doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 809905,
-        "sha256": "3c7f5e39153e1e2a42b4388beb9bd483182745e0cd631c4f2b614e460f3df887",
+        "bytes": 837207,
+        "sha256": "6de1ddfc8f3306b2119dd9e286b5ecff5e130ee6fa50c2010f92fa50b998a2e7",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

@@ -15,7 +15,8 @@
         "removedFromTree": true,
         "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -27,12 +28,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 321459,
-          "sha256": "5dfa55c44ac08d2b60f7d081b92f32fa2116dd5d4b1a1299e9978024a8d115fc",
+          "bytes": 321481,
+          "sha256": "63809ce63dd059525e49042397a5b38f15971df61730a26ce7e4afd2d754afb6",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -43,12 +45,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 508299,
-          "sha256": "d628339a010f41d44a3e13341916f7719330424ce66019b7f9e48668020166d6",
+          "bytes": 508321,
+          "sha256": "ba6a90786cd914fb086579280838b358e49f438ac9aee6a0f0e2d6fa0fbc4e46",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }

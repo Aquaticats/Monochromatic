@@ -2996,7 +2996,8 @@
         "removedFromTree": true,
         "historyCommand": "git show afd2f8efac0b53e563aeb19e5de31b81877f435b:doc/audit/depot-native-orchestration-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

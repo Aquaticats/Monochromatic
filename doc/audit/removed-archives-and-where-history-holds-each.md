@@ -82,6 +82,22 @@ each with the same fields:
 - `keptAs`:
   the plain file that holds what the documents cite,
   else `null`.
+- `note`:
+  a sentence for the few records that need one,
+  else `null`.
+
+A `note` explains a pair the seven other fields cannot:
+a record whose pair is an earlier version of the path,
+naming both pairs and the commits
+that hold them;
+a file that records its own digest,
+whose pair can never be current;
+or a member that is not kept,
+and why.
+Where such a note is about a file that records its own digest,
+`bytes` and `sha256` are
+`null`,
+because writing a current pair into that file changes it.
 
 The recorded `bytes` and `sha256` of an entry are left as they were:
 they describe the file when the evidence was recorded,
@@ -103,6 +119,15 @@ listed so the reader can find the note:
 - `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
   field `/historicalIndependentCoverage/closureIssue/receipt/issue/comments/0` names `doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz`;
   the note is on `/historicalIndependentCoverage/closureIssue/receipt/issue`.
+- `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
+  field `/issues/3` names `doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz`;
+  the note is on `the document root`.
+- `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
+  field `/mutationRunnerSpawnControl/sourceIssue/issue` names `doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip`;
+  the note is on `/mutationRunnerSpawnControl/sourceIssue`.
+- `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
+  field `/sourceMethodLookupIncident/issue` names `doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz`;
+  the note is on `/sourceMethodLookupIncident`.
 
 ## Planning records, `doc/planning/depot-*`
 
@@ -457,13 +482,24 @@ listed so the reader can find the note:
 
 ## Audit records, `doc/audit/depot-*`
 
-66 archives left the tree in this family.
+70 archives left the tree in this family.
 
 - `doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz`:
   86403 bytes,
   SHA-256 `003e3155561cea4636cb927d1709e5e157fa27fa0995e49083632266558390d5`,
   last changed in commit `20abb5fa5b96353b646a2d25e0c8eca13c6ab49d`,
   printed by `git show 20abb5fa5b96353b646a2d25e0c8eca13c6ab49d:doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz`:
+  3573335 bytes,
+  SHA-256 `cd9fff9610f40cbfd39ce9292ef104f8b7b7ef16e61d5c834fbcc71b7f78c40f`,
+  last changed in commit `16d4af7a756729fdbeb440825883f84f62d1c0b3`,
+  printed by `git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz`.
+  Its cited records are kept in `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json`.
+  What the documents cite is kept,
+  trimmed to the two Dockerfile records;
+  the `depot-cargo-wrapper-boundary.json` record the platform ledger names is not,
+  because the forbidden-strings guard refused the file that carried its
+  `SCCACHE_WEBDAV_PASSWORD` fixture markers.
 - `doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz`:
   8210 bytes,
   SHA-256 `f92c3eb1f7e87bd59c393faa0df7a1f9e42f762bb287cbdb8697154b0c690f6d`,
@@ -629,6 +665,18 @@ listed so the reader can find the note:
   SHA-256 `bf7243ebbd570e912bf84fdca493c0c5a6ffda3de40211a9abdba97edc6a482d`,
   last changed in commit `1b29e57f37ea1a698501870026d7de1f07ebdf5d`,
   printed by `git show 1b29e57f37ea1a698501870026d7de1f07ebdf5d:doc/audit/depot-local-node-counterfactual-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz`:
+  426661 bytes,
+  SHA-256 `adc0a5e7a443843c07362fb479e5f7d951a71bcd6996e4d6166ea6de80eeb0ef`,
+  last changed in commit `9c4121a4a43255323184d203dddf4740137323a8`,
+  printed by `git show 9c4121a4a43255323184d203dddf4740137323a8:doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz`.
+  Its only naming file,
+  `doc/audit/depot-final-recovery-2026-10-17.evidence.json`,
+  records at `/commonManifestTransportControls` its own digest
+  `1a6f6aaee60910a6fe44c653308648ba8a19abf2dc3713ebe05e227ff1390369`
+  of the 1043537 bytes at commit `8c70741076b02238bc9dab9fc10443dd9aea77e2`.
+  Its note says that pair is not and cannot be current:
+  a note that carries a file's own digest changes the file.
 - `doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz`:
   211223 bytes,
   SHA-256 `6435ee9f846e5f964ef1ad408cc540adb053d8a37d95bde7264766aa7a87459e`,
@@ -659,6 +707,19 @@ listed so the reader can find the note:
   SHA-256 `6b4b5a581914ea3577a7334542048d6d0a9def769d7d93cb5dae2d2f2226fa06`,
   last changed in commit `eedccaa1afc057e114201ff2ed8055f420088957`,
   printed by `git show eedccaa1afc057e114201ff2ed8055f420088957:doc/audit/depot-native-baseline-2ls35xfpds-2026-10-19.log.gz`.
+- `doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz`:
+  128260 bytes,
+  SHA-256 `73c1e95822919d9029144fd6892ecb5a9273f244db3ea39be634eac7e7c4b8a3`,
+  last changed in commit `ba8e7e6ce3d68c72ba298efeeb80724fd144ad55`,
+  printed by `git show ba8e7e6ce3d68c72ba298efeeb80724fd144ad55:doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz`.
+  One record names an earlier version of this path:
+  18768 bytes and SHA-256
+  `e5d29d600540f529c333ec3bb0bf259dde04d2b1fd76af16428d58c03142a2a2`,
+  held by commit `c1cef256ba096dca3879b4d9f04e633b0fe7b4a2`.
+  That record is `/outOfSnapshotFollowOns/1/sourceAdmission/sourceArchive` in
+  `doc/audit/depot-owned-allocation-ledger-2026-10-18.evidence.json`,
+  and the note beside it says the same.
+  The version tracked last is the pair above.
 - `doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz`:
   13893 bytes,
   SHA-256 `672193a5ca02e030240664f0812f7b612e7d02b263158b36728346a8c7a29f7e`,
@@ -694,6 +755,19 @@ listed so the reader can find the note:
   SHA-256 `98d63cf22dfc333016187266983e0f1512d89b401f5c1d88859d65cb314cc813`,
   last changed in commit `24ce11c66aeddc012458b05b10e6b940343469f4`,
   printed by `git show 24ce11c66aeddc012458b05b10e6b940343469f4:doc/audit/depot-owned-allocation-final-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz`:
+  392421 bytes,
+  SHA-256 `872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d`,
+  last changed in commit `3cac1b657b38a1194adb59b1b143a4f7552947a6`,
+  printed by `git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz`.
+  One record names an earlier version of this path:
+  387034 bytes and SHA-256
+  `a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2`,
+  held by commit `39ef85953417eb49705aef425c07d29e5da4e455`.
+  That record is `/input/sourceArchive` in
+  `doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.evidence.json`,
+  and the note beside it says the same.
+  The version tracked last is the pair above.
 - `doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz`:
   398912 bytes,
   SHA-256 `9a71dca1550e93b8a4cfebd18c28e53ad29347a93a1f31f6a93cddd2aa6903a5`,
@@ -795,7 +869,7 @@ listed so the reader can find the note:
 
 ## Records kept in the tree for a removed archive
 
-4 of the removed archives are cited for something a reader can
+5 of the removed archives are cited for something a reader can
 only check by opening the archive:
 a figure it would have to recompute,
 a member path with what it holds,
@@ -806,6 +880,22 @@ documents,
 and every other removed archive is named only as the place the raw
 material was kept,
 which this record resolves.
+
+### `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json`
+
+The two `.files[]` records the documents cite by commit and path,
+with their bodies:
+`ci-context/Dockerfile` at commit `0b471538cd`,
+and `ci-node26-context/Dockerfile` at commit `7590bcde15`,
+whose SHA-256 is the one the document names.
+The archive's `depot-cargo-wrapper-boundary.json` record is not kept:
+its `SCCACHE_WEBDAV_PASSWORD` fixture marker keys match the forbidden-strings rule `hashicorp-tf-password`,
+and the guard refused the file that carried them;
+read that record from the archive with the print command.
+
+Cut from `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz` at commit `16d4af7a756729fdbeb440825883f84f62d1c0b3`.
+The archive is 3573335 bytes,
+SHA-256 `cd9fff9610f40cbfd39ce9292ef104f8b7b7ef16e61d5c834fbcc71b7f78c40f`.
 
 ### `doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json`
 
@@ -1339,30 +1429,16 @@ and the digest it has in the tree second.
 
 ## Archives that stayed tracked
 
-4 archives stayed in the tree,
-each because the removal ran into a
-record or a guard the owner has to decide about.
-Each is a question,
-not an oversight:
+None.
+The four archives the first pass stopped on were settled on 2026-11-13:
+two because a record disagreed with the blob it names,
+one because its naming file records its own digest,
+and one because the guard refused the record it was kept for.
+Each left the tree in the second pass,
+and the note beside the record that raised
+the question says what it found.
 
-- `doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz`:
-  one evidence file records 18768 bytes and sha256 e5d29d60...,
-  the tracked blob is 128260 bytes and 73c1e958...
-- `doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz`:
-  one evidence file records 387034 bytes and sha256 a7a144cc...,
-  the tracked blob is 392421 bytes and 87265177...
-- `doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz`:
-  its naming file,
-  doc/audit/depot-final-recovery-2026-10-17.evidence.json,
-  records its own bytes and sha256,
-  so editing that file can never leave a matching digest
-- `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz`:
-  the forbidden-strings guard refused a kept record:
-  the depot-cargo-wrapper-boundary.json record it holds carries SCCACHE_WEBDAV_PASSWORD fixture token markers,
-  which the hashicorp-tf-password rule matches,
-  so nothing of this archive is kept and the archive stays tracked
-
-The three Java archives the owner allowlisted stay tracked as well:
+The three Java archives the owner allowlisted stay tracked:
 `package/intellij-plugin/islands-black/islands-black.jar`,
 `package/linter/kotlin/gradle/wrapper/gradle-wrapper.jar` and
 `package/music-player/android-app/gradle/wrapper/gradle-wrapper.jar`.

@@ -1092,7 +1092,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 594497b184ccb18726303e2fbabccd58c82a7422:doc/audit/depot-remaining-local-unit-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

@@ -33615,7 +33615,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -129049,7 +129050,8 @@
               "removedFromTree": true,
               "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": null
+              "keptAs": null,
+              "note": null
             }
           ]
         },
@@ -275302,7 +275304,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -279344,7 +279347,8 @@
               "removedFromTree": true,
               "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": null
+              "keptAs": null,
+              "note": null
             }
           ]
         },
@@ -279438,7 +279442,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -291218,7 +291223,8 @@
               "removedFromTree": true,
               "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+              "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md",
+              "note": null
             }
           ]
         },
@@ -291238,7 +291244,8 @@
               "removedFromTree": true,
               "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": null
+              "keptAs": null,
+              "note": null
             }
           ]
         },
@@ -371971,18 +371978,7 @@
       "number": 1118,
       "state": "OPEN",
       "title": "Mutation method lookup emits inherited Object functions as replacement text",
-      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118",
-      "inTreeNow": [
-        {
-          "measuredOn": "2026-11-13",
-          "bytes": null,
-          "sha256": null,
-          "removedFromTree": true,
-          "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
-          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
-        }
-      ]
+      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118"
     },
     {
       "body": "## Observed failure\n\nThe unchanged source TOML mutation task completes with exit zero,\ngreen baseline and one source-terminal compileError mutant,\nbut the trial job fails an independent metadata observer.\nNo mutant assertion execution or full-campaign pass is claimed.\n\nThis repeated in run mj128hqwv0,\nworkflow t8wq69b56g,\njob h4c49btlhq,\nattempt 3wnf82gzb8,\nsource 525d2e09f8168a3bdd7e513e26d4c80b363123e5,\nharness 0f8ad795aa92d3beb83e3bfa4e4aa54f1bea06f8.\nThe earlier bounded run 0j8zhbn9n0 retained the same null-status assertion without underlying operation details.\n\n## Exact observer receipt\n\nThe command was container-bin/podman ps --all --filter label=io.monochromatic.toml-attempt=7185dde1-5802-43c2-b296-e257b9f313cf --format json,\nworking in the immutable source checkout.\n\nIt ran from 2026-10-17T07:25:23.786Z to 2026-10-17T07:25:31.793Z,\nobserved 8006.465648000001 milliseconds against an 8000-millisecond budget,\nand returned null status,\nSIGKILL,\nETIMEDOUT,\nerrno -110.\nStdout was three bytes ([] plus newline); stderr was zero bytes.\nThe wrapper assertion was null !== 0.\n\nThe generated Node container adapter forwards synchronously to sudo --non-interactive and the resolved actual Podman executable,\nthen propagates returned status after conditional cleanup.\nAn empty list on stdout does not establish wrapper or underlying Podman completion.\nPodman,\nsudo and Node lifecycle ownership remains unresolved; no database-lock or upstream lifecycle cause is claimed.\nSeven other list operations and the final event query returned zero.\nSource cleanup guards passed.\n\n## Immutable evidence\n\nArtifact 01a148c0-c29e-7644-a0ec-f546f5caf3e8 has 46389 bytes,\nSHA-256 3e12339c854c28f69ef9ecdc29e03b2f1f0efe2959ad66bfd23347e1d75df2bb.\nAll 20 members are individually verified.\nExact operation JSONL,\nsource-native report,\nshard identities,\nbefore/after source proof,\nlogs and cleanup are retained in doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json,\ncommit 7555eb5a89.\nProvider interval 165116 milliseconds at 16x64 remains failed usage.\n\n## Trial recovery and acceptance\n\nThe authorized metadata-only trial uses a 60000-millisecond bound,\nan observer-only copied forwarder with before/after sudo lifecycle receipts,\nand complete metadata durations.\nThe source consumer keeps the proven d098532a container adapter byte-for-byte and unchanged source arguments.\nDisposable controls prove forwarding,\ntimeout rejection,\nand detection after removing the timeout guard.\nActual bounded repeat vlrxjltfkq is dispatched at 316e1a8a309e71e456a741eb63e5ff3b94b75646.\n\nAcceptance requires actual source completion,\nall metadata operation receipts,\nexplicit forwarded results,\nsource correlation and scoped cleanup,\nwhile preserving original failures and timeout rejection.\nNo application source change is included.\nFull mutation completion remains separate.\n\n## Duplicate search\n\nAll-state current-repository searches covered TOML metadata,\npodman ETIMEDOUT,\nand mutation observer.\nIssue #1113 is the separate outer job timeout that lost active mutation evidence and censored an independent gate.\nIssue #1114 concerns immutable input guards,\n#1070 concerns the source logger sink timeout/SIGKILL,\nand #1116/#1117 concern other container prerequisites.\nNo matching metadata-observer deadline incident was found.\n",
@@ -372346,19 +372342,20 @@
       "number": 1118,
       "state": "OPEN",
       "title": "Mutation method lookup emits inherited Object functions as replacement text",
-      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118",
-      "inTreeNow": [
-        {
-          "measuredOn": "2026-11-13",
-          "bytes": null,
-          "sha256": null,
-          "removedFromTree": true,
-          "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
-          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
-        }
-      ]
-    }
+      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118"
+    },
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "metadataObserverIssue": {
     "duplicateSearch": {
@@ -372828,7 +372825,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+                "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md",
+                "note": null
               }
             ]
           },
@@ -372847,7 +372845,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -380380,7 +380379,8 @@
               "removedFromTree": true,
               "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+              "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md",
+              "note": null
             }
           ]
         },
@@ -380417,18 +380417,7 @@
         "number": 1142,
         "state": "OPEN",
         "title": "Mutation runner classifies a failed Node spawn as a killed mutant",
-        "url": "https://github.com/Aquaticats/Monochromatic/issues/1142",
-        "inTreeNow": [
-          {
-            "measuredOn": "2026-11-13",
-            "bytes": null,
-            "sha256": null,
-            "removedFromTree": true,
-            "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
-            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
-          }
-        ]
+        "url": "https://github.com/Aquaticats/Monochromatic/issues/1142"
       },
       "duplicateSearch": [
         {
@@ -380483,7 +380472,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md",
+          "note": null
         }
       ]
     },
@@ -382220,7 +382210,8 @@
               "removedFromTree": true,
               "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+              "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md",
+              "note": null
             },
             {
               "measuredOn": "2026-11-13",
@@ -382229,7 +382220,8 @@
               "removedFromTree": true,
               "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
               "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-              "keptAs": null
+              "keptAs": null,
+              "note": null
             }
           ]
         },
@@ -382240,5 +382232,17 @@
         "finalCoherentDispatch": false
       }
     }
-  }
+  },
+  "inTreeNow": [
+    {
+      "measuredOn": "2026-11-13",
+      "bytes": null,
+      "sha256": null,
+      "removedFromTree": true,
+      "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+      "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+      "keptAs": null,
+      "note": null
+    }
+  ]
 }

@@ -8,12 +8,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 398430,
-        "sha256": "97bf103b45b7496ca142d2d1b061d7dad91a5322e24ffa3e3dd236c41b3ceedd",
+        "bytes": 404838,
+        "sha256": "67dd98d41683fe89864e803c71320fa0d64e9fdce03f56f15e66dfa3e4a01afc",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -40,12 +41,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 33585,
-            "sha256": "df0ef21544a5c49ee9aadd69c698f47d387c0c454f1e95fabe5d11f5d863fa29",
+            "bytes": 33633,
+            "sha256": "c0747548bc03b065fb1a64a6952ca2e8a1ba93db14bd4ad8c10a975ba5864839",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -62,7 +64,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 20abb5fa5b96353b646a2d25e0c8eca13c6ab49d:doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -74,12 +77,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 211389,
-            "sha256": "f00090d8fb4dc6033fd825a5ff566259f733694261ae0deb1f659661e0077978",
+            "bytes": 211899,
+            "sha256": "3e893e454d53a281e38953c6f01526b56752f6e964bf736c3f97efdd319c5ab8",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -87,7 +91,19 @@
         "path": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
         "bytes": 3573335,
         "sha256": "cd9fff9610f40cbfd39ce9292ef104f8b7b7ef16e61d5c834fbcc71b7f78c40f",
-        "decodedBytes": 25884603
+        "decodedBytes": 25884603,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+            "note": null
+          }
+        ]
       },
       {
         "path": "doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz",
@@ -102,7 +118,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 1b28fb2da949ced0d57fdcaf19d47d5f07b20390:doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -120,12 +137,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 61293,
-            "sha256": "954558110f0c651db6ce2cf8b4bbb8d0998b98dc66dd9d63d07bd4adf69ccf32",
+            "bytes": 61315,
+            "sha256": "ec8447ea7ca264b957a82e88a8e76ee37abb961dccec184b664b12704d0c5434",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -142,7 +160,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 77833ff47edd8ce593611a5e4cc017d6a3e51607:doc/audit/depot-cache-trust-scope-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -237,7 +256,8 @@
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -249,12 +269,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 590519,
-            "sha256": "d71a3dd2993a7920fdec33d2a788ab58283cd0826fa3844a44e60b2a3330921b",
+            "bytes": 590653,
+            "sha256": "e5ea2d886c9a2cdb83c32dccbdba79af5d1055361ff87ac9a6490548c126b1a8",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -301,7 +322,8 @@
             "removedFromTree": true,
             "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-desktop-receipts.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -318,7 +340,8 @@
             "removedFromTree": true,
             "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-external-generation-receipts.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -335,7 +358,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -358,7 +382,8 @@
             "removedFromTree": true,
             "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -388,12 +413,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 10517,
-            "sha256": "1a6c743bcce2597efb652272b8205ebf18317239b39cded67fba5dcbe1d602b0",
+            "bytes": 10539,
+            "sha256": "43677fad1c083fef19bf4898db3cd589a08837e485a4f5d3d8ec5d06b83ef564",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -410,7 +436,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 922faafef162af0f153f1b83e1d761b210651f1a:doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -427,7 +454,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 046596174a061c31e4e2b8e8aaf7eca6565384a8:doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -444,7 +472,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 1a562991f6d24f8284b931c7913fb3c30c5f3467:doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -504,12 +533,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 4300,
-            "sha256": "3ef32b6c1cdf2e95784a3c6c3b913604cb4df1c57ca964a74130db8ab6d9166e",
+            "bytes": 4394,
+            "sha256": "62dd6bf91671b9122b927db5969aaf96fd58b45e2930e5c91f9e4b7cddc260fa",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -526,7 +556,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 655373399364dbfc4d3a6fcb9f2e35b99d8248a0:doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -544,12 +575,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 5504,
-            "sha256": "396a0995e1b0c4dc87b26a7a8afccc130c5a085d4c00c1199b7eb0ed864c118c",
+            "bytes": 5604,
+            "sha256": "9a3bf8d4f203e15ab72dbfd80f948c7f2a1c4cb430223c66166e217bfcddab81",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -561,12 +593,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 15824,
-            "sha256": "8d7bfea2bb24572a8447e1f9edb39ca8fc9a0bf0575f8fa6fdfa3b82b1de039c",
+            "bytes": 15846,
+            "sha256": "bf14180cc00d623e1ab5fc099f0738bc104f94cd8676d11c8e86cbff78f41f1c",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -583,7 +616,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 05d02428a0a0322ab4267a7d522c593317541699:doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -601,12 +635,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 11234,
-            "sha256": "d8b581cfbba49d7e1f3f69868337badd6fd75b9b2af4de60ee40c738f7b18e85",
+            "bytes": 11256,
+            "sha256": "e8b993b376fda5a4e1863266f67622cb34ef1aab12108d090e5983eac4f891e7",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -623,7 +658,8 @@
             "removedFromTree": true,
             "historyCommand": "git show f53c920cb24157db59873d3b24aaf51a493d6e32:doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -635,12 +671,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 104329,
-            "sha256": "cc980eda3224f94b5ee738f825e67fded3bf384e98419b9c0dbd3c4a47f7b3c8",
+            "bytes": 104351,
+            "sha256": "0c36644fa0d38cc9e1ddaad316cb67c0fc31a215c19d5c9b604b3cc139918e4c",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -657,7 +694,8 @@
             "removedFromTree": true,
             "historyCommand": "git show e0790e738da7e1c33e49fa200e9fc5105d11503a:doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -675,12 +713,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 206277,
-            "sha256": "29ce4ec72e86fc36bd6afcefd18d3ea4027090dd682774906e533d71853c8b45",
+            "bytes": 206299,
+            "sha256": "c4d331546db29bde9005471ad8e573c3bece46054dd956bf6d2551b3ad0b244e",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -697,7 +736,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 088d45e80e2d29548541813f23821e8d16fa1290:doc/audit/depot-expanded-graph-parity-review-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -709,12 +749,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 12106,
-            "sha256": "919a53de26e75cca3b4669a8537533dcafdf9f16ef78c5993b1a21cbed237d81",
+            "bytes": 12128,
+            "sha256": "b204c0e094b4cc29064bb0ea552a06bd780e27d7815f5bfecedf8ab779cf2031",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -731,7 +772,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 5edbdadcc278cb95484aa1d4033495317513c75c:doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -743,12 +785,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 17623,
-            "sha256": "cb522e6f1b82326a3c3bac49b1c057dcdbffe2a6aab3e95469612b24d5cf376a",
+            "bytes": 17645,
+            "sha256": "87ca0a296d8842be9262eaf125461143e18646bdaa8ceb3745076fb5031153cd",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -765,7 +808,8 @@
             "removedFromTree": true,
             "historyCommand": "git show eec08fd2264de03236d1953ec2cce7fa5841fff8:doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -777,12 +821,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 14936,
-            "sha256": "76845e30c2ed1dd05e68f5d59b49b71e2ecb5d04d14c4ef51998819588f26aee",
+            "bytes": 14958,
+            "sha256": "643c0c6fd6991f41fc1a0608e3f82ac5bff7d72ba567cd18bf89c85b8f4b39ac",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -799,7 +844,8 @@
             "removedFromTree": true,
             "historyCommand": "git show eabb44a5e6ac03320cbbb488ed643c2d995e2877:doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -819,7 +865,19 @@
         "path": "doc/audit/depot-final-recovery-2026-10-17.evidence.json",
         "bytes": 2938235,
         "sha256": "41a9fb7bc0d9e414b81328606372f83b299a716c6b6bf79bae9e3e7cd37d4b2a",
-        "decodedBytes": 2938235
+        "decodedBytes": 2938235,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 2939373,
+            "sha256": "4bf42cade8d1661ec76e9d0ecc41fbf6f76671c0b94462c66a70b152519508ec",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "path": "doc/audit/depot-git-host-failure-mapping-2026-10-17.evidence.json",
@@ -841,12 +899,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 15430,
-            "sha256": "72330a084f2bc2bc655351e9a91516db05ab49a14fe3b45dfe0e5e7dbeb4be32",
+            "bytes": 15452,
+            "sha256": "64044393157321a09d0685fad3fa68760c1a5deba097d683006f63d503d28f6f",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -863,7 +922,8 @@
             "removedFromTree": true,
             "historyCommand": "git show d5e3e0e9101560fc716b19b967004e00ddfb60e0:doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -875,12 +935,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 14111,
-            "sha256": "1d499a5d40dc691b29674405af6361d6e8afb3570e146f5ee0025879a6153182",
+            "bytes": 14395,
+            "sha256": "bb4be154810ad9fcc27fa72c6a6b99e47ed0153d388df32a329b66571533aaaa",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -897,7 +958,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 1434118fe0bb7bff146caa5cf31a291f1a857c3e:doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -914,7 +976,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 8b358eaa515d03e99f26e4b765592d3fbfbf0244:doc/audit/depot-job-policy-history-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -926,12 +989,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 122667,
-            "sha256": "db958fc380e55e94b690ba44770557e18b4a9694cd0b9721a582bd5890328f2f",
+            "bytes": 122689,
+            "sha256": "05b11e6edaa5d3da5fe1b236344db62440f7c4ece7be84a265200f576164ce08",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -943,12 +1007,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 14271,
-            "sha256": "690761df6bd971b2c867808bbe012a0a758e01c3819b10f124e0da5f54f918f5",
+            "bytes": 14293,
+            "sha256": "59aca4a2fb23dff8ee55cce0b262bd7d43d6a6cb17e5344a95cb955e36907786",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -971,7 +1036,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -985,7 +1051,19 @@
         "path": "doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz",
         "bytes": 426661,
         "sha256": "adc0a5e7a443843c07362fb479e5f7d951a71bcd6996e4d6166ea6de80eeb0ef",
-        "decodedBytes": 1020658
+        "decodedBytes": 1020658,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 9c4121a4a43255323184d203dddf4740137323a8:doc/audit/depot-logger-host-development-2026-10-17.evidence.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "path": "doc/audit/depot-logger-host-scope-2026-10-17.evidence.json",
@@ -1013,12 +1091,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 52705,
-            "sha256": "a35d4290318f4f7adf0a0f6897d5c1b9af40790a7d05201f2c50a4228a59cc54",
+            "bytes": 52727,
+            "sha256": "73d328aa201d0173b384c09783db1f24c06d9af92845783b78a2d65f4d3c663a",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1035,7 +1114,8 @@
             "removedFromTree": true,
             "historyCommand": "git show c65e3b8eeb0f1bc0e06bf555048b85635ec59202:doc/audit/depot-mvm-guest-files-2026-10-18.originals.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1052,7 +1132,8 @@
             "removedFromTree": true,
             "historyCommand": "git show f86e1ee1da76ae8bd4a6a08a6fd30fac238e5265:doc/audit/depot-mvm-kvm-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1064,12 +1145,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 699932,
-            "sha256": "6f91d44ee6afa64fc5dc5f135db8ffba7c5fba31cdcbf1b631a214e7b1e8bf51",
+            "bytes": 699954,
+            "sha256": "4986a34d9495ae2a5e2e683faf9ebf2efdaf311a7d062be5ba134b1cd9a79b18",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1077,13 +1159,37 @@
         "path": "doc/audit/depot-native-buildkit-job-auth-2026-10-18.evidence.json",
         "bytes": 82952,
         "sha256": "036319203a298756080e3d66e9641ac828f92352dd455740e357bc5f5779646a",
-        "decodedBytes": 82952
+        "decodedBytes": 82952,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 83382,
+            "sha256": "1b71729330c1adae5a5a2e5a7530efd7c0dbfe57a534f425d747de55eaa70e3e",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "path": "doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz",
         "bytes": 128260,
         "sha256": "73c1e95822919d9029144fd6892ecb5a9273f244db3ea39be634eac7e7c4b8a3",
-        "decodedBytes": 632781
+        "decodedBytes": 632781,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show ba8e7e6ce3d68c72ba298efeeb80724fd144ad55:doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "path": "doc/audit/depot-native-checkout-paths-2026-10-18.evidence.json",
@@ -1104,7 +1210,8 @@
             "removedFromTree": true,
             "historyCommand": "git show d63caec30a413e3ace1d352241059928e9482870:doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1120,7 +1227,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 9c112c357a1f3403d50db060725ca777a285e448:doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1155,7 +1263,8 @@
             "removedFromTree": true,
             "historyCommand": "git show afd2f8efac0b53e563aeb19e5de31b81877f435b:doc/audit/depot-native-orchestration-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1167,12 +1276,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 107983,
-            "sha256": "e901b1e09963315b41c1a1d0cceb1aeaf34235ee57edc28c23b7df081c4c8cc9",
+            "bytes": 108005,
+            "sha256": "bb53134abe3de1e73bff6d193cd289ecd588dab4e7bfcfd4f369a3dc63a63609",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1226,12 +1336,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 142562,
-            "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+            "bytes": 143088,
+            "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1239,7 +1350,19 @@
         "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
         "bytes": 387034,
         "sha256": "a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2",
-        "decodedBytes": 3121960
+        "decodedBytes": 3121960,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "path": "doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.evidence.json",
@@ -1249,12 +1372,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 2503,
-            "sha256": "faba4e616a33c25e8611b26522c56a6e80831da3e07694065f81e9e28d1c3830",
+            "bytes": 3363,
+            "sha256": "5cead90cdfd3fbf55de3b0cf5ee8806c4f68ec2091eef4e8b92b3e05ff2ffada",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1271,7 +1395,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 846d2c13016c642da994b952f320988d17993940:doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1283,12 +1408,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 3404,
-            "sha256": "d78687287e0c5934b95d7052428d9e66f67d1ac7aa5f644d6e31ff11be958e91",
+            "bytes": 3450,
+            "sha256": "6aef4d7c492d3b7f1a59fe8af07d79ac087539fe5f3b1225cf0780f057e1bde1",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1300,12 +1426,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 809905,
-            "sha256": "3c7f5e39153e1e2a42b4388beb9bd483182745e0cd631c4f2b614e460f3df887",
+            "bytes": 837207,
+            "sha256": "6de1ddfc8f3306b2119dd9e286b5ecff5e130ee6fa50c2010f92fa50b998a2e7",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1322,7 +1449,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 9341e215df4df5a1462d9a39fa0462a357a4c779:doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1334,12 +1462,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 1933,
-            "sha256": "779b54be2d47a1a5710c70d62926c9e7b5790ee268ade58451f438a6b8d28073",
+            "bytes": 1955,
+            "sha256": "90aa5b57388871ac7a2685768ce1b0f5741a1625eb39cf33e7ce66d3fd95fbc5",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1362,7 +1491,8 @@
             "removedFromTree": true,
             "historyCommand": "git show b2b1aa427b624eba065acfd5b3192eb4a98307a7:doc/audit/depot-physical-test-shards-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1374,12 +1504,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 274870,
-            "sha256": "70d65917b384e60b706726b7ea5cd71660783dc3d094e5d9c0494563a95c3e55",
+            "bytes": 274892,
+            "sha256": "5f9f65beaa5cff6f9168b65eeaa5be264421aaf7beb962d32163766b6286b895",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1408,7 +1539,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1437,7 +1569,8 @@
             "removedFromTree": true,
             "historyCommand": "git show d43f5c400319d6f5f33b919dccc3817aaf070aa9:doc/audit/depot-process-timeouts-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1449,12 +1582,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 40522,
-            "sha256": "6ac8d5243c5f46506451c62514d781169ae6fa3bd44a1c567be2f03e9c74a6df",
+            "bytes": 40544,
+            "sha256": "3d78ae950b2d7adb510f6c8073c92ecb391d52a23dfca30ebd256540a97beb8a",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1489,7 +1623,8 @@
             "removedFromTree": true,
             "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1501,12 +1636,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 2144294,
-            "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+            "bytes": 2144758,
+            "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1559,7 +1695,8 @@
             "removedFromTree": true,
             "historyCommand": "git show e2dc6e8413ad4dca242bf6713d82df9690c98688:doc/audit/depot-runtime-pr-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1571,12 +1708,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 68900,
-            "sha256": "989dcc5262a26aa3c6bcd4516e76fd85cb925d8abe7a9f3646b32464f166dce8",
+            "bytes": 68922,
+            "sha256": "f83d259ba04991ee85f35f745a44bd334a8c3a9b5155809e32ea1a1ea5ebaf61",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1593,7 +1731,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1605,12 +1744,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1627,7 +1767,8 @@
             "removedFromTree": true,
             "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+            "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+            "note": null
           }
         ]
       },
@@ -1639,12 +1780,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 398430,
-            "sha256": "97bf103b45b7496ca142d2d1b061d7dad91a5322e24ffa3e3dd236c41b3ceedd",
+            "bytes": 404838,
+            "sha256": "67dd98d41683fe89864e803c71320fa0d64e9fdce03f56f15e66dfa3e4a01afc",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1686,12 +1828,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 46520,
-            "sha256": "0bbaa23e14a4f0ce67f1872faad6306e7bfd514ac48967449f10d4f2da62947f",
+            "bytes": 46542,
+            "sha256": "5b54d78b6ff4fe73cdec83bf92b44ee56c66ae591bd97ac9b64d2f89f8138948",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1708,7 +1851,8 @@
             "removedFromTree": true,
             "historyCommand": "git show ed03473f9dfbe354df788f274e3c539e93be4762:doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1725,7 +1869,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0a8a2979e091970f4480c38544978c19ace59f93:doc/audit/depot-service-containers-2026-10-18.archives.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1737,12 +1882,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 110022,
-            "sha256": "5d8911cf9a7c4a5a04888ca9997a10ca7dde2f6895ddfd5784c28506e2aac888",
+            "bytes": 110044,
+            "sha256": "210ce0072ea3002995286a70b8698c9980e68c9ea3d4ff072ab1fbed0acbc1a3",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1778,12 +1924,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 41294,
-            "sha256": "883df87d8adedcd2aa8b9f14eaa85bfaf83ac7d35d793f30cc3030a700f19c12",
+            "bytes": 41316,
+            "sha256": "8cf06c4f281b4eb41b99e52dce1e7286ac1befea6bc2cde51c8e7cd4e6dd6f25",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1800,7 +1947,8 @@
             "removedFromTree": true,
             "historyCommand": "git show e212b700ab7e1e80c9bee61e800da42889dd458d:doc/audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1816,7 +1964,8 @@
             "removedFromTree": true,
             "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+            "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md",
+            "note": null
           }
         ]
       },
@@ -1833,7 +1982,8 @@
             "removedFromTree": true,
             "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1850,7 +2000,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1862,12 +2013,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 17643897,
-            "sha256": "8d42b5b2b472c56980c322ebab106ee62a072f922eab7d39e921b1627fa69d96",
+            "bytes": 17643721,
+            "sha256": "9903b255c833b24851428bb5b91cc2e93b6f0e968a26f0e94663b1ec521f6ca2",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -1883,7 +2035,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+            "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md",
+            "note": null
           }
         ]
       },
@@ -1968,7 +2121,8 @@
           "removedFromTree": true,
           "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+          "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md",
+          "note": null
         }
       ]
     },
@@ -1987,7 +2141,8 @@
           "removedFromTree": true,
           "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+          "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md",
+          "note": null
         }
       ]
     },
@@ -2006,7 +2161,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md",
+          "note": null
         }
       ]
     },
@@ -2025,7 +2181,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md",
+          "note": null
         }
       ]
     }
@@ -2408,7 +2565,8 @@
         "removedFromTree": true,
         "historyCommand": "git show d09cf5f8d73910d88a5aac14ae50e3cfcc138505:doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

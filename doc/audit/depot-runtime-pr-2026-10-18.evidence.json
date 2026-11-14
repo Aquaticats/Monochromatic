@@ -1647,7 +1647,8 @@
         "removedFromTree": true,
         "historyCommand": "git show e2dc6e8413ad4dca242bf6713d82df9690c98688:doc/audit/depot-runtime-pr-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

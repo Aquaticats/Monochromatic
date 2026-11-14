@@ -790,7 +790,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -1038,7 +1039,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }

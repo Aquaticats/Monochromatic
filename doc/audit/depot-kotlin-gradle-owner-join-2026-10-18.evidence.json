@@ -27,12 +27,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 2144294,
-        "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+        "bytes": 2144758,
+        "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

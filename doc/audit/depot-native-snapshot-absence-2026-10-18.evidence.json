@@ -239,7 +239,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 49e5c84d1b8066bc9d974742bffbff684e67179a:doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

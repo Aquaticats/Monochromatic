@@ -458,7 +458,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 05d02428a0a0322ab4267a7d522c593317541699:doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

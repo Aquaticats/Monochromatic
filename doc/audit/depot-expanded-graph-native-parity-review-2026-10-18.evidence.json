@@ -2737,7 +2737,8 @@
         "removedFromTree": true,
         "historyCommand": "git show e0790e738da7e1c33e49fa200e9fc5105d11503a:doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

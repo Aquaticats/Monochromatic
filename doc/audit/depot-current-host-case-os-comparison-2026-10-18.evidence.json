@@ -309,7 +309,8 @@
       "removedFromTree": true,
       "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-comparison-2026-10-18.evidence.json.gz",
       "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-      "keptAs": null
+      "keptAs": null,
+      "note": null
     },
     {
       "measuredOn": "2026-11-13",
@@ -318,7 +319,8 @@
       "removedFromTree": true,
       "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
       "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-      "keptAs": null
+      "keptAs": null,
+      "note": null
     }
   ]
 }

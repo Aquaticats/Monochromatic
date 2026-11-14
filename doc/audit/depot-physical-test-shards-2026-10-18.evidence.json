@@ -4513,7 +4513,8 @@
         "removedFromTree": true,
         "historyCommand": "git show b2b1aa427b624eba065acfd5b3192eb4a98307a7:doc/audit/depot-physical-test-shards-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

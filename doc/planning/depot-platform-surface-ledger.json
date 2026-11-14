@@ -19,7 +19,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -16683,7 +16684,19 @@
         "sha256": "73c1e95822919d9029144fd6892ecb5a9273f244db3ea39be634eac7e7c4b8a3",
         "uncompressedBytes": 632781,
         "originalZips": 3,
-        "fullSourceAndTerminalCleanup": true
+        "fullSourceAndTerminalCleanup": true,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show ba8e7e6ce3d68c72ba298efeeb80724fd144ad55:doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "cleanupComplete": true
     }
@@ -16722,7 +16735,19 @@
     "sourceCommit": "1f96d6d488f938de97ea640b115e9567ebfd6fbf",
     "actualBoundaryProbe": "depot-cargo-wrapper-boundary.json inside doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
     "classification": "Local Cargo with sccache/WebDAV configuration, not remote compilation execution",
-    "automaticJobCacheTokenFallback": "Exercised with synthetic token markers; real backend acceptance is separate"
+    "automaticJobCacheTokenFallback": "Exercised with synthetic token markers; real backend acceptance is separate",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+        "note": "The member this names, depot-cargo-wrapper-boundary.json, is not kept as plain text: its SCCACHE_WEBDAV_PASSWORD fixture marker keys match the forbidden-strings rule hashicorp-tf-password. Read it from the archive with historyCommand."
+      }
+    ]
   },
   "livePublicPricing": {
     "observedAt": "2026-10-18T09:35:35.469Z",
@@ -16740,7 +16765,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -17761,7 +17787,8 @@
           "removedFromTree": true,
           "historyCommand": "git show d63caec30a413e3ace1d352241059928e9482870:doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -18034,7 +18061,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 1b28fb2da949ced0d57fdcaf19d47d5f07b20390:doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -18053,7 +18081,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -18070,7 +18099,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -22102,7 +22132,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

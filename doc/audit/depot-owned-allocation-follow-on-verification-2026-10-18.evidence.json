@@ -8,12 +8,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 142562,
-        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "bytes": 143088,
+        "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -58,7 +59,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 49e5c84d1b8066bc9d974742bffbff684e67179a:doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -76,7 +78,8 @@
           "removedFromTree": true,
           "historyCommand": "git show d09cf5f8d73910d88a5aac14ae50e3cfcc138505:doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }
@@ -88,12 +91,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 95614,
-        "sha256": "e820d5e1ce4bfb30470c4a29131fc24c28564d6ac44ca01386b9fee4922f6173",
+        "bytes": 100263,
+        "sha256": "8570a2e6272918f2772e9c661a3bf7373b9e66f3d4efb5a467dd5d0ce7f3a0ba",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

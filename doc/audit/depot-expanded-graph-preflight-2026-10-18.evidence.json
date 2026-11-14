@@ -562,7 +562,8 @@
         "removedFromTree": true,
         "historyCommand": "git show eec08fd2264de03236d1953ec2cce7fa5841fff8:doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

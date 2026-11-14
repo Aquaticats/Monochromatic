@@ -16,7 +16,8 @@
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -34,7 +35,8 @@
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },

@@ -19,7 +19,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 20d75368570ee045ddff43d67aef42fd245cce4b:doc/audit/depot-material-owner-primary-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

@@ -355,7 +355,8 @@
         "removedFromTree": true,
         "historyCommand": "git show f53c920cb24157db59873d3b24aaf51a493d6e32:doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

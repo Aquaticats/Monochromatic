@@ -24,7 +24,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -42,7 +43,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -60,7 +62,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -78,7 +81,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -227,7 +231,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -238,12 +243,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -363,7 +369,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -374,12 +381,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -424,12 +432,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -474,12 +483,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -524,12 +534,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -574,12 +585,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -624,12 +636,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -656,7 +669,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -674,7 +688,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -692,7 +707,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -710,7 +726,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -728,7 +745,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -746,7 +764,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -764,7 +783,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -782,7 +802,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -800,7 +821,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -1523,12 +1545,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 2144294,
-                "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2035,12 +2058,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 2144294,
-                "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2067,7 +2091,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -2085,7 +2110,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2103,7 +2129,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2121,7 +2148,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2139,7 +2167,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2166,7 +2195,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -2184,7 +2214,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2202,7 +2233,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2220,7 +2252,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2419,7 +2452,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -2430,12 +2464,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2543,7 +2578,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -2554,12 +2590,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2586,7 +2623,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -2604,7 +2642,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2622,7 +2661,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -2821,7 +2861,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -2832,12 +2873,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2916,7 +2958,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -2927,12 +2970,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2959,12 +3003,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -2991,7 +3036,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -3009,7 +3055,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3027,7 +3074,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3054,7 +3102,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -3072,7 +3121,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3099,7 +3149,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -3117,7 +3168,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3144,7 +3196,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -3162,7 +3215,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3180,7 +3234,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3198,7 +3253,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3216,7 +3272,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3234,7 +3291,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3252,7 +3310,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3270,7 +3329,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3288,7 +3348,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3306,7 +3367,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3324,7 +3386,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3342,7 +3405,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3360,7 +3424,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3378,7 +3443,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3396,7 +3462,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3414,7 +3481,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3432,7 +3500,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3450,7 +3519,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3477,7 +3547,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -3495,7 +3566,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3513,7 +3585,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3540,7 +3613,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -3558,7 +3632,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3576,7 +3651,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3594,7 +3670,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -3687,7 +3764,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -3698,12 +3776,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -3823,7 +3902,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -3834,12 +3914,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -3884,12 +3965,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -3934,12 +4016,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -3984,12 +4067,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4034,12 +4118,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4084,12 +4169,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4134,12 +4220,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4184,12 +4271,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4234,12 +4322,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4284,12 +4373,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4334,12 +4424,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4384,12 +4475,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4434,12 +4526,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4484,12 +4577,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4534,12 +4628,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4584,12 +4679,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -4616,7 +4712,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -4634,7 +4731,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4652,7 +4750,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4670,7 +4769,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4688,7 +4788,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4706,7 +4807,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4724,7 +4826,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4742,7 +4845,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4760,7 +4864,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -4900,12 +5005,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 2144294,
-                "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5191,12 +5297,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 2144294,
-                "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5481,12 +5588,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 2144294,
-                "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5513,7 +5621,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -5531,7 +5640,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -5549,7 +5659,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -5567,7 +5678,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -5660,7 +5772,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -5671,12 +5784,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5721,12 +5835,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5771,12 +5886,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5821,12 +5937,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5871,12 +5988,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5921,12 +6039,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -5971,12 +6090,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -6003,7 +6123,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -6021,7 +6142,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6039,7 +6161,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6057,7 +6180,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6075,7 +6199,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6093,7 +6218,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6111,7 +6237,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6129,7 +6256,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6147,7 +6275,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6266,7 +6395,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -6277,12 +6407,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -6309,12 +6440,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -6341,7 +6473,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -6359,7 +6492,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6377,7 +6511,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6395,7 +6530,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6413,7 +6549,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6440,7 +6577,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -6458,7 +6596,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6476,7 +6615,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6494,7 +6634,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6512,7 +6653,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6530,7 +6672,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6557,7 +6700,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -6575,7 +6719,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6593,7 +6738,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6738,7 +6884,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -6749,12 +6896,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -6781,12 +6929,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -6813,12 +6962,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -6845,7 +6995,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -6863,7 +7014,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6881,7 +7033,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -6957,7 +7110,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -6968,12 +7122,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7000,7 +7155,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -7018,7 +7174,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7046,12 +7203,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7078,7 +7236,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -7096,7 +7255,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7245,7 +7405,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -7256,12 +7417,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7306,12 +7468,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7356,12 +7519,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7406,12 +7570,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7456,12 +7621,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7506,12 +7672,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7538,7 +7705,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -7556,7 +7724,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7574,7 +7743,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7592,7 +7762,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7610,7 +7781,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7809,7 +7981,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -7820,12 +7993,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -7852,7 +8026,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -7870,7 +8045,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -7888,7 +8064,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -8037,7 +8214,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -8048,12 +8226,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -8098,12 +8277,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -8148,12 +8328,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -8198,12 +8379,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -8248,12 +8430,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -8280,7 +8463,8 @@
             "removedFromTree": true,
             "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8298,7 +8482,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -8316,7 +8501,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -8334,7 +8520,8 @@
                 "removedFromTree": true,
                 "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           }
@@ -8533,7 +8720,8 @@
                   "removedFromTree": true,
                   "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
                   "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
                 }
               ]
             }
@@ -8544,12 +8732,13 @@
             "inTreeNow": [
               {
                 "measuredOn": "2026-11-13",
-                "bytes": 13527472,
-                "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
                 "removedFromTree": false,
                 "historyCommand": null,
                 "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-                "keptAs": null
+                "keptAs": null,
+                "note": null
               }
             ]
           },
@@ -8568,12 +8757,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 13527472,
-          "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+          "bytes": 13527538,
+          "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -8589,7 +8779,8 @@
           "removedFromTree": true,
           "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     },
@@ -8605,7 +8796,8 @@
           "removedFromTree": true,
           "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+          "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+          "note": null
         }
       ]
     },
@@ -8616,12 +8808,13 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 2144294,
-          "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+          "bytes": 2144758,
+          "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }
@@ -8652,12 +8845,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8674,12 +8868,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8696,12 +8891,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8718,12 +8914,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8740,12 +8937,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8762,12 +8960,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8784,12 +8983,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8806,12 +9006,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8828,12 +9029,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8850,12 +9052,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8872,12 +9075,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8894,12 +9098,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8916,12 +9121,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8938,12 +9144,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8960,12 +9167,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -8982,12 +9190,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9004,12 +9213,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9026,12 +9236,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9048,12 +9259,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9070,12 +9282,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9092,12 +9305,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9114,12 +9328,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9136,12 +9351,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9158,12 +9374,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9180,12 +9397,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9202,12 +9420,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },
@@ -9224,12 +9443,13 @@
         "inTreeNow": [
           {
             "measuredOn": "2026-11-13",
-            "bytes": 13527472,
-            "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
             "removedFromTree": false,
             "historyCommand": null,
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": null
+            "keptAs": null,
+            "note": null
           }
         ]
       },

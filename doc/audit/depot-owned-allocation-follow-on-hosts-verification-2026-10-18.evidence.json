@@ -10,12 +10,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 142562,
-        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "bytes": 143088,
+        "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -24,7 +25,19 @@
     "bytes": 392421,
     "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
     "uncompressedBytes": 3179766,
-    "records": 41
+    "records": 41,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "previousSnapshotVerification": {
     "path": "doc/audit/depot-owned-allocation-follow-on-verification-2026-10-18.evidence.json",
@@ -35,12 +48,13 @@
     "inTreeNow": [
       {
         "measuredOn": "2026-11-13",
-        "bytes": 4335,
-        "sha256": "65c90b294050705fa73110f86c82859a9634ddcbc3d2aa8d1f275ee3c40dbfab",
+        "bytes": 4428,
+        "sha256": "eafc9166def41eb1dad3a419abe5a5178ac1bea2669fc05d4054b772377ad6ea",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -150,7 +164,8 @@
           "removedFromTree": true,
           "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-          "keptAs": null
+          "keptAs": null,
+          "note": null
         }
       ]
     }

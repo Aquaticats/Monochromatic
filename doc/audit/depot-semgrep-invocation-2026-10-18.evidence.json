@@ -21,7 +21,8 @@
         "removedFromTree": true,
         "historyCommand": "git show ed03473f9dfbe354df788f274e3c539e93be4762:doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

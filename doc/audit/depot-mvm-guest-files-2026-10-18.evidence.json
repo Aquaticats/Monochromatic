@@ -1442,7 +1442,8 @@
         "removedFromTree": true,
         "historyCommand": "git show c65e3b8eeb0f1bc0e06bf555048b85635ec59202:doc/audit/depot-mvm-guest-files-2026-10-18.originals.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

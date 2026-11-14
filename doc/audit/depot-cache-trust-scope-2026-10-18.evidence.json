@@ -1558,7 +1558,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 77833ff47edd8ce593611a5e4cc017d6a3e51607:doc/audit/depot-cache-trust-scope-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

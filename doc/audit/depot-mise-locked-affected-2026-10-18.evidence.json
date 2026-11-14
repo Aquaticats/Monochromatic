@@ -299,7 +299,8 @@
         "removedFromTree": true,
         "historyCommand": "git show a9541b020cd9c7a17fd37ff8f63696ff67c59cee:doc/audit/depot-mise-locked-affected-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

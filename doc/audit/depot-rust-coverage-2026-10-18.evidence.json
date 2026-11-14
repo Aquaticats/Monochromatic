@@ -45,7 +45,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
@@ -202988,7 +202989,8 @@
         "removedFromTree": true,
         "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+        "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+        "note": null
       }
     ]
   },
@@ -203006,7 +203008,8 @@
         "removedFromTree": true,
         "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+        "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+        "note": null
       }
     ]
   },

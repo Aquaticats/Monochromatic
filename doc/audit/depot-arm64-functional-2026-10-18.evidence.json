@@ -758,7 +758,8 @@
             "removedFromTree": true,
             "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
             "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-            "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+            "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+            "note": null
           }
         ]
       }
@@ -1039,7 +1040,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 20abb5fa5b96353b646a2d25e0c8eca13c6ab49d:doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   }

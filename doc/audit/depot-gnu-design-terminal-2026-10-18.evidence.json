@@ -17,7 +17,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 8d80a5ed1d4dbcbdb6d58b281437d40a0d85b146:doc/audit/depot-gnu-design-terminal-2026-10-18.sources.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },

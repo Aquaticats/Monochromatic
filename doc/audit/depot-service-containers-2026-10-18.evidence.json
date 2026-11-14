@@ -2276,7 +2276,8 @@
         "removedFromTree": true,
         "historyCommand": "git show 0a8a2979e091970f4480c38544978c19ace59f93:doc/audit/depot-service-containers-2026-10-18.archives.json.gz",
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
-        "keptAs": null
+        "keptAs": null,
+        "note": null
       }
     ]
   },
