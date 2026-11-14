@@ -127,12 +127,13 @@ use crate::subvolume_remove_walk::Boundary;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
+use crate::worktree_landed_kept_retry::{RememberedKept, forget_kept, remembered_kept, remember_kept};
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_rescue::snapshot_linked_worktrees;
 use crate::worktree_removal_second_look::{SecondLook, nested_worktree_reason, why_the_worktree_stays, worktrees_inside};
-use crate::worktree_remove_hand_over::hand_over_worktree_removal;
+use crate::worktree_remove_hand_over::{hand_over_worktree_removal, identity_standing_there};
 use crate::worktree_remove::{LinuxOperations, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::work_item::WorkItem;
@@ -518,7 +519,10 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
         candidates.insert(one.reference.clone());
     }
-    if candidates.is_empty() {
+    // What earlier sweeps kept is read before this one examines anything: a worktree kept a moment ago in this very sweep
+    // would otherwise be examined a second time by the pass below, and the sweep would say so twice.
+    let earlier_kept: Vec<RememberedKept> = remembered_kept(place.common_dir);
+    if candidates.is_empty() && earlier_kept.is_empty() {
         return sweep;
     }
     // A held commit lives on the worktree's own reference and in its own Git directory, and both go with the removal, so
@@ -561,26 +565,180 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
         return answer;
     };
-    for one in &registered {
-        if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
+    // One list of what this merge may remove, from the two ways a worktree comes to it: the branches it just landed, and
+    // the worktrees an earlier sweep kept whose branch's work is on the landed branch. Every one of them is then examined
+    // by the same pass below, with the same conditions, so neither way can miss a guard the other has.
+    let this_merge: ThisMerge<'_> = ThisMerge { branch: landed_branch, before, now };
+    let removable: Vec<&Registration> = worktrees_this_merge_may_remove(place, &landed, &candidates, &earlier_kept, registered.as_slice(), this_merge);
+    for one in removable {
+        // The worktree the merge runs in is never examined: `-C` names the repository a command works on, never a
+        // worktree it may remove.
+        if place.current_root == Some(one.worktree.as_path()) {
             continue;
         }
         // A registration that was not there when the merge started belongs to work that began after it, so this merge is
         // not the event that ended it, and it is not examined at all.
         if !place.registered_before.holds(one) {
+            forget_kept(place.common_dir, one.worktree.as_path());
             continue;
         }
-        match examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations) {
-            Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
-            Examined::RemovedAround(left) => sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), left }),
-            Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
-            Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
-            Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record }),
-            Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
-            Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
-        }
+        let examined: Examined = examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations);
+        record_what_became_of(place, one, examined, &mut sweep);
     }
     return sweep;
+}
+
+/// What:
+///  The registered worktrees this merge may remove,
+///  from the branches it landed and from the worktrees an earlier sweep kept.
+/// Why:
+///  The two ways differ only in what makes a worktree qualified,
+///  and everything after that is one pass,
+///  so a guard added to the pass holds for both.
+///  A branch that landed in this merge is qualified by the candidate set.
+///  A worktree an earlier sweep kept is qualified by the worktree in front of it still being the one that was kept,
+///  which is what its record's identity and branch say,
+///  and by that branch's work still being on the landed branch,
+///  which is what says its branch landed at all:
+///  a worktree whose branch holds a commit made after the record was written is not qualified,
+///  and neither is one whose branch was moved onto another branch's commit,
+///  which is the same `another_branch_took_the_tip` witness the candidate path asks:
+///  `git reset --hard main` in a kept worktree left it removable by the retry alone
+///  (a review of this change, finding 2).
+///  A record that no longer answers for the worktree it names is dropped,
+///  because the worktree it was written for is gone.
+///  One worktree is examined once, whichever ways it qualifies by:
+///  a branch this merge landed can also be the branch of a worktree an earlier sweep kept,
+///  and a worktree removed and handed over twice would be reported twice,
+///  woken twice,
+///  and examined twice for nothing.
+///  Its record is left alone in that case,
+///  because the examination that runs says what became of the worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// worktreesThisMergeMayRemove(place, landed, candidates, earlierKept, registered, thisMerge)
+/// ```
+fn worktrees_this_merge_may_remove<'a>(
+    place: &LandedPlace<'_>,
+    landed: &[Landing],
+    candidates: &HashSet<String>,
+    earlier_kept: &[RememberedKept],
+    registered: &'a [Registration],
+    this_merge: ThisMerge<'_>,
+) -> Vec<&'a Registration> {
+    let mut removable: Vec<&'a Registration> = Vec::with_capacity(candidates.len() + earlier_kept.len());
+    let mut already: HashSet<&Path> = HashSet::with_capacity(candidates.len() + earlier_kept.len());
+    for one in registered {
+        if candidates.contains(one.branch.as_str()) && already.insert(one.worktree.as_path()) {
+            removable.push(one);
+        }
+    }
+    for remembered in earlier_kept {
+        match kept_worktree_still_here(place, remembered, landed, registered, this_merge) {
+            Some(one) => {
+                if already.insert(one.worktree.as_path()) {
+                    removable.push(one);
+                }
+            }
+            None => forget_kept(place.common_dir, remembered.worktree.as_path()),
+        }
+    }
+    return removable;
+}
+
+/// What:
+///  The registration a kept worktree's record still answers for,
+///  or nothing when it answers for none.
+/// Why:
+///  Four facts are asked, and each of them can go wrong on its own:
+///  the record names a worktree this repository registers,
+///  that worktree has the branch the record names checked out,
+///  the registration and the worktree root are the two directories the record was written for,
+///  and the branch's current tip is contained in the branch this merge landed,
+///  with no other branch's reflog naming that tip.
+///  The last one is the guard the first pass makes with its candidate set,
+///  and it is what keeps a worktree whose branch holds a commit made since out of the removal:
+///  such a commit is the person's work and no merge brought it in
+///  (`holds_its_own_commits` above says the same of a branch whose reflog shows it never moved).
+///  A hidden edit to a tracked file is not this question's business:
+///  the removal keeps a worktree that holds one, by the same proof the first pass makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keptWorktreeStillHere(place, remembered, landed, registered) // registration | undefined
+/// ```
+fn kept_worktree_still_here<'a>(
+    place: &LandedPlace<'_>,
+    remembered: &RememberedKept,
+    landed: &[Landing],
+    registered: &'a [Registration],
+    this_merge: ThisMerge<'_>,
+) -> Option<&'a Registration> {
+    let one: &'a Registration = registered.iter().find(|one| return one.worktree == remembered.worktree)?;
+    // The branch the removed worktree had, and no other: a worktree added again at this path for other work is not this
+    // record's, and removing it would take a working folder nobody asked about.
+    if one.branch != remembered.branch {
+        return None;
+    }
+    if identity_standing_there(one.worktree.as_path(), one.admin.as_path()) != remembered.identity {
+        return None;
+    }
+    let landing: &Landing = landed.iter().find(|row| return row.reference == one.branch)?;
+    if !holds_its_own_commits(place.common_dir, one.branch.as_str(), landing.tip.as_str()) {
+        return None;
+    }
+    // The same witness the candidate path asks: another branch's own reflog naming this tip is the proof that the branch
+    // was moved there rather than making it, and a worktree the fresh rule would keep stays here too.
+    if another_branch_took_the_tip(landed, place.common_dir, one.branch.as_str(), landing.tip.as_str(), this_merge) {
+        return None;
+    }
+    return Some(one);
+}
+
+/// What:
+///  Put what one candidate came to into the sweep's answer,
+///  and remember it when the reason may go away by itself.
+/// Why:
+///  The newly landed candidates and the ones a later sweep examines again end the same ways,
+///  and the sweep's lines are built from one record of each ending,
+///  so the bookkeeping is written once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordWhatBecameOf(place, registration, examined, sweep)
+/// ```
+fn record_what_became_of(place: &LandedPlace<'_>, one: &Registration, examined: Examined, sweep: &mut LandedSweep) {
+    match examined {
+        Examined::Removed => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+        }
+        Examined::RemovedAround(left) => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), left });
+        }
+        Examined::Unfinished(report) => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report });
+        }
+        Examined::Refused(report) => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report });
+        }
+        Examined::Handed(record) => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record });
+        }
+        Examined::Unproven => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+        }
+        Examined::Kept(why) => {
+            remember_kept(place.common_dir, one.worktree.as_path(), one.branch.as_str(), identity_standing_there(one.worktree.as_path(), one.admin.as_path()).as_str(), why.as_str());
+            sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why });
+        }
+    }
 }
 
 /// What:
@@ -660,7 +818,7 @@ fn remove_here_or_hand_over(
         RemoveOutcome::RemovedAroundNothingLeft => return Attempt::Removed,
         RemoveOutcome::LeftToGit => {}
     }
-    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
+    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), told) {
         Ok(record) => record,
         Err(reason) => return Attempt::Kept(reason),
     };
@@ -744,12 +902,7 @@ fn examine_and_remove(
     if let Err(reason) = nothing_new_would_go_with_it(place.common_dir, one) {
         return Examined::Kept(reason);
     }
-    let look: SecondLook<'_> = SecondLook {
-        context: place.context,
-        common_dir: place.common_dir,
-        proc_root: place.proc_root,
-        source: place.current_root,
-    };
+    let look: SecondLook<'_> = SecondLook { common_dir: place.common_dir, proc_root: place.proc_root };
     if let Some(why) = why_the_worktree_stays(&look, one.worktree.as_path(), one.admin.as_path()) {
         return Examined::Kept(why);
     }

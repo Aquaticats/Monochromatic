@@ -109,7 +109,7 @@ pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, S
 /// ```ts
 /// const registered = registeredWorktrees(commonDir); // throws the reason
 /// ```
-fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
+pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
     let folder: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,

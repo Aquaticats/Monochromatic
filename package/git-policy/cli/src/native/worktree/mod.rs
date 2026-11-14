@@ -43,6 +43,20 @@ pub mod worktree_completion_file_inspection;
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
+/// What a removal deleted of the files Git ignores,
+/// written where a person reads it afterwards.
+pub mod worktree_removal_deletions;
+
+/// Why a plain `git worktree remove` may not run now,
+/// in words a person reads and acts on.
+pub mod worktree_removal_refusal;
+
+/// The work of a worktree registered inside one being removed that no other copy holds.
+pub mod worktree_nested_git_work;
+
+/// The landed worktrees a sweep kept, which the next sweep examines again with nobody asking.
+pub mod worktree_landed_kept_retry;
+
 /// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
 pub mod worktree_removal_held_commits;
 
@@ -420,10 +434,6 @@ pub mod worktree_landed_after_a_merge;
 /// The linked worktrees a repository registers,
 /// with the branch each one has checked out.
 pub mod worktree_landed_registrations;
-
-/// The ignored entries of a landed worktree that nothing else in the repository holds,
-/// which keep it.
-pub mod worktree_landed_ignored_files;
 
 /// The removal of every wrapper-made worktree whose branch a merge landed,
 /// which the commit service performs.

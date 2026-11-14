@@ -30,6 +30,10 @@ use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
+/// What a removal deletes of the files Git ignores and of a nested worktree's files,
+/// read before it deletes them and written once they are gone.
+use crate::worktree_removal_deletions::{AFTER_DELETION, RemovalBegun, RemovalDeletions, reach_test_fault, record_removal_begins, record_removal_deleted};
+
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -380,7 +384,45 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
     if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
         return finished;
     }
-    return run_settled(real_git, arguments, overlay, facts);
+    // A removal Git makes itself deletes the files it ignores without a word, so what is there is read before Git runs and
+    //  written down then, and confirmed once it has gone (`worktree_removal_deletions.rs`, the owner's decision of
+    //  2026-11-12T13:04:14). A refusal Git makes leaves the first line and no confirmation, which is what it is: the
+    //  removal listed what it was about to delete and deleted nothing.
+    let about_to_go: Option<(PathBuf, RemovalBegun)> = match (&facts.remove_plan, common_directory(&facts.identity)) {
+        (Some(plan), Some(common)) => {
+            // The list is read and written before Git runs, because a kill between Git's deletion and its record would leave
+            //  the files gone with nothing saying so (`worktree_removal_deletions.rs`).
+            let deletions: RemovalDeletions = RemovalDeletions::of(&removal_git_context(real_git, overlay), common, plan.target.as_path());
+            record_removal_begins(common, plan.target.as_path(), arguments, &deletions).map(|begun| return (common.to_path_buf(), begun))
+        }
+        _ => None,
+    };
+    let finished: ForwardedRun = run_settled(real_git, arguments, overlay, facts);
+    if let (Some((common, begun)), ForwardedRun::Ran(0)) = (&about_to_go, &finished) {
+        reach_test_fault(AFTER_DELETION);
+        record_removal_deleted(common.as_path(), begun, facts.remove_plan.as_ref().expect("a removal plan").target.as_path());
+    }
+    return finished;
+}
+
+/// What:
+///  How real Git is started for the reads a removal's record makes.
+/// Why:
+///   The record asks Git which files it is about to delete in a directory another worktree may be pointing at,
+///  so the context names the real executable and the overlay this invocation runs with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removalGitContext(realGit, overlay) // { realGit, overlay, globalPrefix: [], commonDir: undefined }
+/// ```
+#[cfg(unix)]
+fn removal_git_context(real_git: &Path, overlay: &[(OsString, OsString)]) -> crate::transaction_git::GitContext {
+    return crate::transaction_git::GitContext {
+        real_git: real_git.to_path_buf(),
+        overlay: overlay.to_vec(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
 }
 
 /// What:

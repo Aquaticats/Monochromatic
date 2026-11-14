@@ -126,6 +126,40 @@ fn admin_of(repo: &Path, name: &str) -> PathBuf {
 }
 
 /// What:
+///  The in-process destroy records a detached nested worktree and its untracked file before it destroys anything.
+/// Why:
+///  This is the route a person's unforced removal takes on a subvolume worktree,
+///  and it builds its record from the same reader as the two other routes;
+///  that reader used to keep only branch-bearing registrations,
+///  so a detached nested worktree went with the destroy and nothing named it
+///  (a review of this change, finding 2).
+#[test]
+fn a_destroy_records_a_detached_nested_worktree_and_its_file() {
+    let root: PathBuf = fixture("remove-guard-destroy-record-detached-nested");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    std::fs::write(repo.join(".gitignore"), b"nested/\n").expect("the ignore rules");
+    age(repo.join(".gitignore").as_path());
+    git(repo.as_path(), &["add", ".gitignore"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    let target: PathBuf = clean_worktree(repo.as_path(), root.join("topic").as_path(), "topic");
+    // A checkout writes every file anew, so the ignore rules of the new worktree are aged and recorded again:
+    //  otherwise its stat fields prove nothing and the removal is left to Git, past the route this control is about.
+    age(target.join(".gitignore").as_path());
+    git(target.as_path(), &["update-index", "--refresh"]);
+    let nested: PathBuf = target.join("nested");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", nested.to_str().expect("UTF-8"), "HEAD"]);
+    std::fs::write(nested.join("precious.txt"), b"untracked work that is only here\n").expect("an untracked file");
+    let stand: Stand = Stand::new(vec![target.clone()]);
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(target.as_path(), "topic"));
+    assert!(matches!(outcome, RemoveOutcome::Removed), "the stand-in destroys it: {outcome:?}");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let record: String = std::fs::read_to_string(common.join(crate::worktree_removal_deletions::DELETIONS_LOG)).expect("the record of the deletion");
+    assert!(record.contains(nested.display().to_string().as_str()), "the record names the detached nested worktree: {record}");
+    assert!(record.contains("\"files\":[\"precious.txt\"]"), "and its untracked file: {record}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A worktree that holds a change is destroyed when the person forced the removal,
 ///  and left to Git when they did not.
 /// Why:

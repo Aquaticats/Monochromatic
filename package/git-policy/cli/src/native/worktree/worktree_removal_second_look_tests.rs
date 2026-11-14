@@ -11,7 +11,7 @@
 //! ```
 
 use super::{SecondLook, why_the_worktree_stays};
-use crate::test_support::{age, fixture, git, git_context, repository};
+use crate::test_support::{age, fixture, git, repository};
 use std::path::{Path, PathBuf};
 
 /// A repository and one linked worktree of it,
@@ -19,9 +19,6 @@ use std::path::{Path, PathBuf};
 struct Fixture {
     /// The fixture directory that holds both.
     root: PathBuf,
-    /// The main checkout,
-    /// which is also the worktree the ignored files are compared with.
-    main: PathBuf,
     /// The common Git directory.
     common: PathBuf,
     /// The linked worktree.
@@ -60,7 +57,7 @@ fn a_repository_with_a_worktree(name: &str, rules: &str) -> Fixture {
     let worktree: PathBuf = root.join("topic");
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("the common Git directory");
-    return Fixture { root, main, common, worktree: std::fs::canonicalize(worktree.as_path()).expect("the worktree's real path") };
+    return Fixture { root, common, worktree: std::fs::canonicalize(worktree.as_path()).expect("the worktree's real path") };
 }
 
 /// What:
@@ -99,10 +96,9 @@ fn a_table_with_one_process(root: &Path, pid: u32, working: &Path) -> PathBuf {
 #[test]
 fn nothing_in_the_way_of_a_clean_worktree_is_no_reason_to_keep_it() {
     let fixture: Fixture = a_repository_with_a_worktree("second-look-clean", ".claude/\n");
-    let context: crate::transaction_git::GitContext = git_context();
     let empty: PathBuf = fixture.root.join("proc");
     std::fs::create_dir(empty.as_path()).expect("an empty process table");
-    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: empty.as_path(), source: Some(fixture.main.as_path()) };
+    let look: SecondLook<'_> = SecondLook { common_dir: fixture.common.as_path(), proc_root: empty.as_path() };
     assert_eq!(why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path()), None, "a clean worktree with nothing inside it may go");
 }
 
@@ -117,9 +113,8 @@ fn nothing_in_the_way_of_a_clean_worktree_is_no_reason_to_keep_it() {
 #[test]
 fn a_worktree_a_process_is_working_in_stays_on_the_second_look() {
     let fixture: Fixture = a_repository_with_a_worktree("second-look-busy", ".claude/\n");
-    let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = a_table_with_one_process(fixture.root.as_path(), 4242, fixture.worktree.as_path());
-    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: table.as_path(), source: Some(fixture.main.as_path()) };
+    let look: SecondLook<'_> = SecondLook { common_dir: fixture.common.as_path(), proc_root: table.as_path() };
     let why: Option<String> = why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path());
     assert_eq!(why, Some(String::from("process 4242 is working in it")));
 }
@@ -136,10 +131,9 @@ fn a_worktree_another_worktree_was_added_inside_stays_on_the_second_look() {
     let fixture: Fixture = a_repository_with_a_worktree("second-look-nested", ".claude/\n");
     let inside: PathBuf = fixture.worktree.join(".claude/worktrees/b");
     git(fixture.worktree.as_path(), &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("a UTF-8 fixture path")]);
-    let context: crate::transaction_git::GitContext = git_context();
     let empty: PathBuf = fixture.root.join("proc");
     std::fs::create_dir(empty.as_path()).expect("an empty process table");
-    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: empty.as_path(), source: Some(fixture.main.as_path()) };
+    let look: SecondLook<'_> = SecondLook { common_dir: fixture.common.as_path(), proc_root: empty.as_path() };
     let why: Option<String> = why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path());
     let said: String = why.expect("a worktree holding another registered worktree stays");
     assert!(said.contains("another worktree this repository registers is inside it"), "{said}");
@@ -147,40 +141,24 @@ fn a_worktree_another_worktree_was_added_inside_stays_on_the_second_look() {
 }
 
 /// What:
-///  A worktree holding an ignored file the worktree the proof was made from does not hold stays,
-///  and the reason names the file.
+///  A worktree holding a file Git ignores is not kept for it any more,
+///  and one a process is working in still is.
 /// Why:
-///  Git deletes what it ignores without a word,
-///  so the ignored files are the one hole Git's own refusal leaves.
+///  The owner's decision of 2026-11-12 is "Delete ignored, spare busy":
+///  a removal deletes the files Git ignores exactly as real Git does,
+///  and records each one in the wrapper's own log before it goes.
+///  A control whose only occupant is such a file proves the proof no longer asks about it,
+///  and the process control above proves the busy half still holds.
 #[test]
-fn a_worktree_holding_an_ignored_file_the_compared_worktree_does_not_hold_stays() {
+fn a_worktree_holding_an_ignored_file_is_no_longer_kept_for_it() {
     let fixture: Fixture = a_repository_with_a_worktree("second-look-ignored", "*.log\n");
     std::fs::write(fixture.worktree.join("person.log").as_path(), b"what the person wrote\n").expect("an ignored file");
-    let context: crate::transaction_git::GitContext = git_context();
     let empty: PathBuf = fixture.root.join("proc");
     std::fs::create_dir(empty.as_path()).expect("an empty process table");
-    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: empty.as_path(), source: Some(fixture.main.as_path()) };
-    let why: Option<String> = why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path());
-    let said: String = why.expect("an ignored file nothing else holds keeps the worktree");
-    assert!(said.contains("person.log"), "the reason names the file: {said}");
-}
-
-/// What:
-///  A worktree with no worktree the ignored files could be compared with stays,
-///  and the reason says there is none.
-/// Why:
-///  A merge that ran in a repository without a worktree made no comparison,
-///  and nothing then proves the ignored files are the repository's.
-#[test]
-fn a_worktree_with_no_compared_worktree_stays_on_the_second_look() {
-    let fixture: Fixture = a_repository_with_a_worktree("second-look-no-source", ".claude/\n");
-    let context: crate::transaction_git::GitContext = git_context();
-    let empty: PathBuf = fixture.root.join("proc");
-    std::fs::create_dir(empty.as_path()).expect("an empty process table");
-    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: empty.as_path(), source: None };
-    let why: Option<String> = why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path());
-    assert!(
-        matches!(&why, Some(said) if said.contains("without a worktree")),
-        "nothing proves the ignored files are not the person's: {why:?}"
+    let look: SecondLook<'_> = SecondLook { common_dir: fixture.common.as_path(), proc_root: empty.as_path() };
+    assert_eq!(
+        why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path()),
+        None,
+        "an ignored file is deleted as real Git deletes it, so it no longer keeps the worktree"
     );
 }

@@ -1025,22 +1025,26 @@ fn a_landed_worktree_the_command_itself_was_started_in_stays() {
 }
 
 /// What:
-///  An ignored file the person wrote in the worktree after the add keeps that worktree,
-///  named in the reason the person reads.
+///  An ignored file the person wrote in the worktree after the add goes with the worktree,
+///  and the removal's own record names it.
 /// Why:
-///   This is the state Git's own removal deletes without a word,
-///  and the owner's rule is that no command of this program discards a person's data.
+///   The owner's decision of 2026-11-12T13:04:14 is "Keep Git work only":
+///  a removal takes the files Git ignores as real Git does,
+///  and each thing it takes is logged,
+///  so the record is the only thing left of that file.
 #[test]
-fn a_landed_worktree_holding_an_ignored_file_the_person_wrote_stays() {
+fn a_landed_worktree_holding_an_ignored_file_the_person_wrote_is_removed_and_the_file_is_recorded() {
     let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-ignored-own", ".env\n");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
     let secret: PathBuf = landed.worktree.join(".env");
     std::fs::write(secret.as_path(), b"PASSWORD=the person's own\n").expect("a file the person wrote after the add");
     let sweep: LandedSweep = land_feature(&landed);
-    assert!(sweep.removed.is_empty(), "nothing is removed while the worktree holds the person's ignored file: {sweep:?}");
-    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
-    assert!(sweep.kept[0].why.contains(".env"), "the reason names the file: {}", sweep.kept[0].why);
-    assert_eq!(std::fs::read(secret.as_path()).expect("the file is still there"), b"PASSWORD=the person's own\n");
+    assert!(sweep.kept.is_empty(), "the ignored file no longer keeps the worktree: {sweep:?}");
+    assert_eq!(let_the_service_finish(&sweep), vec![Verdict::Done], "the service's own removal succeeds");
+    assert!(!landed.worktree.exists(), "the worktree directory is gone");
+    let written: String = std::fs::read_to_string(landed.common.join(crate::worktree_removal_deletions::DELETIONS_LOG)).expect("the record of the deletion");
+    assert!(written.contains(".env"), "the record names the file that went: {written}");
+    assert!(written.contains("\"worktree\":\""), "the record names the worktree it went from: {written}");
 }
 
 /// What:
@@ -1062,20 +1066,24 @@ fn a_landed_worktree_whose_ignored_file_the_repository_also_holds_is_removed() {
 }
 
 /// What:
-///  An ignored file of the worktree the repository holds with other bytes keeps it.
+///  An ignored file of the worktree the repository holds with other bytes goes too,
+///  byte for byte as the person left it,
+///  and the record names it.
 /// Why:
-///   The person edited it in the worktree,
-///  and the bytes that go with the worktree are not the ones this repository keeps.
+///   The decision of 2026-11-12T13:04:14 takes every ignored file a removal deletes,
+///  whether the repository holds one of the same name or not,
+///  and the record is what tells a person the bytes they changed went with it.
 #[test]
-fn a_landed_worktree_whose_ignored_file_the_person_changed_stays() {
+fn a_landed_worktree_whose_ignored_file_the_person_changed_is_removed_and_recorded() {
     let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-ignored-changed", ".env\n");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
     std::fs::write(landed.main.join(".env").as_path(), b"PORT=3000\n").expect("the repository's own ignored file");
     std::fs::write(landed.worktree.join(".env").as_path(), b"PORT=3001\n").expect("the person's own port in the worktree");
     let sweep: LandedSweep = land_feature(&landed);
-    assert!(sweep.removed.is_empty(), "the edited file stays with its worktree: {sweep:?}");
-    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
-    assert!(sweep.kept[0].why.contains(".env"), "{}", sweep.kept[0].why);
+    assert!(sweep.kept.is_empty(), "the edited ignored file no longer keeps the worktree: {sweep:?}");
+    assert_eq!(let_the_service_finish(&sweep), vec![Verdict::Done], "the service's own removal succeeds");
+    let written: String = std::fs::read_to_string(landed.common.join(crate::worktree_removal_deletions::DELETIONS_LOG)).expect("the record of the deletion");
+    assert!(written.contains(".env"), "the record names the file that went: {written}");
 }
 
 /// What:

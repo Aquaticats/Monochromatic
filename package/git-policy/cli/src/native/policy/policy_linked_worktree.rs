@@ -66,14 +66,31 @@ use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
 /// Where a command runs.
-use crate::repository_location::RepositoryLocation;
+use crate::repository_location::{RepositoryLocation, effective_directory};
 use crate::policy_checks::{fact_unavailable, clean, rejected};
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
-    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, TargetTree,
+    AuditedCommand, DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, TargetTree,
     dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
     repository_stash_message, resolve_linked_worktree, target_tree,
 };
+/// The refusal of a removal a process is working in, or that would take a nested worktree's files.
+use crate::worktree_removal_refusal::{RemovalInQuestion, WORKTREE_REMOVAL_REFUSED_CODE, removal_refusal_facts, why_a_removal_is_refused};
+/// The target a removal names,
+/// resolved against the worktrees the repository registers,
+/// and the facts its audit line carries.
+use crate::worktree_audit::removal_target;
+/// How real Git is started for the questions a removal's guard asks.
+use crate::transaction_git::GitContext;
+/// The worktree's top level,
+/// which a relative removal name is read from.
+use crate::worktree_identity::worktree_root;
+/// The removal the command names,
+/// read from the arguments Git will receive.
+use crate::policy_audited::removal_of;
+/// The root of the process table,
+/// which is the machine's unless a control replaces it.
+use crate::process_use::PROC_ROOT;
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
 use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
 /// The text that refusal prints.
@@ -304,6 +321,43 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
 }
 
 /// What:
+///  Why a `git worktree remove` may not run now,
+///  or nothing when nothing here keeps the worktree.
+/// Why:
+///   The removal names its target the way Git resolves it,
+///  so the path is read from the worktrees the repository registers and never from the spelling alone.
+///  The escape is not consulted here:
+///  a policy the person escaped never runs, and the removal then runs exactly as real Git runs it.
+///  A refusal is reported and the command stops,
+///  because a removal that ran would delete what the refusal named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// whyTheRemovalIsRefused(facts, seen, location); // string | undefined
+/// ```
+fn why_the_removal_is_refused(facts: &mut dyn RepositoryFacts, seen: &[OsString], location: &RepositoryLocation) -> Option<(String, PathBuf, bool)> {
+    let removal = removal_of(seen)?;
+    let force: bool = removal.force;
+    let context: GitContext = facts.transaction_context();
+    // The path is relative to the directory Git works in, not to wherever the wrapper was started: `-C dir` and a
+    //  subdirectory of the worktree both change that.
+    let directory: PathBuf = match worktree_root(&location.identity) {
+        Some(root) => effective_directory(root, location.prefix.as_slice()),
+        None => std::env::current_dir().unwrap_or_default(),
+    };
+    let target: PathBuf = removal_target(&context, removal.target.as_os_str(), directory.as_path());
+    let common_dir: &Path = common_directory(&location.identity)?;
+    let why: String = why_a_removal_is_refused(&RemovalInQuestion {
+        context: &context,
+        common_dir,
+        proc_root: Path::new(PROC_ROOT),
+        target: target.as_path(),
+        force,
+    })?;
+    return Some((why, target, force));
+}
+
+/// What:
 ///  The linked-worktree-only check.
 ///  `&[PathBuf]` borrows the exempt tool caches.
 /// Why:
@@ -340,10 +394,20 @@ pub(crate) fn check_linked_worktree(
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return clean(),
-        // The two audited forms run as Git runs them and leave one line saying what they took; nothing is refused.
+        // The two audited forms leave one line saying what they took. A removal is refused first while a process works
+        //  in the worktree, or while a worktree registered inside it holds Git work no other copy has: a changed tracked
+        //  file, a staged change, or a commit no reference names (`worktree_removal_refusal.rs`,
+        //  `worktree_nested_git_work.rs`). Both are what real Git deletes without looking, and the owner's decision of
+        //  2026-11-12T13:04:14 keeps them: "Git work is never destroyed by a removal".
         LinkedWorktreeDecision::Audited(audited) => {
             // Outside a repository there is no audit file to write, and nothing to name.
             if let Ok(location) = facts.location() {
+                if matches!(audited, AuditedCommand::WorktreeRemove)
+                    && let Some((why, target, force)) = why_the_removal_is_refused(facts, seen, &location)
+                {
+                    record_audit_with_facts(&location.identity, *audited, AuditOutcome::Rejected, seen, None, removal_refusal_facts(target.as_path(), force, why.as_str()).as_slice());
+                    return rejected(WORKTREE_REMOVAL_REFUSED_CODE, why);
+                }
                 record_audited(facts, seen, *audited, &location);
             }
             return clean();

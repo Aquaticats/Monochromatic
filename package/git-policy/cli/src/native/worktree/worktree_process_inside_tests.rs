@@ -7,11 +7,11 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(processWorkingInside(worktree, table)).toBe(pid);
+//! expect(processWorkingInside(worktree, table)).toEqual({ kind: 'someone', process: { pid } });
 //! ```
 
-use super::{WorkingFolder, WorkingProcess, process_working_inside, started_before};
-use std::time::Duration;
+use super::{ProcessWorking, WorkingFolder, WorkingProcess, process_working_inside, process_working_inside_until, started_before};
+use std::time::{Duration, Instant};
 use crate::test_support::{fixture, spawn_owned};
 use std::path::{Path, PathBuf};
 
@@ -35,16 +35,29 @@ fn a_table_with_one_process_in(working: &Path, pid: u32) -> PathBuf {
     return table;
 }
 
+/// What:
+///  One process that keeps the worktree,
+///  with the program name the control wrote beside it.
+/// Why:
+///   Every answer this read gives names the process and its program,
+///  so the expected value is written once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// someone(4242, 'sleep', WorkingFolder.Inside)
+/// ```
+fn someone(pid: u32, program: &str, folder: WorkingFolder) -> ProcessWorking {
+    return ProcessWorking::Someone(WorkingProcess { pid, program: Some(String::from(program)), folder });
+}
+
 #[test]
 fn a_process_working_in_the_folder_is_named_by_its_id() {
     let root: PathBuf = fixture("process-inside");
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir(worktree.as_path()).expect("a folder a process works in");
     let table: PathBuf = a_table_with_one_process_in(worktree.as_path(), 4242);
-    assert_eq!(
-        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
-        Some(WorkingProcess { pid: 4242, folder: WorkingFolder::Inside })
-    );
+    std::fs::write(table.join("4242").join("comm"), b"sleep\n").expect("the program the process runs");
+    assert_eq!(process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None), someone(4242, "sleep", WorkingFolder::Inside));
 }
 
 #[test]
@@ -54,10 +67,8 @@ fn a_process_in_a_folder_below_the_worktree_counts() {
     let below: PathBuf = worktree.join("package").join("cli");
     std::fs::create_dir_all(below.as_path()).expect("a folder below the worktree");
     let table: PathBuf = a_table_with_one_process_in(below.as_path(), 4343);
-    assert_eq!(
-        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
-        Some(WorkingProcess { pid: 4343, folder: WorkingFolder::Inside })
-    );
+    std::fs::write(table.join("4343").join("comm"), b"zsh\n").expect("the program the process runs");
+    assert_eq!(process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None), someone(4343, "zsh", WorkingFolder::Inside));
 }
 
 #[test]
@@ -68,11 +79,14 @@ fn a_process_working_elsewhere_does_not_count() {
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
     std::fs::create_dir_all(elsewhere.as_path()).expect("another folder");
     let table: PathBuf = a_table_with_one_process_in(elsewhere.as_path(), 4444);
-    assert_eq!(process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None), None);
+    assert_eq!(process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None), ProcessWorking::Nobody);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), root.join("no-such-table").as_path(), None),
-        None,
-        "no table, no answer"
+        ProcessWorking::Unfinished(format!(
+            "the process table {:?} cannot be read (No such file or directory (os error 2)), so nothing proves no process works there",
+            root.join("no-such-table")
+        )),
+        "no table proves nothing, so it is never read as an empty one"
     );
 }
 
@@ -96,10 +110,12 @@ fn this_command_working_in_the_folder_keeps_it() {
     std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
     let own: u32 = std::process::id();
     let table: PathBuf = a_table_with_one_process_in(worktree.as_path(), own);
-    let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
-    assert_eq!(found, Some(WorkingProcess { pid: own, folder: WorkingFolder::Inside }), "the command itself works there");
-    let why: String = found.expect("the command's own process").why();
-    assert_eq!(why, "this command is working in it, because it was started in that folder");
+    let found: ProcessWorking = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
+    let ProcessWorking::Someone(own_process) = &found else {
+        panic!("the command itself works there: {found:?}");
+    };
+    assert_eq!(own_process.pid, own, "the command itself works there");
+    assert_eq!(found.reason(), Some(String::from("this command is working in it, because it was started in that folder")));
 }
 
 #[test]
@@ -108,10 +124,15 @@ fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
     let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("120").current_dir(root.as_path()))
         .expect("a helper working in the folder");
     // The folder was made a moment ago, so every process that hides its working folder started before it.
-    let found: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    let found: ProcessWorking = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
     let _ended = child.kill();
     let _waited = child.wait();
-    assert_eq!(found, Some(WorkingProcess { pid: child.id(), folder: WorkingFolder::Inside }), "the helper is named by its own id");
+    let ProcessWorking::Someone(working) = &found else {
+        panic!("the helper is found: {found:?}");
+    };
+    assert_eq!(working.pid, child.id(), "the helper is named by its own id");
+    assert_eq!(working.folder, WorkingFolder::Inside, "its working folder is the fixture root");
+    assert_eq!(working.program.as_deref(), Some("sleep"), "the kernel's name for the program is read");
 }
 
 /// What:
@@ -143,9 +164,13 @@ fn a_process_of_this_account_whose_folder_cannot_be_read_keeps_the_folder() {
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
     let table: PathBuf = a_table_with_a_process_whose_folder_cannot_be_read(4545);
-    let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
-    assert_eq!(found, Some(WorkingProcess { pid: 4545, folder: WorkingFolder::Unreadable }), "nothing proves it is outside the folder");
-    let why: String = found.expect("the process").why();
+    let found: ProcessWorking = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
+    assert_eq!(
+        found,
+        ProcessWorking::Someone(WorkingProcess { pid: 4545, program: None, folder: WorkingFolder::Unreadable }),
+        "nothing proves it is outside the folder"
+    );
+    let why: String = found.reason().expect("the process keeps the folder");
     assert!(why.contains("process 4545"), "{why}");
     assert!(why.contains("hides its working folder"), "{why}");
     assert!(why.contains("nothing proves it is outside it"), "{why}");
@@ -159,13 +184,19 @@ fn a_process_that_ended_while_it_was_read_does_not_count() {
     let table: PathBuf = root.join("proc");
     let entry: PathBuf = table.join("4646");
     std::fs::create_dir_all(entry.as_path()).expect("a process entry whose working folder went with it");
-    assert_eq!(process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None), None, "a process that ended cannot be working there");
+    assert_eq!(
+        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
+        ProcessWorking::Nobody,
+        "a process that ended cannot be working there"
+    );
 }
 
 #[test]
 fn a_process_whose_folder_was_read_elsewhere_says_so_in_its_own_words() {
-    let inside: WorkingProcess = WorkingProcess { pid: 4747, folder: WorkingFolder::Inside };
-    assert_eq!(inside.why(), "process 4747 is working in it");
+    let inside: WorkingProcess = WorkingProcess { pid: 4747, program: Some(String::from("sleep")), folder: WorkingFolder::Inside };
+    assert_eq!(inside.why(), "process 4747 (`sleep`) is working in it");
+    let unnamed: WorkingProcess = WorkingProcess { pid: 4748, program: None, folder: WorkingFolder::Inside };
+    assert_eq!(unnamed.why(), "process 4748 is working in it");
 }
 
 /// The start time one row of a process table names,
@@ -213,7 +244,7 @@ fn a_hidden_process_older_than_the_worktree_does_not_count() {
     let table: PathBuf = a_table_of_a_hidden_process_started_at(4848, 1_000, 100);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(5))),
-        None,
+        ProcessWorking::Nobody,
         "a process older than the folder cannot have changed into it"
     );
 }
@@ -227,7 +258,7 @@ fn a_hidden_process_younger_than_the_worktree_keeps_it() {
     let table: PathBuf = a_table_of_a_hidden_process_started_at(4949, 1_000, 99_900);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(10))),
-        Some(WorkingProcess { pid: 4949, folder: WorkingFolder::Unreadable }),
+        ProcessWorking::Someone(WorkingProcess { pid: 4949, program: None, folder: WorkingFolder::Unreadable }),
         "a process that started after the folder was made may be working in it"
     );
 }
@@ -280,11 +311,12 @@ fn a_process_holding_a_file_inside_keeps_the_worktree_though_its_folder_is_elsew
     let held: PathBuf = worktree.join("work.txt");
     std::fs::write(held.as_path(), b"the file the process holds\n").expect("the file the process holds open");
     let table: PathBuf = a_table_with_one_process_holding(elsewhere.as_path(), held.as_path(), 5151);
-    let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
-    assert_eq!(found, Some(WorkingProcess { pid: 5151, folder: WorkingFolder::OpenFile }), "the descriptor into the worktree is found");
+    std::fs::write(table.join("5151").join("comm"), b"tee\n").expect("the program the process runs");
+    let found: ProcessWorking = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
+    assert_eq!(found, someone(5151, "tee", WorkingFolder::OpenFile), "the descriptor into the worktree is found");
     assert_eq!(
-        found.expect("the process holding the file").why(),
-        "process 5151 has a file open in it, though its working folder is elsewhere"
+        found.reason(),
+        Some(String::from("process 5151 (`tee`) has a file open in it, though its working folder is elsewhere"))
     );
 }
 
@@ -309,7 +341,7 @@ fn a_descriptor_into_the_worktrees_own_git_directory_does_not_count() {
     let table: PathBuf = a_table_with_one_process_holding(elsewhere.as_path(), marker.as_path(), 5151);
     assert_eq!(
         process_working_inside(worktree.as_path(), git_dir.as_path(), table.as_path(), None),
-        None,
+        ProcessWorking::Nobody,
         "a service's own marker is not a person working in the worktree"
     );
 }
@@ -330,11 +362,81 @@ fn a_descriptor_whose_file_is_already_unlinked_counts() {
     std::fs::write(gone.as_path(), b"the file the process holds\n").expect("the file the process holds open");
     let named: String = format!("{} (deleted)", gone.display());
     let table: PathBuf = a_table_with_one_process_holding(elsewhere.as_path(), Path::new(named.as_str()), 5252);
+    std::fs::write(table.join("5252").join("comm"), b"less\n").expect("the program the process runs");
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
-        Some(WorkingProcess { pid: 5252, folder: WorkingFolder::OpenFile }),
+        someone(5252, "less", WorkingFolder::OpenFile),
         "the text the kernel adds after an unlinked target does not hide it"
     );
+}
+
+/// What:
+///  A process that runs a program from the worktree keeps it, though its working folder is elsewhere.
+/// Why:
+///  A program started by absolute path from another folder is the ordinary way a tool drives a build,
+///  and deleting the image under it ends that program:
+///  neither the working folder nor a descriptor shows it.
+#[test]
+fn a_process_running_a_program_from_the_worktree_keeps_it() {
+    let root: PathBuf = fixture("process-executable");
+    let worktree: PathBuf = root.join("worktree");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir_all(worktree.join("target/debug").as_path()).expect("a program in the worktree");
+    std::fs::create_dir(elsewhere.as_path()).expect("a folder the process was started in");
+    let program: PathBuf = worktree.join("target/debug/helper");
+    std::fs::write(program.as_path(), b"not run by this control\n").expect("the program the process runs");
+    let table: PathBuf = a_table_with_one_process_in(elsewhere.as_path(), 5353);
+    std::os::unix::fs::symlink(program.as_path(), table.join("5353").join("exe")).expect("the program the process runs");
+    std::fs::write(table.join("5353").join("comm"), b"helper\n").expect("the program's own name");
+    let found: ProcessWorking = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
+    assert_eq!(found, someone(5353, "helper", WorkingFolder::Executable), "the program in the worktree is found");
+    assert_eq!(
+        found.reason(),
+        Some(String::from("process 5353 (`helper`) runs a program from it, though its working folder is elsewhere"))
+    );
+}
+
+/// What:
+///  A process running a program outside the worktree does not count.
+/// Why:
+///   Almost every program on the machine runs from somewhere,
+///  and none of them is working in this folder for it.
+#[test]
+fn a_process_running_a_program_from_elsewhere_does_not_count() {
+    let root: PathBuf = fixture("process-executable-elsewhere");
+    let worktree: PathBuf = root.join("worktree");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    std::fs::create_dir(elsewhere.as_path()).expect("a folder with a program in it");
+    let program: PathBuf = elsewhere.join("helper");
+    std::fs::write(program.as_path(), b"not run by this control\n").expect("the program the process runs");
+    let table: PathBuf = a_table_with_one_process_in(elsewhere.as_path(), 5454);
+    std::os::unix::fs::symlink(program.as_path(), table.join("5454").join("exe")).expect("the program the process runs");
+    assert_eq!(process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None), ProcessWorking::Nobody);
+}
+
+/// What:
+///  A scan whose moment has passed says so and never answers that nobody is there.
+/// Why:
+///   Nothing a bound cut short proves the folder empty,
+///  and a caller that removed on it would take the folder an unreached process is working in.
+///  The moment is given as one already past,
+///  which is what a table of thousands of entries under load reaches.
+#[test]
+fn a_scan_that_reached_its_bound_answers_that_it_did_not_finish() {
+    let root: PathBuf = fixture("process-bound");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir(elsewhere.as_path()).expect("a folder no process works in the worktree from");
+    let table: PathBuf = a_table_with_one_process_in(elsewhere.as_path(), 5555);
+    let found: ProcessWorking = process_working_inside_until(worktree.as_path(), &worktree.join(".git"), table.as_path(), None, Instant::now());
+    let ProcessWorking::Unfinished(why) = &found else {
+        panic!("a scan past its moment did not finish: {found:?}");
+    };
+    assert!(why.contains("stopped at its bound of 2 seconds"), "{why}");
+    assert!(why.starts_with("the scan of the process table "), "{why}");
+    assert_eq!(found.reason(), Some(why.clone()), "the reason a caller reads is the scan's own words");
 }
 
 /// What:
@@ -359,9 +461,9 @@ fn a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table() {
     )
     .expect("a helper holding a file in the folder");
     // The folder was made a moment ago, so every process that hides its working folder started before it.
-    let found: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    let found: ProcessWorking = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
     let _ended = child.kill();
     let _waited = child.wait();
-    assert_eq!(found, Some(WorkingProcess { pid: child.id(), folder: WorkingFolder::OpenFile }), "the helper's own descriptor is named");
+    assert_eq!(found, someone(child.id(), "tee", WorkingFolder::OpenFile), "the helper's own descriptor is named");
     std::fs::remove_dir_all(elsewhere.as_path()).expect("the helper's own folder");
 }

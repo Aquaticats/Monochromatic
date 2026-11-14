@@ -11,7 +11,6 @@
 //!  a lock,
 //!  an unfinished merge or rebase,
 //!  a process that started working in it,
-//!  an ignored file the person wrote,
 //!  a push failure recorded in its own Git directory.
 //!  So the proof belongs where the destruction is,
 //!  and this is that proof:
@@ -27,14 +26,12 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const why = whyTheWorktreeStays({ context, commonDir, procRoot, source }, worktree, admin); // string | undefined
+//! const why = whyTheWorktreeStays({ commonDir, procRoot }, worktree, admin); // string | undefined
 //! ```
 
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
-use crate::transaction_git::GitContext;
-use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{Registration, registrations_of};
-use crate::worktree_process_inside::process_working_inside;
+use crate::worktree_process_inside::{ProcessWorking, process_working_inside};
 use crate::worktree_removal_rescue::snapshot_one;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
@@ -75,19 +72,14 @@ const BISECT_MARK_PREFIX: &str = "BISECT_";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SecondLook = { context: GitContext; commonDir: string; procRoot: string; source?: string };
+/// type SecondLook = { commonDir: string; procRoot: string };
 /// ```
 pub(crate) struct SecondLook<'a> {
-    /// How to start real Git.
-    pub(crate) context: &'a GitContext,
     /// The canonical common Git directory,
     /// which owns every registration.
     pub(crate) common_dir: &'a Path,
     /// The process table to read.
     pub(crate) proc_root: &'a Path,
-    /// The worktree the ignored files are compared with,
-    /// which is the one the proof was first made from.
-    pub(crate) source: Option<&'a Path>,
 }
 
 /// What:
@@ -100,7 +92,7 @@ pub(crate) struct SecondLook<'a> {
 ///  and the two that make Git or the walk of a tree work are the last:
 ///  the registrations are a directory listing,
 ///  the lock and the marks are file looks,
-///  and the ignored files are a Git start and one comparison per entry.
+///  and the process table is one walk of it.
 ///  The snapshot comes last but one,
 ///  before the removal may run,
 ///  because the records it copies are the only thing left of a push failure once the worktree's own Git
@@ -137,24 +129,12 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
-    if let Some(working) = process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
-        return Some(working.why());
-    }
-    let Some(source) = look.source else {
-        return Some(String::from(
-            "this command runs in a repository without a worktree, so nothing proves the ignored files there are not yours",
-        ));
-    };
-    match ignored_entries_alone_here(look.context, worktree, admin, source) {
-        Ok(alone) if alone.is_empty() => {}
-        Ok(alone) => {
-            return Some(format!(
-                "it holds ignored files that {} does not hold with the same bytes ({}), and nothing proves they are not yours",
-                source.display(),
-                alone.list()
-            ));
-        }
-        Err(reason) => return Some(format!("nothing proves the ignored files there are not yours, so nothing is removed: {reason}")),
+    match process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
+        ProcessWorking::Nobody => {}
+        ProcessWorking::Someone(working) => return Some(working.why()),
+        // A scan that did not finish proves nothing about the rest of the table, and a removal on it would take the
+        //  folder a process it never reached is working in.
+        ProcessWorking::Unfinished(why) => return Some(format!("{why}, so nothing is removed")),
     }
     // The unshown push failures and the unfinished pushes of this worktree live in its own Git directory, which the
     // removal deletes, so they are copied into a removal snapshot before anything is deleted. A record that cannot be
