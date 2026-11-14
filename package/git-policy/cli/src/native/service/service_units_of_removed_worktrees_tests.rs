@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::service_instance::{instance_of, socket_path};
+use crate::service_provision_loaded_unit_texts::{record, record_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
 use crate::test_support::{git, remove, repository};
@@ -259,6 +260,10 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     for (instance, git_dir) in [(&kept_instance, &kept), (&gone_instance, &gone)] {
         record_worktree(machine.runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("note");
         machine.socket_of(instance.as_str());
+        // What: The record of the unit texts the manager was told about, which the sweep forgets with the note.
+        // Why:  It says what the manager read for an instance whose units no longer exist, and a worktree that is gone never
+        //       comes back at that Git directory.
+        record(machine.runtime.as_path(), instance.as_str(), [].as_slice()).expect("record of the unit texts");
     }
     machine.socket_of(unknown.as_str());
     let mut recorder: Recorder = Recorder::default();
@@ -272,6 +277,11 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     assert!(socket_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's socket file stays");
     assert_eq!(survey(&machine.folders()), Survey { gone: Vec::new(), unmapped: vec![unknown], present: 1 });
     assert!(note_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's note stays");
+    assert!(
+        !record_path(machine.runtime.as_path(), gone_instance.as_str()).exists(),
+        "the record of the unit texts the manager was told about goes with the instance"
+    );
+    assert!(record_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's record stays");
     remove(machine.root.as_path());
 }
 

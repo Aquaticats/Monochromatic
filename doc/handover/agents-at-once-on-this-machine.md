@@ -484,3 +484,62 @@ one line a minute:
   The deletion takes its own write-and-sync reading of both drives before each shard,
   recorded in the same readings file with a `during` field and no agent count.
   **The hour that judges this level starts when the deletion has ended.**
+
+#### The hour that judges, 2026-11-13T18:51:10-05:00 to 19:49:23-05:00
+
+Not final and not approved:
+read by the coordinating session from the probe's own file
+(`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`,
+summarised by `summarise-the-probe-readings-between-two-times.ts` beside it).
+Neither the sizing walk nor the deletion ran in this hour.
+
+- **What was going was twenty to twenty-two agent units,
+  not thirty-two.**
+  59 readings,
+  one a minute;
+  the count of `pi-*.service` units at each:
+  least 20,
+  median 21,
+  most 22.
+  That count holds every session's Pi runs on this machine and no agent of another kind.
+  The cap of thirty-two was never reached,
+  because one author pool of twenty and the reviews held to five bound it,
+  which the owner chose to keep at 17:56.
+- Home drive write-and-sync:
+  median 1 ms,
+  slowest 91 ms.
+- Build volume write-and-sync:
+  median 7 ms,
+  slowest 3,361 ms;
+  the five slowest 1,288,
+  1,461,
+  2,395,
+  2,572 and 3,361 ms.
+  No reading over five seconds,
+  so never two in a row.
+- Load average over one minute:
+  least 5.27,
+  median 11.11,
+  most 20.27.
+- Runs started in the hour:
+  twelve,
+  each with a first answer;
+  the slowest first answer 75,032 ms,
+  none over 120 s
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`).
+- Runs that ended in the hour:
+  ten;
+  none on a disk error.
+  Two ended `driver-failed` by the defect of issue 6299,
+  each with its work done,
+  before its fix reached `main` at 19:36:16.
+- **By the criterion,
+  twenty to twenty-two agents held for an hour on this disk.**
+  That is the highest count this file holds an undisturbed hour for.
+  The ceiling is not found:
+  no count above twenty-five can be reached while the pools stay as they are,
+  so the search rests here until the owner changes a pool or the new disk arrives,
+  when it is found again from four.
+- The cap in "The cap now" stays thirty-two:
+  it is a bound never to pass,
+  and nothing measured says it is too high or too low.

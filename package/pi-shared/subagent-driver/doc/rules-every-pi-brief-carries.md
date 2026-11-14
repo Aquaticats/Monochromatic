@@ -70,6 +70,16 @@ Each rule is the project's own requirement.
   and every `systemctl --user` and `systemd-run --user` call in that time went to it.
   A guard now kills any process that takes that name,
   and the run that started it ends with it.
+- A fixture's own `HOME` and `XDG_RUNTIME_DIR` do not keep a program off this machine's session bus:
+  `DBUS_SESSION_BUS_ADDRESS` is inherited from the run's environment and still names it.
+  Unset it,
+  or point it at a private `dbus-daemon` of the run's own,
+  for every command that runs a wrapper,
+  a service or any program that asks a service manager for something.
+  On 2026-11-13 a measurement script that set the two directories and left the address
+  had this machine's user manager start two commit service units for throwaway repositories;
+  the run noticed,
+  stopped and removed them.
 - The run has its own Git worktree on its own branch.
   Other agents work in other worktrees,
   and the main checkout holds other sessions' uncommitted changes.

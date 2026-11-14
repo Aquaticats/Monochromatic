@@ -74,14 +74,14 @@ fn a_call_without_arguments_has_the_specified_layout() {
             hand_field(FIELD_PATH, b'o', MANAGER_PATH),
             hand_field(FIELD_DESTINATION, b's', "org.freedesktop.systemd1"),
             hand_field(FIELD_INTERFACE, b's', MANAGER_INTERFACE),
-            hand_field(FIELD_MEMBER, b's', "Reload"),
+            hand_field(FIELD_MEMBER, b's', "ResetFailedUnit"),
         ],
         &[],
     );
-    assert_eq!(encode_call(1, &RELOAD, &[]), wanted);
-    // The numbers worked out by hand from the specification: 34, 33, 41 and 15 bytes of fields at offsets 16, 56, 96 and 144.
-    assert_eq!(wanted.len(), 160);
-    assert_eq!(u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]), 143);
+    assert_eq!(encode_call(1, &RESET_FAILED_UNIT, &[]), wanted);
+    // The numbers worked out by hand from the specification: 34, 33, 43 and 24 bytes of fields at offsets 16, 56, 96 and 144.
+    assert_eq!(wanted.len(), 168);
+    assert_eq!(u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]), 152);
 }
 
 /// A call with two strings carries their signature and the strings,
@@ -553,9 +553,9 @@ fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
 /// `Hello` comes first,
 /// a signal in
 ///  between is skipped,
-/// and the reload and the start arrive intact and succeed.
+/// and the calls that follow arrive intact and succeed.
 #[test]
-fn a_session_says_hello_then_reloads_and_starts() {
+fn a_session_says_hello_then_forgets_a_failure_and_starts() {
     let root = short_directory("exchange");
     let socket = root.join("bus");
     let listener = UnixListener::bind(&socket).expect("listen");
@@ -569,7 +569,7 @@ fn a_session_says_hello_then_reloads_and_starts() {
     };
     serve_bus(listener, script, sender);
     let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
-    bus.reload().expect("reloaded");
+    bus.reset_failed("cli-git.service").expect("forgotten");
     bus.start_unit("cli-git.socket").expect("started");
     let (auth, calls) = receiver.recv().expect("seen");
     // SAFETY: `geteuid` takes no arguments and cannot fail.
@@ -616,7 +616,7 @@ fn a_call_is_bounded_by_the_time_it_was_given_and_a_timeout_is_told_apart() {
     serve_after_hello(listener, patience, None, Duration::from_secs(600));
     let mut bus: Bus = Bus::connect(socket.as_path(), patience).expect("connected");
     bus.within(wait);
-    assert_eq!(bus.reload(), Err(CallError::TimedOut));
+    assert_eq!(bus.start_unit("cli-git.socket"), Err(CallError::TimedOut));
     remove(root.as_path());
 }
 
@@ -638,7 +638,7 @@ fn a_new_time_replaces_what_was_left_of_the_connections() {
     let mut control: Bus = Bus::connect(control_socket.as_path(), patience).expect("connected");
     control.within(given);
     std::thread::sleep(spent);
-    assert_eq!(control.reload(), Err(CallError::TimedOut), "the connection's own time is spent");
+    assert_eq!(control.start_unit("cli-git.socket"), Err(CallError::TimedOut), "the connection's own time is spent");
     // With a new time, the same call after the same delay succeeds.
     let socket = root.join("bus");
     serve_after_hello(UnixListener::bind(&socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
@@ -646,7 +646,7 @@ fn a_new_time_replaces_what_was_left_of_the_connections() {
     bus.within(given);
     std::thread::sleep(spent);
     bus.within(patience);
-    assert_eq!(bus.reload(), Ok(()));
+    assert_eq!(bus.start_unit("cli-git.socket"), Ok(()));
     remove(root.as_path());
 }
 

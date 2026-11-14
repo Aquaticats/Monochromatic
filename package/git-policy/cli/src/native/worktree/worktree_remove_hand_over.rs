@@ -38,7 +38,6 @@ use crate::service_messages::render;
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
 use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
-use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -231,7 +230,6 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
         waiting_notice_after: waiting_notice_after(),
         extra_wait: SHORT_EXTRA_WAIT,
         start_ceiling: HAND_OVER_GREETING_WAIT,
-        units_record_dir: host.as_ref().map(units_record_dir_of),
     };
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {

@@ -196,6 +196,31 @@ pub fn socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 }
 
 /// What:
+///  The name of the per-user link the service unit runs,
+/// directly inside the runtime directory.
+/// Why:
+///   The unit's text names this link,
+/// not the absolute path of whichever release happened to provision first,
+/// so an
+///  upgrade,
+/// a downgrade and two releases used in turn write one byte of the template instead of three absolute paths
+///  (`doc/planning/git-wrapper-reload-remedy.md`):
+/// the manager holds one text for the whole session and starts the
+///  release the link names at that moment.
+/// It sits in the runtime directory and not in the unit directory,
+/// because the
+///  manager reads every file of the unit directory as a possible unit,
+/// and it is removed at logout with the runtime directory,
+///  so
+/// it starts nothing at login.
+pub const PROGRAM_LINK: &str = "monochromatic-git-policy-cli-bin";
+
+/// The per-user link the service unit's `ExecStart=` names.
+pub fn program_link(runtime_dir: &Path) -> PathBuf {
+    return runtime_dir.join(PROGRAM_LINK);
+}
+
+/// What:
 ///  The bytes `socket_path` adds to the runtime directory it is given:
 /// the separating slash,
 /// the folder of the sockets,

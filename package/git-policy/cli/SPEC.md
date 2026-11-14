@@ -4652,25 +4652,32 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
-  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  That clean is not the add's work,
+  and it runs only where the worktree's own build directory holds
   state a build could reuse:
   Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
   so a worktree that starts without one rebuilds its own crates by itself,
   and a copied `target/` alone is no reason to clean.
   Measured on 2026-11-12 on this repository:
   a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
-  build, which named the copy's own path,
+  build,
+  which named the copy's own path,
   while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
-  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  nothing,
+  32.8 to 47.7 s of work in each of three adds that took that clean 34 times
   (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
   Where the worktree's build directory does hold that state,
   the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
-  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  rename,
+  under the filling's marker,
+  and adds the workspace to the same `prewarm` record,
   so no build that starts at once finds artifacts Cargo would call fresh:
-  it finds no build directory and compiles everything itself, which is correct and only slower.
+  it finds no build directory and compiles everything itself,
+  which is correct and only slower.
   The filling then cleans that staged copy and publishes it back with the rename that never replaces,
   so a worktree that built in the meantime keeps what it made.
-  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  The add runs no `cargo clean` in that path,
+  which is what keeps an add inside its bound:
   the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
   Where the state cannot be moved aside at all (a staging name another writer holds,
   or a directory that cannot be renamed),
@@ -7762,17 +7769,24 @@ on the commit path:
   once;
   a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
-  A unit the manager reports `active` whose service has greeted nothing for `SERVICE_GREETING_SILENCE` is asked to
-  restart,
+  A unit the manager reports `active` whose service has greeted nothing for the whole start ceiling is asked to restart,
   once,
-  and the wait goes on:
+  and the wait goes on with the whole ceiling again:
   a service greets a connection before it restores anything,
-  so a running unit that greets nothing is one whose program stopped inside its own process
+  so a service that has run that long with nothing to say is one whose program stopped inside its own process
   (a frozen control group,
   a debugger,
   a suspended machine,
   a wait in the kernel that nothing ends),
   and no start of a unit the manager believes runs brings it back.
+  Nothing shorter than the ceiling stands in for it:
+  a greeting three seconds late was read as that state on 2026-11-12,
+  and the restart and the manager-wide reload that followed ended the desktop session
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+  The service survives being ended by design
+  (its journal,
+  its held commits and its work records are durable),
+  so the commit gets its answer instead of failing
   The service survives being ended by design
   (its journal,
   its held commits and its work records are durable),
@@ -8334,39 +8348,187 @@ and
   Test:
   `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
   and `an_older_git_is_told_how_to_get_a_service_it_can_work_with`.
-- Provisioning asks the manager for the reload its own writes need,
-  and a kill between writing a template and that reload is repaired
-  by the next commit:
-  the record of the unit texts the manager was told about
+- Provisioning never asks the manager to re-read the units it holds.
+  What a commit changes is two files (`service_provision.rs`):
+  the service template names a per-user program link
+  (`service_instance.rs`,
+  `program_link`,
+  `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`)
+  and not the absolute path of the release that wrote it,
+  so an upgrade,
+  a downgrade and two releases used in turn change no text the manager read.
+  Every commit points that link at the release it is running,
+  the fast path included,
+  because the start that follows may be hours away:
+  the service exits after three idle hours,
+  and the manager starts it again from whatever the link names then.
+  The one thing left is a unit the manager holds at an older text,
+  and it is dropped rather than reloaded (`service_provision_instance_unloaded.rs`):
+  a service that runs is asked to retire first,
+  so the batch it holds is finished,
+  the worktree's socket is stopped,
+  the manager is asked what it holds of the worktree's units until it holds neither,
+  and the socket is started again,
+  so the next start reads the file as it is now.
+  The cost is this worktree's own:
+  measured in a disposable manager holding 4,059 units,
+  the manager held a stopped socket and service no longer on the first 50 ms poll,
+  11 ms after the stop was answered
+  (`doc/planning/git-wrapper-reload-remedy.md`).
+  Why:
+  a reload re-reads every unit the manager holds,
+  at a cost that grows with everything else it runs,
+  and it holds the manager's own event loop for as long as it takes.
+  On 2026-11-12T01:21:10-05:00 one of those,
+  139,770 ms long,
+  expired a reply the manager had already been sent for the desktop session's window manager,
+  and the session ended
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+  The wrapper's client of the manager has no `Reload` member at all (`systemd_dbus.rs`),
+  and the guard on the members it may call fails if one comes back
+  (`source_guard/no_start_at_login_tests.rs`,
+  `ALLOWED_MEMBERS`),
+  as does a line-for-line control over every release source
+  (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
+  A provisioning that finds the units,
+  the record of what the manager was told,
+  the socket file there and no earlier socket of this worktree listening asks the manager nothing at all.
+  Tests:
+  `a_moved_program_moves_only_the_link`,
+  `a_release_change_of_every_kind_changes_no_unit_text`,
+  `a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing`,
+  `a_unit_of_an_earlier_release_is_rewritten_and_started`,
+  `a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`,
+  and the container proof
+  `mise run //package/git-policy/cli:test:service-manager`,
+  whose arm from `main` ends an unrelated `Type=dbus` service and its target and whose arm from this release keeps both.
+  The migration those two releases meet is the same one:
+  `0.6.1-alpha.13`'s template names the executable of the release that wrote it and `0.6.1-alpha.14`'s names a program link
+  of its own,
+  so either text is rewritten once and its unit dropped once,
+  with no reload.
+- The record of the unit texts the manager last read is per unit instance
   (`service_provision_loaded_unit_texts.rs`,
-  in the notes folder of the runtime unit directory)
-  is written only after the manager accepted the reload,
-  so a commit that finds the files matching and the record older
-  provisions again and asks for the reload,
+  `<instance>.units-the-manager-read` in the notes folder of the runtime unit directory,
+  removed with the note of a stopped instance by the sweep of a removed worktree).
+  Why:
+  the manager holds one instance at a time,
+  so a digest shared by every worktree would call one worktree's freshly loaded units true for another's stale ones.
+  The record is written after the manager was watched dropping the instance and never before,
+  so a commit that finds the files matching and the record older drops the instance and starts it again,
   and the commits after it find the record and take the fast path.
+  Only a call that proved what the manager holds may write it:
+  the manager was watched dropping this worktree's units (`Unloaded::Dropped` in `service_provision_instance_unloaded.rs`),
+  or the record already said so.
+  A manager that could not be asked keeps the record unwritten,
+  even when the start that followed succeeded,
+  because a start alone does not say which text the manager started from;
+  the next commit drops the unit and starts it again.
   Without it the killed upgrade's files look like an installation the manager runs,
   every later commit reaches the service of the release that was replaced,
   and ends with "The commit service that is running was started from another release of this git wrapper ...",
   however often it is run.
   Test:
-  `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
-  Nothing else drops the record.
-  Another release answering used to be taken as proof that the unit the manager loaded and the
-  files on disk disagreed,
-  and `reach_current` dropped the record then,
-  so the next commit wrote the
-  units and reloaded.
-  A unit text no longer names a release,
-  so that answer says only that a service started before
-  the program link moved is still running,
-  which the retire ends:
-  the record is left as it is
-  (findings 2 of the round-2 review and 3 of the round-3 review,
-  superseded by the program link below).
+  `a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit`,
+  and `a_manager_that_does_not_answer_never_fails_the_commit`,
+  which holds the record unwritten after a manager that timed out.
+  A service of another release answering at all is proof that the manager's copy and the files disagree,
+  and the repair is that service's own retirement:
+  it finishes its batch and exits,
+  the manager unloads the unit once nothing runs in it,
+  and the next start reads the file as it is now.
+  Nothing is asked of the manager for it,
+  and no record is dropped:
+  the record says what the manager read,
+  which the unloaded unit no longer contradicts.
+  Test:
+  `a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_global`.
+  A service of another release that is still there at the end of the wait it was given is ended once there,
+  said once,
+  and waited for again under `START_CEILING`,
+  because the wait's bound is the commit's and a service finishing a batch outlasts it;
+  the ending is this worktree's own unit's `RestartUnit`,
+  and one ending only,
+  since a unit the manager starts from a text an upgrade left behind comes back as the other release and the next
+  commit's provisioning repairs that.
+  Test:
+  `a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_once`.
+- A greeting that has not come is never,
+  by itself,
+  read as a service stopped inside its own process.
+  A start is given the whole start ceiling (`wait_ceilings.rs`,
+  `START_CEILING`,
+  one minute),
+  and only then is a unit the manager reports running restarted once,
+  after which the ceiling is waited out again.
+  Why:
+  on 2026-11-12T01:21:13-05:00 a commit waited three seconds for the greeting of a service that was starting on a
+  machine with dozens of agents on it,
+  read that silence as a service stopped inside its own process,
+  asked the manager to restart it,
+  and the recovery from that asked the manager for the reload that ended the session;
+  the service greeted the next time it was asked,
+  five seconds later.
+  The three seconds had been sized against 52 cold starts measured on an unloaded machine,
+  the slowest 1,041 ms.
   Tests:
-  `a_service_of_another_release_that_will_not_stop_leaves_the_record_of_the_units`,
+  `a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted`,
   and
-  `a_service_of_another_release_that_takes_the_retire_and_never_returns_leaves_the_record`.
+  `a_unit_that_never_greets_is_restarted_once_at_the_start_ceiling_and_nothing_global_is_asked`.
+  What that costs the person:
+  with the three-second rule gone,
+  a service that is truly stopped inside its own process is given two whole start ceilings
+  (one before the restart and one after it)
+  before the commit fails,
+  and the commit prints the starting notice after `START_NOTICE_GRACE`,
+  the line that says the unit was restarted,
+  and the failure that names the journal command.
+- A defect of the service manager is worked around by the wrapper,
+  and it is never a reason for a command to fail,
+  to wait without a bound,
+  or to tell a person to do something by hand.
+  The defects on record,
+  and what this code does about each:
+  - A manager-wide reload holds every start request of every client for as long as it runs.
+    No release code asks for one:
+    the member list the client is checked against holds none
+    (`source_guard/no_start_at_login_tests.rs`),
+    and a control over every release source fails if one comes back
+    (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
+    So nothing this wrapper does can put another client's start behind a reload it asked for.
+  - systemd v262.1 reads a reply that expired during such a reload as a lost bus name
+    (`src/core/unit.c:3576`,
+    `src/core/service.c:5975`)
+    and then treats a live service as gone.
+    This code produces no such state by asking for a reload;
+    a unit the manager then reports `inactive` or `failed` is started,
+    or reset and started once,
+    by the client's own wait (`service_client_reach_service.rs`),
+    and the connection it makes is the truth about whether the service is there.
+  - A start request that gets no answer within a bound.
+    Every manager call carries its own bound (`systemd_dbus.rs`,
+    `EXCHANGE_WAIT`),
+    a provisioning call that times out leaves the units written,
+    the record unwritten,
+    and the commit going (`a_manager_that_does_not_answer_never_fails_the_commit`),
+    and the client's wait ends at `START_CEILING` naming the unit and the state the manager gave.
+  - A unit an earlier release left failed,
+    stale,
+    or naming a program that is gone.
+    The two unit texts are compared with this release's and rewritten where they differ,
+    the program link is pointed at the running executable before anything is started
+    (`a_replacement_that_stops_before_its_rename_leaves_the_old_link`),
+    a failed unit is reset and started once by the client's wait,
+    and a unit the manager holds at an older text is dropped and started again,
+    not reloaded
+    (`a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`).
+  What this release does not do:
+  start the service without a manager.
+  Where no session bus can be reached,
+  provisioning ends the commit with the remedy for an account with no user services
+  (`platform_without_manager`),
+  and the wrapper that starts its own service itself is another change,
+  not this one.
 - What a release change costs a commit,
   measured on 2026-11-11T20:01-05:00 on this host
   (load average 120,
@@ -8387,8 +8549,9 @@ and
   which was false (two commits of 20:11:32,
   20,000 ms of provisioning each).
   The unit names a program link the wrapper replaces instead
-  (`src/native/service/service_provision_program_pointer.rs`):
-  `$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`,
+  (`src/native/service/service_instance.rs`,
+  `program_link`):
+  `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,
   a symlink replaced by a rename,
   so a reader sees the old program or the new one and never a
   half-written link.
@@ -8807,7 +8970,8 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
-  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  The name carries the commit the push sent,
+  which is the commit the branch named before the push read the worktree's verdicts,
   and never the newest work record the round claimed:
   a commit that lands after that claim is what the push sends,
   so a record named for the claimed commit would replace an unread account of that commit with words about another one and
@@ -8825,7 +8989,8 @@ in-process reader can) gives every value of the multi-valued keys.
   the display cap of a notice stays on a push that did not finish,
   which a later try says the same thing about.
 - A record that could not be written never leaves its work items settled as if it existed:
-  the words it would have carried go to the service journal, every line of them,
+  the words it would have carried go to the service journal,
+  every line of them,
   and what the items become follows what a later try can say.
   A push that landed,
   whose account the storage refused,
@@ -14753,12 +14918,14 @@ from this invocation's own capture.
 The skeleton is the directory itself,
 `objects`,
 `objects/info` and `refs`:
-`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+`objects/pack`,
+`refs/heads` and `refs/tags` are left to Git,
 which makes the loose object's own directory and the loose ref it writes,
 and the check answers "no pack and no ref" with one question about each absent directory
 (`shadow_skeleton.rs`,
 `shadow_pool_member.rs`).
-A member that holds one of the three is refused, which is what a shadow a commit has used holds.
+A member that holds one of the three is refused,
+which is what a shadow a commit has used holds.
 
 #### A shadow handed out from the drawn folder
 
@@ -14767,7 +14934,8 @@ and hands it over:
 this is the option of
 `doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
 that the owner decided for on 2026-11-11,
-in its checked form, so every question a claim asks is asked of the tree that is handed out.
+in its checked form,
+so every question a claim asks is asked of the tree that is handed out.
 
 - The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
   one entry per tree named `drawn-<identity>`,
@@ -14795,17 +14963,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   so two commits that ask at once never get one tree;
   a restarted service hands out nothing it did not draw,
   and a tree an earlier one drew is left to the sweep by its age.
-- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`,
+  250 ms,
   which is a hundred and fifty times the largest answer measured over 3,000 round trips
   (`service_client_shadow_hand_out.rs`).
-  A socket nobody listens on, a service that does not answer, an empty stock,
+  A socket nobody listens on,
+  a service that does not answer,
+  an empty stock,
   and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
-  it takes the pool's member or makes its creation, within the bounds it has today,
+  it takes the pool's member or makes its creation,
+  within the bounds it has today,
   and says nothing.
 - A commit that is handed a tree runs `refusal` on it,
   which is the same check a claim runs and is all reads,
   then writes the ref store into it as it does into a claimed member.
-  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  A commit that concludes something is never handed one:
+  it carries the state a conclusion leaves,
   which the landing that concludes compares at the path its own scratch tree holds.
   A tree this invocation refuses is released in the background and the commit takes the other routes.
 - The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
@@ -14815,15 +14988,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
   `sweep_drawn` runs beside every wrapped command,
   beside the service's own draw,
-  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
-  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
-- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and for a removed worktree,
+  which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh,
+  and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in,
+  in its `shadow` field,
   and the service removes that tree with the scratch tree once that landing is over.
-  A request the service answered as not landed, or never took,
-  leaves the tree to the command, which releases it beside itself in the background.
+  A request the service answered as not landed,
+  or never took,
+  leaves the tree to the command,
+  which releases it beside itself in the background.
 - A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
-  their commit makes its creation, and it asks nothing.
-- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  their commit makes its creation,
+  and it asks nothing.
+- A commit that concludes a merge,
+  a cherry-pick or a revert is handed no drawn tree yet,
   and takes the pool's member or makes its creation as it did before:
   the landing that concludes compares the state Git left in the shadow with the copy it kept,
   reading the shadow at the path the commit's own scratch tree holds
@@ -14849,8 +15029,10 @@ in its checked form, so every question a claim asks is asked of the tree that is
   It is the service's `rename` that the drawn route moves off the commit's wait:
   `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
   (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
-  "The cost, over 330 commits").
-- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
+  "The cost,
+  over 330 commits").
+- A handed-out tree is checked before it is used,
+  and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,
@@ -17754,8 +17936,11 @@ mixed and default modes,
 `rm` and `mv` with force,
 `checkout-index` with force,
 every `read-tree` form Git accepts,
-and the abort forms of `merge`,
+the abort forms of `merge`,
 `rebase`,
+`cherry-pick`,
+`revert` and `am`,
+and the `--skip` forms of `rebase`,
 `cherry-pick`,
 `revert` and `am`.
 Read-tree is read from its own option table,
@@ -17910,6 +18095,9 @@ because the wrapper never sees that command start.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
+The abort and skip forms are the exception,
+decided by the work they would discard wherever they run
+("The abort and skip forms while their operation waits" below).
 A `clean` counts untracked files as well.
 An ignored file is not a reason to refuse a clean in a linked worktree,
 by the owner's answer of 2026-11-10 ("All four are deleted,
@@ -18176,11 +18364,17 @@ what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
-#### The abort forms while their operation waits
+#### The abort and skip forms while their operation waits
 
 An operation that stopped with conflicts makes `git status` report its own state,
 so the rule above refused every abort form for exactly as long as it was the command a person needs:
 in a linked worktree a conflicted merge could be finished but not aborted without the hatch.
+`git rebase --skip` and its siblings are here for the same reason and a second one:
+they drop the commit or patch the operation stopped at and go on,
+so they discard the hand resolution of its conflict just as the abort does
+(measured with Git 2.56.0 for every form,
+including `git am --skip` ending a rebase that applies patches),
+and before this rule they were not guarded at all.
 The abort forms are decided instead by the state the command's own implementation reads,
 from the worktree's Git directory,
 read in one start of Git that asks `rev-parse --path-format=absolute --git-path` for
@@ -18212,6 +18406,14 @@ and refuses an `am` in progress;
 and each aborts a pick or a revert alike;
 `git am --abort` needs `rebase-apply` in either of its two modes,
 so it also ends a rebase that applies patches.
+The `--skip` forms are live on the same state,
+because they end the same operation:
+`git rebase --skip` needs the rebase's state,
+`git cherry-pick --skip` and `git revert --skip` the pick's,
+and `git am --skip` the apply backend's in either mode.
+`git merge` has no `--skip`,
+and a region that spells one is left to Git,
+which refuses it.
 A state of another kind does not make a form live:
 Git refuses it
 (`There is no merge to abort (MERGE_HEAD missing)`,
@@ -18220,53 +18422,118 @@ and discards nothing,
 so the command is left to Git and the record says `allowed`
 with `dirty` null,
 because no status was read.
+
 While a form is live,
-the work that is not the operation's own is copied first and the command runs
-(the owner's "save,
-then allow",
-2026-11-02,
-which the conflicted-path carve-out below already follows).
+what decides it is the work that is not the operation's own.
+Where the only change is the operation's own state,
+the command runs exactly as Git runs it and no line is added to standard error,
+and the record says `allowed` with `dirty` null.
+Where the person's own work is there,
+the command is refused before anything is changed,
+and the refusal gives both routes out:
+the quit form stops the operation and keeps the index and the files,
+and the guard's opt-out runs the command exactly as real Git runs it.
+That is the owner's answer of 2026-11-12T10:35:07,
+"Refuse with opt-out",
+which replaced the saving this rule described before it.
+Nothing is copied,
+and no sentence of a refusal says a copy was made.
+A skip is decided the same way and is refused or let through wherever it is,
+in the main worktree and in a linked one alike:
+the rule is about the work,
+not about which worktree the command runs in.
 Where the answer cannot be read,
-the rejection above stands,
+the command is refused and the refusal names what could not be read,
 which loses nothing.
 
-That work is read from Git's own listings.
-For a merge whose `AUTO_MERGE` ref resolves,
-it is the paths where the worktree differs from the result Git recorded
-(`git diff --name-only -z AUTO_MERGE`)
-or where the index does,
-unmerged entries left out
-(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`):
-an untouched conflicted path holds the recorded result and unmerged index entries,
-so it is not named,
-and a resolution written or staged over it is.
-For a merge without `AUTO_MERGE`,
+That work is read from Git's own listings against the result Git recorded for the conflict.
+`AUTO_MERGE` holds the result Git computed and wrote into the worktree,
+and measured with Git 2.56.0 that ref is there for a merge,
 a rebase,
+a cherry-pick and an `am` alike,
+not only for a merge,
+so every form is read against it:
+the worktree against it
+(`git diff --name-only -z AUTO_MERGE`)
+and the index against it
+(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`,
+whose unmerged entries are the operation's own state and are left out).
+A path that still holds the recorded result was never touched by the person,
+so an untouched conflicted path is not named;
+a resolution written over it is,
+and a resolution staged over it is named as content only the index holds,
+because the worktree still holds the recorded result.
+Where Git recorded no result (a Git older than the ref,
+or a state none is written for),
+the listings compare each side with the other
+(`git diff --name-only -z` and `git diff --cached --name-only -z --diff-filter=ACDMRTB`),
+and the paths the operation is still stopped at are asked for on their own
+(`git diff --name-only -z --diff-filter=U`) and kept:
+they are named as conflicted paths,
+and a command that would replace one of them is refused,
+because without a recorded result nothing the wrapper can read tells the conflict text Git wrote there
+from a resolution the person wrote over it.
+That is not caution for its own sake:
+a checked-in strategy's text names its own temporary files,
+so it cannot be reproduced to compare with,
+and the `resolve` strategy's markers read `.merge_file_1xHykn` with a fresh name each time (measured with Git 2.56.0).
+Which ways of stopping record the result is measured too:
+a merge under `ort`,
+`recursive` or `subtree`,
 a cherry-pick,
-a revert and an `am`,
-every uncommitted tracked change is named
-(`git diff --name-only -z` and `git diff --cached --name-only -z`),
-because those aborts return with a hard reset that keeps nothing.
+and an `am` applying a patch all record it,
+and the file Git left equals it;
+`git merge -s resolve` and `git cherry-pick --strategy=resolve` record none,
+so their conflicts are the fallback's and are refused;
+a custom merge driver's output is inside the record,
+so a path the driver wrote is not named and an edit over it is;
+`git merge -s ours` conflicts not at all;
+and a Git older than the ref records nothing either,
+which is the same fallback.
+Measured with Git 2.56.0,
+the worktree listing names such a path twice,
+once with the status `U` and once as a modification,
+so no filter separates the operation's state from the person's work,
+and every one of them is counted as the person's.
 A listing that fails is a rejection,
 never an empty list.
-A listed path that the worktree no longer holds while the index does is content the abort would drop,
-because the abort resets the index too,
-and no worktree file can be copied for it:
-the two listings that name it are `git ls-files --stage -z` (a stage-zero entry) and
-`git ls-files --deleted -z` (no file in the worktree),
-each read over the listed paths with `:(top,literal)` names,
-and the command is rejected naming every such path,
-saying the content stands only in the index and giving `git restore --worktree -- <path>` and
-`git show :<path> > <file>` as the ways to keep it.
-The copies are written by the same saver,
-into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
-with the same bound,
-and the notice names the command,
-the folder and each copy before Git runs;
-a path with nothing to copy is named as such,
-and a copy that cannot be written rejects the command with the reason.
-The record is `saved-abort` with the copies when something was saved,
-and `allowed` with `dirty` null when the operation's own state was all there was.
+A listed path whose index holds a whole entry is content the command would drop,
+because the reset drops the index too,
+and `git ls-files --stage --full-name -z` over the listed paths with `:(top,literal)` names answers which they are;
+`--full-name` keeps a path below the top of the worktree spelled as the two listings spell it,
+so a command run below the top compares one spelling with itself.
+A listed path whose index entry was erased holds no content,
+and the tree the reset writes back holds that path and its content,
+so a staged deletion is no reason to refuse the command:
+an abort undoes the deletion and loses nothing of the person's.
+
+The refusal names the command as typed,
+each path with what stands there,
+and both ways out.
+The kinds are
+`a resolution or edit you made since Git stopped at the conflict`,
+`content only the index holds`,
+`a staged resolution` (beside an edit in the worktree),
+`a staged edit`,
+and,
+where no result is recorded,
+`an edit you made since the operation began` and `content the index holds`.
+A refusal names at most five paths and counts the rest.
+The quit form is `git merge --quit`,
+`git rebase --quit`,
+`git cherry-pick --quit` or `git revert --quit`,
+`git am --quit`:
+each stops the operation and keeps the index and the files
+(measured with Git 2.56.0 in every stopped state,
+a hand resolution kept in all of them),
+and none of them is a guarded form.
+The opt-out is `--no-enforce-worktree` written directly after the subcommand,
+which is where the wrapper strips it:
+`git merge --no-enforce-worktree --abort`,
+`git rebase --no-enforce-worktree --skip`.
+It is the spelling `linked-worktree-only` already reads,
+because this refusal is part of that policy,
+so no control of its own was added.
 
 The ignored-file question a hard reset gets is asked here too,
 because the abort writes a tree back over the worktree,
@@ -18283,21 +18550,87 @@ and the commit in `sequencer/head` for a sequence;
 also when it ends a rebase that applies patches.
 A recorded commit is read from the file Git wrote in the same start that read the state,
 and a record that cannot be read,
+that is not a regular file,
 or that holds no commit id,
 is a rejection and never a quiet fall back to `HEAD`,
 because the ignored-file refusal it earns must not read as clean.
+The record is opened with `O_NONBLOCK` and `O_NOFOLLOW` and refused unless it is a regular file,
+and it is read to at most one page (`RECORD_BYTES_READ`):
+a `git rebase --abort` whose `rebase-merge/orig-head` was a pipe hung there for good before this bound,
+with nothing able to end it.
 An ignored file at one of those paths keeps the rejection and is named,
 as for a forced `checkout` and a hard `reset`.
 
-The main worktree and a directory outside a worktree keep the rejection,
-because the rule above refuses a form there always;
-`git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state,
-a hand resolution kept in all of them),
-and the hatch runs the abort anyway.
-The check runs after the allowlisted tool cache has answered `exempt`,
-so a repository no guard reads gets no copy either.
+A skip writes back the tree of the commit it stopped at,
+which is `HEAD`,
+measured with Git 2.56.0:
+an ignored file at a path `HEAD` tracks is replaced by the tree's content,
+and one at a path only the operation's original head tracks survives the skip.
 
+The check runs after the allowlisted tool cache has answered `exempt`,
+so a repository no guard reads gets no refusal either.
+
+An untracked file at a path the restored tree tracks is where Git itself refuses the command.
+Git's own reset will not write a tree over an untracked file,
+and measured with Git 2.56.0 for every abort form and every skip form,
+an untracked file whose content is the tree's own included,
+Git refused and named the file:
+`git merge --abort` printed
+`Untracked working tree file 'victim.txt' would be overwritten by merge`,
+and `git rebase --skip`,
+`git cherry-pick --skip` and `git am --skip`
+failed with `The following untracked working tree files would be overwritten by reset`.
+A plain `git reset --hard` writes such a file over without a word,
+which is why each command's own behaviour is measured here and a reset's is not.
+The question is `git ls-files --others --exclude-standard -z` over the restored tree's paths
+(`repository_facts_untracked_files.rs`),
+and the rejection says that it is Git that refuses the command,
+names each file,
+says Git will not write that tree while the file is there,
+and gives moving or copying the file away as the way forward.
+Nothing is lost,
+so no copy is owed and no notice may claim the command ran.
+
+An abort is decided by the work it would discard wherever it runs:
+in the main worktree,
+in a linked one,
+and outside a worktree,
+the same reading answers the same way,
+which is the owner's decision of 2026-11-13 ("Same rule everywhere")
+and ends the older rule that every abort is refused in the main worktree.
+So an abort that would discard nothing runs there,
+and one that would discard work is refused there naming the files,
+with the same quit form and the same opt-out,
+and a skip is decided the same way.
+What the rule costs that worktree is what it already cost a linked one,
+measured with the built wrapper over nine samples each in the same conflicted state:
+`git merge --abort` took 92 ms at the median there against real Git's 5 ms,
+where the refusal it replaces took 10 ms,
+and the same command in a linked worktree took 84 ms.
+The check runs after the allowlisted tool cache has answered `exempt`,
+so a repository no guard reads gets no refusal either.
+
+#### The second measurement, immediately before Git starts
+
+The measurement above happens when the policy decides,
+and Git changes files later,
+so a file can be edited in between and go with the abort unseen.
+A command the measurement let through is measured again immediately before the process becomes Git,
+in the plain forward and in the coordinated one,
+by the same reading and with the same words,
+and a refusal there is a plain line on standard error
+(`abort_recheck.rs`).
+The plan the second measurement needs is held in one place and taken once,
+so a start the system refused and the wrapper repeats measures once.
+A difference the second measurement finds refuses the command,
+names the work that appeared,
+adds `This work appeared between the wrapper's measurement and Git's start.`,
+and appends a `rejected` record;
+the record the first measurement wrote still says `allowed`,
+which is what that measurement decided.
+One round is all a refusal needs:
+any difference ends the command,
+so a second round could only find the same difference again.
 #### The window between the measurement and the command
 
 The rule above is a statement about the state the wrapper measured,
@@ -18320,6 +18653,11 @@ A write that lands inside that window is not seen,
 and nothing in the wrapper can close it:
 only the process that changes files can decide,
 against the state it is about to change.
+For the abort and skip forms the window is the instant between the second measurement and Git's own reset,
+which is as small as a separate process can make it and is still not zero:
+a write that lands after it goes with the abort,
+and nothing of the wrapper's holds the version before,
+because nothing is copied.
 
 Where Git itself has such a check,
 the wrapper hands the decision to Git instead of measuring,
@@ -18627,6 +18965,16 @@ monochromatic-git-policy-cli: saved your copy of a.rs to
 
 A conflicted path with no file in the worktree has nothing to copy:
 the wrapper says so in one line and allows the command.
+A file another program is still writing is copied up to the size it had when the copy opened it,
+that copy is kept,
+and the wrapper says so before Git runs:
+
+```text
+monochromatic-git-policy-cli: a.rs was still being written while the wrapper copied it, so the copy holds what stood when the wrapper opened the file and nothing written after that. This command runs now, and a write that lands after the copy is not saved. Keep it another way if the later bytes matter.
+```
+
+The copy loop reads at most that size,
+so a writer that never stops cannot hold the command for good.
 If a copy cannot be written (a full disk,
 a refused permission,
 a place that is not a directory,
@@ -18772,8 +19120,8 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict`,
-`saved-nested-repository` or `saved-abort`),
+`saved-conflict` or
+`saved-nested-repository`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -18786,9 +19134,12 @@ the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so do a `saved-nested-repository` line,
-whose places hold the repositories a clean would have deleted,
-and a `saved-abort` line.
+and so does a `saved-nested-repository` line,
+whose places hold the repositories a clean would have deleted.
+No outcome of this release copies anything before an abort or a skip:
+those forms are refused instead.
+A file an earlier release wrote may still hold `saved-abort` and `saved-skip` lines with their own `copies`,
+because the record is append-only.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,
