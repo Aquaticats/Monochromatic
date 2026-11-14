@@ -4474,6 +4474,13 @@ of which the two that rewrite link layouts in place are the service's work whene
   so the record was retried and given up on with everything relinked.
   A lock the repair cannot read leaves every record counted,
   which keeps the check as strict as it was before the names were read at all.
+  The lock is read the way the record beside it is:
+  only a plain file is opened,
+  without following a link,
+  and only `SMALL_FILE_LIMIT` bytes of it are read (1 MiB,
+  sixteen times this repository's 63,625-byte lock),
+  so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
+  and no file decides how much memory a command reads.
   The add writes this tool in the same `relink` record,
   so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
@@ -4530,17 +4537,34 @@ A record whose tries run out is given up on by the recovery,
 which never saw the tool's answer,
 so it writes the person's notice from the kept reason:
 the notice names the worktree,
-says how many times the wrapper tried,
+says how many times the record allows a try,
 quotes what the last try failed with,
 names the command the record's tool finishes the job with,
 and says that something only the person can change has to come first,
 because the wrapper ran exactly that command.
-A record killed on every try has no reason to quote,
-and its notice says the service stopped that many times before it could finish the job instead.
+The number is the record's bound and never the count it reached:
+that count rises when a pass killed after the words is recovered again,
+and the words a second telling writes must say what the first said.
+A record with no kept reason does not claim that a tool never ran or that the service stopped,
+because either may have happened and no file tells them apart:
+its notice says no answer was kept and points at the commit service's journal,
+which is where the rest of what happened is.
 The notice is written in the relinked worktree's own Git directory,
-where a command run there reads it,
-and the reason is removed once the words are written;
-a command shows a notice once and removes it.
+where a command run there reads it.
+It is published over any words an earlier telling of the same record left,
+rather than create-new,
+because the recovery tells a record again when a pass was killed between the words and the move to `failed`,
+and it settles nothing while the person cannot be told.
+That second telling writes the same bytes and settles the record:
+the promise that a kill after the notice is survived by telling again,
+which `src/native/landing/work_item_recovery.rs` states,
+holds only while the reason is still there to quote.
+The reason is therefore taken back after the record is in `failed` (`GivenUpNotice::settled`),
+and not when the words are written:
+a landing killed between that move and the take-back leaves one reason file nothing reads,
+which is the whole cost of the order.
+A command shows a notice once and removes it,
+and a notice written again after a command took the first is the same line repeated rather than a different one.
 A relink written in the Git directory of the worktree whose command added the new one was shown by the next command there,
 about a worktree that command had never touched:
 on 2026-11-13 one commit in the main checkout printed eight of them for eight other worktrees.

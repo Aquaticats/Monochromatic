@@ -2370,8 +2370,12 @@ The line waits in that worktree's own Git directory,
 so only a command run there shows it,
 and one command shows it once.
 A record whose service was killed on every try has no answer to quote,
-and its line says the service stopped that many
- times instead.
+and its line says no answer was kept for it and that the commit service's journal holds the rest,
+rather than guessing at what happened.
+If the service is killed between writing that line and giving the record up,
+the next round writes the same line again,
+so you may read it twice;
+you never read a different one.
 
 Nothing runs for `--no-worktree-copy` or `--no-checkout`.
 `--quiet` silences the one line that reports success;
