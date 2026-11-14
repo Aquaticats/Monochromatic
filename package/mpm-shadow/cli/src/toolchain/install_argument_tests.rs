@@ -587,6 +587,29 @@ fn a_machine_global_run_stopped_between_the_two_writes_leaves_files_a_later_run_
 }
 
 #[test]
+#[cfg(target_os = "linux")]
+fn an_install_clears_the_plan_temporary_a_killed_run_left_behind() {
+    let fixture = Fixture::repo();
+    fixture.serve_crates_io();
+    let leftover = fixture.scope.plan_file.with_file_name(format!(
+        ".{}.{}.tmp",
+        super::util::file_name_text(&fixture.scope.plan_file),
+        super::fixtures::pid_of_a_process_that_ended()
+    ));
+    fs::write(&leftover, "the plan a killed run was writing\n").expect("write the leftover");
+    add_named_tools(&fixture.context(), &arguments(&["cargo:fastmod"]), None, nothing_stops_the_run).expect("added");
+    assert!(!leftover.exists(), "the next install removes the temporary a killed run left: {}", leftover.display());
+    let beside: Vec<String> = fs::read_dir(&fixture.scope.root)
+        .expect("read the scope root")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().to_string())
+        .filter(|name| return name.starts_with(".toolchain.plan.jsonc.") && name.ends_with(".tmp"))
+        .collect();
+    assert!(beside.is_empty(), "no temporary of the plan is left behind: {beside:?}");
+    assert!(fixture.plan_text().contains("\"cargo:fastmod\""), "and the entry landed");
+}
+
+#[test]
 fn a_plan_another_run_wrote_meanwhile_is_not_overwritten() {
     let fixture = Fixture::repo();
     let before = fs::read(&fixture.scope.plan_file).expect("read the plan");
