@@ -16,8 +16,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { dirname, join, } from 'node:path';
-import { fileURLToPath, } from 'node:url';
+import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   describe,
@@ -785,7 +784,7 @@ function connectionWhoseWaitEnds({
 /**
  The folder this test's own modules live in, which a child process reads so the claim it makes is the claim the driver makes.
  */
-const SOURCE_FOLDER = dirname(fileURLToPath(import.meta.url,),);
+const SOURCE_FOLDER = import.meta.dirname;
 
 /**
  The name a child writes once it has claimed its message, which is the seam its parent kills it at.
@@ -884,6 +883,26 @@ await watchUntilEnded({
 `;
 
 /**
+ Tells whether a child has written its seam marker yet.
+
+ @param marker - the file the child writes at its seam
+
+ @returns whether it is there
+ */
+async function markerIsThere(marker: string,): Promise<boolean> {
+  try {
+    await readFile(marker, 'utf8',);
+    return true;
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+    return false;
+  }
+}
+
+/**
  Runs a child that claims its message and reaches its seam, then ends it with SIGKILL, as a driver killed at that instruction ends.
 
  @param folder - the test's folder, where the child's script and its run folder live
@@ -926,13 +945,7 @@ async function killChildAtItsSeam({
   const deadline = Date.now() + MARKER_WAIT_MILLISECONDS;
   for (;;) {
     // oxlint-disable-next-line eslint/no-await-in-loop -- the child writes the marker as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
-    const marked = await readFile(join(folder, CLAIM_MARKER,), 'utf8',)
-      .then(function marked() {
-        return true;
-      },)
-      .catch(function unmarked() {
-        return false;
-      },);
+    const marked = await markerIsThere(join(folder, CLAIM_MARKER,),);
     if (marked) {
       break;
     }

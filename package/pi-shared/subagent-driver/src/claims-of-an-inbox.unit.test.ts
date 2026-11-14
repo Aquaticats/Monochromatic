@@ -345,8 +345,16 @@ await describe({
           processFolder,
         },);
         await recoverClaimsOfGoneDrivers({ watch, },);
-        expect(await entriesOf(join(folder.path, 'inbox',),),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
-        expect((await summaryOf(record,)).inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+        /**
+         What the inbox holds now.
+         */
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
       },
     },),
     it({
@@ -371,8 +379,16 @@ await describe({
           processFolder,
         },);
         await recoverClaimsOfGoneDrivers({ watch, },);
-        expect(await entriesOf(join(folder.path, 'inbox',),),).toEqual([INBOX_CLAIMS_FOLDER,],);
-        expect((await summaryOf(record,)).inboxNotTaken,).toBeUndefined();
+        /**
+         What the inbox holds now.
+         */
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([INBOX_CLAIMS_FOLDER,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toBeUndefined();
       },
     },),
     it({
@@ -398,8 +414,16 @@ await describe({
           processFolder,
         },);
         await recoverClaimsOfGoneDrivers({ watch, },);
-        expect(await entriesOf(join(folder.path, 'inbox',),),).toEqual([INBOX_CLAIMS_FOLDER,],);
-        expect((await summaryOf(record,)).inboxNotTaken,).toBeUndefined();
+        /**
+         What the inbox holds now.
+         */
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([INBOX_CLAIMS_FOLDER,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toBeUndefined();
       },
     },),
     it({
@@ -429,8 +453,16 @@ await describe({
           processFolder,
         },);
         await recoverClaimsOfGoneDrivers({ watch: second.watch, },);
-        expect((await summaryOf(second.record,)).inboxNotTaken,).toBeUndefined();
-        expect(await entriesOf(join(folder.path, 'inbox',),),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What the second driver's summary says about the message.
+         */
+        const secondSummary = await summaryOf(second.record,);
+        expect(secondSummary.inboxNotTaken,).toBeUndefined();
+        /**
+         What the inbox holds now.
+         */
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
       },
     },),
     it({
@@ -470,8 +502,16 @@ await describe({
         },);
         await recoverClaimsOfGoneDrivers({ watch, },);
         // The slow driver's folder stays, with its claim folder around it; the one that is gone takes its own folder away.
-        expect(await entriesOf(join(folder.path, 'inbox', INBOX_CLAIMS_FOLDER,),),).toEqual([`${OWNER_PID}-${OWNER_START}`,],);
-        expect((await summaryOf(record,)).inboxNotTaken,).toBeUndefined();
+        /**
+         The claim folders left in the inbox.
+         */
+        const owners = await entriesOf(join(folder.path, 'inbox', INBOX_CLAIMS_FOLDER,),);
+        expect(owners,).toEqual([`${OWNER_PID}-${OWNER_START}`,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toBeUndefined();
       },
     },),
     it({
@@ -492,8 +532,16 @@ await describe({
           processFolder,
         },);
         await recoverClaimsOfGoneDrivers({ watch, },);
-        expect(await entriesOf(join(folder.path, 'inbox',),),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
-        expect((await summaryOf(record,)).inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+        /**
+         What the inbox holds now.
+         */
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
       },
     },),
   ],
