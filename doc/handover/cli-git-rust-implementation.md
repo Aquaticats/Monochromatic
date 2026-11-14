@@ -800,6 +800,20 @@ Questions kept for the owner's return:
   named in `/var/log/opensnitchd.log`).
   Are those rules wanted as they are,
   and is there a rule the owner would add so that a built tool's own network path can be tested here?
+- cargo-shadow's cleanup of old toolchains' build folders,
+  written and under review,
+  carries three bounds its author proposes and nobody decided:
+  it starts removing when the build volume has less than 296 GiB free
+  (a 100 GiB floor,
+  plus five hours at the 36 GiB an hour it measured,
+  plus 16 GiB);
+  it never removes a folder whose last build through the shadow is younger than six hours;
+  and one pass removes for at most thirty minutes.
+  The owner's words were "by size + last modified time",
+  with no numbers.
+  It also removes a toolchain that checkouts still pin when its folder is old enough,
+  at the price of a rebuild;
+  the report gives its reasons in its section 9.
 
 ##### The deletion ended at 18:49:59
 
@@ -1168,6 +1182,116 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The removal-around answer passed its third review and is pass 30; cargo-shadow's cleanup of old toolchains is written (2026-11-13T22:46:59-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing here rerun by it except where a command is named.
+
+The removal around a volume,
+the answer to its second review
+(review `~/temp/agent/change-reviews/git-policy-cli-removal-goes-around-answers-after-its-second-review/review.md`,
+ended 22:39:39,
+on `82e4f12f6e`):
+
+- No defect that loses data,
+  fails a commit or waits without bound.
+  Eight reproductions of its own through the built wrapper:
+  around a subvolume and around a bind mount,
+  a kill inside the pass and the resume,
+  a resume that meets a person's new file or edit and refuses,
+  two removals of one worktree at once (destroyed exactly once),
+  a merge whose sweep removes a landed worktree and lands once.
+  Not exercised end to end:
+  the commit service's own delete of a handed-over subvolume,
+  since no service runs in its fixtures.
+- **Pass 30** is queued at the head for that commit
+  (`integration-pass-30-with-the-removal-around-a-volume-answers`).
+- One false warning reproduced,
+  words only,
+  and in release `0.6.1-alpha.22` too:
+  a removal resumed after a kill says its pass "is not recorded" with `File exists`,
+  while the earlier pass's record stands and the resume finishes.
+  With the two other false notices already on record
+  (the landed sweep's line on the path where the volume was gone;
+  the hand-over notice from the one of two removals that destroyed the subvolume itself)
+  it goes to the author as one task,
+  as commits after `82e4f12f6e`
+  (`removal-around-a-volume-says-only-what-happened-in-three-notices-prompt.md`,
+  queued).
+- Its fourth reproduction shows the nested registered worktree with an uncommitted edit going with the outer one,
+  in the wrapper as in real Git.
+  The review counts that as Git's own bar;
+  the project's record counts an edit to a tracked file as Git work,
+  and the removal-refuses branch has the guard.
+- **Observed in its fixture**:
+  the wrapper's own proof that a worktree is clean gave up on a tree of `HEAD` that was in a pack
+  ("the tree of HEAD is unreadable"),
+  so a worktree holding a foreign volume was refused where it is meant to be removed around.
+  The review kept its fixtures' objects loose to get past it.
+  This repository's own removals go through in one step with most of their trees packed
+  (515,249 objects in two packs,
+  9,740 loose,
+  by `git count-objects -v`),
+  so the proof reads some packed stores and not others.
+  A fresh run is queued
+  (`clean-proof-of-a-worktree-reads-the-tree-of-head-from-a-pack`):
+  which forms of store the reader reads,
+  by its own runs,
+  and each one it does not is read or is named where it gives up.
+
+cargo-shadow removes the build folders of old toolchains by itself
+(run `cargo-shadow-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time-1`,
+ended 22:43:05,
+tip `744824fdc2`,
+four commits,
+report `~/temp/agent/cargo-shadow-old-toolchain-cleanup-2026-11-13-scratch/keep/report.md`):
+
+- **Why the existing cleaner removed nothing**:
+  it decides about one build tree at a time and never about a toolchain's folder.
+  The trees of the old toolchains were each inside a seven-day period,
+  and a folder of a bare name that 53 checkouts still pin was not counted as retired.
+  Two passes of 2026-11-13 judged 60,400 and 62,259 trees and kept every one.
+- **The rule**:
+  a new mechanism of `cargo-shadow lean run`,
+  first in its order,
+  run by the installed `cargo-shadow-lean.service`.
+  While the volume's free space is under a bound,
+  the toolchain folder with the oldest own modified time goes first;
+  the shadow sets that time on every build it hands to the toolchain.
+  Kept:
+  the pass's own toolchain,
+  anything younger than an age,
+  anything a running process works in or holds open,
+  anything that changed since it was looked at.
+  A name that checkouts pin is on purpose no reason to keep.
+  Removal is a rename into a retiring folder and then one shard at a time,
+  with the drive read before and after each,
+  stopping on two slow readings in a row.
+- **Three bounds are its own proposals and have no decision behind them**:
+  296 GiB free,
+  six hours of age,
+  thirty minutes for a pass.
+  They are in "Questions kept for the owner's return".
+- Fifteen new tests,
+  each control shown failing first;
+  885 pass.
+  On this machine today it would remove nothing
+  (2,223 GiB free against the bound).
+  It needs a release of cargo-shadow and `toolchain:update` to take effect.
+- Its review is queued at the head
+  (`review-of-cargo-shadow-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time`,
+  source `package/cargo-shadow/cli/src`).
+- It read,
+  at 19:51,
+  the main checkout's `.cache/toolchain-bin/cargo-shadow` as a link into its own worktree's launcher,
+  which would break the installed service's start when that worktree is removed.
+  Checked at 22:44:
+  the link names the main checkout's own launcher (since the install of 22:26),
+  and no link in that folder names a worktree.
+  How the link came to name a worktree is not established;
+  the sighting is in the brief of the queued mpm-shadow run about launchers.
 
 ##### Two authors finished: a commit under a long runtime directory, and `mpm-shadow install` taking a tool; this machine's firewall refuses built programs (2026-11-13T22:35:29-05:00)
 
