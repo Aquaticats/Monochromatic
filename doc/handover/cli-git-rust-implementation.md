@@ -762,6 +762,12 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The queue of runs filled from the package, its second answer (tip `01a855c051`, added 2026-11-14T15:26-05:00):
+    a lock over the queue's read,
+    change and write,
+    or a folder of one file for each entry with no lock;
+    ten seconds to wait for the lock and ten minutes before it is called stale;
+    and does the command that breaks a dead holder's lock say so?
   - The commit service that needs no service manager (tip `b896c60d97`, added 2026-11-14T15:02-05:00):
     a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
     and the command ends after up to two minutes;
@@ -1249,6 +1255,53 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The watch note's ceiling and the queue filling are answered and go to review; the whole first six minutes of `0.6.1-alpha.32` are clean (2026-11-14T15:26:17-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it ran and queued.
+
+- **A watch note written within a ceiling** (tip `72dd53f89e`, ended 15:21:24):
+  the author reports the place of the one write given back when a thread is refused,
+  with a control that fails at the code before
+  (`AnEarlierWriteHasNotEnded` where `Answered` is due)
+  and the review's harness under a real process limit no longer latching;
+  Clippy clean and 59 tests of the changed modules passing after merging `main`.
+  Left and named:
+  a batch holding two worktrees of one repository skips the second note while one write is outstanding.
+  Review queued second (range `main...72dd53f89e`, eight code files).
+- **The queue of runs filled from the package** (tip `01a855c051`, ended 15:23:27):
+  the author chose a lock over the read,
+  change and write
+  (`<queue>.lock`,
+  held only while a change is made,
+  naming its process and time,
+  broken by the next command when that process is gone),
+  with reads left lock-free;
+  223 tests passing on the merged tree,
+  the two-writer control and one for a queue file of the old shape among them.
+  It names the one path that can still lose an update:
+  a lock older than ten minutes whose holder is alive but stopped and later resumes.
+  Its questions go to the kept list:
+  a lock or a folder of entry files;
+  the bounds of ten seconds to wait and ten minutes to call a lock stale;
+  whether the command that breaks a lock says so.
+  The project's rule on concurrency puts lock-free first,
+  so the review is where the choice of a lock is weighed.
+  Review queued third (range `main...01a855c051`, 23 code files).
+- **`0.6.1-alpha.32`**,
+  the user journal for the whole of 15:15:30 until 15:21:30:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  six starts saying `0.6.1-alpha.32`,
+  each the installed program in its own unit.
+  Its full gate,
+  started 15:16:04,
+  has given no verdict yet.
+- The queue held 56 entries at 15:26:17.
 
 ##### mpm-shadow's cleanup deletes a freshly installed copy in two of three rounds of a race, back to its author; the empty-answer author's second answer goes to review (2026-11-14T15:20:32-05:00)
 
