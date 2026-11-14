@@ -1198,6 +1198,72 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three reviews: the drawn tree and add-never-skips go back, the five controls pass; twenty-eight agents going against a cap of twenty-four (2026-11-14T09:46:21-05:00)
+
+Not final and not approved:
+what three reviews report of themselves,
+each having run,
+and what the coordinating session measured and queued.
+
+- **The drawn shadow tree** (`fb9d0b6d74`):
+  the fix is right for a tree fresh at its hand-out.
+  Reproduced:
+  a tree that grows old while it sits in the stock is swept,
+  and the stock still hands out its path and counts itself full;
+  the commit falls back and lands.
+  Read:
+  the same as a race fails a commit with "writing packed-refs failed";
+  and the hand-out now makes a call on the volume with no deadline on the answer's path.
+  Back to the author,
+  resumed first in the queue
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-review-of-2026-11-14-prompt.md`).
+- **Add never skips** (`2c47989cad`),
+  its seventh review:
+  five findings in the placing and restoring of a person's `Cargo.lock` and the prewarm's lease,
+  four reproduced,
+  one of them a newer file destroyed with no copy.
+  Every round so far found a new way for the same machinery to lose or mislabel the file.
+  Back to the author,
+  resumed second,
+  told to list first every step at which a person's bytes are away from the path they were written to,
+  and to say whether the repair can work on a copy of its own instead
+  (a suggestion of this session's,
+  labelled as one;
+  the requirement is the project's:
+  nothing a person made is lost)
+  (`~/temp/agent/pi-runs/add-never-skips-answers-its-seventh-review-of-2026-11-14-prompt.md`).
+- **The five library controls after merging `main`** (`5e0075af31`):
+  the change itself has no finding
+  (its edit to the log-lines module is comments alone).
+  The review read both modules as they stand and found two things that are `main`'s:
+  a wrapper outside the service falls back to a blocking write to its own standard error when its queue of timing lines is full,
+  and waits for ever when that is a full pipe nobody reads
+  (reproduced with the logic copied into a harness, not with the built wrapper;
+  a fresh run is queued third,
+  `~/temp/agent/pi-runs/wrapper-never-waits-on-its-own-standard-error-when-its-timing-lines-cannot-be-queued-prompt.md`);
+  and the drawn tree swept while a commit holds it,
+  which is the drawn tree's author's.
+  **The branch has passed and waits for the next integration pass**;
+  passes 37 and 38 had both started.
+  That review says it had Kimi K3.1 Pro check its two findings.
+  The record is that reviews of a change go to qwen4 alone;
+  how a review run reached another model was not looked into.
+- **Twenty-eight agents were going at 09:44:26 and at 09:45:50**
+  (`systemctl --user list-units --state=active 'pi-*.service'`),
+  four over the cap of twenty-four.
+  The filling unit's own lines read twenty and twenty-two in the minutes before.
+  Read from those lines and not run:
+  a review the loop asks for waits in a launcher for a place in its provider's pool,
+  and the loop's next count does not hold it.
+  No run was stopped.
+  The probe's twenty-three readings from 09:23 to 09:45 had no slow one
+  (home drive 204 ms at most,
+  build volume 1,600 ms at most),
+  the last four of them with twenty-eight going.
+  The agent that is moving the filling into the driver package was told at 09:46
+  (`~/temp/agent/notes-to-send/note-for-the-queue-filling-run-that-the-count-leaves-out-launchers-that-wait-2026-11-14T0946.md`).
+- The queue held 54 entries at 09:45:41.
+
 ##### Four reviews: the watch note and the renamed subvolume pass and join the commit forms in pass 38; the landing branch and mpm-shadow's stale launchers go back (2026-11-14T09:22:56-05:00)
 
 Not final and not approved:
