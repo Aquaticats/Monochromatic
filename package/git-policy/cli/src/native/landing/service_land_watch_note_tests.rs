@@ -90,7 +90,7 @@ impl HeldNoteWrite {
     /// for the note's write to begin.
     fn wait_until_written(&mut self) {
         let reached: tokio::sync::oneshot::Receiver<()> = self.reached.take().expect("the hold was armed");
-        let waited = crate::lazy_runtime::run_on_runtime(async move { tokio::time::timeout(PATIENCE, reached).await });
+        let waited = crate::lazy_runtime::run_on_runtime(async move { return tokio::time::timeout(PATIENCE, reached).await; });
         assert!(matches!(waited, Ok(Ok(Ok(())))), "the note's write was not reached within {PATIENCE:?}");
     }
 

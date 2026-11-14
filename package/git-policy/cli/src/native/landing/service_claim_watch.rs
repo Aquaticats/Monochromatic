@@ -598,8 +598,8 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
 pub fn note_for_the_next_service_within(ceiling: Duration, store: &Path, instance: Option<&str>, git_dir: &Path) -> bool {
     let asked: (PathBuf, Option<String>, PathBuf) = (store.to_path_buf(), instance.map(str::to_string), git_dir.to_path_buf());
     let answered: Option<()> = work_within(ceiling, move || {
-        let (store, instance, git_dir): (PathBuf, Option<String>, PathBuf) = asked;
-        note_for_the_next_service(store.as_path(), instance.as_deref(), git_dir.as_path());
+        let (owned_store, owned_instance, owned_git_dir): (PathBuf, Option<String>, PathBuf) = asked;
+        note_for_the_next_service(owned_store.as_path(), owned_instance.as_deref(), owned_git_dir.as_path());
     });
     return answered.is_some();
 }
