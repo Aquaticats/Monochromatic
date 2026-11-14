@@ -6,6 +6,7 @@
  */
 
 import { mkdir, } from 'node:fs/promises';
+import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import {
   MILLISECONDS_PER_SECOND,
@@ -20,11 +21,18 @@ import {
   stripCredentialsFromEnvironment,
 } from './environment-without-credentials.ts';
 import {
+  readSecretValuesOfThisMachine,
+  type SecretValuesOfThisMachine,
+} from './secret-values-of-this-machine.ts';
+import type { SecretValue, } from './secret-value-masking.ts';
+import { maskingExtensionArguments, } from './secret-values-handed-to-pi.ts';
+import {
   DRIVER_USAGE,
   DriverOptionsError,
 } from './parse-driver-options.ts';
 import type {
   DriverOptions,
+  RecordOfPiRun,
   RunSummary,
 } from './driver-types.ts';
 import {
@@ -35,6 +43,35 @@ import { startRecordOfPiRun, } from './record-of-pi-run.ts';
 import { startsOfARun, } from './starts-of-a-run.ts';
 import { endingLineOf, } from './the-line-a-driver-ends-with.ts';
 import { writeSummary, } from './write-summary.ts';
+
+/**
+
+ Reads the values of this machine's secret environment, closing the run's feed before saying why there is no run when the store
+ cannot be read.
+
+ @param record - the run's feed and counts, which is taken away by this call when the values cannot be read
+
+ @param read - the read itself
+
+ @returns the values
+
+ @throws SecretEnvironmentUnreadableError when the checkout's store is there and cannot be read
+ */
+async function secretValuesOrNoRun({
+  record,
+  read,
+}: {
+  readonly record: RecordOfPiRun;
+  readonly read: () => Promise<SecretValuesOfThisMachine>;
+},): Promise<SecretValuesOfThisMachine> {
+  try {
+    return await read();
+  }
+  catch (error) {
+    await record.close();
+    throw error;
+  }
+}
 
 /**
  A driver started by a Pi that a driver runs.
@@ -138,6 +175,37 @@ export async function supervisePiRun(
     removedNames: givenToPi.removedNames,
   },);
   /**
+   What this machine holds for its secret environment, read once here so every value of it can be masked before it reaches a
+   model. Pi's extension gets them over the descriptor this driver opens for it, and nothing of them is written, logged or
+   summarised.
+
+   A store that is there and cannot be read stops the run here, before Pi is started: a run whose values this code does not know
+   is a run that would show them to a model, and a start that cannot mask is worse than no start.
+   */
+  const secretValues: SecretValuesOfThisMachine = await secretValuesOrNoRun({
+    record,
+    read: function readThem() {
+      return readSecretValuesOfThisMachine({
+        environment,
+        home: environment.HOME ?? homedir(),
+        checkoutFolder: options.workingFolder,
+      },);
+    },
+  },);
+  record.note({
+    kind: 'secret_values',
+    sources: secretValues.sources,
+    unread: secretValues.unread,
+  },);
+  /**
+   The values as a list, which is what the start and the check that the masking is in place both count.
+   */
+  const values: readonly SecretValue[] = secretValues.values;
+  /**
+   The words that load the extension masking them, which sit beside the driver's own entry.
+   */
+  const maskingArguments = await maskingExtensionArguments({ folder: import.meta.dirname, },);
+  /**
    Where Pi's standard error is kept for every start of this run: a start that will not go on says why there and nowhere else, and
    one file holds what each start printed.
    */
@@ -154,6 +222,8 @@ export async function supervisePiRun(
     inbox,
     deadline,
     environment: givenToPi.environment,
+    secretValues: values,
+    maskingArguments,
     standardErrorFile,
   },);
   /**

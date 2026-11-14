@@ -33,7 +33,12 @@
     "start-reviews-of-finished-branches": "dist/final/node/start-reviews-of-finished-branches.mjs",
     "write-a-fix-brief-for-each-review": "dist/final/node/write-a-fix-brief-for-each-review.mjs"
   },
+  "dependencies": {
+    "@monochromatic-dev/env-local-json-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+  },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",

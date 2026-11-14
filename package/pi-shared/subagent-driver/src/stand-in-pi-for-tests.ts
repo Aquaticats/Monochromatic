@@ -36,6 +36,11 @@ import {
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
 import {
+  armTheStandInMasking,
+  answerCommands,
+  type StandInMasking,
+} from './stand-in-pi-masking-fixture.ts';
+import {
   CRASH_STATUS,
   playPrompt,
 } from './stand-in-pi-prompt-plays-fixture.ts';
@@ -240,8 +245,16 @@ async function startToolHoldingOutput(id: unknown,): Promise<void> {
  Acts on one command.
 
  @param line - command as written
+
+ @param masking - what this stand-in's Pi armed, which its command list answers with
  */
-async function actOnCommand(line: string,): Promise<void> {
+async function actOnCommand({
+  line,
+  masking,
+}: {
+  readonly line: string;
+  readonly masking: StandInMasking;
+},): Promise<void> {
   /**
    The command, of any shape.
    */
@@ -274,6 +287,13 @@ async function actOnCommand(line: string,): Promise<void> {
     await closeDescriptor(0,);
     await writeLogLine('marker input-closed',);
     await wait(STAY_MILLISECONDS,);
+    return;
+  }
+  if (parsed.type === 'get_commands') {
+    answerCommands({
+      id: parsed.id,
+      masking,
+    },);
     return;
   }
   if (parsed.type === 'extension_ui_response') {
@@ -334,6 +354,18 @@ await appendFile(
   `environment-names ${JSON.stringify(Object.keys(env,)
     .toSorted(),)}\n`,
 );
+/**
+ What this stand-in's Pi armed, read before any scenario runs so the descriptor is closed before a tool could inherit it.
+ */
+const masking: StandInMasking = armTheStandInMasking({ scenario, },);
+// Names only, and how many: a test learns that the driver handed values over without a value reaching a log or a model provider.
+await appendFile(
+  log,
+  `secret-value-names ${JSON.stringify(masking.values
+    .map(function nameOf(value,) {
+    return value.name;
+  },),)}\n`,
+);
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);
 }
@@ -355,7 +387,10 @@ if (scenario === 'ignores-sigterm') {
   );
 }
 for await (const line of createInterface({ input: stdin, },)) {
-  await actOnCommand(line,);
+  await actOnCommand({
+    line,
+    masking,
+  },);
 }
 if ((scenario === 'ignores-input-close') || (scenario === 'ignores-sigterm')) {
   await wait(STAY_MILLISECONDS,);

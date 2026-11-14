@@ -6,7 +6,9 @@
  */
 
 import { spawn, } from 'node:child_process';
+import { Writable, } from 'node:stream';
 import { setTimeout as wait, } from 'node:timers/promises';
+import { SECRET_VALUES_FD, } from './secret-values-handed-to-pi.ts';
 import {
   COMMAND_ANSWER_MILLISECONDS,
   SHUTDOWN_GRACE_MILLISECONDS,
@@ -58,6 +60,8 @@ export type {
 
  @param listeners - what the run wants to hear about
 
+ @param secretValuesHandover - the secret values Pi's extension reads from its own descriptor, when this run masks any
+
  @param graceMilliseconds - how long Pi gets at each stage of ending
 
  @returns the connection
@@ -75,6 +79,7 @@ export function startConnectionToPi(
     standardErrorFile,
     standardErrorAppends = false,
     listeners,
+    secretValuesHandover,
     graceMilliseconds = SHUTDOWN_GRACE_MILLISECONDS,
   }: ConnectionRequest,
 ): ConnectionToPi {
@@ -86,14 +91,47 @@ export function startConnectionToPi(
     [...piArguments,],
     {
       cwd: workingFolder,
-      stdio: [
-        'pipe',
-        'pipe',
-        'pipe',
-      ],
+      stdio: (secretValuesHandover === undefined)
+        ? [
+          'pipe',
+          'pipe',
+          'pipe',
+        ]
+        : [
+          'pipe',
+          'pipe',
+          'pipe',
+          'pipe',
+        ],
       env: environment,
     },
   );
+  /**
+   The descriptor Pi's masking extension reads while it loads: the values are written once and the driver's end is closed, so
+   nothing of them is left in the driver's own pipes.
+
+   A write that fails is a problem of this channel and never the run's ending: Pi reports whether the masking is in place from
+   its own command list, which is the answer the run turns on.
+   */
+  if (secretValuesHandover !== undefined) {
+    /**
+     The driver's end of that descriptor, when the operating system opened one.
+     */
+    const valuesPipe = child.stdio[SECRET_VALUES_FD];
+    if (valuesPipe instanceof Writable) {
+      valuesPipe.on(
+        'error',
+        function onValuesWriteError({ message, }: { readonly message: string },) {
+          listeners.onProblem(`could not hand Pi the secret values it masks: ${message}`,);
+        },
+      );
+      valuesPipe.end(secretValuesHandover,);
+    }
+    else {
+      listeners.onProblem('Pi was started without the descriptor its masking extension reads the secret values from',);
+    }
+  }
+
   /**
    The commands waiting for Pi's answers, by identifier.
    */

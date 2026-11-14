@@ -49,7 +49,8 @@ export type EndReason =
     | 'wall-clock'
     | 'driver-failed'
     | 'model-error'
-    | 'pi-not-stopped';
+    | 'pi-not-stopped'
+    | 'masking-not-armed';
 
 /**
  Every reason a run can end with, so a reader of summaries can ask about all of them without naming any twice.
@@ -66,6 +67,7 @@ export const END_REASONS: readonly EndReason[] = [
   'driver-failed',
   'model-error',
   'pi-not-stopped',
+  'masking-not-armed',
 ];
 
 /**

@@ -108,6 +108,12 @@ export {
 export * from './index-of-a-driver-run.ts';
 
 /**
+ The masking of this machine's secret values: the values it is armed with, and the extension Pi loads with them. Kept in a file of
+ its own for the same reason.
+ */
+export * from './index-of-secret-value-masking.ts';
+
+/**
  What the watch for runs that should have come back reads, and the lines it answers with. The command is
  `watch-overdue-pi-runs.ts`.
  */

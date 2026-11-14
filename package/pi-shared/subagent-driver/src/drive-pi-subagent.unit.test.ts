@@ -714,9 +714,11 @@ await describe({
           scenario: 'normal',
           extraOptions: ['--session=/a folder/with spaces.jsonl', '--pi-argument=--extension', '--pi-argument=/a folder/x.ts',],
         },);
-        expect(run.piArguments,).toEqual([
-          '--mode',
-          'rpc',
+        // The masking extension's own words come first, so the words a caller adds are read after them.
+        expect(run.piArguments.slice(0, 2,),).toEqual(['--mode', 'rpc',],);
+        expect(run.piArguments[2],).toBe('--extension',);
+        expect(run.piArguments[3],).toContain('secret-value-masking-extension',);
+        expect(run.piArguments.slice(4,),).toEqual([
           '--provider',
           'stand-in',
           '--model',
@@ -754,7 +756,11 @@ await describe({
           model: 'stand-in-model',
           thinkingLevel: 'xhigh',
         },);
-        expect(run.feed.find((entry,) => entry.kind === 'commands',)?.names,).toEqual(['bash', 'edit',],);
+        expect(run.feed.find((entry,) => entry.kind === 'commands',)?.names,).toEqual([
+          'bash',
+          'edit',
+          'secret-value-masking',
+        ],);
         expect(run.summary.sessionStats,).toEqual({
           sessionFile: 'stand-in-session.jsonl',
           cost: 0.5,

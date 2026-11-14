@@ -46,6 +46,15 @@ export type ConnectionRequest = {
   readonly listeners: ConnectionListeners;
 
   /**
+   The secret values this run masks, as the text the extension Pi loads reads from its own descriptor.
+
+   Passing it opens that descriptor in the process: the driver writes the values once and closes its end, and Pi's extension reads
+   them while it loads. A caller that passes none starts Pi with three descriptors, as every run did before the masking existed, and
+   a Pi whose extension reports no values in place refuses to work (`take-the-first-prompt.ts`).
+   */
+  readonly secretValuesHandover?: string;
+
+  /**
    How long Pi gets at each stage of ending; tests shorten it.
    */
   readonly graceMilliseconds?: number;

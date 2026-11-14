@@ -10,6 +10,9 @@ const config: NodeFlavorConfig = nodeConfig({
   input: {
     'index': './src/index.ts',
     'drive-pi-subagent': './src/drive-pi-subagent.ts',
+    // The extension Pi loads for every run, which masks the secret values of this machine in each tool result. Not a bin: Pi
+    // loads the file itself, and the driver hands its path to Pi with `--extension`.
+    'secret-value-masking-extension': './src/secret-value-masking-extension.ts',
     'watch-overdue-pi-runs': './src/watch-overdue-pi-runs.ts',
     'check-in-on-pi-runs': './src/check-in-on-pi-runs.ts',
     'start-pi-run-when-a-pool-has-room': './src/start-pi-run-when-a-pool-has-room.ts',
