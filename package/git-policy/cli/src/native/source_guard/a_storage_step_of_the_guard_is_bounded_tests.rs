@@ -20,7 +20,7 @@
 //! ```
 
 use crate::source_scan_tests::{real_roots, source_root};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The files the discarding guard's own pass runs,
 /// as `/`-separated paths relative to `src/native`.
@@ -98,6 +98,12 @@ const STORAGE_CALLS: &[&str] = &[
     "fresh_directory(",
     "sync_directory(",
     "read_plain_file",
+    // The guard's own helpers that reach the calls above: a call to one is the same wait wherever it runs.
+    "a_bare_repository_is(",
+    "a_repository_shape(",
+    "a_directory_is(",
+    "directory_beneath(",
+    "read_at_most(",
 ];
 
 /// One storage call of the guard,
@@ -158,6 +164,36 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
         file: "command/command_clean_nested_repositories.rs",
         call: "let metadata: std::fs::Metadata = std::fs::symlink_metadata(current.as_path()).ok()?;",
         why: "the same walk job: every component of the path Git named (`directory_beneath`)",
+    },
+    UnderACeiling {
+        file: "command/command_clean_nested_repositories.rs",
+        call: "let Some(start_path) = directory_beneath(worktree_root, start) else {",
+        why: "the same walk job: every component of the path Git named is read there",
+    },
+    UnderACeiling {
+        file: "command/command_clean_nested_repositories.rs",
+        call: "if let Some(bare) = a_repository_shape(directory.as_path()) {",
+        why: "the same walk job: the shape of a repository is decided where the walk finds it",
+    },
+    UnderACeiling {
+        file: "command/command_clean_nested_repositories.rs",
+        call: "if a_bare_repository_is(directory) {",
+        why: "the same walk job, through `a_repository_shape`: a bare repository's markers",
+    },
+    UnderACeiling {
+        file: "command/command_clean_nested_repositories.rs",
+        call: "if !a_directory_is(directory.join(\"objects\").as_path()) {",
+        why: "the same walk job, through `a_bare_repository_is`: the `objects` marker",
+    },
+    UnderACeiling {
+        file: "command/command_clean_nested_repositories.rs",
+        call: "return a_directory_is(directory.join(\"refs\").as_path());",
+        why: "the same walk job, through `a_bare_repository_is`: the `refs` marker",
+    },
+    UnderACeiling {
+        file: "repo_read/repository_facts_written_paths.rs",
+        call: "return read_at_most(opened.as_path(), PATHSPEC_FILE_READ_LIMIT);",
+        why: "the job of `work_within` in `pathspecs_in_the_file`, bounded by `PATHSPEC_FILE_READ_CEILING`",
     },
     UnderACeiling {
         file: "command/rule_worktree_dirty.rs",
@@ -232,7 +268,14 @@ fn code_lines(text: &str) -> Vec<String> {
     let mut code: Vec<String> = Vec::<String>::new();
     for line in text.lines() {
         let trimmed: &str = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("use ") {
+        // A declaration names a call and makes none, and a line that is only a comment or an import runs nothing.
+        if trimmed.is_empty()
+            || trimmed.starts_with("//")
+            || trimmed.starts_with("use ")
+            || trimmed.starts_with("fn ")
+            || trimmed.starts_with("pub ")
+            || trimmed.starts_with("async fn ")
+        {
             continue;
         }
         code.push(trimmed.to_owned());
