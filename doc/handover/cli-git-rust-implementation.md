@@ -805,8 +805,9 @@ Questions kept for the owner's return:
   carries three bounds its author proposes and nobody decided:
   it starts removing when the build volume has less than 296 GiB free
   (a 100 GiB floor,
-  plus five hours at the 36 GiB an hour it measured,
-  plus 16 GiB);
+  plus five hours at 36 GiB an hour,
+  plus 16 GiB,
+  in its report's own sum);
   it never removes a folder whose last build through the shadow is younger than six hours;
   and one pass removes for at most thirty minutes.
   The owner's words were "by size + last modified time",
