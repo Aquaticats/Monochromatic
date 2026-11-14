@@ -752,12 +752,12 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         );
         // A refusal that asks the worktree names the paths it holds, so the status's paths are read after it.
         let mut dirty_questions: Vec<&str> = vec!["location", scope_asked.as_str()];
-        if let Some(scope) = scope_asked.strip_prefix("dirty:") {
-            dirty_questions.push(match scope {
+        if let Some(named_scope) = scope_asked.strip_prefix("dirty:") {
+            dirty_questions.push(match named_scope {
                 "Tracked" => "uncommitted:Tracked",
                 "TrackedAndUntracked" => "uncommitted:TrackedAndUntracked",
                 "TrackedAndSkipWorktreeEdits" => "uncommitted:TrackedAndSkipWorktreeEdits",
-                _ => panic!("a scope this control does not know: {scope}"),
+                _ => panic!("a scope this control does not know: {named_scope}"),
             });
         }
         assert_eq!(
@@ -1002,11 +1002,14 @@ fn a_tree_that_tracks_an_ignored_path_is_refused_in_a_clean_linked_worktree() {
         unreadable.in_the_way = Err(String::from("Git could not read the files this command writes over: fatal"));
         let (unread, _questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable);
-        let PolicyOutcome::Findings(findings) = unread else {
+        let PolicyOutcome::Findings(unread_findings) = unread else {
             panic!("{values:?} ran without reading what it overwrites")
         };
-        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
-        assert!(findings[0].message.contains("Git could not read the files this command writes over"), "{values:?}");
+        assert_eq!(unread_findings[0].code, "linked-worktree-required", "{values:?}");
+        assert!(
+            unread_findings[0].message.contains("Git could not read the files this command writes over"),
+            "{values:?}"
+        );
         // The same form with nothing in the way runs, and the questions it asked are the whole cost.
         let mut nothing: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
         nothing.in_the_way = Ok(Vec::<String>::new());
