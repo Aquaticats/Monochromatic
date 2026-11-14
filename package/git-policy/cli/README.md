@@ -1075,9 +1075,11 @@ Read-only commands,
    `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
    means the service did not delete it yet:
      while a record for it is still queued,
-     the next command of that repository wakes the service that reads the
-   record,
-     which is every commit and every add.
+     a running service finds it by itself within five seconds
+   (`LOOK_AGAIN_AFTER`),
+     and the next command of that repository wakes the service that reads the record,
+     which is every commit
+   and every add.
      A delete the kernel refuses may pass,
      so the service tries it again,
      and it gives up once the attempts a record
@@ -7311,6 +7313,26 @@ and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
+
+What the service has to do after a command returns is a record in the worktree's Git directory,
+and a command that writes one wakes the service with one line over its socket.
+A service that keeps running does not wait for that line:
+it reads the notes in its journal every five seconds (`LOOK_AGAIN_AFTER` in
+`src/native/landing/service_claim_watch.rs`)
+and lists the records waiting in each repository the notes name,
+so a client killed between a record and its wake,
+a wake lost on a socket that was full,
+and a wake that was never sent cost the record at most those five seconds and never a commit.
+The look reads nothing finished,
+so a repository whose records were all settled costs one listing of an empty directory,
+and it is not work:
+a service with nothing to do still ends at its idle bound
+(`IDLE_EXIT`).
+A service the manager starts also writes the Git directory of its own worktree into those notes,
+so the records a command left for it are found even when no landing of that process wrote one.
+A repository that no note of the journal names and no wake ever reached is the one case a running service cannot
+find,
+and its record waits for the next wake that names it or for a service that starts and reads the notes again.
 
 The repository is the one the command line names.
 `-C` moves the wrapper,
