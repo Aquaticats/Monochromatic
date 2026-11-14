@@ -132,13 +132,15 @@ Any use here is an inventory probe,
 not a proposed production tooling replacement.
 
 Cargo 1.98.1 accepts all four manifests rejected by Python 3.14.8's TOML parser.
-The complete [source catalog](../audit/depot-rust-coverage-2026-10-18.catalog.json.gz)
+The complete source catalog (`../audit/depot-rust-coverage-2026-10-18.catalog.json.gz`)
 retains raw manifests,
 owning Mise tasks,
 lock identities and tracked source hashes.
 Cargo-normalized absolute paths are paired with resolved repository-relative dependencies.
 An empty or self-member `[workspace]` still describes a standalone crate;
 it does not establish membership in a missing root workspace.
+`depot-rust-coverage-2026-10-18.catalog.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The manifest inventory contains five fuzz sidecars,
 two benchmark sidecars and sixteen other packages.
@@ -196,7 +198,7 @@ Its execution classifications are:
   No unit-test,
   `service` or `fingerprint` credit transfers from that producer.
 - `package/music-player/android-app/rust`:
-  [Android producer receipts](depot-complete-coverage-android-junit-execution.json.gz)
+  Android producer receipts (`depot-complete-coverage-android-junit-execution.json.gz`)
   retain JNI/ELF/APK production at the frozen source.
   Its 1,289 JVM cases and
   [headful device consumer](../audit/depot-android-consumer-2026-10-18.evidence.json)
@@ -219,6 +221,8 @@ Its execution classifications are:
 - `package/music-player/truepeak-core.bench` and `package/forbidden-strings/core.bench`:
   these are benchmark sidecars with independent build/run owners.
   No benchmark or parent-package test pass transfers merely from their manifest presence.
+  `depot-complete-coverage-android-junit-execution.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The [historical feature audit](../audit/depot-test-feature-2026-10-16.md),
 [prepared desktop record](../audit/depot-prepared-desktop-2026-10-16.md)
@@ -288,8 +292,11 @@ command logs,
 source hashes,
 JUnit and artifact member hashes.
 Both downloaded artifact ZIPs match the provider-reported upload SHA-256 and pass CRC validation.
-The [compressed receipts](../audit/depot-rust-coverage-2026-10-18.receipts.json.gz)
+The compressed receipts (`../audit/depot-rust-coverage-2026-10-18.receipts.json.gz`)
 retain full command logs and JUnit rather than converting the owning task into a fictional inner test.
+`depot-rust-coverage-2026-10-18.receipts.json.gz` left the tree on 2026-11-13.
+Its cited records are in `doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Run `j50kf2jlqx` compiled the current linter and passed 415 Nextest cases,
 with zero failures,
@@ -994,6 +1001,9 @@ is the original XML string.
 The current bundle has eight `previous` levels before that extension.
 The ARM64 workload owner received this selector to compare all actual case identities,
 not only aggregate counts.
+`depot-rust-coverage-2026-10-18.receipts.json.gz` left the tree on 2026-11-13.
+Its cited records are in `doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The independent evidence review is published in
 [`depot-independent-policy-process-mvm-review-2026-10-18.md`](../audit/depot-independent-policy-process-mvm-review-2026-10-18.md).

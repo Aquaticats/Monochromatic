@@ -1,0 +1,7 @@
+{"runtimes":["v26.13.1","deno 2.9.8 (stable, release, x86_64-unknown-linux-gnu)","1.4.4"],"arms":["views-from-two"]}
+{"arm":"views-from-two","step":"build","exit":0,"seconds":2,"tail":["✔ Build complete in 1464ms","$ tsdown"]}
+{"arm":"views-from-two","step":"suite","runtime":"deno","exit":0,"seconds":26,"summary":["ok | 784 passed (8340 steps) | 0 failed | 29 ignored (689 steps) (16s)"],"expectedNamesMissing":[],"failing":[]}
+{"arm":"views-from-two","step":"suite","runtime":"node","exit":0,"seconds":15,"summary":["ℹ tests 8654","ℹ suites 1188","ℹ pass 8125","ℹ fail 0","ℹ cancelled 0","ℹ skipped 529","ℹ todo 0"],"expectedNamesMissing":[],"failing":[]}
+{"arm":"views-from-two","step":"suite","runtime":"bun","exit":0,"seconds":21,"summary":["8125 pass","529 skip","0 fail","Ran 8654 tests across 72 files. [20.92s]"],"expectedNamesMissing":[],"failing":[]}
+{"done":true}
+{"containerExit":0,"signal":null}

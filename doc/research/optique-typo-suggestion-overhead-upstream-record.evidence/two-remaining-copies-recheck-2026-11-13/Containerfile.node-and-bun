@@ -1,0 +1,21 @@
+# The recheck image plus each arm's built @optique/core, laid out so that Node and Bun resolve it as an installed
+# package, for timing on the two runtimes this repository runs on. Mount-free, no network at run time.
+#
+#   podman build --tag localhost/optique-two-remaining-copies-recheck-node-and-bun:2026-11-13 --file Containerfile.node-and-bun .
+
+FROM localhost/optique-two-remaining-copies-recheck:2026-11-13
+
+COPY arm-packages /arm-packages
+COPY image/run-node-and-bun-timing.ts /run-node-and-bun-timing.ts
+
+RUN set -eux; \
+    for arm in main base multiple-final both concat; do \
+      mkdir --parents "/timing/$arm/node_modules/@optique"; \
+      ln --symbolic "/arm-packages/$arm" "/timing/$arm/node_modules/@optique/core"; \
+      cp /repo/token-scaling.ts /repo/commit-paths.ts /repo/mixed-scaling.ts "/timing/$arm/"; \
+    done; \
+    cd /timing/base; \
+    node token-scaling.ts --counts 100,200 --runs 1 --warmup 0; \
+    bun token-scaling.ts --counts 100,200 --runs 1 --warmup 0
+
+ENTRYPOINT ["node", "/run-node-and-bun-timing.ts"]

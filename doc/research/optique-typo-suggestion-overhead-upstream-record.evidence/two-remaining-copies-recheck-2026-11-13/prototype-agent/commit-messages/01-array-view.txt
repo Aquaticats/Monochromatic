@@ -1,0 +1,23 @@
+Read parser arrays through a view of shared storage
+
+`multiple()` rebuilds its state array for every item it accepts, and
+`argument()` drops the tokens it consumed by copying the rest of the input
+buffer, so a successful parse of N positional arguments copies
+1 + 2 + ... + N slots when both are plain arrays.  Neither value can become a
+persistent structure without changing a public type: the state of
+`multiple()` is `readonly TState[]` and `ParserContext.buffer` is
+`readonly string[]`, and both are read by indexing, by spreading and by
+`Array.prototype` methods, including in parsers library users write.
+
+This commit adds the piece both fixes need: an array-shaped view whose
+elements are served from storage the caller owns.  It is a proxy over a real
+array, so `Array.isArray()`, indexing, `length`, iteration, the
+`Array.prototype` methods, `Object.keys()`, `JSON.stringify()` and
+`node:assert` deep equality all see a plain array of the same elements.
+Writes to an element or to `length` throw, because the elements belong to a
+parser state or an input buffer that later versions share.
+
+The tests cover each of those operations, that two views of one source do not
+see each other's window, and that an empty view is an empty array.
+
+Assisted-by: Pi:deepseek-v4.1-flash

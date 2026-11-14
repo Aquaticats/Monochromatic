@@ -85,7 +85,19 @@
     "sha256": "73c1e95822919d9029144fd6892ecb5a9273f244db3ea39be634eac7e7c4b8a3",
     "uncompressedBytes": 632781,
     "originalZips": 3,
-    "fullSourceAndTerminalCleanup": true
+    "fullSourceAndTerminalCleanup": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show ba8e7e6ce3d68c72ba298efeeb80724fd144ad55:doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "runtime": {
     "runId": "dzsf27t0xx",

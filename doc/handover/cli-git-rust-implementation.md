@@ -720,44 +720,22 @@ by the rules that already stand:
   and no change to the pools:
   about twenty-five agents stays the most.
 - The units this depends on and when each ends by itself:
-  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-16-20261114T024816`
-  (started 2026-11-14T02:48:16-05:00 for eight hours,
-  so it is started again by 10:48;
-  the one at level seventeen was stopped in the same second,
-  when that level failed),
-  the drive probe `disk-probe-for-readings-only-at-level-16-20261114T024816`
-  (eight hours from the same second;
-  it records and ends on no reading),
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T085433`
+  (started 2026-11-14T08:54:33-05:00 for eight hours,
+  so it is started again by 16:54;
+  the one at level sixteen was stopped in the same second,
+  on the owner's answer that the cap resumes at twenty-four),
+  the drive probe at level twenty-four
+  (a unit named `disk-ceiling-probe-level-24-` with its start second,
+  started within a minute of the filling unit for eight hours;
+  it ends with status 3 on two slow home-drive readings in a row,
+  and the rule then gives twenty),
   and the waiter of the moment
   (eight hours from its start,
   started again each time it reports).
 
 Questions kept for the owner's return:
 
-- The agent cap went from thirty-two to sixteen between 01:16 and 02:48 on 2026-11-14,
-  each step by the search's own rule,
-  while the count of agents fell and the home drive kept stalling
-  (up to 143 s on a 4 KiB write-and-sync,
-  every other reading by 01:50;
-  seven of forty readings at seventeen,
-  the longest 33 s).
-  The count that held an hour on 2026-11-13 was twenty to twenty-two.
-  Does the cap stay where the criterion put it,
-  or go back up once the stalls are explained?
-  What is known:
-  they do not go with the daily update
-  (they went on after it ended at 01:40:01);
-  a snapshot cleanup of the system has run since 00:00:07,
-  was still running at 02:48:37,
-  and is the one lead,
-  untested
-  (`doc/handover/agents-at-once-on-this-machine.md`,
-  "Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
-  "Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00").
-  The search has ended at sixteen and this session takes it no lower.
-  The earlier form of this question,
-  about hours that hold the daily update,
-  is withdrawn.
 - Is the lock of Pi's files to be cleared by hand again if it is left again before the shim is fixed?
   It was cleared once at 02:02:59 on 2026-11-14 after twenty minutes in which no Pi run could start
   (the section of 2026-11-14T02:05:16-05:00);
@@ -782,27 +760,6 @@ Questions kept for the owner's return:
   This account can neither open nor remove them.
   Removing them takes the owner's `sudo`;
   whether a test of `wg-quicker-exempt` may leave root-owned files in a build folder at all is a question for that package.
-- Is the plugin change that lets Pi retry the reviewer's passing token-rate limit taken into `main`
-  and built in the main checkout,
-  so that every Pi run of this machine on that provider loads it,
-  other sessions' runs too?
-  Its product code passed its review at 20:06;
-  its proof's harness is being corrected.
-  What it changes for a run:
-  a passing limit is retried by Pi for up to about three minutes where it ended the run at once
-  (twenty-one reviews ended so on 2026-11-13,
-  each put back by the filling unit).
-  What it cannot show:
-  no recorded answer of a spent paid plan exists,
-  and one documented message would have a spent plan retried for those three minutes before it ends as today.
-  The author's own report leaves the reading of the 2026-11-11 decision to the owner.
-- Does the launcher's review read a change that touches tests alone?
-  It answers such a change as nothing to review,
-  by a requirement given to the run that just changed it for manifests.
-  On 2026-11-13 a change of one test file needed a review
-  (two stale tests of the journal's start),
-  got one from a hand-written brief,
-  and that review found coverage lost.
 - May the three files of the old name `cli-git-native` be moved out of the main checkout's `.cache`
   (`toolchain-launchers/cli-git-native`,
   `toolchain-launchers/cli-git-native.launch`,
@@ -834,13 +791,6 @@ Questions kept for the owner's return:
   by the owner's answer of 2026-11-07 ("Service removes it").
   Which of the two is changed to match the other?
   The answer on record points at the module text.
-- Where no address can reach a commit service
-  (a runtime directory too long for a socket path,
-  on a system without abstract socket names),
-  a commit stops with its reason.
-  May the wrapper make that commit through real Git instead?
-  `SPEC.md` says the service is the only writer,
-  and "Commits should never fail." pulls the other way.
 - OpenSnitch saves a reject rule for each program an agent builds that tries the network
   (two for one run's `mpm-shadow` on 2026-11-13,
   named in `/var/log/opensnitchd.log`).
@@ -1247,6 +1197,79 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The tracked archives are out of `main`; what one record says is kept goes back to the author (2026-11-14T09:04:01-05:00)
+
+Not final and not approved:
+what the coordinating session merged and queued,
+and what one review reports of itself.
+
+- **The archives' answer** (`091397b096`) was checked by its reviewer in its own session,
+  ended 08:58:57
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/review.md`).
+  By its report,
+  each point seen by a run of its own:
+  all six points of the first review are answered;
+  the kept members are 160 and the tree and the record agree;
+  nine ignore patterns hold in 117 cases;
+  the change and `main` touched no file in common;
+  a scan of 23,869 tracked files by content finds no archive but three `.jar` files.
+- Merged as `635539ca67` at 09:04:01,
+  which ends the hold on that branch.
+  Measured by this session after the merge:
+  `git ls-files` names no file ending in an archive extension but those three `.jar` files,
+  which `.gitignore` allows by name with the owner's override beside them.
+- **Left open by the reviewer, measured and not decided**:
+  one research record says the harness,
+  the check scripts,
+  the baked inputs and every raw record of both rounds are in its evidence archive;
+  of that archive's 240 files 160 are kept as plain text and 80 are in history alone,
+  none of the `scripts/` folder's 35 among the kept.
+- **Decided by the owner at about 09:05**,
+  through the question tool,
+  after this session had adopted the same from the record:
+  "Keep as plain text (Recommended)".
+  What that sentence names is kept as plain text
+  ("Owner decisions in force", "Answers on the owner's return").
+  The author is resumed in its own session
+  (`~/temp/agent/pi-runs/tracked-archives-what-the-research-record-says-is-kept-is-kept-as-plain-text-prompt.md`),
+  told to list and not silently keep or drop a file that is not text or is large,
+  and to look once at the other removed archives for the same shape.
+
+##### mpm-shadow's Clippy fix passed its review and goes into an integration with issue 6300; the journal after `0.6.1-alpha.27` is clean (2026-11-14T08:59:29-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued,
+and what one review reports of itself.
+
+- **The journal after the install of `0.6.1-alpha.27`**,
+  from 08:50:00 to 08:57:00:
+  266 lines,
+  no manager-wide reload,
+  no start that failed at its EXEC step,
+  no service at its start limit,
+  and one service said `0.6.1-alpha.27` at its start.
+- **mpm-shadow's Clippy fix** (`682b1072df`):
+  its review ended at 08:54:28 with no defect
+  (`~/temp/agent/change-reviews/mpm-shadow-cli-clippy-passes-under-the-nightly-of-2026-11-14/review.md`).
+  By its report it ran the package's Clippy task (exit 0 under `nightly-2026-11-14`),
+  the package's tests (731 of 731)
+  and a probe of its own that the two forms of the membership test agree in eighteen cases.
+- **Measured by this session**:
+  `git log <tip>..main -- package/mpm-shadow` is empty for that tip and for issue 6300's (`01c60626b8`),
+  so `main` holds nothing of that package that either lacks.
+  Both have passed their reviews and neither was checked against the other,
+  so they are one integration,
+  queued first
+  (`~/temp/agent/pi-runs/mpm-shadow-integration-of-issue-6300-and-the-clippy-fix-prompt.md`).
+  When it reports fit:
+  merge,
+  a release of mpm-shadow through the package's `release` task,
+  then `toolchain:update`.
+- Going at 08:59:29:
+  nine Pi runs,
+  with the cap at twenty-four.
+  The queue held 71 entries.
 
 ##### No run started for four hours and forty minutes: a queue entry that fails every start; thirty-one runs read; `0.6.1-alpha.26` and `0.6.1-alpha.27` are installed (2026-11-14T08:50:39-05:00)
 
@@ -25854,6 +25877,57 @@ The reading stands in `package/crate-release/cli/README.md` ("What an alpha rele
 and `package/git-policy/cli/README.md` ("Development"),
 with those quotes and dates,
 so he can veto it.
+
+### Answers on the owner's return (2026-11-14, answered by 08:54:33-05:00)
+
+Through the question tool,
+four questions,
+each with its ranking;
+the owner picked the first option of each.
+
+- **Agent cap**:
+  "Resume at 24 (Recommended)":
+  halve the gap between 16, which held, and 32 again,
+  with the probe ending the level on two slow readings in a row as before.
+  Carried out at 08:54:33;
+  the number and the search's state are in `doc/handover/agents-at-once-on-this-machine.md`.
+  Not asked and not decided:
+  whether the criterion counts readings taken while the system's snapshot cleanup runs.
+- **A change that touches tests alone**:
+  "Writer reviews tests (Recommended)":
+  when a range has no other code,
+  the driver package's writer of review briefs lists the changed test files,
+  and its brief asks the reviewer to plant a break under each changed test and say whether it fails.
+  A fresh run in the driver package carries it out
+  (`~/temp/agent/pi-runs/review-brief-writer-takes-a-change-that-touches-tests-alone-prompt.md`);
+  until it is in `main`,
+  such a change gets a brief written by hand in the writer's form.
+- **The plugin that lets Pi retry the reviewer provider's passing token-rate limit** (issue 6297):
+  "Yes, after review (Recommended)":
+  when its author's answer has a review with no defect,
+  this session merges it into `main` and builds it in the main checkout,
+  where every Pi run of this machine on that provider loads it.
+- **Where no address can reach a commit service**
+  (a runtime directory too long for a socket path,
+  on a system without abstract socket names):
+  "Stop with the reason (Recommended)":
+  the commit is not made and the words say why and what to change.
+  The wrapper does not fall back to real Git;
+  `SPEC.md`'s rule that the service is the only writer stands.
+- **The files of a removed archive that a document says are kept**
+  (asked separately,
+  answered by 09:05:56-05:00,
+  after the archives' removal reached `main` as `635539ca67`):
+  "Keep as plain text (Recommended)".
+  One research record says its harness,
+  check scripts,
+  baked inputs and every raw record are in its evidence archive;
+  eighty of that archive's 240 files were in history alone.
+  The files the sentence covers are extracted beside the 160 already kept;
+  any that is not text or is large is listed,
+  and neither silently kept nor silently dropped;
+  each is checked against the archive in history by digest.
+  The three `.jar` files stay tracked by the owner's earlier override in `.gitignore`.
 
 ## Working rules for this effort
 
