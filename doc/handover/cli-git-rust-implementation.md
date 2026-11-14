@@ -1202,6 +1202,43 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing's control passed its review: pass 34; a service's exit may wait behind slow work, read and not run (2026-11-14T00:54:04-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing rerun by it.
+
+- **A commit's landing never waits behind slow work, with its control**
+  (`~/temp/agent/change-reviews/git-policy-cli-landing-never-waits-control-of-a-trash-that-reaches-its-ceiling/review.md`,
+  ended 00:48:24,
+  on `7365315791`,
+  the whole branch read again):
+  no defect in what it was asked to look for.
+  The waves,
+  the claim and its lease,
+  and the withdrawal were traced end to end;
+  both end-to-end controls were run and pass
+  (a commit lands in 1.8 s with every kind of slow work held;
+  the trash left at its ceiling comes back after the lease,
+  132 s).
+  Pass 34 is queued near the head
+  (`integration-pass-34-with-the-control-of-a-trash-that-reaches-its-ceiling-prompt.md`);
+  pass 29 carries the branch's earlier part,
+  so whichever of the two reaches `main` second brings the rest.
+- **Read by that review and not run**:
+  the service's exit calls `drain`,
+  which waits with no timeout,
+  and this branch makes the sync batches it waits for take a place on the slow lane.
+  A service asked to retire while a removal holds that lane would then end only when the removal does.
+  It is the exit's path and not a commit's,
+  and the wait itself was there before.
+  A fresh run is queued from that tip
+  (`commit-service-asked-to-retire-ends-within-a-bound-while-slow-work-holds-its-lane`,
+  base `7365315791`),
+  told to show the sequence first and to stop at that finding where it does not hold a service past its client's wait.
+  It also has a comment that calls the item ceiling half of the lease where both are 120 s.
+- The queue held 53 entries at 00:54:04.
+
 ##### The journal's start tests passed their review: pass 33; a pipe at a watch note's name is reproduced on the landing thread (2026-11-14T00:38:14-05:00)
 
 Not final and not approved:
