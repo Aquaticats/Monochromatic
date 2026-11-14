@@ -7,8 +7,11 @@
 //! including one cut short and finished by the next pass.
 //! Why:
 //! The pass deletes installed toolchains,
-//! so each thing it must never remove (a version a lock names, one this run installed, one a running process holds,
-//! one written inside the age floor, one the `current` link names) and each thing it must remove is a test,
+//! so each thing it must never remove (a version a lock names,
+//! one this run installed,
+//! one a running process holds,
+//! one written inside the age floor,
+//! one the `current` link names) and each thing it must remove is a test,
 //! and each runs on a store of the test's own under a disposable home.
 
 /// Imports `BTreeMap` and `BTreeSet` from `std::collections`.
@@ -33,7 +36,8 @@ use crate::toolchain::store_trim::{
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
 
-/// A mebibyte, so a test's bound reads as a fixture size.
+/// A mebibyte,
+/// so a test's bound reads as a fixture size.
 const MIB: u64 = 1024 * 1024;
 
 /// A bound that keeps nothing and removes nothing inside an hour,
@@ -42,7 +46,8 @@ fn tight_bounds(size_bound_bytes: u64) -> TrimBounds {
     return TrimBounds { size_bound_bytes, age_floor: Duration::ZERO, work_limit: Duration::from_secs(60) };
 }
 
-/// One candidate with a made-up path, for the pure-rule tests.
+/// One candidate with a made-up path,
+/// for the pure-rule tests.
 fn candidate(tool: &str, version: &str, bytes: u64, written_seconds_ago: u64) -> TrimCandidate {
     return TrimCandidate {
         root: PathBuf::from("/store"),
@@ -68,7 +73,8 @@ fn removed_by(plan: &TrimPlan) -> Vec<String> {
     return removed;
 }
 
-/// The versions a plan keeps, with why.
+/// The versions a plan keeps,
+/// with why.
 fn kept_by(plan: &TrimPlan) -> Vec<(String, String)> {
     let mut kept: Vec<(String, String)> = Vec::new();
     for step in &plan.steps {
@@ -81,7 +87,8 @@ fn kept_by(plan: &TrimPlan) -> Vec<(String, String)> {
 
 //region the rule
 
-/// While the stores keep no more than the bound, nothing is removed and nothing is said.
+/// While the stores keep no more than the bound,
+/// nothing is removed and nothing is said.
 #[test]
 fn removes_nothing_while_under_the_bound() {
     let candidates = vec![candidate("node", "26.12.0", MIB, 3600), candidate("node", "26.13.1", MIB, 60)];
@@ -91,7 +98,8 @@ fn removes_nothing_while_under_the_bound() {
     assert!(plan.steps.is_empty(), "{:?}", plan.steps);
 }
 
-/// Over the bound, the versions written longest ago go until the space is inside it,
+/// Over the bound,
+/// the versions written longest ago go until the space is inside it,
 /// and the newest one stays because the space is inside the bound by then.
 #[test]
 fn removes_the_oldest_writes_until_inside_the_bound() {
@@ -144,7 +152,8 @@ fn keeps_a_version_written_inside_the_age_floor() {
     assert_eq!(kept, vec!["node-26.12.0"]);
 }
 
-/// When everything over the bound is protected, the plan removes nothing and says why for each.
+/// When everything over the bound is protected,
+/// the plan removes nothing and says why for each.
 #[test]
 fn keeps_everything_when_every_candidate_is_in_use() {
     let candidates = vec![candidate("node", "26.12.0", MIB, 40 * 3600), candidate("node", "26.12.1", MIB, 30 * 3600)];
@@ -172,7 +181,8 @@ fn reads_a_size_bound() {
     assert_eq!(parse_size("12 potatoes"), None);
 }
 
-/// The age floor and the work limit are read from seconds, suffixes or milliseconds.
+/// The age floor and the work limit are read from seconds,
+/// suffixes or milliseconds.
 #[test]
 fn reads_a_span() {
     assert_eq!(parse_duration("3600"), Some(Duration::from_secs(3600)));
@@ -400,6 +410,61 @@ fn finishes_a_removal_cut_short() {
     assert!(lines[0].contains("finished a removal an earlier run started"), "{lines:?}");
 }
 
+/// A process number no machine reaches,
+/// for the name of a claim a killed removal left.
+const A_PROCESS_NUMBER_NO_MACHINE_HAS: u32 = u32::MAX - 1;
+
+/// The claimed name a removal killed at `pid` left for `version` of a tool.
+/// The shape is the one `claim_name_beside` writes,
+/// which is what the pass reads back.
+fn claimed_name(version: &str, pid: u32) -> String {
+    return format!(".mpm-shadow-claimed.{pid}.0.{version}");
+}
+
+/// What:
+/// A version a killed removal took out of its name and never judged is given back by the next pass,
+/// and nothing is deleted on the way.
+/// Why:
+/// The claim is what lets a removal compare what it took with what it judged,
+/// and a run killed between the claim and that comparison would otherwise leave the version under a hidden name
+/// no scan lists and no tombstone pass knows,
+/// until a person moved it back by hand.
+#[test]
+fn gives_back_a_version_a_killed_removal_took_out_of_its_name() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let claimed: PathBuf = fixture.root.join("node").join(claimed_name("26.11.0", A_PROCESS_NUMBER_NO_MACHINE_HAS));
+    fs::rename(&version, &claimed).expect("leave the claim a kill leaves");
+    let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
+
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+
+    assert!(unfinished.is_empty(), "{unfinished:?}");
+    assert!(!claimed.exists(), "the claim is still there");
+    assert!(version.join("program").is_file(), "the version is back with what it held");
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines[0].contains("gave back 26.11.0"), "{lines:?}");
+    assert!(lines[0].contains("taken out of its name"), "{lines:?}");
+}
+
+/// The claim of a run that is still working is that run's own:
+/// the pass reads the process number in the name and leaves it alone.
+#[test]
+fn leaves_the_claim_of_a_run_that_is_still_working() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.12.0");
+    let claimed: PathBuf = fixture.root.join("node").join(claimed_name("26.12.0", std::process::id()));
+    fs::rename(&version, &claimed).expect("move the version to the claim of this process");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+
+    assert!(lines.is_empty(), "this pass says nothing about a claim another run holds: {lines:?}");
+    assert!(unfinished.is_empty(), "{unfinished:?}");
+    assert!(claimed.exists(), "the claim of a live run was touched");
+    assert!(!version.exists());
+}
+
 /// The removal marker is what makes the next install run the pass,
 /// and it goes once nothing is left to remove.
 #[test]
@@ -428,7 +493,8 @@ fn keeps_the_marker_while_a_removal_is_pending() {
     assert!(has_unfinished_removal(&fixture.root));
 }
 
-/// A version another run wrote after the scan is not the one that was judged, so it stays.
+/// A version another run wrote after the scan is not the one that was judged,
+/// so it stays.
 #[test]
 fn keeps_a_version_another_run_wrote_after_the_scan() {
     let fixture = Fixture::new();
@@ -520,7 +586,8 @@ struct ListedRoot {
     leftovers: Vec<ListedLeftover>,
 }
 
-/// The listing `MPM_SHADOW_STORE_LISTING` names, decoded,
+/// The listing `MPM_SHADOW_STORE_LISTING` names,
+/// decoded,
 /// one entry per store root,
 /// because a tool and version can be in both roots and the two are judged separately.
 fn listed(text: &str) -> Vec<ListedRoot> {

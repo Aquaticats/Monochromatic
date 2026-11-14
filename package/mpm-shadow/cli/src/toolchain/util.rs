@@ -118,7 +118,8 @@ const NEW_FILE_MODE: u32 = 0o666;
 /// That instant is the only one a reader could see the new content before it takes the target's name,
 /// so it is where a test reads the file a reader could open and the mode it would find;
 /// a write that put the mode on after its bytes would be caught here,
-/// and the wording is deliberately about the bytes alone, not about the mode,
+/// and the wording is deliberately about the bytes alone,
+/// not about the mode,
 /// so a control measures what a reader sees rather than what the write promised.
 /// It is also where a test can end the run as a kill would,
 /// which is the step whose leftovers the next write must clear.
@@ -144,7 +145,8 @@ fn temporary_of(target: &Path) -> PathBuf {
 }
 
 /// What:
-/// Opens the temporary beside `target`, asking for `mode` when the platform has modes.
+/// Opens the temporary beside `target`,
+/// asking for `mode` when the platform has modes.
 /// Why:
 /// The mode has to be on the file from its creation,
 /// so the kernel's own default is never wider than the mode the finished file keeps.
@@ -212,14 +214,15 @@ fn keep_mode(_temporary: &fs::File, _mode: Option<u32>) -> std::io::Result<()> {
 /// A temporary left by a kill belongs to nobody once its process is gone,
 /// and removing a live run's temporary would break that run's rename.
 /// `/proc` answers this on Linux;
-/// where it is absent or unreadable the answer is "not gone", so nothing is removed on a guess.
+/// where it is absent or unreadable the answer is "not gone",
+/// so nothing is removed on a guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function processIsGone(pid: number): boolean
 /// ```
 #[cfg(target_os = "linux")]
-fn process_is_gone(pid: u32) -> bool {
+pub(crate) fn process_is_gone(pid: u32) -> bool {
     if pid == std::process::id() || !Path::new("/proc/self").exists() {
         return false;
     }
@@ -227,9 +230,10 @@ fn process_is_gone(pid: u32) -> bool {
 }
 
 /// Whether the process `pid` is gone;
-/// no platform but Linux can answer, so the answer is no.
+/// no platform but Linux can answer,
+/// so the answer is no.
 #[cfg(not(target_os = "linux"))]
-fn process_is_gone(_pid: u32) -> bool {
+pub(crate) fn process_is_gone(_pid: u32) -> bool {
     return false;
 }
 
@@ -295,7 +299,8 @@ pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainErro
 }
 
 /// What:
-/// `write_atomically`, giving the file the mode `mode` from its creation until the rename.
+/// `write_atomically`,
+/// giving the file the mode `mode` from its creation until the rename.
 /// Why:
 /// The plan is a file people own,
 /// and the one kept readable by its owner alone (`0600`) must never be readable by anyone else,
@@ -305,14 +310,23 @@ pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainErro
 /// and the rename is the only visible step.
 /// `None` leaves the mode a new file gets.
 ///
-/// What a kill leaves, step by step:
-/// - before the temporary is created, nothing: the target holds the old content;
-/// - after the create and before the mode is put on, the temporary is empty,
-///   and narrower than the kept mode, never wider;
-/// - while the bytes are written, the temporary holds a prefix of the new content at exactly the kept mode;
-/// - after the write and before the rename, it holds the whole new content at exactly the kept mode,
+/// What a kill leaves,
+/// step by step:
+/// - before the temporary is created,
+///   nothing:
+///   the target holds the old content;
+/// - after the create and before the mode is put on,
+///   the temporary is empty,
+///   and narrower than the kept mode,
+///   never wider;
+/// - while the bytes are written,
+///   the temporary holds a prefix of the new content at exactly the kept mode;
+/// - after the write and before the rename,
+///   it holds the whole new content at exactly the kept mode,
 ///   and the target still holds the old one;
-/// - after the rename, the target holds the new content, complete.
+/// - after the rename,
+///   the target holds the new content,
+///   complete.
 ///
 /// Every leftover of the steps above is `.<name>.<pid>.tmp` beside the target,
 /// readable no more widely than the target itself,

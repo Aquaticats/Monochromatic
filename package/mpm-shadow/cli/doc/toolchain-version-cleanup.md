@@ -143,16 +143,24 @@ A removal is three steps:
 
 1. the version's downloads directory is renamed to `.mpm-shadow-removing.<name>` beside it,
    one atomic rename;
-2. the version directory is renamed to a hidden `.<version>.<process id>.<attempt>.claimed` beside it,
+2. the version directory is renamed to a hidden
+   `.mpm-shadow-claimed.<process id>.<attempt>.<version>` beside it,
    one atomic rename,
    and the copy that arrived is compared with the one the scan judged;
 3. the claimed version directory is renamed to `.mpm-shadow-removing.<name>`,
    and the two markers and the downloads marker are deleted.
 
-A run killed between the second and third steps leaves the version's tree under the claimed name,
-which no scan lists as a version and no recovery deletes;
-nothing else is lost,
-and `mv` puts it back by hand.
+A run killed between the second and third steps leaves the version's tree under the claimed name.
+No scan lists it as a version,
+and the tombstone pass does not know the name,
+so the next pass gives it back instead:
+it reads the process number the name carries,
+and for a claim whose process is gone it renames the tree to the version's name again,
+in one atomic step,
+saying one line.
+A claim whose version's name is taken stays where it is,
+because the tree at that name is another run's,
+and the line names where it is kept.
 A run killed after the third step leaves a hidden `.mpm-shadow-removing.*` directory,
 which no scan lists as a version,
 and a `.mpm-shadow-removal-unfinished` file in the store root.
@@ -285,11 +293,16 @@ and running out of one is said rather than hidden.
   a program still running at its bound is stopped and the command reports that it was,
   naming the program,
   the bound and what it had printed.
-  A program's own children may outlive it:
-  the runner reads what they wrote as it arrives and stops waiting half a second after the program is gone,
-  which is why a program that leaves a background child holding its output does not hold the install.
-  What an install loses when a program is stopped is the unfinished version directory,
-  which this pass keeps because it is recent and the next install replaces.
+  The stop reaches the program the runner started,
+  not the children that program started itself:
+  a program that leaves a background child behind keeps it,
+  and the runner stops waiting on the child's output half a second after the program is gone,
+  which is what keeps such a program from holding the install.
+  What an install loses when one of its own install steps is stopped is the version directory that step was writing:
+  this pass keeps it because it is recent,
+  and the next install replaces it.
+  A stopped program leaves whatever it had already done,
+  as a killed command always does.
 - **`git worktree list`,
   which the removals read to find every worktree's lock:
   ten seconds**

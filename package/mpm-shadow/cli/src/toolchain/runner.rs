@@ -88,6 +88,14 @@ const BYTES_PER_READ: usize = 8192;
 /// so the output is taken as it stands rather than waited for.
 const STOPPED_OUTPUT_GRACE: Duration = Duration::from_millis(500);
 
+/// How long the runner waits for a killed program to be reaped.
+/// Why:
+/// A program held in an uninterruptible call cannot be reaped at all,
+/// and the bound belongs to the runner,
+/// so the reap has one of its own:
+/// a program still there after this is left to the kernel rather than waited for.
+const REAP_GRACE: Duration = Duration::from_secs(2);
+
 /// What:
 /// One program start:
 /// the program (a name looked up on `PATH`,
@@ -257,6 +265,24 @@ fn collect(source: Option<impl std::io::Read + Send + 'static>, stdout: bool, se
     }
 }
 
+/// Kills a program and waits for the kernel to report it gone,
+/// for at most `REAP_GRACE`.
+/// Why:
+/// `Child::wait` after a kill blocks until the program is reaped,
+/// which a program in an uninterruptible call can hold for ever;
+/// the runner's bound must not depend on that.
+fn stop(child: &mut std::process::Child) {
+    let give_up_at: Instant = Instant::now() + REAP_GRACE;
+    let _killed = child.kill();
+    while Instant::now() < give_up_at {
+        match child.try_wait() {
+            Ok(Some(_status)) => return,
+            Ok(None) => std::thread::sleep(FIRST_PAUSE),
+            Err(_unknown) => return,
+        }
+    }
+}
+
 /// Waits for a started program until its bound,
 /// and returns its exit status,
 /// or nothing when the bound passed and the program was stopped.
@@ -274,8 +300,7 @@ fn wait_until_stopped(child: &mut std::process::Child, bound: Duration) -> Optio
             Err(_unknown) => return None,
         }
         if Instant::now() >= give_up_at {
-            let _killed = child.kill();
-            let _reaped = child.wait();
+            stop(child);
             return None;
         }
         std::thread::sleep(pause);

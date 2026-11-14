@@ -75,8 +75,10 @@ use super::store_versions::{
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
 /// Imports `file_name_text` from `super::util`,
-/// which spells a path's last name for the suffix a claim adds to it.
-use super::util::file_name_text;
+/// which spells a path's last name for the suffix a claim adds to it,
+/// and `process_is_gone`,
+/// which tells a claim a live run holds from one a kill left.
+use super::util::{file_name_text, process_is_gone};
 
 /// Bytes in the next larger unit.
 const BYTES_PER_KIB: u64 = 1024;
@@ -801,6 +803,11 @@ impl JudgedVersion {
     }
 }
 
+/// The prefix of the hidden name a removal's one atomic move takes a version to.
+/// The rest is `<process id>.<attempt>.<version>`,
+/// so the recovery pass can name both.
+const CLAIM_PREFIX: &str = ".mpm-shadow-claimed.";
+
 /// What:
 /// A free hidden name beside `version_directory`,
 /// where the one atomic move of a removal takes it.
@@ -808,15 +815,33 @@ impl JudgedVersion {
 /// No scan lists a hidden name as a version,
 /// and the recovery pass finishes only the names it recognizes as a removal in progress,
 /// so a copy whose identity has not been compared yet is never a name that pass deletes.
+/// The process number in the name is what a later pass reads to tell a claim a live run holds from one a kill left.
 fn claim_name_beside(version_directory: &Path) -> PathBuf {
     let name: String = file_name_text(version_directory);
     for attempt in 0..8 {
-        let candidate: PathBuf = version_directory.with_file_name(format!(".{name}.{}.{attempt}.claimed", std::process::id()));
+        let candidate: PathBuf =
+            version_directory.with_file_name(format!("{CLAIM_PREFIX}{}.{attempt}.{name}", std::process::id()));
         if fs::symlink_metadata(&candidate).is_err() {
             return candidate;
         }
     }
-    return version_directory.with_file_name(format!(".{name}.{}.claimed", std::process::id()));
+    return version_directory.with_file_name(format!("{CLAIM_PREFIX}{}.{name}", std::process::id()));
+}
+
+/// What:
+/// The process number and the version name a claimed directory's name carries,
+/// or `None` for a name this pass did not write.
+fn claim_of(name: &str) -> Option<(u32, String)> {
+    let rest: &str = name.strip_prefix(CLAIM_PREFIX)?;
+    let mut fields = rest.splitn(3, '.');
+    let pid: u32 = fields.next()?.parse().ok()?;
+    // The attempt only keeps two claims of one process apart; it is read so the shape is checked.
+    fields.next()?.parse::<u32>().ok()?;
+    let version: String = fields.next()?.to_string();
+    if version.is_empty() || version.starts_with('.') {
+        return None;
+    }
+    return Some((pid, version));
 }
 
 /// Puts the downloads moved aside for a version back under their name,
@@ -857,6 +882,64 @@ fn put_back(version_directory: &Path, claimed: &Path, moved_downloads: &Option<P
 }
 
 /// What:
+/// Gives back every version a killed removal took out of its name and never judged,
+/// and leaves the claims a live run holds.
+/// Why:
+/// The move out of the version's name is what lets the pass compare what it took with what it judged,
+/// but a run killed between the two leaves the version's tree under a hidden claimed name:
+/// no scan lists it as a version,
+/// the tombstone pass does not know the name,
+/// and without this the version is out of every tree until a person moves it back by hand.
+/// A claim whose version's name is taken stays where it is:
+/// the rename onto a non-empty directory fails rather than carrying away what another run published there,
+/// and the line says where the tree is.
+fn give_back_claimed(
+    root: &Path,
+    tool: &str,
+    run: &TrimRun,
+    lines: &mut Vec<String>,
+    unfinished: &mut BTreeSet<PathBuf>,
+) {
+    let tool_directory: PathBuf = root.join(tool);
+    let Ok(entries) = fs::read_dir(&tool_directory) else {
+        return;
+    };
+    let mut abandoned: Vec<(String, PathBuf)> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        let Some((pid, version)) = claim_of(&name) else {
+            continue;
+        };
+        // What: only a claim whose process is gone is given back.
+        // Why: the claim of a run that is still comparing is that run's to put back or to delete.
+        if process_is_gone(pid) {
+            abandoned.push((version, entry.path()));
+        }
+    }
+    abandoned.sort();
+    for (version, claimed) in abandoned {
+        if run.started.elapsed() >= run.bounds.work_limit {
+            unfinished.insert(root.to_path_buf());
+            return;
+        }
+        match fs::rename(&claimed, tool_directory.join(&version)) {
+            Ok(()) => lines.push(format!(
+                "mpm-shadow: gave back {} of {}, which a removal an earlier run started had taken out of its name",
+                version,
+                tool
+            )),
+            Err(error) => {
+                unfinished.insert(root.to_path_buf());
+                lines.push(format!(
+                    "mpm-shadow: kept {}: a removal an earlier run started took it out of its name and it cannot be given back: {error}",
+                    claimed.display()
+                ));
+            }
+        }
+    }
+}
+
+/// What:
 /// Finishes every removal an earlier run started and returns one line per removal finished.
 /// Why:
 /// The version is named by its removal marker until it is gone,
@@ -875,6 +958,9 @@ pub fn finish_removals(
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
     for root in roots {
+        for tool in tools {
+            give_back_claimed(root, tool, run, &mut lines, &mut unfinished);
+        }
         for marker in tombstones(root, tools) {
             if run.started.elapsed() >= run.bounds.work_limit {
                 unfinished.insert(root.clone());

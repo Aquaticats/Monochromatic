@@ -1119,7 +1119,8 @@ so a version another command publishes at that name while the pass runs is put b
 Every program an install starts runs under a stated bound,
 and so does every lock it waits on;
 running out of one is reported,
-and nothing is lost.
+and the version directory that step was writing is kept,
+not deleted.
 `doc/toolchain-version-cleanup.md` gives each bound,
 how it was sized,
 and what happens at it.

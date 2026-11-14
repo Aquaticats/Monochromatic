@@ -309,15 +309,16 @@ pub fn remove_older_archives(
         // What: a version another run removed between the listing above and this removal is a finished cleanup.
         // Why: every worktree shares this store root, so two installs of the same newer version reach this loop at
         // once; the second `remove_dir_all` finds nothing, which is the state it set out to reach.
+        // The downloads are removed either way, because a run killed between its own version removal and its
+        // downloads removal leaves them under a name nothing else reads once the version directory is gone.
         match fs::remove_dir_all(&directory) {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Ok(()) => removed.push(directory),
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => {
                 return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
             }
         }
         remove_downloads(toolchain_root, id, &name)?;
-        removed.push(directory);
     }
     return Ok(removed);
 }
