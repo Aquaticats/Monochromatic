@@ -201,32 +201,42 @@ fn the_other_forms_write_no_tree_path() {
     }
 }
 
-/// A forced `mv` writes its destination and the name each source takes inside a directory destination,
-/// which are paths no tree or index query names.
+/// What:
+///  A forced `mv` names its sources and its destination,
+///  and the worktree decides what Git writes from them
+///  (a destination that is a directory is moved into, one that is not is renamed onto).
+/// Why:
+///  The reading cannot know which shape it has without the filesystem,
+///  and a reading that guessed named the destination directory itself as written over,
+///  which refused a safe `git mv -f a.txt b` (the third review's defect 1).
+///  The shapes themselves are read in `repository_facts_written_paths_tests.rs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writtenPaths('Move', ['--force', 'a.txt', 'b']) === { kind: 'move-into', sources: ['a.txt'], destination: 'b' }
+/// ```
 #[test]
-fn a_forced_move_writes_its_destination() {
-    // The reading cannot know whether the destination is a directory without asking the filesystem,
-    //  so it names both the destination and the name a source would take inside it;
-    //  a path the worktree does not hold is dropped before anything is refused.
-    let cases: [(Vec<&str>, Vec<&str>); 4] = [
-        (vec!["--force", "a.txt", "b.txt"], vec!["b.txt", "b.txt/a.txt"]),
-        (vec!["-f", "a.txt", "dir/b.txt"], vec!["dir/b.txt", "dir/b.txt/a.txt"]),
-        (vec!["--force", "a.txt", "dir"], vec!["dir", "dir/a.txt"]),
-        (vec!["--force", "a.txt", "--", "b.txt"], vec!["b.txt", "b.txt/a.txt"]),
+fn a_forced_move_names_its_sources_and_its_destination() {
+    let cases: [(Vec<&str>, Vec<&str>, &str); 5] = [
+        (vec!["--force", "a.txt", "b.txt"], vec!["a.txt"], "b.txt"),
+        (vec!["-f", "a.txt", "dir/b.txt"], vec!["a.txt"], "dir/b.txt"),
+        (vec!["--force", "a.txt", "dir"], vec!["a.txt"], "dir"),
+        (vec!["--force", "a.txt", "x.txt", "dir"], vec!["a.txt", "x.txt"], "dir"),
+        (vec!["--force", "a.txt", "--", "b.txt"], vec!["a.txt"], "b.txt"),
     ];
-    for (values, expected) in cases {
-        let answer: Option<WrittenPaths> = written_paths(GuardedCommand::Move, words(values.as_slice()).as_slice(), None);
-        match answer {
-            Some(WrittenPaths::Paths { paths }) => {
-                let mut shown: Vec<String> = paths.iter().map(|path| return path.to_string_lossy().into_owned()).collect();
-                shown.sort();
-                let mut wanted: Vec<String> = expected.iter().map(|path| return String::from(*path)).collect();
-                wanted.sort();
-                assert_eq!(shown, wanted, "{values:?}");
-            }
-            other => panic!("{values:?} read as {other:?}"),
-        }
+    for (values, wanted_sources, wanted_destination) in cases {
+        assert_eq!(
+            written_paths(GuardedCommand::Move, words(values.as_slice()).as_slice(), None),
+            Some(WrittenPaths::MoveInto {
+                sources: words(wanted_sources.as_slice()),
+                destination: OsString::from(wanted_destination),
+                directory: None,
+            }),
+            "{values:?}"
+        );
     }
+    // A move with no source names nothing: Git refuses it.
+    assert_eq!(written_paths(GuardedCommand::Move, words(&["--force", "b"]).as_slice(), None), None);
 }
 
 /// A forced `checkout-index` writes the index's paths, all of them with `-a`,
@@ -451,21 +461,14 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
         Some(WrittenPaths::PathspecFile { file, .. }) => assert_eq!(file, word(b"n-\xff")),
         other => panic!("the inline file name was read as {other:?}"),
     }
-    // The name a source takes inside a directory destination of a forced move.
+    // A destination of a forced move that is not text keeps its bytes.
     let moved: Option<WrittenPaths> = written_paths(
         GuardedCommand::Move,
         &[word(b"-f"), word(b"a.txt"), word(b"p-\xff")],
         None,
     );
     match moved {
-        Some(WrittenPaths::Paths { paths }) => {
-            let named: Vec<Vec<u8>> = paths.iter().map(|path| return path.as_encoded_bytes().to_vec()).collect();
-            assert!(named.contains(&b"p-\xff".to_vec()), "{named:?}");
-            assert!(
-                named.contains(&b"p-\xff/a.txt".to_vec()),
-                "the name inside the destination keeps its bytes: {named:?}"
-            );
-        }
+        Some(WrittenPaths::MoveInto { destination, .. }) => assert_eq!(destination, word(b"p-\xff")),
         other => panic!("the move was read as {other:?}"),
     }
 }

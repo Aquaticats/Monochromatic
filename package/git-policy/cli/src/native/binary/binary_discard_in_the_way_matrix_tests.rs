@@ -1580,4 +1580,170 @@ fn an_interactive_clean_a_shell_alias_runs_is_refused() {
 }
 
 //endregion
+//region The third review's two findings
+
+/// What:
+///  A linked worktree of a repository whose `main` tracks `a.txt`, `x.txt` and `d1/inner.txt`,
+///  with `setup` laying what one move shape needs and no marking of the worktree.
+/// Why:
+///  A forced move's written paths turn on whether its destination is a directory,
+///  which only the worktree says, so each shape needs its own fixture beside real Git's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { fixture, linked } = a_worktree_for_moving('move-shape', (linked) => mkdir(linked + '/b'));
+/// ```
+fn a_worktree_for_moving(name: &str, setup: fn(&Path)) -> (Fixture, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), b"tracked a\n").expect("a.txt");
+    std::fs::write(repo.join("x.txt"), b"tracked x\n").expect("x.txt");
+    std::fs::create_dir(repo.join("d1")).expect("d1");
+    std::fs::write(repo.join("d1/inner.txt"), b"inside d1\n").expect("d1/inner.txt");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt", "x.txt", "d1/inner.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    setup(linked.as_path());
+    return (fixture, linked);
+}
+
+/// What:
+///  A forced `mv` into a directory Git only moves into is allowed and loses nothing,
+///  while a move Git really writes over an untracked file is refused with that file named,
+///  and the refusal's command runs the move as real Git runs it.
+/// Why:
+///  The third review's defect 1: the reading named the destination directory itself as written over,
+///  so a safe `git mv -f a.txt b` was refused with a sentence that was untrue.
+///  The control on the other side is the same form over a file at the destination, which Git replaces.
+#[test]
+fn a_forced_move_into_a_directory_is_allowed_and_a_move_over_a_file_is_refused() {
+    fn an_untracked_directory(linked: &Path) {
+        std::fs::create_dir(linked.join("b")).expect("b");
+        std::fs::write(linked.join("b/keep.txt"), b"keep\n").expect("b/keep.txt");
+    }
+    fn nothing(linked: &Path) {
+        let _ = linked;
+    }
+    // A source into an untracked directory: Git moves into it, and the guard lets it run.
+    let (fixture, linked): (Fixture, PathBuf) = a_worktree_for_moving("discard-move-into-a-directory", an_untracked_directory);
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["mv", "-f", "a.txt", "b"]);
+    assert_eq!(observed.code, Some(0), "a safe move was refused: {}", stderr_of(&observed));
+    assert!(!refused_by_the_guard(&observed), "{}", stderr_of(&observed));
+    assert!(linked.join("b/a.txt").exists(), "Git moved the source into the directory");
+    assert_eq!(
+        std::fs::read(linked.join("b/keep.txt")).expect("the file beside the moved one"),
+        b"keep\n",
+        "the file beside the moved one is untouched"
+    );
+    assert_eq!(
+        std::fs::read(linked.join("x.txt")).expect("the file the move does not name"),
+        b"tracked x\n",
+        "a move into a directory writes no other entry"
+    );
+    // Several sources into a directory: Git moves both, and the guard lets it run.
+    let (two_fixture, two_linked): (Fixture, PathBuf) = a_worktree_for_moving("discard-move-two-into-a-directory", an_untracked_directory);
+    let two: Observed = run_wrapped(&two_fixture, two_linked.as_path(), &["mv", "-f", "a.txt", "x.txt", "b"]);
+    assert_eq!(two.code, Some(0), "a safe move of two sources was refused: {}", stderr_of(&two));
+    assert!(two_linked.join("b/a.txt").exists() && two_linked.join("b/x.txt").exists());
+    remove(&two_fixture);
+    // A source onto an untracked file: Git replaces it, and the guard refuses with the file named.
+    let (on_file, on_linked): (Fixture, PathBuf) = a_worktree_for_moving("discard-move-onto-a-file", nothing);
+    std::fs::write(on_linked.join("kept.txt"), PRECIOUS).expect("the person's untracked file");
+    let replaced: Observed = run_wrapped(&on_file, on_linked.as_path(), &["mv", "-f", "a.txt", "kept.txt"]);
+    assert!(refused_by_the_guard(&replaced), "a move that replaces a file was let through: {}", stderr_of(&replaced));
+    assert!(stderr_of(&replaced).contains("kept.txt"), "{}", stderr_of(&replaced));
+    assert!(still_where_it_was(on_linked.as_path(), "kept.txt", PRECIOUS));
+    // The command the refusal prints runs the move as real Git runs it.
+    let passed: Observed = run_hatched(&on_file, on_linked.as_path(), &["mv", "-f", "a.txt", "kept.txt"]);
+    assert_eq!(passed.code, Some(0), "{}", stderr_of(&passed));
+    assert!(!still_where_it_was(on_linked.as_path(), "kept.txt", PRECIOUS), "the move replaced the file");
+    // A file at the source's name inside the destination: Git refuses (`Cannot overwrite`), so the guard names nothing.
+    fn a_file_where_the_source_lands(linked: &Path) {
+        std::fs::create_dir(linked.join("b")).expect("b");
+        std::fs::write(linked.join("b/a.txt"), PRECIOUS).expect("the person's file at the landing name");
+    }
+    let (landing, landing_linked): (Fixture, PathBuf) = a_worktree_for_moving("discard-move-onto-a-landing-file", a_file_where_the_source_lands);
+    let landing_observed: Observed = run_wrapped(&landing, landing_linked.as_path(), &["mv", "-f", "a.txt", "b"]);
+    assert!(refused_by_the_guard(&landing_observed), "a move over the landing name was let through: {}", stderr_of(&landing_observed));
+    assert!(still_where_it_was(landing_linked.as_path(), "b/a.txt", PRECIOUS));
+    remove(&landing);
+    remove(&on_file);
+    remove(&fixture);
+}
+
+/// What:
+///  An edit hidden by `skip-worktree` or `assume-unchanged`, at the only path a `git rm` can reach
+///  it through.
+///  `&str` names the mark.
+/// Why:
+///  `--sparse` is what makes Git reach a skipped path and delete the file with the edit in it,
+///  and the third review's defect 2: the guard asked the status alone for `rm`, which shows neither
+///  mark.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linked = aWorktreeWithAHiddenEdit('hidden-edit', 'skip-worktree');
+/// ```
+fn a_worktree_with_a_hidden_edit(name: &str, mark: &str) -> (Fixture, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("s.txt"), b"committed content\n").expect("s.txt");
+    git(&fixture, repo.as_path(), &["add", "--", "s.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    git(&fixture, linked.as_path(), &[OsStr::new("update-index"), OsStr::new(&format!("--{mark}")), OsStr::new("s.txt")]);
+    std::fs::write(linked.join("s.txt"), PRECIOUS).expect("the hidden edit");
+    return (fixture, linked);
+}
+
+/// A `git rm` that reaches a hidden edit is refused with the file named, in both marks,
+/// and the opt-out runs the command, which deletes it as real Git does;
+/// each mark keeps the form that does not reach its hidden edit, with the control that shows it.
+#[test]
+fn a_removal_that_reaches_a_hidden_edit_is_refused_and_the_opt_out_deletes_it() {
+    for (index, mark) in ["skip-worktree", "assume-unchanged"].into_iter().enumerate() {
+        // The guarded form that reaches the mark: `--sparse` makes Git look past a `skip-worktree`
+        //  bit, and an `assume-unchanged` mark is no obstacle at all, so both are a loss.
+        let label: String = format!("discard-hidden-edit-{index}");
+        let (fixture, linked): (Fixture, PathBuf) = a_worktree_with_a_hidden_edit(label.as_str(), mark);
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rm", "-f", "--sparse", "s.txt"]);
+        assert!(
+            refused_by_the_guard(&observed),
+            "{mark}: `rm -f --sparse s.txt` was let through: {}",
+            stderr_of(&observed)
+        );
+        assert!(stderr_of(&observed).contains("s.txt"), "{mark}: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), "s.txt", PRECIOUS), "{mark}: the refusal lost the edit");
+        // The opt-out runs the command, and real Git deletes the file with the edit in it.
+        let passed: Observed = run_hatched(&fixture, linked.as_path(), &["rm", "-f", "--sparse", "s.txt"]);
+        assert_eq!(passed.code, Some(0), "{mark} under the opt-out: {}", stderr_of(&passed));
+        assert!(!linked.join("s.txt").exists(), "{mark} under the opt-out kept the file Git deletes");
+        remove(&fixture);
+
+        // What each mark does to the forms that do not reach it.
+        let (quiet_fixture, quiet_linked): (Fixture, PathBuf) =
+            a_worktree_with_a_hidden_edit(format!("{label}-quiet").as_str(), mark);
+        if mark == "skip-worktree" {
+            // Git refuses a plain `rm -f` on a skipped path itself, so the guard leaves the command to Git.
+            let plain: Observed = run_wrapped(&quiet_fixture, quiet_linked.as_path(), &["rm", "-f", "s.txt"]);
+            assert!(!refused_by_the_guard(&plain), "{mark}: {}", stderr_of(&plain));
+            assert!(still_where_it_was(quiet_linked.as_path(), "s.txt", PRECIOUS), "{mark}: the plain `rm -f` lost it");
+            // `--cached` removes the index entry and keeps the worktree file, so it is left to Git too.
+            let cached: Observed =
+                run_wrapped(&quiet_fixture, quiet_linked.as_path(), &["rm", "-f", "--cached", "--sparse", "s.txt"]);
+            assert!(!refused_by_the_guard(&cached), "{mark}: `rm --cached` keeps the file: {}", stderr_of(&cached));
+            assert!(still_where_it_was(quiet_linked.as_path(), "s.txt", PRECIOUS), "{mark}: `--cached` lost it");
+        } else {
+            // An `assume-unchanged` edit is one the status question already reads, in every forced form.
+            let plain: Observed = run_wrapped(&quiet_fixture, quiet_linked.as_path(), &["rm", "-f", "s.txt"]);
+            assert!(refused_by_the_guard(&plain), "{mark}: a forced removal was let through: {}", stderr_of(&plain));
+            assert!(still_where_it_was(quiet_linked.as_path(), "s.txt", PRECIOUS), "{mark}: the refusal lost it");
+        }
+        remove(&quiet_fixture);
+    }
+}
+
+//endregion
 //endregion

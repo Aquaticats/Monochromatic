@@ -355,8 +355,53 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
             }
             return Some(DirtyQuestion::Worktree(DirtyScope::Tracked));
         }
+        // What:
+        //  A `git rm` that asks Git to ignore the sparse bits.
+        // Why:
+        //  `--sparse` is the person telling Git to reach a path a `skip-worktree` mark hides,
+        //  and Git then deletes the file with the edit in it
+        //  (`git rm -f --sparse s.txt` exits 0 and the edited `s.txt` is gone,
+        //  while `git rm -f s.txt` refuses and keeps it, measured on this host with native Git
+        //  2.56.0, 2026-11-14);
+        //  `--cached` is the other half: it removes the index entry and leaves the worktree file
+        //  alone, so a hidden edit there is no loss and the plain scope is asked.
+        GuardedCommand::Remove => {
+            return Some(DirtyQuestion::Worktree(if reaches_a_skipped_edit(region) {
+                DirtyScope::TrackedAndSkipWorktreeEdits
+            } else {
+                DirtyScope::Tracked
+            }));
+        }
         _ => return Some(DirtyQuestion::Worktree(DirtyScope::Tracked)),
     }
+}
+
+/// What:
+///  Whether a `git rm` region asks Git to look past the `skip-worktree` mark and to remove the
+///  worktree file.
+/// Why:
+///  `--sparse` (`--sp` and longer, the prefixes `rm`'s own option table leaves unambiguous) makes
+///  Git reach a skipped path, and Git then deletes the file the mark hides;
+///  `--cached` removes the index entry alone and keeps that file,
+///  so the two together ask nothing about a hidden edit.
+///  A token after `--` is a path, never an option.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reaches = (region) => region.some((w) => spellsLong(w, 'sparse', RM_LONG_OPTIONS)) && !region.some((w) => spellsLong(w, 'cached', RM_LONG_OPTIONS));
+/// ```
+fn reaches_a_skipped_edit(region: &[OsString]) -> bool {
+    let mut sparse: bool = false;
+    let mut cached: bool = false;
+    for token in region {
+        let written: &[u8] = token.as_encoded_bytes();
+        if written == b"--" {
+            break;
+        }
+        sparse = sparse || crate::command_discard::spells_long(written, "sparse", crate::command_discard::RM_LONG_OPTIONS);
+        cached = cached || crate::command_discard::spells_long(written, "cached", crate::command_discard::RM_LONG_OPTIONS);
+    }
+    return sparse && !cached;
 }
 
 /// What:

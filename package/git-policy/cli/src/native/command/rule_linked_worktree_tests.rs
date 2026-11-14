@@ -567,3 +567,40 @@ fn every_read_tree_form_is_decided_the_way_real_git_acts() {
     }
     remove(directory.as_path());
 }
+
+/// What:
+///  Which question a `git rm` asks:
+///  the hidden edits too when the form reaches a path a `skip-worktree` mark hides,
+///  and the plain one otherwise.
+/// Why:
+///  `--sparse` is the person telling Git to look past the mark, and Git then deletes the file with
+///  the edit in it (`git rm -f --sparse s.txt` exits 0 and the edit is gone, while `git rm -f s.txt`
+///  refuses and keeps it, measured on this host with native Git 2.56.0, 2026-11-14);
+///  `--cached` keeps the worktree file, so nothing hidden is lost through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// dirtyQuestion('Remove', ['-f', '--sparse', 's.txt']) === Worktree('TrackedAndSkipWorktreeEdits')
+/// ```
+#[test]
+fn a_removal_asks_about_hidden_edits_only_where_it_reaches_them() {
+    let cases: [(Vec<&str>, DirtyScope); 8] = [
+        (vec!["-f", "--sparse", "s.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        (vec!["-f", "--sp", "s.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        (vec!["--forc", "--spa", "s.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        (vec!["--sparse", "-f", "--", "s.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        (vec!["-f", "s.txt"], DirtyScope::Tracked),
+        // `--cached` removes the index entry and leaves the worktree file alone.
+        (vec!["-f", "--cached", "--sparse", "s.txt"], DirtyScope::Tracked),
+        // A token after `--` is a path, never the option.
+        (vec!["-f", "--", "--sparse"], DirtyScope::Tracked),
+        (vec!["-f", "--sparse-checkout"], DirtyScope::Tracked),
+    ];
+    for (values, expected) in cases {
+        assert_eq!(
+            dirty_question(GuardedCommand::Remove, os_arguments(values.as_slice()).as_slice()),
+            Some(DirtyQuestion::Worktree(expected)),
+            "{values:?}"
+        );
+    }
+}

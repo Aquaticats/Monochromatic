@@ -32,6 +32,8 @@ use crate::repository_facts::RepositoryFacts;
 ///  and the NUL-separated reading of an answer.
 use crate::git_metadata::MetadataOutput;
 use crate::rule_worktree_dirty::nul_separated_paths;
+/// The ceiling one metadata lookup of the worktree is read under.
+use crate::wait_ceilings::WORKTREE_LOOKUP_CEILING;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -67,7 +69,10 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
         }
         WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice()),
         WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix),
-        WrittenPaths::Paths { paths } => Ok(paths.iter().map(|path| return path.as_encoded_bytes().to_vec()).collect()),
+        WrittenPaths::MoveInto { sources, destination, directory } => {
+            let at: Option<&Path> = directory.as_ref().map(|named| return Path::new(named));
+            move_paths(facts, sources.as_slice(), destination, at)
+        }
         WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref()),
         WrittenPaths::PathspecFile { target, file, nul_separated, directory, entries: _, guesses_a_remote_branch } => {
             let at: Option<&Path> = directory.as_ref().map(|named| return Path::new(named));
@@ -89,6 +94,174 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             };
         }
     };
+}
+
+/// What:
+///  The paths a forced `git mv` writes,
+///  read from the worktree the way Git reads them.
+///  `&[OsString]` borrows the sources, `&OsStr` the destination,
+///  `Option<&Path>` the directory a relative word is read from.
+/// Why:
+///  Git moves every source into a destination that is a directory
+///  (`git mv -f a.txt b` writes `b/a.txt` and leaves `b/` and its other files alone),
+///  renames its one source onto a destination that is not one,
+///  and refuses the shapes it cannot do;
+///  what a shape writes decides whether an entry in the way is really lost,
+///  so the shapes Git refuses answer "nothing is written" and Git's own refusal answers the person
+///  (each measured on this host with native Git 2.56.0, 2026-11-14):
+///  several sources onto a non-directory (`fatal: destination 'x' is not a directory`),
+///  a trailing slash on a destination that is not there (`destination directory does not exist`),
+///  a directory source onto an existing file (`destination already exists`),
+///  a source whose name inside the destination is a directory (`fatal: Cannot overwrite`),
+///  and a missing source (`bad source`).
+///  A metadata lookup that gives no answer stops the command,
+///  because the shape it would write was not seen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function movePaths(facts, ['a.txt'], 'b', undefined): Promise<Buffer[]>;
+/// ```
+fn move_paths(
+    facts: &mut GitFacts,
+    sources: &[OsString],
+    destination: &OsStr,
+    directory: Option<&Path>,
+) -> Result<Vec<Vec<u8>>, String> {
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    // Where Git runs the form, which is where its relative words are read.
+    let run_in: PathBuf = crate::command_run_directory::command_run_directory(facts.global_prefix.as_slice(), directory)?;
+    let reached: Named = named_entry(run_in.join(destination).as_path())?;
+    // Which source is a directory of its own decides two of Git's refusals, and a source that is not there is
+    //  Git's `bad source`, which writes nothing.
+    let mut sources_are_directories: Vec<bool> = Vec::<bool>::with_capacity(sources.len());
+    for source in sources {
+        match named_entry(run_in.join(source).as_path())? {
+            Named::Missing => return Ok(Vec::<Vec<u8>>::new()),
+            Named::Directory => sources_are_directories.push(true),
+            Named::Other => sources_are_directories.push(false),
+        }
+    }
+    let mut written: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    match reached {
+        // A destination that is a directory is one Git moves into: the entry in the way is each source's name
+        //  inside it, and the directory itself is not written.
+        Named::Directory => {
+            for source in sources {
+                let mut target: Vec<u8> = destination.as_encoded_bytes().to_vec();
+                if !target.ends_with(b"/") {
+                    target.push(b'/');
+                }
+                target.extend(source_name(source));
+                match named_entry(run_in.join(path_from_bytes(target.as_slice()).as_os_str()).as_path())? {
+                    // Git refuses to write over a directory of that name (`Cannot overwrite`), and writes nothing.
+                    Named::Directory => return Ok(Vec::<Vec<u8>>::new()),
+                    Named::Missing | Named::Other => written.push(inside_the_worktree(&location, target.as_slice())),
+                }
+            }
+        }
+        // A destination Git cannot read as a directory means a rename onto that path; the shapes Git refuses there
+        //  write nothing at all.
+        Named::Missing | Named::Other => {
+            let refused: bool = destination.as_encoded_bytes().ends_with(b"/")
+                || sources.len() > 1
+                || (matches!(reached, Named::Other) && sources_are_directories.first() == Some(&true));
+            if !refused {
+                written.push(inside_the_worktree(&location, destination.as_encoded_bytes()));
+            }
+        }
+    }
+    return Ok(written);
+}
+
+/// What:
+///  What the worktree holds at one path:
+///  a directory, something else, or nothing.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  Git's answer for a destination turns on whether it is a directory
+///  (a metadata lookup that does not follow a link decides it),
+///  and a path that is not there is the shape a rename creates.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Named = 'directory' | 'other' | 'missing';
+/// ```
+enum Named {
+    /// A directory of the worktree.
+    Directory,
+    /// A file or a symbolic link.
+    Other,
+    /// Nothing at all.
+    Missing,
+}
+
+/// What:
+///  What stands at one path, read under a ceiling,
+///  or a failure when the lookup gave no answer.
+///  `&Path` borrows the path.
+/// Why:
+///  A metadata lookup on a mount whose server stopped answering waits in the kernel with no end,
+///  and a shape the reading did not see is one it cannot judge:
+///  no answer is a refusal naming the path, never "nothing is there".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namedEntry(path): Named; // throws
+/// ```
+fn named_entry(path: &Path) -> Result<Named, String> {
+    let Some(answer) =
+        crate::metadata_of_a_path_within_a_ceiling::symlink_metadata_within(WORKTREE_LOOKUP_CEILING, path)
+    else {
+        return Err(format!(
+            "the worktree entry `{}` did not answer within {} seconds, so the guard cannot tell what this command writes over",
+            path.display(),
+            WORKTREE_LOOKUP_CEILING.as_secs()
+        ));
+    };
+    return match answer {
+        Ok(metadata) if metadata.file_type().is_dir() => Ok(Named::Directory),
+        Ok(_) => Ok(Named::Other),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Named::Missing),
+        Err(error) => Err(format!("Git could not read `{}`: {error}", path.display())),
+    };
+}
+
+/// What:
+///  The name a source takes inside a destination directory:
+///  its last component, with the trailing separators Git ignores.
+/// Why:
+///  `git mv -f d1/x.txt b` writes `b/x.txt`, and `git mv -f a.txt/ newname` still names `a.txt`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = (source) => source.replace(/\/+$/, '').split('/').pop();
+/// ```
+fn source_name(source: &OsStr) -> Vec<u8> {
+    let mut trimmed: &[u8] = source.as_encoded_bytes();
+    while let Some(shorter) = trimmed.strip_suffix(b"/") {
+        trimmed = shorter;
+    }
+    return match trimmed.iter().rposition(|byte| return *byte == b'/') {
+        Some(slash) => trimmed[slash + 1..].to_vec(),
+        None => trimmed.to_vec(),
+    };
+}
+
+/// What:
+///  One path a form writes as the worktree root spells it:
+///  below the directory Git runs in, which the location's prefix names.
+/// Why:
+///  The entries in the way are named from the worktree root,
+///  and a form run from a directory below it names its own paths from there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rooted = (location, 'b/a.txt') => Buffer.concat([location.prefix, 'b/a.txt']);
+/// ```
+fn inside_the_worktree(location: &crate::repository_location::RepositoryLocation, path: &[u8]) -> Vec<u8> {
+    let mut rooted: Vec<u8> = location.prefix.clone();
+    rooted.extend_from_slice(path);
+    return rooted;
 }
 
 /// What:

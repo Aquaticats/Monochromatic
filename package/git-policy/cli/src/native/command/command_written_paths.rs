@@ -173,11 +173,28 @@ pub enum WrittenPaths {
         /// The directory they are written below.
         prefix: OsString,
     },
-    /// The exact paths a form writes,
-    ///  which no tree or index query names.
-    Paths {
-        /// The paths the form writes.
-        paths: Vec<OsString>,
+    /// What:
+    ///  A forced `git mv`: the sources and the destination it names,
+    ///  which only the worktree decides what Git writes.
+    /// Why:
+    ///  Git moves a source *into* a destination that is a directory (`git mv -f a.txt b` writes
+    ///  `b/a.txt` and leaves `b` and everything else in it alone),
+    ///  and renames onto a destination that is not one
+    ///  (measured on this host with native Git 2.56.0, 2026-11-14:
+    ///  one source into a directory, several sources into one, a source onto a file, a directory
+    ///  onto a directory, a missing destination, a trailing slash, and the shapes Git refuses).
+    ///  A reading that put the destination itself in the written set named the directory a form
+    ///  replaces whole and refused a safe `git mv -f a.txt b`, which is the false refusal the third
+    ///  review found.
+    MoveInto {
+        /// The sources, as the person spelled them.
+        sources: Vec<OsString>,
+        /// The destination, as the person spelled it.
+        destination: OsString,
+        /// The directory a relative path of the form is read from,
+        ///  which is the shell's for a command a `!` alias runs
+        ///  and the command's own otherwise.
+        directory: Option<OsString>,
     },
     /// The paths of the tree or the index that the pathspecs of `--pathspec-from-file` match.
     PathspecFile {
@@ -241,7 +258,7 @@ impl WrittenPaths {
             WrittenPaths::MatchingTree { .. } => "matching-tree",
             WrittenPaths::Index { .. } => "index",
             WrittenPaths::IndexUnderPrefix { .. } => "index-under-a-prefix",
-            WrittenPaths::Paths { .. } => "paths",
+            WrittenPaths::MoveInto { .. } => "move-into",
             WrittenPaths::ReadTree { entries: WrittenEntries::EveryEntry, .. } => "read-tree-trees",
             WrittenPaths::ReadTree { entries: WrittenEntries::OnlyIgnored, .. } => "read-tree-trees-of-ignored-entries",
             WrittenPaths::PathspecFile { .. } => "pathspec-file",
@@ -305,30 +322,37 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
         }
         GuardedCommand::RestoreWorktree => return restore_written_paths(region, shell_directory),
         GuardedCommand::ReadTree => return read_tree_written_paths(region),
-        GuardedCommand::Move => return move_written_paths(region),
+        GuardedCommand::Move => return move_written_paths(region, shell_directory),
         GuardedCommand::CheckoutIndex => return checkout_index_written_paths(region),
         _ => return None,
     }
 }
 
 /// What:
-///  The paths a forced `git mv` writes,
-///  which are its destination and, when the destination is a directory Git moves into,
-///  the name each source takes inside it.
-///  `&[OsString]` borrows the tokens after the subcommand.
+///  What a forced `git mv` names: its sources and its destination,
+///  which the worktree resolves into the paths Git writes.
+///  `&[OsString]` borrows the tokens after the subcommand,
+///  and `Option<&Path>` the directory a `!` alias's shell runs in.
 /// Why:
-///  `git mv --force` writes over whatever stands at the destination,
-///  untracked or ignored alike,
-///  and the destination is a path no index or tree query names.
+///   Git moves each source into a destination that is a directory
+///  (`git mv -f a.txt b` writes `b/a.txt`, and leaves `b/` and its other files alone),
+///  renames the one source onto a destination that is not one,
+///  and refuses every other shape it cannot do:
+///  several sources onto a non-directory (`destination 'dest.txt' is not a directory`),
+///  a trailing slash on a destination that is not there (`destination directory does not exist`),
+///  a directory onto an existing file (`destination already exists`),
+///  a source onto a directory of its name inside the destination (`Cannot overwrite`),
+///  and a directory into itself (`can not move directory into itself`).
 ///  Everything after `--` is a path,
 ///  and before it every token that is no option of `mv` is one,
 ///  none of which takes a value.
+///  The last word is the destination and the words before it are the sources.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function moveWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
-fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+fn move_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
     let mut words: Vec<&OsString> = Vec::<&OsString>::new();
     let mut after_dash_dash: bool = false;
     for token in region {
@@ -343,19 +367,18 @@ fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         words.push(token);
     }
     let destination: &OsString = words.last()?;
-    let mut paths: Vec<OsString> = vec![(*destination).clone()];
+    let mut sources: Vec<OsString> = Vec::<OsString>::with_capacity(words.len().saturating_sub(1));
     for source in words.iter().take(words.len().saturating_sub(1)) {
-        let bytes: &[u8] = source.as_encoded_bytes();
-        let name: &[u8] = match bytes.iter().rposition(|byte| return *byte == b'/') {
-            Some(slash) => &bytes[slash + 1..],
-            None => bytes,
-        };
-        let mut inside: Vec<u8> = destination.as_encoded_bytes().to_vec();
-        inside.push(b'/');
-        inside.extend(name);
-        paths.push(word_of(inside.as_slice()));
+        sources.push((**source).clone());
     }
-    return Some(WrittenPaths::Paths { paths });
+    if sources.is_empty() {
+        return None;
+    }
+    return Some(WrittenPaths::MoveInto {
+        sources,
+        destination: destination.clone(),
+        directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
+    });
 }
 
 /// What:

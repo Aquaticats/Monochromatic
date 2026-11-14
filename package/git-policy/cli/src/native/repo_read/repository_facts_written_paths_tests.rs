@@ -354,3 +354,213 @@ fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
 }
 
 //endregion
+
+//region The shapes a forced move has, each measured against real Git
+
+/// What:
+///  Every entry below the worktree root, with the bytes it holds,
+///  in one stable order.
+/// Why:
+///  What real Git writes for one move of one shape is the set of entries that appear or change;
+///  that set is the oracle the reading's written paths are compared with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = (root) => walk(root).map((p) => `${p}:${contentHash(p)}`).sort();
+/// ```
+fn the_worktree_state(root: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::<String>::new();
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_name() == std::ffi::OsStr::new(".git") {
+                continue;
+            }
+            let path: PathBuf = entry.path();
+            let shown: String = path.strip_prefix(root).unwrap_or(path.as_path()).display().to_string();
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                found.push(format!("dir {shown}"));
+                pending.push(path);
+                continue;
+            }
+            let bytes: Vec<u8> = std::fs::read(path.as_path()).unwrap_or_default();
+            found.push(format!(
+                "file {shown} {}",
+                bytes.iter().map(|byte| return format!("{byte:02x}")).collect::<String>()
+            ));
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// The written paths one forced move answers, as text.
+fn moved_paths(repository: &Path, sources: &[&str], destination: &str) -> Result<Vec<String>, String> {
+    let mut facts: GitFacts = facts_in(repository);
+    let answered: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        &mut facts,
+        &WrittenPaths::MoveInto {
+            sources: sources.iter().map(|source| return OsString::from(*source)).collect(),
+            destination: OsString::from(destination),
+            directory: None,
+        },
+    );
+    return answered.map(|paths| paths.iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect());
+}
+
+/// What:
+///  The paths real Git writes for one forced move of one shape,
+///  read as the entries that appeared or changed,
+///  and the move's own exit code.
+/// Why:
+///  A reading that names a path Git did not write is the false refusal the third review found,
+///  and the only oracle for "what Git writes" is Git's own run on the same shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const realMove = (repo, sources, destination) => { before; git mv -f; diff(before, after) };
+/// ```
+fn what_real_git_wrote(repository: &Path, sources: &[&str], destination: &str) -> (Option<i32>, Vec<(bool, String)>) {
+    let before: Vec<String> = the_worktree_state(repository);
+    let mut arguments: Vec<String> = vec![String::from("mv"), String::from("-f")];
+    arguments.extend(sources.iter().map(|source| return String::from(*source)));
+    arguments.push(String::from(destination));
+    let words: Vec<&str> = arguments.iter().map(|word| return word.as_str()).collect::<Vec<&str>>();
+    let ran = crate::command_test_support::git_status(repository, words.as_slice());
+    let after: Vec<String> = the_worktree_state(repository);
+    let mut written: Vec<(bool, String)> = Vec::<(bool, String)>::new();
+    for entry in &after {
+        if before.contains(entry) {
+            continue;
+        }
+        // An entry of the state is `<kind> <path>` for a directory or `<kind> <path> <content>` for a file.
+        let mut parts = entry.splitn(3, ' ');
+        let kind: &str = parts.next().unwrap_or_default();
+        let path: &str = parts.next().unwrap_or_default();
+        written.push((kind == "dir", String::from(path)));
+    }
+    let code: Option<i32> = ran.status.code();
+    return (code, written);
+}
+
+/// What:
+///  One shape of a forced `git mv`: its label, its setup, its words.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The shapes are a table the third review asked for, and one row per shape keeps the oracle and the
+///  reading side by side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rows = [{ label: 'one-source-into-an-untracked-dir', setup, sources: ['a.txt'], destination: 'b' }];
+/// ```
+struct MoveShape {
+    /// What the row is called.
+    label: &'static str,
+    /// The entries it puts in the worktree before the move.
+    setup: fn(&Path),
+    /// The sources the move names.
+    sources: &'static [&'static str],
+    /// The destination it names.
+    destination: &'static str,
+}
+
+/// A repository with the entries every row starts from:
+/// a tracked `a.txt`, `x.txt` and `d1/inner.txt`.
+fn a_repository_for_moving(name: &str) -> (PathBuf, PathBuf) {
+    let (directory, repo): (PathBuf, PathBuf) = repository_with_tracked_file(name);
+    std::fs::write(repo.join("a.txt"), b"tracked a\n").expect("a.txt");
+    std::fs::write(repo.join("x.txt"), b"tracked x\n").expect("x.txt");
+    std::fs::create_dir(repo.join("d1")).expect("d1");
+    std::fs::write(repo.join("d1/inner.txt"), b"inside d1\n").expect("d1/inner.txt");
+    git(repo.as_path(), &["add", "--", "a.txt", "x.txt", "d1/inner.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    return (directory, repo);
+}
+
+/// The shapes a forced move has, each compared with what real Git does on the same shape:
+/// a destination directory is moved into and never written over,
+/// a destination that is not one is renamed onto,
+/// and the shapes Git refuses write nothing, so the guard names nothing and Git answers.
+#[test]
+fn every_shape_of_a_forced_move_is_read_the_way_git_writes_it() {
+    fn no_setup(_repo: &Path) {}
+    fn an_untracked_directory(repo: &Path) {
+        std::fs::create_dir(repo.join("b")).expect("b");
+        std::fs::write(repo.join("b/keep.txt"), b"keep\n").expect("b/keep.txt");
+    }
+    fn a_tracked_directory(repo: &Path) {
+        std::fs::create_dir(repo.join("t")).expect("t");
+        std::fs::write(repo.join("t/keep.txt"), b"keep\n").expect("t/keep.txt");
+        git(repo, &["add", "--", "t/keep.txt"]);
+        git(repo, &["commit", "--quiet", "--message=t"]);
+    }
+    fn a_tracked_file_at_the_destination(repo: &Path) {
+        std::fs::write(repo.join("dest.txt"), b"dest\n").expect("dest.txt");
+        git(repo, &["add", "--", "dest.txt"]);
+        git(repo, &["commit", "--quiet", "--message=dest"]);
+    }
+    fn a_directory_at_the_destination(repo: &Path) {
+        std::fs::create_dir(repo.join("d2")).expect("d2");
+        std::fs::write(repo.join("d2/keep.txt"), b"keep\n").expect("d2/keep.txt");
+    }
+    fn a_directory_where_the_source_lands(repo: &Path) {
+        std::fs::create_dir_all(repo.join("b/a.txt")).expect("b/a.txt");
+    }
+    let rows: [MoveShape; 12] = [
+        MoveShape { label: "one-source-into-an-untracked-directory", setup: an_untracked_directory, sources: &["a.txt"], destination: "b" },
+        MoveShape { label: "one-source-into-a-tracked-directory", setup: a_tracked_directory, sources: &["a.txt"], destination: "t" },
+        MoveShape { label: "several-sources-into-a-directory", setup: an_untracked_directory, sources: &["a.txt", "x.txt"], destination: "b" },
+        MoveShape { label: "a-source-onto-a-tracked-file", setup: a_tracked_file_at_the_destination, sources: &["a.txt"], destination: "dest.txt" },
+        MoveShape { label: "a-directory-onto-a-directory", setup: a_directory_at_the_destination, sources: &["d1"], destination: "d2" },
+        MoveShape { label: "a-destination-that-is-not-there", setup: no_setup, sources: &["a.txt"], destination: "new.txt" },
+        MoveShape { label: "a-directory-onto-a-name-that-is-not-there", setup: no_setup, sources: &["d1"], destination: "newdir" },
+        MoveShape { label: "a-trailing-slash-on-an-existing-directory", setup: an_untracked_directory, sources: &["a.txt"], destination: "b/" },
+        MoveShape { label: "a-trailing-slash-on-a-missing-directory", setup: no_setup, sources: &["a.txt"], destination: "b/" },
+        MoveShape { label: "several-sources-onto-a-file", setup: a_tracked_file_at_the_destination, sources: &["a.txt", "x.txt"], destination: "dest.txt" },
+        MoveShape { label: "a-directory-onto-an-existing-file", setup: a_tracked_file_at_the_destination, sources: &["d1"], destination: "dest.txt" },
+        MoveShape { label: "a-directory-where-the-source-lands", setup: a_directory_where_the_source_lands, sources: &["a.txt"], destination: "b" },
+    ];
+    for row in rows {
+        let (directory, repository): (PathBuf, PathBuf) = a_repository_for_moving(row.label);
+        (row.setup)(repository.as_path());
+        let answered: Result<Vec<String>, String> = moved_paths(repository.as_path(), row.sources, row.destination);
+        let (code, written): (Option<i32>, Vec<(bool, String)>) =
+            what_real_git_wrote(repository.as_path(), row.sources, row.destination);
+        match answered {
+            Ok(paths) => {
+                if code == Some(0) {
+                    // What the reading names is a path Git wrote, and every entry Git wrote is named or lies under
+                    //  a directory the reading names: a moved directory is one entry for the guard, and everything
+                    //  inside it came with it.
+                    for named in &paths {
+                        assert!(
+                            written.iter().any(|(_, path)| return path == named),
+                            "{}: the reading named {named}, which Git did not write ({written:?})",
+                            row.label
+                        );
+                    }
+                    for (_, path) in &written {
+                        let covered: bool = paths
+                            .iter()
+                            .any(|named| return path == named || path.starts_with(format!("{named}/").as_str()));
+                        assert!(covered, "{}: Git wrote {path}, which the reading did not name ({paths:?})", row.label);
+                    }
+                } else {
+                    // Git refused this shape and wrote nothing, so the reading names nothing either.
+                    assert!(paths.is_empty(), "{}: Git refused (code {code:?}) and the reading named {paths:?}", row.label);
+                }
+            }
+            Err(cause) => panic!("{}: the reading failed: {cause}", row.label),
+        }
+        remove(directory.as_path());
+    }
+}
+
+//endregion
