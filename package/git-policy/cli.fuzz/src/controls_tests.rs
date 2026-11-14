@@ -16,8 +16,8 @@
 ///  and the tables they draw from.
 use super::{
     CLEAN_DELETES, FrontierSeen, IGNORED_AND_TRACKED, INDEX_DIFFERS, LINKED_WORKTREE,
-    MAX_CONTROL_ARGUMENTS, OPERATION_WAITS, REMOTE_GUESS, SEQUENCER_WAITS, SEPARATOR_MARK,
-    STAGED_WORK, STASH_HELD, UNTRACKED_AND_TRACKED, WORKTREE_DIRTY, WORKTREE_WORK,
+    MAX_CONTROL_ARGUMENTS, MODE_BYTES, Mode, OPERATION_WAITS, REMOTE_GUESS, SEQUENCER_WAITS,
+    SEPARATOR_MARK, STAGED_WORK, STASH_HELD, UNTRACKED_AND_TRACKED, WORKTREE_DIRTY, WORKTREE_WORK,
     check_control_removal, check_frontier, check_separator, control_arguments, removed_tokens,
     separated_arguments,
 };
@@ -29,6 +29,8 @@ use git_policy_cli::wrapper_invocation::{
     RegionReading, StrippedInvocation, strip_wrapper_controls,
 };
 use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Build owned arguments from text.
 fn text(values: &[&str]) -> Vec<OsString> {
@@ -490,4 +492,105 @@ fn generated_arguments_reach_every_frontier_ending() {
             "{values:?} mode {mode}"
         );
     }
+}
+
+/// What:
+///  Check that every seed of `seed/wrapper_controls/` spells the scenario its name says,
+///  and print what each one spells.
+/// Why:
+///   A seed is a starting point for the fuzzer,
+///  so a seed whose bytes no longer spell its command wastes its input and hides the scenario
+///  its name claims,
+///  which is what happened to every seed when the mode widened from one to two bytes.
+///   `src/seeds.rs` holds the answers and the arguments of each seed and the one encoding of them,
+///  so a file here must hold exactly `Seed::bytes` of its entry,
+///  and the frontier view of the target must read it back as that entry's arguments in both of its views.
+///  `mise run //package/git-policy/cli.fuzz:seed:write` writes the files from that table,
+///  and `Seed::bytes` lays the answers out in the mode's own width,
+///  so widening the mode again re-spells every seed instead of leaving a byte count to a person.
+///  Run with `--nocapture` to read the list of what each seed spells in both frontier views:
+///  the raw bytes as arguments,
+///  and the bytes as the tokens the generator maps them to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const seed of SEEDS) {
+///   assertEquals(readFile(seed.name), seed.bytes());
+///   const { mode, rest } = decode(seed.bytes());
+///   assertEquals(mode, seed.mode()); assertEquals(argumentsFromBytes(rest), seed.arguments);
+/// }
+/// ```
+#[test]
+fn every_seed_spells_its_scenario() {
+    // The directory the seeds live in, taken from the package instead of the working directory a test runs in.
+    let directory: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("seed")
+        .join("wrapper_controls");
+    // Every seed that drifts is named at once, so one run lists the state of the whole corpus.
+    let mut drifting: Vec<String> = Vec::<String>::new();
+    for seed in crate::seeds::SEEDS {
+        // The file as it stands, which is what the campaign copies into its image.
+        let path: PathBuf = directory.join(seed.name);
+        let bytes: Vec<u8> = match fs::read(path.as_path()) {
+            Ok(found) => found,
+            Err(error) => {
+                drifting.push(format!("{}: unreadable ({error})", seed.name));
+                continue;
+            }
+        };
+        // The bytes the table asks for, which is the one encoding of the answers and the arguments.
+        let written: Vec<u8> = seed.bytes();
+        if bytes != written {
+            drifting.push(format!("{}: bytes {bytes:02x?}, expected {written:02x?}", seed.name));
+        }
+        // The frontier view's own reading: the answers' width off the front, then the arguments at NUL.
+        let Some((heads, arguments)) = bytes.split_at_checked(MODE_BYTES) else {
+            drifting.push(format!("{}: shorter than the {MODE_BYTES} bytes a mode takes", seed.name));
+            continue;
+        };
+        let Ok(answers): Result<[u8; MODE_BYTES], _> = heads.try_into() else {
+            drifting.push(format!("{}: does not hold the {MODE_BYTES} bytes a mode takes", seed.name));
+            continue;
+        };
+        let mode: Mode = Mode::from_le_bytes(answers);
+        let spelled: Vec<OsString> = arguments_from_bytes(arguments);
+        let raw: Vec<&[u8]> = spelled
+            .iter()
+            .map(|one| {
+                return one.as_encoded_bytes();
+            })
+            .collect();
+        // The generator maps bytes to tokens, so its view of the same bytes is the second reading of the file.
+        let generated: Vec<String> = control_arguments(arguments)
+            .iter()
+            .map(|one| {
+                return one.to_string_lossy().into_owned();
+            })
+            .collect();
+        let readable: Vec<String> = raw
+            .iter()
+            .map(|one| {
+                return String::from_utf8_lossy(one).into_owned();
+            })
+            .collect();
+        println!(
+            "{}: mode {mode:#06x}, raw {readable:?}, generated {generated:?}",
+            seed.name
+        );
+        if mode != seed.mode() {
+            drifting.push(format!(
+                "{}: answers {mode:#06x}, expected {:#06x}",
+                seed.name,
+                seed.mode()
+            ));
+        }
+        if raw.as_slice() != seed.arguments {
+            drifting.push(format!(
+                "{}: arguments {readable:?}, expected {:?}",
+                seed.name,
+                seed.arguments
+            ));
+        }
+    }
+    assert!(drifting.is_empty(), "seeds that do not spell their names: {drifting:#?}");
 }
