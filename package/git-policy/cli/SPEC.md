@@ -1613,6 +1613,23 @@ When that file cannot be read or written,
 the question is asked of the rules the repository already has,
 and a `false` answer removes the directories in the foreground,
 which is the shape an add had before the hand-over existed.
+It is read and appended to the way the repair reads and appends the same file:
+a regular file only,
+opened without following a link and without waiting for a writer,
+and stopped at a byte limit.
+A named pipe at that path would hold the add for ever otherwise,
+since a plain read has no bound to reach;
+what stands there instead of a regular file is a refusal with its reason,
+and the trash then goes in the foreground as it does when the file cannot be written.
+The repair's own two calls name their patterns in that file the same way,
+and a refusal there costs one workspace's repair rather than a person's bytes:
+the add cleans the copied state where it stands,
+and the service fails that record with the reason it gives.
+The write appends only the patterns that are missing,
+each on a line of its own,
+so a list an older release wrote with fewer patterns,
+an append a kill cut short and a hand-edited file all get what they lack,
+and a line the file does not end with never carries the first pattern written after it.
 
 The emptying happens only if all of these hold:
 the worktree's `.git` file,
