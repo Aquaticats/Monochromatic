@@ -78,7 +78,7 @@ pub(crate) async fn plan_named_push_awaiting(
     };
     if upstream.is_none() && !query_succeeds_awaiting(git, &["remote", "get-url", "origin"]).await? {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new(), push_addresses: Vec::new() }));
+        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new(), push_addresses: Vec::new(), destination_ref: None }));
     }
     return Ok(match &upstream {
         Some(_upstream_ref) => match named_push_awaiting(git, branch_ref).await? {
@@ -263,7 +263,7 @@ pub async fn push_once_awaiting(
         0 => Vec::new(),
         _ => crate::push_addresses_of_a_failed_push::push_addresses_of_awaiting(git, sent.remote.as_str()).await,
     };
-    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), push_addresses, err);
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), sent.targets.first().map(String::as_str), note.as_str(), push_addresses, err);
 }
 
 

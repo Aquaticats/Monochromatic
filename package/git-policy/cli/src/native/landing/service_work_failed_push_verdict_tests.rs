@@ -21,7 +21,7 @@ const TWO_ADDRESSES: [&str; 2] = ["/srv/receives.git", "/srv/answers.git"];
 /// The client of a push that exits `exit_code` with `shown` from a remote with `addresses`.
 fn failed(exit_code: i64, shown: &str, addresses: &[&str]) -> AutoPushResult {
     let configured: Vec<String> = addresses.iter().map(|address| { return (*address).to_owned(); }).collect();
-    return AutoPushResult { outcome: AutoPushOutcome::Failed, exit_code, shown: shown.to_owned(), push_addresses: configured };
+    return AutoPushResult { outcome: AutoPushOutcome::Failed, exit_code, shown: shown.to_owned(), push_addresses: configured, destination_ref: None };
 }
 
 /// What:

@@ -516,9 +516,15 @@ impl WorkHandlers for GitHandlers {
                 // Why:  Both answers belong to the same verdict: what the push reached decides whether a record says where the commit
                 //       is, and the branch being gone decides that nothing is tried again for it. The three facts of a push are one
                 //       pass over Git's output, so the output is read here and handed in rather than read a second time.
+                // What: The reference this reading looks for is the one the push wrote to, which is the branch's upstream when
+                //       that is named differently, and the branch's own name only when the push named no reference at all.
+                // Why:  Git's status line names the reference it updated (`... <oid> -> main` for a local `topic`), so looking for
+                //       the local name found no line and called a delivered push one that reached nowhere, with a final notice that
+                //       said the commit was saved only here (the fifth review of issue 6293, finding 1).
+                let destination: &str = failed.destination_or(newest.branch_ref.as_str());
                 let read: crate::push_attempts_of_a_failed_push::FailedPushByAddress = crate::push_attempts_of_a_failed_push::failed_push_by_address(
                     failed.shown.as_str(),
-                    newest.branch_ref.as_str(),
+                    destination,
                     failed.push_addresses.as_slice(),
                 );
                 let branch_is_gone: bool = branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false);

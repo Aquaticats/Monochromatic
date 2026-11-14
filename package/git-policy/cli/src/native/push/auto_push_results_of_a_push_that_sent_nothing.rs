@@ -51,7 +51,7 @@ pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: 
     debug(TAG, format!("nothing is pushed of {branch_ref}: {line}").as_str());
     // Terminal output error: the line is the only diagnostic of a push that sent nothing.
     let _written = writeln!(err, "{line}");
-    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line, push_addresses: Vec::new() };
+    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line, push_addresses: Vec::new(), destination_ref: None };
 }
 
 /// What:
@@ -70,7 +70,7 @@ pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: 
 pub(crate) fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
     // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
     let _written = writeln!(err, "{note}");
-    return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note, push_addresses: Vec::new() });
+    return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note, push_addresses: Vec::new(), destination_ref: None });
 }
 
 /// What:
@@ -95,5 +95,5 @@ pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoP
     debug(TAG, line.as_str());
     // Terminal output error: the line is the only diagnostic of a push that sent nothing.
     let _written = writeln!(err, "{line}");
-    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line, push_addresses: Vec::new() };
+    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line, push_addresses: Vec::new(), destination_ref: None };
 }

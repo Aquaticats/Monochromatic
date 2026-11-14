@@ -622,6 +622,10 @@ mod service_reference_lock;
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
+/// A push that delivers to an upstream named differently from the local branch is not a failed push.
+#[path = "binary_push_to_a_renamed_upstream_tests.rs"]
+mod push_to_a_renamed_upstream;
+
 /// A landed commit whose wrapper was killed between promoting its held push and waking the service:
 /// the next command says the push is queued,
 /// and a service that starts pushes it with no further commit.
