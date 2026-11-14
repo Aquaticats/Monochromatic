@@ -1095,20 +1095,36 @@ Read-only commands,
      so the service tries it again,
      and it gives up once the attempts a record
    may cost have run out:
-     the directory then stays,
-     the record is kept in the repository's `failed` work state,
+     the record is then kept in the repository's `failed` work state,
      and the service says in
    `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
    (a worktree a program still has open,
    or a mount
    without `user_subvol_rm_allowed`,
-     for two),
-   so the files are yours to remove with `btrfs subvolume delete`.
+     for two).
+     A directory is not left to the service alone:
+     the removal writes a record of its own before it renames anything,
+     and nothing settles that record,
+     so a command of the repository whose output no program reads looks at it,
+     proves the directory is the subvolume the record names,
+     and queues the delete again.
+     That is what finishes a directory whose queue record was settled before the rename,
+     one whose command was killed between the rename and its own repair,
+     and one the service gave up on.
+     After the queueings such a record may cost,
+   which is the three attempts a record may cost,
+     that command
+   prints one line naming the directory,
+   the `journalctl --identifier=monochromatic-git-policy-cli` line holding the service's reason,
+   and the `btrfs subvolume delete` command that removes it,
+     so the files are yours to remove by hand and the space comes back.
      The service deletes one subvolume and nothing else:
      a directory another
    command has put at that name,
-   or a directory that is not a subvolume,
-     is left exactly as it is and named in the journal.
+   or a directory that is not that subvolume,
+     is never queued for a delete:
+     the id the record holds proves what stands there,
+     and the command names the directory and leaves it exactly as it is.
      Nothing of yours is in the removed directory unless you forced the removal:
    a removal without `--force` runs only after the wrapper proved the worktree clean and unlocked,
    and a forced
@@ -4336,6 +4352,63 @@ none is waited out or retried on the moved head yet:
   issue 6283).
   The twenty commits that stopped inside that staging on 2026-11-10 are measured in
   `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
+- The command's own options are a form real Git refuses (owner,
+  2026-11-12:
+  "Refuse as Git does (Recommended)").
+  The wrapper answers with Git's own status and Git's own words,
+  because preparation removes the very tokens Git validates before it commits
+  (`-a`,
+  the selection controls and the pathspecs the private index already holds),
+  so a mistyped command would otherwise make a commit real Git refuses.
+  The forms are `-i` with `-o`,
+  `-i` with `-a`,
+  `-a` with `--interactive` or `--patch`,
+  any two of the four options Git's compatibility check counts,
+  `--fixup=reword:` with a path or with any of those four,
+  `--pathspec-from-file` with path arguments,
+  with `-a` or with `--interactive`,
+  `-a` with paths,
+  a pathless `-i` or `-o` where Git allows no empty change,
+  and `--pathspec-file-nul` without `--pathspec-from-file`
+  (`src/native/commit/rule_commit_region_git_refuses.rs`).
+  The words are never kept here:
+  the same command line is given to the installed Git with `--dry-run`,
+  which runs Git's own validation,
+  rolls its index lock back and never looks for a commit
+  (`src/native/commit/commit_form_refusal_from_git.rs`),
+  so a release that rewords a message changes nothing in the wrapper.
+  `--dry-run` is the **first** token of that question,
+  which is the one place no option of yours can take it as its value and no `--`
+  of yours can put it after the end of the options:
+  `git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`.
+  The question is also given an index of its own,
+  a copy of yours in the repository scratch directory,
+  so even a lost option could not write your index or hold the lock beside it;
+  the branch reference is the repository's own,
+  so the option's position is what keeps that,
+  and a control over every generated command line watches `HEAD`,
+  every reference,
+  the index and the worktree.
+  The question is asked where the commit itself runs:
+  your `-C` chain moves the directory once,
+  the `-C` tokens do not reach the question,
+  and `--git-dir`,
+  `--work-tree`,
+  `--bare` and a `GIT_DIR` in your environment keep the meaning Git gives them there.
+  Where Git's own answer is that it would run the command,
+  nothing is refused:
+  the commit goes on and the transaction makes it,
+  and since the question committed nothing,
+  nothing is made twice.
+  Nothing is staged,
+  no reference moves and the commit service is not reached,
+  and a commit that is fine costs one comparison of the parsed options and no process.
+  When real Git gives no answer at all,
+  the refusal is one sentence that names the form and says which way the question
+  failed:
+  a Git that could not be started,
+  a Git that showed no sign of work for the bound of that step and was ended,
+  or a Git that ended without an exit status.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
