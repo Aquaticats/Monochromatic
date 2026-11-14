@@ -168,13 +168,22 @@ pub(crate) fn hold_awaiting_on_any_thread(held: HoldAwaitingOnAnyThread) {
 /// Why:
 ///   A hold is taken when it is reached,
 /// so a later reach of the same point passes and a control cannot block a second request.
+/// A reach of another point leaves the hold where it is:
+/// other points are reached by other threads all through a run,
+/// and one that took this hold and found another point would discard the control's hold before the point it names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const held = take(); if (held?.point !== point) return; held.reached.send(); await held.letGo;
+/// const held = holdFor(point); if (!held) return; held.reached.send(); await held.letGo;
 /// ```
 pub(crate) async fn await_on_any_thread(point: &str) {
-    let taken: Option<HoldAwaitingOnAnyThread> = HELD_AWAITING.lock().expect("the hold registry").take().filter(|held| { return held.point == point; });
+    let taken: Option<HoldAwaitingOnAnyThread> = {
+        let mut registry = HELD_AWAITING.lock().expect("the hold registry");
+        match registry.as_ref() {
+            Some(held) if held.point == point => registry.take(),
+            _ => None,
+        }
+    };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
     let _let_go = held.let_go.await;
@@ -186,13 +195,21 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 /// Why:
 ///   A hold is taken when it is reached,
 /// so a later reach of the same point passes and a control cannot block a second request.
+/// A reach of another point leaves the hold where it is,
+/// for the reason `await_on_any_thread` gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const held = take(); if (held?.point !== point) return; held.reached.send(); held.letGo.recv();
+/// const held = holdFor(point); if (!held) return; held.reached.send(); held.letGo.recv();
 /// ```
 pub(crate) fn run_on_any_thread(point: &str) {
-    let taken: Option<HoldOnAnyThread> = HELD_ON_ANY_THREAD.lock().expect("the hold registry").take().filter(|held| { return held.point == point; });
+    let taken: Option<HoldOnAnyThread> = {
+        let mut registry = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
+        match registry.as_ref() {
+            Some(held) if held.point == point => registry.take(),
+            _ => None,
+        }
+    };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
     let _let_go = held.let_go.recv();
