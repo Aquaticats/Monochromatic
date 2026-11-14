@@ -139,16 +139,6 @@ pub fn whether_held(tree: &Path) -> WhetherHeld {
 ///  The claim is one `flock` of one descriptor,
 ///  and the one place it is taken keeps the two questions above from drifting apart.
 ///
-/// Lock kept:
-///  the exclusive `flock` of one tree's own directory,
-///  taken without waiting,
-///  by the process that builds in that tree,
-///  so a sweep can ask a question no wall-clock step can answer wrongly.
-///  It covers one tree and no other state,
-///  it is never waited for,
-///  and the kernel releases it when the holder ends,
-///  so a killed holder leaves nothing held and nothing to collect.
-///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const file = open(tree, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); flock(file, LOCK_EX | LOCK_NB) === 0 ? file : throw errno
@@ -165,6 +155,15 @@ fn lock_without_waiting(tree: &Path) -> std::io::Result<std::fs::File> {
         .open(tree)?;
     // SAFETY: `flock` takes a descriptor of a file this call opened and a flag word, and touches no memory of this process.
     //  The descriptor stays open for as long as the `File` lives, which is at least until the lock is released.
+    // Lock kept:
+    //  the exclusive `flock` of one tree's own directory,
+    //  taken without waiting,
+    //  by the process that builds in that tree,
+    //  so a sweep can ask a question no wall-clock step can answer wrongly.
+    //  It covers one tree and no other state,
+    //  it is never waited for,
+    //  and the kernel releases it when the holder ends,
+    //  so a killed holder leaves nothing held and nothing to collect.
     let taken: libc::c_int = unsafe { libc::flock(opened.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if taken != 0 {
         return Err(std::io::Error::last_os_error());
