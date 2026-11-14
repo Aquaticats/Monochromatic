@@ -6,7 +6,18 @@
   "input": {
     "path": "doc/planning/depot-complete-coverage-packages.json.gz",
     "bytes": 1143058,
-    "sha256": "67b48d151904ab676116033a1866ffbde9cf48d7ac9c896f19d34185af5587d5"
+    "sha256": "67b48d151904ab676116033a1866ffbde9cf48d7ac9c896f19d34185af5587d5",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 9d19767001013fb3d7cdee990a3a1135ab301689:doc/planning/depot-complete-coverage-packages.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "method": "Independent git ls-tree -r -t -z --full-tree frozen-source object types; compare every third-level package tree to candidate directories, retain excluded blob identities",
   "originalCandidates": 227,

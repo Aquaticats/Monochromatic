@@ -196,7 +196,7 @@ Its execution classifications are:
   No unit-test,
   `service` or `fingerprint` credit transfers from that producer.
 - `package/music-player/android-app/rust`:
-  [Android producer receipts](depot-complete-coverage-android-junit-execution.json.gz)
+  Android producer receipts (`depot-complete-coverage-android-junit-execution.json.gz`)
   retain JNI/ELF/APK production at the frozen source.
   Its 1,289 JVM cases and
   [headful device consumer](../audit/depot-android-consumer-2026-10-18.evidence.json)
@@ -219,6 +219,8 @@ Its execution classifications are:
 - `package/music-player/truepeak-core.bench` and `package/forbidden-strings/core.bench`:
   these are benchmark sidecars with independent build/run owners.
   No benchmark or parent-package test pass transfers merely from their manifest presence.
+  `depot-complete-coverage-android-junit-execution.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The [historical feature audit](../audit/depot-test-feature-2026-10-16.md),
 [prepared desktop record](../audit/depot-prepared-desktop-2026-10-16.md)

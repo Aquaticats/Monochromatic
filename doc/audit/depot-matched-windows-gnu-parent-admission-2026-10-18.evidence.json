@@ -4,7 +4,18 @@
   "proposal": {
     "path": "doc/audit/depot-matched-windows-gnu-control-proposal-2026-10-18.evidence.json",
     "bytes": 6017,
-    "sha256": "08d4532e0166621c3e53007b6fe7da0d2265748aca4cf51ee0fb35282c2ea1ca"
+    "sha256": "08d4532e0166621c3e53007b6fe7da0d2265748aca4cf51ee0fb35282c2ea1ca",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 6424,
+        "sha256": "9a42d5c6f01b4df8f73a08ebcc117109c3e6e491758c16272bb73acf07328450",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "applicationSource": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
   "harnessSha": "28f3167d8f0e731d13378d072dd5f23a7e392554",

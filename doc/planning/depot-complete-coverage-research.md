@@ -556,7 +556,7 @@ and command logs accompany the APKs for the parent's headful device consumer.
 
 The corrected run `1jxc80q7q7` finished successfully at workflow `8256d8bb9d`,
 still checking out the identical frozen application source.
-Its [retained receipts and actual JUnit case index][android-receipts]
+Its retained receipts and actual JUnit case index (`depot-complete-coverage-android-receipts.json.gz`)
 are 96,498 compressed bytes,
 with SHA-256 `b517d9c2ff726f96c1afedc8c5bbb5ed2a389125ccc41913a1c3292bcf7d85e1`.
 The downloaded ZIP matches the provider's 68,983,121-byte metadata.
@@ -565,6 +565,8 @@ the local archive digest and all captured APK,
 native payload,
 JUnit,
 and command-log hashes are retained and checked.
+`depot-complete-coverage-android-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The pair passed signature,
 ZIP,
@@ -597,7 +599,7 @@ with zero skipped cases,
 failures,
 or errors.
 The case-identity multiset matches the first run.
-The [task-level execution proof][android-jvm-execution]
+The task-level execution proof (`depot-complete-coverage-android-junit-execution.json.gz`)
 retains both complete Gradle logs,
 every task outcome,
 and each XML report's timestamp and hash.
@@ -609,7 +611,7 @@ Tracked source remained unchanged.
 The byte comparison is narrower:
 the 4 AndroidX payloads match between builds,
 while the 6 engine/Turso payloads differ.
-The [section-level comparison and original-source controls][android-reproducibility]
+The section-level comparison and original-source controls (`depot-complete-coverage-android-reproducibility.json.gz`)
 show matching `.text` bytes for all 8 inspected 64-bit libraries.
 Each differing engine/Turso library contains the corresponding build's clock timestamp in `.rodata`;
 the isolated unchanged `turso_core` build script reproduces deterministic output with `SOURCE_DATE_EPOCH`.
@@ -617,6 +619,10 @@ Symbol-table and string-table differences are retained separately.
 The [timestamp diagnosis][android-timestamp-diagnosis] describes the verified seed control
 and the absence of a complete normalized native or APK rebuild comparison.
 Source identity is not being promoted into a whole-artifact bit-reproducibility claim.
+`depot-complete-coverage-android-junit-execution.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+`depot-complete-coverage-android-reproducibility.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The parent consumed the exact second-run pair on a private headful API 37,
 `x86_64` device using emulator `37.2.12` and host GPU rendering.
@@ -641,9 +647,6 @@ separate from successful APK assembly and host-JVM tests.
 The newer main checkout's 3 additional instrumentation classes are outside the frozen cohort.
 
 [android-page-sizes]: https://developer.android.com/guide/practices/page-sizes
-[android-receipts]: depot-complete-coverage-android-receipts.json.gz
-[android-jvm-execution]: depot-complete-coverage-android-junit-execution.json.gz
-[android-reproducibility]: depot-complete-coverage-android-reproducibility.json.gz
 [android-timestamp-diagnosis]: ../troubleshooting/turso-android-native-build-timestamps.md
 [android-device-consumer]: ../audit/depot-android-consumer-2026-10-18.evidence.json
 
@@ -1028,6 +1031,8 @@ The failed boundaries are:
 The original ZIP and source-bound logs are recorded in
 `depot-complete-coverage-typescript-fuzz-receipts.json.gz`.
 No gate was waived or refrozen.
+`depot-complete-coverage-typescript-fuzz-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The finite deepmerge/compiler consumer,
 TOML Go conformance,
@@ -1166,6 +1171,8 @@ original archive member hashes,
 native topology controls,
 and parsed browser cases are retained in
 `depot-complete-coverage-artifact-browser-receipts.json.gz`.
+`depot-complete-coverage-artifact-browser-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The active E2E and finite TypeScript owners now have terminal receipts in their dedicated sections.
 The research coverage lane retains these separate independently verifiable queue items:
@@ -1238,11 +1245,13 @@ parsed E2E reports,
 compiler-generated cases,
 mutation report,
 and cleanup receipt are retained in
-[`depot-complete-coverage-finite-owner-receipts.json.gz`](depot-complete-coverage-finite-owner-receipts.json.gz).
+`depot-complete-coverage-finite-owner-receipts.json.gz`.
 Its 391550 bytes have SHA-256 `e93b3f330656a5f7c7c7c629d915cc70e0dda8a1bfdc8fb6ad826556bba264c7`.
 The desktop prerequisite,
 packed-install,
 and semantic-manifest queue items remain independently owned.
+`depot-complete-coverage-finite-owner-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Desktop producer and remaining finite controls
 
