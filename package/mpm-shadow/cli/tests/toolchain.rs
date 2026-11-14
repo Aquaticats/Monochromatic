@@ -417,3 +417,103 @@ fn the_toolchain_prune_says_it_covers_release_archives_and_words_an_empty_result
     assert!(stdout.contains("release archive"), "the empty result names the release archives as well: {stdout}");
     assert!(!stdout.contains("no unnamed cargo version"), "{stdout}");
 }
+
+//region The scope lock's wait has a bound, and the holder is named
+
+/// A worktree whose plan declares no tool,
+/// with the lock the binary itself writes for it,
+/// so `install` reaches the passes that take the scope lock without installing anything.
+struct EmptyPlan {
+    directory: tempfile::TempDir,
+}
+
+/// The guard file's path below a worktree: the lock that serializes one scope's mutations.
+const GUARD_FILE_RELATIVE: &str = ".cache/toolchain.guard";
+
+impl EmptyPlan {
+    fn new() -> EmptyPlan {
+        let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+        fs::create_dir_all(directory.path().join("home")).expect("make the home");
+        fs::create_dir_all(directory.path().join("work")).expect("make the worktree");
+        fs::write(directory.path().join("work").join(PLAN_FILE_NAME), "{\"schemaVersion\": 1, \"tools\": {}}\n").expect("write the plan");
+        let fixture = EmptyPlan { directory };
+        let written = fixture.run(&["install", "--no-frozen-lockfile"]);
+        assert_eq!(written.status.code(), Some(0), "{}", text(&written.stderr));
+        return fixture;
+    }
+
+    fn work(&self) -> PathBuf {
+        return self.directory.path().join("work");
+    }
+
+    fn guard_file(&self) -> PathBuf {
+        return self.work().join(GUARD_FILE_RELATIVE);
+    }
+
+    fn command(&self, arguments: &[&str]) -> Command {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_mpm-shadow"));
+        command
+            .args(arguments)
+            .current_dir(self.work())
+            .env_clear()
+            .env("HOME", self.directory.path().join("home"))
+            .env("PATH", "/usr/bin:/bin")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        return command;
+    }
+
+    fn run(&self, arguments: &[&str]) -> Output {
+        return self.command(arguments).output().expect("run mpm-shadow");
+    }
+}
+
+/// Waits for `child` to end, or gives up after `deadline` and says so.
+fn wait_for(child: &mut std::process::Child, deadline: std::time::Duration) -> Option<std::process::ExitStatus> {
+    let until: std::time::Instant = std::time::Instant::now() + deadline;
+    loop {
+        match child.try_wait().expect("ask about the child") {
+            Some(status) => return Some(status),
+            None if std::time::Instant::now() >= until => return None,
+            None => std::thread::sleep(std::time::Duration::from_millis(25)),
+        }
+    }
+}
+
+#[test]
+fn an_install_waits_for_the_scope_lock_no_longer_than_it_says_and_names_the_holder() {
+    let fixture = EmptyPlan::new();
+    // Another process holds the guard; the note it leaves names it, as every holder's note does.
+    let guard: fs::File = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(fixture.guard_file())
+        .expect("open the guard file");
+    guard.lock().expect("hold the scope lock");
+    let mut note: &fs::File = &guard;
+    std::io::Write::write_all(&mut note, format!("{}\n", std::process::id()).as_bytes()).expect("write the holder's note");
+
+    let mut child: std::process::Child = fixture.command(&["install", "--frozen-lockfile"]).spawn().expect("start mpm-shadow");
+    let waited: Option<std::process::ExitStatus> = wait_for(&mut child, std::time::Duration::from_secs(30));
+    let Some(status) = waited else {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!(
+            "the install was still waiting on {} 30 s after it started, so a wait on the scope lock has no bound",
+            fixture.guard_file().display()
+        );
+    };
+    let output: Output = child.wait_with_output().expect("read the install's output");
+    let report: String = format!("{}{}", text(&output.stdout), text(&output.stderr));
+
+    assert_eq!(status.code(), Some(0), "an install that cannot take the lock loses this run's retirement, not the run: {report}");
+    assert!(report.contains(&fixture.guard_file().display().to_string()), "the sentence names the file it waited on: {report}");
+    assert!(
+        report.contains(&format!("process {}", std::process::id())),
+        "the sentence names the holder the note names: {report}"
+    );
+    assert!(report.contains("left the retirement"), "the sentence says what this run did without the lock: {report}");
+}
+
+//endregion
