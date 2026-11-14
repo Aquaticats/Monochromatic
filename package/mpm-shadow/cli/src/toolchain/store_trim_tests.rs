@@ -719,14 +719,17 @@ fn keeps_a_version_when_the_age_floor_is_the_largest_number() {
     let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_AGE_FLOOR", "18446744073709551615")]);
     // The size bound is taken out of the way so the age floor is what the rule reads.
     let bounds: TrimBounds = TrimBounds { size_bound_bytes: 0, ..TrimBounds::from_env(&env) };
-    assert_eq!(bounds.age_floor, MAX_AGE_FLOOR);
     let candidates = vec![candidate("node", "26.12.0", MIB, 40 * 3600)];
 
+    // What: the rule is asked first.
+    // Why: subtracting this floor from the current time is what panicked, so the panic has to be what a broken run
+    // meets before any assertion about the clamped value.
     let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|_found| return None);
 
     let kept: Vec<String> = kept_by(&plan).into_iter().map(|(name, _reason)| return name).collect();
     assert_eq!(kept, vec!["node-26.12.0".to_string()]);
-    assert_eq!(format_span(MAX_AGE_FLOOR), "36500 d");
+    assert_eq!(format_span(bounds.age_floor), "36500 d");
+    assert_eq!(bounds.age_floor, MAX_AGE_FLOOR);
 }
 
 /// What:
@@ -740,9 +743,14 @@ fn keeps_the_deadline_when_the_work_limit_is_the_largest_number() {
 
     let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: vec![PathBuf::from("/store")] };
 
+    // What: the deadline is asked first.
+    // Why: adding this limit to the start is what panicked, so the panic has to be what a broken run meets before any
+    // assertion about the clamped value.
+    let deadline: Instant = run.deadline();
+
+    assert!(deadline > run.started, "the deadline is not after the start");
+    assert!(deadline <= run.started + MAX_WORK_LIMIT);
     assert_eq!(run.bounds.work_limit, MAX_WORK_LIMIT);
-    assert!(run.deadline() > run.started, "the deadline is not after the start");
-    assert!(run.deadline() <= run.started + MAX_WORK_LIMIT);
 }
 
 //endregion the path spelling, a live version's downloads, and a bound at the largest number
