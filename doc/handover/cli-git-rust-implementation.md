@@ -1198,6 +1198,69 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.28` is installed and its first minutes are clean; the archive's kept files are in `main`; the credential scan widens to April (2026-11-14T10:45:14-05:00)
+
+Not final and not approved:
+what the coordinating session measured and merged,
+and what one review reports of itself.
+
+- **`0.6.1-alpha.28`**:
+  published at 10:34:55
+  (run 43610349286 of the publish workflow,
+  both Linux archives),
+  installed here from 10:36:00 to 10:36:09,
+  sample commit 1,636 ms.
+  The wrapper units' journal from 10:35:30 until 10:41:00:
+  215 lines,
+  no manager-wide reload,
+  no start failing at the EXEC step,
+  no service at its start limit,
+  three services saying `0.6.1-alpha.28` at their start.
+  Passes 38 and 39 were told at 10:36 that `main` holds pass 37.
+  The next release is `0.6.1-alpha.29`.
+- **The archive's kept files** (`a43768a87d`):
+  the branch's reviewer,
+  resumed,
+  checked the author's answer with its own scripts and found no defect in seven checks
+  (79 added files against the archive member by digest,
+  77 identical and two equal as parsed JSON;
+  239 kept rows against 239 tree files in both directions;
+  its own scan for non-text,
+  large files,
+  home paths and credentials finding none;
+  the records rendering).
+  It says of `agent-final-report.md` that it is the agent's own closing narrative and none of the four kinds the sentence names,
+  so the file stays in history alone,
+  listed.
+  Merged as `32ddfffc09` at 10:45:07;
+  the handover was not changed by the merge.
+- **The credential scan, wider and not finished**
+  (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/wider-scan-of-pi-sessions-and-claude-code-transcripts-with-values-from-every-source.txt`):
+  every `.jsonl` under Pi's sessions folder,
+  3,775 files and 6,046 MiB,
+  so the runs still going are in it;
+  values from `.env.local.json`,
+  Pi's `models.json`,
+  `auth.json` and `mcp-auth.json`,
+  and the `gh` token.
+  **23 Pi session files hold a value that is still current**,
+  the oldest from 2026-04-28,
+  most of them not started by this session.
+  Beyond the first scan's names:
+  three provider keys of `auth.json` in the session of 2026-11-09,
+  the `models.json` key in two sessions of September and October,
+  `HCLOUD_TOKEN` in a session of 2026-08-03,
+  `MISE_GITHUB_TOKEN` in at least ten sessions since June.
+  Some `mcp-auth.json` hits are the matcher's own mistake
+  (OAuth metadata strings read as credentials)
+  and are to be taken out before any list is given.
+  No Pi session holds this machine's sops age key
+  (`scan-for-the-sops-age-secret-key.txt`).
+  The Claude Code transcripts of this repository are still being read by both scans;
+  fourteen held a hit at 10:45:14,
+  not yet sorted from the false ones.
+- The owner's three answers of 10:38:24 are under "Owner decisions in force".
+
 ##### Real credentials reached model providers in six Pi sessions; pass 37 is in `main` and `0.6.1-alpha.28` is dispatched (2026-11-14T10:31:58-05:00)
 
 Not final and not approved:
