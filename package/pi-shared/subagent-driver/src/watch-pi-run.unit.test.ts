@@ -1497,10 +1497,8 @@ await describe({
         expect(summary.emptyAnswer,).toEqual({ asked: 0, },);
         const feed = await feedOf(run.runFolder,);
         expect(feed.some((entry,) => entry.kind === 'asked-to-go-on'),).toBe(false,);
-        expect(
-          feed.some((entry,) => String(entry.problem,).includes('had begun a turn')),
-          'the feed should say why the message was no ask',
-        ).toBe(true,);
+        // The feed says why the message was no ask, so a reader of the run sees the race it lost.
+        expect(feed.some((entry,) => String(entry.problem,).includes('had begun a turn')),).toBe(true,);
       },
     },),
     it({
