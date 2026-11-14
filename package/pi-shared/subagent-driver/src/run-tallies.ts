@@ -6,6 +6,11 @@
 
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import type { PiRecord, } from './driver-types.ts';
+import {
+  PROCESS_TOOL_NAME,
+  PROCESSES_RECORD_KIND,
+  processesInToolAnswer,
+} from './processes-a-tool-answer-names.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { textOf, } from './read-pi-fields.ts';
 
@@ -112,6 +117,10 @@ export function startRunTallies({
        Whether the tool failed.
        */
       const isError = event.isError === true;
+      /**
+       The tool's name.
+       */
+      const tool = textOf(event.toolName,);
       note({
         kind: 'tool_end',
         tool: event.toolName,
@@ -121,6 +130,20 @@ export function startRunTallies({
           length: FEED_PREVIEW_CHARACTERS.toolResult,
         },),
       },);
+      // An answer that names processes is kept whole as a record of its own, because the line above holds only a preview of it: text
+      // cut inside a JSON string cannot be read back, and the driver asks the feed which of a run's processes still run.
+      /**
+       What this answer says about the processes, if anything.
+       */
+      const processes = (isError || (tool !== PROCESS_TOOL_NAME))
+        ? []
+        : processesInToolAnswer({ answer: event.result, },);
+      if (processes.length > 0) {
+        note({
+          kind: PROCESSES_RECORD_KIND,
+          processes,
+        },);
+      }
       if (isError) {
         toolErrors.push({
           t: millisecondsSoFar(),
