@@ -990,7 +990,8 @@ the launcher that builds the session's environment asks it, once, before it make
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   `workProblem` says what the driver could not read when it asked what the run left running,
-  `emptyAnswer` says the agent's last answer carried no text and no tool call, and how many times the driver asked it to go on,
+  `emptyAnswer` says the agent's last answer carried no text and no tool call,
+  and how many times the driver asked it to go on,
   `lastAssistantTextTurn` names the turn whose words `lastAssistantText` holds when the last answer said nothing,
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
