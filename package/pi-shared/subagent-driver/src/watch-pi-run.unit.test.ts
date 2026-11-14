@@ -1498,7 +1498,7 @@ await describe({
         const feed = await feedOf(run.runFolder,);
         expect(feed.some((entry,) => entry.kind === 'asked-to-go-on'),).toBe(false,);
         expect(
-          feed.some((entry,) => String(entry.problem,).includes('began a turn')),
+          feed.some((entry,) => String(entry.problem,).includes('had begun a turn')),
           'the feed should say why the message was no ask',
         ).toBe(true,);
       },

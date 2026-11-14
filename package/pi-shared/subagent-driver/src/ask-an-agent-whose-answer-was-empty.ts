@@ -6,14 +6,17 @@
  (`pi-runs/five-library-controls-of-main-that-state-what-main-changed-are-true-again-1`): the driver closed it as `idle`, its
  summary read as a run that came back after saying it was about to start, and the place it held went to the next run while its
  report was never written. An empty answer can be a provider's or a model's hiccup that one more turn recovers, so the driver asks
- the agent, in its own session, to go on. The bound is what keeps an agent that answers with nothing from being asked without end.
+ the agent, in its own session, to go on. The bound is what keeps an agent that answers with nothing from being asked without end,
+ and an ask is sent only to a Pi at rest: one handed to a working Pi is refused, and a refusal the agent earned by working is no ask.
 
  @module
  */
 
 import {
   EMPTY_ANSWER_ASK_LIMIT,
+  FEED_PREVIEW_CHARACTERS,
 } from './driver-constants.ts';
+import { preview, } from './previews-of-pi-messages.ts';
 import type { WorkWaitedFor, } from './kept-while-work-runs.ts';
 import {
   dispositionOf,
@@ -31,6 +34,10 @@ export type EmptyAnswerAnswer =
    The last answer carried words, or no assistant message has come: there is nothing to ask about.
    */
   | 'nothing'
+  /**
+   Pi is at work, so nothing is asked now: the watch looks again once it rests.
+   */
+    | 'still-running'
   /**
    The ask went and the run goes on until the agent's reply to it settles.
    */
@@ -75,10 +82,12 @@ export function goOnMessage(): string {
  Asks an agent whose last answer said nothing to go on, when this run has an ask left, and says what stands between the run and
  its end.
 
- An ask is sent only after the driver has found nothing of the run's still running, so an agent that ended its turn with an empty
- answer while a build it started compiles is woken to that build rather than asked to repeat itself. A message Pi took into a
- turn is waited for like the wake that sends an agent back to work it left: the reply to it settles, and the silence before it is
- not the silence of a run that has nothing left.
+ An ask is sent only after the driver has found nothing of the run's still running, and only to a Pi at rest, so an agent that
+ ended its turn with an empty answer while a build it started compiles is woken to that build rather than asked to repeat itself,
+ and a turn Pi began while the work was being read is left to finish. A refusal Pi gave because it had begun a turn is no ask:
+ nothing is counted, the feed says so under `problem`, and the watch looks again. A message Pi took into a turn is waited for like
+ the wake that sends an agent back to work it left: the reply to it settles, and the silence before it is not the silence of a run
+ that has nothing left.
 
  @param watch - watch request
 
@@ -101,6 +110,12 @@ export async function askAnAgentWhoseAnswerWasEmpty({
   if (!watch.record
     .lastAnswerWasEmpty()) {
     return 'nothing';
+  }
+  // Nothing here acts on a Pi at work: a prompt handed to a working Pi is queued behind that run or refused, and a refusal then
+  // would end a run whose agent is mid-turn. The watch looks again, and asks once Pi rests.
+  if (watch.record
+    .isRunning()) {
+    return 'still-running';
   }
   /**
    How many times the driver has already asked the agent to go on.
@@ -134,6 +149,23 @@ export async function askAnAgentWhoseAnswerWasEmpty({
    What Pi said it did with the message.
    */
   const disposition = dispositionOf(answer,);
+  // Pi began a turn while the message was going, which is the one thing the driver cannot see before it sends. A prompt handed
+  // to a working Pi is refused, and a refusal earned by the agent's own turn is no ask: the agent was never told its answer said
+  // nothing, and ending the run on it would stop that turn. The look after this one reads what the turn produces.
+  if (refusedByPi(answer,) && watch.record
+    .isRunning()) {
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: `the ask met a Pi that had begun a turn, so Pi refused it and no ask was counted: ${
+          preview({
+            value: outcomeTextOf(answer,),
+            length: FEED_PREVIEW_CHARACTERS.inboxMessage,
+          },)
+        }`,
+      },);
+    return 'still-running';
+  }
   watch.record
     .countAskToGoOn({
       attempt: asked + 1,

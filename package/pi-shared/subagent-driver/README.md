@@ -1216,6 +1216,15 @@ an agent that ended its turn with an empty answer while a build it started compi
 is woken to that build,
 never asked to repeat itself,
 because what stands between that run and its end is the work it left.
+That read awaits,
+so the decision that a run may end is taken again on the state it left:
+a turn Pi begins while the work is being read is a Pi at work,
+and such a run is neither ended as `idle` nor asked to go on.
+An ask is sent only to a Pi at rest,
+and a prompt Pi refuses because it had begun a turn is no ask at all:
+the feed notes the race under `problem`,
+the summary counts no ask,
+and the run goes on with the turn the agent had started.
 The asks never make a run wait without end:
 the run's own wall clock still bounds every wait for their answers,
 and a wait the wall clock or Pi's leaving ended keeps that ending,
