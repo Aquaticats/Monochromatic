@@ -1136,6 +1136,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The no-manager branch's review found three defects, one of them a deleted directory (2026-11-13T22:04:27-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing here rerun by it.
+
+Review `~/temp/agent/change-reviews/git-policy-cli-commit-service-needs-no-service-manager-answers-of-2026-11-13/review.md`,
+ended 21:58:54,
+on `76a08c9fac`,
+the whole branch against `main` (56 files read),
+the wrapper built from the tip and run on disposable repositories.
+
+- **A directory deleted whole with no check that it is the program's**,
+  reproduced:
+  `service/service_server_earlier_release_units.rs` near line 89 removes any directory named `monochromatic-git-policy-cli-worktree-notes` under `<runtime>/systemd/user` with `remove_dir_all`,
+  at the first reach of any service,
+  where the file's own doc says a folder that holds no note of the program is left.
+  A file put there was gone after one commit.
+- **A reap without a bound on a commit's path**,
+  found by reading:
+  the same file near lines 140 to 141 kills the `systemctl` child after its bounded ask and then waits for it without end,
+  the pattern the same branch took off the waiting path for the probe's child.
+- **Two live services for one worktree**,
+  reproduced with a forced window:
+  `service_server_socket_binding.rs` near lines 173 to 181 takes over a stale socket by probe,
+  unlink,
+  bind,
+  so two servers that probe the same stale socket both bind,
+  and one stays alive and unreachable.
+  Two ways two servers start together without a tracer:
+  the starter's marker is created before its owner is written and is removed by path by whoever finishes
+  (an empty marker was taken over by a real commit);
+  and a manager start that got no process number leaves a `systemd-run` that can start its server late.
+  Thirty unforced rounds did not hit the window.
+- Found sound:
+  the client's waits,
+  the request framing,
+  `service stop`,
+  the journal's removal,
+  a service removing only files still its own,
+  the manager gate,
+  the detached spawn.
+  The author's two choices against `main` (`CONNECT_CEILING` at one second,
+  the deleted `service_provision_instance_unloaded.rs`) drew no finding.
+- All three weighed as standing and sent back to the author,
+  resumed in its own session
+  (`no-manager-commit-service-answers-its-review-of-76a08c9fac-prompt.md`,
+  queued near the head).
+  The branch stays out of a pass,
+  and the issue 6293 branch that stands on it with it.
+- **Beside its scope**,
+  read and not run,
+  in code `main` has too:
+  `wake` in `service/service_client.rs` answers `Ok` when the service took no byte of the wake line,
+  and the hand-over of a new worktree's relink reads that as delivered and skips its own relink.
+  A fresh run from `main` is queued
+  (`wake-that-the-commit-service-took-no-byte-of-is-not-answered-as-delivered`),
+  which tests the claim first and then lists what every caller of `wake` does with each answer.
+
 ##### Why relinks are given up is found; two more authors finished; three reviews queued (2026-11-13T21:59:23-05:00)
 
 Not final and not approved:
