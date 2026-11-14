@@ -7,6 +7,10 @@
  under that folder and the files that decide how that code is built, checked or run, and where it changes nothing but tests and
  fixtures, those files, whose brief asks the reviewer to plant a break under each changed test and say whether it fails.
 
+ The kind is decided from every way a range can change a path, so a range that removes or renames code gets the brief of a change
+ of code, which names what was removed or renamed and asks what depended on it, even when the files the commit still holds at the
+ touched paths are tests alone.
+
  @module
  */
 
@@ -150,6 +154,7 @@ export async function writeReviewBrief({
         commit,
         source,
         files: material.files,
+        removedOrRenamed: material.removedOrRenamed,
         focus,
         reviewsFolder,
         runsFolder,
@@ -160,6 +165,7 @@ export async function writeReviewBrief({
         commit,
         source,
         files: material.files,
+        removedOrRenamed: material.removedOrRenamed,
         focus,
         reviewsFolder,
         runsFolder,

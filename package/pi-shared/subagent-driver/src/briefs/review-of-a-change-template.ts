@@ -33,11 +33,11 @@ Your review counts only if it is its own. Do not read anything under \`/var/home
 Change no file in this worktree, and do not commit or push. Scratch goes under \`@SCRATCH_FOLDER@\`, and every command's working folder stays inside \`@SCRATCH_FOLDER@\` or this worktree, so work you leave running is still yours and the launcher resumes you when it ends. You may build and run the code, but only on disposable repositories under a disposable \`HOME\` and \`XDG_RUNTIME_DIR\`, in a command limited with \`systemd-run --user --scope\`. Never print the environment or read a credential file. If the model provider refuses or flags your content, stop and say so.`;
 
 /**
- The sentences that name the change under review and the files the reviewer reads, in every brief.
+ The sentence that names the change under review and what the reviewer reads, in every brief. What to read is a part the filler
+ builds, because a brief names the paths a change removed or renamed beside the files the commit still holds.
  */
-const THE_CHANGE_AND_THE_FILES_TO_READ: string = `Review @SUBJECT@.
-Read each of these files in full before you answer:
-@FILES@`;
+const THE_CHANGE_AND_WHAT_THE_REVIEW_READS: string = `Review @SUBJECT@.
+@WHAT_THE_REVIEW_READS@`;
 
 /**
  The requirements a change of code is judged by, which are the project's own.
@@ -51,9 +51,9 @@ const WHAT_A_CHANGE_TO_CODE_MUST_MEET: string =
  show about them is that each test still fails when the code it checks does the wrong thing.
  */
 const WHAT_A_CHANGE_TO_TESTS_MUST_PROVE: string =
-  'These files are tests and the fixtures tests use, and the change is to them alone. It must meet this requirement: a test '
-    + 'proves what it proved before, so it still fails when the code it checks does the wrong thing, and still passes only when '
-    + 'that code does what it must.';
+  'The change is to tests and the fixtures tests use, and to nothing else. It must meet this requirement: a test proves what it '
+    + 'proved before, so it still fails when the code it checks does the wrong thing, and still passes only when that code does '
+    + 'what it must.';
 
 /**
  The sentences that say how a defect is reported and what is left out, in every brief.
@@ -69,9 +69,10 @@ const HOW_A_DEFECT_IS_REPORTED: string =
  one, and the report of both.
  */
 const THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS: string =
-  'For each changed test above, plant a break under it, in a copy of the code it tests or in the value it expects, run that '
-    + 'test by name, and say whether it fails: a test that still passes with the break in is a finding. For a changed fixture, '
-    + 'name the tests that use it, plant a break in a copy of the fixture, run those tests by name, and say whether one fails. '
+  'For each changed test the commit still holds, plant a break under it, in a copy of the code it tests or in the value it '
+    + 'expects, run that test by name, and say whether it fails: a test that still passes with the break in is a finding. For a '
+    + 'changed fixture, name the tests that use it, plant a break in a copy of the fixture, run those tests by name, and say '
+    + 'whether one fails. '
     + 'Say what you read and what you ran, because a review that ran nothing has shown nothing.';
 
 /**
@@ -89,7 +90,7 @@ const THE_REVIEW_FILE: string = `Write your review to \`@REVIEW_FILE@\` as soon 
  */
 export const REVIEW_OF_A_CHANGE_TEMPLATE: string = `${THE_RULES_AND_WHERE_THE_REVIEW_WORKS}
 
-${THE_CHANGE_AND_THE_FILES_TO_READ}
+${THE_CHANGE_AND_WHAT_THE_REVIEW_READS}
 ${WHAT_A_CHANGE_TO_CODE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
 ${WHAT_TO_LOOK_HARDEST_AT}
@@ -102,7 +103,7 @@ ${THE_REVIEW_FILE}`;
  */
 export const REVIEW_OF_A_CHANGE_TO_TESTS_TEMPLATE: string = `${THE_RULES_AND_WHERE_THE_REVIEW_WORKS}
 
-${THE_CHANGE_AND_THE_FILES_TO_READ}
+${THE_CHANGE_AND_WHAT_THE_REVIEW_READS}
 ${WHAT_A_CHANGE_TO_TESTS_MUST_PROVE}
 ${HOW_A_DEFECT_IS_REPORTED}
 ${THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS}

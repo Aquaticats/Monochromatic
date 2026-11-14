@@ -13,6 +13,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  type RemovedOrRenamedPath,
   FOCUS_OF_A_CHANGE_REVIEW,
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
@@ -23,6 +24,7 @@ import {
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
   reviewBriefValues,
+  whatTheReviewReads,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -155,6 +157,7 @@ function aBriefRequest(): {
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -165,11 +168,64 @@ function aBriefRequest(): {
     commit: aCommit(),
     source: aSourceFolder(),
     files: [aReviewedFile(),],
+    removedOrRenamed: [],
     focus: FOCUS_OF_A_CHANGE_REVIEW,
     reviewsFolder: aReviewsFolder(),
     runsFolder: aRunsFolder(),
     rulesFile: aRulesFile(),
   };
+}
+
+/**
+ A path the change deleted.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const deleted = aDeletedPath();
+ ```
+ */
+function aDeletedPath(): string {
+  return `${aSourceFolder()}/old_gate.rs`;
+}
+
+/**
+ The name a renamed path had before the change.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const renamed = aRenamedPath();
+ ```
+ */
+function aRenamedPath(): string {
+  return `${aSourceFolder()}/old_name.rs`;
+}
+
+/**
+ The paths this file's briefs say the change removed or renamed.
+
+ @returns the removals and renames
+
+ @example
+ ```ts
+ const removed = theRemovedPaths();
+ ```
+ */
+function theRemovedPaths(): readonly RemovedOrRenamedPath[] {
+  return [
+    {
+      status: 'deleted',
+      path: aDeletedPath(),
+    },
+    {
+      status: 'renamed',
+      was: aRenamedPath(),
+      now: `${aSourceFolder()}/new_name.rs`,
+    },
+  ];
 }
 
 /**
@@ -291,6 +347,24 @@ await describe({
             },),).toThrow(TemplatePlaceholderError,);
           },
         },),
+        it({
+          name: 'names what a change deleted or renamed when the commit holds no code file there, so a range that only removes code is still reviewed',
+          fn: async () => {
+            /**
+             The brief of a change that deleted its code and edited its test.
+             */
+            const brief = briefOfAReview({
+              ...aBriefRequest(),
+              files: [],
+              removedOrRenamed: [{ status: 'deleted', path: aDeletedPath() }],
+            },);
+            expect(brief,).toContain('The reviewed commit holds no file at a path this change touches',);
+            expect(brief,).toContain(`- \`${aDeletedPath()}\` (deleted)`,);
+            expect(brief,).toContain('Say what depended on each of them, and what does its work now or why nothing does.',);
+            expect(brief,).not.toContain('the change is to tests',);
+            expect(brief,).not.toContain('plant a break',);
+          },
+        },),
       ],
     },),
     describe({
@@ -317,7 +391,7 @@ await describe({
           fn: async () => {
             expect(aBriefOfAChangeToTests(),)
               .toContain(`Review a change to the tests under \`${aSourceFolder()}\`.`,);
-            expect(aBriefOfAChangeToTests(),).toContain('the change is to them alone',);
+            expect(aBriefOfAChangeToTests(),).toContain('The change is to tests and the fixtures tests use, and to nothing else.',);
             expect(aBriefOfAChangeToTests(),).toContain(aCommit(),);
             for (const file of theChangedTests()) {
               expect(aBriefOfAChangeToTests(),).toContain(`- \`${file}\``,);
@@ -327,7 +401,7 @@ await describe({
         it({
           name: 'asks for a break planted under each changed test, that test run by name, and whether it fails, because a test that still passes with the break in is a finding',
           fn: async () => {
-            expect(aBriefOfAChangeToTests(),).toContain('For each changed test above, plant a break under it',);
+            expect(aBriefOfAChangeToTests(),).toContain('For each changed test the commit still holds, plant a break under it',);
             expect(aBriefOfAChangeToTests(),).toContain('in a copy of the code it tests or in the value it expects',);
             expect(aBriefOfAChangeToTests(),).toContain('run that test by name, and say whether it fails',);
             expect(aBriefOfAChangeToTests(),).toContain('a test that still passes with the break in is a finding',);
@@ -357,6 +431,69 @@ await describe({
               ...aBriefRequest(),
               reviewsFolder: `${aReviewsFolder()}/@FOCUS@`,
             },),).toThrow(TemplatePlaceholderError,);
+          },
+        },),
+        it({
+          name: 'names a deleted or renamed test and asks what depended on it, while the breaks to plant stay with the tests the commit still holds',
+          fn: async () => {
+            /**
+             The brief of a change to tests that also deleted one.
+             */
+            const brief = briefOfAChangeToTests({
+              ...aBriefRequest(),
+              files: theChangedTests(),
+              removedOrRenamed: [{ status: 'deleted', path: `${aSourceFolder()}/gone_tests.rs` }],
+            },);
+            expect(brief,).toContain(`- \`${aSourceFolder()}/gone_tests.rs\` (deleted)`,);
+            expect(brief,).toContain('Say what depended on each of them',);
+            expect(brief,).toContain('For each changed test the commit still holds, plant a break under it',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: whatTheReviewReads.name,
+      children: [
+        it({
+          name: 'names every file the reviewer reads in full, which is the part a brief of a change with nothing removed has always had',
+          fn: async () => {
+            expect(whatTheReviewReads({
+              files: [aReviewedFile(),],
+              removedOrRenamed: [],
+            },),).toBe(`Read each of these files in full before you answer:
+- \`${aReviewedFile()}\``,);
+          },
+        },),
+        it({
+          name: 'names each removed or renamed path with what happened to it, and asks what depended on it, beside the files the commit still holds',
+          fn: async () => {
+            /**
+             The part of a brief for a change that removed and renamed paths.
+             */
+            const reads = whatTheReviewReads({
+              files: [aReviewedFile(),],
+              removedOrRenamed: theRemovedPaths(),
+            },);
+            expect(reads,).toContain(`- \`${aReviewedFile()}\``,);
+            expect(reads,).toContain('The change removes or renames these paths, and the diff holds each one\'s change:',);
+            expect(reads,).toContain(`- \`${aDeletedPath()}\` (deleted)`,);
+            expect(reads,).toContain(`- \`${aRenamedPath()}\` (renamed to \`${aSourceFolder()}/new_name.rs\`)`,);
+            expect(reads,).toContain('Say what depended on each of them, and what does its work now or why nothing does.',);
+          },
+        },),
+        it({
+          name: 'says the diff is what there is to read when the commit holds no file at a path the change touched, which a range that only deletes code does',
+          fn: async () => {
+            /**
+             The part of a brief for a change that deleted a code file and nothing else.
+             */
+            const reads = whatTheReviewReads({
+              files: [],
+              removedOrRenamed: theRemovedPaths(),
+            },);
+            expect(reads,).toContain('The reviewed commit holds no file at a path this change touches, so the diff holds everything there is to read.',);
+            expect(reads,).not.toContain('Read each of these files in full',);
+            expect(reads,).toContain(`- \`${aDeletedPath()}\` (deleted)`,);
           },
         },),
       ],

@@ -20,6 +20,7 @@ import {
   reviewFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
+import type { RemovedOrRenamedPath, } from './material-of-a-review.ts';
 import {
   filledTemplate,
   placeholdersIn,
@@ -36,7 +37,7 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'RUNS_FOLDER',
   'SCRATCH_FOLDER',
   'SUBJECT',
-  'FILES',
+  'WHAT_THE_REVIEW_READS',
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
   'REVIEW_FILE',
@@ -83,6 +84,60 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
 }
 
 /**
+ Reads the part of a brief that says what the reviewer reads: every file the reviewed commit holds at a path the change touched,
+ and every path the change removed or renamed, with what happened to each one.
+
+ A removed or renamed path is named even though the commit holds no file to read in full at it, because a review of what is left
+ would leave the removal unread: the diff holds every line such a path lost, and the reviewer is asked what depended on it.
+
+ @param files - the files the reviewer reads in full, each a path from the top of the checkout
+
+ @param removedOrRenamed - the paths the change removed or renamed
+
+ @returns the lines of the brief that say what to read and what to say about what is gone
+
+ @example
+ ```ts
+ const reads = whatTheReviewReads({ files: ['package/a/src/gate.rs'], removedOrRenamed: [{ status: 'deleted', path: 'package/a/src/old_gate.rs' }], },);
+ ```
+ */
+export function whatTheReviewReads({
+  files,
+  removedOrRenamed,
+}: {
+  readonly files: readonly string[];
+  readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
+}): string {
+  /**
+   The lines of the part, in the order a reviewer reads them.
+   */
+  const lines: string[] = [];
+  if (files.length > 0) {
+    lines.push(
+      'Read each of these files in full before you answer:',
+      ...files.map(function asAListItem(path,) {
+        return `- \`${path}\``;
+      },),
+    );
+  }
+  else {
+    lines.push('The reviewed commit holds no file at a path this change touches, so the diff holds everything there is to read.',);
+  }
+  if (removedOrRenamed.length > 0) {
+    lines.push(
+      'The change removes or renames these paths, and the diff holds each one\'s change:',
+      ...removedOrRenamed.map(function asARemoval(removed,) {
+        return (removed.status === 'deleted')
+          ? `- \`${removed.path}\` (deleted)`
+          : `- \`${removed.was}\` (renamed to \`${removed.now}\`)`;
+      },),
+      'Say what depended on each of them, and what does its work now or why nothing does.',
+    );
+  }
+  return lines.join('\n',);
+}
+
+/**
  Builds the value of every placeholder the review brief carries.
 
  @param review - the change the review reads
@@ -92,6 +147,8 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
  @param source - the folder whose changes are reviewed
 
  @param files - the files the reviewer reads, from the top of the checkout
+
+ @param removedOrRenamed - the paths the change removed or renamed
 
  @param focus - what the reviewer looks hardest at
 
@@ -105,7 +162,7 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
 
  @example
  ```ts
- const values = reviewBriefValues({ review: 'a', commit: 'abc123', source: 'package/a/src', files: [], focus: 'x', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const values = reviewBriefValues({ review: 'a', commit: 'abc123', source: 'package/a/src', files: [], removedOrRenamed: [], focus: 'x', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function reviewBriefValues({
@@ -113,6 +170,7 @@ export function reviewBriefValues({
   commit,
   source,
   files,
+  removedOrRenamed,
   focus,
   reviewsFolder,
   runsFolder,
@@ -122,6 +180,7 @@ export function reviewBriefValues({
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -137,10 +196,10 @@ export function reviewBriefValues({
       review,
     },),
     SUBJECT: subjectOfAReview({ source, },),
-    FILES: files.map(function asAListItem(path,) {
-      return `- \`${path}\``;
-    },)
-      .join('\n',),
+    WHAT_THE_REVIEW_READS: whatTheReviewReads({
+      files,
+      removedOrRenamed,
+    },),
     REPRODUCTIONS_FOLDER: reproductionsFolderOfAReview({
       reviewsFolder,
       review,
@@ -164,6 +223,8 @@ export function reviewBriefValues({
 
  @param files - the files the reviewer reads
 
+ @param removedOrRenamed - the paths the change removed or renamed
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -178,7 +239,7 @@ export function reviewBriefValues({
 
  @example
  ```ts
- const brief = briefOfAReview({ review: 'a', commit: 'abc123', source: 'package/a/src', files: ['package/a/src/x.ts'], focus: 'data loss', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const brief = briefOfAReview({ review: 'a', commit: 'abc123', source: 'package/a/src', files: ['package/a/src/x.ts'], removedOrRenamed: [], focus: 'data loss', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function briefOfAReview({
@@ -186,6 +247,7 @@ export function briefOfAReview({
   commit,
   source,
   files,
+  removedOrRenamed,
   focus,
   reviewsFolder,
   runsFolder,
@@ -195,6 +257,7 @@ export function briefOfAReview({
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -207,6 +270,7 @@ export function briefOfAReview({
       commit,
       source,
       files,
+      removedOrRenamed,
       focus,
       reviewsFolder,
       runsFolder,
@@ -228,6 +292,8 @@ export function briefOfAReview({
 
  @param files - the changed tests and fixtures the reviewer reads
 
+ @param removedOrRenamed - the test and fixture paths the change removed or renamed
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -242,7 +308,7 @@ export function briefOfAReview({
 
  @example
  ```ts
- const brief = briefOfAChangeToTests({ review: 'a', commit: 'abc123', source: 'package/a/src', files: ['package/a/src/gate_tests.rs'], focus: 'a test that stopped checking', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const brief = briefOfAChangeToTests({ review: 'a', commit: 'abc123', source: 'package/a/src', files: ['package/a/src/gate_tests.rs'], removedOrRenamed: [], focus: 'a test that stopped checking', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function briefOfAChangeToTests({
@@ -250,6 +316,7 @@ export function briefOfAChangeToTests({
   commit,
   source,
   files,
+  removedOrRenamed,
   focus,
   reviewsFolder,
   runsFolder,
@@ -259,6 +326,7 @@ export function briefOfAChangeToTests({
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -272,6 +340,7 @@ export function briefOfAChangeToTests({
         commit,
         source,
         files,
+        removedOrRenamed,
         focus,
         reviewsFolder,
         runsFolder,

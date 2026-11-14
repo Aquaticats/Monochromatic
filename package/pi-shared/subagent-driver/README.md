@@ -560,7 +560,18 @@ and prints one line:
 review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/brief.md; its worktree starts at abc1234. Its folder is <reviews>/rewrite-the-gate
 ```
 
-What the reviewer reads depends on what the ranges changed under the source folder.
+What the reviewer reads depends on what the ranges changed under the source folder,
+and on Git's status for every path, not only on added and modified paths.
+It reads `A` (added), `M` (modified, or its mode changed), `T` (its type changed), `C` (copied) and `R` (renamed);
+a copy or a rename also names the path it came from.
+Copies are reported only when Git is configured to detect them, and otherwise a copy is an addition.
+`D` (deleted) is read as the path it removed.
+`B` (broken pairing) appears only when Git is asked to break rewrites, which this writer never asks for;
+a rewritten rename is then a deletion and an addition, both of which it reads.
+`U` (unmerged) cannot appear in a diff between two commits, and `X` (unknown) is a Git bug;
+either is refused with the status and the path named,
+rather than guessed at,
+because a guess would decide the review from part of the change.
 
 A range that holds code or a build decision is reviewed as the change itself.
 The files are the `.rs` and `.ts` code the ranges touched,
@@ -575,6 +586,14 @@ and `Containerfile`,
 without their tests and test stand-ins,
 without a lockfile or another file a tool writes and nobody reads whole,
 and without a file the reviewed commit does not hold.
+A path the change deleted or renamed is named beside them,
+marked `(deleted)` or `(renamed to ...)` with the path it came from,
+and the brief asks what depended on it and what does its work now or why nothing does;
+when the commit holds no file at a touched path,
+the brief says the diff is what there is to read.
+So a range that deletes or renames code is a review of code even when every file the commit still holds at a touched path is a
+test,
+because a review of the tests would leave the removal unread.
 
 A range whose change is tests and fixtures alone has no code to judge,
 so the reviewer reads those files instead:
@@ -590,6 +609,9 @@ in a copy of the code it tests or in the value it expects,
 the test run by name,
 and whether it fails.
 A test that still passes with the break in is a finding.
+A deleted or renamed test is named the same way the code brief names one,
+so a review sees the coverage that left,
+while the breaks stay with the tests the commit still holds.
 
 A change that leaves neither under the source folder,
 which is a change of notes alone,

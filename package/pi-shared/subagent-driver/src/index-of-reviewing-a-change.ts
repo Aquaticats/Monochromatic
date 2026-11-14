@@ -7,6 +7,8 @@
 
 export {
   type GitQuestion,
+  type RemovedOrRenamedPath,
+  ReviewDiffError,
   ReviewGitError,
   type ReviewMaterial,
   type ReviewReading,
@@ -60,6 +62,7 @@ export {
   reviewBriefValues,
   subjectOfAChangeToTests,
   subjectOfAReview,
+  whatTheReviewReads,
 } from './review-brief.ts';
 export {
   FIX_BRIEF_PLACEHOLDERS,

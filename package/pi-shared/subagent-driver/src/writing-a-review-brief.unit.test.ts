@@ -1,7 +1,8 @@
 /**
  The writer of review briefs against disposable folders: a change of tests and fixtures alone gets a brief that lists each
- changed test and asks for a break planted under it, a change of code is described as it always was, and a range that changes
- nothing a review reads is refused with words that say so.
+ changed test and asks for a break planted under it, a change of code is described as it always was, a range that deletes or renames
+ code is a change of code whose brief names what was removed, and a range that changes nothing a review reads is refused with words
+ that say so.
 
  Every git answer here is handed in by the test, so no checkout or worktree is involved, and every folder is one the test made and
  throws away. Nothing starts a run.
@@ -102,6 +103,20 @@ function aCodeFile(): string {
 }
 
 /**
+ The name a rename gives the code file.
+
+ @returns the file's path, from the top of the checkout
+
+ @example
+ ```ts
+ const renamed = aRenamedCodeFile();
+ ```
+ */
+function aRenamedCodeFile(): string {
+  return `${aSourceFolder()}/gate2.rs`;
+}
+
+/**
  The changed test file a change to tests alone leaves to read.
 
  @returns the file's path, from the top of the checkout
@@ -113,6 +128,20 @@ function aCodeFile(): string {
  */
 function aTestFile(): string {
   return `${aSourceFolder()}/gate_tests.rs`;
+}
+
+/**
+ A second test file, which a change to tests alone may delete.
+
+ @returns the file's path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aDeletedTestFile();
+ ```
+ */
+function aDeletedTestFile(): string {
+  return `${aSourceFolder()}/old_tests.rs`;
 }
 
 /**
@@ -161,6 +190,207 @@ function aRulesFile(): string {
 }
 
 /**
+ One path a stand-in git says a range changed: the status Git reported for it, and the two names a rename carries.
+
+ This is what the writer reads from `git diff --name-status -z`: a status, the path, and, for a rename, the path it came from and
+ the path it became.
+ */
+type ChangedInATest = {
+  /**
+   The status, as Git prints it, score included: `M`, `A`, `D`, `R100`, `T` or `C100`.
+   */
+  readonly status: string;
+
+  /**
+   The path in the newer side of the range, from the top of the checkout.
+   */
+  readonly path: string;
+
+  /**
+   The path in the older side of the range, which a rename also names.
+   */
+  readonly from?: string;
+};
+
+/**
+ A modified path, which is Git's `M`.
+
+ @param path - the path, from the top of the checkout
+
+ @returns the change Git reports for it
+
+ @example
+ ```ts
+ const changed = aModifiedFile(aCodeFile());
+ ```
+ */
+function aModifiedFile(path: string,): ChangedInATest {
+  return {
+    status: 'M',
+    path,
+  };
+}
+
+/**
+ A deleted path, which is Git's `D`, and which leaves no file at the commit for a reviewer to read.
+
+ @param path - the path, from the top of the checkout
+
+ @returns the change Git reports for it
+
+ @example
+ ```ts
+ const changed = aDeletedFile(aCodeFile());
+ ```
+ */
+function aDeletedFile(path: string,): ChangedInATest {
+  return {
+    status: 'D',
+    path,
+  };
+}
+
+/**
+ A renamed path, which Git reports as `R` with a score and both names.
+
+ @param was - the path in the older side of the range
+
+ @param now - the path in the newer side of the range
+
+ @returns the change Git reports for it
+
+ @example
+ ```ts
+ const changed = aRenamedFile({ was: aCodeFile(), now: aRenamedCodeFile() },);
+ ```
+ */
+function aRenamedFile({ was, now, }: { readonly was: string; readonly now: string },): ChangedInATest {
+  return {
+    status: 'R100',
+    path: now,
+    from: was,
+  };
+}
+
+/**
+ The names the reviewed commit holds for a set of changes: the newer name of every path that was added, copied, modified, renamed
+ or changed the type of, which is what `git ls-tree` prints for a commit that holds them.
+
+ @param changed - the changes a stand-in git reports
+
+ @returns the paths the commit holds, one to a line
+
+ @example
+ ```ts
+ const held = heldPathsIn({ changed: [aModifiedFile(aCodeFile())], },);
+ ```
+ */
+function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[] },): string {
+  /**
+   The statuses that leave a file at the newer name.
+   */
+  const leavingAFile = new Set([
+    'A',
+    'C',
+    'M',
+    'R',
+    'T',
+  ],);
+  /**
+   The newer names of those changes.
+   */
+  const paths = changed.filter(function leavesAFile(one,) {
+    return leavingAFile.has(one.status.charAt(0,),);
+  },)
+    .map(function newerName(one,) {
+      return one.path;
+    },);
+  return (paths.length === 0) ? '' : `${paths.join('\n',)}\n`;
+}
+
+/**
+ What `git diff --name-status -z` prints for a set of changes: the status, the path, and for a rename both names, each field ended
+ by a NUL byte.
+
+ @param changed - the changes a stand-in git reports
+
+ @returns the text git prints
+
+ @example
+ ```ts
+ const printed = nameStatusPrintedFor({ changed: [aDeletedFile(aCodeFile())], },);
+ ```
+ */
+function nameStatusPrintedFor({ changed, }: { readonly changed: readonly ChangedInATest[] },): string {
+  return changed.map(function asFields(one,) {
+    return (one.from === undefined)
+      ? `${one.status}\0${one.path}\0`
+      : `${one.status}\0${one.from}\0${one.path}\0`;
+  },)
+    .join('',);
+}
+
+/**
+ A stand-in git whose range changed exactly what a test gave it, and whose commit holds the newer name of every path that was not
+ deleted.
+
+ It answers the questions the writer asks now, and also the `--name-only` question the writer asked before it read statuses, so a
+ control still says what the old reading answered when the fix is taken out.
+
+ @param changed - the changes the range made
+
+ @returns a git that answers the three questions one reading asks
+
+ @example
+ ```ts
+ const git = gitChanging({ changed: [aDeletedFile(aCodeFile()), aModifiedFile(aTestFile())], },);
+ ```
+ */
+function gitChanging({ changed, }: { readonly changed: readonly ChangedInATest[] },): (
+  request: { readonly words: readonly string[] },
+) => Promise<CommandOutput> {
+  return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
+    if (words[0] === 'ls-tree') {
+      return {
+        status: 0,
+        stdout: heldPathsIn({ changed, },),
+        stderr: '',
+      };
+    }
+    if (words.includes('--name-status',)) {
+      return {
+        status: 0,
+        stdout: nameStatusPrintedFor({ changed, },),
+        stderr: '',
+      };
+    }
+    if (words.includes('--name-only',)) {
+      /**
+       The changes the old question would have kept: added and modified paths, when its filter asked for those alone.
+       */
+      const kept = (words.includes('--diff-filter=AM',))
+        ? changed.filter(function isAddedOrModified(one,) {
+          return (one.status === 'A') || (one.status === 'M');
+        },)
+        : changed;
+      return {
+        status: 0,
+        stdout: (kept.length === 0) ? '' : `${kept.map(function newerName(one,) {
+          return one.path;
+        },)
+          .join('\n',)}\n`,
+        stderr: '',
+      };
+    }
+    return {
+      status: 0,
+      stdout: 'a diff of them',
+      stderr: '',
+    };
+  };
+}
+
+/**
  A folder a test throws away.
 
  @returns the folder, and how to remove it
@@ -187,46 +417,18 @@ async function makeFolder(): Promise<{
 }
 
 /**
- A stand-in git whose range changes exactly the paths given, which the reviewed commit still holds.
-
- @param paths - the paths the change touched, each from the top of the checkout
-
- @returns a git that answers the three questions one reading asks
-
- @example
- ```ts
- const git = gitTouching({ paths: [aTestFile()], },);
- ```
- */
-function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
-  request: { readonly words: readonly string[] },
-) => Promise<CommandOutput> {
-  return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
-    /**
-     The paths as git prints them, one to a line.
-     */
-    const listed = (paths.length === 0) ? '' : `${paths.join('\n',)}\n`;
-    return {
-      status: 0,
-      stdout: (words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),
-      stderr: '',
-    };
-  };
-}
-
-/**
  Runs the writer for one change, in a folder of its own.
 
- @param paths - the paths the change touched, each from the top of the checkout
+ @param changed - the changes the range made
 
  @returns what the writer answered, the reviews folder it wrote into, and the folder to throw away
 
  @example
  ```ts
- await using written = await writeAChangeThrough([aTestFile()]);
+ await using written = await writeAChangeThrough([aModifiedFile(aTestFile())]);
  ```
  */
-async function writeAChangeThrough(paths: readonly string[],): Promise<{
+async function writeAChangeThrough(changed: readonly ChangedInATest[],): Promise<{
   readonly briefed: BriefOfOneReview
   readonly reviewsFolder: string
   readonly [Symbol.asyncDispose]: () => Promise<void>
@@ -243,7 +445,7 @@ async function writeAChangeThrough(paths: readonly string[],): Promise<{
    What the writer answered.
    */
   const briefed = await writeReviewBrief({
-    git: gitTouching({ paths, },),
+    git: gitChanging({ changed, },),
     checkoutFolder: '/repo',
     review: aReview(),
     commit: aCommit(),
@@ -263,6 +465,25 @@ async function writeAChangeThrough(paths: readonly string[],): Promise<{
   };
 }
 
+/**
+ Reads the brief the writer wrote for one change.
+
+ @param reviewsFolder - the folder the writer wrote into
+
+ @returns the brief's text
+
+ @example
+ ```ts
+ const brief = await theBriefIn(written.reviewsFolder);
+ ```
+ */
+async function theBriefIn(reviewsFolder: string,): Promise<string> {
+  return await readFile(briefFileOfAReview({
+    reviewsFolder,
+    review: aReview(),
+  },), 'utf8',);
+}
+
 await describe({
   name: '',
   children: [
@@ -272,24 +493,18 @@ await describe({
         it({
           name: 'writes a brief for a change of tests and fixtures alone, listing each changed test and fixture and asking for a break planted under each test, which is what makes such a change reviewable at all',
           fn: async () => {
-            await using written = await writeAChangeThrough([aTestFile(), aFixtureFile(),],);
+            await using written = await writeAChangeThrough([aModifiedFile(aTestFile(),), aModifiedFile(aFixtureFile(),),],);
             /**
              The brief the writer wrote.
              */
-            const brief = await readFile(
-              briefFileOfAReview({
-                reviewsFolder: written.reviewsFolder,
-                review: aReview(),
-              },),
-              'utf8',
-            );
+            const brief = await theBriefIn(written.reviewsFolder,);
             expect(written.briefed.written,).toBe(true,);
             expect(written.briefed.line,).toContain('2 files to read',);
             expect(brief,).toContain(`Review a change to the tests under \`${aSourceFolder()}\`.`,);
-            expect(brief,).toContain('the change is to them alone',);
+            expect(brief,).toContain('The change is to tests and the fixtures tests use, and to nothing else.',);
             expect(brief,).toContain(`- \`${aTestFile()}\``,);
             expect(brief,).toContain(`- \`${aFixtureFile()}\``,);
-            expect(brief,).toContain('For each changed test above, plant a break under it',);
+            expect(brief,).toContain('For each changed test the commit still holds, plant a break under it',);
             expect(brief,).toContain('run that test by name, and say whether it fails',);
             expect(brief,).toContain('a test that still passes with the break in is a finding',);
             expect(brief,).toContain('Say what you read and what you ran',);
@@ -299,7 +514,7 @@ await describe({
         it({
           name: 'keeps the record of what the review read for a change of tests alone, so a fix that answers it starts at the commit it read',
           fn: async () => {
-            await using written = await writeAChangeThrough([aTestFile(),],);
+            await using written = await writeAChangeThrough([aModifiedFile(aTestFile(),),],);
             /**
              What the writer recorded the review read.
              */
@@ -316,22 +531,73 @@ await describe({
         it({
           name: 'writes the brief of a change of code as it always did, naming the code and asking for no break, even when the range changed a test beside it',
           fn: async () => {
-            await using written = await writeAChangeThrough([aCodeFile(), aTestFile(),],);
+            await using written = await writeAChangeThrough([aModifiedFile(aCodeFile(),), aModifiedFile(aTestFile(),),],);
             /**
              The brief the writer wrote.
              */
-            const brief = await readFile(
-              briefFileOfAReview({
-                reviewsFolder: written.reviewsFolder,
-                review: aReview(),
-              },),
-              'utf8',
-            );
+            const brief = await theBriefIn(written.reviewsFolder,);
             expect(written.briefed.written,).toBe(true,);
             expect(brief,).toContain(`Review a change under \`${aSourceFolder()}\`.`,);
             expect(brief,).toContain(`- \`${aCodeFile()}\``,);
             expect(brief,).not.toContain(`- \`${aTestFile()}\``,);
             expect(brief,).not.toContain('plant a break',);
+          },
+        },),
+        it({
+          name: 'writes the brief of a change of code when the range deleted the code and edited its test, naming what was deleted, asking what depended on it, and asking for no break, because the change is not tests alone',
+          fn: async () => {
+            await using written = await writeAChangeThrough([aDeletedFile(aCodeFile(),), aModifiedFile(aTestFile(),),],);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await theBriefIn(written.reviewsFolder,);
+            expect(written.briefed.written,).toBe(true,);
+            expect(written.briefed.line,).toContain('0 files to read',);
+            expect(brief,).toContain(`Review a change under \`${aSourceFolder()}\`.`,);
+            expect(brief,).toContain('The reviewed commit holds no file at a path this change touches',);
+            expect(brief,).toContain(`- \`${aCodeFile()}\` (deleted)`,);
+            expect(brief,).toContain('Say what depended on each of them, and what does its work now or why nothing does.',);
+            expect(brief,).not.toContain('the change is to tests',);
+            expect(brief,).not.toContain('plant a break',);
+          },
+        },),
+        it({
+          name: 'writes the brief of a change of code when the range renamed the code and edited its test, naming both names and listing the file the commit holds, because the rename removed the old one',
+          fn: async () => {
+            await using written = await writeAChangeThrough([
+              aRenamedFile({
+                was: aCodeFile(),
+                now: aRenamedCodeFile(),
+              },),
+              aModifiedFile(aTestFile(),),
+            ],);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await theBriefIn(written.reviewsFolder,);
+            expect(written.briefed.written,).toBe(true,);
+            expect(brief,).toContain(`Review a change under \`${aSourceFolder()}\`.`,);
+            expect(brief,).toContain(`- \`${aRenamedCodeFile()}\``,);
+            expect(brief,).toContain(`- \`${aCodeFile()}\` (renamed to \`${aRenamedCodeFile()}\`)`,);
+            expect(brief,).toContain('Say what depended on each of them, and what does its work now or why nothing does.',);
+            expect(brief,).not.toContain('the change is to tests',);
+            expect(brief,).not.toContain('plant a break',);
+          },
+        },),
+        it({
+          name: 'names a test the range deleted in the brief of a change to tests alone, so a review sees the coverage that left, while the breaks stay with the tests the commit holds',
+          fn: async () => {
+            await using written = await writeAChangeThrough([aDeletedFile(aDeletedTestFile(),), aModifiedFile(aTestFile(),),],);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await theBriefIn(written.reviewsFolder,);
+            expect(written.briefed.written,).toBe(true,);
+            expect(brief,).toContain(`Review a change to the tests under \`${aSourceFolder()}\`.`,);
+            expect(brief,).toContain(`- \`${aTestFile()}\``,);
+            expect(brief,).toContain(`- \`${aDeletedTestFile()}\` (deleted)`,);
+            expect(brief,).toContain('Say what depended on each of them',);
+            expect(brief,).toContain('For each changed test the commit still holds, plant a break under it',);
           },
         },),
         it({
@@ -356,7 +622,13 @@ await describe({
         it({
           name: 'refuses a change of a source file whose language a review does not read beside its test, because a brief of the test alone would hide the change itself',
           fn: async () => {
-            await using written = await writeAChangeThrough([...sourceFilesNoReviewReads(), aTestFile(),],);
+            await using written = await writeAChangeThrough([
+              ...sourceFilesNoReviewReads()
+                .map(function asAModifiedFile(path,) {
+                  return aModifiedFile(path,);
+                },),
+              aModifiedFile(aTestFile(),),
+            ],);
             expect(written.briefed,).toEqual({
               written: false,
               line: `nothing to review under ${aSourceFolder()} in ${aRange()}`,

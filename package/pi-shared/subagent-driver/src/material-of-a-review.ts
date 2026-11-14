@@ -11,12 +11,32 @@
  and say whether it fails. Where the change's own code is written in a language a review does not read, as a `.cjs` file is, the
  range is still answered as nothing to review, because a review of its tests alone would leave the change itself unread.
 
+ Which of those a range is decided from every way a range can change a path, as `git diff --name-status` reports it, and not from
+ added and modified paths alone: a range that deletes or renames code is a change of code even when every file the commit still
+ holds at a touched path is a test, and its brief names what was removed or renamed and asks what depended on it.
+
  @module
  */
 
-import { basename, } from 'node:path';
 import { isRecord, } from './read-pi-fields.ts';
+import { isABuildDecisionAReviewerReads, } from './build-decisions-a-review-reads.ts';
 import type { CommandOutput, } from './run-command.ts';
+import {
+  type ChangedPath,
+  type PathKind,
+  type RemovedOrRenamedPath,
+  changedPathsIn,
+  kindOfChangedPath,
+  readablePathsOf,
+  removedOrRenamedAmong,
+} from './what-a-range-changed.ts';
+
+// The record of what a range removed or renamed, and the refusal of a status this writer cannot read, are read and kept where the
+// range's statuses are; they are named from here because a review's material is what a caller of this module holds.
+export {
+  type RemovedOrRenamedPath,
+  ReviewDiffError,
+} from './what-a-range-changed.ts';
 
 /**
  How this module asks git a question, which a test replaces with the answers it expects.
@@ -60,92 +80,6 @@ const TEST_FOLDER_NAMES: ReadonlySet<string> = new Set<string>([
 ]);
 
 /**
- The names of the files a review reads although no extension of theirs says they are code: the manifests and tool
- configurations that decide how the code beside them is built, checked or run.
-
- A change to one of them changes what a build, check or run of that folder produces or is allowed to do, while the code that
- runs stays as it was, so a review that answered nothing to review for it left that decision unread. The names are listed instead
- of the extensions they share (`.toml`, `.json`, `.jsonc`, `.yaml`, `.yml`), because an extension cannot tell a manifest from a
- fixture: on 2026-11-13 this repository held 1345 files of those extensions under `package/`, 487 of them inside the fixture,
- evidence, performance, design and witness folders, among them the 92 TOML specification cases named `sample`, and a review of a
- change to one of those must still answer nothing to review.
-
- A name list costs the manifest of a tool nobody has added here yet, which goes unread until its name is listed; each name below
- is one this repository's packages or its root carry, or a standard manifest of a tool a package of this repository could run (a
- pinned toolchain, `rustfmt`, `cargo-deny`, a Gradle build), listed so that its first appearance is reviewed rather than missed.
- */
-const BUILD_FILE_NAME_LISTS: readonly (readonly string[])[] = [
-  // The folder's own manifest and task file, which say what it builds, from which dependencies, and how its tasks run.
-  [
-    'mise.toml',
-    'mise.local.toml',
-    'package.json',
-    'Cargo.toml',
-    'build.gradle.kts',
-    'settings.gradle.kts',
-    'gradle.properties',
-  ],
-  // The versions of a dependency every package is built against.
-  [
-    'pnpm-workspace.yaml',
-    'rust-catalog.toml',
-    'bunfig.toml',
-    'toolchain.plan.jsonc',
-  ],
-  // What the compiler, the linters, the tests and the mutation checks are told to do.
-  [
-    'clippy.toml',
-    'rust-toolchain.toml',
-    'rustfmt.toml',
-    'deny.toml',
-    'dprint.json',
-    'monochromatic-lint.config.jsonc',
-    'monochromatic-lint.prerequisites.jsonc',
-    'file-enforcer.config.jsonc',
-    'mutants.toml',
-  ],
-  // What the build produces beside the code, and what the program that runs it is allowed to do.
-  [
-    'about.toml',
-    'wrangler.toml',
-    'node.config.json',
-    'sea-config.json',
-  ],
-];
-
-/**
- The words the name of a build decision begins with, which a variant extends after a dot (`tsconfig.json` and
- `tsconfig.build.json`, `nextest.toml` and `nextest.windows-gnu.toml`, `Containerfile` and `Containerfile.release`), so a list of
- whole names would miss the next variant. The word alone names a file too (`Containerfile`), and a note that merely begins with
- the word (`ContainerfileREADME.md`) is not one of these.
- */
-const BUILD_FILE_NAME_WORDS: readonly string[] = [
-  'Containerfile',
-  'Dockerfile',
-  'nextest',
-  'tsconfig',
-];
-
-/**
- The ends of the names a review reads as build decisions: a container file named for what it builds
- (`native-test-base.Containerfile`) ends with its tool rather than beginning with it.
- */
-const BUILD_FILE_NAME_ENDINGS: readonly string[] = [
-  '.Containerfile',
-  '.Dockerfile',
-];
-
-/**
- The ends of the paths a review reads as build decisions, each anchored to the folder that holds it: `.cargo/config.toml` is a
- cargo configuration while a file inside a folder named `foo.cargo` is not, and the dprint package's `index.json` is the format
- every file of this repository is checked against, which its own generic name would never say.
- */
-const BUILD_FILE_PATH_ENDINGS: readonly string[] = [
-  '.cargo/config.toml',
-  'config/dprint/index.json',
-];
-
-/**
  A git question a review could not get an answer to.
  */
 export class ReviewGitError extends Error {
@@ -161,6 +95,10 @@ export class ReviewGitError extends Error {
  A change of code or of a build decision is read as `code-and-build-decisions`, and a change of tests and fixtures alone as
  `tests-and-fixtures`, whose reviewer is asked to plant a break under each changed test. A range that changes nothing a review
  reads is `nothing-a-review-reads`.
+
+ A review's kind is decided from every path a range changed, whatever Git's status for it: a deletion or a rename of code is a
+ change of code even when the paths the commit still holds are tests alone, because a review of the tests would leave the removal
+ unread.
  */
 export type ReviewMaterial = {
   /**
@@ -176,9 +114,14 @@ export type ReviewMaterial = {
 
     /**
      The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the code and the
-     build decisions among what the ranges touched, without the tests and fixtures beside them.
+     build decisions among what the ranges touched that the commit still holds, without the tests and fixtures beside them.
      */
     readonly files: readonly string[];
+
+    /**
+     The paths the ranges removed or renamed, which the commit no longer holds as files to read in full.
+     */
+    readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
   }
     | {
       /**
@@ -187,10 +130,15 @@ export type ReviewMaterial = {
       readonly kind: 'tests-and-fixtures';
 
       /**
-       The tests and fixtures the reviewer is given, each a path from the top of the checkout, in the order git named them: every
-       file the ranges touched under the source folder, which are tests and fixtures and nothing else.
+       The tests and fixtures the reviewer is given, each a path from the top of the checkout, in the order git named them: the
+       tests and fixtures among what the ranges touched that the commit still holds, and nothing else.
        */
       readonly files: readonly string[];
+
+      /**
+       The test and fixture paths the ranges removed or renamed, which the commit no longer holds as files to read in full.
+       */
+      readonly removedOrRenamed: readonly RemovedOrRenamedPath[];
     }
     | {
       /**
@@ -421,40 +369,6 @@ function isCodeAReviewerReads(path: string,): boolean {
 }
 
 /**
- Says whether a path is a manifest or a tool configuration that decides how the code beside it is built, checked or run.
-
- @param path - a path from the top of the checkout
-
- @returns whether the path is one of the build decisions a reviewer reads
-
- @example
- ```ts
- const isABuildDecision = isABuildDecisionAReviewerReads('package/a/Cargo.toml',);
- ```
- */
-function isABuildDecisionAReviewerReads(path: string,): boolean {
-  /**
-   The file's own name, which the name lists are about.
-   */
-  const name = basename(path,);
-  return BUILD_FILE_NAME_LISTS.some(function holdsTheName(names,) {
-    return names.includes(name,);
-  },)
-    || BUILD_FILE_NAME_WORDS.some(function holdsTheWord(word,) {
-      return (name === word) || name.startsWith(`${word}.`,);
-    },)
-    || BUILD_FILE_NAME_ENDINGS.some(function endsWithTheEnding(ending,) {
-      return name.endsWith(ending,);
-    },)
-    || BUILD_FILE_PATH_ENDINGS.some(function endsWithThePathEnding(ending,) {
-      // A git path is separated by `/` alone, and the ending is anchored to the folder that holds it, so `.cargo/config.toml`
-      // matches `package/a/.cargo/config.toml` and not `package/a/foo.cargo/config.toml`; a review of the whole checkout reads
-      // paths from its top, where the same file carries no folder before its name.
-      return (path === ending) || path.endsWith(`/${ending}`,);
-    },);
-}
-
-/**
  Says whether a path sits in a folder of tests, whose files are tests whatever their extension.
 
  @param path - a path from the top of the checkout
@@ -507,6 +421,43 @@ function isATestOrAFixture(path: string,): boolean {
 }
 
 /**
+ Says whether a path is a file a reviewer judges as the change itself: code, or a build decision that decides how that code is
+ built, checked or run.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether the path is a file a review of code reads
+
+ @example
+ ```ts
+ const isRead = isAFileAReviewerReads('src/gate.rs',);
+ ```
+ */
+function isAFileAReviewerReads(path: string,): boolean {
+  return (isCodeAReviewerReads(path,) || isABuildDecisionAReviewerReads(path,))
+    && (!isATestOrAFixture(path,));
+}
+
+/**
+ Reads what a path is to a review.
+
+ @param path - a path from the top of the checkout
+
+ @returns the change itself, a test, or neither
+
+ @example
+ ```ts
+ const kind = pathKindOf('src/gate.rs');
+ ```
+ */
+function pathKindOf(path: string,): PathKind {
+  if (isAFileAReviewerReads(path,)) {
+    return 'code';
+  }
+  return isATestOrAFixture(path,) ? 'test' : 'unread';
+}
+
+/**
  Filters the paths a change touched down to the files a reviewer reads: the code, and the manifests and tool configurations that
  decide how that code is built, checked or run.
 
@@ -520,10 +471,7 @@ function isATestOrAFixture(path: string,): boolean {
  ```
  */
 export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
-  return paths.filter(function isAFileAReviewerReads(path,) {
-    return (isCodeAReviewerReads(path,) || isABuildDecisionAReviewerReads(path,))
-      && (!isATestOrAFixture(path,));
-  },);
+  return paths.filter(isAFileAReviewerReads,);
 }
 
 /**
@@ -546,9 +494,11 @@ export function testsAndFixturesAmong({ paths, }: { readonly paths: readonly str
 }
 
 /**
- Reads what a review of one change reads: the diff of every range under the source folder, and the files a reviewer is given,
- which are the code files and build decisions the reviewed commit holds, the tests and fixtures it holds when the change is tests
- and fixtures alone, or none.
+ Reads what a review of one change reads: the diff of every range under the source folder, the files a reviewer is given, and the
+ paths the ranges removed or renamed.
+
+ The kind is decided from every path a range changed, whatever Git's status for it, so a range that deletes or renames code is a
+ change of code even when every file the commit still holds at a touched path is a test.
 
  @param git - how one git question is run
 
@@ -560,9 +510,11 @@ export function testsAndFixturesAmong({ paths, }: { readonly paths: readonly str
 
  @param commit - the commit under review, whose tree says which files a reviewer can read
 
- @returns the diff and what kind of change it is, with the files to read
+ @returns the diff and what kind of change it is, with the files to read and the paths it removed or renamed
 
  @throws ReviewGitError when git did not answer with a success
+
+ @throws ReviewDiffError when git reported a change this writer cannot read as code or as tests
 
  @example
  ```ts
@@ -587,9 +539,9 @@ export async function materialOfAReview({
    */
   const diffs: string[] = [];
   /**
-   The paths every range touched, each once and in the order git named them.
+   Every path a range changed, each once: what tells one change from another across the ranges is its status and both names.
    */
-  const touched: string[] = [];
+  const changes = new Map<string, ChangedPath>();
   /* oxlint-disable eslint/no-await-in-loop -- one range's diff after another, because each range's answer is joined in the order
      the caller gave them. See doc/lint/sequential-awaits.md. */
   for (const range of ranges) {
@@ -603,20 +555,30 @@ export async function materialOfAReview({
         source,
       ],
     },),);
-    for (const path of (await outputOfGit({
-      git,
-      checkoutFolder,
-      words: [
-        'diff',
-        '--name-only',
-        '--diff-filter=AM',
-        range,
-        '--',
-        source,
-      ],
-    },)).split('\n',)) {
-      if ((path !== '') && (!touched.includes(path,))) {
-        touched.push(path,);
+    for (const one of changedPathsIn({
+      printed: await outputOfGit({
+        git,
+        checkoutFolder,
+        words: [
+          'diff',
+          '--name-status',
+          '-z',
+          '--find-renames',
+          range,
+          '--',
+          source,
+        ],
+      },),
+    },)) {
+      /**
+       What tells this change from another one the ranges named.
+       */
+      const key = `${one.status} ${one.from ?? ''} ${one.path}`;
+      if (!changes.has(key,)) {
+        changes.set(
+          key,
+          one,
+        );
       }
     }
   }
@@ -640,36 +602,53 @@ export async function materialOfAReview({
       return line !== '';
     },),);
   /**
-   The touched paths the reviewed commit holds.
+   Every path the ranges changed, in the order git named them.
    */
-  const readable = touched.filter(function isHeldByTheCommit(path,) {
-    return held.has(path,);
+  const changed = [...changes.values(),];
+  /**
+   What each changed path is to a review, which decides the kind of review the ranges ask for.
+   */
+  const kinds = changed.map(function kindOfOne(one,) {
+    return kindOfChangedPath({
+      changed: one,
+      pathKindOf,
+    },);
   },);
   /**
-   The code and build decisions among them, which a reviewer reads whenever the change leaves any.
+   The paths the ranges left as files the commit holds, which a review of either kind reads in full.
    */
-  const files = codeFilesAmong({ paths: readable, },);
+  const readable = readablePathsOf({
+    changed,
+    held,
+  },);
   /**
    The diff of every range, in the order the ranges were given.
    */
   const diff = diffs.join('\n',);
-  if (files.length > 0) {
+  if (kinds.includes('code',)) {
     return {
       diff,
       kind: 'code-and-build-decisions',
-      files,
+      files: codeFilesAmong({ paths: readable, },),
+      removedOrRenamed: removedOrRenamedAmong({
+        changed,
+        kind: 'code',
+        pathKindOf,
+      },),
     };
   }
-  /**
-   The tests and fixtures among them, which are read only when they are the whole change: a file a review reads no part of, a
-   `.cjs` source or a note, leaves the change itself unread, and a review of its tests alone would say nothing about it.
-   */
-  const testsAndFixtures = testsAndFixturesAmong({ paths: readable, },);
-  return ((testsAndFixtures.length > 0) && (testsAndFixtures.length === readable.length))
+  return ((changed.length > 0) && kinds.every(function isATest(kind,) {
+    return kind === 'test';
+  },))
     ? {
       diff,
       kind: 'tests-and-fixtures',
-      files: testsAndFixtures,
+      files: testsAndFixturesAmong({ paths: readable, },),
+      removedOrRenamed: removedOrRenamedAmong({
+        changed,
+        kind: 'test',
+        pathKindOf,
+      },),
     }
     : {
       diff,
