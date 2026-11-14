@@ -198,7 +198,7 @@ fn a_lock_published_when_none_existed_needs_the_missing_revision_to_still_be_mis
 #[test]
 fn the_scope_lock_is_exclusive_and_released_on_drop() {
     let (_directory, scope, _env) = sample_scope_on_disk();
-    let held = acquire_guard(&scope).expect("the first holder");
+    let held = acquire_guard(&scope).expect("the lock is asked for").expect("the lock is free");
     assert!(try_acquire_guard(&scope).expect("a probe").is_none(), "a second holder must not get the lock");
     drop(held);
     assert!(try_acquire_guard(&scope).expect("a probe").is_some(), "the lock is free after the drop");
@@ -208,7 +208,7 @@ fn the_scope_lock_is_exclusive_and_released_on_drop() {
 fn a_publish_waits_for_the_holder_of_the_scope_lock() {
     let (_directory, scope, _env) = sample_scope_on_disk();
     let released = Arc::new(AtomicBool::new(false));
-    let held = acquire_guard(&scope).expect("the holder");
+    let held = acquire_guard(&scope).expect("the lock is asked for").expect("the lock is free");
     let revisions = read_revisions(&scope).expect("revisions");
     let publisher_released = Arc::clone(&released);
     let publisher_scope = scope.clone();
