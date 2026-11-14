@@ -1146,8 +1146,27 @@ and from the user manager's journal
   **At 20:37:32 both were still in the state `failed`.**
   The lines are kept in
   `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/user-manager-journal-of-the-main-checkout-instance-at-the-install-of-0-6-1-alpha-21.txt`.
-- What that means for a commit in the main checkout is read from the commit that records this section,
-  whose time and outcome are in the next item of this list once it has been made.
+- What that meant for the next commit in the main checkout,
+  the commit `c3b7e91393` that first recorded this section,
+  begun at 20:37:54.79:
+  it printed "Waiting for the commit service of this worktree...
+  nothing has answered at ...sock yet (the service manager says ...service is failed);
+  this wait ends as soon as it answers.",
+  landed with exit 0 in 2.17 s,
+  and left the service `active`.
+  So a commit repairs it.
+  For the ninety-seven seconds between,
+  nothing that is not a commit in that worktree could reach its service;
+  what waited in that time
+  (a push, the removal of a landed worktree, a relink)
+  is not known.
+- Routed:
+  the reload fix's author had started at about 20:38 on the two findings already sent.
+  This is more evidence for the first of them
+  (an install leaves no instance failing a start),
+  so it went into that run's inbox as a note
+  (`~/temp/agent/pi-runs/reload-fix-brought-onto-main-where-a-program-link-already-is-5/inbox/`),
+  with the correction in the last item of this list.
 - A correction to the section on the install of `0.6.1-alpha.20`:
   it expected every worktree at work during that install to go through a failed second at its next commit.
   Counted over the journal from 19:52:00 to 20:36:00,
