@@ -17,7 +17,7 @@
 //! ```
 
 use crate::service_messages::{ClientFailure, Platform};
-use crate::systemd_dbus::{Bus, CallError, manager_is_absent};
+use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, manager_is_absent};
 use std::path::{Path, PathBuf};
 
 /// File name of the socket unit of the single service every worktree shared until one service per worktree.
@@ -179,7 +179,14 @@ pub(crate) fn refusal(error: CallError) -> ClientFailure {
         CallError::Manager { name, .. } if manager_is_absent(name.as_str()) => ClientFailure::NoActivation(platform_without_manager()),
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
         CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) | CallError::TimedOut => {
+        // What: An exchange that ran out says so with the time it was given, and never the platform's lack of a manager.
+        // Why:  The bus is there and busy, or the manager is stopped inside itself; which of the two is not known, and neither
+        //       is an account without user services. Three of the seven stopped records of 2026-11-12 met this after twenty
+        //       seconds in one exchange while the person was told to turn user services on. Every call whose timeout arrives
+        //       here was given the exchange's own time before it was made (`EXCHANGE_WAIT`), and a call that was given less
+        //       answers its own shorter wait elsewhere (`service_provision_earlier_service_retirement.rs`).
+        CallError::TimedOut => ClientFailure::ManagerDidNotAnswer { waited: EXCHANGE_WAIT },
+        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => {
             ClientFailure::NoActivation(platform_without_manager())
         }
     };

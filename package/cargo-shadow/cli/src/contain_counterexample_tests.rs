@@ -312,9 +312,7 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_at_the_bound() {
 /// The run of the zombie-leader fixture:
 /// to a normal exit (`at_the_bound` false) or to the bound (true).
 fn zombie_leader_run(at_the_bound: bool) {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
     let leader: PathBuf = compile_leader(directory.path());
     let ready: PathBuf = directory.path().join("ready");
@@ -372,9 +370,7 @@ fn recorded_workspace() -> tempfile::TempDir {
 /// so it is a regression test and no deterministic red.
 #[test]
 fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
     let pids: PathBuf = directory.path().join("pids");
     let group_file: PathBuf = directory.path().join("group");
@@ -472,8 +468,11 @@ fn wrapper_with_an_escaped_writer_fixture() {
 /// the wrapper and the direct child die while a writer in another session lives:
 /// a recovery that finds the journal must not restore the lockfile,
 /// because the writer may still change it.
+/// The run it kills records a launcher inside a delegated scope (the record read below),
+/// so a host that cannot give one asks here first and skips the test instead of failing on a record the run never writes.
 #[test]
 fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("crate dir");
     fs::create_dir_all(root.path().join("fixture")).expect("fixture dir");
