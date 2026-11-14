@@ -42,10 +42,19 @@ use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
 use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file_through_links};
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+/// The bytes of a `toolchain.lock.json` this repair reads, past which the lock is no lock it can read.
+///  Measured on this repository on 2026-11-13: its lock is 63,625 bytes, so this bound is sixteen times it,
+/// and a lock that large would declare some three thousand tools.
+///  A longer lock is refused rather than read,
+/// and a refusal is the answer an unreadable lock already gets:
+/// every launcher record stays counted.
+const LONGEST_LOCK: u64 = SMALL_FILE_LIMIT;
 
 /// What:
 ///  The launcher names this worktree's lock declares,
@@ -56,14 +65,18 @@ use std::time::Instant;
 ///  so a record for any other name is a copy of a layout an earlier release had and no install answers for it.
 ///   A lock this release cannot read leaves every record something an install answers,
 ///  which keeps the check as strict as it was before the names were read at all.
+///  The lock is read the way the record beside it is: only a plain file is opened and only so many bytes of it are read,
+///  so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
+///  and a runaway file cannot be read into memory whole.
+///  A lock behind a link of the person's own is read, because that is the lock the worktree means.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const declared = (destination) => new Set(Object.values(JSON.parse(readFile(join(destination, 'toolchain.lock.json'))).tools).flatMap((tool) => tool.bins ?? []));
+/// const declared = (destination) => { const lock = JSON.parse(readPlainFileThroughLinks(join(destination, 'toolchain.lock.json'), SMALL_FILE_LIMIT)); return new Set(Object.values(lock.tools).flatMap((tool) => tool.bins ?? [])); };
 /// ```
 fn declared_launcher_names(destination: &Path) -> Option<HashSet<String>> {
-    let text: String = std::fs::read_to_string(destination.join(LOCK_FILE)).ok()?;
-    let lock: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
+    let bytes: Vec<u8> = read_plain_file_through_links(destination.join(LOCK_FILE).as_path(), LONGEST_LOCK).ok()?;
+    let lock: serde_json::Value = serde_json::from_slice::<serde_json::Value>(bytes.as_slice()).ok()?;
     let tools: &serde_json::Map<String, serde_json::Value> = lock.get("tools")?.as_object()?;
     let mut names: HashSet<String> = HashSet::new();
     for tool in tools.values() {

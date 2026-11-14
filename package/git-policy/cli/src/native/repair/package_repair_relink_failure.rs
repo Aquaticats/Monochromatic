@@ -18,6 +18,7 @@
 //! remember(gitDir, id, reason); const reason = recall(gitDir, id); forget(gitDir, id);
 //! ```
 
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_text_at};
 use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
 use std::path::{Path, PathBuf};
 
@@ -46,7 +47,7 @@ fn path_of(git_dir: &Path, id: &str) -> PathBuf {
 ///  so a later reason replaces an earlier one.
 ///  A reason that cannot be kept does not stop the retry the answer asked for:
 ///  the record is still the service's work,
-///  and the notice then says the tries ran without an answer it can quote.
+///  and the notice then says no answer was kept and points at the service's journal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,24 +68,31 @@ pub fn remember(git_dir: &Path, id: &str, reason: &str) -> Result<(), String> {
 /// Why:
 ///   A notice is worded once and read once,
 ///  so the reason is read here and the record's own file is taken away by `forget`
-///  only after the words are where a command shows them.
+///  only after the record is where nothing reads it again.
+///  The file is read the way a record beside it is: only a plain file is opened, without following a link,
+///  and only so many bytes of it are read,
+///  so a named pipe at that name holds neither a command nor the service,
+///  and no file decides how much memory a command reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reason = readFile(pathOf(gitDir, id), 'utf8').trim() ?? undefined;
+/// const reason = readPlainTextAt(pathOf(gitDir, id), SMALL_FILE_LIMIT).trim() ?? undefined;
 /// ```
 pub fn recall(git_dir: &Path, id: &str) -> Option<String> {
-    let text: String = std::fs::read_to_string(path_of(git_dir, id)).ok()?;
+    let text: String = read_plain_text_at(path_of(git_dir, id).as_path(), SMALL_FILE_LIMIT).ok()?;
     let reason: String = text.trim_end_matches('\n').to_owned();
-    // A file that holds nothing says nothing, and the notice then words the tries as ones that gave no answer at all.
+    // A file that holds nothing says nothing, and the notice then words the account as one with no answer to quote.
     return (!reason.is_empty()).then_some(reason);
 }
 
 /// What:
 ///  Take the kept reason away.
 /// Why:
-///   A record that settles is read by nothing again,
+///   A record that is in `failed` is read by nothing again,
 ///  so its reason would be a file the person never sees and nothing removes.
+///  It is called only once the record is where it will stay, because a pass killed between the words and that move
+///  finds the reason still here and says the same thing again,
+///  which is what the recovery promises a kill in that window.
 ///  A file that is already gone is nothing to report.
 ///
 /// In TS you'd write (pseudocode):

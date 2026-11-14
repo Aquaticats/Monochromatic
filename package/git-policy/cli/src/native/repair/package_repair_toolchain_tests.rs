@@ -333,3 +333,76 @@ fn the_service_face_removes_the_copies_as_well() {
     assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the service face leaves the copy in the worktree");
     remove(&root);
 }
+
+/// What:
+///  A `toolchain.lock.json` that is a named pipe with no writer is refused at once,
+///  so the repair answers instead of holding the add's thread, or a job of the service's pool, for ever.
+/// Why:
+///   The repair reads the lock to learn which launcher names an install answers for,
+///   and both faces of it are on a waiting path: the add's own thread, and a job the service awaits with no ceiling.
+///  The record beside the lock is already read only when it is a plain file for the same reason
+///  (`a_record_that_is_a_named_pipe_is_left_alone`);
+///  the lock is a tracked file, so a pipe at its name takes unusual local state,
+///  and nothing the wrapper reads may wait without end for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// record('foreign', source); mkfifo(join(destination, 'toolchain.lock.json'));
+/// const answered = await timeout(PATIENCE, repairToolchainAwaiting(...)); assert(answered.outcome === 'failed');
+/// ```
+#[test]
+fn a_lock_that_is_a_named_pipe_is_refused_without_waiting() {
+    let (root, destination, _bin, environment) = scene("toolchain-lock-pipe");
+    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    make_pipe(destination.join(LOCK_FILE).as_path());
+    // Two workers, so a read that blocks on the pipe leaves a worker to time the answer.
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a runtime");
+    let repair = runtime.spawn(async move { return repair_toolchain_awaiting(destination.as_path(), &environment).await; });
+    let answered = runtime.block_on(async { return tokio::time::timeout(PATIENCE, repair).await; });
+    // The runtime is never dropped: a read that did block on the pipe holds a worker for ever, and dropping the runtime
+    // would wait for that worker, so a control that caught the defect would hang instead of reporting it.
+    std::mem::forget(runtime);
+    remove(&root);
+    let Ok(joined) = answered else {
+        panic!("a toolchain.lock.json that is a named pipe with no writer stopped the repair and every wait that shares its task, and nothing ended the wait")
+    };
+    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = joined.expect("the repair task") else {
+        panic!("a lock that cannot be read leaves every record counted, which is a failure that names the command")
+    };
+    assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
+}
+
+/// What:
+///  The add's own face refuses a lock that is a named pipe at once too,
+///  so a `git worktree add` is not held by a file it cannot read.
+/// Why:
+///   The add asks the same question on its own thread (`prepare_install_on_a_caller_thread`),
+///   and a blocking read there holds the command the person ran rather than a worker they do not see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(lock); const answer = await within(PATIENCE, () => repairToolchain(destination, environment)); assert(answer);
+/// ```
+#[test]
+fn the_adds_face_refuses_a_lock_that_is_a_named_pipe_without_waiting() {
+    let (root, destination, _bin, environment) = scene("toolchain-lock-pipe-add");
+    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    make_pipe(destination.join(LOCK_FILE).as_path());
+    let (answered, answer) = std::sync::mpsc::channel::<Option<Finding>>();
+    let thread = std::thread::spawn(move || {
+        let finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+        let _sent = answered.send(finding);
+    });
+    let within_the_patience: Result<Option<Finding>, _> = answer.recv_timeout(PATIENCE);
+    // A thread that did block on the pipe is never joined, so a control that caught the defect reports it rather than
+    // waiting on that thread for ever.
+    if within_the_patience.is_ok() {
+        thread.join().expect("the repair thread answers");
+    } else {
+        std::mem::forget(thread);
+    }
+    remove(&root);
+    let Ok(answered_with) = within_the_patience else { panic!("the add's own repair waited for a toolchain.lock.json that is a named pipe, and nothing ended it") };
+    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = answered_with else { panic!("a lock that cannot be read leaves every record counted, which is a failure that names the command") };
+    assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
+}
