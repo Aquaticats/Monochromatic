@@ -251,6 +251,32 @@ pub fn abstract_name_column(name: &str) -> Vec<u8> {
     return format!("@{name}").into_bytes();
 }
 
+/// What:
+///  The abstract names this runtime directory's services hold right now,
+/// as the table of unix sockets prints them,
+/// without the `@` that starts every one.
+/// Why:
+///   A status command outside a worktree counts the account's services that answer,
+/// and under a long runtime directory a service has no socket file to be found by
+/// (`any_service_greets` in `service_route.rs`).
+/// The table is where a name is visible without connecting to it,
+/// and the prefix is the account and the digest of the place,
+/// so neither another account's services nor another runtime directory's are counted.
+/// The names are printed and read back as the text they are,
+/// because the rest of the wrapper names a service with that text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listeningNamesOf('/home/u/run') // ['monochromatic-git-policy-cli/1000/0123456789abcdef/3f9a…']
+/// ```
+pub fn listening_names_of(runtime_dir: &Path, proc_root: &Path) -> Vec<String> {
+    let prefix: String = format!("@{}/", abstract_name_prefix_of(runtime_dir));
+    return crate::earlier_unix_sockets_that_listen::listening_names_starting_with(proc_root, prefix.as_bytes())
+        .into_iter()
+        .map(|column| { return String::from(column.trim_start_matches('@')); })
+        .collect();
+}
+
 /// Address controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_address_of_a_worktree_tests.rs"]

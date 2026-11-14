@@ -425,10 +425,9 @@ fn greeting_at_an_abstract_address(address: &Bind) -> (std::os::unix::net::UnixL
 #[cfg(target_os = "linux")]
 fn a_status_without_a_worktree_finds_a_service_at_an_abstract_name() {
     let runtime: PathBuf = a_runtime_directory_too_long_for_a_path("route-status-abstract");
-    let git_dir: PathBuf = runtime.join("worktree/.git");
-    std::fs::create_dir_all(&git_dir).expect("a directory the note names");
-    let instance: String = instance_of(git_dir.as_path());
-    crate::service_units_of_removed_worktrees::note_worktree(runtime.as_path(), instance.as_str(), git_dir.as_path());
+    // The instance is the one of some worktree of the runtime directory; nothing of the worktree has to be there, because the
+    // note of it is not what the status reads: the name the service holds is.
+    let instance: String = instance_of(Path::new("/nonexistent/instance-vector"));
     let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
     assert!(matches!(address, Bind::Abstract(_)), "the runtime directory is served at an abstract name");
     let (listener, stand_in) = greeting_at_an_abstract_address(&address);

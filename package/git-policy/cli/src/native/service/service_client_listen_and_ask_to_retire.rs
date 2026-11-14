@@ -418,7 +418,7 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 }
 
 /// What:
-///  Asks the service listening at `socket` to finish its batch and exit,
+///  Asks the service at `address` to finish its batch and exit,
 /// when one answers;
 /// nothing else is waited for.
 /// Why:
@@ -428,18 +428,23 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 ///  protocol version it announced,
 /// so that a batch it is landing is finished;
 /// the manager then stops its units.
-/// A socket
-///  nobody listens on,
+/// An address
+///  nobody listens at,
 /// or a service that does not greet,
 /// is no one to ask.
+/// The address is the one the service holds, and a service holds either a socket file or an abstract name
+/// (`service_address_of_a_worktree.rs`):
+/// it took a path here once,
+/// and under an abstract name the ask was delivered to a file that cannot exist,
+/// so the unload never retired the service and spent its whole wait on a batch that was not landing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await askToRetire(socket)
+/// await askToRetire(address) // { path } or { abstractName }
 /// ```
-pub fn ask_to_retire(socket: &std::path::Path) {
+pub fn ask_to_retire(address: &Bind) {
     // A connect that waits in the kernel for a queue nothing empties is no one to ask, and the wait has an end.
-    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(&Bind::Path(socket.to_path_buf())) else { return };
+    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(address) else { return };
     let _timeout = stream.set_read_timeout(Some(START_WAIT));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream);
     let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader) else { return };

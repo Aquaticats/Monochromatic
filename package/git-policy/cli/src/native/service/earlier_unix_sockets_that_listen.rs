@@ -108,19 +108,21 @@ fn holds_the_path_column(wanted: PathColumnMatch<'_>, path: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether one line of `/proc/net/unix` is a socket that listens whose path column is held the way `wanted` says.
-///  A flags column that is not hexadecimal counts as listening.
+///  The path column of one line of `/proc/net/unix` and whether that socket listens,
+///  or nothing when the line has fewer columns than a socket with a name.
 /// Why:
-///   A line the reader cannot understand must not hide a listener.
+///   Two questions read this table — whether one named socket listens, and which names a prefix holds that listen — and both
+/// have to read a line the same way,
+///  a flags column that is not hexadecimal counting as listening so a line the reader cannot understand never hides one.
 /// The columns are walked where they are and nothing is allocated per line,
-/// because this scan is on a commit's waiting path under an abstract address,
+/// because a scan of this table sits on a commit's waiting path under an abstract address,
 ///  where the table of a busy machine holds thousands of lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// listensAt(line, wanted)
+/// pathAndListening(line) // ['@name', true] | undefined
 /// ```
-fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> bool {
+fn path_and_listening(line: &[u8]) -> Option<(&[u8], bool)> {
     let mut columns: usize = 0;
     let mut flags_column: Option<&[u8]> = None;
     let mut path_column: Option<&[u8]> = None;
@@ -135,16 +137,31 @@ fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> boo
         columns += 1;
     }
     if columns < SOCKET_TABLE_COLUMNS {
-        return false;
+        return None;
     }
-    let Some(path) = path_column else { return false };
-    if !holds_the_path_column(wanted, path) {
-        return false;
-    }
-    return match flags_column.and_then(socket_flags_of) {
+    let path: &[u8] = path_column?;
+    let listens: bool = match flags_column.and_then(socket_flags_of) {
         Some(flags) => flags & SOCKET_LISTENS_FLAG != 0,
         None => true,
     };
+    return Some((path, listens));
+}
+
+/// What:
+///  Whether one line of `/proc/net/unix` is a socket that listens whose path column is held the way `wanted` says.
+/// Why:
+///   A line the reader cannot understand must not hide a listener.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listensAt(line, wanted)
+/// ```
+fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> bool {
+    let Some((path, listens)) = path_and_listening(line) else { return false };
+    if !listens {
+        return false;
+    }
+    return holds_the_path_column(wanted, path);
 }
 
 /// What:
@@ -221,4 +238,45 @@ pub fn earlier_socket_ending(instance: &str) -> Vec<u8> {
 /// a table that cannot be read counts as "yes".
 pub fn earlier_socket_of_instance_listens(proc_root: &Path, instance: &str) -> bool {
     return listening_sockets_ending_with(proc_root, &[earlier_socket_ending(instance)]) != ListeningSockets::None;
+}
+
+/// What:
+///  Every listening socket whose path column starts with `prefix`,
+/// as the table prints that column,
+/// in the table's order.
+/// Why:
+///   A socket with no file has no other way to be found:
+/// the table names it,
+/// and what starts its column is the one part a caller can spell without knowing which instances exist.
+/// Only a socket that listens is answered,
+/// because a client connection's autobind name starts with the same bytes in some programs and is no service.
+/// The read is one pass over the table with no allocation per line it does not answer,
+/// and a table that cannot be read answers no names,
+/// which is the same "nothing was found" the other readers here give it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listeningNamesStartingWith('/proc', '@monochromatic-git-policy-cli/1000/0123456789abcdef/')
+///   // ['@monochromatic-git-policy-cli/1000/0123456789abcdef/3f9a…']
+/// ```
+pub fn listening_names_starting_with(proc_root: &Path, prefix: &[u8]) -> Vec<String> {
+    let Ok(table) = std::fs::read(proc_root.join("net").join("unix")) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = Vec::new();
+    let mut from: usize = 0;
+    let mut at: usize = 0;
+    while at <= table.len() {
+        if at == table.len() || table[at] == b'\n' {
+            if let Some((path, true)) = path_and_listening(&table[from..at])
+                && path.starts_with(prefix)
+                && let Ok(name) = std::str::from_utf8(path)
+            {
+                names.push(String::from(name));
+            }
+            from = at.saturating_add(1);
+        }
+        at += 1;
+    }
+    return names;
 }

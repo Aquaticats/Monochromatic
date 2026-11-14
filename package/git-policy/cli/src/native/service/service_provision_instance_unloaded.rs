@@ -31,7 +31,8 @@
 //! ```
 
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
-use crate::service_instance::{service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_address_of_a_worktree::socket_address_of;
+use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_messages::ClientFailure;
 use crate::service_provision_host_and_manager::{Manager, ProvisionHost};
 use crate::systemd_dbus::CallError;
@@ -195,7 +196,7 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
     }
     // A service that runs is asked to leave by itself before anything is stopped, so the batch it holds is finished.
     if !matches!(&service_state, Some(state) if is_at_rest(state.as_str())) {
-        ask_to_retire(socket_path(host.runtime_dir.as_path(), instance).as_path());
+        ask_to_retire(&socket_address_of(host.runtime_dir.as_path(), instance));
         match wait_until_at_rest(host, manager, service.as_str()) {
             ServiceLeft::Gone => {}
             // What: A service still there at the wait is landing a batch, so nothing of it is stopped and the commit goes on

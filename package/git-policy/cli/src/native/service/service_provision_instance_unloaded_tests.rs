@@ -485,7 +485,8 @@ impl Manager for UntilAsked {
 
 /// What:
 ///  A service that listens at an abstract name is asked to retire,
-/// and with that ask delivered the repair finishes and the record of what the manager read is written.
+/// and with that ask delivered the repair finishes and the record of what the manager read is written,
+/// once for the state a kill leaves and again for a unit text that changed while the service ran.
 /// Why:
 ///   The record is the whole point of the unload:
 /// it says the manager read the texts on disk,
@@ -495,26 +496,34 @@ impl Manager for UntilAsked {
 /// and each commit then spends the
 ///  retirement wait and reports a batch landing that is not happening
 /// (measured twice at 10,016 ms with no record and the service alive).
+/// Both states are reached without a kill:
+/// the first is the unit files as this release writes them with the record
+///  absent, which a record write that failed leaves and a kill between the two leaves;
+/// the second is a unit text
+///  that changed while the service ran,
+/// which another resolution of Git writes (the service unit names it), or another spelling of the runtime directory
+///  (the service unit names the program link under it).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(asked).toBe(true); expect(recordExists()).toBe(true);
+/// expect(asked).toBe(true); expect(recordExists()).toBe(true); // then the same again after the service unit's text changed
 /// ```
 #[test]
 #[cfg(target_os = "linux")]
 fn a_service_at_an_abstract_name_is_asked_to_retire_and_the_repair_finishes() {
-    let machine: Machine = machine_at_an_abstract_name("unload-abstract-lib", Duration::from_secs(2));
-    // The unit files say what this release writes and the record of what the manager read is absent: the state a process
-    // killed between the template's write and the record's leaves, and the state every commit then finds.
+    let mut machine: Machine = machine_at_an_abstract_name("unload-abstract-lib", Duration::from_secs(2));
+    let address: Bind = crate::service_address_of_a_worktree::socket_address_of(machine.host.runtime_dir.as_path(), INSTANCE);
+    assert!(matches!(address, Bind::Abstract(_)), "this control's runtime directory is served at an abstract name");
     let unit_directory: PathBuf = crate::service_provision::runtime_unit_dir(machine.host.runtime_dir.as_path());
     std::fs::create_dir_all(&unit_directory).expect("the unit directory");
+    // What: The unit files say what this release writes and the record of what the manager read is absent.
+    // Why:  A kill between the template's write and the record's leaves exactly that, and so does a record write that failed;
+    //       every commit finds it until the repair finishes.
     for (name, text) in unit_texts(&machine.host) {
         std::fs::write(unit_directory.join(name), text).expect("the unit file");
     }
     assert!(!record_says_read(&machine), "the record starts absent");
-    let address: Bind = crate::service_address_of_a_worktree::socket_address_of(machine.host.runtime_dir.as_path(), INSTANCE);
-    assert!(matches!(address, Bind::Abstract(_)), "this control's runtime directory is served at an abstract name");
-    let (stand_in, asked) = standing_at_an_abstract_name(&address);
+    let (_, asked) = standing_at_an_abstract_name(&address);
     let mut manager: UntilAsked = UntilAsked {
         service: instance_service(),
         socket: instance_socket(),
@@ -524,9 +533,28 @@ fn a_service_at_an_abstract_name_is_asked_to_retire_and_the_repair_finishes() {
     let began: std::time::Instant = std::time::Instant::now();
     crate::service_provision::provision_with(&machine.host, &mut manager).expect("a repair that cannot be finished does not fail the commit");
     let took: Duration = began.elapsed();
-    let heard: bool = stand_in.join().expect("the stand-in ends");
-    assert!(heard, "the service at the abstract name was never asked to retire");
+    assert!(asked.load(std::sync::atomic::Ordering::SeqCst), "the service at the abstract name was never asked to retire");
     assert!(record_says_read(&machine), "the ask arrived, so the repair finished and the record of what the manager read is written");
     assert!(took < machine.host.retirement_wait, "the unload did not spend the retirement wait: {took:?}");
+    // What: A unit text that changed while the service ran is repaired by asking the running service to retire again.
+    // Why:  The same state, reached by a sequence no kill is needed for: the service unit names the program link and the stop
+    //       timeout, so a different Git resolution or another spelling of the runtime directory writes another text, and the
+    //       service that runs still holds the text the manager read earlier.
+    // The Git the service unit names is one word of its text, so another resolution of Git is another text.
+    machine.host.git = PathBuf::from("/usr/bin/git-of-another-resolution");
+    assert!(!record_says_read(&machine), "the texts this host writes now are not the ones the record names");
+    let (_, asked_again) = standing_at_an_abstract_name(&address);
+    let mut manager: UntilAsked = UntilAsked {
+        service: instance_service(),
+        socket: instance_socket(),
+        asked: std::sync::Arc::clone(&asked_again),
+        socket_stopped: false,
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    crate::service_provision::provision_with(&machine.host, &mut manager).expect("a text that changed while the service ran is repaired");
+    let took: Duration = began.elapsed();
+    assert!(asked_again.load(std::sync::atomic::Ordering::SeqCst), "the service running the text from before was asked to retire");
+    assert!(record_says_read(&machine), "and the repair wrote the record of the texts the manager now read");
+    assert!(took < machine.host.retirement_wait, "the second repair did not spend the retirement wait either: {took:?}");
     remove(machine.root.as_path());
 }
