@@ -257,6 +257,15 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the renewal of a scratch claim on its own thread while the landing proceeds",
     },
     Allowed {
+        file: "landing/service_work.rs",
+        rule: "thread-start",
+        why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on, and a thread \
+              of the blocking pool still carries that runtime, so a job there answers that the runtime was asked for from inside \
+              itself and removes nothing; the round awaits the answer on a oneshot under `OBJECT_STEP_CEILING`, so no worker of \
+              the runtime is held. The entry goes when the removal's Git step is awaited, which makes the removal a job of the \
+              blocking pool",
+    },
+    Allowed {
         file: "markdown/markdown_linter_guard.rs",
         rule: "thread-start",
         why: "the guarded Markdown linter; its thread is also what the no-progress watcher reads",
@@ -326,6 +335,14 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "foundation/name_held_while_one_thread_publishes_it.rs",
         rule: "blocking-sleep",
         why: "the macOS and Windows fallback of the name wait; on Linux the same wait is a futex",
+    },
+    Allowed {
+        file: "foundation/unix_socket_connect_within_a_deadline.rs",
+        rule: "blocking-sleep",
+        why: "the pause between asks of a socket whose listening queue is full, in the connection a commit makes for a drawn \
+              shadow before it builds anything. No `async fn` encloses it, so it pauses a thread a command owns and no worker of \
+              the runtime, and the whole exchange ends at the caller's own deadline (`DRAWN_ANSWER_DEADLINE`, 250 ms). The entry \
+              goes when that ask is made by a task, where the awaited connect ends the pause",
     },
     Allowed {
         file: "invocation/forwarding.rs",
@@ -403,6 +420,14 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "push/start_retry.rs",
         rule: "blocking-sleep",
         why: "the one pause the plan keeps: the start retry of the forwarded command, which builds no runtime",
+    },
+    Allowed {
+        file: "repair/package_repair_start.rs",
+        rule: "blocking-sleep",
+        why: "the hold a control sets between a child that has reported itself and the job that started it, which is the interval \
+              the audit of 0.6.1-alpha.12 forced. Release code never takes it (`HOLD_AFTER_THE_START` holds no value outside a \
+              build for tests), and it runs inside the closure handed to `run_blocking_job`, so it pauses a thread of the blocking \
+              pool and no worker of the runtime. The entry goes with the control that sets that hold",
     },
     Allowed {
         file: "service/service_is_gone_after_a_stop.rs",

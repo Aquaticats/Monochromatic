@@ -99,6 +99,10 @@ const INVENTORY: &[&str] = &[
     //  so neither can be one atomic.
     "service/service_repository_scratch_sweep.rs",
     "service/service_scratch_trees_of_queued_requests.rs",
+    // The drawn shadows this service holds ready, in memory only:
+    //  the draw's own thread records one and every connection's answer takes one,
+    //  so two threads reach the list, and under it the list is changed and nothing else.
+    "service/service_shadow_draw.rs",
     "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",

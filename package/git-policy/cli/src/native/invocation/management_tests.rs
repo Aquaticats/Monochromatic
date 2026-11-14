@@ -876,6 +876,65 @@ fn the_status_needs_the_real_git_to_name_the_worktree() {
 /// and for a worktree whose does not.
 const THIS_WORKTREE: &str = "The commit service of this worktree";
 
+/// What:
+///  A listener that takes every connection at `socket` and greets it,
+///  as the commit service of a worktree that runs does,
+///  and the stop that ends it.
+/// Why:
+///  The status connects to the service and reads its greeting within `HAND_OVER_GREETING_WAIT`
+///  (`landing/service_route.rs`),
+///  so a listener that greets nothing is a service that runs and has stopped inside itself:
+///  a control that asks about a service which answers needs one that greets,
+///  and one the control stops so nothing of it outlives the test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const service = greetingServiceAt(socket); // ... service.stop();
+/// ```
+struct GreetingService {
+    /// Whether the control has stopped serving.
+    stopped: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The thread that accepts a connection and greets it.
+    serving: std::thread::JoinHandle<()>,
+}
+
+impl GreetingService {
+    /// What:
+    ///  Serve `socket` from now until `stop` is called.
+    /// Why:
+    ///  A status asks a new connection each time it runs,
+    ///  so the fixture takes every one of them and greets it,
+    ///  and answers nothing more: a status reads the greeting and returns.
+    fn at(socket: &Path) -> Self {
+        let listener: std::os::unix::net::UnixListener =
+            std::os::unix::net::UnixListener::bind(socket).expect("the fixture's service socket");
+        listener.set_nonblocking(true).expect("a listener the service polls");
+        let stopped: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let seen: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&stopped);
+        let serving: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+            let mut greeting: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome {
+                version: crate::service_protocol::PROTOCOL_VERSION,
+                release: Some(String::from("the release this control stands in for")),
+            });
+            greeting.push('\n');
+            while !seen.load(std::sync::atomic::Ordering::SeqCst) {
+                let Ok((mut stream, _address)) = listener.accept() else {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    continue;
+                };
+                let _greeted = std::io::Write::write_all(&mut stream, greeting.as_bytes());
+            }
+        });
+        return Self { stopped, serving };
+    }
+
+    /// Stop serving and wait for the thread.
+    fn stop(self) {
+        self.stopped.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _joined = self.serving.join();
+    }
+}
+
 /// `git -C /path/B monochromatic-git-policy-cli service status` run from anywhere asks about B:
 /// the global options reach the status,
 /// and `-c` options do not change the worktree,
@@ -891,7 +950,8 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join(format!("temp/agent/ms-{}", std::process::id()));
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("runtime directory");
     let second_git_dir: PathBuf = std::fs::canonicalize(second.join(".git")).expect("git directory");
-    let listener = std::os::unix::net::UnixListener::bind(socket_for(runtime.as_path(), second_git_dir.as_path())).expect("the second worktree's service");
+    // The service of the second worktree runs: it takes a connection and greets it, which is what a status asks of it.
+    let service: GreetingService = GreetingService::at(socket_for(runtime.as_path(), second_git_dir.as_path()).as_path());
     let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
     environment.push((OsString::from("XDG_RUNTIME_DIR"), runtime.as_os_str().to_os_string()));
     let inputs: ResolutionInputs = with_git(root.as_path());
@@ -940,7 +1000,7 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
         panic!("the status exits");
     };
     assert_eq!((unresolved_code, unresolved_out.is_empty(), unresolved_err.contains("no service was counted")), (1, true, true), "{unresolved_err}");
-    drop(listener);
+    service.stop();
     std::fs::remove_dir_all(runtime).expect("runtime directory");
     remove(root.as_path());
 }
