@@ -1121,6 +1121,116 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The no-manager author answered two findings; the archives run stopped at four archives; a commit was written without a deletion it named (2026-11-13T21:20:50-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message and report,
+nothing here rerun by it except where a command is named.
+
+The commit service that needs no service manager
+(run `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-6`,
+ended 21:13:31,
+tip `76a08c9fac`,
+`main` merged four times,
+the last as `baa64cb13a`):
+
+- It reproduced the first finding with the review's own script on the tip before its change:
+  a commit against a stopped service with a full queue was still running after 30 s,
+  in the kernel's `unix_wait_for_peer`.
+  At its tip the same commit ends with exit 1 after 15.8 s and says the service did not start and that nothing changed.
+- Every connect in release code now goes through `connect_within`;
+  the probe's child is ended and reaped on a thread of its own,
+  so the probe answers at its bound.
+  Each control was shown failing without its guard
+  (three by running to nextest's kill at about 200 s,
+  one at 32 s against its bound).
+- Two things it decided against `main`,
+  open to veto:
+  `CONNECT_CEILING` is one second where `main` has five
+  (its reason:
+  a command's whole wait is ten seconds and a look has to fit several times;
+  one second is 16 times the slowest of `main`'s 2,000 measured connects),
+  and `main`'s `service_provision_instance_unloaded.rs` with its control is deleted with the units it serves.
+- Its whole library suite:
+  7,588 of 7,598 passed;
+  the ten red ones it places in files equal to `main`'s.
+- Its review is queued at the head
+  (`review-git-policy-cli-commit-service-needs-no-service-manager-answers-of-2026-11-13`,
+  range `main...76a08c9fac`).
+  The issue 6293 branch stands on this one and lands after it.
+
+The tracked archives
+(run `tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-1`,
+ended 21:13:59,
+six commits pushed,
+report `~/temp/agent/tracked-archives-removed-and-their-data-kept-as-plain-files-2026-11-13/keep/report.md`):
+
+- 132 archives removed in five families;
+  `.gitignore` carries one block of archive shapes with the three Java archives kept;
+  a record of every removed archive with its bytes,
+  digest,
+  last commit and the command that prints it from history
+  (`doc/audit/removed-archives-and-where-history-holds-each.md`);
+  all 132 printed from history and matched by digest.
+  Of 337 pairs of an archive and a file naming it,
+  328 needed a pointer alone and nine kept data.
+- **Four archives are still tracked**,
+  each a stop the brief asked for:
+  two where one record names bytes and a digest that are not the tracked blob's;
+  one whose naming file records its own digest;
+  one whose kept file the forbidden-strings guard refused
+  (`hashicorp-tf-password`,
+  on fixture markers of `SCCACHE_WEBDAV_PASSWORD`),
+  so the author restored the archive and bypassed nothing.
+- **Adopted while the owner was away**,
+  from the owner's "remove anything already committed from the repo.
+  If something would break,
+  represent the data another way." and the recorded answer that what is kept is trimmed to what documents cite:
+  all four are removed.
+  For the two with a disagreeing record,
+  the removal record states both pairs and which commit of history,
+  if any,
+  holds the one the record names.
+  For the self-recording file,
+  its note says the digest it carries cannot be current.
+  For the refused one,
+  the kept file is trimmed to the two cited Dockerfile records;
+  if those two carry what the guard refuses,
+  the archive stays and the lines come back for a decision.
+  The author's own session continues with that
+  (`tracked-archives-run-finishes-the-four-archives-it-stopped-at-prompt.md`,
+  queued near the head);
+  then a hand-written review and the merge.
+- Its open questions,
+  neither acted on:
+  whether `doc/planning`,
+  `doc/research` and `doc/handover` get family indexes
+  (they have none),
+  and whether digest notes in the last commit and not in each family's commit is acceptable.
+- The run ended as `driver-failed`
+  (`SyntaxError: Unterminated string in JSON at position 509`)
+  after its report was written and pushed.
+  Its driver was started at 17:56:40,
+  before the fix for issue 6299 was merged at 19:36:16,
+  so this is the old code;
+  runs started after the merge have ended `idle`.
+
+A commit written without a deletion its author says it named:
+
+- The archives run's commit `e1b703cd03` (2026-11-13T20:22:46-05:00) adds a folder of 158 new files and still holds the archive the same step deleted;
+  `83075d8a1f` deletes it six minutes later.
+  Read by the coordinating session with `git show --stat`:
+  the first lists 164 files and no deleted file,
+  the second deletes `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`.
+  The new folder's name is the archive's name without `.zip`.
+- Whether the commit's list of paths named the deleted file is the author's word;
+  the feed cuts the command short and the Pi session file holds it whole.
+- A fresh run is queued near the head
+  (`commit-of-named-paths-holds-every-deletion-it-names-when-the-list-also-names-a-new-folder`):
+  the commands read from the session file,
+  the same commands through real Git side by side,
+  and a commit of named paths that holds every path it names or refuses and says which.
+
 ##### Pass 26, the smaller build tree, is in `main`; no release is made for it alone (2026-11-13T21:14:18-05:00)
 
 Not final and not approved:
