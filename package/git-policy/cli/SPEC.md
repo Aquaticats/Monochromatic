@@ -5491,6 +5491,13 @@ so the merge commit is kept on `refs/cli-git/kept/<n>` beside a record and the n
 a cross-vendor audit of alpha.12,
 "A merge waits for another agent's live index holder",
 found the minute of waiting this replaces).
+A lock no process is proven to hold counts as another program's command too,
+because it is exactly as likely to be one:
+native Git keeps the whole index in `index.lock` through its hooks and editor with no descriptor open,
+and writes no PID file unless `core.lockfilePid` is on,
+so a person's own `git commit` at its editor leaves the evidence a killed Git leaves,
+and a merge that waited for it would wait a minute for the person sitting at the machine
+(`look_at_the_index_before_a_merge` in `src/native/lock/index_holder_wait.rs`).
 
 A merge whose paths hold the person's own work carries it forward
 (owner's answer "Carry edits forward (Recommended)",
