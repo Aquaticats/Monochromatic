@@ -17,7 +17,6 @@ import {
   FOCUS_OF_A_CHANGE_REVIEW,
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
-  TemplatePlaceholderError,
   aPathAsABriefShowsIt,
   briefOfAChangeToTests,
   briefOfAReview,
@@ -340,12 +339,33 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a request whose values leave a placeholder unfilled',
+          name: 'writes a value shaped like any placeholder the brief carries, and a name that is only placeholder-shaped, as that text, because only the template is read',
           fn: async () => {
-            expect(() => briefOfAReview({
-              ...aBriefRequest(),
-              reviewsFolder: `${aReviewsFolder()}/@FOCUS@`,
-            },),).toThrow(TemplatePlaceholderError,);
+            /**
+             Every mark a brief carries, and one shaped like a mark that no template carries.
+             */
+            const marks = [...REVIEW_BRIEF_PLACEHOLDERS, 'BREAK',];
+            for (const placeholder of marks) {
+              /**
+               The text every value of this request carries.
+               */
+              const mark = `@${placeholder}@`;
+              /**
+               The brief written when every value carries the mark.
+               */
+              const brief = briefOfAReview({
+                review: `a-review-${mark}`,
+                commit: `commit-${mark}`,
+                source: `package/${mark}`,
+                files: [`${mark}.ts`,],
+                removedOrRenamed: [{ status: 'deleted', path: `old-${mark}.ts`, },],
+                focus: `data loss in ${mark}`,
+                reviewsFolder: `/reviews-${mark}`,
+                runsFolder: `/runs-${mark}`,
+                rulesFile: `/repo/${mark}.md`,
+              },);
+              expect(brief,).toContain(mark,);
+            }
           },
         },),
         it({
@@ -426,12 +446,33 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a request whose values leave a placeholder unfilled',
+          name: 'writes a value shaped like any placeholder the tests brief carries, and a name that is only placeholder-shaped, as that text',
           fn: async () => {
-            expect(() => briefOfAChangeToTests({
-              ...aBriefRequest(),
-              reviewsFolder: `${aReviewsFolder()}/@FOCUS@`,
-            },),).toThrow(TemplatePlaceholderError,);
+            /**
+             Every mark a brief carries, and one shaped like a mark that no template carries.
+             */
+            const marks = [...REVIEW_BRIEF_PLACEHOLDERS, 'BREAK',];
+            for (const placeholder of marks) {
+              /**
+               The text every value of this request carries.
+               */
+              const mark = `@${placeholder}@`;
+              /**
+               The brief written when every value carries the mark.
+               */
+              const brief = briefOfAChangeToTests({
+                review: `a-review-${mark}`,
+                commit: `commit-${mark}`,
+                source: `package/${mark}`,
+                files: theChangedTests(),
+                removedOrRenamed: [{ status: 'deleted', path: `old-${mark}.test.ts`, },],
+                focus: `a test that stopped checking ${mark}`,
+                reviewsFolder: `/reviews-${mark}`,
+                runsFolder: `/runs-${mark}`,
+                rulesFile: `/repo/${mark}.md`,
+              },);
+              expect(brief,).toContain(mark,);
+            }
           },
         },),
         it({

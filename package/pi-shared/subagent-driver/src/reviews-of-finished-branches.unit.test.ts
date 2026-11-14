@@ -184,12 +184,14 @@ function seamsAnswering({
   saves,
   written,
   merges,
+  refusals = new Map(),
 }: {
   readonly briefs: ReadonlyMap<string, BriefOfOneReview>;
   readonly starts: ReadonlyMap<string, StartOfOneReview>;
   readonly saves: ReadonlyMap<string, { readonly line: string }>;
   readonly written: readonly string[];
   readonly merges: readonly string[];
+  readonly refusals?: ReadonlyMap<string, string>;
 }): { readonly seams: ReviewStartingSeams; readonly asked: Asked } {
   /**
    What the seams were asked, filled as they answer.
@@ -228,6 +230,13 @@ function seamsAnswering({
           commit,
           range,
         },);
+        /**
+         Why this brief cannot be written, when the test says it cannot.
+         */
+        const refusal = refusals.get(review,);
+        if (refusal !== undefined) {
+          throw new Error(refusal,);
+        }
         return briefs.get(review,)
           ?? {
             written: false,
@@ -395,6 +404,39 @@ await describe({
             const started = await startReviews(aStartRequest({ changes: [aChange(), anotherChange(),], seams, },),);
             expect(started.lines[0],).toBe(`nothing to review under package/a/src in `
               + `${anIntegrationBranch()}...${branchOf({ change: aChange(), },)}`,);
+            expect(asked.starts.map(function reviewOf(start,) {
+              return start.review;
+            },),).toEqual([anotherChange(),],);
+            expect(started.statuses,).toEqual(['0',],);
+          },
+        },),
+        it({
+          name: 'says a branch whose brief could not be written in one line, with the reason, and goes on with the rest',
+          fn: async () => {
+            /**
+             The seams, with the first change's brief refusing to be written.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map([
+                [anotherChange(), { written: true, line: 'another brief', },],
+              ],),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [],
+              refusals: new Map([[aChange(), 'the brief still carries @BREAK@',],],),
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [aChange(), anotherChange(),], seams, },),);
+            expect(started.lines,).toEqual([
+              `${runNameOfAReview({ review: aChange(), },)}: its brief could not be written: the brief still carries @BREAK@`,
+              'another brief',
+              `${runNameOfAReview({ review: anotherChange(), },)}: started`,
+              `${runNameOfAReview({ review: anotherChange(), },)}: has its review.md`,
+              'reviews ended with statuses 0',
+            ],);
             expect(asked.starts.map(function reviewOf(start,) {
               return start.review;
             },),).toEqual([anotherChange(),],);

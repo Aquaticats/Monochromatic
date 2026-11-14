@@ -74,13 +74,31 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a value that leaves a placeholder of its own behind, so a run never reads one as its task',
+          name: 'writes a value shaped like a placeholder as that text, because the template is read once and a value is never read',
           fn: async () => {
-            expect(() => filledTemplate({
+            expect(filledTemplate({
               template: '@FOCUS@',
               values: { FOCUS: 'read @COMMIT@ first', },
               name: 'the brief',
-            },),).toThrow(TemplatePlaceholderError,);
+            },),).toBe('read @COMMIT@ first',);
+            expect(filledTemplate({
+              template: 'a @FOCUS@ and a @RULES@',
+              values: {
+                FOCUS: '@RULES@',
+                RULES: '@FOCUS@',
+              },
+              name: 'the brief',
+            },),).toBe('a @RULES@ and a @FOCUS@',);
+          },
+        },),
+        it({
+          name: 'writes the template\'s own prose around a value that holds its whole text, because only the template is read',
+          fn: async () => {
+            expect(filledTemplate({
+              template: 'read @RULES@ first',
+              values: { RULES: 'read @RULES@ first', },
+              name: 'the brief',
+            },),).toBe('read read @RULES@ first first',);
           },
         },),
       ],

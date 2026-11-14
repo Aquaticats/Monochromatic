@@ -4340,6 +4340,10 @@ importers:
         version: 26.6.6
 
   package/pi-shared/subagent-driver:
+    dependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*

@@ -9,6 +9,7 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   BATCH_DEFAULT_CPU_PERCENT,
   BATCH_DEFAULT_MEMORY,
@@ -221,6 +222,67 @@ export function retryWordsOfAReview({
 }
 
 /**
+ What writing one review's brief answered: the brief, or why it could not be written.
+ */
+type BriefAnswer =
+  | {
+    /**
+     What the brief writer answered.
+     */
+    readonly wrote: BriefOfOneReview;
+  }
+    | {
+      /**
+       Why the brief could not be written, as text a person reads.
+       */
+      readonly refused: string;
+    };
+
+/**
+ Writes one review's brief, answering what it wrote or why it could not be written, so one branch's refusal is a line and never
+ the end of a batch.
+
+ @param seams - the answers the starter asks, which a test replaces
+
+ @param review - the change the review reads
+
+ @param commit - the commit under review
+
+ @param range - what changed, as `git diff` takes one
+
+ @returns the brief, or the refusal's reason
+
+ @example
+ ```ts
+ const answer = await briefOfOneReview({ seams, review: 'a', commit: 'abc123', range: 'main...fix/a', },);
+ ```
+ */
+async function briefOfOneReview({
+  seams,
+  review,
+  commit,
+  range,
+}: {
+  readonly seams: ReviewStartingSeams;
+  readonly review: string;
+  readonly commit: string;
+  readonly range: string;
+},): Promise<BriefAnswer> {
+  try {
+    return {
+      wrote: await seams.brief({
+        review,
+        commit,
+        range,
+      },),
+    };
+  }
+  catch (error) {
+    return { refused: caughtValueText(error,), };
+  }
+}
+
+/**
  Starts one review per branch, one after another, and answers the line each step printed.
 
  @param branches - the branches a review is wanted for
@@ -306,15 +368,24 @@ export async function startReviews({
       merges: await seams.integrationMerges(),
     },);
     /**
-     What writing the brief answered.
+     What writing the brief answered, or why it could not be written.
      */
-    const briefed = await seams.brief({
+    const answer = await briefOfOneReview({
+      seams,
       review,
       commit,
       range,
     },);
-    note(briefed.line,);
-    if (!briefed.written) {
+    if ('refused' in answer) {
+      note(`${run}: its brief could not be written: ${answer.refused}`,);
+      continue;
+    }
+    /**
+     What the brief writer answered.
+     */
+    const { wrote, } = answer;
+    note(wrote.line,);
+    if (!wrote.written) {
       continue;
     }
     note(`${runNameOfAReview({ review, },)}: started`,);

@@ -33,6 +33,9 @@
     "start-reviews-of-finished-branches": "dist/final/node/start-reviews-of-finished-branches.mjs",
     "write-a-fix-brief-for-each-review": "dist/final/node/write-a-fix-brief-for-each-review.mjs"
   },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*"
+  },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",

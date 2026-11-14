@@ -607,6 +607,40 @@ await describe({
           },
         },),
         it({
+          name: 'writes the brief of a change to tests alone whose file is named like a placeholder, listing it as that name, because only the template is read',
+          fn: async () => {
+            /**
+             A test file whose name is shaped like a placeholder.
+             */
+            const named = `${aSourceFolder()}/@BREAK@.test.ts`;
+            await using written = await writeAChangeThrough([aModifiedFile(named,),],);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await theBriefIn(written.reviewsFolder,);
+            expect(written.briefed.written,).toBe(true,);
+            expect(brief,).toContain(`- \`${named}\``,);
+            expect(brief,).toContain('plant a break under it',);
+          },
+        },),
+        it({
+          name: 'writes the brief of a change that deleted a code file named like a placeholder, naming it as that name, because only the template is read',
+          fn: async () => {
+            /**
+             A code file whose name is shaped like a placeholder.
+             */
+            const named = `${aSourceFolder()}/@BREAK@.ts`;
+            await using written = await writeAChangeThrough([aModifiedFile(aCodeFile(),), aDeletedFile(named,),],);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await theBriefIn(written.reviewsFolder,);
+            expect(written.briefed.written,).toBe(true,);
+            expect(brief,).toContain(`- \`${aCodeFile()}\``,);
+            expect(brief,).toContain(`- \`${named}\` (deleted)`,);
+          },
+        },),
+        it({
           name: 'refuses a range that changes nothing under the source folder, in words that say so and never say tests, and writes no brief',
           fn: async () => {
             await using written = await writeAChangeThrough([],);

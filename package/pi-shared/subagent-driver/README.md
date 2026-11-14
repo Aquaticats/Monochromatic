@@ -598,6 +598,9 @@ another control,
 or the backtick that ends the code span.
 The brief says so where it does that,
 and a reviewer reads the JSON string and opens the file it names.
+A value is never read as a template:
+a path, a branch, a commit subject or a focus named like a placeholder is written as itself,
+because the template's own text is read once and the values are never read.
 
 A range that holds code or a build decision is reviewed as the change itself.
 The files are the `.rs` and `.ts` code the ranges touched,

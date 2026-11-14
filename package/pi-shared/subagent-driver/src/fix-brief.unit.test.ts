@@ -16,7 +16,6 @@ import {
   FIX_BRIEF_PLACEHOLDERS,
   FIX_BRIEF_WALL_SECONDS,
   NO_SYNTHETIC_HOST_LOAD,
-  TemplatePlaceholderError,
   branchOfAFixFor,
   branchOfAReview,
   briefOfAFix,
@@ -300,12 +299,33 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a request whose values leave a placeholder unfilled',
+          name: 'writes a value shaped like any placeholder the fix brief carries, and a name that is only placeholder-shaped, as that text, because only the template is read',
           fn: async () => {
-            expect(() => briefOfAFix({
-              ...aBriefRequest(),
-              base: '@BASE@',
-            },),).toThrow(TemplatePlaceholderError,);
+            /**
+             Every mark the fix brief carries, and one shaped like a mark that no template carries.
+             */
+            const marks = [...FIX_BRIEF_PLACEHOLDERS, 'BREAK',];
+            for (const placeholder of marks) {
+              /**
+               The text every value of this request carries.
+               */
+              const mark = `@${placeholder}@`;
+              /**
+               The brief written when every value carries the mark.
+               */
+              const brief = briefOfAFix({
+                name: `a-fix-${mark}`,
+                review: `a-review-${mark}`,
+                branch: `fix/a-branch-${mark}`,
+                base: `commit-${mark}`,
+                subject: `a subject ${mark}`,
+                packageFolder: `package/${mark}`,
+                reviewsFolder: `/reviews-${mark}`,
+                checkoutFolder: `/repo-${mark}`,
+                rulesFile: `/repo-${mark}/rules.md`,
+              },);
+              expect(brief,).toContain(mark,);
+            }
           },
         },),
       ],

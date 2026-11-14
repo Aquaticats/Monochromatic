@@ -3,8 +3,11 @@
  filled is refused rather than written into a Pi run's brief.
 
  A brief that still reads `@FOCUS@` where its task should be sends an agent to work on a placeholder, so the filling is a check
- rather than a substitution: the placeholders a template carries are read first, the values must cover every one of them, and
- nothing may remain afterwards.
+ rather than a substitution: the placeholders a template carries are read first, and the values must cover every one of them.
+
+ The template's own text is read once, into prose and placeholders, and the filled text is those parts joined with the values.
+ The template is never read again, and a value is never read at all: text a value brings is text, even when it is shaped like a
+ placeholder. A template is not a value's business, and a path or a commit subject is not a second template.
 
  The text is read by scanning for its at-signs, one pass over the template, because the grammar is one a person reads: two
  at-signs around a name of capitals, digits and underscores, and nothing else is a placeholder.
@@ -68,13 +71,122 @@ function isPlaceholderName(candidate: string,): boolean {
 }
 
 /**
- A template placeholder that a filler did not fill, or a placeholder left behind in a filled brief.
+ A template placeholder whose name no value fills.
  */
 export class TemplatePlaceholderError extends Error {
   /**
    The name printed with the message.
    */
   override readonly name = 'TemplatePlaceholderError';
+}
+
+/**
+ One part of a template's own text: prose the template carries, or a placeholder whose value fills it.
+ */
+type TemplatePart =
+  | {
+    /**
+     The prose this part carries.
+     */
+    readonly kind: 'text';
+
+    /**
+     The text, as the template wrote it.
+     */
+    readonly text: string;
+  }
+    | {
+      /**
+       The kind of part whose value fills it.
+       */
+      readonly kind: 'placeholder';
+
+      /**
+       The placeholder's name, without its at-signs.
+       */
+      readonly name: string;
+    };
+
+/**
+ Reads a template's own text into its parts: the prose it carries, and each placeholder that text names, in the order it reads
+ them.
+
+ Only the template is read here. A value is never looked in, so text a value brings cannot become a placeholder.
+
+ @param template - the template's text
+
+ @returns the parts, in the order the template gives them
+
+ @example
+ ```ts
+ const parts = partsOf({ template: 'Read @RULES@ first', },);
+ ```
+ */
+function partsOf({ template, }: { readonly template: string },): readonly TemplatePart[] {
+  /**
+   The parts read so far.
+   */
+  const parts: TemplatePart[] = [];
+  for (let from = 0; from < template.length;) {
+    /**
+     The first at-sign at or after where the reading stands.
+     */
+    const first = template.indexOf(
+      '@',
+      from,
+    );
+    /**
+     The at-sign that would close that placeholder, or minus one when none follows.
+     */
+    const close = (first === (-1))
+      ? (-1)
+      : template.indexOf(
+        '@',
+        first + 1,
+      );
+    if ((first === (-1)) || (close === (-1))) {
+      parts.push({
+        kind: 'text',
+        text: template.slice(from,),
+      },);
+      break;
+    }
+    /**
+     The text between the two at-signs.
+     */
+    const candidate = template.slice(
+      first + 1,
+      close,
+    );
+    if (!isPlaceholderName(candidate,)) {
+      parts.push({
+        kind: 'text',
+        text: template.slice(
+          from,
+          close,
+        ),
+      },);
+      from = close;
+      continue;
+    }
+    parts.push(
+      {
+        kind: 'text',
+        text: template.slice(
+          from,
+          first,
+        ),
+      },
+      {
+        kind: 'placeholder',
+        name: candidate,
+      },
+    );
+    from = close + 1;
+  }
+  return parts.filter(function carriesSomething(part,) {
+    return (part.kind === 'placeholder') || (part.text !== '');
+  },);
 }
 
 /**
@@ -94,31 +206,10 @@ export function placeholdersIn({ template, }: { readonly template: string },): r
    The names read so far, each once, in the order the template reads them.
    */
   const names = new Set<string>();
-  for (let index = template.indexOf('@',); index !== (-1);) {
-    /**
-     The at-sign that would close that placeholder.
-     */
-    const close = template.indexOf(
-      '@',
-      index + 1,
-    );
-    if (close === (-1)) {
-      break;
+  for (const part of partsOf({ template, },)) {
+    if (part.kind === 'placeholder') {
+      names.add(part.name,);
     }
-    /**
-     The text between the two at-signs.
-     */
-    const candidate = template.slice(
-      index + 1,
-      close,
-    );
-    if (isPlaceholderName(candidate,)) {
-      names.add(candidate,);
-    }
-    index = template.indexOf(
-      '@',
-      close + 1,
-    );
   }
   return [...names,];
 }
@@ -134,7 +225,7 @@ export function placeholdersIn({ template, }: { readonly template: string },): r
 
  @returns the filled text
 
- @throws TemplatePlaceholderError when a placeholder has no value, or one is still there after filling
+ @throws TemplatePlaceholderError when a placeholder the template carries has no value
 
  @example
  ```ts
@@ -154,76 +245,22 @@ export function filledTemplate({
    The pieces of the filled text, in the order the template gives them.
    */
   const pieces: string[] = [];
-  for (let from = 0; from < template.length;) {
-    /**
-     The first at-sign at or after where the reading stands.
-     */
-    const first = template.indexOf(
-      '@',
-      from,
-    );
-    /**
-     The at-sign that would close that placeholder, or minus one when none follows.
-     */
-    const close = (first === (-1))
-      ? (-1)
-      : template.indexOf(
-        '@',
-        first + 1,
-      );
-    if ((first === (-1)) || (close === (-1))) {
-      pieces.push(template.slice(from,),);
-      break;
-    }
-    /**
-     The text between the two at-signs.
-     */
-    const candidate = template.slice(
-      first + 1,
-      close,
-    );
-    if (!isPlaceholderName(candidate,)) {
-      pieces.push(template.slice(
-        from,
-        close,
-      ),);
-      from = close;
+  for (const part of partsOf({ template, },)) {
+    if (part.kind === 'text') {
+      pieces.push(part.text,);
       continue;
     }
     /**
      The value this placeholder was given.
      */
-    const value = values[candidate];
+    const value = values[part.name];
     if (value === undefined) {
       throw new TemplatePlaceholderError(
-        `${name} carries @${candidate}@, and no value fills it. It fills: ${Object.keys(values,)
+        `${name} carries @${part.name}@, and no value fills it. It fills: ${Object.keys(values,)
           .join(', ',)}.`,
       );
     }
-    pieces.push(
-      template.slice(
-        from,
-        first,
-      ),
-      value,
-    );
-    from = close + 1;
+    pieces.push(value,);
   }
-  /**
-   The filled text.
-   */
-  const filled = pieces.join('',);
-  /**
-   The placeholders still there, which a filled brief must not carry into a run.
-   */
-  const left = placeholdersIn({ template: filled, },);
-  if (left.length > 0) {
-    throw new TemplatePlaceholderError(
-      `${name} still carries ${left.map(function atSigns(placeholder,) {
-        return `@${placeholder}@`;
-      },)
-        .join(', ',)} after filling, so a run would read a placeholder as its task.`,
-    );
-  }
-  return filled;
+  return pieces.join('',);
 }
