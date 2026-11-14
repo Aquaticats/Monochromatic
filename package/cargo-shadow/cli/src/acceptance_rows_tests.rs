@@ -155,7 +155,7 @@ fn kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warn
     // The inventory after the runs: every kept name beside the target, the stranded temporary and the refused copy are still there.
     let names: Vec<String> = fs::read_dir(&crate_root).expect("lists").flatten().map(|entry| { return entry.file_name().to_string_lossy().to_string(); }).collect();
     assert_eq!(names.iter().filter(|name| { return name.starts_with("Cargo.lock.displaced."); }).count(), 400, "a name beside the target was deleted: {names:?}");
-    assert!(names.contains(&".Cargo.lock.shadow-abc.tmp".to_string()) && names.contains(&"Cargo.lock.refused".to_string()), "the stranded temporary or the refused copy was deleted: {names:?}");
+    assert!(names.iter().any(|name| { return name == ".Cargo.lock.shadow-abc.tmp"; }) && names.iter().any(|name| { return name == "Cargo.lock.refused"; }), "the stranded temporary or the refused copy was deleted: {names:?}");
     assert_eq!(fs::read_dir(&kept).expect("lists").count(), 600, "a central kept file was deleted");
 }
 

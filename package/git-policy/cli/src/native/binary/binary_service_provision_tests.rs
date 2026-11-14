@@ -317,7 +317,7 @@ pub(super) fn fake_bus_many_answering(runtime: &Path, refuse: bool, connections:
 
 /// A stand-in for the session bus for one wrapper connection:
 /// the methods it was asked for.
-fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn Fn() + Send>) -> std::thread::JoinHandle<Vec<String>> {
+pub(super) fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn Fn() + Send>) -> std::thread::JoinHandle<Vec<String>> {
     let many = fake_bus_many(runtime, refuse, 1, starter);
     return std::thread::spawn(move || { return many.join().expect("bus").into_iter().flatten().collect(); });
 }
@@ -405,7 +405,11 @@ fn the_first_commit_provisions_and_the_second_does_not() {
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "the marker names the writer");
         assert!(!text.contains("@SERVICE_BINARY@") && !text.contains("@GIT@"), "no placeholder is left");
     }
-    assert!(socket_unit.contains("ListenStream=%t/monochromatic-git-policy-cli/%i.sock"), "one socket per worktree instance");
+    let instance: String = git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
+    assert!(
+        socket_unit.contains(&format!("ListenStream={}", git_policy_cli::service_address_of_a_worktree::listen_stream_of(runtime.as_path(), instance.as_str()))),
+        "one socket per worktree instance, at the address this runtime directory takes: {socket_unit}"
+    );
     // The service runs the per-user link, never the release's own path, which is what keeps an upgrade from changing the text
     //  the manager holds.
     let link: PathBuf = program_link(runtime.as_path());

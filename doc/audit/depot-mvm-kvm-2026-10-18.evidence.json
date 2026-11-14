@@ -18308,7 +18308,19 @@
     "path": "depot-mvm-kvm-2026-10-18.archives.json.gz",
     "bytes": 181117,
     "sha256": "9ec38d2f8c3605e9400b0960a24d29196ad012c19f89fb9ce042c4b8e8d2a38f",
-    "count": 8
+    "count": 8,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show f86e1ee1da76ae8bd4a6a08a6fd30fac238e5265:doc/audit/depot-mvm-kvm-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "interpretation": {
     "allThreeComputeProvidersHavePassingActualGuestLifecycle": true,

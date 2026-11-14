@@ -1,0 +1,163 @@
+{
+  "purpose": "Measure the old git-policy commit parser against @optique/core versions.",
+  "parserSource": {
+    "repository": "Aquaticat/Monochromatic",
+    "migrationCommit": "4879a44e6a2460ab3c2531744e24a1f2aef27aeb",
+    "parentCommit": "1e53f52e02989b152576c0683f6f228b24c40140",
+    "migrationVersionUsed": "1.1.1",
+    "files": [
+      "package/git-policy/cli/src/parser/commit.ts",
+      "package/git-policy/cli/src/parser/commit-normalise.ts",
+      "package/git-policy/cli/src/parser/commit-flag-aliases.ts",
+      "package/git-policy/cli/src/escape-hatch.ts",
+      "package/git-policy/cli/src/abbrev.ts"
+    ]
+  },
+  "upstream": {
+    "issue988": "https://github.com/dahlia/optique/issues/988",
+    "issue989": "https://github.com/dahlia/optique/issues/989",
+    "issue990": "https://github.com/dahlia/optique/issues/990",
+    "issue991": "https://github.com/dahlia/optique/issues/991",
+    "pull992": "https://github.com/dahlia/optique/pull/992",
+    "pull997": "https://github.com/dahlia/optique/pull/997",
+    "pull997MergeCommit": "68b5edd17d0644f60aab8a6e30a4bc88c3594bf5",
+    "pull997OnlyCommit": "868a9d77139433608178eb3453bf9aaafccd0066",
+    "pull997BaseCommit": "6f25829653f"
+  },
+  "ownedParser": {
+    "description": "Baseline arm: the repository-owned parser that replaced Optique, no Optique at all.",
+    "commit": "4879a44e6a2460ab3c2531744e24a1f2aef27aeb",
+    "files": [
+      "package/git-policy/cli/src/parser/commit.ts",
+      "package/git-policy/cli/src/parser/argv.ts",
+      "package/git-policy/cli/src/parser/commit-normalise.ts",
+      "package/git-policy/cli/src/parser/commit-flag-aliases.ts",
+      "package/git-policy/cli/src/escape-hatch.ts",
+      "package/git-policy/cli/src/abbrev.ts"
+    ],
+    "runtimeDependency": {
+      "package": "valibot",
+      "version": "1.4.2",
+      "chosenBecause": "pnpm-lock.yaml resolves the catalog range at that commit to this version",
+      "tarballSha512": "sha512-gjdCvJ6d3RyHAneqxMYMW9QMCwYMb3jpOO0IyHZV1bnRHFBHrX3VkIILt5XYR0WhwHiH7Mty8ovuPZ/O3gamrg=="
+    }
+  },
+  "versions": [
+    {
+      "version": "1.1.1",
+      "tarballSha512": "sha512-tbZLdH5wEnh8IRG8KTmWPZCKHLmD4bXigoPdzoSUVi+V46qZTNEaTdqtR7EuEwhbPI0KQjLSYRZCxFTdr9OZkA==",
+      "tarballSha1": "dfedf03cee4dbdc11b7a99d83908ccd4ba403c1f",
+      "npmPublishedAt": "2026-06-29T03:54:20.536Z",
+      "jsrSourceCommit": null,
+      "shipped": {
+        "failureModule": false,
+        "createDeferredFailure": false,
+        "filesUsingIt": []
+      },
+      "installedPackageJsonVersion": "1.1.1"
+    },
+    {
+      "version": "1.3.1",
+      "tarballSha512": "sha512-X/6S9e8JLffpGHK+wCdcTgNCQlBTDpZirPfaQfVrckO8PlRxu12W8bbx/i164KZwttV6XDiToOTHzwK/YdAadg==",
+      "tarballSha1": "6534713d44b5976b1671bcb85cf87073bb2730d5",
+      "npmPublishedAt": "2026-09-26T13:43:03.762Z",
+      "jsrSourceCommit": null,
+      "shipped": {
+        "failureModule": false,
+        "createDeferredFailure": false,
+        "filesUsingIt": []
+      },
+      "installedPackageJsonVersion": "1.3.1"
+    },
+    {
+      "version": "1.3.2",
+      "tarballSha512": "sha512-YVdAuhx7l2UcnoeAsAuRgQ5LDGlixwQ6LuSmhiNPwZt29PU4rCkbTgo8P2o+OmF8MHKCJkaApYhKY6+QYhVWiw==",
+      "tarballSha1": "06428e71636cee49ae5315e573af1e81564974d6",
+      "npmPublishedAt": "2026-09-29T14:09:33.165Z",
+      "jsrSourceCommit": null,
+      "shipped": {
+        "failureModule": false,
+        "createDeferredFailure": false,
+        "filesUsingIt": []
+      },
+      "installedPackageJsonVersion": "1.3.2"
+    },
+    {
+      "version": "1.3.6",
+      "tarballSha512": "sha512-BXVuVyxP9bg8FbyvBYrSHisnAeG3XTf1xcuUjAWgDWKfzZssMGbSrMdiv4tA+BK3+CrSo6no+uHWpiHh4HMKeg==",
+      "tarballSha1": "ae4f2689aae56049cf0a86e606ac31c128b0a1eb",
+      "npmPublishedAt": "2026-10-14T19:21:37.169Z",
+      "jsrSourceCommit": null,
+      "shipped": {
+        "failureModule": false,
+        "createDeferredFailure": false,
+        "filesUsingIt": []
+      },
+      "installedPackageJsonVersion": "1.3.6"
+    },
+    {
+      "version": "1.4.0-dev.2664",
+      "tarballSha512": "sha512-TMxImAgqxRLsqAh9FrRk4+nYq1Xvu9O7cp1LJ6AvnibLnCnFE8QsTYvmMhEm+hQEsnLPDBsC8b7JmvuCVLLumw==",
+      "tarballSha1": "208b850a8b3abfd75fdb3cfef8e6c58bd2c524b7",
+      "npmPublishedAt": "2026-09-29T16:49:16.730Z",
+      "jsrSourceCommit": "6f258296",
+      "shipped": {
+        "failureModule": false,
+        "createDeferredFailure": false,
+        "filesUsingIt": []
+      },
+      "installedPackageJsonVersion": "1.4.0-dev.2664"
+    },
+    {
+      "version": "1.4.0-dev.2665",
+      "tarballSha512": "sha512-6+VWk6S6vpqU23qt9w2hwCyQpx7VcuuWyAtDNTWnoFxoy+ohgdp2BACvkW4IZlNxv1gUvOTXjywT6DeF4e2i9w==",
+      "tarballSha1": "1474b0de7a531d6bcd28dde65eec5b8d55a851e5",
+      "npmPublishedAt": "2026-09-30T01:47:08.398Z",
+      "jsrSourceCommit": "868a9d77",
+      "shipped": {
+        "failureModule": true,
+        "createDeferredFailure": true,
+        "filesUsingIt": [
+          "constructs.js",
+          "internal/failure.js",
+          "primitives.js"
+        ]
+      },
+      "installedPackageJsonVersion": "1.4.0-dev.2665"
+    },
+    {
+      "version": "1.4.0-dev.2667",
+      "tarballSha512": "sha512-krsFaj8dDbZYDiPInbu7raPD2AONHS0BHCKB3XI4BoiCEV3drDERZBQyMBGOYdwJCfvUojdDTnutUu8dvH1f0Q==",
+      "tarballSha1": "d77399b10f3f92dfa595bab1888d49787ca2a606",
+      "npmPublishedAt": "2026-09-30T02:06:47.223Z",
+      "jsrSourceCommit": "68b5edd1",
+      "shipped": {
+        "failureModule": true,
+        "createDeferredFailure": true,
+        "filesUsingIt": [
+          "constructs.js",
+          "internal/failure.js",
+          "primitives.js"
+        ]
+      },
+      "installedPackageJsonVersion": "1.4.0-dev.2667"
+    },
+    {
+      "version": "1.4.0-dev.2971",
+      "tarballSha512": "sha512-MHCYthy4Wr7OOaVXG73L9qp5wrNZocZnGdp3VXq5KyjqdjZQ2AzHZMqCADjjjchkmFuOk05W5CvJDalP/k+S1Q==",
+      "tarballSha1": "ffcc02177fe48e088373043a37db0364659d4597",
+      "npmPublishedAt": "2026-11-12T11:18:53.450Z",
+      "jsrSourceCommit": "1d6e4594",
+      "shipped": {
+        "failureModule": true,
+        "createDeferredFailure": true,
+        "filesUsingIt": [
+          "constructs.js",
+          "internal/failure.js",
+          "primitives.js"
+        ]
+      },
+      "installedPackageJsonVersion": "1.4.0-dev.2971"
+    }
+  ]
+}
