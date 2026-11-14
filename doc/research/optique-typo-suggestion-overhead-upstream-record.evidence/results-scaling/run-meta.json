@@ -1,0 +1,66 @@
+{
+  "image": "localhost/optique-measure:2026-11-12",
+  "imageId": "1d3ec42796786d2e6e60215392b449d2d5dbf6ad6b61e44d062b2f3b25f44ebf",
+  "startedAt": "2026-11-12T16:41:27.621Z",
+  "finishedAt": "2026-11-12T16:56:17.866Z",
+  "containerLimits": [
+    "--rm",
+    "--cpus",
+    "2",
+    "--memory",
+    "4g",
+    "--pids-limit",
+    "512",
+    "--blkio-weight",
+    "10"
+  ],
+  "experiments": [
+    {
+      "name": "scaling",
+      "script": "scripts/scaling-all.ts",
+      "arguments": []
+    },
+    {
+      "name": "separator-spread",
+      "script": "scripts/separator-all.ts",
+      "arguments": [
+        "--mode=spread",
+        "--rounds=6",
+        "--reps=8",
+        "--warmup=2",
+        "--timed=5"
+      ]
+    },
+    {
+      "name": "separator",
+      "script": "scripts/separator-all.ts",
+      "arguments": [
+        "--mode=matrix",
+        "--rounds=7",
+        "--warmup=2",
+        "--timed=5"
+      ]
+    },
+    {
+      "name": "profiles",
+      "script": "scripts/profile-run2.ts",
+      "arguments": []
+    },
+    {
+      "name": "search",
+      "script": "arms/0.7.0/bench/search-cost.ts",
+      "arguments": [],
+      "repeats": 3
+    },
+    {
+      "name": "token-probe",
+      "script": "scripts/scaling-token-probe.ts",
+      "arguments": []
+    },
+    {
+      "name": "profile-sizes",
+      "script": "scripts/profile-separator-sizes.ts",
+      "arguments": []
+    }
+  ]
+}
