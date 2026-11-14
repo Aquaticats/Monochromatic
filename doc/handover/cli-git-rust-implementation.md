@@ -1225,6 +1225,46 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The long runtime directory passes and goes into pass 42; the commit service without a manager still starts `systemctl` on every commit, back to its author (2026-11-14T11:55:27-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+and what the coordinating session queued.
+
+- **A commit is made when the runtime directory's path is too long for a socket** (`eafd1e9a24`),
+  third review:
+  "No concrete defect found."
+  Four end-to-end binary controls through a real wrapped commit pass
+  (the longest directory that still gives a path,
+  one byte past it,
+  a short one,
+  one spelled with `..`),
+  and it confirmed from systemd's source that the manager reports an abstract socket as `@<name>`.
+  Two things it names and does not count as defects:
+  the hand-out of a shadow is skipped for abstract addresses,
+  and `ask_to_retire` does not check the peer's account.
+  It did not run the gate container with a real manager.
+  **Integration pass 42** is queued first with this branch alone
+  (`~/temp/agent/pi-runs/integration-pass-42-with-the-commit-made-when-the-runtime-directory-path-is-too-long-for-a-socket-prompt.md`).
+- **The commit service needs no service manager** (`77f5d525e3`),
+  third review:
+  one reproduced with a recording stand-in:
+  every commit served by the release's own service still starts `systemctl --user stop` for three unit names,
+  since the retiring of earlier units is called before the early return.
+  Two by reading:
+  a claim's lock taken with no second look at which file the path names,
+  so two servers can each hold a claim;
+  and recovery before the acceptor with a start ceiling this branch shortened to 10 s,
+  so an upgrade with an open batch behind a foreign lock can fail the first commit while the service is alive.
+  The last has the same root as the first finding against issue 6293.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/commit-service-needs-no-service-manager-answers-its-third-review-of-2026-11-14-prompt.md`).
+- 22 Pi runs were going at 11:55:27;
+  the queue held 62 entries.
+  Passes 38 to 42 are five going or queued side by side,
+  each with one or a few branches;
+  each merges `main` again when another reaches it.
+
 ##### The landed removal's author answered; its answer goes to review (2026-11-14T11:45:34-05:00)
 
 Not final and not approved:
