@@ -1198,6 +1198,256 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.28` is installed and its first minutes are clean; the archive's kept files are in `main`; the credential scan widens to April (2026-11-14T10:45:14-05:00)
+
+Not final and not approved:
+what the coordinating session measured and merged,
+and what one review reports of itself.
+
+- **`0.6.1-alpha.28`**:
+  published at 10:34:55
+  (run 43610349286 of the publish workflow,
+  both Linux archives),
+  installed here from 10:36:00 to 10:36:09,
+  sample commit 1,636 ms.
+  The wrapper units' journal from 10:35:30 until 10:41:00:
+  215 lines,
+  no manager-wide reload,
+  no start failing at the EXEC step,
+  no service at its start limit,
+  three services saying `0.6.1-alpha.28` at their start.
+  Passes 38 and 39 were told at 10:36 that `main` holds pass 37.
+  The next release is `0.6.1-alpha.29`.
+- **The archive's kept files** (`a43768a87d`):
+  the branch's reviewer,
+  resumed,
+  checked the author's answer with its own scripts and found no defect in seven checks
+  (79 added files against the archive member by digest,
+  77 identical and two equal as parsed JSON;
+  239 kept rows against 239 tree files in both directions;
+  its own scan for non-text,
+  large files,
+  home paths and credentials finding none;
+  the records rendering).
+  It says of `agent-final-report.md` that it is the agent's own closing narrative and none of the four kinds the sentence names,
+  so the file stays in history alone,
+  listed.
+  Merged as `32ddfffc09` at 10:45:07;
+  the handover was not changed by the merge.
+- **The credential scan, wider and not finished**
+  (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/wider-scan-of-pi-sessions-and-claude-code-transcripts-with-values-from-every-source.txt`):
+  every `.jsonl` under Pi's sessions folder,
+  3,775 files and 6,046 MiB,
+  so the runs still going are in it;
+  values from `.env.local.json`,
+  Pi's `models.json`,
+  `auth.json` and `mcp-auth.json`,
+  and the `gh` token.
+  **23 Pi session files hold a value that is still current**,
+  the oldest from 2026-04-28,
+  most of them not started by this session.
+  Beyond the first scan's names:
+  three provider keys of `auth.json` in the session of 2026-11-09,
+  the `models.json` key in two sessions of September and October,
+  `HCLOUD_TOKEN` in a session of 2026-08-03,
+  `MISE_GITHUB_TOKEN` in at least ten sessions since June.
+  Some `mcp-auth.json` hits are the matcher's own mistake
+  (OAuth metadata strings read as credentials)
+  and are to be taken out before any list is given.
+  No Pi session holds this machine's sops age key
+  (`scan-for-the-sops-age-secret-key.txt`).
+  The Claude Code transcripts of this repository are still being read by both scans;
+  fourteen held a hit at 10:45:14,
+  not yet sorted from the false ones.
+- The owner's three answers of 10:38:24 are under "Owner decisions in force".
+
+##### Real credentials reached model providers in six Pi sessions; pass 37 is in `main` and `0.6.1-alpha.28` is dispatched (2026-11-14T10:31:58-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+merged and queued,
+and what four runs report of themselves.
+
+###### Credentials shown to model providers
+
+- **How it was found**:
+  integration pass 37 said in its own report that a `mise env` it ran through `head` put environment lines into a tool result.
+  A tool result is sent whole to the run's model provider.
+- **What was measured**:
+  a scan of the 1,837 Pi sessions that the run folders under `~/temp/agent/pi-runs` name,
+  for the real values of the 35 names `.env.local.json` declares,
+  by exact match
+  (the values were read inside the scanning process and never printed;
+  `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/scan-for-real-values-by-exact-match.txt` holds names,
+  runs,
+  counts and times alone).
+  The session of pass 37 is the scan's positive control:
+  it is found.
+- **Result**:
+  real values of 30 of the 35 names,
+  in six sessions,
+  each in a tool result.
+  - `mpm-shadow-install-removes-no-version-that-a-lock-names-or-a-process-runs-1`,
+    2026-11-14T01:08:25-05:00,
+    provider `neuralwatt`:
+    29 names in one result,
+    from `mise env --json 2>/dev/null | head -40`.
+    Among them `MISE_GITHUB_TOKEN`,
+    `HCLOUD_TOKEN` and the keys of every model and search provider the file declares.
+  - `integration-pass-37-…-1`,
+    2026-11-14T09:11:15-05:00,
+    `neuralwatt`:
+    `AUTO_MODE_LIQUID_API_KEY`,
+    from `mise env 2>&1 | head -3`.
+  - `tokio-step-t12` (2026-11-08),
+    `wrapper-small-robustness-items-1` (2026-11-08) and `wrapper-issues-655-1135-1` (2026-11-10),
+    all `neuralwatt`:
+    `MISE_GITHUB_TOKEN`,
+    from `/proc/<pid>/environ` and `env` filtered for the word `MISE`,
+    and from printing lines of `~/.bashrc`,
+    which holds that token in clear.
+  - `wg-quicker-model-providers-off-the-tunnel-1` (2026-11-09),
+    provider `opencode-go`:
+    `TRANSLATION_REPAIR_SYNTHETIC_API_KEY` and `LLMGATEWAY_DEVPASS_API_KEY`,
+    from printing `~/.pi/agent/models.json`,
+    which holds keys in clear.
+- **Outside the scan**:
+  sessions of other harnesses (Claude Code and its subagents),
+  Pi sessions no run folder names,
+  credentials that `.env.local.json` does not declare,
+  and a value a command transformed before printing.
+  The six session files hold the values in clear on this machine.
+- **Done by this session**:
+  the rules file names `mise env`,
+  `sops --decrypt` and the credential-holding files beside `env` and `printenv`
+  (`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`);
+  the 23 going runs got a note at 10:31:58
+  (`~/temp/agent/notes-to-send/note-for-every-going-run-that-mise-env-prints-credentials-to-the-model-provider-2026-11-14T1032.md`);
+  a fresh driver run is queued first so that a tool result is masked before it reaches a model
+  (`~/temp/agent/pi-runs/value-of-the-secret-environment-never-reaches-a-pi-run-model-prompt.md`).
+  A rule in a file did not hold six times,
+  so the rule is not the fix.
+- **The owner's**:
+  rotating the credentials,
+  and whether runs go on before the masking is in.
+  Asked through the question tool at this time.
+
+###### Passes and routed runs
+
+- **Pass 37** (tip `93d99d1b6c`:
+  passes 33,
+  35 and 36 together)
+  reported fit at 10:23:37:
+  no conflict,
+  build,
+  both test compiles,
+  Clippy and the release build green,
+  every control of the three passes passing at 600% and at four CPUs,
+  a commit of one changed file at a ratio of 3.82 to 6.99 to real Git within a round
+  (21.5 to 36.2 ms over 4.3 to 10.4 ms),
+  eight of the twelve library tests red on `main` still red.
+  `main` held nothing of the wrapper's crate that the tip lacked
+  (the fuzz sidecar's merge alone),
+  so it was merged as `0f57509d36` at 10:27:04.
+  The sidecar's type check on `main` after it ended with status 0 at 10:27:29.
+  `0.6.1-alpha.28` was dispatched at 10:27:16
+  (run 43610258560).
+- **Things pass 37 names and leaves**:
+  the push trigger declines a merge on a branch with no upstream and says nothing
+  (pass 36 recorded the same);
+  one composed sentence where two passes' words meet reads awkwardly;
+  a module comment in `lock/index_holder_wait.rs` still describes a merge that waits;
+  two arms in `merge/merge_isolation_apply.rs` cannot be reached any more.
+- **Discarding commands** (`588ed1a936`),
+  fourth review:
+  five reproduced and one by reading.
+  With default settings:
+  a clean with one force deletes an ignored bare nested repository with no save;
+  a revision named like the pathspec file makes a forced checkout write over an untracked file;
+  `checkout-index --prefix <value>` is refused for a path Git never writes.
+  With `require-root: off`:
+  two paths measured from the wrong folder.
+  By reading:
+  a pathspec file read with no bound on size.
+  The author is resumed second and asked first to say what in the design lets a new form slip by at each review
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **Push of a branch that is not checked out** (`c15fc5a7b1`),
+  fourth review:
+  two reproduced
+  (a published merge the remote moved past is reported as rejected;
+  that path never moves the branch or says where it is),
+  one sequence by reading with its consequence shown by a run
+  (the move of a reference alone writes no record of intent,
+  so a kill leaves a checkout no recovery repairs),
+  two narrow races in the report's words by reading.
+  The author is resumed third
+  (`~/temp/agent/pi-runs/push-of-a-branch-not-checked-out-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (tip `30257b681f`):
+  the author reports the review's findings answered
+  (749 tests passing on the merged tree,
+  nine system calls more on an install with nothing to do).
+  Review queued fourth (range `main...30257b681f`).
+- The queue held 57 entries at 10:31:58;
+  23 Pi runs were going.
+
+##### The main checkout holds no run's files again; the fuzz sidecar is in `main` and type-checks there; the merge that ends saved goes back (2026-11-14T10:23:19-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+merged and queued,
+and what three runs report of themselves.
+
+- **The stray driver files are gone from the main checkout.**
+  The run that wrote them reported at 10:21:02 that its worktree holds all of it
+  (`keep/my-work-is-in-my-worktree.txt` in its scratch folder lists the four changed and twenty new files there).
+  This session then put the main checkout's four tracked files back with `git checkout --no-enforce-worktree HEAD -- <paths>`;
+  at 10:21:28 `git status --short -- package/pi-shared` listed nothing,
+  and at 10:23:19 the whole checkout listed the six files of other sessions it held when this session began.
+  The copy of 10:10:18 stays in `~/temp/agent/stray-edits-of-two-pi-runs-in-the-main-checkout-2026-11-14/keep/` until that run's branch has its review.
+- **The fuzz sidecar** (`ea4ef7e019`):
+  its review found no defect against its requirements
+  (type check and Clippy passed;
+  46 generator controls;
+  21,681 fuzz runs with no crash and no timeout;
+  40 checks through the built wrapper on disposable repositories).
+  Merged as `51f46895a5` at 10:22:21.
+  `main` held a release commit under the sidecar's folder that the tip lacked,
+  so the type check was run on `main` after the merge:
+  `mise run //package/git-policy/cli.fuzz:lint:types` ended with status 0 at 10:22:45 against the wrapper at `0.6.1-alpha.27`
+  (`~/temp/agent/fuzz-sidecar-type-check-on-main-after-its-merge-2026-11-14T1022/keep/lint-types-on-main-at-51f46895a5.log`).
+  The red type check measured at 01:46 is closed by this.
+  The review's one lesser finding goes to the author,
+  resumed fourth in the queue:
+  the nine older seeds no longer spell their scenario in the frontier's raw view since the mode became two bytes
+  (`~/temp/agent/pi-runs/fuzz-sidecar-seeds-keep-their-spelling-under-the-two-byte-mode-prompt.md`).
+- **The merge that ends saved** (`ce51914d2a`):
+  two reproduced,
+  neither losing bytes.
+  When the merge cannot be kept on a side reference after the clear,
+  the ending is status 2 with the words "Nothing was changed",
+  although the clear has written over the person's edit;
+  and when another session commits while the merge is paused,
+  the save line says the branch has not moved and the next command finishes the checkout,
+  where the next command in fact gives the merge up to its side reference.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/merge-ends-saved-answers-its-review-of-2026-11-14-prompt.md`).
+- **The lock a killed Git left** (tip `2ac27d2a29`, ended 10:17:20):
+  the author reports the review's findings answered,
+  the changed modules' tests passing at four CPUs
+  (28 of 28 new and changed controls,
+  392 of 392 `lock::` tests,
+  17 of 17 binary controls),
+  and a cost within the spread
+  (`git add` at a ratio of 1.020 and `git status` at 1.026 to the commit before,
+  twenty interleaved rounds).
+  It names one thing left alone:
+  a sweep landing between a command's two file writes can lose a clearance,
+  never cause a wrong clear.
+  Review queued third (range `main...2ac27d2a29`).
+- Going at 10:23:19:
+  twenty-one Pi runs.
+  The queue held 57 entries.
+
 ##### The landed removal's guard is switched off by another flag, reproduced; back to its author (2026-11-14T10:13:49-05:00)
 
 Not final and not approved:
@@ -26209,6 +26459,36 @@ The reading stands in `package/crate-release/cli/README.md` ("What an alpha rele
 and `package/git-policy/cli/README.md` ("Development"),
 with those quotes and dates,
 so he can veto it.
+
+### Answers on the credentials Pi runs showed their model providers (2026-11-14, answered by 10:38:24-05:00)
+
+Asked through the question tool with what was measured by then
+(real values of 30 of the 35 names of `.env.local.json` in six Pi sessions,
+stated as a lower bound while a wider scan ran).
+
+- **When the owner rotates**:
+  "All after masking".
+  One rotation,
+  once the fix that masks credential values before a tool result reaches a model is merged and shown to hold.
+  This session tells the owner when that is so,
+  through the question tool,
+  with what the fix was shown to hold against.
+- **Whether runs keep starting meanwhile**:
+  "Keep starting (Recommended)".
+  The queue goes on filling at the cap.
+- **The six session files that hold the values in clear**:
+  "Leave until rotated (Recommended)".
+  Nothing in them is touched,
+  and no resume of those six sessions is started until the owner says the values are rotated:
+  `mpm-shadow-install-removes-no-version-that-a-lock-names-or-a-process-runs-1`,
+  `integration-pass-37-with-three-passes-that-each-reported-fit-brought-together-1`,
+  `tokio-step-t12` (both run folders name one session),
+  `wrapper-small-robustness-items-1`,
+  `wrapper-issues-655-1135-1`,
+  `wg-quicker-model-providers-off-the-tunnel-1`,
+  and any session the wider scan adds.
+  An author among them whose branch needs more work gets a fresh run with its report and review as files to read,
+  never a resume.
 
 ### Answers on the owner's return (2026-11-14, answered by 08:54:33-05:00)
 
