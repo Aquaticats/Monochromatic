@@ -23,6 +23,22 @@
 //!  so a lock a Git this repository's commands never started is never cleared on it.
 //!  The record is litter as soon as the lock it pinned is gone,
 //!  and the sweep a command runs removes it then (`sweep`).
+//!  A record's two file names carry the very file they describe,
+//!  the lock's path **and** its device and inode,
+//!  and never the path alone
+//!  (a review of `f8f5cba090`,
+//! finding 1):
+//!  two commands of one repository take the same lock path one after the other,
+//!  so a name built from the path alone is shared by records of different locks,
+//!  and a remover that decided on that name would take away a record a concurrent command had just written for
+//!  its own lock.
+//!  With the file in the name,
+//!  a remover takes away exactly the records of the lock instance it is about,
+//!  and no run of another command can be holding that instance:
+//!  the pin keeps its inode out of every later file at that path,
+//!  so a later lock there is a different file with a different name.
+//!  Nothing here decides on a name two commands can share,
+//!  so nothing here needs a check between a look and a removal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -101,20 +117,65 @@ pub fn folder_of(common_dir: &Path) -> PathBuf {
 
 /// What:
 ///  The name one lock's record and its pin carry:
-///  the digest of the path's own bytes.
+///  the digest of the path's bytes and of the device and inode of the file standing at that path.
 /// Why:
 ///   A path can hold a newline and a space,
-///  so the name is not built from the path itself;
+///  so the name is not built from the path itself,
 ///  and a digest compares whole texts by their bytes,
-///  so two different paths never share a name.
+///  so two different locks never share a name.
+///  The file is in the name because the path alone is shared:
+///  one command's Git renames its lock over its target and the next command's Git takes the same path
+///  microseconds later,
+///  so a name of the path alone would be one name for two locks,
+///  and the command that finished its own would have no way to take away only its own record
+///  (a review of `f8f5cba090`,
+/// finding 1).
+///  The name is computed from a file the caller has already looked at,
+///  never from a fresh look at the path:
+///  a fresh look can only say what stands there now,
+///  which is the fact a remover must not act on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// digestOfBytes(Buffer.from(lockPath)) // '3f9a…'
+/// digestOfBytes(Buffer.concat([Buffer.from(lockPath), Buffer.from([0]), u64le(dev), u64le(ino)])) // '3f9a…'
 /// ```
-pub(crate) fn name_of(lock: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
-    return digest_of_bytes(lock.as_os_str().as_bytes());
+pub fn name_of(lock: &Path, file: (u64, u64)) -> String {
+    use std::os::unix::ffi::OsStrExt as _;
+    let mut bytes: Vec<u8> = lock.as_os_str().as_bytes().to_vec();
+    // The separator and the fixed width of the two numbers keep two different locks off one name.
+    bytes.push(0);
+    bytes.extend_from_slice(&file.0.to_le_bytes());
+    bytes.extend_from_slice(&file.1.to_le_bytes());
+    return digest_of_bytes(bytes.as_slice());
+}
+
+/// What:
+///  One record a command wrote:
+///  the lock's path and the identity of the very file it pinned.
+/// Why:
+///   This is the whole of what taking the record away needs,
+///  and it is worked out before the lock can be renamed away or killed,
+///  so a remover never has to ask the path what it held.
+///  A command holds these for the locks its own Git took,
+///  and only for those.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Written = { lock: string; file: [device, inode] };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Written {
+    /// The path the lock was taken at.
+    pub lock: PathBuf,
+    /// The device and inode of the file that path held when the record was written.
+    pub file: (u64, u64),
+}
+
+impl Written {
+    /// The name the two files of this record carry.
+    pub fn name(&self) -> String {
+        return name_of(self.lock.as_path(), self.file);
+    }
 }
 
 /// What:
@@ -225,24 +286,42 @@ pub fn parse(text: &str) -> Option<Binding> {
 ///  A link cannot be made when the lock is gone or on another file system,
 ///  and then no record is written:
 ///  the lock keeps the bounded wait and report it has today.
+///  Every file this writes is named for the lock's path **and** the identity of the file the caller found
+///  there,
+///  so the two files of one removal are never the two of another command's lock.
+///  The link is made first and the record published after it,
+///  so a reader meets either no record, or a record with its pin.
+///  The pin is looked at once more before the record is published:
+///  a lock renamed away and made again at the same path between the caller's look and the link leaves a pin
+///  for another file,
+///  and then nothing is written at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// linkSync(lock, pin); writeFileSync(holderTemp, text); renameSync(holderTemp, holder);
+/// linkSync(lock, pin); if (statSync(pin).ino !== file.ino) return undefined; renameSync(holderTemp, holder);
 /// ```
-pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<()> {
+pub fn write(common_dir: &Path, lock: &Path, file: (u64, u64), holder: &(i64, String)) -> Option<Written> {
     let folder: PathBuf = folder_of(common_dir);
     std::fs::create_dir_all(folder.as_path()).ok()?;
-    let name: String = name_of(lock);
+    let name: String = name_of(lock, file);
     let pin: PathBuf = folder.join(format!("{name}{PIN_SUFFIX}"));
     let record: PathBuf = folder.join(format!("{name}{HOLDER_SUFFIX}"));
-    // The record of an earlier lock at this path goes first: a reader between these steps finds no record and keeps the lock.
+    // These two names belong to the very file the caller looked at, and the pin keeps that inode out of every later
+    //  file at this path, so no other command writes them. A file of a killed run of this very instance, or a planted
+    //  one, goes first.
     let _removed_record = std::fs::remove_file(record.as_path());
     let _removed_pin = std::fs::remove_file(pin.as_path());
     std::fs::hard_link(lock, pin.as_path()).ok()?;
+    let linked: LockMetadata = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok()??;
+    if (linked.device, linked.inode) != file {
+        let _removed_record = std::fs::remove_file(record.as_path());
+        let _removed_pin = std::fs::remove_file(pin.as_path());
+        return None;
+    }
     let temporary: PathBuf = folder.join(format!("{name}{HOLDER_SUFFIX}.writing"));
     std::fs::write(temporary.as_path(), text_of(lock, holder).as_bytes()).ok()?;
-    return std::fs::rename(temporary.as_path(), record.as_path()).ok();
+    std::fs::rename(temporary.as_path(), record.as_path()).ok()?;
+    return Some(Written { lock: lock.to_path_buf(), file });
 }
 
 /// What:
@@ -259,7 +338,10 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<(
 /// ```
 pub fn of(common_dir: &Path, lock: &Path) -> Option<Binding> {
     let folder: PathBuf = folder_of(common_dir);
-    let name: String = name_of(lock);
+    let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
+        return None;
+    };
+    let name: String = name_of(lock, (standing.device, standing.inode));
     let record: PathBuf = folder.join(format!("{name}{HOLDER_SUFFIX}"));
     let bytes: Vec<u8> = read_plain_file(record.as_path(), BINDING_LIMIT).ok()?;
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
@@ -269,7 +351,6 @@ pub fn of(common_dir: &Path, lock: &Path) -> Option<Binding> {
     }
     let pin: PathBuf = folder.join(format!("{name}{PIN_SUFFIX}"));
     let pinned: LockMetadata = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok()??;
-    let standing: LockMetadata = crate::index_lock_evidence::read_lock_metadata(lock).ok()??;
     if pinned.device != standing.device || pinned.inode != standing.inode {
         return None;
     }
@@ -277,20 +358,64 @@ pub fn of(common_dir: &Path, lock: &Path) -> Option<Binding> {
 }
 
 /// What:
-///  Remove the record of the lock at `lock` and its pin.
+///  Remove the record `written` describes and its pin.
 /// Why:
 ///  A lock that was cleared needs no record,
-/// and the pin it leaves holds the inode of a file nothing names.
+///  and the pin it leaves holds the inode of a file nothing names.
+///  The name is the one the writer worked out from the file it pinned,
+///  so this takes away that record and no other:
+///  a command finishing its own lock never removes a record another command wrote,
+///  whatever the path holds by then
+///  (a review of `f8f5cba090`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// unlink(record); unlink(pin)
+/// unlink(recordName(written)); unlink(pinName(written))
 /// ```
-pub fn remove(common_dir: &Path, lock: &Path) {
-    let folder: PathBuf = folder_of(common_dir);
-    let name: String = name_of(lock);
+pub fn remove(common_dir: &Path, written: &Written) {
+    remove_named(folder_of(common_dir).as_path(), written.name().as_str());
+}
+
+/// What:
+///  Remove one record's two files by the name they carry.
+/// Why:
+///  The sweep decides on a record it has read and names it by its own file name,
+///  and the removal of a record is the same two unlinks either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unlink(join(folder, `${name}.holder`)); unlink(join(folder, `${name}.pin`))
+/// ```
+fn remove_named(folder: &Path, name: &str) {
     let _removed_record = std::fs::remove_file(folder.join(format!("{name}{HOLDER_SUFFIX}")).as_path());
     let _removed_pin = std::fs::remove_file(folder.join(format!("{name}{PIN_SUFFIX}")).as_path());
+}
+
+/// What:
+///  Whether the pin of `written` still holds the file standing at the path `written` names.
+/// Why:
+///   A record is kept exactly as long as its own lock stands:
+///  a pin that names the file at the path describes a lock that is still there,
+///  and one that does not describes a lock its Git finished, rolled back or lost.
+///  The question is about this record's name only,
+///  so a concurrent command's lock at the same path cannot change the answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// statSync(pinOf(written)).ino === statSync(written.lock).ino
+/// ```
+pub fn pin_holds_the_lock(common_dir: &Path, written: &Written) -> bool {
+    let folder: PathBuf = folder_of(common_dir);
+    let name: String = written.name();
+    let pin: PathBuf = folder.join(format!("{name}{PIN_SUFFIX}"));
+    let Ok(Some(pinned)) = crate::index_lock_evidence::read_lock_metadata(pin.as_path()) else {
+        return false;
+    };
+    let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(written.lock.as_path()) else {
+        return false;
+    };
+    return pinned.device == standing.device && pinned.inode == standing.inode;
 }
 
 /// What:
@@ -326,15 +451,19 @@ pub fn sweep(common_dir: &Path) {
     }
     let mut kept: Vec<String> = Vec::new();
     for record in records {
+        let name: String = record.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let stem: &str = name.strip_suffix(HOLDER_SUFFIX).unwrap_or(name.as_str());
         let explained: bool = matches!(read_plain_file(record.as_path(), BINDING_LIMIT), Ok(bytes) if {
             let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
-            matches!(parse(text.as_ref()), Some(bound) if pin_still_names(&folder, &bound))
+            // The removal acts on the very name this record carries, so a record another command wrote after this look
+            //  has a name of its own and is never it.
+            matches!(parse(text.as_ref()), Some(bound) if pin_still_names(folder.as_path(), stem, &bound))
         });
         if explained {
-            kept.push(record.file_name().unwrap_or_default().to_string_lossy().into_owned());
+            kept.push(name);
             continue;
         }
-        let _removed = std::fs::remove_file(record.as_path());
+        remove_named(folder.as_path(), stem);
     }
     for pin in pins {
         let name: std::borrow::Cow<'_, str> = pin.file_name().unwrap_or_default().to_string_lossy();
@@ -346,18 +475,23 @@ pub fn sweep(common_dir: &Path) {
 }
 
 /// What:
-///  Whether the pin of `bound` still holds the file at the path the record names.
+///  Whether the pin carrying `name` still holds the file at the path the record `bound` names.
 /// Why:
 ///   The sweep asks it of a record it has not judged,
 ///  and a lock that was renamed over its target,
 ///  cleared or replaced leaves a pin that names no file at that path.
+///  The name is the record's own,
+///  read from the file the sweep opened and never worked out again from the path:
+///  a look at the path again would answer about whatever stands there now,
+///  which is the fact that makes a remover act on a record it does not own
+///  (a review of `f8f5cba090`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// statSync(pin).ino === statSync(record.lock).ino
+/// statSync(pinOf(name)).ino === statSync(record.lock).ino
 /// ```
-fn pin_still_names(folder: &Path, bound: &Binding) -> bool {
-    let name: String = name_of(bound.lock.as_path());
+fn pin_still_names(folder: &Path, name: &str, bound: &Binding) -> bool {
     let pin: PathBuf = folder.join(format!("{name}{PIN_SUFFIX}"));
     let Ok(Some(pinned)) = crate::index_lock_evidence::read_lock_metadata(pin.as_path()) else {
         return false;

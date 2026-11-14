@@ -30,8 +30,9 @@
 //! const watch = Watch.over(roots); watch.follow(child.pid); await waitAndBind(child, watch, commonDir, identity);
 //! ```
 
-/// The record written beside a lock a command's Git took.
-use crate::lock_bindings;
+/// The record written beside a lock a command's Git took,
+/// and the identity of the file it pinned.
+use crate::lock_bindings::{self, Written};
 /// The name a lock's PID file has.
 use crate::stale_ref_lock_walk::pid_file_beside;
 /// The process number a Git PID file names.
@@ -63,6 +64,18 @@ const MOST_NAMES: usize = 1024;
 
 /// The most locks one run writes a record for.
 const MOST_LOCKS: usize = 32;
+
+/// The instant a command's Git has ended and the command is about to take away the record of a lock that no longer
+/// stands,
+/// after it decided that this lock is gone.
+/// Why:
+///   A control states the interleaving the removal must survive:
+///  a command that finished its own lock takes its record away while another command's Git takes the same path and
+///  writes its own,
+///  and the record of that other lock must stay.
+///  Named here so both halves of the promise reach one point,
+/// and inert unless the test variable or a control names it.
+pub const A_FINISHED_CHILD_FORGETS: &str = "a-finished-child-forgets";
 
 /// What:
 ///  The directories one repository's Git runs are watched in,
@@ -593,7 +606,7 @@ pub fn wait_and_bind(
 ) -> std::io::Result<std::process::ExitStatus> {
     watch.follow(child.id());
     let mut tracker: Tracker = Tracker::new();
-    let mut bound: Vec<PathBuf> = Vec::new();
+    let mut bound: Vec<Written> = Vec::new();
     let child_pid: i64 = i64::from(child.id());
     loop {
         if let Some(status) = child.try_wait()? {
@@ -611,19 +624,30 @@ pub fn wait_and_bind(
 ///  Write a record for every lock the tracker now reports and this run has not recorded.
 /// Why:
 ///  A record that cannot be written leaves the lock to the wait it has today,
-///  and a lock already recorded is not written twice.
+///  and the record of a lock that is written once is not written again on every look.
+///  What is remembered is the file the record pinned, not the path it was taken at:
+///  one Git can take the same lock path twice,
+///  renaming the first over its target and taking the path again,
+///  and the second lock is a different file whose record the pass needs
+///  (`a_child_that_takes_the_same_lock_again_is_recorded_again`).
+///  A path alone would tell the second take from the first and skip it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const lock of tracker.locksTaken(pid)) if (!written.includes(lock)) writeBinding(lock)
+/// for (const lock of tracker.locksTaken(pid)) if (!written.some(w => w.name === nameOf(lock))) writeBinding(lock)
 /// ```
-fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64, identity: &str, written: &mut Vec<PathBuf>) {
+fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64, identity: &str, written: &mut Vec<Written>) {
     for lock in tracker.locks_taken(child_pid) {
-        if written.contains(&lock) {
+        let Ok(Some(file)) = crate::index_lock_evidence::read_lock_metadata(lock.as_path()) else {
+            continue;
+        };
+        let name: String = lock_bindings::name_of(lock.as_path(), (file.device, file.inode));
+        if written.iter().any(|held| { return held.name() == name; }) {
             continue;
         }
-        written.push(lock.clone());
-        let _written = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned()));
+        if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), (file.device, file.inode), &(child_pid, identity.to_owned())) {
+            written.push(recorded);
+        }
     }
 }
 
@@ -635,16 +659,30 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
 ///  and this command is the one that knows the child finished:
 ///  leaving it to the next command's sweep writes a file every index writer would then read and remove.
 ///  A lock that still stands as the pin does is the killed child's and keeps its record.
+///  What goes is the two files of the very record this child's run wrote,
+///  named by this child's lock path and the file it took,
+///  and never the files a look at the path would find now:
+///  another command's Git can take that path the instant this child's lock is renamed away,
+///  and a removal that decided on the path would take away the record of that other lock and leave a lock whose
+///  proof is gone
+///  (a review of `f8f5cba090`,
+/// finding 1).
+///  The name this child's run worked out cannot belong to that other lock:
+///  the pin still holds this child's inode,
+///  so the file that took the path afterwards is a different file with a different name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const lock of bound) if (!bindingOf(commonDir, lock)) removeBinding(commonDir, lock);
+/// for (const written of bound) if (!pinHoldsTheLock(written)) removeBinding(written);
 /// ```
-fn forget_what_the_child_finished(common_dir: &Path, bound: &[PathBuf]) {
-    for lock in bound {
-        if crate::lock_bindings::of(common_dir, lock.as_path()).is_none() {
-            crate::lock_bindings::remove(common_dir, lock.as_path());
+fn forget_what_the_child_finished(common_dir: &Path, bound: &[Written]) {
+    for written in bound {
+        if lock_bindings::pin_holds_the_lock(common_dir, written) {
+            continue;
         }
+        // A control reaches here to act as a command whose Git takes the freed name at this instant.
+        crate::service_fault::reach(A_FINISHED_CHILD_FORGETS);
+        lock_bindings::remove(common_dir, written);
     }
 }
 

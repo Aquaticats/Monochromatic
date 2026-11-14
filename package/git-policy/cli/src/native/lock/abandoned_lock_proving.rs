@@ -300,8 +300,10 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
     }
-    // The record of this lock goes with it, and so does the pin that held its inode.
-    crate::lock_bindings::remove(common_dir, lock);
+    // The record of this lock goes with it, and so does the pin that held its inode. The two are named by the file
+    //  that was judged, not by what the path holds now.
+    let recorded: crate::lock_bindings::Written = crate::lock_bindings::Written { lock: lock.to_path_buf(), file: (judged.device, judged.inode) };
+    crate::lock_bindings::remove(common_dir, &recorded);
     // The lease, where this platform offers one, is released only now: both names are gone.
     drop(proof);
     return Some(Clearance { lock: lock.to_path_buf(), pid, evidence });

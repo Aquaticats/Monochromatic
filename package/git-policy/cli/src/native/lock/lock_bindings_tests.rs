@@ -16,7 +16,7 @@
 //! writeBinding({...}); expect(bindingOf(commonDir, lock)).toEqual({...});
 //! ```
 
-use crate::lock_bindings::{Binding, folder_of, of, parse, remove, sweep, text_of, write};
+use crate::lock_bindings::{Binding, Written, folder_of, name_of, of, parse, remove, sweep, text_of, write};
 use crate::test_support::{fixture, remove as remove_fixture};
 use std::path::{Path, PathBuf};
 
@@ -37,6 +37,22 @@ fn a_lock(name: &str, lock_name: &str) -> (PathBuf, PathBuf) {
     let lock: PathBuf = common_dir.join(lock_name);
     std::fs::write(lock.as_path(), b"a half-written copy of the index\n").expect("the lock");
     return (common_dir, lock);
+}
+
+/// What:
+///  The device and inode of the file at `path`,
+///  which is what a record's name carries.
+/// Why:
+///  A control names the record it wrote the way the writer did,
+/// and a removal that names anything else takes away another record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = statSync(path); [file.dev, file.ino]
+/// ```
+fn file_of(path: &Path) -> (u64, u64) {
+    let seen = crate::index_lock_evidence::read_lock_metadata(path).expect("the file's identity").expect("the file stands");
+    return (seen.device, seen.inode);
 }
 
 /// What:
@@ -68,7 +84,7 @@ fn an_identity() -> String {
 fn a_record_reads_back_as_the_lock_it_names() {
     let (common_dir, lock) = a_lock("binding-round-trip", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert_eq!(write(common_dir.as_path(), lock.as_path(), &holder), Some(()), "a lock that stands can be pinned");
+    assert!(write(common_dir.as_path(), lock.as_path(), file_of(lock.as_path()), &holder).is_some(), "a lock that stands can be pinned");
     let read: Binding = of(common_dir.as_path(), lock.as_path()).expect("the record written a moment ago");
     assert_eq!(read.lock, lock);
     assert_eq!(read.pid, 42);
@@ -92,7 +108,7 @@ fn a_record_reads_back_as_the_lock_it_names() {
 fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
     let (common_dir, lock) = a_lock("binding-replaced", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert_eq!(write(common_dir.as_path(), lock.as_path(), &holder), Some(()));
+    assert!(write(common_dir.as_path(), lock.as_path(), file_of(lock.as_path()), &holder).is_some());
     std::fs::remove_file(lock.as_path()).expect("the lock goes");
     std::fs::write(lock.as_path(), b"another Git's lock\n").expect("a later lock");
     assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record describes the file it pinned and no other");
@@ -114,8 +130,8 @@ fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
 fn a_record_without_its_pin_describes_nothing() {
     let (common_dir, lock) = a_lock("binding-pin-gone", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert_eq!(write(common_dir.as_path(), lock.as_path(), &holder), Some(()));
-    let name: String = crate::lock_bindings::name_of(lock.as_path());
+    assert!(write(common_dir.as_path(), lock.as_path(), file_of(lock.as_path()), &holder).is_some());
+    let name: String = name_of(lock.as_path(), file_of(lock.as_path()));
     let pin: PathBuf = folder_of(common_dir.as_path()).join(format!("{name}.pin"));
     std::fs::remove_file(pin.as_path()).expect("the pin goes");
     assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record without its pin proves nothing");
@@ -186,13 +202,13 @@ fn the_sweep_removes_the_record_of_a_lock_that_is_gone() {
     let gone: PathBuf = common_dir.join("HEAD.lock");
     std::fs::write(gone.as_path(), b"a lock that never reached its rename\n").expect("the lock");
     let holder: (i64, String) = (42, an_identity());
-    assert_eq!(write(common_dir.as_path(), standing.as_path(), &holder), Some(()));
-    assert_eq!(write(common_dir.as_path(), gone.as_path(), &holder), Some(()));
+    let standing_record: Written = write(common_dir.as_path(), standing.as_path(), file_of(standing.as_path()), &holder).expect("the standing lock's record");
+    assert!(write(common_dir.as_path(), gone.as_path(), file_of(gone.as_path()), &holder).is_some());
     std::fs::remove_file(gone.as_path()).expect("the lock it recorded goes");
     sweep(common_dir.as_path());
     assert!(of(common_dir.as_path(), standing.as_path()).is_some(), "the record of a standing lock stays");
     assert_eq!(of(common_dir.as_path(), gone.as_path()), None, "the record of a lock that is gone goes");
-    remove(common_dir.as_path(), standing.as_path());
+    remove(common_dir.as_path(), &standing_record);
     assert_eq!(of(common_dir.as_path(), standing.as_path()), None, "a record removed by name is gone");
     remove_fixture(common_dir.as_path());
 }
