@@ -26397,6 +26397,36 @@ and `package/git-policy/cli/README.md` ("Development"),
 with those quotes and dates,
 so he can veto it.
 
+### Answers on the credentials Pi runs showed their model providers (2026-11-14, answered by 10:38:24-05:00)
+
+Asked through the question tool with what was measured by then
+(real values of 30 of the 35 names of `.env.local.json` in six Pi sessions,
+stated as a lower bound while a wider scan ran).
+
+- **When the owner rotates**:
+  "All after masking".
+  One rotation,
+  once the fix that masks credential values before a tool result reaches a model is merged and shown to hold.
+  This session tells the owner when that is so,
+  through the question tool,
+  with what the fix was shown to hold against.
+- **Whether runs keep starting meanwhile**:
+  "Keep starting (Recommended)".
+  The queue goes on filling at the cap.
+- **The six session files that hold the values in clear**:
+  "Leave until rotated (Recommended)".
+  Nothing in them is touched,
+  and no resume of those six sessions is started until the owner says the values are rotated:
+  `mpm-shadow-install-removes-no-version-that-a-lock-names-or-a-process-runs-1`,
+  `integration-pass-37-with-three-passes-that-each-reported-fit-brought-together-1`,
+  `tokio-step-t12` (both run folders name one session),
+  `wrapper-small-robustness-items-1`,
+  `wrapper-issues-655-1135-1`,
+  `wg-quicker-model-providers-off-the-tunnel-1`,
+  and any session the wider scan adds.
+  An author among them whose branch needs more work gets a fresh run with its report and review as files to read,
+  never a resume.
+
 ### Answers on the owner's return (2026-11-14, answered by 08:54:33-05:00)
 
 Through the question tool,
