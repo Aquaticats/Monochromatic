@@ -1,5 +1,6 @@
 //! Controls for the look at a running service's start arguments,
 //! and for the one-line request that follows it:
+//!  a look whose read never answers ends at its ceiling,
 //!  a queue nothing accepts ends the request at its bound,
 //!  and a socket that accepts receives the client's warm line.
 
@@ -8,10 +9,33 @@ use std::io::{BufRead, BufReader};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::net::UnixListener;
 use std::time::{Duration, Instant};
+use crate::wait_ceilings::WARM_SCAN_CEILING;
 
 /// The words of a start command line.
 fn words(text: &[&str]) -> Vec<Vec<u8>> {
     return text.iter().map(|word| { return word.as_bytes().to_vec(); }).collect();
+}
+
+/// What:
+///  A command line nothing writes:
+///  a read of it answers only when a writer closes the file,
+///  and no writer ever opens this one.
+/// Why:
+///  The look can be held by a process stuck in the kernel on this machine,
+///  which no control may build here (`rules-every-pi-brief-carries.md`),
+///  so a control holds the read itself instead:
+///  the state the ceiling exists for is a read that does not answer,
+///  and a pipe answers that without any process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(folder.join('4242/cmdline'), 0o600);
+/// ```
+fn a_command_line_nothing_writes(path: &Path) {
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
+    // SAFETY: `mkfifo` reads the name it is given and touches no memory of this process.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the control's pipe: {}", std::io::Error::last_os_error());
 }
 
 /// What:
@@ -97,6 +121,36 @@ fn an_empty_or_missing_process_table_says_no() {
     std::fs::create_dir_all(&own).expect("process directory");
     std::fs::write(own.join("cmdline"), b"x\0service\0run\0--instance\0abc\0").expect("cmdline");
     assert!(service_process_runs("abc", root.as_path()));
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A look whose read never answers gives the request up at `WARM_SCAN_CEILING`,
+///  and says that no service runs,
+///  so the command compiles the rules itself.
+/// Why:
+///  This is the case finding 1 of the review of 2026-11-13 reproduced with a process stuck in the kernel:
+///  a commit with cold rules waited in the look for as long as that process stayed stuck.
+///  The look is made for a request the command does without,
+///  so its own ceiling ends it (`wait_ceilings.rs`,
+///  `WARM_SCAN_CEILING`).
+#[test]
+fn a_look_whose_read_never_answers_gives_the_request_up_at_its_ceiling() {
+    let root: PathBuf = crate::test_support::fixture("warm-scan-held");
+    let process: PathBuf = root.join("4242");
+    std::fs::create_dir_all(process.as_path()).expect("a process folder");
+    a_command_line_nothing_writes(process.join("cmdline").as_path());
+    let (told, heard) = std::sync::mpsc::channel();
+    let looked_at: PathBuf = root.clone();
+    std::thread::spawn(move || {
+        let _sent = told.send(service_process_runs("abc", looked_at.as_path()));
+    });
+    let began: Instant = Instant::now();
+    let answered: Result<bool, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(WARM_SCAN_CEILING * 4);
+    let waited: Duration = began.elapsed();
+    assert_eq!(answered, Ok(false), "the look gives up at its ceiling and says no service runs, and it took {waited:?}");
+    assert!(waited >= WARM_SCAN_CEILING, "the ceiling is what ended the look, and it took {waited:?}");
+    assert!(waited < WARM_SCAN_CEILING * 4, "the wait is the ceiling and not a wait of its own: {waited:?}");
     crate::test_support::remove(root.as_path());
 }
 

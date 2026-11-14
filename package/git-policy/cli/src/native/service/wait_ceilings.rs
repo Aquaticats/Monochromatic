@@ -512,6 +512,36 @@ pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 /// so one connect into a service queue is bounded one way and this ceiling is its one difference.
 pub const WARM_REQUEST_CONNECT_CEILING: Duration = Duration::from_millis(250);
 
+/// The longest the warm request waits for the look at the processes that tells whether the service of the worktree
+/// runs,
+/// which is the step before its connection.
+///  Why:
+///   Reading another process's command line takes that process's address-space lock,
+/// which a process stuck in the kernel holds without end
+/// (`PROCESS_LOOK_CEILING`,
+/// `landing/earlier_service_process_look.rs`),
+/// and this look is made for a request the command does without anyway,
+/// so it is no reason for a command to keep waiting:
+/// the owner's rule is "nothing should ever wait forever or indefinitely".
+///  Ten seconds is what a look whose answer a command needs is granted
+/// (`PROCESS_LOOK_CEILING`),
+/// and it is far more than a courtesy request may cost: a commit that finds its rules cold
+/// would wait it before the connect's own ceiling even starts.
+///  Measured on this host,
+/// 2026-11-13,
+/// 25 whole looks at the processes of this user
+/// (`/proc` with about 1,300 processes, no service of the looked-for instance running):
+/// 12.3 ms at the median,
+/// 18.7 ms at the 99th percentile and 18.7 ms at the slowest.
+/// The package's own record of the same look under a load average of 56 of 8 threads read 23.0 ms at the median,
+/// 43.0 ms at the 90th percentile and 54.1 ms at the slowest
+/// (`PROCESS_LOOK_CEILING`).
+/// 250 ms is 13 times the slowest look measured here and 4.6 times the slowest of that record,
+/// and it is `WARM_REQUEST_CONNECT_CEILING`,
+/// so the two steps of one courtesy request share one budget of half a second
+/// when the request cannot be made.
+pub const WARM_SCAN_CEILING: Duration = WARM_REQUEST_CONNECT_CEILING;
+
 /// The longest one connection to the commit service is waited for before the client gives it up.
 ///  Why:
 ///   A connect to a local socket is a kernel step that returns at once,
