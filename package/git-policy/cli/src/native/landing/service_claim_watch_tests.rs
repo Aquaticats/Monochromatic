@@ -576,7 +576,8 @@ fn a_look_that_cannot_read_the_notes_owes_the_read_and_waits_longer() {
     let mut watch: ClaimWatch = ClaimWatch::restored(store.as_path(), None);
     watch.remember(git_dir.as_path());
     assert!(!watch.needs_retry(), "a note that was written owes nothing");
-    let failing: ReadFile<'_> = &|_path: &Path| { return Err(std::io::Error::other("the journal did not answer")); };
+    // The reading of a note answers a refusal of its own (`ReadRefusal`), so a journal that does not answer is the `Io` one.
+    let failing: ReadFile<'_> = &|_path: &Path| { return Err(ReadRefusal::Io(std::io::Error::other("the journal did not answer"))); };
     let _named: Vec<PathBuf> = watch.look_again_reading(failing);
     assert!(watch.needs_retry(), "the read that failed is owed again");
     let once: Duration = watch.pause(FIRST);
