@@ -27,8 +27,8 @@ use std::time::{Duration, Instant, SystemTime};
 /// Imports the module under test.
 use crate::toolchain::store_trim::{
     DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim, candidates_of,
-    finish_removals, format_age, has_unfinished_removal, parse_duration, parse_size, plan_trim, read_named_versions,
-    settle_markers, unfinished_marker,
+    DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
+    parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
 };
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
@@ -484,7 +484,7 @@ struct ListedVersion {
     tool: String,
     /// The version.
     version: String,
-    /// The size the version and its downloads weigh.
+    /// The size the version and the downloads kept for it weigh.
     bytes: u64,
     /// When the version directory was written.
     written: SystemTime,
@@ -492,20 +492,45 @@ struct ListedVersion {
     pinned: bool,
 }
 
-/// Reads the listing `MPM_SHADOW_STORE_LISTING` names:
-/// a JSON document of the store directories a machine held,
-/// with each version directory's tool,
-/// version,
-/// size,
-/// write time and whether a lock named it.
-fn listed_versions() -> Vec<ListedVersion> {
-    let path: String = std::env::var("MPM_SHADOW_STORE_LISTING").expect("the listing path");
-    let text: String = fs::read_to_string(&path).expect("read the listing");
-    let decoded: serde_json::Value = serde_json::from_str(&text).expect("the listing is JSON");
-    let mut found: Vec<ListedVersion> = Vec::new();
+/// One download file an earlier layout left under the store's `downloads` directory.
+struct ListedLeftover {
+    /// The tool the file's name belongs to.
+    tool: String,
+    /// The file's name.
+    name: String,
+    /// The size it weighs.
+    bytes: u64,
+    /// When it was written.
+    written: SystemTime,
+}
+
+/// The system time `milliseconds` after the epoch.
+fn when(milliseconds: i64) -> SystemTime {
+    let whole_seconds: i64 = milliseconds.div_euclid(1000);
+    let remainder: i64 = milliseconds.rem_euclid(1000);
+    let seconds: u64 = u64::try_from(whole_seconds).expect("a positive time");
+    return SystemTime::UNIX_EPOCH + Duration::from_secs(seconds) + Duration::from_millis(remainder as u64);
+}
+
+/// One store root of the replayed listing.
+struct ListedRoot {
+    /// The versions of the root.
+    versions: Vec<ListedVersion>,
+    /// The download files an earlier layout left in the root.
+    leftovers: Vec<ListedLeftover>,
+}
+
+/// The listing `MPM_SHADOW_STORE_LISTING` names, decoded,
+/// one entry per store root,
+/// because a tool and version can be in both roots and the two are judged separately.
+fn listed(text: &str) -> Vec<ListedRoot> {
+    let decoded: serde_json::Value = serde_json::from_str(text).expect("the listing is JSON");
+    let mut roots: Vec<ListedRoot> = Vec::new();
     for root in decoded["roots"].as_array().expect("roots") {
+        let mut versions: Vec<ListedVersion> = Vec::new();
+        let mut leftovers: Vec<ListedLeftover> = Vec::new();
         for version in root["versions"].as_array().expect("versions") {
-            found.push(ListedVersion {
+            versions.push(ListedVersion {
                 tool: version["tool"].as_str().expect("tool").to_string(),
                 version: version["version"].as_str().expect("version").to_string(),
                 bytes: version["bytes"].as_u64().expect("bytes"),
@@ -514,22 +539,16 @@ fn listed_versions() -> Vec<ListedVersion> {
             });
         }
         for leftover in root["leftovers"].as_array().expect("leftovers") {
-            found.push(ListedVersion {
+            leftovers.push(ListedLeftover {
                 tool: leftover["tool"].as_str().expect("tool").to_string(),
-                version: format!("leftover:{}", leftover["name"].as_str().expect("name")),
+                name: leftover["name"].as_str().expect("name").to_string(),
                 bytes: leftover["bytes"].as_u64().expect("bytes"),
                 written: when(leftover["writtenMs"].as_i64().expect("writtenMs")),
-                pinned: false,
             });
         }
+        roots.push(ListedRoot { versions, leftovers });
     }
-    return found;
-}
-
-/// The system time `milliseconds` after the epoch.
-fn when(milliseconds: i64) -> SystemTime {
-    let seconds: u64 = u64::try_from(milliseconds / 1000).expect("a positive time");
-    return SystemTime::UNIX_EPOCH + Duration::from_secs(seconds) + Duration::from_millis((milliseconds % 1000) as u64);
+    return roots;
 }
 
 /// What:
@@ -538,41 +557,62 @@ fn when(milliseconds: i64) -> SystemTime {
 /// judges it with the bounds the pass ships,
 /// and writes what it would remove and what it keeps to `MPM_SHADOW_STORE_LISTING_REPORT`.
 /// Why:
-/// The rule is sized from one real store,
-/// so it must be shown deciding that store's listing rather than a fixture invented for it.
+/// The rule and its bounds are sized from one real store,
+/// so they must be shown deciding that store's listing rather than a fixture invented for them.
 /// Skipped when the variable is unset:
 /// the listing is a measurement of one machine and is not part of the package.
 #[test]
 fn replays_a_real_store_listing() {
-    if std::env::var("MPM_SHADOW_STORE_LISTING").is_err() {
+    let Ok(listing_path) = std::env::var("MPM_SHADOW_STORE_LISTING") else {
         return;
-    }
+    };
+    let text: String = fs::read_to_string(&listing_path).expect("read the listing");
+    let listing: Vec<ListedRoot> = listed(&text);
     let fixture = scratch();
-    let root: PathBuf = fixture.path().join("toolchain");
-    let listing: Vec<ListedVersion> = listed_versions();
-    for listed in &listing {
-        let directory: PathBuf = root.join(&listed.tool).join(&listed.version);
-        fs::create_dir_all(&directory).expect("make a replayed version directory");
-        let file = fs::File::create(directory.join("payload")).expect("make the payload");
-        // Sparse: the length is what the rule measures, and the replayed listing is what decides the outcome.
-        file.set_len(listed.bytes).expect("size the payload");
-        let times: FileTimes = FileTimes::new().set_modified(listed.written);
-        fs::File::open(&directory).expect("open the directory").set_times(times).expect("set the write time");
+    let mut replayed_roots: Vec<PathBuf> = Vec::new();
+    let mut tools: BTreeSet<String> = BTreeSet::new();
+    for (index, listed_root) in listing.iter().enumerate() {
+        let root: PathBuf = fixture.path().join(format!("toolchain-{index}"));
+        replayed_roots.push(root.clone());
+        for version in &listed_root.versions {
+            tools.insert(version.tool.clone());
+            let directory: PathBuf = root.join(&version.tool).join(&version.version);
+            fs::create_dir_all(&directory).expect("make a replayed version directory");
+            // Sparse: the length is what the rule measures, and the replayed listing is what decides the outcome.
+            fs::File::create(directory.join("payload")).expect("make the payload").set_len(version.bytes).expect("size it");
+            fs::File::open(&directory)
+                .expect("open the directory")
+                .set_times(FileTimes::new().set_modified(version.written))
+                .expect("set the write time");
+        }
+        for leftover in &listed_root.leftovers {
+            tools.insert(leftover.tool.clone());
+            let directory: PathBuf = root.join("downloads");
+            fs::create_dir_all(&directory).expect("make the downloads directory");
+            let file: PathBuf = directory.join(&leftover.name);
+            fs::File::create(&file).expect("make the leftover").set_len(leftover.bytes).expect("size it");
+            fs::File::options()
+                .write(true)
+                .open(&file)
+                .expect("open the leftover")
+                .set_times(FileTimes::new().set_modified(leftover.written))
+                .expect("set its write time");
+        }
     }
-    let tools: BTreeSet<String> = listing.iter().map(|listed| return listed.tool.clone()).collect();
     let bounds: TrimBounds = TrimBounds {
-        // The bounds the pass ships, with the work limit out of the way: the replay asks what the rule decides, and
+        // The bounds the pass ships, with the work limit out of the way: the replay asks what the rule decides, while
         // an install only does as much of it as its time limit allows.
         size_bound_bytes: DEFAULT_SIZE_BOUND_BYTES,
-        age_floor: Duration::from_secs(crate::toolchain::store_trim::DEFAULT_AGE_FLOOR_SECONDS),
+        age_floor: Duration::from_secs(DEFAULT_AGE_FLOOR_SECONDS),
         work_limit: Duration::from_secs(24 * 3600),
     };
     let pinned: BTreeSet<String> = listing
         .iter()
-        .filter(|listed| return listed.pinned)
-        .map(|listed| return format!("{}-{}", listed.tool, listed.version))
+        .flat_map(|listed_root| return listed_root.versions.iter())
+        .filter(|version| return version.pinned)
+        .map(|version| return format!("{}-{}", version.tool, version.version))
         .collect();
-    let candidates: Vec<TrimCandidate> = candidates_of(std::slice::from_ref(&root), &tools);
+    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools);
     let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|found| {
         if pinned.contains(&format!("{}-{}", found.tool, found.version)) {
             return Some("a lock of the replayed machine named it".to_string());
@@ -580,26 +620,29 @@ fn replays_a_real_store_listing() {
         return None;
     });
     let mut lines: Vec<String> = vec![
-        format!("replayed versions and leftover downloads: {}", candidates.len()),
-        format!("their total: {} MiB, the size bound: {} MiB", plan.total_bytes / MIB, bounds.size_bound_bytes / MIB),
+        format!("replayed version directories and leftover downloads: {}", candidates.len()),
+        format!("their total: {} MiB; the size bound: {} MiB", plan.total_bytes / MIB, bounds.size_bound_bytes / MIB),
         format!("over the bound: {}", plan.over_bound),
     ];
-    let mut removable: u64 = 0;
+    let mut planned_removal: u64 = 0;
     for step in &plan.steps {
         match step {
             TrimStep::Remove(found) => {
-                removable += found.bytes;
+                planned_removal += found.bytes;
                 lines.push(format!("would remove {} ({} MiB)", found.directory.display(), found.bytes / MIB));
             }
             TrimStep::Keep(found, reason) => {
-                lines.push(format!("kept {} ({reason})", found.directory.display()));
+                lines.push(format!("kept {} ({} MiB) because {reason}", found.directory.display(), found.bytes / MIB));
             }
         }
     }
-    lines.push(format!("would remove {} MiB", removable / MIB));
-    let outcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now() });
-    lines.push(format!("removed from the replayed store: {} version(s), {} MiB", outcome.removed, outcome.removed_bytes / MIB));
-    lines.extend(outcome.lines);
+    lines.push(format!("planned removal: {} MiB", planned_removal / MIB));
+    let outcome: TrimOutcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now() });
+    lines.push(format!(
+        "removed from the replayed store: {} version(s), {} MiB",
+        outcome.removed,
+        outcome.removed_bytes / MIB
+    ));
     let report: String = std::env::var("MPM_SHADOW_STORE_LISTING_REPORT").expect("the report path");
     fs::write(&report, format!("{}\n", lines.join("\n"))).expect("write the replay report");
 }

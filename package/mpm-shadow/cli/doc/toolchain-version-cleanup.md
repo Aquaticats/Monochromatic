@@ -69,6 +69,20 @@ A version is kept when any of these holds, cheapest check first:
 A version directory written by another run after the scan is kept as well:
 its own write time is read again before the removal starts.
 
+## What the bound counts
+
+The bound is compared with what the pass can judge:
+the version directories,
+the downloads kept for each of them,
+and the download files an earlier layout left.
+The files beside those (the `bin` downloader's binaries,
+the exposure and launcher link farms,
+`bin.config.json`)
+are not versions,
+are not removed,
+and are not counted:
+counting what it cannot remove would make the pass empty the store and stay over the bound.
+
 ## The bounds
 
 Each is set in the environment and has the shipped default when unset.

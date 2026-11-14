@@ -928,17 +928,18 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
     let tools: BTreeSet<String> = named.tool_directories();
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
-    if tools.is_empty() {
-        return;
+    if !tools.is_empty() {
+        let (finished, still_pending) = finish_removals(&roots, &tools, &run);
+        lines.extend(finished);
+        unfinished.extend(still_pending);
     }
-    let (finished, still_pending) = finish_removals(&roots, &tools, &run);
-    lines.extend(finished);
-    unfinished.extend(still_pending);
     if let Some(reason) = &named.unreadable {
+        // What: a lock that cannot be read keeps every version.
+        // Why: it might name any of them, so the pass cannot tell an old version from one in use.
         lines.push(format!(
             "mpm-shadow: removed no toolchain version: {reason}; every version is kept until the locks can be read"
         ));
-    } else {
+    } else if !tools.is_empty() {
         let holders: StoreHolders = holders_of(&roots, run.started + bounds.work_limit);
         let installed_set: BTreeSet<(String, String)> = installed.iter().cloned().collect();
         let links: BTreeMap<(PathBuf, String), String> = current_links(&roots, &tools);

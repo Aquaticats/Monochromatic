@@ -403,3 +403,71 @@ fn a_path_that_cannot_hold_the_exposure_directory_refuses_the_postinstall_comman
     assert!(outcome.failed[0].1.contains("cannot be put on PATH"), "{outcome:?}");
     assert!(rig.runner.calls().is_empty(), "no command ran on the inherited PATH alone");
 }
+
+//region the cleanup of old versions an install runs
+
+/// Gives `path` a write time `seconds` before now.
+fn written_ago(path: &std::path::Path, seconds: u64) {
+    let when = std::time::SystemTime::now() - std::time::Duration::from_secs(seconds);
+    fs::File::open(path)
+        .expect("open the version directory")
+        .set_times(fs::FileTimes::new().set_modified(when))
+        .expect("set the version's write time");
+}
+
+/// What:
+/// An install removes the oldest version of a tool that no lock names,
+/// as part of the sync it already runs.
+/// Why:
+/// This is the whole point of the cleanup:
+/// nobody runs a separate command,
+/// and the versions that pile up go when something is installed.
+#[test]
+fn an_install_removes_the_oldest_version_no_lock_names() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    let stale = version_directory(&rig.scope.toolchain_root, "fd-find", "1.0.0");
+    fs::create_dir_all(&stale).expect("make the old version");
+    fs::write(stale.join("fd"), b"old program").expect("write the old program");
+    // The bounds the pass ships are sized for a real store; this one holds kilobytes, so the test sets both.
+    rig.env = rig
+        .env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    written_ago(&stale, 24 * 60 * 60);
+
+    let report = sync_tools(&rig.context(), None);
+
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert!(!stale.exists(), "the old version no lock names stayed");
+    assert!(version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3").exists(), "the locked version went");
+}
+
+/// What:
+/// A sync that cannot list the repository's worktrees removes nothing and says why.
+/// Why:
+/// An unreadable lock might name any version,
+/// so a cleanup that cannot see them keeps everything.
+#[test]
+fn an_install_that_cannot_list_the_worktrees_removes_nothing() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    let stale = version_directory(&rig.scope.toolchain_root, "fd-find", "1.0.0");
+    fs::create_dir_all(&stale).expect("make the old version");
+    fs::write(stale.join("fd"), b"old program").expect("write the old program");
+    written_ago(&stale, 24 * 60 * 60);
+    rig.env = rig
+        .env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    rig.runner.answer("git -C", "", 128);
+
+    let report = sync_tools(&rig.context(), None);
+
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert!(stale.exists(), "a version was removed although the worktrees could not be listed");
+}
+
+//endregion the cleanup of old versions an install runs
