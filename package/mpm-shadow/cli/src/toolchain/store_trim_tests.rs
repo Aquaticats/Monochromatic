@@ -404,12 +404,24 @@ fn finishes_a_removal_cut_short() {
     let finished = finish_removals(&fixture.run());
     let lines: Vec<String> = finished.lines;
 
+    // What: the version comes back under its own name, and the marker goes.
+    // Why: no pass that finds a marker can know which entry the run that left it judged,
+    // so it puts the copy back and lets a pass with the identity and the locks in hand judge it again.
     assert!(finished.unfinished.is_empty(), "{:?}", finished.unfinished);
     assert!(!marker.exists(), "the marker is still there");
-    assert!(!version.exists());
+    assert!(version.join("program").exists(), "the version was not put back: {lines:?}");
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert!(lines[0].contains(&format!("/node/26.11.0 (")), "the line names the version's own path: {lines:?}");
-    assert!(lines[0].contains("finished a removal an earlier run started"), "{lines:?}");
+    assert!(lines[0].contains("undone"), "{lines:?}");
+
+    // What: the same pass's plan then removes it for good, on the identity it judges.
+    // Why: the reclaim has to happen somewhere, and it happens where a pass can prove what it deletes.
+    let plan: TrimPlan = plan_trim(&fixture.candidates(), &fixture.run().bounds, SystemTime::now(), &|_found| {
+        return None;
+    });
+    let outcome: TrimOutcome = apply_trim(&plan, &fixture.run());
+    assert!(outcome.removed > 0, "{:?}", outcome.lines);
+    assert!(!version.exists(), "{:?}", outcome.lines);
 }
 
 /// The removal marker is what makes the next install run the pass,
@@ -518,8 +530,9 @@ fn finishes_a_removal_cut_short_even_when_the_worktrees_cannot_be_listed() {
 
     crate::toolchain::store_trim::trim_after_install(&context, &[]);
 
-    assert!(!version_marker.exists(), "the removal an earlier run started was not finished");
-    assert!(!store.join("t/1.0.0").exists(), "the version came back although nothing holds it");
+    assert!(!version_marker.exists(), "the removal an earlier run started was still a marker");
+    // A marker is put back under its own name: only a pass that judged the entry may delete it.
+    assert!(store.join("t/1.0.0/program").exists(), "the version was not put back under its own name");
     assert!(!has_unfinished_removal(&store), "the marker outlived the removal it stood for");
     // A later install that installs nothing must find nothing left to do, and the store must stay settled.
     crate::toolchain::store_trim::trim_after_install(&context, &[]);
@@ -1075,6 +1088,80 @@ fn writes_the_marker_for_a_root_whose_removals_were_all_deferred() {
 }
 
 //endregion the entry a removal holds, an unfinished name, and a deferred marker
+
+//region the copy a marker holds, and the file a leftover name holds
+
+/// What:
+/// A tombstone holding a finished, lock-named copy is put back under its own name, and the pass that finds it keeps it.
+/// Why:
+/// A kill between a removal's rename and its identity check leaves an install's fresh copy under the marker,
+/// and the next pass cannot tell it from the condemned copy: a name proves nothing about what stands under it.
+/// The copy therefore goes back where a next install finds it, and that install's plan keeps it because a lock
+/// names it.
+#[test]
+fn puts_back_a_tombstone_that_holds_a_finished_lock_named_copy() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"20.0.0","route":"archive"}}}"#)
+        .expect("write a lock naming the version");
+    // The post-kill state: the finished copy under the marker the program's own rename produces, the name free.
+    let marker: PathBuf = store.join("node").join(format!("{TOMBSTONE_PREFIX}20.0.0"));
+    fs::create_dir_all(marker.join("bin")).expect("make the held copy");
+    fs::write(marker.join("bin/node"), b"#!/bin/sh\n").expect("write its program");
+    fs::write(marker.join(crate::toolchain::archive_staging::COMPLETE_MARKER), b"node 20.0.0\n")
+        .expect("mark it finished");
+    written_ago(&marker, 2 * 24 * 3600);
+    fs::write(unfinished_marker(&store), b"").expect("write the unfinished-removal marker");
+    let runner = FakeRunner::new();
+    runner.answer("git -C", "", 128);
+    let host = Host::current();
+    let env_holding: EnvMap = env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    let context = Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+
+    trim_after_install(&context, &[]);
+
+    let version: PathBuf = store.join("node/20.0.0");
+    assert!(version.join("bin/node").exists(), "the finished, lock-named copy was deleted");
+    assert!(!marker.exists(), "the marker outlived the copy it held");
+}
+
+/// What:
+/// A flat leftover download whose file was replaced after the scan is not deleted.
+/// Why:
+/// The plan judges a file's identity, and the direct deletion is the third place a name could have come to hold
+/// something else; the file's own inode and write time are what the deletion proves.
+#[test]
+fn keeps_a_leftover_whose_file_was_replaced_after_the_scan() {
+    let fixture = Fixture::new();
+    let leftovers: PathBuf = fixture.root.join("downloads");
+    fs::create_dir_all(&leftovers).expect("make the downloads directory");
+    let stale: PathBuf = leftovers.join("node-26.12.0-node-v26.12.0-linux-x64.tar.gz");
+    fs::write(&stale, vec![b'z'; 40]).expect("write the leftover");
+    written_ago(&stale, 2 * 24 * 3600);
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&fixture.root), &tools), &fixture.run().bounds, SystemTime::now(), &|_found| {
+        return None;
+    });
+    let planned: bool = plan.steps.iter().any(|step| {
+        return match step {
+            TrimStep::Remove(found) => found.directory == stale,
+            TrimStep::Keep(_, _) => false,
+        };
+    });
+    assert!(planned, "the leftover is not planned for removal: {:?}", plan.steps);
+    // What: another run puts a file of the same name there, after the scan.
+    // Why: the plan's entry is gone, and this file is not the one it judged.
+    fs::remove_file(&stale).expect("remove the judged file");
+    fs::write(&stale, vec![b'f'; 40]).expect("write a newer file of the same name");
+
+    let outcome: TrimOutcome = apply_trim(&plan, &fixture.run());
+
+    assert!(stale.exists(), "the file the removal did not judge was deleted: {:?}", outcome.lines);
+}
+
+//endregion the copy a marker holds, and the file a leftover name holds
 
 //region replaying a real store's listing
 

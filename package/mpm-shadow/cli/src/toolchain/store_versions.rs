@@ -244,6 +244,9 @@ pub struct LeftoverDownload {
     pub bytes: u64,
     /// When it was last written.
     pub written: SystemTime,
+    /// The device and inode number of the file,
+    /// when the platform reports them.
+    pub inode: Option<(u64, u64)>,
 }
 
 /// What:
@@ -424,7 +427,8 @@ pub fn leftover_downloads(toolchain_root: &Path, tools: &BTreeSet<String>) -> Ve
             if !name.starts_with(&format!("{tool}-")) {
                 continue;
             }
-            found.push(LeftoverDownload { tool: tool.clone(), file: file.clone(), bytes: metadata.len(), written });
+            let inode: Option<(u64, u64)> = inode_of(&metadata);
+            found.push(LeftoverDownload { tool: tool.clone(), file: file.clone(), bytes: metadata.len(), written, inode });
             break;
         }
     }

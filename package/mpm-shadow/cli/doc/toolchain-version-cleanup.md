@@ -217,6 +217,10 @@ or one the tool's `current` link came to name,
 is renamed back instead,
 and a later pass removes it once nothing holds it,
 and the link names another version.
+Nothing deletes a removal marker on a name alone:
+a marker left by another run is put back under the version's own name,
+and the plan of that same pass judges it again with the entry's identity, the locks and the holds in hand,
+so a copy a lock names, a person wants or a process holds comes back instead of going.
 What a kill leaves at each step is the same in both cases:
 before a rename,
 nothing changed;
@@ -233,6 +237,25 @@ never deleted.
 The marker in the store root goes only once the store holds no `.mpm-shadow-removing.*` at all,
 and a root whose removals were all deferred by the work limit is left with the marker too,
 so the next install runs the pass even when it installs nothing.
+
+## Where a deletion is allowed
+
+Every deletion goes through one function, `delete_for_good`,
+and each call names the proof it has at that instant:
+
+- **the entry a pass judged**: same device and inode number, same write time, checked once more at the delete;
+- **bytes this pass moved aside a moment ago**:
+  the archives it renamed under a marker,
+  whose name no other program writes;
+- **a duplicate**: a finished copy of the same version stands at the version's own name;
+- **orphaned archives**: their version stands at neither name any more.
+
+A name proves nothing about what stands under it,
+and four reviews each found a copy lost by a deletion that trusted one:
+judged, moved aside, held, and finished.
+With this list a removal deletes only what it has just shown,
+and everything else is put back where a next install finds it,
+or left with one line a person can act on.
 
 ## The window that is left
 

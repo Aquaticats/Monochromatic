@@ -405,7 +405,7 @@ pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>) -> Vec<TrimCan
                 downloads: None,
                 bytes: leftover.bytes,
                 written: leftover.written,
-                inode: None,
+                inode: leftover.inode,
                 leftover: true,
             });
         }
@@ -1022,7 +1022,8 @@ fn restore_or_delete(
         if !finished_copy_at(tool, version_directory) {
             return PutBack::NameUnfinished;
         }
-        return match remove_trees(version_marker, downloads_marker) {
+        // The held copy is a duplicate of the finished one at the name, which is the only proof this step has.
+        return match remove_trees(tool, version_marker, downloads_marker, &Proof::Duplicate(version_directory)) {
             None => PutBack::NameTaken,
             Some(failure) => PutBack::Failed(failure),
         };
@@ -1040,12 +1041,20 @@ fn restore_or_delete(
 
 /// Deletes the trees a removal moved aside,
 /// whichever of them exist.
-fn remove_trees(version_marker: &Path, downloads_marker: Option<&Path>) -> Option<String> {
-    if let Some(failure) = remove_dir_or_file(version_marker) {
+fn remove_trees(tool: &str, version_marker: &Path, downloads_marker: Option<&Path>, proof: &Proof<'_>) -> Option<String> {
+    // What: each tree goes through the one deletion site with the proof of its own kind.
+    // Why: the version's tree is what a pass judged and is checked by identity where that proof is available;
+    // the archives were renamed by the same call that renamed the version and no other program writes their
+    // marker's name.
+    let version_proof: Proof<'_> = match proof {
+        Proof::Judged(candidate) => Proof::Judged(candidate),
+        _ => Proof::MovedByThisPass,
+    };
+    if let Some(failure) = delete_for_good(tool, version_marker, version_proof) {
         return Some(format!("{} is left half removed: {failure}", version_marker.display()));
     }
     if let Some(marker) = downloads_marker
-        && let Some(failure) = remove_dir_or_file(marker)
+        && let Some(failure) = delete_for_good(tool, marker, Proof::MovedByThisPass)
     {
         return Some(format!("{} is left half removed: {failure}", marker.display()));
     }
@@ -1063,7 +1072,11 @@ fn remove_trees(version_marker: &Path, downloads_marker: Option<&Path>) -> Optio
 /// function deleteMoved(candidate: TrimCandidate, moved: MovedAside): string | undefined  // the failure, if any
 /// ```
 fn delete_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String> {
-    if let Some(failure) = remove_trees(&moved.version_marker, moved.downloads_marker.as_deref()) {
+    // What: the version's marker is deleted on the identity of the entry the pass judged.
+    // Why: the entry under the marker is what the removal holds, and its inode and write time say whether it is still
+    // the judged one; the second look before this call asked the same question, and this asks it again at the delete.
+    let judged: Proof<'_> = Proof::Judged(candidate);
+    if let Some(failure) = remove_trees(&candidate.tool, &moved.version_marker, moved.downloads_marker.as_deref(), &judged) {
         return Some(failure);
     }
     if let Some(downloads) = &candidate.downloads
@@ -1073,6 +1086,61 @@ fn delete_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String>
         let _ = fs::remove_dir(tool_downloads);
     }
     return None;
+}
+
+/// What a deletion has proven about the bytes it deletes,
+/// at the instant it deletes them.
+/// Why:
+/// Four reviews each found a copy lost at a different step,
+/// and every one of them was a deletion that trusted a name:
+/// a version's own name, a marker's name, or a name an install had just taken.
+/// A name proves nothing about what stands under it,
+/// so every deletion names the proof it has and the one function below checks it.
+enum Proof<'a> {
+    /// The entry is the one a pass judged:
+    /// same device and inode number, same write time.
+    Judged(&'a TrimCandidate),
+    /// The bytes were renamed here by this pass a moment ago,
+    /// and no other program writes a marker's name.
+    MovedByThisPass,
+    /// A finished copy of the same version stands at the version's own name,
+    /// so the copy under the marker is a duplicate.
+    Duplicate(&'a Path),
+    /// The archives are unwanted because their version stands at neither name any more.
+    OrphanedDownloads(&'a Path),
+}
+
+/// What:
+/// The only function that deletes anything for good.
+/// It checks the proof it is given at the instant of the deletion,
+/// and refuses when the proof no longer holds.
+/// Why:
+/// A pass looks, decides, and acts later, and an install can change the bytes in between;
+/// putting every deletion behind one check of one named proof is what keeps a removal from deleting something it did
+/// not judge, and makes "what does this deletion prove" a question with one answer to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deleteForGood(tool: string, path: string, proof: Proof): string | undefined  // the refusal, if any
+/// ```
+fn delete_for_good(tool: &str, path: &Path, proof: Proof<'_>) -> Option<String> {
+    let holds: bool = match proof {
+        Proof::Judged(candidate) => match fs::symlink_metadata(path) {
+            Ok(metadata) => judged_entry_difference(&metadata, candidate).is_none(),
+            Err(error) if error.kind() == ErrorKind::NotFound => true,
+            Err(_) => false,
+        },
+        Proof::MovedByThisPass => true,
+        Proof::Duplicate(version_directory) => finished_copy_at(tool, version_directory),
+        Proof::OrphanedDownloads(version_directory) => {
+            let marker_of_version: PathBuf = tombstone_of(version_directory);
+            fs::symlink_metadata(version_directory).is_err() && fs::symlink_metadata(marker_of_version).is_err()
+        }
+    };
+    if !holds {
+        return Some(format!("{} is not what this removal judged any more, so it was kept", path.display()));
+    }
+    return remove_dir_or_file(path);
 }
 
 /// What:
@@ -1086,10 +1154,11 @@ fn delete_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String>
 /// function removeLeftover(candidate: TrimCandidate): boolean  // false when it was gone already
 /// ```
 fn remove_leftover(candidate: &TrimCandidate) -> Result<bool, String> {
-    return match fs::remove_file(&candidate.directory) {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(format!("it cannot be removed: {error}")),
+    // What: the file is checked against the identity it had when the pass judged it.
+    // Why: a file under the same name is not necessarily the one the plan meant.
+    return match delete_for_good(&candidate.tool, &candidate.directory, Proof::Judged(candidate)) {
+        None => Ok(true),
+        Some(refusal) => Err(refusal),
     };
 }
 
@@ -1306,10 +1375,16 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
                 }
                 continue;
             }
-            // The version is gone: only what it was downloaded as is left, and that goes.
+            // The version stands at neither name: only what it was downloaded as is left, and that goes.
             outcome.lines.push(finish_downloads_line(&marker));
             continue;
         }
+        // What: a marker left by another run goes back under its own name, always.
+        // Why: no pass that finds a marker can know which entry the run that left it judged,
+        // and four reviews each found a copy lost by a deletion that trusted a name.
+        // A copy a lock names, a person wants, or a process holds is therefore never deleted here:
+        // it is put back where the next install finds it, and that install's own pass judges it again,
+        // with the identity of the entry and the locks of the moment in hand.
         let bytes: u64 = removal_marker_size(&marker);
         let reason: Option<String> = match &holders.incomplete {
             Some(failed) => Some(format!("the process table could not be read: {failed}")),
@@ -1327,23 +1402,7 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
         };
         let candidate_reason: String = match reason {
             Some(why) => why,
-            None => {
-                match remove_marker(&marker) {
-                    None => outcome.lines.push(format!(
-                        "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
-                        marker.version_directory.display(),
-                        format_size(bytes)
-                    )),
-                    Some(failure) => {
-                        outcome.unfinished.insert(marker.root.clone());
-                        outcome.lines.push(format!(
-                            "mpm-shadow: kept {}: it is still being removed: {failure}",
-                            marker.version_directory.display()
-                        ));
-                    }
-                }
-                continue;
-            }
+            None => "it is put back under its own name, and a later pass judges it again".to_string(),
         };
         match restore_marker(&marker) {
             Restored::Back => {
@@ -1422,7 +1481,10 @@ fn finish_downloads_line(marker: &RemovalMarker) -> String {
         return format!("mpm-shadow: nothing to remove under {}", marker.version_marker.display());
     };
     let bytes: u64 = tree_size(downloads);
-    return match remove_dir_or_file(downloads) {
+    // What: the archives go on the proof that their version stands at neither name.
+    // Why: their version is gone, and no install writes a marker's name,
+    // so these bytes belong to nobody and their removal loses no copy.
+    return match delete_for_good(&marker.tool, downloads, Proof::OrphanedDownloads(&marker.version_directory)) {
         None => format!(
             "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
             downloads.display(),
@@ -1442,11 +1504,6 @@ fn remove_dir_or_file(path: &Path) -> Option<String> {
         Err(error) if error.kind() == ErrorKind::NotFound => None,
         Err(error) => Some(error.to_string()),
     };
-}
-
-/// Deletes what one removal marker holds.
-fn remove_marker(marker: &RemovalMarker) -> Option<String> {
-    return remove_trees(&marker.version_marker, marker.downloads_marker.as_deref());
 }
 
 /// What putting a removal marker's version back ended in.
