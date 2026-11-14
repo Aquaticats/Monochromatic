@@ -27,24 +27,31 @@
 //!  What a kill at each step of a run leaves,
 //!  and who removes it:
 //!
-//!  - after a binding's pin and before its record:
-//!    a pin and no record,
-//!    which the next command's sweep removes
-//!    (`lock_bindings.rs`,
-//! `sweep`);
-//!  - after a binding's record:
+//!  - after the path's text and before any record:
+//!    a file naming the path and no record,
+//!    which the next write for that path reuses and nothing removes,
+//!    because a record is a pin and there is none;
+//!  - after the record, which is one file:
 //!    a record whose pin names the lock,
 //!    which this command takes away when its child finished the lock
 //!    (`forget_what_the_child_finished`)
 //!    and which the next commands keep while the pin names the file standing at the path,
 //!    because it is the proof that clears a lock a killed child left;
-//!  - between the two unlinks of one removal:
-//!    a record without its pin,
-//!    so a reader keeps the lock and the next sweep removes the record.
+//!  - inside a removal:
+//!    one `unlink`, which the kernel does whole,
+//!    so no half-removed record exists.
 //!
-//!  No step of a removal can take away a record whose lock stands:
-//!  every record is named for the very file its writer pinned,
-//!  and the pin keeps that inode out of every later file at the path.
+//!  No step of a sweep, a forget or a write can take away the record of a lock another command's Git
+//!  holds or was killed holding:
+//!  a record is one file,
+//!  written by one `link`,
+//!  named for the take it belongs to
+//!  (the path's digest with that Git's process number and birth identity,
+//! `lock_bindings.rs`),
+//!  so nothing ever meets a half-published record
+//!  and no removal acts on a name another command's write produces
+//!  (a review of `2ac27d2a29`,
+//! finding 1).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -633,7 +640,7 @@ pub fn wait_and_bind(
         if let Some(status) = child.try_wait()? {
             tracker.feed(watch.read_events().as_slice());
             bind_what_the_child_took(&tracker, common_dir, child_pid, identity, &mut bound);
-            forget_what_the_child_finished(common_dir, &bound);
+            forget_what_the_child_finished(&bound);
             return Ok(status);
         }
         tracker.feed(watch.wait(watch.step()).as_slice());
@@ -659,11 +666,10 @@ pub fn wait_and_bind(
 /// ```
 fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64, identity: &str, written: &mut Vec<Written>) {
     for lock in tracker.locks_taken(child_pid) {
-        let Ok(Some(file)) = crate::index_lock_evidence::read_lock_metadata(lock.as_path()) else {
-            continue;
-        };
-        let name: String = lock_bindings::name_of(lock.as_path(), (file.device, file.inode));
-        if written.iter().any(|held| { return held.name() == name; }) {
+        // A take of this path this run has already recorded, and whose record still names the file standing there, is
+        //  recorded once: a Git that renames its lock away and takes the path again is a different file and is written
+        //  again (`a_child_that_takes_the_same_lock_again_is_recorded_again`).
+        if written.iter().any(|held| { return held.lock == lock && lock_bindings::pin_holds_the_lock(held); }) {
             continue;
         }
         if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned())) {
@@ -680,7 +686,7 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
 ///  and this command is the one that knows the child finished:
 ///  leaving it to the next command's sweep writes a file every index writer would then read and remove.
 ///  A lock that still stands as the pin does is the killed child's and keeps its record.
-///  What goes is the two files of the very record this child's run wrote,
+///  What goes is the one file that is the record this child's run wrote,
 ///  named by this child's lock path and the file it took,
 ///  and never the files a look at the path would find now:
 ///  another command's Git can take that path the instant this child's lock is renamed away,
@@ -688,22 +694,23 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
 ///  proof is gone
 ///  (a review of `f8f5cba090`,
 /// finding 1).
-///  The name this child's run worked out cannot belong to that other lock:
-///  the pin still holds this child's inode,
-///  so the file that took the path afterwards is a different file with a different name.
+///  The record this child's run wrote is named for the take it belongs to,
+///  the path's digest with that Git's process number and birth identity,
+///  which no other command's write produces,
+///  so a later lock at that path has a record of its own and this one is never it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const written of bound) if (!pinHoldsTheLock(written)) removeBinding(written);
 /// ```
-fn forget_what_the_child_finished(common_dir: &Path, bound: &[Written]) {
+fn forget_what_the_child_finished(bound: &[Written]) {
     for written in bound {
-        if lock_bindings::pin_holds_the_lock(common_dir, written) {
+        if lock_bindings::pin_holds_the_lock(written) {
             continue;
         }
         // A control reaches here to act as a command whose Git takes the freed name at this instant.
         crate::service_fault::reach(A_FINISHED_CHILD_FORGETS);
-        lock_bindings::remove(common_dir, written);
+        lock_bindings::remove(written);
     }
 }
 

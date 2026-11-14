@@ -1,24 +1,27 @@
 //! What:
 //!  Controls of the record a command writes about a lock its own Git took:
-//!  the text,
-//!  the pin that keeps the record from matching another lock,
-//!  and the sweep that removes a record whose lock is gone.
+//!  the one file that is the whole record,
+//!  the inode it pins,
+//!  the sweep that removes a record whose lock is gone,
+//!  and the sweep that runs beside a write.
 //! Why:
 //!  The record is the whole proof a later command acts on,
 //!  so each part of it is tested where it can be wrong:
 //!  a path of another shape must read back as itself,
 //!  a record a person edited must decide nothing,
 //!  a lock made again at the same path must not match the pin,
-//!  and a record whose lock is gone must not stay.
+//!  a record whose lock is gone must not stay,
+//!  and a sweep that lands while a record is being written must leave it
+//!  (a review of `2ac27d2a29`, finding 1).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! writeBinding({...}); expect(bindingOf(commonDir, lock)).toEqual({...});
 //! ```
 
-use crate::lock_bindings::{A_PIN_IS_REACHABLE, Binding, Written, folder_of, name_of, of, parse, remove, sweep, text_of, write};
+use crate::lock_bindings::{A_PIN_IS_REACHABLE, Binding, Written, folder_of, of, pin_holds_the_lock, remove, sweep, write};
 use crate::test_support::{fixture, remove as remove_fixture};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// What:
 ///  A directory shaped like a Git directory,
@@ -35,31 +38,17 @@ fn a_lock(name: &str, lock_name: &str) -> (PathBuf, PathBuf) {
     let common_dir: PathBuf = fixture(name);
     std::fs::create_dir_all(folder_of(common_dir.as_path())).expect("the record folder");
     let lock: PathBuf = common_dir.join(lock_name);
+    std::fs::create_dir_all(lock.parent().expect("the lock's folder")).expect("the lock's folder");
     std::fs::write(lock.as_path(), b"a half-written copy of the index\n").expect("the lock");
     return (common_dir, lock);
-}
-
-/// What:
-///  The device and inode of the file at `path`,
-///  which is what a record's name carries.
-/// Why:
-///  A control names the record it wrote the way the writer did,
-/// and a removal that names anything else takes away another record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const file = statSync(path); [file.dev, file.ino]
-/// ```
-fn file_of(path: &Path) -> (u64, u64) {
-    let seen = crate::index_lock_evidence::read_lock_metadata(path).expect("the file's identity").expect("the file stands");
-    return (seen.device, seen.inode);
 }
 
 /// What:
 ///  The identity a record carries for a holder,
 ///  as this boot and this process table spell one.
 /// Why:
-///   The parser must read the whole identity and nothing can be guessed of it.
+///   The record's own file name carries it whole,
+///  so the reader must find it again unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,25 +60,27 @@ fn an_identity() -> String {
 
 /// What:
 ///  A record written for a lock reads back as the lock,
-///  the holder and the PID file it names.
+///  the holder and the file it pinned.
 /// Why:
-///  This is the pair a later command acts on,
+///  This is what a later command acts on,
 ///  and the pin is what makes the record about one file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// write(commonDir, lock, [42, identity], [7, 9]); of(commonDir, lock) // { pid: 42, … }
+/// write(commonDir, lock, [42, identity]); of(commonDir, lock) // { pid: 42, … }
 /// ```
 #[test]
 fn a_record_reads_back_as_the_lock_it_names() {
     let (common_dir, lock) = a_lock("binding-round-trip", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert!(write(common_dir.as_path(), lock.as_path(), &holder).is_some(), "a lock that stands can be pinned");
+    let written: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("a lock that stands can be pinned");
     let read: Binding = of(common_dir.as_path(), lock.as_path()).expect("the record written a moment ago");
     assert_eq!(read.lock, lock);
     assert_eq!(read.pid, 42);
     assert_eq!(read.identity, an_identity());
-        remove_fixture(common_dir.as_path());
+    assert_eq!(read.pin, written.pin, "the record the reader found is the one this command wrote");
+    assert!(pin_holds_the_lock(&written), "the pin names the file at the path");
+    remove_fixture(common_dir.as_path());
 }
 
 /// What:
@@ -108,10 +99,11 @@ fn a_record_reads_back_as_the_lock_it_names() {
 fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
     let (common_dir, lock) = a_lock("binding-replaced", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert!(write(common_dir.as_path(), lock.as_path(), &holder).is_some());
+    let written: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("a lock that stands is pinned");
     std::fs::remove_file(lock.as_path()).expect("the lock goes");
     std::fs::write(lock.as_path(), b"another Git's lock\n").expect("a later lock");
     assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record describes the file it pinned and no other");
+    assert!(!pin_holds_the_lock(&written), "the pin names a file that is no longer at the path");
     remove_fixture(common_dir.as_path());
 }
 
@@ -119,8 +111,9 @@ fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
 ///  A record whose pin is gone describes nothing,
 ///  and the path a record names is the path it was written for.
 /// Why:
-///   The sweep and the pass both read records the other activity may have removed,
-///  and a record of another path must not be read as this one's.
+///   The record is one file,
+///  so removing it is removing the proof:
+///  nothing may read a name without it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,58 +123,69 @@ fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
 fn a_record_without_its_pin_describes_nothing() {
     let (common_dir, lock) = a_lock("binding-pin-gone", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert!(write(common_dir.as_path(), lock.as_path(), &holder).is_some());
-    let name: String = name_of(lock.as_path(), file_of(lock.as_path()));
-    let pin: PathBuf = folder_of(common_dir.as_path()).join(format!("{name}.pin"));
-    std::fs::remove_file(pin.as_path()).expect("the pin goes");
-    assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record without its pin proves nothing");
+    let written: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("a lock that stands is pinned");
+    std::fs::remove_file(written.pin.as_path()).expect("the record goes");
+    assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record without its file proves nothing");
+    remove(&written);
+    assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record removed by name is gone");
     remove_fixture(common_dir.as_path());
 }
 
 /// What:
 ///  A path of a space and a newline reads back as itself.
 /// Why:
-///   A record is read as lines,
-///  and a file system holds names of any byte;
-///  a path written raw would split the record.
+///   The path's own text is what the sweep judges a record by,
+///  and a file system holds names of any byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parse(bindingText('a b\nc.lock'))!.lock === 'a b\nc.lock'
+/// const lock = join(commonDir, 'a file\nwith a newline.lock'); write(…); of(…)!.lock === lock
 /// ```
 #[test]
 fn a_path_of_a_space_and_a_newline_reads_back_as_itself() {
-    let lock: PathBuf = PathBuf::from("/a directory/a file\nwith a newline.lock");
-    let text: String = text_of(lock.as_path(), &(42, an_identity()));
-    let read: Binding = parse(text.as_str()).expect("the record this module writes");
+    let (common_dir, lock) = a_lock("binding-odd-path", "a file\nwith a newline.lock");
+    let holder: (i64, String) = (42, an_identity());
+    let written: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("a lock of any name can be pinned");
+    let read: Binding = of(common_dir.as_path(), lock.as_path()).expect("the record of that path");
     assert_eq!(read.lock, lock);
-    assert_eq!(read.pid, 42);
+    assert!(pin_holds_the_lock(&written));
+    // A sweep must keep it: its lock stands.
+    sweep(common_dir.as_path());
+    assert!(of(common_dir.as_path(), lock.as_path()).is_some(), "a sweep keeps the record of a lock that stands");
+    remove_fixture(common_dir.as_path());
 }
 
 /// What:
-///  A record that is not one decides nothing.
+///  A file that is not a record of this release decides nothing,
+///  and the sweep removes it.
 /// Why:
 ///   A record a person edited,
 ///  a file cut short,
-///  and a text of another shape must all keep the lock.
+///  a name of another shape,
+///  and the two files of the earlier format of this folder
+///  are all litter no reader reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parse('lock-holder-record v1\nlock 2f\n') // undefined
+/// writeFileSync(join(pinned, '3f9a….pin'), ''); sweep(commonDir); readdirSync(pinned) // []
 /// ```
 #[test]
-fn a_record_that_is_not_one_decides_nothing() {
-    let good: String = text_of(Path::new("/repo/.git/index.lock"), &(42, an_identity()));
-    assert!(parse(good.as_str()).is_some(), "the record this module writes reads back");
-    for tampered in [
-        String::new(),
-        String::from("monochromatic-git-policy-cli lock-binding v1\n"),
-        good.replace("holder 42", "holder forty-two"),
-        format!("{good}extra\n"),
-        good.replace("monochromatic-git-policy-cli lock-binding v1", "something else"),
-    ] {
-        assert_eq!(parse(tampered.as_str()), None, "a record that is not one names nobody: {tampered:?}");
+fn a_file_that_is_not_a_record_decides_nothing_and_goes() {
+    let (common_dir, lock) = a_lock("binding-not-a-record", "index.lock");
+    let folder: PathBuf = folder_of(common_dir.as_path());
+    for name in ["a-record-of-another-shape.holder", "3f9a.pin", "4154.not-a-take", "no-suffix-here"] {
+        std::fs::write(folder.join(name), b"not a record\n").expect("a planted file");
     }
+    assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "none of them names this lock");
+    sweep(common_dir.as_path());
+    let left: Vec<String> = std::fs::read_dir(folder.as_path())
+        .expect("the record folder")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return !name.ends_with(".lock-path"); })
+        .collect();
+    remove_fixture(common_dir.as_path());
+    assert!(left.is_empty(), "the sweep removes every file that is not a record of a path: {left:?}");
 }
 
 /// What:
@@ -194,7 +198,7 @@ fn a_record_that_is_not_one_decides_nothing() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// sweep(commonDir); expect(records).toEqual([keptName])
+/// sweep(commonDir); expect(readdirSync(pinned)).toEqual([kept])
 /// ```
 #[test]
 fn the_sweep_removes_the_record_of_a_lock_that_is_gone() {
@@ -202,14 +206,41 @@ fn the_sweep_removes_the_record_of_a_lock_that_is_gone() {
     let gone: PathBuf = common_dir.join("HEAD.lock");
     std::fs::write(gone.as_path(), b"a lock that never reached its rename\n").expect("the lock");
     let holder: (i64, String) = (42, an_identity());
-    let standing_record: Written = write(common_dir.as_path(), standing.as_path(), &holder).expect("the standing lock's record");
-    assert!(write(common_dir.as_path(), gone.as_path(), &holder).is_some());
+    let kept: Written = write(common_dir.as_path(), standing.as_path(), &holder).expect("the standing lock's record");
+    let litter: Written = write(common_dir.as_path(), gone.as_path(), &holder).expect("the other lock's record");
     std::fs::remove_file(gone.as_path()).expect("the lock it recorded goes");
     sweep(common_dir.as_path());
     assert!(of(common_dir.as_path(), standing.as_path()).is_some(), "the record of a standing lock stays");
     assert_eq!(of(common_dir.as_path(), gone.as_path()), None, "the record of a lock that is gone goes");
-    remove(common_dir.as_path(), &standing_record);
-    assert_eq!(of(common_dir.as_path(), standing.as_path()), None, "a record removed by name is gone");
+    assert!(!litter.pin.exists(), "and its own file is unlinked");
+    assert!(kept.pin.exists(), "the standing lock's record file is still there");
+    remove_fixture(common_dir.as_path());
+}
+
+/// What:
+///  A record whose path cannot be read is kept by the sweep.
+/// Why:
+///   Nothing shows which file such a pin stands for,
+///  and a record kept is a clearance that may still be made;
+///  removing it would take away a proof no command could then make again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(…); unlink(lockPathFile); sweep(commonDir); expect(pinExists()).toBe(true)
+/// ```
+#[test]
+fn a_record_whose_path_cannot_be_read_is_kept() {
+    let (common_dir, lock) = a_lock("binding-unreadable-path", "index.lock");
+    let holder: (i64, String) = (42, an_identity());
+    let written: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("a lock that stands is pinned");
+    let folder: PathBuf = folder_of(common_dir.as_path());
+    for entry in std::fs::read_dir(folder.as_path()).expect("the record folder").flatten() {
+        if entry.file_name().to_string_lossy().ends_with(".lock-path") {
+            std::fs::remove_file(entry.path()).expect("the path's text goes");
+        }
+    }
+    sweep(common_dir.as_path());
+    assert!(written.pin.exists(), "a pin whose path's text cannot be read is kept");
     remove_fixture(common_dir.as_path());
 }
 
@@ -246,7 +277,7 @@ fn a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock() {
     crate::service_fault::hooks::set(
         A_PIN_IS_REACHABLE,
         std::rc::Rc::new(move || {
-            // The other command's pass, at the instant this record's pin is reachable and its record is not yet.
+            // The other command's pass, at the instant this record's pin is reachable.
             sweep(hook_common.as_path());
             ran.set(true);
         }),
@@ -265,4 +296,36 @@ fn a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock() {
         "a sweep that ran while the record was being published leaves the record of a standing lock: {found:?}"
     );
     assert!(after.is_some(), "and so does the next one: {after:?}");
+}
+
+/// What:
+///  A Git that renames its lock over its target and takes the path again
+///  leaves a record that names the file standing there,
+///  and one sweep keeps it.
+/// Why:
+///   One take follows another at one path,
+///  and the record of the first names a file that is now the target,
+///  so the second take has to be written again or a killed Git's second lock would have no proof
+///  (the control in `lock_watch_tests.rs` reaches the same through the run that writes records).
+///  The name of a record is the take's, so the second write takes the first one's place:
+///  one file per take, and the sweeping judgement is about the file that stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(…); rename(lock, index); writeFileSync(lock); write(…); expect(of(…).pin).toBeDefined()
+/// ```
+#[test]
+fn a_second_take_of_one_path_leaves_a_record_of_the_file_that_stands() {
+    let (common_dir, lock) = a_lock("binding-second-take", "index.lock");
+    let holder: (i64, String) = (42, an_identity());
+    let _first: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("the first take is recorded");
+    std::fs::rename(lock.as_path(), common_dir.join("index")).expect("the child renames its lock over its target");
+    std::fs::write(lock.as_path(), b"the second take\n").expect("the path is taken again");
+    let second: Written = write(common_dir.as_path(), lock.as_path(), &holder).expect("the second take is recorded");
+    assert!(pin_holds_the_lock(&second), "the record names the file standing at the path");
+    let read: Binding = of(common_dir.as_path(), lock.as_path()).expect("the standing lock's record");
+    assert_eq!(read.pin, second.pin, "the record read is the one that names the standing file");
+    sweep(common_dir.as_path());
+    assert!(of(common_dir.as_path(), lock.as_path()).is_some(), "a sweep keeps the standing take's record");
+    remove_fixture(common_dir.as_path());
 }

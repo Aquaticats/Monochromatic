@@ -22,9 +22,15 @@
 //!    about a PID file that no longer names the recorded number,
 //!    or about a Git the record does not name,
 //!    and each of those keeps the lock.
-//!    The record's two files are named for the lock's path and for the very file it pinned,
-//!    so the removal that acts on it takes away that record and never one another command wrote for a
-//!    later lock at the same path (a review of `f8f5cba090`, finding 1).
+//!    The record is one file,
+//!    written by one `link`,
+//!    and named for the take it belongs to:
+//!    the lock's path's digest with that Git's process number and birth identity.
+//!    So the removal that acts on it takes away that record and never one another command wrote for a
+//!    later lock at the same path,
+//!    and no step of the publication leaves a half-written record for a sweep to take away
+//!    (a review of `f8f5cba090`, finding 1;
+//! a review of `2ac27d2a29`, finding 1).
 //!    Only the commands whose Git this process waits for write such a record:
 //!    a command that replaces itself with real Git keeps no process,
 //!    so its lock keeps the second proof or stands.
@@ -258,8 +264,8 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     //       a pin on the very inode it took (`lock_bindings.rs`, `lock_watch.rs`), so no birth time is needed on that path:
     //       a file system of coarse times gives the lock and its PID file one stamp and proves nothing.
     let pid_file: PathBuf = pid_file_beside(lock);
-    let (pid, evidence): (i64, Evidence) = match bound_holder(lock, common_dir, pid_file.as_path()) {
-        Some(found) => found,
+    let (pid, evidence, record): (i64, Evidence, Option<crate::lock_bindings::Written>) = match bound_holder(lock, common_dir, pid_file.as_path()) {
+        Some((pid, evidence, record)) => (pid, evidence, Some(record)),
         None => {
             let born: Option<std::time::SystemTime> = born_of(lock);
             // Only a PID file Git wrote for this very lock names its holder: one born before the lock belongs to an
@@ -269,7 +275,7 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
             };
             // The writer of this PID file must be proved gone. A number a live process has now is no proof of anything.
             proved_gone_writer(common_dir, found)?;
-            (found, Evidence::PidFile)
+            (found, Evidence::PidFile, None)
         }
     };
     // Nothing may be able to write into the file when its name goes:
@@ -303,10 +309,11 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
     }
-    // The record of this lock goes with it, and so does the pin that held its inode. The two are named by the file
-    //  that was judged, not by what the path holds now.
-    let recorded: crate::lock_bindings::Written = crate::lock_bindings::Written { lock: lock.to_path_buf(), file: (judged.device, judged.inode) };
-    crate::lock_bindings::remove(common_dir, &recorded);
+    // The record of this lock goes with it: the one file, named for the take it belongs to, so a record another command
+    //  wrote for a later lock at this path is never it.
+    if let Some(recorded) = record.as_ref() {
+        crate::lock_bindings::remove(recorded);
+    }
     // The lease, where this platform offers one, is released only now: both names are gone.
     drop(proof);
     return Some(Clearance { lock: lock.to_path_buf(), pid, evidence });
@@ -341,8 +348,9 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
 /// const bound = bindingOf(commonDir, lock);
 /// if (!bound || !pinnedIs(lock) || !pidFileIs(bound) || holderState(bound) !== 'gone') return undefined;
 /// ```
-fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64, Evidence)> {
+fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64, Evidence, crate::lock_bindings::Written)> {
     let bound: crate::lock_bindings::Binding = crate::lock_bindings::of(common_dir, lock)?;
+    let record: crate::lock_bindings::Written = crate::lock_bindings::Written { pin: bound.pin.clone(), lock: lock.to_path_buf() };
     if crate::stopped_git_locks::pid_named_by(pid_file) != Some(i32::try_from(bound.pid).ok()?) {
         return None;
     }
@@ -350,7 +358,7 @@ fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64,
         return None;
     }
     proved_gone_writer(common_dir, bound.pid)?;
-    return Some((bound.pid, Evidence::Binding));
+    return Some((bound.pid, Evidence::Binding, record));
 }
 
 /// What:
