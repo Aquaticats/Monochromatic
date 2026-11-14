@@ -349,6 +349,26 @@ On 2026-11-14 two runs wrote into the main checkout:
 one wrote twenty new files and four edits there over fifty minutes while its own worktree was empty,
 because its brief named main-checkout paths to read and nothing stopped the same paths from being written.
 
+Every path in those two properties is quoted as one systemd item,
+and only a backslash or a double quote inside it is escaped,
+because systemd reads each property as a space-separated list:
+a checkout folder whose path carries a space,
+a quote or a line break would otherwise be split into several paths,
+or break the parse,
+and the unit would refuse to start with `Invalid ReadOnlyPaths`.
+A folder that is not an absolute path cannot be named in those properties at all,
+so a relative `--checkout-folder` or `--runs-folder` refuses the start,
+naming the folder and what systemd takes,
+before anything is made.
+
+The run's worktree is read once more immediately before the launcher asks for the unit,
+because a launcher of another start of the same name removes a finished worktree,
+and it can do so in the moment between the first read and the unit.
+A start whose worktree has gone ends with words naming the worktree,
+the launcher that most likely removed it and the run folder,
+and the same words follow a unit the manager refused to start for that reason,
+so such a start never ends on the manager's status alone.
+
 The wait for the unit is the launcher's own:
 it starts the waiter,
 and asks the manager for the unit's `ActiveState` every minute,

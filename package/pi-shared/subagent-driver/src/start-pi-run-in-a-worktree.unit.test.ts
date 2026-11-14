@@ -960,5 +960,137 @@ await describe({
         await expect(readdir(runs,),).resolves.toEqual([],);
       },
     },),
+    it({
+      name: 'names the worktree when a unit that was asked for fails in the manager because the worktree went while it started, rather than ending on the manager status alone',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run would work in.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         The worktree the stand-in manager removes as it refuses the unit, which is the window between the launcher's last look and
+         the manager's own namespace setup.
+         */
+        const worktree = join(
+          checkout,
+          '.claude',
+          'worktrees',
+          'pi-refused',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await mkdir(
+          worktree,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses: it answers that the base names a commit and that the worktree was added, and it makes
+         the folder the launcher then reads.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The unit manager, which removes the worktree and refuses the unit the way systemd does when a writable path is not there.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `rmdir '${worktree}'\nprintf '%s\\n' 'Failed to set up mount namespacing: No such file or directory' >&2\nprintf '%s\\n' 'Main processes terminated with: code=exited, status=226/NAMESPACE' >&2\nexit 226\n`,
+        },);
+        /**
+         The manager this test reads a unit's name from, which is free because no unit holds it.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          branch: 'probe-branch',
+          base: 'a-commit',
+        },);
+        expect(ended.code,).not.toBe(0,);
+        // The manager's own words are there, and so is the line that says which folder went: a reader is never left with the
+        // status alone.
+        expect(ended.stderr,).toContain('No such file or directory',);
+        expect(ended.stderr,).toContain('the unit did not start',);
+        expect(ended.stderr,).toContain(worktree,);
+        expect(ended.stderr,).toContain('Start the run again',);
+      },
+    },),
   ],
 },);
