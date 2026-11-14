@@ -1225,6 +1225,29 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal's author answered; its answer goes to review (2026-11-14T11:45:34-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked.
+
+- **The landed removal's guard** (tip `528279d099`, ended 11:40:51):
+  the author reports both findings answered:
+  the guard runs on every route by which a typed removal passes,
+  `--no-worktree-copy` among them,
+  with only the two recorded things standing it down;
+  and every printed command runs as printed for a hostile path.
+  Eighteen binary controls and 45 unit tests passing at four CPUs.
+  One test of the wider run fails,
+  `the_status_follows_the_dash_c_options_of_the_invocation`,
+  which it ran at `main`'s own tip in a scratch worktree and found failing there with the same assertion.
+  It leaves two things open for whoever integrates:
+  whether the policy stage's guard shares this path once both branches are in,
+  and whether `REGISTRATION_SUBCOMMANDS` learns `remove`.
+  Review queued second (range `main...528279d099`, seventeen code files).
+- 22 Pi runs were going at 11:45:34;
+  the queue held 61 entries.
+
 ##### Removal-refuses passes its fifth review and goes into pass 41; the brief writer for tests goes back; two authors' answers go to review (2026-11-14T11:39:47-05:00)
 
 Not final and not approved:
