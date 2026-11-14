@@ -1230,6 +1230,67 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 39 and the mpm-shadow integration are in `main`; `0.6.1-alpha.29` is dispatched; the landed removal goes back; the fuzz seeds go to review (2026-11-14T12:23:45-05:00)
+
+Not final and not approved:
+what four runs report of themselves,
+and what the coordinating session measured,
+merged and queued.
+
+- **Pass 39** (tip `3164530654`:
+  the five library controls with the guards true again,
+  and the warm request's controls)
+  reported fit at 12:22:05:
+  both branches in at the commits named,
+  no conflict and no repair commit,
+  build,
+  both test compiles and Clippy clean,
+  every named control passing at full CPUs and at four,
+  nothing left in the controls' scope,
+  three library tests still red that are `main`'s.
+  It asks for one more run of both guard modules when pass 38 reaches `main`.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `1dbc343a9d` at 12:22:50,
+  and `0.6.1-alpha.29` was dispatched at 12:23:05
+  (run 43620812726).
+  Passes 38 and 40 to 43,
+  all five going,
+  were told at 12:23:45 and asked to run both guard modules at their tips.
+- **The mpm-shadow integration** (tip `420baac9d8`:
+  an install takes a tool,
+  issue 6300,
+  and the Clippy fix)
+  reported fit at 12:20:39:
+  one meeting of the two branches in `install_argument_tests.rs` repaired in a commit of its own,
+  Clippy,
+  `cargo check`,
+  `lint:types`,
+  780 tests and `publish --dry-run` ending with status 0.
+  It could not exercise a live registry lookup behind the firewall.
+  Merged as `f308959e42` at 12:22:51.
+  Its release,
+  `0.2.7-alpha.11` after `0.2.7-alpha.10`,
+  is dispatched when the wrapper's release commit is in `main`,
+  since both release workflows push a version bump to `main`;
+  `toolchain:update` follows it.
+- **The landed removal's guard** (`528279d099`),
+  review of its answer:
+  two reproduced with controls.
+  Under `core.ignorecase=true` a name that differs in case from the worktree's goes past the guard,
+  which resolves the operand byte for byte where Git folds case,
+  and an unforced removal then destroys a hidden edit or a commit only a detached `HEAD` names.
+  And the new guard for hidden edits opens the index with an open that blocks,
+  so a FIFO planted there holds `git merge` until it is killed.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **The fuzz sidecar's seeds** (tip `0e3035a31a`, ended 12:21:38):
+  the author reports the nine seeds rewritten from a seed table by a writer,
+  with a control that fails when a seed drifts from its name;
+  47 generator controls passing,
+  a fuzz run of 60 s with 21,140 executions and no crash.
+  Review queued third (range `main...0e3035a31a`, five code files).
+- The queue held 62 entries at 12:23:34.
+
 ##### The drawn shadow tree's author answered; its answer goes to review (2026-11-14T12:18:16-05:00)
 
 Not final and not approved:
