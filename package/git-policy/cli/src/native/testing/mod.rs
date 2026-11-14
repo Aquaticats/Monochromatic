@@ -33,6 +33,11 @@ pub(crate) mod test_support;
 #[cfg(test)]
 pub(crate) mod argument_limit;
 
+/// A process of a control's own that is alive while the control holds it,
+/// a fixture of the controls beside `test_support.rs`.
+#[cfg(test)]
+pub(crate) mod another_live_process;
+
 /// The owner of a process that really started and was then killed,
 /// a fixture of the controls beside `test_support.rs`.
 #[cfg(test)]

@@ -36,7 +36,8 @@ fn every_kind_of_address_is_named_in_words_a_person_can_act_on() {
 }
 
 /// What:
-///  A bind never takes the address of a service that is alive, whether or not it has greeted yet.
+///  A bind never takes the address of a service that is alive,
+/// whether or not it has greeted yet.
 /// Why:
 ///  The fourth review of issue 6293 (finding 1):
 /// a service that is alive but still in its recovery before its first greeting answered nothing,
@@ -52,7 +53,7 @@ fn a_socket_of_a_live_service_that_greets_nothing_is_never_taken_over() {
     let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
     // The service itself: a socket that accepts and says nothing, as a service before its first greeting is.
     let silent: UnixListener = UnixListener::bind(socket.as_path()).expect("the preparing service's address");
-    let other = crate::test_support::a_live_process_that_is_not_this_one();
+    let other = crate::another_live_process::a_live_process_that_is_not_this_one();
     let theirs: String = crate::process_identity::process_birth_identity(i64::from(other.pid())).expect("a live process's birth").expect("it is there");
     std::fs::write(note.as_path(), format!("{} {theirs}\n", other.pid())).expect("the preparing service's note");
     let before: u64 = std::fs::metadata(socket.as_path()).expect("the address").ino();
@@ -71,7 +72,8 @@ fn a_socket_of_a_live_service_that_greets_nothing_is_never_taken_over() {
 ///  which is a service that is exiting.
 /// Why:
 ///  Such a service held the address for 33 seconds on 2026-11-12 while a commit waited 37 seconds on it;
-/// the next server takes the name within one greeting's read, and the old one keeps its own socket until it ends.
+/// the next server takes the name within one greeting's read,
+/// and the old one keeps its own socket until it ends.
 #[test]
 fn a_socket_that_greets_nothing_is_taken_over() {
     // A socket path must fit in a socket address, which the fixture tree's depth does not allow.

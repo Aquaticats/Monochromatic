@@ -10,7 +10,8 @@ fn folder(name: &str) -> PathBuf {
     return crate::test_support::short_directory_for_sockets(format!("own-files-{name}").as_str());
 }
 
-/// What this process's number is, as the note holds it.
+/// What this process's number is,
+/// as the note holds it.
 fn our_pid() -> i32 {
     return i32::try_from(std::process::id()).expect("a process number");
 }
@@ -51,7 +52,7 @@ fn the_instance_is_claimed_before_the_address_exists_and_the_files_are_removed_a
 fn a_live_holder_keeps_its_instance_and_a_dead_ones_note_is_taken_over() {
     let root = folder("holder");
     let note = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
-    let other = crate::test_support::a_live_process_that_is_not_this_one();
+    let other = crate::another_live_process::a_live_process_that_is_not_this_one();
     // The note names a process that is alive and is not this one, as a service of this build writes it.
     let identity: String = crate::process_identity::process_birth_identity(i64::from(other.pid())).expect("a live process's birth").expect("it is there");
     std::fs::write(note.as_path(), format!("{} {identity}\n", other.pid())).expect("a live service's note");
@@ -79,7 +80,7 @@ fn an_ending_service_leaves_the_files_of_the_service_that_took_its_instance_over
     let root = folder("successor");
     let socket = root.join("3f9a.sock");
     let note = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
-    let successor = crate::test_support::a_live_process_that_is_not_this_one();
+    let successor = crate::another_live_process::a_live_process_that_is_not_this_one();
     let identity: String = crate::process_identity::process_birth_identity(i64::from(successor.pid())).expect("a live process's birth").expect("it is there");
     std::fs::write(note.as_path(), format!("{} {identity}\n", successor.pid())).expect("the successor's note");
     let listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the successor's address");
