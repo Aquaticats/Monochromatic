@@ -1121,6 +1121,64 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit-forms author answered its first review; the landing that never waits is written; both go to review (2026-11-13T21:11:17-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message,
+nothing here rerun by it.
+
+Commit forms real Git refuses
+(run `commit-forms-real-git-refuses-are-refused-with-gits-own-message-3`,
+ended 21:04:37,
+tip `b631f80970`,
+`main` merged):
+
+- The author reports each of the review's defects reproduced with the review's own scripts and then gone:
+  the question put to real Git is always `commit --dry-run` with an index of its own,
+  a `-C` is applied once,
+  the rule for `-o` without a path is as wide as Git's,
+  and each answer says what it means.
+  Each control was shown failing before its fix.
+- Cost it measured:
+  a plain commit 38.1 ms before and 38.5 ms after,
+  a refusal 2.1 ms more.
+- It leaves open:
+  what the private index costs on a large repository,
+  and what a dry run that ends with status 1 should answer.
+- Its second review is queued at the head
+  (`review-git-policy-cli-commit-forms-answers-after-its-first-review`,
+  range `main...b631f80970`).
+
+The landing of a commit never waits behind housekeeping,
+a push or a package repair in its service
+(run `landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service-1`,
+ended 21:06:50,
+tip `08d7a82212`,
+branch `fix/git-policy-cli-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service`):
+
+- What it reports changed:
+  some places in the service are kept free of slow work,
+  the long jobs that had no budget are counted as slow work,
+  one trash item has a ceiling (`TRASH_ITEM_CEILING`) and items go in waves,
+  a client withdraws its request before it gives up
+  (new endings `ServiceGoneNotLanded` and `ServiceGoneUnconfirmed`),
+  and the look that routes a landing is bounded by `LANDING_STATE_CEILING`.
+- What it measured:
+  a commit landed in 41 to 51 ms with every kind of slow work held,
+  against 40 to 55 ms with the service idle.
+- Weaker points it names itself:
+  no arm per kind of slow work,
+  and no end-to-end control of an item that never finishes.
+- The branch stands on `main` at `f9ec05f3c0`,
+  four releases behind.
+  A pass that carries it merges `main` first;
+  a meeting in `service_client.rs` is expected.
+- The author edited files in the main checkout by mistake and took the edits back with a reverse patch.
+  Checked at 21:10:
+  `git status --short` of the main checkout lists the six files other sessions hold open and none of the wrapper's.
+- Its first review is queued at the head
+  (`review-of-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service`).
+
 ##### Two reviews with reproduced defects, the issue 6293 answer, and twelve red library tests on `main` (2026-11-13T21:03:15-05:00)
 
 Not final and not approved:
