@@ -1279,8 +1279,14 @@ from three last messages kept under
   and `git log f375f95972..main` names no commit under `package/git-policy/`,
   `toolchain.lock.json` or `Cargo.lock`.
   Merged at 02:24:00 as `37d1c10b45`.
-  The other passes' branches are as likely unpushed;
-  each tip is checked for locally when its pass reports.
+  Measured at 02:27 for the passes still going
+  (`git for-each-ref` beside `git ls-remote`):
+  the branches of passes 32, 33, 34 and 35 have no upstream and are not on the remote;
+  pass 29's is there and level with its local tip;
+  pass 31's is there and behind its local tip
+  (`0b35ae25c1` against `03a6309cca`).
+  So each tip is looked for in this repository when its pass reports,
+  and the work of four passes is on this machine alone until then.
 - **Release `0.6.1-alpha.25`** dispatched at once,
   run 43570940280;
   its waiter is going.
