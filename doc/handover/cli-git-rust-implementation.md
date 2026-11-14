@@ -1198,6 +1198,145 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Issue 6293's last change is right; two things in files the branch brings go back to its author (2026-11-14T11:16:40-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+what the coordinating session measured against `main`,
+and what it queued.
+
+- **Issue 6293** (`71d52acb9a`),
+  fourth review:
+  the last change
+  (a failed push read once for the answer that its branch is gone)
+  keeps every verdict,
+  by a case analysis and thirteen tests run.
+  Two things in files it was given to read,
+  which it calls older than that commit.
+  Measured against `main`:
+  the branch adds `service_server_start_through_the_manager.rs` whole and changes the socket binding and the files of a running instance,
+  so both stand in what the branch brings.
+  - A takeover of the socket is decided by a greeting alone:
+    a live service still in its recovery before `serve` can have its socket unlinked by a second starter,
+    and its later removal of its own files deletes the successor's by path.
+    The socket's mechanism was reproduced;
+    the chain is by reading,
+    set off by a recovery of more than ten seconds.
+  - The probe of the manager waits on a killed child with no bound,
+    by reading.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/issue-6293-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- 22 Pi runs were going at 11:16:40;
+  the queue held 58 entries.
+
+##### The three removal notices pass and go into pass 40; a sweep beside a write loses the record of a standing lock, back to its author (2026-11-14T11:12:13-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+and what the coordinating session queued.
+
+- **Removal around a volume, three notices** (`39f0c83ef0`):
+  no defect.
+  The review ran 228 tests
+  (85 of `worktree_remove*`,
+  eleven end-to-end on real btrfs in private mount namespaces,
+  132 of the other modules it was asked to read)
+  and showed the moved code identical to what it was.
+  No going pass carries this commit
+  (its branch is `fix/git-policy-cli-removal-goes-around-a-subvolume-or-mount-it-did-not-make`),
+  so **integration pass 40** is queued first with it
+  (`~/temp/agent/pi-runs/integration-pass-40-with-the-three-removal-notices-that-say-what-is-so-prompt.md`).
+  One thing it names by reading and outside the change:
+  in `hand_over_with` (`worktree_remove_hand_over.rs`, near lines 342 to 356) a renamed subvolume can be left with no owner
+  when the service settles the record inside a narrow window and the self-delete then fails;
+  no data is lost.
+  A fresh run is queued since 11:17:18 to establish it by the code's own seams and,
+  where it can happen,
+  to make every renamed subvolume have an owner that deletes it
+  (`~/temp/agent/pi-runs/renamed-subvolume-of-a-removal-handed-over-is-never-left-with-no-owner-prompt.md`).
+- **The lock a killed Git left** (`2ac27d2a29`):
+  the changed hunk is right and 29 lock tests pass.
+  One reproduced end to end with the built wrapper,
+  the thing the author's own report named and left alone:
+  a sweep of another command between a write's hard link and its rename unlinks the pin,
+  the record is then published with no pin,
+  a killed Git's lock loses its record at the next forget,
+  and the next `git add` ends with status 128 and the next `git commit` with status 1.
+  The author is resumed second,
+  to publish the pair as one
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-answers-its-second-review-of-2026-11-14-prompt.md`).
+- The queue held 57 entries at 11:12:13.
+
+##### cargo-shadow's degraded test run counts tests that did not run as passed, back to its author; the brief writer's change for tests goes to review (2026-11-14T11:04:27-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **cargo-shadow's test task** (`c68faed843`):
+  the review showed by a planted break that the time-bound test still fails when the bound is defeated.
+  One reproduced:
+  on a host that cannot give a delegated scope,
+  each scope test that did not execute prints `PASS` beside its `SKIPPED` line,
+  and the degraded task counted 66 such tests inside `868 passed`.
+  The README names it as a known tradeoff.
+  It is not kept:
+  the project's rule is that a green run counts only by the names of tests that ran.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/cargo-shadow-test-task-answers-its-review-of-2026-11-14-prompt.md`).
+- **The writer of review briefs takes a change of tests alone** (tip `1b6ea7748d`, ended 10:59:17;
+  the owner's answer of 08:54:33):
+  the author reports the change made with its controls.
+  Review queued third (range `main...1b6ea7748d`, five code files).
+  It measured that a range holding `.cjs` and `.d.cts` code is still answered "nothing to review",
+  which is outside that decision.
+  That is a defect of the driver and has a fresh run,
+  queued fourth and started from that tip:
+  the writer never answers "nothing to review" for a range that changes code of any kind the repository tracks
+  (`~/temp/agent/pi-runs/review-brief-writer-reads-every-kind-of-code-file-the-repository-holds-prompt.md`).
+- **Scratch and the home drive**:
+  that run measured `${HOME}/temp/agent` at 330 GiB at about 10:59;
+  pass 37 measured 308 GB by `du` at 09:47.
+  `df` gave 501 G free on `/var/home` at 11:03,
+  71% used.
+- 23 Pi runs were going at 11:04:27;
+  the queue held 56 entries.
+
+##### The failure variants' test goes back for one form it lets by; the long runtime directory's answer goes to review (2026-11-14T10:58:58-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **The failure variants' test** (`8480dea6b4`):
+  by the review's runs a missing sample,
+  two lines sharing a name and a sample of the wrong variant each fail the test,
+  and a new variant stops the file from compiling.
+  One reproduced:
+  two variants folded into one arm by an or-pattern,
+  or a catch-all arm,
+  leave the test passing,
+  and the catch-all would swallow a later variant.
+  The reviewer weighs it below critical,
+  since it takes an edit of the guard's own list.
+  Weighed here as worth its fix:
+  the catch-all undoes the compile-time notice the change exists for,
+  and the fix is confined to one macro.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/failure-variant-test-answers-its-review-of-2026-11-14-prompt.md`).
+- **The long runtime directory** (tip `eafd1e9a24`, ended 10:55:22):
+  the author reports both findings of its second review answered
+  (the repair path's wait gone from 10,016 ms to 51 ms and from 10,018 ms to 3 ms by its probe;
+  `service status` outside a worktree finds a service at an abstract name;
+  116 tests of the touched modules passing at four CPUs).
+  It names one thing left alone in another agent's file:
+  `Address::named` cuts a name that is too long instead of refusing it,
+  and no caller passes one after this change.
+  Review queued third (range `main...eafd1e9a24`).
+- Both runs say no credential's value reached a tool result of theirs.
+- 23 Pi runs were going at 10:58:58;
+  the queue held 55 entries.
+
 ##### The credential scan has ended and a list of names to rotate is written; mpm-shadow's cleanup answer goes to review (2026-11-14T10:51:00-05:00)
 
 Not final and not approved:
