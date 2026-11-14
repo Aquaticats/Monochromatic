@@ -283,18 +283,19 @@ fn installing_a_newer_release_keeps_the_version_a_process_of_this_account_runs()
     let older_program: PathBuf = finish_archive(&root, "0.2.0");
     finish_archive(&root, "0.2.1");
     let stand_in: StandIn = StandIn::started_from(&older_program);
-    // Control: the rule itself names this process, so the survival below is this keep and not another one.
-    let keeps: InstallKeeps = InstallKeeps::of(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.2")));
-    let reason: String = keeps
-        .keep_reason(ID, "0.2.0", &tool_directory(&root, ID).expect("a plain name").join("0.2.0"))
-        .expect("a process of this account runs it");
-    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
 
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.2")), None);
     assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
     let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
     assert!(tool_dir.join("0.2.0").is_dir(), "the version this account runs stays");
     assert!(!tool_dir.join("0.2.1").exists(), "the version nothing names and nothing runs is still removed");
+    // Control, asked after the fact: the rule itself names this process, so the survival above is this keep and not
+    // another one. A fixture whose stand-in the scan could not see fails here rather than passing quietly.
+    let keeps: InstallKeeps = InstallKeeps::of(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.2")));
+    let reason: String = keeps
+        .keep_reason(ID, "0.2.0", &tool_dir.join("0.2.0"))
+        .expect("a process of this account runs it");
+    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
     stand_in.stop();
 }
 

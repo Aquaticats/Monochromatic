@@ -391,12 +391,6 @@ fn an_older_copy_in_the_other_root_that_a_process_runs_stays_and_the_one_nothing
     duo.list_own_worktree();
     let run_by_a_process: PathBuf = version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").join("bin").join(GIT_BIN);
     let stand_in: StandIn = StandIn::started_from(&run_by_a_process);
-    // Control: the rule itself names this process, so the survival below is this keep and not another one.
-    let keeps: InstallKeeps = InstallKeeps::of(&duo.context(&duo.rig.scope, &lock));
-    let reason: String = keeps
-        .in_use_reason(&version_directory(&duo.global_root(), GIT_CRATE, "0.4.4"))
-        .expect("a process of this account runs it");
-    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
 
     let report = duo.install_repository();
     assert!(report.failed.is_empty(), "{report:?}");
@@ -406,6 +400,13 @@ fn an_older_copy_in_the_other_root_that_a_process_runs_stays_and_the_one_nothing
         report.warnings.iter().any(|warning| return warning.contains("older managed copy") && warning.contains("0.4.4")),
         "the report says which version stayed and why: {report:?}"
     );
+    // Control, asked after the fact: the rule itself names this process, so the survival above is this keep and not
+    // another one. A fixture whose stand-in the scan could not see fails here rather than passing quietly.
+    let keeps: InstallKeeps = InstallKeeps::of(&duo.context(&duo.rig.scope, &lock));
+    let reason: String = keeps
+        .in_use_reason(&version_directory(&duo.global_root(), GIT_CRATE, "0.4.4"))
+        .expect("a process of this account runs it");
+    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
     stand_in.stop();
 }
 

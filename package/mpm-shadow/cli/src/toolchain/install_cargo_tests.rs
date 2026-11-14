@@ -300,16 +300,17 @@ fn installing_a_newer_version_keeps_the_version_a_process_of_this_account_runs()
     install_finished(&rig, UNNAMED);
     let root = rig.scope.toolchain_root.clone();
     let stand_in: StandIn = StandIn::started_from(&version_directory(&root, FIXTURE_CRATE, EARLIER).join("bin").join("mpm-shadow"));
-    // Control: the rule itself names this process, so the survival below is this keep and not another one.
+
+    install_tool(&rig.context(), &fixture_tool(&rig, NEWEST)).expect("installed");
+    assert!(version_directory(&root, FIXTURE_CRATE, EARLIER).is_dir(), "the version this account runs stays");
+    assert!(!version_directory(&root, FIXTURE_CRATE, UNNAMED).exists(), "the version nothing names and nothing runs is still removed");
+    // Control, asked after the fact: the rule itself names this process, so the survival above is this keep and not
+    // another one. A fixture whose stand-in the scan could not see fails here rather than passing quietly.
     let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
     let reason: String = keeps
         .keep_reason(&format!("cargo/{FIXTURE_CRATE}"), EARLIER, &version_directory(&root, FIXTURE_CRATE, EARLIER))
         .expect("a process of this account runs it");
     assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
-
-    install_tool(&rig.context(), &fixture_tool(&rig, NEWEST)).expect("installed");
-    assert!(version_directory(&root, FIXTURE_CRATE, EARLIER).is_dir(), "the version this account runs stays");
-    assert!(!version_directory(&root, FIXTURE_CRATE, UNNAMED).exists(), "the version nothing names and nothing runs is still removed");
     stand_in.stop();
 }
 
