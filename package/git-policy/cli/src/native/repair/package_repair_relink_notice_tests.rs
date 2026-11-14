@@ -226,3 +226,160 @@ fn the_notice_quotes_the_reason_the_last_try_gave() {
     assert!(notice.contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."), "{notice}");
     remove(root.as_path());
 }
+
+/// What:
+///  A worktree of this repository, with its own administrative directory registered under the common one,
+///  so the crate's registration proof accepts it as one of this repository's worktrees.
+/// Why:
+///   The notice target is chosen from what a command in that worktree would read,
+///   and only a real registration names the same directory a command there reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registered = (root, name) => { mkdir(common/worktrees/name); writeFile(worktree/.git, `gitdir: ${admin}`); writeFile(admin/gitdir, worktree/.git); writeFile(admin/commondir, '../..'); return { common, worktree, admin }; }
+/// ```
+fn registered_worktree(root: &Path, name: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let common: PathBuf = root.join("common");
+    let worktree: PathBuf = root.join(name);
+    let admin: PathBuf = common.join("worktrees").join(name);
+    std::fs::create_dir_all(admin.as_path()).expect("the registration");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the back-link");
+    std::fs::write(admin.join("commondir"), "../..\n").expect("the common directory");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("the pointer");
+    return (common, worktree, admin);
+}
+
+/// A record of one relink whose moment is `queued_at`,
+/// so a control can put it before or after a worktree was registered.
+fn record_queued_at(common: &Path, worktree: &Path, queued_at: &str) -> WorkItem {
+    let entry: RelinkEntry = entry_rooted_at(worktree);
+    let mut item: WorkItem = item_of(common, worktree, &entry).expect("the record");
+    item.created = String::from(queued_at);
+    return item;
+}
+
+/// What:
+///  A `.git` pointer past the crate's bound for one is refused rather than read,
+///  and nothing waits for a name that is not a plain file.
+/// Why:
+///  The give-up pass reads that pointer to find where the person's words go,
+///  and a pointer is one line:
+///  a file of any size at that name is read whole by a bare read into this process's memory,
+///  and every other pointer read in the crate takes the type from the open handle and refuses a file past
+///  `GIT_FILE_LIMIT` for exactly that reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFile(join(worktree, '.git'), 'gitdir: /w\n' + 'x'.repeat(1 << 20)); assert(gitDirOf(worktree) === undefined);
+/// ```
+#[test]
+fn a_pointer_file_past_the_git_file_limit_is_refused_instead_of_read() {
+    let root: PathBuf = fixture("relink-notice-pointer-limit");
+    let worktree: PathBuf = root.join("the worktree");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let mut text: String = format!("gitdir: {}\n", root.join("admin").display());
+    text.push_str("x".repeat(1 << 20).as_str());
+    std::fs::write(worktree.join(".git"), text).expect("the pointer");
+    let resolved: Option<PathBuf> = git_dir_of_a_worktree(worktree.as_path());
+    let size: usize = resolved.as_ref().map_or(0, |path| return path.as_os_str().len());
+    assert!(resolved.is_none(), "a 1 MiB pointer file was read whole: a path of {size} bytes came back");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose registration is gone is told in the directory the record was drained from,
+///  and the gone administrative directory is never made again.
+/// Why:
+///   An interrupted removal leaves a checkout whose `.git` names an administrative directory that is gone;
+///   making it again writes the person's only word into a directory Git refuses
+///   (`fatal: gitfile does not point to a valid repository`),
+///   so no command in that checkout reads it.
+///   The drain directory is one a command in the worktree whose add wrote the record does read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { common, worktree, admin } = registered(root, 'W'); rmSync(admin, { recursive: true });
+/// assert(tellAboutGivenUp(common, [record])); assert(!existsSync(admin)); assert(takeNotices(common).length === 1);
+/// ```
+#[test]
+fn a_worktree_whose_registration_is_gone_is_told_where_a_command_reads_it() {
+    let root: PathBuf = fixture("relink-notice-registration-gone");
+    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
+    let item: WorkItem = record_queued_at(common.as_path(), worktree.as_path(), "2030-01-01T00:00:00.000Z");
+    std::fs::remove_dir_all(admin.as_path()).expect("the registration is gone");
+    assert!(
+        crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(common.as_path(), std::slice::from_ref(&item)),
+        "the person was not told at all"
+    );
+    assert!(!admin.exists(), "the notice made the gone administrative directory again");
+    let told: Vec<String> = take_notices(common.as_path());
+    assert_eq!(told.len(), 1, "the notice does not wait in the directory the record was drained from: {told:?}");
+    assert!(told[0].contains("was not relinked"), "{told:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose own Git directory refuses the words is told in the drain directory,
+///  and the record settles as told.
+/// Why:
+///   The recovery settles nothing while the person cannot be told (`work_item_recovery.rs`),
+///   so words that no directory takes hold the record in `recovering` for ever.
+///   The drain directory is writable whenever the recovery can move records at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { common, worktree, admin } = registered(root, 'W'); chmod(admin, 0o555);
+/// assert(tellAboutGivenUp(common, [record])); assert(takeNotices(common).length === 1);
+/// ```
+#[test]
+fn a_worktree_whose_own_git_directory_refuses_the_words_is_told_in_the_drain_directory() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let root: PathBuf = fixture("relink-notice-unwritable-worktree");
+    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
+    let item: WorkItem = record_queued_at(common.as_path(), worktree.as_path(), "2030-01-01T00:00:00.000Z");
+    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o555)).expect("the registration refuses writes");
+    let told: bool = crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(common.as_path(), std::slice::from_ref(&item));
+    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the registration takes writes again");
+    assert!(told, "the record is not settled because the worktree's own Git directory refused the words");
+    let written: Vec<String> = take_notices(common.as_path());
+    assert_eq!(written.len(), 1, "no notice waits in the directory the record was drained from: {written:?}");
+    assert!(take_notices(admin.as_path()).is_empty(), "a notice is in a directory that refused the words");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice about an earlier worktree is not left in a later worktree that took the same path.
+/// Why:
+///   A registration at a path can be another worktree than the one the record is about:
+///   the worktree was removed and another was added at its path,
+///   and the administrative directory's name is the path's.
+///   The record carries the moment its add queued it,
+///   and a registration made after that moment is not the worktree the words are about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = registered(root, 'W'); const item = recordQueuedAt(common, worktree, '2020-01-01T00:00:00.000Z');
+/// rmSync(first.admin, { recursive: true }); rmSync(first.worktree, { recursive: true }); const later = registered(root, 'W');
+/// assert(tellAboutGivenUp(common, [item])); assert(takeNotices(later.admin).length === 0);
+/// ```
+#[test]
+fn a_later_worktree_at_the_same_path_does_not_answer_for_an_earlier_records_notice() {
+    let root: PathBuf = fixture("relink-notice-later-worktree");
+    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
+    let item: WorkItem = record_queued_at(common.as_path(), worktree.as_path(), "2020-01-01T00:00:00.000Z");
+    std::fs::remove_dir_all(admin.as_path()).expect("the first registration is gone");
+    std::fs::remove_dir_all(worktree.as_path()).expect("the first worktree is gone");
+    let (later_common, later_worktree, later_admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
+    assert_eq!(later_common, common, "the fixture registered the later worktree under the same repository");
+    assert_eq!(later_worktree, worktree, "and at the same path");
+    assert!(
+        crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(common.as_path(), std::slice::from_ref(&item)),
+        "the person was not told at all"
+    );
+    let later: Vec<String> = take_notices(later_admin.as_path());
+    assert!(later.is_empty(), "a notice about the earlier worktree waits in the later one: {later:?}");
+    let drain: Vec<String> = take_notices(common.as_path());
+    assert_eq!(drain.len(), 1, "the notice does not wait where a command of the adding worktree reads it: {drain:?}");
+    remove(root.as_path());
+}

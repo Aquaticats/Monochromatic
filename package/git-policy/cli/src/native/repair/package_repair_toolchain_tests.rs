@@ -406,3 +406,57 @@ fn the_adds_face_refuses_a_lock_that_is_a_named_pipe_without_waiting() {
     let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = answered_with else { panic!("a lock that cannot be read leaves every record counted, which is a failure that names the command") };
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
 }
+
+/// What:
+///  A record and launcher a concurrent `toolchain:update` and install write for a name the lock now declares
+///  are left exactly as that command wrote them,
+///  while a copy that is still a copy when the removal reaches it still goes.
+/// Why:
+///   The repair classifies records from one read of the lock and the launcher directory,
+///   and the removal runs after that:
+///   a person's update and install landing in between writes a correct record and launcher for a name the lock
+///   declares,
+///   and a removal that deletes the paths it classified without looking again discards what that command just made.
+///   A launcher beside a record that is already gone is not this pass's to touch either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lock(destination, ['own']); record('own', source); record('renamed', source); launcher('renamed');
+/// whenTheRemovalBegins(() => { lock(destination, ['own', 'renamed']); writeRecord('renamed', ownLock); launcher('renamed'); });
+/// repairToolchain(destination, environment);
+/// assert(readFile('renamed.launch').includes(ownLock) && exists('renamed') && exists('still-a-copy.launch') === false);
+/// ```
+#[test]
+fn a_record_the_installer_wrote_in_the_removals_window_is_left_as_it_wrote_it() {
+    let (root, destination, _bin, environment) = scene("toolchain-removal-window");
+    lock(&destination, &["own"]);
+    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
+    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    launcher(&destination, "renamed");
+    record(&destination, "gone", root.join("source/toolchain.lock.json").as_path());
+    let own_lock: PathBuf = destination.join(LOCK_FILE);
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    let installer_lock: PathBuf = own_lock.clone();
+    let installer_launchers: PathBuf = launchers.clone();
+    // The concurrent update and install: the lock now declares the name, and the record and launcher for it name this
+    //  worktree. `ensure_launcher` writes the record first and then the launcher, so the window holds both.
+    crate::package_repair_toolchain::WHEN_THE_REMOVAL_BEGINS.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| {
+        *cell.borrow_mut() = Some(Box::new(move || {
+            let tools: String = format!(
+                "{{\"schemaVersion\":1,\"tools\":{{\"cargo:own\":{{\"bins\":[\"own\"]}},\"cargo:renamed\":{{\"bins\":[\"renamed\"]}}}}}}",
+            );
+            std::fs::write(installer_lock.as_path(), tools).expect("the installer's lock");
+            let fresh: String = format!("{{\"toolId\":\"cargo:renamed\",\"lockFile\":\"{}\",\"real\":\"/tools/renamed\",\"scope\":\"repo\"}}\n", installer_lock.display());
+            std::fs::write(installer_launchers.join("renamed.launch"), fresh).expect("the installer's record");
+            std::fs::write(installer_launchers.join("renamed"), b"#!/bin/sh\nexit 0\n").expect("the installer's launcher");
+        }));
+    });
+    let _finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    // The installer's record names this worktree's lock, so nothing in the pass may remove it or the launcher it wrote.
+    let fresh_record: String = std::fs::read_to_string(launchers.join("renamed.launch")).expect("the installer's record is gone");
+    assert!(fresh_record.contains(own_lock.to_str().expect("utf8")), "the installer's record was replaced: {fresh_record}");
+    assert!(launchers.join("renamed").is_file(), "the installer's launcher is gone");
+    // The copy that was still a copy when the removal reached it is gone, record and launcher.
+    assert!(!launchers.join("gone.launch").exists(), "a copy no install rewrites is left behind");
+    remove(&root);
+}
