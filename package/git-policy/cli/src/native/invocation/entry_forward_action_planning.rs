@@ -87,8 +87,8 @@ pub(crate) fn forward_action(
     // any route added later all pass this point, and only a forced removal or the guard's own opt-out stands the
     // question down (`worktree_removal_typed_git_work.rs`). Without this, a flag that skips another step skipped the
     // guard with it (a review of `bab700404d`, finding 1).
-    if let Some(stderr) = crate::worktree_removal_typed_git_work::refusal_for_a_typed_removal(&command, removal_escaped, checks) {
-        return Action::Exit { code: REJECTED_EXIT_CODE, stdout: String::new(), stderr };
+    if let Some(refusal) = crate::worktree_removal_typed_git_work::refusal_for_a_typed_removal(&command, removal_escaped, checks) {
+        return Action::Exit { code: REJECTED_EXIT_CODE, stdout: String::new(), stderr: refusal };
     }
     let writes_index: bool = is_index_writer(&command);
     if !writes_index && copy_bypassed {

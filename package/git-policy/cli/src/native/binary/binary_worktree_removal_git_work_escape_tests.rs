@@ -149,8 +149,8 @@ fn a_hidden_edit_is_refused_and_the_printed_opt_out_runs_the_removal() {
     assert_eq!(refused.code, Some(1), "the guard refuses the removal: {said}");
     assert!(said.contains("keeps Git work"), "{said}");
     assert!(said.contains("base.txt"), "{said}");
-    let printed: String = format!("`git worktree --no-enforce-worktree remove {task}`");
-    assert!(said.contains(printed.as_str()), "the refusal prints the opt-out in a spelling that runs: {said}");
+    let expected: String = format!("`git worktree --no-enforce-worktree remove {task}`");
+    assert!(said.contains(expected.as_str()), "the refusal prints the opt-out in a spelling that runs: {said}");
     assert!(scene.task.join(TRACKED).exists(), "nothing was removed");
     let printed: String = scene.printed_command(said.as_str());
     let ran: Observed = scene.run_through_a_shell(printed.as_str());
