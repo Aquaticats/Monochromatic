@@ -262,3 +262,40 @@ fn the_leaving_of_one_removal_is_named_by_one_id() {
     assert_eq!(leaving_records(removal.common.as_path()).len(), 1, "and the folder holds one");
     remove(removal.root.as_path());
 }
+
+/// What:
+///  A subvolume a removal moves out of a tree for the service is named by a leaving record before the move,
+///  so a round that settled its delete before the move leaves nothing unnamed.
+/// Why:
+///  The pools ahead of an add and a pending deletion inside a worktree are subvolumes the kernel refuses to destroy
+///  through,
+///  and a removal moves each one out with a record of its delete
+///  (`worktree_removal_leaves_a_subvolume_for_the_service.rs`).
+///  That record is settled by the first round that looks at it,
+///  and a round that looked before the move finds no directory,
+///  so without a record of its own the subvolume would stand under a name nothing deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await leaveASubvolumeForTheService(commonDir, from, parent);
+/// expect(exists(left)).toBe(true); expect(leavingRecords(commonDir).length).toBe(1);
+/// ```
+#[test]
+fn a_subvolume_a_removal_moves_out_of_a_tree_is_named_by_a_leaving_record() {
+    let Some(root): Option<PathBuf> = crate::fs_btrfs_test_support::btrfs_fixture("leaving-moved-out-of-a-tree") else { return };
+    let made: PathBuf = root.join("worktree");
+    crate::fs_btrfs_ioctl::subvolume_create_at(made.as_path()).expect("the subvolume of a worktree");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let pool: PathBuf = root.join("pool");
+    std::fs::create_dir(pool.as_path()).expect("the directory the subvolume is moved into");
+    let left: PathBuf = crate::worktree_removal_leaves_a_subvolume_for_the_service::leave_a_subvolume_for_the_service(common.as_path(), made.as_path(), pool.as_path()).expect("the subvolume is moved out");
+    assert!(left.is_dir(), "the subvolume stands where the move put it: {}", left.display());
+    let records: Vec<(String, PathBuf)> = leaving_records(common.as_path());
+    assert_eq!(records.len(), 1, "a leaving record names it: {records:?}");
+    assert!(records[0].0.starts_with("subvolume-delete-"), "named by the delete it is: {}", records[0].0);
+    let bytes: Vec<u8> = std::fs::read(records[0].1.as_path()).expect("the record");
+    let recorded: Leaving = read_the_leaving(bytes.as_slice()).expect("a record this build wrote");
+    assert_eq!(recorded.item.parent, left.display().to_string(), "and it names the place the move made");
+    remove(root.as_path());
+}

@@ -16,10 +16,12 @@
 //! and a pending deletion this program wrote earlier
 //!  (`worktree_removal_takes_its_pending_deletions.rs`).
 //! Each one moves with one `rename(2)` on the filesystem it stands on,
-//! and the record of its delete is
-//!  written before the move,
-//! so a command killed between the two leaves a record naming a place that does not exist yet
-//!  (which deletes nothing) instead of a directory nothing names.
+//! and two records are written before the move:
+//!  the work item of its delete,
+//!  and the leaving record that outlives every queue record for the same place.
+//! A command killed between the two writes and the move leaves a record naming a place that does not exist yet
+//!  (which deletes nothing) and a leaving a later command moves or names
+//!  (`worktree_removal_leaving_that_outlives_its_record.rs`).
 //! A record that cannot be written leaves the subvolume where it is and
 //!  answers the reason,
 //! so the caller refuses while nothing has moved.
@@ -34,6 +36,7 @@ use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::private_storage::create_private_directory_all;
 use crate::service_work::work_directory;
 use crate::work_item::{WorkItem, WorkKind, enqueue};
+use crate::worktree_removal_leaving_that_outlives_its_record::{forget_the_leaving, record_a_leaving};
 use crate::iso_time::now_iso;
 use std::ffi::OsString;
 use std::fs::File;
@@ -125,6 +128,13 @@ pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem 
 ///  cannot be written leaves the subvolume where it is and answers the reason,
 /// so the caller refuses while
 ///  nothing has moved.
+///  Two records are written before the move,
+/// and they are not the same work:
+/// the work item is settled by the first round of the service that looks at it,
+/// and a round that looked before the move settles a delete of a path that is not there yet,
+/// while the leaving record is settled by nothing and names the directory until a command proves it gone
+///  (`worktree_removal_leaving_that_outlives_its_record.rs`,
+/// `worktree_removal_leavings_a_command_queues_again.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,14 +156,21 @@ pub(crate) fn leave_a_subvolume_for_the_service(common_dir: &Path, from: &Path, 
     if let Err(error) = create_private_directory_all(into) {
         return Err(format!("the folder {} cannot be made ({error})", into.display()));
     }
-    // The record goes before the move, so a command killed between the two leaves a record whose path is not there yet
-    // (which deletes nothing) and never a directory nothing names.
+    // Both records go before the move, so a command killed between them leaves a record whose path is not there yet
+    // (which deletes nothing) and a leaving record a later command finishes the move by
+    // (`worktree_removal_leavings_a_command_queues_again.rs`).
     let item: WorkItem = removal_item(common_dir, into, id);
+    if let Err(reason) = record_a_leaving(common_dir, &item) {
+        return Err(format!("the delete of {} cannot be recorded: {reason}", from.display()));
+    }
     if let Err(reason) = enqueue(work_directory(common_dir).as_path(), &item) {
+        // Nothing has moved: the leaving record names a place the move never makes.
+        forget_the_leaving(common_dir, item.id().as_str());
         return Err(format!("the delete of {} cannot be recorded: {reason}", from.display()));
     }
     let left: PathBuf = PathBuf::from(item.parent.as_str());
     if let Err(error) = std::fs::rename(from, left.as_path()) {
+        forget_the_leaving(common_dir, item.id().as_str());
         return Err(format!("the subvolume {} cannot be moved to {} ({error})", from.display(), left.display()));
     }
     debug(TAG, format!("the subvolume {} waits for the service's delete at {}", from.display(), left.display()).as_str());
