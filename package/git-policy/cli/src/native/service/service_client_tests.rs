@@ -93,7 +93,6 @@ fn reach_settings(address: &str) -> ClientConfig {
         waiting_notice_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
         extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: crate::wait_ceilings::START_CEILING,
-        units_record_dir: None,
     };
 }
 

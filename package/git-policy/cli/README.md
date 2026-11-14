@@ -86,6 +86,17 @@ Every earlier name keeps working in this release:
 - The commit service units.
   The units this release writes are `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service`,
    and the socket sits under `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/`.
+  The service unit runs `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,
+   a link this wrapper points at the release it is running before every commit that goes to the service,
+   so an upgrade or a downgrade changes no unit text and nothing has to make the user manager re-read what it holds.
+  A `systemctl --user status` of the service shows that link as its program.
+  A unit the manager already holds at an older text is dropped and started again rather than reloaded,
+   which is this worktree's own unit and nobody else's.
+  That repair never costs a commit:
+  a service still landing a batch,
+  a manager that stops answering and a link that cannot be written are each one line,
+   the units are left as they are,
+  and the commit lands through the service that is running.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -134,7 +145,9 @@ Read-only commands,
    and an assume-unchanged or skip-worktree entry sends the build to the preparation base instead
    (`SPEC.md`,
   "Explicit-path commit").
-  The service is started by the operating system on the first commit (socket activation);
+  The service is started by the operating system on the first commit (socket activation),
+   from the link above,
+   so the release that last pointed it runs;
    the wrapper never starts it,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,
@@ -2521,13 +2534,16 @@ The rule is:
 - The abort forms of `git merge`,
   `git rebase`,
   `git cherry-pick`,
-  `git revert` and `git am` are decided by the operation in progress,
+  `git revert`,
+  `git am` and the `--skip` forms of the last three operations are decided by the operation in progress,
   not by the status,
   because an operation that stopped with conflicts makes the status dirty by itself:
-  in a linked worktree one that undoes the waiting operation runs
-  after the wrapper saves every change that is not the operation's own,
+  one whose only changes are the operation's own runs exactly as Git runs it,
+  one that would discard your own work is refused (nothing is copied),
   one whose operation is not waiting is left to Git (which refuses it and discards nothing),
-  and the main worktree keeps the rejection.
+  and the same rule holds in the main worktree,
+  in a linked one and outside a worktree,
+  as the owner decided on 2026-11-13 ("Same rule everywhere").
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -2695,42 +2711,79 @@ The abort forms of the same operations are decided the same way.
 `git merge --abort`,
 `git rebase --abort`,
 `git cherry-pick --abort`,
-`git revert --abort` and `git am --abort` in a linked worktree run while the operation they undo waits,
+`git revert --abort`,
+`git am --abort` and the `--skip` forms of `rebase`,
+`cherry-pick`,
+`revert` and `am` in a linked worktree run while the operation they undo waits,
 because that operation's own state is what `git status` reports and what the abort exists to let go.
-The wrapper saves the changes that are not the operation's own first,
-into the same `discarded/<UTC time>/` folder,
-and prints where each went before Git runs:
+What decides them is the work that is not the operation's own:
+
+- Where the operation's own state is all there is,
+  the command runs exactly as Git runs it,
+  and the wrapper adds no line.
+- Where your own work would go with it,
+  the command is refused before anything is changed,
+  and nothing is copied.
+  The refusal names the command,
+  each path with what stands there
+  (`a resolution or edit you made since Git stopped at the conflict`,
+  `content only the index holds`,
+  `a staged resolution`,
+  `a staged edit`,
+  `a conflicted path`),
+  at most five paths with the rest counted,
+  and both ways out.
+- Where no operation of that kind waits,
+  Git refuses the command itself (`There is no merge to abort`),
+  which discards nothing,
+  so the wrapper leaves it to Git.
+
+Your own work is what differs from the result Git recorded for the conflict it stopped at
+(`AUTO_MERGE`),
+in the worktree or in the index,
+and that ref is there for a rebase,
+a cherry-pick and an `am` as well as for a merge:
+a path that still holds the recorded result was never touched by you,
+a resolution you wrote over it is named,
+and one you staged over it is named as content only the index holds.
+
+Where Git recorded no result,
+which a checked-in strategy can arrange (`git merge -s resolve` records none,
+measured with Git 2.56.0),
+a path still in conflict is named as `a conflicted path` and the command is refused:
+nothing the wrapper can read tells Git's own conflict text from a resolution you wrote over it,
+because that strategy's markers name its own temporary files and change with every run.
+The refusal says that,
+and its two ways out are the same:
+`git merge --quit` stops the merge and keeps everything,
+and `--no-enforce-worktree` runs the abort as Git runs it.
+The refusal looks like this:
 
 ```text
-monochromatic-git-policy-cli: this worktree holds changes besides the merge in progress, and git merge --abort discards them; the wrapper saved them first, so nothing you wrote is lost.
-  copies are under /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-11T14-01-07
-  a.rs => /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-11T14-01-07/a.rs
-  git merge --abort runs now and restores the state before the merge.
+monochromatic-git-policy-cli: git merge --abort is refused: it would discard work that stands nowhere else, and the merge in progress still waits. Nothing was changed, and nothing was copied. It would discard a.txt (a resolution or edit you made since Git stopped at the conflict). To keep that work, stop the operation and keep your index and files with git merge --quit (that command is allowed), then commit or save what you want to keep; git merge --abort restores the state before it. To discard the work on purpose, run git merge --no-enforce-worktree --abort: the guard steps aside and Git does exactly what it does on its own.
 ```
 
-For a merge,
-a path that still holds the result Git recorded in `AUTO_MERGE`,
-in the file or in the index,
-is the merge's own state and is not copied;
-a resolution you wrote or staged over it is.
-A rebase,
-a cherry-pick,
-a revert and an `am` return with a hard reset that keeps nothing,
-so every uncommitted tracked change is copied.
-Where the operation's own state is all there is,
-the abort runs with no copy and no notice.
-Where no operation of that kind waits,
-Git refuses the command itself (`There is no merge to abort`),
-which discards nothing,
-so the wrapper leaves it to Git.
-Two things keep the rejection:
-the main worktree,
-where a form of this policy is always rejected (`git merge --quit` and its siblings stop the operation
-and keep the index and files),
-and an ignored file at a path the tree the abort writes back tracks,
+Both pieces of advice work as printed in the state they were printed in:
+the quit form stops the operation and keeps the index and the files,
+and the opt-out runs the command as real Git runs it,
+leaving the state real Git leaves.
+An untracked file at a path the tree the command writes back tracks is Git's own refusal,
+and the words say so:
+Git will not write that tree over the file,
+so the wrapper names the file and says to move or copy it away and run the command again,
+which then goes through.
+
+One thing keeps the rejection beyond the work itself:
+an ignored file at a path the tree the abort writes back tracks,
 which is named because the abort replaces that file just as a hard reset would.
-When a copy cannot be written,
-the command is rejected and says which path and why.
+The worktree the command runs in no longer matters:
+the main worktree,
+a linked one and a place outside one are decided by the same rule.
+An edit that lands between the wrapper's measurement and Git's start is caught by a second measurement made
+immediately before Git starts;
+one that lands after it goes with the command,
+and nothing of the wrapper's holds the version before,
+because nothing is copied.
 
 The folder is bounded,
 because it would otherwise grow for as long as the repository lives,
@@ -2898,13 +2951,19 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git rebase --abort`,
    `git cherry-pick --abort`,
    `git revert --abort`,
-   `git am --abort`:
-   in a linked worktree the abort runs while its own operation waits,
-   after the wrapper saves the work that is not the operation's own (see above),
-   and the main worktree keeps the rejection;
+   `git am --abort`,
+   and the `--skip` forms of `rebase`,
+   `cherry-pick`,
+   `revert` and `am`:
+   the command runs while its own operation waits,
+  and is refused when it would discard work standing nowhere else
+   (see above);
    the same command with `--quit` stops the operation and keeps the index and files,
    `--continue` finishes it after resolving conflicts,
    and `--skip` drops the current commit or patch.
+   The worktree the command runs in does not change the rule:
+   an abort that would discard nothing runs in the main worktree too,
+   and one that would discard work is refused there naming the files.
 
 The forms are read with Git's own option grammar,
  so abbreviations,
@@ -7166,9 +7225,11 @@ above the service's last-resort alarm,
 so the host's default stop timeout never decides
 (`DefaultTimeoutStopSec=` in a user's manager configuration can set it shorter than the bounds).
 A service whose unit was written before this setting has the old kill mode until the next commit's provisioning rewrites the
-template and asks the manager to reload its unit files;
-a reload makes the manager read the new settings for the stops that follow,
-and a service that runs meanwhile is not restarted.
+template,
+which is a template change and so drops this worktree's own unit and starts it again;
+the service that runs meanwhile is asked to retire first,
+so the batch it holds is finished,
+and no other unit of the account is read or touched.
 Commits queue in arrival order,
 a batch of whatever is queued lands with one
 durable write,
@@ -7190,38 +7251,61 @@ The units are runtime units with no `[Install]` section (no `WantedBy=`,
 `RequiredBy=` or `Also=`),
 so `systemctl --user enable`
 has nothing to link;
-provisioning links nothing,
-writes only below `$XDG_RUNTIME_DIR/systemd/user` (the one other thing it does
-there is remove files an earlier release put in `~/.config/systemd/user`),
-and asks the manager only to reload,
-reset a failed
-unit,
+provisioning links nothing that would enable a unit,
+writes only below `$XDG_RUNTIME_DIR` (the two unit templates and the notes under its `systemd/user`,
+the program link the service unit runs at its top,
+and the removal of files an earlier release put in `~/.config/systemd/user`),
+and asks the manager only to reset a failed unit,
 start,
+restart a unit it already holds,
 stop and report a state.
+Nothing of this wrapper asks the manager to read every unit it holds:
+a reload holds the manager's own event loop for as long as it reads them,
+and on 2026-11-12 one of those,
+139,770 ms long,
+ended a desktop session (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 Guard tests keep it so:
 `src/native/source_guard/no_start_at_login_tests.rs` and
 `src/native/service/service_provision_never_starts_at_login_tests.rs`.
+A defect of the manager is worked around here rather than passed on:
+every call is bounded,
+a manager that does not answer leaves the units written and the commit going,
+a unit it holds at an old text or in a failed state is dropped,
+reset or started again,
+and no command tells a person to run anything by hand for it.
+A service that never greets is restarted once at the whole start ceiling,
+and a commit that ends there names the journal command.
 
 - The first commit that needs the service sets up its socket activation itself,
   and every later one checks it is still
   right:
-  it compares the two installed units with what this release would write and,
+  it points the program link at the release it is running,
+  compares the two installed units with what this release would write and,
   only when they differ (a release changed the
   template itself),
   rewrites them,
-  reloads the manager,
-  clears failed state and starts the socket.
+  and then lets the worktree's own units go and starts them again rather than reloading the manager
+  (`src/native/service/service_provision_instance_unloaded.rs`).
+  A service that is landing a batch when that repair asks it to retire is left running and the commit goes on
+  through it,
+  and so is one whose manager stops answering:
+  the repair is repeated by the next commit,
+  and no
+  commit waits for a landing or fails for one.
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
-  (`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`),
+  (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,
+  `src/native/service/service_instance.rs`,
+  `program_link`),
   so an upgrade,
   a downgrade or a second build of one release moves that link and changes no unit text:
-  no reload is asked for,
+  the manager is asked nothing at all,
   and the commit pays one read and,
   when the program moved,
   one rename.
   When the units,
-  the link and the socket are right it opens no connection to the bus at all.
+  the link and the record of what the manager was told are right and the socket file is there it opens no connection to
+  the bus at all.
   Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory;
   the next first use after a login does it again)
