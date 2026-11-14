@@ -386,20 +386,30 @@ fn a_case_differing_name_is_guarded_where_git_resolves_it() {
 }
 
 /// What:
-///  Without `core.ignorecase`, Git itself refuses the case-differing name,
-///  and the guard is not what stops it.
+///  Without `core.ignorecase`, the case-differing name is refused by this program,
+///  and the opt-out it prints still runs, ending as real Git ends.
 /// Why:
-///  The guard stands down exactly where Git names no worktree,
-///  and this is the state that shows the stand-down is Git's refusal rather than a hole.
+///  A case-differing name is a name this program resolves to no worktree of Git's own list,
+///  and a removal is not handed to real Git on the guess that Git would refuse it:
+///  the guard words the refusal and names the opt-out,
+///  which is where Git's own answer to that name is heard.
+///  Nothing is removed either way, and the opt-out shows the person the answer Git gives.
 #[test]
-fn without_ignorecase_git_itself_refuses_the_case_differing_name() {
+fn without_ignorecase_a_case_differing_name_is_refused_and_the_opt_out_is_gits_own_answer() {
     let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignorecase-off");
     scene.hide_an_edit();
     run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "false"]);
     let refused: Observed = scene.remove_with(&["worktree", "remove", "TASK"]);
     let said: String = stderr_of(&refused);
-    assert_eq!(refused.code, Some(128), "Git answers that TASK is not a working tree: {said}");
+    assert_eq!(refused.code, Some(1), "the name is refused rather than handed to Git on a guess: {said}");
+    assert!(said.contains("nothing here proves which worktree"), "{said}");
     assert!(scene.task.join(TRACKED).exists(), "and nothing was removed");
+    let printed: String = scene.printed_command(&said);
+    let ran: Observed = scene.run_through_a_shell(printed.as_str());
+    let answer: String = stderr_of(&ran);
+    assert_eq!(ran.code, Some(128), "the opt-out answers as real Git answers this name: {answer}");
+    assert!(answer.contains("is not a working tree"), "{answer}");
+    assert!(scene.task.join(TRACKED).exists(), "and still nothing was removed");
     remove(&scene.fixture);
 }
 
@@ -565,4 +575,250 @@ fn an_option_this_program_does_not_read_is_refused_and_usage_stays_gits() {
     assert!(words.contains("usage: git worktree remove"), "and that answer is Git's usage, on standard output: {words}");
     assert!(scene.task.exists(), "and the worktree stays");
     remove(&scene.fixture);
+}
+
+/// What one fixture of the spelling sweep holds:
+/// a worktree inside the repository,
+/// a link that reaches it,
+/// and a directory a `..` may cancel.
+struct Inside {
+    /// The fixture whose wrapper link every command starts.
+    fixture: Fixture,
+    /// The main checkout.
+    repo: PathBuf,
+    /// The worktree every control removes,
+    /// at `repo/sub/<directory>`.
+    task: PathBuf,
+    /// The fixture's own root,
+    /// where the link and the cancelled directory stand.
+    root: PathBuf,
+}
+
+/// What:
+///  A repository with one recorded worktree at `repo/sub/<directory>`,
+///  a link at the fixture's root that names the repository,
+///  and a directory at the root that a `..` may cancel.
+/// Why:
+///  A relative operand has somewhere to be relative to only from inside the worktree's repository,
+///  and a `..` that cancels names one only beside a directory that is there.
+fn a_worktree_inside_the_repository(name: &str, directory: &str) -> Inside {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(TRACKED), "base\n").expect("a tracked file");
+    git(&fixture, &repo, &["add", TRACKED]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=a tracked file"]);
+    let inside: PathBuf = repo.join("sub").join(directory);
+    std::fs::create_dir_all(inside.parent().expect("a parent")).expect("the parent directory");
+    run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", BRANCH, inside.to_str().expect("a UTF-8 fixture path")]);
+    let task: PathBuf = std::fs::canonicalize(inside.as_path()).expect("the worktree's real path");
+    let root: PathBuf = fixture.root.clone();
+    std::os::unix::fs::symlink(repo.as_path(), root.join("linked").as_path()).expect("a link to the repository");
+    std::fs::create_dir_all(root.join("inner").as_path()).expect("a directory a `..` cancels");
+    std::fs::create_dir_all(repo.join("inner").as_path()).expect("a directory a `..` cancels, inside the repository");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
+    record(common.as_path(), task.as_path()).expect("the record that this program made the worktree");
+    return Inside { fixture, repo, task, root };
+}
+
+/// What:
+///  One spelling of the same worktree,
+///  and whether Git itself removes the worktree for it.
+/// Why:
+///  The sweep states Git's own answer beside each spelling,
+///  so a control that reads "kept" cannot be satisfied by a guard that refuses everything.
+struct Spelling {
+    /// The directory the fixture's worktree has,
+    /// which the case and Unicode spellings need.
+    directory: &'static str,
+    /// Whether `core.ignorecase` must be on for this spelling.
+    ignorecase: bool,
+    /// Whether Git itself removes the worktree for this spelling,
+    /// measured against Git 2.56.0 (`keep/probe-operand-shapes-against-real-git-3.log`).
+    git_removes: bool,
+    /// The name this control reports.
+    name: &'static str,
+    /// The operand,
+    /// read from the fixture.
+    operand: fn(&Inside) -> String,
+}
+
+/// What:
+///  The last component of the worktree's own path,
+///  for the spellings that name the same component as it stands.
+fn last_of(fixture: &Inside) -> String {
+    let text: String = fixture.task.display().to_string();
+    return text[text.rfind('/').expect("a path with a separator") + 1..].to_owned();
+}
+
+/// What:
+///  The last component of the worktree's own path,
+///  in upper case,
+///  for the spellings a case-folding repository resolves.
+fn upper_last(fixture: &Inside) -> String {
+    return last_of(fixture).to_uppercase();
+}
+
+/// What:
+///  The parent directory of the worktree's own path,
+///  for the spellings that add a component before the last one.
+fn parent_of(fixture: &Inside) -> String {
+    let text: String = fixture.task.display().to_string();
+    return text[..text.rfind('/').expect("a path with a separator")].to_owned();
+}
+
+/// What:
+///  Every spelling of one worktree that Git itself resolves to it keeps a hidden edit,
+///  and the clean worktree still goes for every spelling Git removes.
+/// Why:
+///  Three reviews found a name Git resolves and this program did not:
+///  a typed `core.ignorecase`, a suffix two worktrees share, and a case-differing name behind a `.` component or a
+///  link (`e615fb599b`, finding 1, which `a_case_differing_name_behind_a_dot_or_a_link_is_guarded` reproduces whole).
+///  Each was mended at one more place of the guard's own resolving,
+///  so the answer is now Git's own list and Git's own path resolution,
+///  and every spelling Git removes for is guarded while the clean worktree of the same spelling still goes.
+///  The Unicode spellings are the ones Git on this system refuses under `core.precomposeUnicode`,
+///  which folds no form here: they are in the sweep so it says what this program does with them,
+///  and Git's own answer is stated beside each spelling
+///  (`keep/probe-operand-shapes-against-real-git-3.log`).
+#[test]
+fn every_spelling_that_names_a_worktree_is_guarded_and_a_clean_one_still_goes() {
+    let spellings: [Spelling; 17] = [
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-name", operand: |_| return String::from("sub/task") },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-last-component", operand: |_| return String::from("task") },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-dot", operand: |_| return String::from("./sub/task") },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-double-separator", operand: |_| return String::from(".//sub/task") },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-dotdot", operand: |_| return String::from("sub/../sub/task") },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "absolute-exact", operand: |fixture| return fixture.task.display().to_string() },
+        Spelling {
+            directory: "task",
+            ignorecase: false,
+            git_removes: true,
+            name: "absolute-dot",
+            operand: |fixture| return format!("{}/./{}", parent_of(fixture), last_of(fixture)),
+        },
+        Spelling {
+            directory: "task",
+            ignorecase: false,
+            git_removes: true,
+            name: "absolute-dotdot",
+            operand: |fixture| return format!("{}/../{}", fixture.task.display(), last_of(fixture)),
+        },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "absolute-inner-dotdot", operand: |fixture| return format!("{}/inner/../sub/task", fixture.repo.display()) },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "through-a-link", operand: |fixture| return format!("{}/linked/sub/task", fixture.root.display()) },
+        Spelling { directory: "task", ignorecase: false, git_removes: true, name: "trailing-slash", operand: |fixture| return format!("{}/", fixture.task.display()) },
+        Spelling { directory: "task", ignorecase: true, git_removes: true, name: "case-differing-name", operand: |_| return String::from("SUB/TASK") },
+        Spelling {
+            directory: "task",
+            ignorecase: true,
+            git_removes: true,
+            name: "case-differing-behind-a-dot",
+            operand: |fixture| return format!("{}/./{}", parent_of(fixture), upper_last(fixture)),
+        },
+        Spelling {
+            directory: "task",
+            ignorecase: true,
+            git_removes: true,
+            name: "case-differing-behind-a-link",
+            operand: |fixture| return format!("{}/linked/sub/{}", fixture.root.display(), upper_last(fixture)),
+        },
+        Spelling {
+            directory: "task",
+            ignorecase: true,
+            git_removes: false,
+            name: "case-differing-with-a-trailing-slash",
+            operand: |fixture| return format!("{}/{}/", parent_of(fixture), upper_last(fixture)),
+        },
+        Spelling { directory: "café", ignorecase: false, git_removes: false, name: "unicode-nfd-against-nfc", operand: |_| return String::from("sub/cafe\u{301}") },
+        Spelling { directory: "cafe\u{301}", ignorecase: false, git_removes: false, name: "unicode-nfc-against-nfd", operand: |_| return String::from("sub/café") },
+    ];
+    for spelling in spellings {
+        let hidden: Inside = a_worktree_inside_the_repository(format!("removal-spelling-{}-hidden", spelling.name).as_str(), spelling.directory);
+        let clean: Inside = a_worktree_inside_the_repository(format!("removal-spelling-{}-clean", spelling.name).as_str(), spelling.directory);
+        for scene in [&hidden, &clean] {
+            if spelling.ignorecase {
+                run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "true"]);
+            }
+            run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.precomposeUnicode", "true"]);
+        }
+        run_direct(&hidden.fixture, hidden.task.as_path(), &["update-index", "--assume-unchanged", TRACKED]);
+        std::fs::write(hidden.task.join(TRACKED), "my edit, only here\n").expect("an edit to a tracked file");
+
+        let operand: String = (spelling.operand)(&hidden);
+        let refused: Observed = run_wrapped(&hidden.fixture, hidden.repo.as_path(), &["worktree", "remove", operand.as_str()]);
+        let said: String = stderr_of(&refused);
+        match spelling.git_removes {
+            // The spelling names the worktree, so the refusal is the guard's and it names what would go with it.
+            true => {
+                assert_eq!(refused.code, Some(1), "{}: the guard is active on this spelling: {said}", spelling.name);
+                assert!(said.contains(TRACKED), "{}: and the refusal names the hidden edit: {said}", spelling.name);
+            }
+            // Git itself resolves no worktree from this spelling, and this program refuses it rather than forward a
+            // removal on the guess that Git would.
+            false => assert_eq!(refused.code, Some(1), "{}: a spelling Git refuses is refused here as well: {said}", spelling.name),
+        }
+        let kept: String = std::fs::read_to_string(hidden.task.join(TRACKED)).expect("the edit is still there");
+        assert_eq!(kept, "my edit, only here\n", "{}: and the edit's own bytes are untouched", spelling.name);
+
+        let clean_operand: String = (spelling.operand)(&clean);
+        let removed: Observed = run_wrapped(&clean.fixture, clean.repo.as_path(), &["worktree", "remove", clean_operand.as_str()]);
+        let answer: String = stderr_of(&removed);
+        match spelling.git_removes {
+            true => assert_eq!(removed.code, Some(0), "{}: a clean worktree goes through the same spelling: {answer}", spelling.name),
+            // Git itself refuses this spelling on this system, and this program refuses it too rather than forwarding
+            // a removal on the guess that Git would.
+            false => assert_eq!(removed.code, Some(1), "{}: a spelling Git refuses is refused here as well: {answer}", spelling.name),
+        }
+        assert_eq!(!clean.task.exists(), spelling.git_removes, "{}: and the worktree ends exactly as Git ends it", spelling.name);
+        remove(&hidden.fixture);
+        remove(&clean.fixture);
+    }
+}
+
+/// What:
+///  The two shapes a review of `e615fb599b` reproduced destroy a hidden edit through:
+///  a redundant `.` component before a case-differing last component,
+///  and a prefix spelled through a link,
+///  each under `core.ignorecase`,
+///  with the same spelling on a clean worktree as the control that the spelling reaches a removal at all.
+/// Why:
+///  Git resolves those operands with its own `realpath`,
+///  which keeps a last component that is not there and follows a link before it,
+///  and then compares the answer with every registration folding ASCII case;
+///  a guard whose own resolution failed on both shapes named no worktree and stood down,
+///  and the wrapper's exit was 0 with the edit gone
+///  (`keep/review-case-fold-shapes-at-e615fb599b.log`, and the link shape in
+///  `keep/review-case-fold-symlink-confirm-at-e615fb599b.log`).
+#[test]
+fn a_case_differing_name_behind_a_dot_or_a_link_is_guarded_where_git_resolves_it() {
+    for (name, operand_of) in [
+        ("removal-case-fold-dot", (|fixture: &Inside| return format!("{}/./{}", parent_of(fixture), upper_last(fixture))) as fn(&Inside) -> String),
+        ("removal-case-fold-link", |fixture: &Inside| return format!("{}/linked/sub/{}", fixture.root.display(), upper_last(fixture))),
+    ] {
+        let hidden: Inside = a_worktree_inside_the_repository(format!("{name}-hidden").as_str(), "task");
+        let clean: Inside = a_worktree_inside_the_repository(format!("{name}-clean").as_str(), "task");
+        for scene in [&hidden, &clean] {
+            run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "true"]);
+        }
+        run_direct(&hidden.fixture, hidden.task.as_path(), &["update-index", "--assume-unchanged", TRACKED]);
+        std::fs::write(hidden.task.join(TRACKED), "my edit, only here\n").expect("an edit to a tracked file");
+        let operand: String = operand_of(&hidden);
+        let refused: Observed = run_wrapped(&hidden.fixture, hidden.repo.as_path(), &["worktree", "remove", operand.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{operand}: the guard is active on this spelling: {said}");
+        assert!(said.contains(TRACKED), "{operand}: and names the hidden edit: {said}");
+        assert_eq!(
+            std::fs::read_to_string(hidden.task.join(TRACKED)).expect("the edit is still there"),
+            "my edit, only here\n",
+            "{operand}: and the edit is untouched"
+        );
+        // The control: the same spelling on a worktree with nothing hidden goes through it, so "kept" above is the
+        // guard's answer and not a spelling that reaches no removal at all.
+        let clean_operand: String = operand_of(&clean);
+        let removed: Observed = run_wrapped(&clean.fixture, clean.repo.as_path(), &["worktree", "remove", clean_operand.as_str()]);
+        let answer: String = stderr_of(&removed);
+        assert_eq!(removed.code, Some(0), "{clean_operand}: a clean worktree goes through this spelling: {answer}");
+        assert!(!clean.task.exists(), "{clean_operand}: and it is gone");
+        remove(&hidden.fixture);
+        remove(&clean.fixture);
+    }
 }
