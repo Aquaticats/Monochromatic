@@ -6,7 +6,9 @@
 //! and waits for a holder proven alive,
 //! and for an owner nothing proves
 //! alive,
-//! until the ceiling (`MERGE_LOCK_CEILING`).
+//! until the ceiling (`MERGE_LOCK_CEILING`);
+//! a merge's own look before its apply waits for neither,
+//! and the controls here pin that too.
 //! Why:
 //!  Merges must wait for a transient holder and never remove a lock,
 //! so each ending is pinned with a stand-in holder,
@@ -269,34 +271,50 @@ fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
 }
 
 /// What:
-///  The wait a merge makes before its own apply says the merge is saved for a later command,
-///  not that Git refuses it,
-///  and it waits for a lock nothing proves the owner of.
+///  A merge's look at a lock nothing proves the owner of ends at once,
+///  names what is known about it and what was looked at,
+///  writes no notice,
+///  and leaves the lock where it is.
 /// Why:
-///  A held lock is not the merge's failure (`SPEC.md`,
-///  "Merges and commits never fail"):
-/// the merge is saved on a side ref and exits 0,
-///  so a line promising another command's refusal sends the person to a command that does not fail and leaves the
-///  saved merge unnamed.
-///  A lock nothing proves the owner of may be the person's own commit at its editor,
-///  which native Git keeps with no descriptor open and no PID file,
-///  so the merge waits for it and is saved if the ceiling comes first.
+///  The owner forbids waiting on another agent's command,
+///  and this lock is as likely to be one as a killed Git's:
+///  a person's own `git commit` keeps the whole index in `index.lock` through its editor
+///  with no descriptor open and no PID file (`service_index_unheld_removal.rs`),
+///  so nothing tells that owner from another program's live command.
+///  A merge has an answer that needs no wait:
+///  its commit is made before the lock is needed,
+///  so the lock ends the apply there and the merge is saved on a side ref,
+///  and a notice would promise a wait the merge does not make.
+///  The clock is read around the look,
+///  so a look that waited would be the control's failure rather than a slow host's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(lock, '')
+/// const began = performance.now()
+/// // { heldBy: 'an owner nothing proves alive (…)' }, well inside the ten seconds this control allows
+/// expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command')
+/// expect(performance.now() - began).toBeLessThan(10000)
+/// ```
 #[test]
-fn the_merge_wait_says_the_merge_is_saved_not_that_git_refuses() {
-    let root: std::path::PathBuf = fixture("holder-wait-merge-saved");
+fn a_merge_does_not_wait_for_a_lock_nothing_proves_the_owner_of() {
+    let root: std::path::PathBuf = fixture("holder-look-merge-unproven");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
-    std::fs::write(&lock, b"").expect("the other program holds the lock");
+    std::fs::write(&lock, b"").expect("a lock nothing proves the owner of");
     let sink: SharedSink = SharedSink::default();
-    let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
-    let mut writer = crate::test_support::ActionSink::new(&sink, 1, move || { remover.remove(); });
-    let outcome: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut writer);
-    assert!(matches!(outcome, IndexWait::Released(_)), "{outcome:?}");
-    let text: String = sink.text();
-    assert!(text.contains("the merge is saved"), "the saved merge is named: {text}");
-    assert!(text.contains("cannot be proven alive"), "a lock nothing holds open is named for what is known about it: {text}");
-    assert!(!text.contains("reports what Git says"), "the line promises no report the merge does not make: {text}");
-    assert!(!text.contains("Git's own refusal"), "the line promises no refusal the merge does not make: {text}");
+    let began: std::time::Instant = std::time::Instant::now();
+    let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
+    assert!(began.elapsed() < Duration::from_secs(10), "the look does not wait for a lock nothing proves: {:?}", began.elapsed());
+    match looked {
+        IndexWait::HeldByAnotherCommand(named) => {
+            assert!(named.contains("an owner nothing proves alive"), "what is known is named: {named}");
+            assert!(named.contains("has the lock open"), "what was looked at is named: {named}");
+        }
+        other => panic!("a lock nothing proves ends the look at once: {other:?}"),
+    }
+    assert_eq!(sink.text(), "", "the look writes no notice for a wait it does not make");
+    assert!(lock.exists(), "the look removes no lock");
     remove(root.as_path());
 }
 
