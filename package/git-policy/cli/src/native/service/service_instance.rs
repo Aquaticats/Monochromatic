@@ -221,12 +221,12 @@ pub fn socket_path_suffix_bytes(instance: &str) -> usize {
 /// Why:
 ///   The runtime directory is the part a person chooses (`XDG_RUNTIME_DIR`),
 /// so it is the part a remedy can shorten.
-/// For the instance names this program writes (32 hexadecimal digits) it is 39 bytes,
-/// which is 25 fewer than the shortest runtime directory a systemd user session has (`/run/user/1000`, 14 bytes).
+/// For the instance names this program writes (32 hexadecimal digits) it is 40 bytes,
+/// which is 26 fewer than the shortest runtime directory a systemd user session has (`/run/user/1000`, 14 bytes).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// longestRuntimeDirectory('3f9a…') // 39
+/// longestRuntimeDirectory('3f9a…') // 40
 /// ```
 pub fn longest_runtime_directory(instance: &str) -> usize {
     return LONGEST_SOCKET_PATH.saturating_sub(socket_path_suffix_bytes(instance));

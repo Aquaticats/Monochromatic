@@ -13399,7 +13399,7 @@ and its address is made from the runtime directory (`XDG_RUNTIME_DIR`) and the i
 - A runtime directory whose socket path fits one socket address keeps the socket file:
   `<runtime directory>/monochromatic-git-policy-cli/<instance>.sock`.
   One socket address carries 107 bytes of name (`sun_path` less the zero that ends the name),
-  so this form serves a runtime directory of at most 39 bytes,
+  so this form serves a runtime directory of at most 40 bytes,
   which is every session whose runtime directory is the one its login gave it.
   The socket unit names it with `%t`,
   the manager's own runtime directory,
