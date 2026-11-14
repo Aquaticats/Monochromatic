@@ -83,8 +83,8 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
         // The merge was reported saved, so it is not dropped: the record goes, and the side ref keeps its commit.
         MergeRecoveryAction::SavedBranchMoved => Some(format!(
             "monochromatic-git-policy-cli: the merge saved on {} does not apply: {reference} moved after it was saved, so it cannot \
-             land as it was saved. Nothing was changed. The merge commit {} is kept on that ref, which nothing removes: land it with \
-             `git merge {}`, or delete the ref once you have decided.\n",
+             land as it was saved. This merge did not land and the branch was not moved. The merge commit {} is kept on that ref, which \
+             no record names: land it with `git merge {}`, or delete the ref once you have decided.\n",
             outcome.side_ref.as_deref().unwrap_or("its side ref"),
             outcome.new_oid,
             outcome.new_oid
@@ -92,7 +92,7 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
         MergeRecoveryAction::OwnerActive
         | MergeRecoveryAction::Discarded
         | MergeRecoveryAction::AlreadyLanded
-        | MergeRecoveryAction::IndexHeld
+        | MergeRecoveryAction::IndexHeld(_)
         | MergeRecoveryAction::DeferredRefused => None,
     };
 }

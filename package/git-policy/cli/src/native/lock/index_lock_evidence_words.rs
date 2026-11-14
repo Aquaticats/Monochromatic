@@ -196,9 +196,11 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>, end: Wa
 /// function ceilingLine({ lockPath, blocker, waitedSeconds, consequence }): string;
 /// ```
 pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, consequence: &str) -> String {
+    // A wait writes nothing, and it is reached after a clear that may have written the branch's content over the person's
+    //  bytes, so the line says what the wait did rather than what the command did.
     return format!(
-        "monochromatic-git-policy-cli: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was changed and the lock was \
-         left in place. Run the command again once that program is done.\n",
+        "monochromatic-git-policy-cli: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was written by this \
+         wait, and the lock was left in place. Run the command again once that program is done.\n",
         lock = lock_path.display()
     );
 }
@@ -255,6 +257,13 @@ pub fn blocker_words(evidence: &Evidence) -> String {
 /// which is what every command but a merge does.
 pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was left in place. If no other program is using this repository, removing the file lets the command run";
 
+/// The consequence a caller passes when its ending already states what happens to the lock.
+/// Why:
+///  A line that first says the work stops and then says the same lock is cleared and the work goes on tells a person two
+///  contrary things;
+/// the callers that clear such a lock say only what they do.
+pub const THE_ENDING_SAYS_IT: &str = "";
+
 /// What:
 ///  The diagnostic for a lock whose Git lock PID file names a number this process table does not have,
 ///  ending in what the command does about it.
@@ -275,10 +284,16 @@ pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was lef
 /// function deadOwnerDiagnostic({ lockPath, pid, consequence, ending }): string;
 /// ```
 pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str, ending: &str) -> String {
+    // A caller whose ending states what happens to the lock passes no consequence, so the line never claims the work stops
+    //  and then that it goes on.
+    let says: String = match consequence.is_empty() {
+        true => String::from(ending),
+        false => format!("{consequence}; {ending}"),
+    };
     return format!(
         "monochromatic-git-policy-cli: {lock} holds the PID number {pid}, which no process in this process table has. A Git in another PID namespace, or one on \
          another machine that shares this repository, writes a number this table has never had, and no record of the processes this repository's own commands \
-         started names {pid}, so nothing here proves the holder is gone. {consequence}; {ending}.\n",
+         started names {pid}, so nothing here proves the holder is gone. {says}.\n",
         lock = lock_path.display()
     );
 }

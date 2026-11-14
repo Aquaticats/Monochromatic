@@ -127,11 +127,12 @@ pub enum MergeRecoveryAction {
     /// and the record was removed;
     /// the merge can be computed again on the moved head.
     BranchMoved,
-    /// Another program held `index.lock` until the wait's ceiling,
-    /// so no index entry and no file was written,
+    /// Another program held `index.lock`,
+    /// so nothing more of the merge could be written now,
     /// the record was kept,
-    /// and the next command in the worktree finishes the merge.
-    IndexHeld,
+    /// and the next command in the worktree settles it,
+    /// in the state the settle read (`IndexHeldAt`).
+    IndexHeld(IndexHeldAt),
     /// The branch advanced after the merge was saved on a side ref,
     /// so that merge cannot land as it was saved;
     /// the record went and the
@@ -143,6 +144,31 @@ pub enum MergeRecoveryAction {
     /// so the command goes
     ///  on and the line says where the merge is and what blocked it.
     DeferredRefused,
+}
+
+/// What:
+///  What the checkout and the branch held when an index lock stopped the settle of a merge.
+/// Why:
+///  A lock can stop the settle before Git wrote anything,
+/// after Git wrote the merge's own entries,
+/// or while the branch already names the merge,
+/// and each of those ends in different words.
+/// The settle reads the three facts,
+/// so the line a command prints for the merge it could not finish states what stands instead of
+///  asserting one state for every one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IndexHeldAt = { theMergesEntriesInTheCheckout: boolean; landed: boolean; branchMoved: boolean };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IndexHeldAt {
+    /// Some index entry or file of the merge is in the checkout.
+    pub the_merges_entries_in_the_checkout: bool,
+    /// The branch names the merge commit.
+    pub landed: bool,
+    /// The branch names a commit that is neither the merge's parent nor the merge.
+    pub branch_moved: bool,
 }
 
 /// What:

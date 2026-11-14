@@ -279,6 +279,12 @@ mod merge_carries_edits_kill;
 #[path = "binary_merge_carries_edits_moved_tests.rs"]
 mod merge_carries_edits_moved;
 
+/// A lock another program takes in the window between a merge's look at the index and its last step:
+/// the merge saved behind a live holder,
+/// and a lock a killed Git left cleared so the merge lands.
+#[path = "binary_merge_lock_after_the_clear_tests.rs"]
+mod merge_lock_after_the_clear;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
