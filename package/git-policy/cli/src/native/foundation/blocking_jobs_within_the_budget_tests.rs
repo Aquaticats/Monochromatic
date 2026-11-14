@@ -569,9 +569,17 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
     assert!(!took_the_reserve, "a second slow job took the place the gate keeps for the work a person waits for");
 }
 
-/// The places this control gives the process,
-/// which is what the commit service gives itself (`service_main.rs`, `SERVICE_WORKER_CAP`).
-const FOUR_PLACES: usize = 4;
+/// The room this control gives the process,
+/// from the relation it tests:
+/// the places the process keeps out of slow work for the work a person waits for (`SLOW_WORK_RESERVE`),
+/// and one place for slow work,
+///  because slow work may take one place at the smallest room this control can state.
+/// Why not a cap on what the machine gave:
+///  a cap cannot raise the room a container's CPU quota gave,
+///  and the gate's container gives four CPUs, which is three places
+/// (`room_for_blocking_jobs_in_a_control.rs`).
+/// The figure comes from the two names and not from this machine or from the gate.
+const THE_ROOM: usize = SLOW_WORK_RESERVE + 1;
 
 /// The longest the control lets one ask of the work a person waits for take.
 /// It is the ceiling the two asks are granted, and it is short so a run whose second ask never gets a place fails in a
@@ -598,8 +606,8 @@ const A_SHORT_CEILING: Duration = Duration::from_secs(3);
 /// ```
 #[test]
 fn two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place_it_may() {
-    hold_blocking_jobs_to(FOUR_PLACES);
-    assert_eq!(budgeted_blocking_jobs(), FOUR_PLACES, "the cap the process asked for is the bound in force");
+    // The room is stated, not capped, so this control runs at whatever CPU count the process is given.
+    let _room: usize = crate::parallel_test_support::room_for("two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place_it_may", THE_ROOM);
     // Every place slow work may take, held on a thread of the pool with the place of slow work held for it, which is a
     //  trash of a removed worktree's one entry removal.
     let held: usize = places_a_round_may_take();

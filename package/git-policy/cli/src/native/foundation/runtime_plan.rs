@@ -118,7 +118,25 @@ fn workers_by_address_space(left: u64) -> usize {
 /// const workers = Math.min(workerBudget(...), (threadsLeft - 1) / 2, (addressLeft - reserve) / (2 * threadBytes));
 /// ```
 pub fn budgeted_workers(host: &HostResources, limits: &RuntimeLimits) -> usize {
-    // A control can give this process more room than the CPUs allow, so a control that proves its work overlaps
+    // What:
+    //  A control can state the room a process is built with,
+    //  so a control that proves its work overlaps, or one whose service is a process of its own, runs at any CPU quota
+    //  a container gives it.
+    // Why:
+    //  The CPUs a process may use follow its container's quota,
+    //  and the release gate's container gives four
+    //  (`blocking_place_room_a_control_states.rs`).
+    //  The room sizes the blocking pool as well as this figure,
+    //  because both come from here, so a place stays a thread.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const room = Number(process.env.CLI_GIT_TEST_ONLY_BLOCKING_PLACES) || undefined; if (room) return room;
+    // ```
+    if let Some(room) = crate::blocking_place_room_a_control_states::the_room() {
+        return room;
+    }
+    // A control in this process can give it more room than the CPUs allow, so a control that proves its work overlaps
     //  runs at any CPU quota (`room_for_blocking_jobs_in_a_control.rs`).
     #[cfg(test)]
     if let Some(room) = crate::room_for_blocking_jobs_in_a_control::the_room() {

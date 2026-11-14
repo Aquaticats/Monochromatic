@@ -204,6 +204,10 @@ pub mod blocking_job;
 /// taken by each job and given back when it ends.
 pub mod blocking_jobs_within_the_budget;
 
+/// The room a control states for a process it cannot reach,
+/// in place of the figure the CPUs that process may use would give it.
+pub mod blocking_place_room_a_control_states;
+
 /// The test-only entry that builds the runtime and runs a blocking job,
 /// for the controls that start the executable under limits.
 pub mod runtime_probe;

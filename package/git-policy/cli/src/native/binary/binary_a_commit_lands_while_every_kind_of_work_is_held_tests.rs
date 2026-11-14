@@ -24,6 +24,8 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use git_policy_cli::blocking_jobs_within_the_budget::SLOW_WORK_RESERVE;
+use git_policy_cli::blocking_place_room_a_control_states::ROOM_VARIABLE;
 use git_policy_cli::service_hold_a_step_for_a_control::{HOLD_DIRECTORY_VARIABLE, HOLD_VARIABLE, INSIDE_A_CLONE_STEP, INSIDE_A_PUSH, INSIDE_A_SCRATCH_REMOVAL, INSIDE_A_SYNC, let_go_file, reached_file};
 use git_policy_cli::service_work::work_directory;
 use git_policy_cli::work_item::{WorkItem, WorkKind, enqueue};
@@ -42,6 +44,23 @@ const PATIENCE: Duration = Duration::from_secs(180);
 /// A wait past this one is the defect this measurement exists for:
 /// work nobody waits for stood between the person and their commit.
 const A_WAIT_NO_OTHER_WORK_MAY_CAUSE: Duration = Duration::from_secs(20);
+
+/// How many of the held steps take a place of slow work at once:
+/// the background sync of a landing and the removal of a scratch tree, one place each.
+/// The push waits on a remote and a clone's own hold sits on a worker before its place, so neither takes one of these.
+const THE_SLOW_STEPS_HELD_AT_ONCE: usize = 2;
+
+/// The room this control gives the fixture's service,
+/// from the relation it tests:
+/// the places the service keeps out of slow work for the work a person waits for (`SLOW_WORK_RESERVE`),
+/// and one place for each slow step this control holds at once.
+/// Why the service is told its room instead of taking the machine's:
+///  the CPUs a process may use follow its container's quota, and the release gate's container gives four
+///  (`bin/native-gate-container-limits.ts`),
+///  which is three blocking places and one for slow work, so the second held step would wait for a place that never
+///  comes.
+/// The figure comes from the two names and from what this control holds; no CPU count of this machine or the gate is in it.
+const THE_ROOM: usize = SLOW_WORK_RESERVE + THE_SLOW_STEPS_HELD_AT_ONCE;
 
 /// How many prewarm records the queue holds,
 /// which is how many clones of a build directory the lane starts side by side:
@@ -126,12 +145,15 @@ fn setup(name: &str) -> Setup {
     return Setup { fixture, repo, remote, service, holds };
 }
 
-/// Name the steps this measurement holds in the fixture service's environment.
+/// Name the steps this measurement holds, and the room it gives the service, in the fixture service's environment.
 fn name_the_holds(fixture: &Fixture, holds: &Path) {
     let named: Vec<&str> = vec![INSIDE_A_CLONE_STEP, INSIDE_A_SYNC, INSIDE_A_SCRATCH_REMOVAL, INSIDE_A_PUSH];
     let mut environment = fixture.service_environment.lock().expect("the fixture's service environment");
     environment.push((OsString::from(HOLD_VARIABLE), OsString::from(named.join(","))));
     environment.push((OsString::from(HOLD_DIRECTORY_VARIABLE), holds.as_os_str().to_os_string()));
+    // The service is a process of its own, so the room this control needs for it is stated to it here, and it is built
+    //  with that many places and threads whatever CPU quota it inherits.
+    environment.push((OsString::from(ROOM_VARIABLE), OsString::from(THE_ROOM.to_string())));
 }
 
 /// What:

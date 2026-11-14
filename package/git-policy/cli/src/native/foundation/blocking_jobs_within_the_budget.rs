@@ -290,11 +290,15 @@ static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
 /// the coordinator's pick under the owner's delegation,
 /// open to the owner's veto.
 ///
+/// It is public so a control of a process the test cannot reach states the room its relation needs:
+/// the places kept here, plus one place for each slow step the control holds at once
+/// (`binary/binary_a_commit_lands_while_every_kind_of_work_is_held_tests.rs`).
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const SLOW_WORK_RESERVE = 2;
 /// ```
-pub(crate) const SLOW_WORK_RESERVE: usize = 2;
+pub const SLOW_WORK_RESERVE: usize = 2;
 
 /// What:
 ///  The places slow work may take at once:
