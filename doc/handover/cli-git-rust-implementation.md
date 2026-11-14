@@ -1121,6 +1121,74 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The index-lock fix passed its fourth review and is pass 28; the issue 6293 answer has two reproduced defects (2026-11-13T21:36:20-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two review files,
+nothing here rerun by it.
+
+The index-lock fix
+(review `~/temp/agent/change-reviews/git-policy-cli-index-lock-fix-answers-after-its-third-review/review.md`,
+ended 21:29:51,
+on `e7474d6803`):
+
+- No defect found.
+  It read eighteen files and the modules they lean on,
+  ran eight reproduction scripts of its own through the built wrapper and 36 tests of the proof.
+  A dead holder's lock was cleared with the staged content unchanged;
+  a live holder's lock stayed,
+  with and without the file open for writing;
+  a reused process number kept the lock;
+  eight commands at once cleared it exactly once;
+  a service killed at a fault point left no lock and its commit landed once.
+- **Pass 28** is queued at the head for that branch at that commit
+  (`integration-pass-28-with-the-index-lock-fix`,
+  branch `integrate/git-policy-cli-pass-28-index-lock-left-by-a-killed-wrapper-is-cleared`).
+  Its brief names no release number;
+  the number is given when it is released.
+- What the review named beside its verdict,
+  each weighed:
+  - Read and not run:
+    the repair looks at the repository of the working directory,
+    so `git -C <other>` would not clear a lock in the repository it names.
+    Agents here run most commands that way,
+    so a fresh run from `e7474d6803` is queued
+    (`abandoned-lock-is-cleared-in-the-repository-a-commands-own-options-name`),
+    which first tests the claim by running each form.
+  - Seen once in an eight-way race:
+    a command that gives up on a lock another command is clearing prints the notice for a standing lock.
+    The end state was right and no commit or wait was touched.
+    No run is started for it;
+    it is open,
+    and belongs with the next change to `lock/abandoned_lock_proving.rs`.
+- The case of equal birth stamps on this volume stays with its queued run from the same tip.
+
+The issue 6293 answer
+(review `~/temp/agent/change-reviews/git-policy-cli-issue-6293-answers-after-its-first-review/review.md`,
+ended 21:33:10,
+on `6db694c52c`):
+
+- Every resolved place of the merge `541f5e3ec7` keeps both sides' meaning,
+  the manager probe's retry is bounded,
+  and the session boundary is sound.
+- Two findings,
+  both reproduced with a crate that links the library and calls the real functions on real Git's output,
+  both weighed as standing:
+  - A push that delivered and then failed is recorded under the newest claimed commit and not under the commit it sent
+    (`landing/service_work.rs` near line 523,
+    where the arm for exit 0 a few lines before uses `sent_up_to`).
+    A commit that lands between the claim and the push gets its words filed under another commit's name,
+    over an unread report of that commit.
+  - Once one address delivered,
+    a failure the project treats as final on another address (a hook's decline,
+    a login the service lacks) is retried without end
+    (`landing/service_work_failed_push_verdict.rs` near lines 113 to 119 never asks `final_failure`).
+    Before the change the verdict was `Failed` once.
+- Both go back to the author,
+  resumed in its own session,
+  queued behind pass 28
+  (`issue-6293-answers-its-second-review-of-2026-11-13-prompt.md`).
+
 ##### The no-manager author answered two findings; the archives run stopped at four archives (2026-11-13T21:20:50-05:00)
 
 Not final and not approved:
