@@ -167,7 +167,9 @@ retains the build state and remaining native validation work.
 
 ## Homebrew and Codex allowances at 2026-11-14T09:00:44-05:00
 
-Status: agent-verified host repair; owner approval remains open.
+Status:
+agent-verified host repair;
+owner approval remains open.
 Codex installed the rules and ran the checks described here.
 
 ### Observed failures and correction
@@ -266,6 +268,14 @@ Only response field names were logged;
 account identities and credentials were not printed.
 This verified the reported account-read boundary and an authenticated network read.
 It did not run a model request or restart the user's active Codex session.
+
+After deleting the superseded rules,
+the download probe again returned HTTP `200`,
+and both Codex account methods again succeeded.
+The daemon log recorded deletion of every superseded file at `2026-11-14T14:03:46Z`.
+The updater's stale `start-limit-hit` state was cleared with
+`systemctl reset-failed uupd-manual.service`.
+The full system updater was not rerun.
 
 ### Upstream filing decision
 
