@@ -37,10 +37,20 @@ const NO_DELEGATED_CONTROL_GROUP = 100
 const unacknowledged = { ...process.env }
 delete unacknowledged[ACKNOWLEDGEMENT]
 const asked = spawnSync('cargo', ['nextest', 'run', '--release', '-E', `test(=${QUESTION})`], { encoding: 'utf8', env: unacknowledged })
+const answerOutput = (asked.stdout ?? '') + (asked.stderr ?? '')
+const refuse = (why) => {
+  // Nothing is excused when the question itself did not answer: its own output is all there is to show.
+  process.stderr.write(answerOutput)
+  console.error(why)
+  process.exit(asked.status === 0 || asked.status === null ? 1 : asked.status)
+}
 if (asked.status !== 0 && asked.status !== NO_DELEGATED_CONTROL_GROUP) {
-  process.stderr.write((asked.stdout ?? '') + (asked.stderr ?? ''))
-  console.error(`the test task could not ask ${QUESTION} whether this host can give the tests a delegated control group (status ${asked.status}); nothing was excused`)
-  process.exit(asked.status ?? 1)
+  refuse(`the test task could not ask ${QUESTION} whether this host can give the tests a delegated control group (status ${asked.status}); nothing was excused`)
+}
+const reason = (asked.stderr ?? '').split('\n').map((line) => { return line.trim(); }).find((line) => { return line.includes('cannot give the test a delegated scope'); }) ?? ''
+if (asked.status === NO_DELEGATED_CONTROL_GROUP && reason === '') {
+  // A red question that says nothing about a delegated control group failed for another reason, and excusing 66 tests on it would hide that.
+  refuse(`the question ${QUESTION} failed (status ${asked.status}) without saying that this host cannot give a delegated control group; nothing was excused`)
 }
 
 if (asked.status === 0) {
@@ -53,21 +63,17 @@ if (asked.status === 0) {
 // brings the line of a passing test into the log, and what did not run then comes from the tests themselves, so no list of their names
 // can go stale as tests are added.
 const suite = spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast', '--success-output=final'], { stdio: 'inherit', env: { ...unacknowledged, [ACKNOWLEDGEMENT]: '1' } })
-const reason = (asked.stderr ?? '').split('\n').map((line) => { return line.trim(); }).find((line) => { return line.includes('cannot give the test a delegated scope'); }) ?? ''
-if (reason === '') {
-  // The question answered 100 without the line this task quotes, so its own output is all there is to show.
-  process.stderr.write((asked.stdout ?? '') + (asked.stderr ?? ''))
-}
 console.error(
   [
     '',
     'This host cannot give the tests a delegated control group.',
-    reason === '' ? 'The reason is in the output of the question, printed above.' : `The reason, as the tests put it: ${reason}`,
+    reason === '' ? 'The reason is the one the question printed above.' : `The reason, as the tests put it: ${reason}`,
     'Every test that needs one printed a SKIPPED line above, in this run: it did not run, so nothing it stands for was checked here,',
     'and none of those tests is a failure of cargo-shadow.',
     'They run where this account has a user manager on a cgroup v2 mount, for example inside a delegated scope of it:',
     '  systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test',
-    `Unsetting ${ACKNOWLEDGEMENT} turns each of those skips into a failure, which is what a gate wants where a scope can be had.`,
+    `A gate that must not accept a degraded run starts \`cargo nextest run --release\` directly with ${ACKNOWLEDGEMENT} unset, where each of those tests fails instead of skipping.`,
+    'cargo-shadow tests: this run is a degraded run: it is no evidence for the tests that printed SKIPPED above.',
     '',
   ].join('\n'),
 )

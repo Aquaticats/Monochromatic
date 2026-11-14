@@ -1568,8 +1568,13 @@ systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-s
 ```
 
 Nothing in that run is reported as a failure of cargo-shadow,
-and unsetting `CARGO_SHADOW_ALLOW_NO_CGROUP` turns each of those skips into a failure,
-which is what a gate on a capable host wants.
+and it ends with one line that calls itself a degraded run,
+so a reader of the log and a scan of it both see it.
+A gate that must not accept a degraded run starts
+`cargo nextest run --release` directly with `CARGO_SHADOW_ALLOW_NO_CGROUP` unset,
+where each of those tests fails instead of skipping;
+the task itself always asks the question,
+so on a host that can delegate it never accepts a skip.
 Measured 2026-11-14 in a scope without `Delegate=yes` and with `$DBUS_SESSION_BUS_ADDRESS` and `$XDG_RUNTIME_DIR` unset:
 the run ended green with `872 tests run: 872 passed, 21 skipped`,
 and the one line per test that needed a scope named all 66 of them plus the question;
