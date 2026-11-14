@@ -169,7 +169,7 @@ tracing = ">=0.1.44"
 tracing-subscriber = ">=0.3.23"
 zbus = ">=6.2.1"
 zbus_xml = ">=6.0.0"
-zruntime = { version = ">=0.2.2", default-features = false }
+zruntime = { version = ">=0.2.3", default-features = false }
 
 # Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
 [lints.rust.unexpected_cfgs]
