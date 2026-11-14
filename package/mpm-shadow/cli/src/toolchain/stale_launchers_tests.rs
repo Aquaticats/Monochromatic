@@ -25,6 +25,8 @@ use super::fakes::{Rig, write_executable};
 use super::launcher::{LaunchRecord, ensure_launcher, record_path, render_record};
 /// Imports what this module uses from `super::model`.
 use super::model::{Postinstall, PostinstallLink};
+/// Imports `render_lock` from `super::lock`.
+use super::lock::render_lock;
 /// Imports `ScopeKind` from `super::scope`.
 use super::scope::ScopeKind;
 /// Imports what this module uses from `super::stale_launchers`.
@@ -435,3 +437,32 @@ fn a_link_a_tools_own_postinstall_command_keeps_is_neither_removed_nor_warned_ab
 }
 
 //endregion
+
+//region A removal is decided by the lock on disk at that instant
+// The fourth review found that a decision taken on the lock an install loaded deletes what a newer lock declares and
+// another install has just placed.
+
+#[test]
+fn a_launcher_a_newer_lock_declares_is_kept_whatever_this_install_loaded() {
+    let mut rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    let record: PathBuf = record_path(&launcher);
+    let link: PathBuf = make_link(&rig, RENAMED_BIN, &launcher);
+    // Another install publishes a lock that declares this name; this install still holds the lock it loaded.
+    let mut newer = rig.lock.clone();
+    newer
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.declaration.id == SHADOW_TOOL)
+        .expect("the sample lock holds the tool")
+        .declaration
+        .bins
+        .push(RENAMED_BIN.to_string());
+    fs::write(&rig.scope.lock_file, render_lock(&newer)).expect("publish the newer lock");
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&launcher), "the lock on disk declares this name, so nothing decides about its launcher: {notices:?}");
+    assert!(exists_at(&record));
+    assert!(exists_at(&link), "and nothing decides about its farm link");
+}

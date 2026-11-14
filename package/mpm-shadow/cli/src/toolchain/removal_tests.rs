@@ -123,3 +123,24 @@ fn a_removal_whose_hidden_names_are_all_taken_refuses_to_move_the_entry_aside() 
     let fallback: PathBuf = directory.path().join(format!(".link.{}.retired", std::process::id()));
     assert_eq!(fs::read_to_string(&fallback).expect("the kept file stays"), persons_text);
 }
+
+#[test]
+fn a_put_back_never_writes_over_something_that_took_the_path() {
+    let directory = scratch();
+    let (path, _target) = a_link(directory.path());
+    let moved: PathBuf = directory.path().join(".link.4242.0.retired");
+    fs::write(&moved, "what stood at the path first\n").expect("the moved entry");
+    // Something newer stands where the entry was, as a person's or another install's write would leave it.
+    fs::remove_file(&path).expect("the judged link goes");
+    let newer = "#!/bin/sh\necho what took the path\n";
+    fs::write(&path, newer).expect("what took the path");
+
+    let outcome = super::removal::put_back(&path, &moved);
+
+    assert!(outcome.is_err(), "the put-back must refuse rather than write over it: {outcome:?}");
+    assert_eq!(fs::read_to_string(&path).expect("what took the path stays"), newer);
+    assert_eq!(fs::read_to_string(&moved).expect("and the moved entry is kept"), "what stood at the path first\n");
+    let sentence = outcome.expect_err("refused");
+    assert!(sentence.contains(&moved.display().to_string()), "the sentence names where it is kept: {sentence}");
+    assert!(sentence.contains("nothing removes it"), "the sentence says who removes it: {sentence}");
+}
