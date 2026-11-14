@@ -460,3 +460,116 @@ fn a_record_the_installer_wrote_in_the_removals_window_is_left_as_it_wrote_it() 
     assert!(!launchers.join("gone.launch").exists(), "a copy no install rewrites is left behind");
     remove(&root);
 }
+
+/// A process number no process holds now,
+/// which is what the name a record is set aside under carries once the pass that set it aside is killed.
+fn dead_process_number() -> u32 {
+    loop {
+        let child: std::process::Child = std::process::Command::new("true").spawn().expect("a short-lived process");
+        let pid: u32 = child.id();
+        let _waited = child.wait_with_output();
+        if !std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
+            return pid;
+        }
+    }
+}
+
+/// What:
+///  A record an install wrote while the removal was looking is put back by the pass after a killed one,
+///  so the launcher beside it keeps its record and the tool keeps working.
+/// Why:
+///   The removal takes a record aside, reads it, and puts it back or removes it.
+///   A pass killed between taking and putting back leaves the record under a name of its own,
+///   and a concurrent `toolchain:update` plus install can have written that record after the classification:
+///   the next pass must read what is there and put it back, never discard it,
+///   because a launcher with no record beside it does not run its tool and nothing else recreates the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// record('zzz', source); whenTheRemovalBegins(() => writeTheInstallersOwn('zzz')); killAfterTheRecordIsAside();
+/// repairToolchain(destination); renameTheAsidesToADeadPid(); repairToolchain(destination);
+/// assert(readFile('zzz.launch').includes(ownLock) && exists('zzz'));
+/// ```
+#[test]
+fn a_record_a_killed_pass_took_aside_is_put_back_by_the_next_pass() {
+    let (root, destination, _bin, environment) = scene("toolchain-killed-aside");
+    lock(&destination, &["own"]);
+    record(&destination, "own", destination.join(LOCK_FILE).as_path());
+    record(&destination, "zzz", root.join("source/toolchain.lock.json").as_path());
+    launcher(&destination, "zzz");
+    let own_lock: PathBuf = destination.join(LOCK_FILE);
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    // The install that lands after the classification: the lock declares the name, and a record and launcher for it
+    //  name this worktree, as `mpm-shadow` writes them (the record first).
+    let installer_lock: PathBuf = own_lock.clone();
+    let installer_launchers: PathBuf = launchers.clone();
+    crate::package_repair_toolchain::WHEN_THE_REMOVAL_BEGINS.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| {
+        *cell.borrow_mut() = Some(Box::new(move || {
+            let tools: String = String::from("{\"schemaVersion\":1,\"tools\":{\"cargo:own\":{\"bins\":[\"own\"]},\"cargo:zzz\":{\"bins\":[\"zzz\"]}}}");
+            std::fs::write(installer_lock.as_path(), tools).expect("the installer's lock");
+            let fresh: String = format!("{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/zzz\",\"scope\":\"repo\"}}\n", installer_lock.display());
+            std::fs::write(installer_launchers.join("zzz.launch"), fresh).expect("the installer's record");
+            std::fs::write(installer_launchers.join("zzz"), b"#!/bin/sh\n# the installer's launcher\nexit 0\n").expect("the installer's launcher");
+        }));
+    });
+    crate::package_repair_toolchain::KILLED_AFTER_THE_RECORD_IS_ASIDE.with(|killed: &std::cell::Cell<bool>| killed.set(true));
+    let _killed_pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    crate::package_repair_toolchain::KILLED_AFTER_THE_RECORD_IS_ASIDE.with(|killed: &std::cell::Cell<bool>| killed.set(false));
+    // The pass that took a record aside is gone: what it left carries the name of a dead process, which is how the next
+    //  pass tells a finished pass from one still running.
+    let dead: u32 = dead_process_number();
+    let mut left_aside: usize = 0;
+    for entry in std::fs::read_dir(launchers.as_path()).expect("the launcher directory").flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let Some((_, owner)) = name.rsplit_once(".removing-") else { continue };
+        let Some((_written_pid, token)) = owner.split_once('-') else { continue };
+        let killed_name: String = format!("{}.removing-{dead}-{token}", name.rsplit_once(".removing-").expect("split").0);
+        std::fs::rename(entry.path(), launchers.join(killed_name)).expect("the killed pass's name");
+        left_aside += 1;
+    }
+    assert!(left_aside <= 1, "one pass leaves one record aside at most: {left_aside}");
+    let _next_pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    let record_after: String = std::fs::read_to_string(launchers.join("zzz.launch")).unwrap_or_default();
+    assert!(record_after.contains(own_lock.to_str().expect("utf8")), "the installer's record is not where it belongs: {record_after:?}");
+    let launcher_after: String = std::fs::read_to_string(launchers.join("zzz")).unwrap_or_default();
+    assert!(launcher_after.contains("the installer's launcher"), "the installer's launcher is not the one beside it: {launcher_after:?}");
+    let leftovers: Vec<String> = std::fs::read_dir(launchers.as_path()).expect("the launcher directory").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).filter(|name| return name.contains(".removing-")).collect();
+    assert!(leftovers.is_empty(), "a record is still aside after the pass that follows: {leftovers:?}");
+    remove(&root);
+}
+
+/// What:
+///  A record that names this worktree's own lock through a link, or through a path with `..`,
+///  is never taken for a copy of another checkout and never removed.
+/// Why:
+///   One file has many spellings:
+///   a link to the worktree, a path through a directory and back, and a bind mount of the same folder all name the same
+///   `toolchain.lock.json`, and only the file's identity tells that from a real copy of another checkout's lock.
+///   A pass that compares spellings deletes a record an install wrote for a name the lock declares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(destination, alias); record('via-link', alias + '/toolchain.lock.json'); record('via-dots', destination + '/sub/../toolchain.lock.json');
+/// repairToolchain(destination); assert(exists('via-link.launch') && exists('via-dots.launch'));
+/// ```
+#[test]
+fn a_record_that_names_this_worktrees_lock_by_another_spelling_is_never_removed() {
+    let (root, destination, _bin, environment) = scene("toolchain-spellings");
+    lock(&destination, &["own"]);
+    record(&destination, "own", destination.join(LOCK_FILE).as_path());
+    // The worktree through a link, and through a path that names a directory and comes back out of it.
+    let alias: PathBuf = root.join("alias");
+    std::os::unix::fs::symlink(&destination, alias.as_path()).expect("a link to the worktree");
+    std::fs::create_dir_all(destination.join("sub")).expect("a directory to walk into");
+    record(&destination, "via-link", alias.join(LOCK_FILE).as_path());
+    launcher(&destination, "via-link");
+    record(&destination, "via-dots", destination.join("sub/../toolchain.lock.json").as_path());
+    launcher(&destination, "via-dots");
+    let _finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    for name in ["via-link", "via-dots"] {
+        assert!(launchers.join(format!("{name}.launch")).is_file(), "a record naming this worktree's lock through {name} was removed");
+        assert!(launchers.join(name).is_file(), "the launcher beside {name}'s record was removed");
+    }
+    remove(&root);
+}
