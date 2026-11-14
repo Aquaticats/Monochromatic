@@ -7,7 +7,7 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **17** agents run on this machine at once,
+At most **16** agents run on this machine at once,
 counted across every session
 (raised from 4 to 8 on 2026-11-13 at 11:57,
 from 8 to 16 at 12:58:50
@@ -15,8 +15,9 @@ and from 16 to 32 at 17:12,
 each time when the level before had held its hour;
 lowered from 32 to 24 on 2026-11-14 at 01:16:46,
 from 24 to 20 at 01:21:35,
-from 20 to 18 at 01:42:18
-and from 18 to 17 at 02:03:15,
+from 20 to 18 at 01:42:18,
+from 18 to 17 at 02:03:15
+and from 17 to 16 at 02:48:16,
 each time when the level before failed its criterion,
 by the rule under "What counts as the ceiling":
 halve the gap between the last level that held, sixteen, and the one that failed).
@@ -26,19 +27,23 @@ and twenty to twenty-two agents were going at both failures.
 The levels from twenty down do:
 nothing new starts until fewer are going,
 and no run that is going is stopped.
-Should level seventeen fail,
-the search ends at sixteen,
+**The search has ended at sixteen**,
 the last level that held,
-and goes no lower without the owner:
-the probe then runs for readings only.
-**The search is no longer measuring the count.**
-The last failing pair came with seventeen and sixteen agents going,
-at or below the count of the level that held,
+and goes no lower without the owner.
+Level seventeen failed at 02:47:00 on 2026-11-14;
+the probe runs on for readings only and ends on none of them.
+**The search stopped measuring the count before it ended.**
+The failing pairs at eighteen and seventeen came with sixteen and seventeen agents going,
+at or one above the count of the level that held,
 and after the daily update had ended.
+Whether sixteen is right,
+or the number goes back up once the stalls are explained,
+is a question kept for the owner in `doc/handover/cli-git-rust-implementation.md`.
 The readings and what is not established about their cause are under
 "Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00",
-"Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00" and
-"Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00".
+"Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00",
+"Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
+"Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00".
 The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
 not in `main`,
 carries the number in a file of its own that still reads sixteen;
@@ -862,3 +867,58 @@ No cause is claimed.
   readings after the cleanup has ended;
   and whether a night without it stalls.
   Both are readings the probe gives if it is left running.
+
+#### Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No cause is claimed.
+
+- **The readings at level seventeen**:
+  forty,
+  one a minute where the minute before did not stall,
+  from 02:03:18 to 02:47:00,
+  with fifteen to seventeen agents going
+  (four readings could not count them:
+  `systemctl` gave no answer in twenty seconds).
+  The home drive's write-and-sync took a median of 43 ms,
+  and over the bound of 5,000 ms seven times
+  (ms, agents going beside each):
+  02:03:18 33,165 (16);
+  02:07:01 13,765 (17);
+  02:10:21 20,942 (17);
+  02:21:27 14,272 (16);
+  02:28:50 11,826 (17);
+  02:45:53 6,462 (17);
+  02:47:00 7,204 (17).
+  The build volume in the same readings:
+  a median of 10 ms,
+  and over one second three times
+  (02:11:42 1,408; 02:12:43 3,172; 02:24:41 2,271).
+- **Level seventeen fails at 02:47:00**:
+  6,462 ms and 7,204 ms,
+  two readings in a row.
+  It had stood for forty-four minutes,
+  short of its hour.
+  The stalls are shorter and further apart than at eighteen
+  (seven in forty readings against four in eight,
+  the longest 33 s against 142 s);
+  one level's readings do not say whether that is the count or the night moving on.
+- **What was done**:
+  the filling unit at seventeen was stopped at 02:48:16 and one at sixteen started in the same second
+  (`fill-free-places-and-put-ended-reviews-back-at-level-16-20261114T024816`,
+  eight hours,
+  no successor);
+  no run that was going was stopped.
+  The probe runs on at sixteen for readings only
+  (`disk-probe-for-readings-only-at-level-16-20261114T024816`,
+  eight hours;
+  the probe script takes `readings-only` as a third argument and then never ends on slow readings),
+  into the same log,
+  `keep/probe-readings.jsonl` of the search's scratch folder.
+- **The lead still stands untested**:
+  at 02:48:37 `snapper-cleanup.service` was still running
+  (since 00:00:07),
+  and `snapper-timeline.service` too
+  (since 01:00:55).
+  So no reading yet comes from after the cleanup's end.

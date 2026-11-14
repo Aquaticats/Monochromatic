@@ -720,32 +720,41 @@ by the rules that already stand:
   and no change to the pools:
   about twenty-five agents stays the most.
 - The units this depends on and when each ends by itself:
-  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-17-20261114T0204`
-  (started 2026-11-14T02:03:15-05:00 for eight hours,
-  so it is started again by 10:03;
-  the one of 17:12:16 at level thirty-two ended at 01:12:16),
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-16-20261114T024816`
+  (started 2026-11-14T02:48:16-05:00 for eight hours,
+  so it is started again by 10:48;
+  the one at level seventeen was stopped in the same second,
+  when that level failed),
+  the drive probe `disk-probe-for-readings-only-at-level-16-20261114T024816`
+  (eight hours from the same second;
+  it records and ends on no reading),
   and the waiter of the moment
   (eight hours from its start,
   started again each time it reports).
 
 Questions kept for the owner's return:
 
-- The agent cap went from thirty-two to seventeen between 01:16 and 02:03 on 2026-11-14,
+- The agent cap went from thirty-two to sixteen between 01:16 and 02:48 on 2026-11-14,
   each step by the search's own rule,
-  while the count of agents fell and the home drive's stalls grew
+  while the count of agents fell and the home drive kept stalling
   (up to 143 s on a 4 KiB write-and-sync,
-  every other reading by 01:50).
+  every other reading by 01:50;
+  seven of forty readings at seventeen,
+  the longest 33 s).
   The count that held an hour on 2026-11-13 was twenty to twenty-two.
   Does the cap stay where the criterion put it,
   or go back up once the stalls are explained?
   What is known:
   they do not go with the daily update
   (they went on after it ended at 01:40:01);
-  a snapshot cleanup of the system has run since 00:00:07 and is the one lead,
+  a snapshot cleanup of the system has run since 00:00:07,
+  was still running at 02:48:37,
+  and is the one lead,
   untested
   (`doc/handover/agents-at-once-on-this-machine.md`,
-  "Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00").
-  After seventeen the search ends at sixteen and this session takes it no lower.
+  "Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
+  "Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00").
+  The search has ended at sixteen and this session takes it no lower.
   The earlier form of this question,
   about hours that hold the daily update,
   is withdrawn.
@@ -1238,6 +1247,111 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Level seventeen fails and the cap is sixteen; the no-manager answer goes to review; a review that ran nothing goes on (2026-11-14T02:49:30-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued,
+and what two runs report of themselves,
+which this session has not checked.
+
+- **The cap is sixteen** since 02:48:16.
+  The drive probe ended level seventeen at 02:47:00 on two slow home-drive readings in a row
+  (6,462 ms and 7,204 ms,
+  seventeen agents going at both);
+  seven of that level's forty readings were over the bound,
+  the longest 33,165 ms.
+  By the rule the search ends at sixteen,
+  the last level that held,
+  and goes no lower without the owner.
+  The filling unit at seventeen was stopped and one at sixteen started in the same second;
+  no run that was going was stopped.
+  The probe goes on,
+  recording only.
+  The system's snapshot cleanup was still running at 02:48:37,
+  so its lead is as untested as before.
+  Readings and unit names:
+  `doc/handover/agents-at-once-on-this-machine.md`,
+  "Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00".
+  Sixteen Pi runs were going at 02:49:30,
+  so the queue gives nothing a start until one of them ends.
+- **The commit service that needs no service manager**:
+  its author ended at 02:40:26 with an answer to all three findings of the review of `76a08c9fac`
+  (branch `refactor/git-policy-cli-commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`,
+  tip `55f236a0a8`;
+  last message kept in `~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0239-to-0244/keep/`).
+  By its report:
+  it ran the review's three reproductions against the reviewed commit
+  (the deleted folder and the two live services showed again)
+  and against its answer
+  (neither shows).
+  The notes folder is now emptied one entry at a time,
+  each entry proven this program's by its name and text,
+  everything else left and named;
+  the client whose ask ran out is ended and reaped on a thread of its own,
+  so the commit's path waits `PROBE_WAIT` at most;
+  a takeover of a stale address is claimed with the kernel's `flock` on `<address>.taking-over` across the probe,
+  the unlink and the bind,
+  and the starter's marker is published whole through one `link`.
+  Six controls,
+  each quoted failing with its fix taken out.
+  Two builds timed in turn over five rounds show no cost above the spread.
+  Clippy passes;
+  7,654 of 7,668 library tests pass,
+  and it attributes the fourteen that fail to `main`
+  (the twelve its brief names and three ceiling controls of `invocation::forwarding`,
+  for which it did not build `main`).
+  It also changed two starts of children to go through `RetryStart::spawn_retrying`,
+  which no finding asked for.
+- **Measured by this session**:
+  the tip meets `main` at `2f980ac697`,
+  before pass 30,
+  so `main` holds wrapper commits the tip does not
+  (`git log 55f236a0a8..main -- package/git-policy/ toolchain.lock.json Cargo.lock` lists pass 30 and the `0.6.1-alpha.25` release).
+  The review reads `main...55f236a0a8`,
+  which starts at that meeting point,
+  so it is not held up;
+  before any pass the branch merges `main` again.
+  Review queued second in the queue
+  (`review-git-policy-cli-commit-service-needs-no-service-manager-answers-after-its-review`).
+  The branch and issue 6293 on top of it stay out of a pass until that review is read.
+- **Two things that author leaves to decide**,
+  neither adopted and neither with a run:
+  whether the zero-byte `<address>.taking-over` claim file goes with the sweep of a worktree that is gone,
+  and whether one second (`MANAGER_START_EXTRA`) is the right wait for a scope that reports no process number.
+  The review's brief is the package's own and names neither,
+  so both are read again when the review has ended.
+  The second is a shipped bound,
+  and `AGENTS.md` wants a workload measurement or an owner decision cited beside such a value:
+  the author's report names neither,
+  so it goes back to the author with the review's findings,
+  or alone if the review has none.
+- **Red on `main` by that author's report, not measured by this session**:
+  `service_log_lines_off_the_calling_thread.rs` has no lock-inventory entry and no `thread-start` exception
+  (two guard tests);
+  `SPEC.md` described a `SERVICE_GREETING_SILENCE` the branch's tree does not have;
+  `git worktree remove --force` prints advice naming a unit this release never creates
+  (`worktree_remove_hand_over.rs`).
+  The first belongs with the red library tests;
+  none has a run yet.
+- **The review of the five library controls** (`ec658fd836`) ended at 02:39:19 with no defect and this sentence:
+  "no build/test run, so nothing is claimed as reproduced".
+  By the record of 2026-11-13T12:26:24-05:00 a review that ran nothing is started again.
+  Its reviewer is resumed in its own session,
+  first in the queue,
+  told to run the five controls by name,
+  plant a break of its own under each rewritten test,
+  and take out the lock's inventory entry and each of the guard's three new exceptions to see the guard name them
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-five-library-controls-that-ran-nothing-prompt.md`).
+  The branch stays out of a pass until then.
+- **One thing that review read and did not run, in `main`**:
+  a shadow tree the commit service drew ahead of time keeps its old modification time when it is handed to a commit,
+  and the sweep removes drawn trees by that time alone once it is over two hours;
+  so after an idle stretch a sweep could remove a tree in the moment after its hand-out.
+  A fresh run is queued from `main` at `0fb1d0cc6a`,
+  told to show by a run whether the sequence can happen before changing anything
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-handed-to-a-commit-is-never-removed-by-the-sweep-for-its-age-prompt.md`).
+- The queue held 67 entries at 02:49:30.
 
 ##### Pass 30 is in `main` and `0.6.1-alpha.25` is dispatched; the renamed subvolume and the archives' answer go to review (2026-11-14T02:25:40-05:00)
 
