@@ -215,8 +215,10 @@ await describe({
           name: 'loses nothing when a kill or a refused write comes between the record and the entry leaving the queue',
           fn: async () => {
             await using folder = await makeFolder();
-            // The queue's own folder refuses the write, which is the step after the record: a kill there leaves both files, and
-            // an entry that is in both is one the filling tries again.
+            // The queue's own folder refuses every write, so the change that would take the entry out fails after the record
+            // was written: a kill or a refusal there leaves both files, and an entry that is in both is one the filling tries
+            // again. The folder was made unwritable at 2026-11-14, when the queue change takes a lock beside the queue, the
+            // lock's own file is the first write it attempts and it is refused the same way.
             await chmod(folder.queueFolder, 0o500,);
             /**
              What setting the entry aside threw.
@@ -234,7 +236,10 @@ await describe({
             catch (error) {
               caught = error;
             }
-            expect(String(caught,),).toContain('cannot be written',);
+            // The refusal names the file it could not write, which is the queue path's own beside-file or lock, and the change
+            // is what did not happen: what the test proves is the state after it, not the wording.
+            expect(caught,).toBeInstanceOf(Error,);
+            expect(String(caught,),).toContain(folder.queueFile,);
             expect(await setAsideRecordOf({ runsFolder: folder.runs, name: 'a', },),).toMatchObject({ entry: THE_ENTRY, },);
             expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
               return entry.name;

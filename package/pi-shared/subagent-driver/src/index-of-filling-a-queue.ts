@@ -11,8 +11,10 @@
  */
 
 export {
+  type ChangeOfAQueue,
   type QueueRecord,
   QueueFileError,
+  changeTheQueueOfRuns,
   moveAQueueEntryTo,
   putAQueueEntryIn,
   readQueueOfRuns,
@@ -20,6 +22,15 @@ export {
   writeQueueOfRuns,
   writtenQueueOfRuns,
 } from './queue-of-runs.ts';
+export {
+  QUEUE_LOCK_POLL_MILLISECONDS,
+  QUEUE_LOCK_STALE_MILLISECONDS,
+  QUEUE_LOCK_WAIT_MILLISECONDS,
+  QueueLockHeldError,
+  aPathWrittenBeside,
+  acquireTheQueueLock,
+  lockFileOfAQueue,
+} from './queue-lock.ts';
 export {
   REVIEW_OF_A_RANGE_ENTRY_FIELDS,
   type ReviewOfARangeEntry,

@@ -523,8 +523,59 @@ and the entry behind it starts in the same pass.
 
 The queue file is read whole and written whole through a file beside it that is renamed over it,
 so a reader never meets half a queue.
-Every edit reads the queue again at the moment of writing and changes only the entry it was asked about,
-so an entry another session queued meanwhile is never written away with a list read before it.
+Every edit reads the queue, changes it and writes it while the queue's lock is held,
+so two commands at once cannot both read before either writes and drop one another's entry.
+
+### One writer at a time
+
+The lock is one file beside the queue, `<queue>.lock`,
+taken so that exactly one caller takes it:
+the taker writes a file beside the lock naming its process number and the time,
+and links that file into the lock's place whole,
+so no reader meets a half-written lock and a lock that exists always names its holder.
+The lock is given back when the block that took it ends, answered or thrown.
+The bounds, each read against the measured cost of a change to a 51-entry queue
+(mean 0.66 ms, 95th percentile 1.7 ms, worst 2.1 ms):
+
+- a caller keeps trying for ten seconds, then refuses and names the holder, both its process and when it took the queue.
+  Ten seconds is about five thousand times the worst measured change, so a waiter that reaches it is waiting on a holder
+  that is not doing the work;
+- it tries again every ten milliseconds;
+- a lock file older than ten minutes cannot belong to a live critical section,
+  so it is broken, which is the last resort for a lock whose holder's process number now belongs to another process,
+  or whose holder was stopped and never resumed.
+
+A holder that was killed leaves its lock file and no live process,
+and the next caller breaks it at once: a process that is gone cannot hold a queue.
+A lock file that names no process could only have been damaged, and is broken too.
+A caller that cannot take the lock changes nothing and says why,
+which is what every command answers with a failing status.
+
+Why a lock and not one file per entry in a folder:
+the queue's shape is one JSON array whose order is explicit,
+which a coordinator reads and edits by eye and which every caller of the scratch scripts already holds,
+so a folder of entry files would need its order kept somewhere as well.
+With one file per entry the order has to live in the file name or in an extra field,
+a duplicate name can only be refused atomically if the file name is the name itself,
+and a move rewrites the entry's own file;
+each of those is one atomic step, so the folder can be made to work,
+but it costs a wrapper or a second file per entry,
+a one-shot carry-over of the live queue file whose kill window is new code of its own,
+and `cat queue.json` stops showing the queue.
+The lock costs a few milliseconds per change and a lock file that a killed holder leaves behind for the next caller to break.
+
+What a kill at each step leaves:
+
+- before the lock is taken: the queue is untouched and nothing changed;
+- while the lock is held, before the write: the queue is the version it was, and the lock file names a process that is gone,
+  so the next caller breaks it;
+- after the rename that writes the queue: the change is done, and the lock file is broken the same way;
+- a file written beside the queue and renamed or linked into place is never read as anything,
+  and a killed writer leaves at most one such file, which the next writer's own name never collides with.
+
+A queue file in the shape it had before the lock is the shape it still has,
+so nothing is carried over: the first command that changes it takes the lock and changes it as it is,
+and the only new name in its folder is the lock's own, which no change leaves behind.
 
 ### The entries a queue holds
 

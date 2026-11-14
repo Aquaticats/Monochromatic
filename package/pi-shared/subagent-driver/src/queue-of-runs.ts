@@ -3,8 +3,10 @@
  coordinator makes on it.
 
  The file is read and written whole, and every write goes to a file beside the queue and is renamed over it, so a reader never
- meets half a queue. A write reads the queue again at the moment of writing and changes only the entry it was asked about: between
- a caller's first read and its write another session may have queued an entry, and a list written from the older read would drop it.
+ meets half a queue. Every change reads the queue, changes it and writes it while the queue's lock is held (`queue-lock.ts`), so two
+ writers can never both read before either writes and drop one another's entry: that lost update was reproduced with two processes
+ against the queue of 2026-11-14, 47 rounds of 200 losing an entry while both commands exited 0. The lock is one file beside the
+ queue, taken by linking a file that names its holder into the lock's place, and it is released whatever the change answered.
 
  @module
  */
@@ -14,11 +16,10 @@ import {
   rename,
   writeFile,
 } from 'node:fs/promises';
-
-/**
- The end of the file a queue is written through, which sits beside the queue until it is renamed over it.
- */
-const BEING_WRITTEN_SUFFIX = '.being-written';
+import {
+  aPathWrittenBeside,
+  acquireTheQueueLock,
+} from './queue-lock.ts';
 
 /**
  One entry of a queue, as the queue file holds it: a JSON object named by `name`.
@@ -213,7 +214,7 @@ export function writtenQueueOfRuns({ entries }: { readonly entries: readonly Que
 }
 
 /**
- Writes a queue file, through a file beside it that is renamed over it.
+ Writes a queue file whole, through a file beside it that is renamed over it, and writes nothing else: callers hold the queue's lock.
 
  @param queueFile - the queue's path
 
@@ -223,10 +224,10 @@ export function writtenQueueOfRuns({ entries }: { readonly entries: readonly Que
 
  @example
  ```ts
- await writeQueueOfRuns({ queueFile: '/runs/queue.json', entries: [] });
+ await writeTheQueueWhole({ queueFile: '/runs/queue.json', entries: [] });
  ```
  */
-export async function writeQueueOfRuns({
+async function writeTheQueueWhole({
   queueFile,
   entries,
 }: {
@@ -236,7 +237,7 @@ export async function writeQueueOfRuns({
   /**
    The file written beside the queue and renamed over it.
    */
-  const beside = `${queueFile}${BEING_WRITTEN_SUFFIX}-${String(process.pid,)}`;
+  const beside = aPathWrittenBeside({ path: queueFile, },);
   try {
     await writeFile(
       beside,
@@ -250,6 +251,138 @@ export async function writeQueueOfRuns({
   catch (error) {
     throw new QueueFileError(`the queue at ${queueFile} cannot be written: ${String(error,)}`,);
   }
+}
+
+/**
+ One change to make to a queue while it is held: the entries after the change, and what the caller is answered.
+ */
+export type ChangeOfAQueue<Answer> = (entries: readonly QueueRecord[]) => {
+  /**
+   The entries the queue holds after the change.
+   */
+  readonly entries: readonly QueueRecord[];
+
+  /**
+   What the caller is answered.
+   */
+  readonly answer: Answer;
+};
+
+/**
+ Changes a queue while no other writer can: the read, the change and the write happen under the queue's lock.
+
+ The change is asked for the entries the queue holds at that moment, so no entry another session queued meanwhile is written away.
+ A change that answers the very array it was given writes nothing.
+
+ @param queueFile - the queue's path
+
+ @param change - the change to make, asked for the entries the queue holds under the lock
+
+ @param now - the clock the lock's wait and age are read from
+
+ @param wait - the pause between two attempts to take the lock
+
+ @param waitMilliseconds - how long to keep asking for the lock before refusing
+
+ @returns what the change answered
+
+ @throws QueueFileError when the queue cannot be read or written, which leaves it as it was
+
+ @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
+
+ @example
+ ```ts
+ const answer = await changeTheQueueOfRuns({ queueFile: '/runs/queue.json', change: (entries) => ({ entries, answer: entries.length }) });
+ ```
+ */
+export async function changeTheQueueOfRuns<Answer>({
+  queueFile,
+  change,
+  now,
+  wait,
+  waitMilliseconds,
+}: {
+  readonly queueFile: string;
+  readonly change: ChangeOfAQueue<Answer>;
+  readonly now?: () => number;
+  readonly wait?: (milliseconds: number) => Promise<unknown>;
+  readonly waitMilliseconds?: number;
+},): Promise<Answer> {
+  /**
+   The queue's lock, given back when this block ends whether the change answered or threw.
+   */
+  await using lock = await acquireTheQueueLock({
+    queueFile,
+    ...(now === undefined ? {} : { now, }),
+    ...(wait === undefined ? {} : { wait, }),
+    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+  },);
+  /**
+   The queue as it stands under the lock.
+   */
+  const entries = await readQueueOfRuns({ queueFile, },);
+  /**
+   What the change made of it.
+   */
+  const changed = change(entries,);
+  if (changed.entries !== entries) {
+    await writeTheQueueWhole({
+      queueFile,
+      entries: changed.entries,
+    },);
+  }
+  return changed.answer;
+}
+
+/**
+ Writes a queue file whole, holding the queue's lock, so no change of another writer is written away.
+
+ @param queueFile - the queue's path
+
+ @param entries - the entries, in the order they are to start
+
+ @param now - the clock the lock's wait reads
+
+ @param wait - the pause between attempts to take the lock
+
+ @param waitMilliseconds - how long to keep asking for the lock before refusing
+
+ @throws QueueFileError when the file cannot be written, which leaves the queue as it was
+
+ @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
+
+ @example
+ ```ts
+ await writeQueueOfRuns({ queueFile: '/runs/queue.json', entries: [] });
+ ```
+ */
+export async function writeQueueOfRuns({
+  queueFile,
+  entries,
+  now,
+  wait,
+  waitMilliseconds,
+}: {
+  readonly queueFile: string;
+  readonly entries: readonly QueueRecord[];
+  readonly now?: () => number;
+  readonly wait?: (milliseconds: number) => Promise<unknown>;
+  readonly waitMilliseconds?: number;
+},): Promise<void> {
+  // A whole-file write reads nothing, so it makes a queue file that is not there yet, which is how every caller's queue starts.
+  /**
+   The queue's lock, given back when this block ends whether the write answered or threw.
+   */
+  await using lock = await acquireTheQueueLock({
+    queueFile,
+    ...(now === undefined ? {} : { now, }),
+    ...(wait === undefined ? {} : { wait, }),
+    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+  },);
+  await writeTheQueueWhole({
+    queueFile,
+    entries,
+  },);
 }
 
 /**
@@ -278,36 +411,39 @@ export async function takeAQueueEntryOut({
   readonly taken: readonly QueueRecord[];
   readonly entries: readonly QueueRecord[];
 }> {
-  /**
-   The queue as it stands now.
-   */
-  const queue = await readQueueOfRuns({ queueFile, },);
-  /**
-   The entries of that name.
-   */
-  const taken = queue.filter(function isNamed(entry,) {
-    return entry.name === name;
-  },);
-  if (taken.length === 0) {
-    return {
-      taken,
-      entries: queue,
-    };
-  }
-  /**
-   The queue without them.
-   */
-  const kept = queue.filter(function isNotNamed(entry,) {
-    return entry.name !== name;
-  },);
-  await writeQueueOfRuns({
+  return await changeTheQueueOfRuns({
     queueFile,
-    entries: kept,
+    change: function takeThemOut(queue,) {
+      /**
+       The entries of that name.
+       */
+      const taken = queue.filter(function isNamed(entry,) {
+        return entry.name === name;
+      },);
+      if (taken.length === 0) {
+        return {
+          entries: queue,
+          answer: {
+            taken,
+            entries: queue,
+          },
+        };
+      }
+      /**
+       The queue without them.
+       */
+      const kept = queue.filter(function isNotNamed(entry,) {
+        return entry.name !== name;
+      },);
+      return {
+        entries: kept,
+        answer: {
+          taken,
+          entries: kept,
+        },
+      };
+    },
   },);
-  return {
-    taken,
-    entries: kept,
-  };
 }
 
 /**
@@ -343,41 +479,41 @@ export async function putAQueueEntryIn({
   readonly position: number;
   readonly count: number;
 }> {
-  /**
-   The queue as it stands now.
-   */
-  const queue = await readQueueOfRuns({ queueFile, },);
-  if (queue.some(function isNamed(queued,) {
-    return queued.name === entry.name;
-  },)) {
-    throw new QueueFileError(`an entry named ${entry.name} is already in the queue at ${queueFile}`,);
-  }
-  /**
-   Where the entry lands, which is the head of a queue shorter than the position.
-   */
-  const at = Math.min(
-    position,
-    queue.length,
-  );
-  /**
-   The queue with it in.
-   */
-  const next = [
-    ...queue.slice(
-      0,
-      at,
-    ),
-    entry,
-    ...queue.slice(at,),
-  ];
-  await writeQueueOfRuns({
+  return await changeTheQueueOfRuns({
     queueFile,
-    entries: next,
+    change: function putTheEntryIn(queue,) {
+      if (queue.some(function isNamed(queued,) {
+        return queued.name === entry.name;
+      },)) {
+        throw new QueueFileError(`an entry named ${entry.name} is already in the queue at ${queueFile}`,);
+      }
+      /**
+       Where the entry lands, which is the head of a queue shorter than the position.
+       */
+      const at = Math.min(
+        position,
+        queue.length,
+      );
+      /**
+       The queue with it in.
+       */
+      const next = [
+        ...queue.slice(
+          0,
+          at,
+        ),
+        entry,
+        ...queue.slice(at,),
+      ];
+      return {
+        entries: next,
+        answer: {
+          position: at,
+          count: next.length,
+        },
+      };
+    },
   },);
-  return {
-    position: at,
-    count: next.length,
-  };
 }
 
 /**
@@ -411,57 +547,64 @@ export async function moveAQueueEntryTo({
   readonly to?: number;
   readonly count: number;
 }> {
-  /**
-   The queue as it stands now.
-   */
-  const queue = await readQueueOfRuns({ queueFile, },);
-  /**
-   Where the entry stands, or minus one when the queue holds none of that name.
-   */
-  const from = queue.findIndex(function isNamed(entry,) {
-    return entry.name === name;
-  },);
-  if (from === (-1)) {
-    return { count: queue.length, };
-  }
-  /**
-   The entry itself, taken as the one-element list it is so that no absent index has to be read.
-   */
-  const moved = queue.slice(
-    from,
-    from + 1,
-  );
-  /**
-   The entries without it.
-   */
-  const rest = queue.filter(function isAnother(entry,) {
-    return entry.name !== name;
-  },);
-  /**
-   Where it lands, which is the tail of a queue shorter than the position.
-   */
-  const to = Math.min(
-    position,
-    rest.length,
-  );
-  /**
-   The queue with it moved.
-   */
-  const next = [
-    ...rest.slice(
-      0,
-      to,
-    ),
-    ...moved,
-    ...rest.slice(to,),
-  ];
-  await writeQueueOfRuns({
+  return await changeTheQueueOfRuns<{
+    readonly from?: number;
+    readonly to?: number;
+    readonly count: number;
+  }>({
     queueFile,
-    entries: next,
+    change: function moveTheEntry(queue,) {
+      /**
+       Where the entry stands, or minus one when the queue holds none of that name.
+       */
+      const from = queue.findIndex(function isNamed(entry,) {
+        return entry.name === name;
+      },);
+      if (from === (-1)) {
+        return {
+          entries: queue,
+          answer: { count: queue.length, },
+        };
+      }
+      /**
+       The entry itself, taken as the one-element list it is so that no absent index has to be read.
+       */
+      const moved = queue.slice(
+        from,
+        from + 1,
+      );
+      /**
+       The entries without it.
+       */
+      const rest = queue.filter(function isAnother(entry,) {
+        return entry.name !== name;
+      },);
+      /**
+       Where it lands, which is the tail of a queue shorter than the position.
+       */
+      const to = Math.min(
+        position,
+        rest.length,
+      );
+      /**
+       The queue with it moved.
+       */
+      const next = [
+        ...rest.slice(
+          0,
+          to,
+        ),
+        ...moved,
+        ...rest.slice(to,),
+      ];
+      return {
+        entries: next,
+        answer: {
+          from,
+          to,
+          count: next.length,
+        },
+      };
+    },
   },);
-  return {
-    from,
-    to,
-    count: next.length,
-  };
 }
