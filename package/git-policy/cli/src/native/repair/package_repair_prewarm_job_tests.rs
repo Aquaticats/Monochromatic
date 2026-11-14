@@ -1699,8 +1699,8 @@ fn a_filling_that_placed_a_resolution_leaves_no_copy_of_the_lock_it_displaced() 
     let mut pending: Vec<PathBuf> = vec![copies];
     while let Some(directory) = pending.pop() {
         let Ok(listing) = std::fs::read_dir(directory.as_path()) else { continue };
-        for entry in listing.flatten() {
-            let path: PathBuf = entry.path();
+        for found in listing.flatten() {
+            let path: PathBuf = found.path();
             if path.is_dir() {
                 pending.push(path);
             } else if std::fs::read(path.as_path()).ok().as_deref() == Some(stale) {
