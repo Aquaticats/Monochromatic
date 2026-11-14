@@ -1047,6 +1047,113 @@ and of its own commands.
   a probe asks Cargo where its binary is and checks the version and time.
   Whether cargo-shadow should leave such a copy at all is for the cargo-shadow cleanup run's report to say.
 
+##### Pass 22, the reload fix, is in `main` and `0.6.1-alpha.20` is dispatched (2026-11-13T19:45:38-05:00)
+
+Not final and not approved:
+written by the coordinating session from the pass's report and its own commands' output.
+
+- **Pass 22** reported at 19:37:19 that its branch is fit to be released
+  (`~/temp/agent/integration-pass-22-for-alpha-20-scratch/keep/report.md`).
+  The reviewed commit `575c585373` merged with no conflict.
+  One thing met:
+  the finished-records control that reached `main` in pass 20 set `ClientConfig.units_record_dir`,
+  a field the reload fix removed,
+  so the binary test target stopped compiling until the pass took that one line out (`9f16d2ee03`).
+  Build,
+  both test compiles and Clippy pass at its tip `2d2f28b903`,
+  which holds `main` up to `8f55758715`;
+  the 21 controls the branch adds pass at every tip;
+  the 74 binary tests of the modules it touches pass.
+- Its measurements:
+  a commit of one changed file through its release build added 59,
+  26 and 25 ms over real Git in the same round
+  (the first round holds the fixture's first provisioning);
+  installed over a running service of `0.6.1-alpha.19` in a container with 1,259 loaded units,
+  the first commit landed in 123 ms with no manager-wide reload asked,
+  the unrelated session service stayed alive,
+  and the one reload the container's manager recorded was the older release's own.
+- The branch's own proof task refused to pass,
+  as its documentation says it must when its control arm proves nothing:
+  the only `0.6.1-alpha.13` build at hand provisions through `systemd-run` and leaves no unit template to change.
+  A real `0.6.1-alpha.13` or `0.6.1-alpha.14` release build would give that arm something to meet.
+  Not run since.
+- Before the merge:
+  `main` held seven commits the pass's tip did not,
+  none of them under `package/git-policy/`
+  (`git diff --stat` of the one merge among them, `47a403a0e2`, against its first parent names the driver's files alone),
+  so the merged wrapper is the tree the pass checked.
+  Merged as `33ba2a906b` at 19:43:48.
+- `mise run //package/git-policy/cli:native:release -- 0.6.1-alpha.19 0.6.1-alpha.20` dispatched run `43536177931`;
+  `native:release:wait` is going in the unit `gpc-release-wait-0-6-1-alpha-20`.
+  Then the install and a sample commit.
+- What the merge unblocked:
+  the branch `af735d6330` (the commit that does not land says what stopped it) was held until the reload fix was in `main`.
+  Its author is resumed to bring it onto `main`,
+  dropping each case `main` already answers since `0.6.1-alpha.19`
+  (`~/temp/agent/pi-runs/commit-that-does-not-land-says-what-stopped-it-is-brought-onto-main-with-the-reload-fix-prompt.md`),
+  queued.
+- **Every pass still going was checked against a `main` that did not hold pass 22.**
+  Before each is merged,
+  `git log <pass tip>..main -- package/git-policy/` is read;
+  where it lists anything,
+  the pass merges `main` again and reruns its build,
+  both test compiles and its controls before the merge into `main`.
+  Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Changes to the coordinating session's own tools (2026-11-13T19:45:38-05:00)
+
+- The queue starter (`start-the-next-entry-of-the-resume-queue.ts`) wrote back the list it had read at its start,
+  after asking the launcher for the pools' counts and,
+  for a second review,
+  after writing a brief.
+  An entry put into the queue in between would have been written away.
+  None was:
+  every entry queued between 18:55 and 19:42 has a batch file or is still queued.
+  It now reads the queue again at the write,
+  drops only the chosen entry by name,
+  and renames the new list into place.
+- Entries are put into the queue by `put-one-entry-into-the-resume-queue-at-a-position.ts`,
+  which also renames into place.
+- The waiter prints a `workProblem` first when a summary carries one:
+  since the fix for issue 6299 an `idle` ending with one means work may still run that nobody could read.
+- `show-the-runs-started-since-a-time-and-what-their-feeds-hold.ts` showed,
+  for the two reviews started after the driver merge,
+  a prompt sent and assistant lines on the feed,
+  so runs start and are watched with the merged driver.
+  No run that used the `process` tool has ended since,
+  so the new `processes` record has not been seen on a real feed yet.
+- The brief that resumes the removal-goes-around author held two things,
+  the finding and two questions about another defect.
+  The questions were cut out before it started and are a run of their own
+  (`renamed-subvolume-of-a-removed-worktree-is-never-left-with-nothing-to-delete-it`):
+  the inline destroy the review named is in `main`
+  (`worktree_remove_hand_over.rs:343`),
+  so it is older than that change.
+
+##### Adopted while the owner was away (2026-11-13T19:45:38-05:00)
+
+Open to veto,
+each from a record:
+
+- The fix for issue 6299 was merged with the three limits its author names,
+  on the record "You're responsible for the driver, the wrapper, mpm, cargo.
+  If you find a issue you or a subagent fix it."
+  (the owner, 2026-11-13 15:26)
+  and a review that found no defect.
+  The limits:
+  a run whose leftover work could not be read ends as the run it was and is not kept open
+  (the failure is named in the summary as `workProblem`);
+  a last line of a session file without its line feed is not read;
+  the growth of a long feed by the new record is not measured.
+  The first is a choice between closing a run nobody can see into and keeping it open without end;
+  the brief asked for the first,
+  because a run kept open holds a place in the pool until its wall time.
+- `0.6.1-alpha.20` is released with the two observations of the reload fix's review not in it
+  (a wait of the unload that can still end a commit after five seconds when the manager keeps a stopped unit;
+  one message's condition).
+  Both are answered on the author's branch (`ca3b4f34d5`) and under review;
+  the pass was pinned to the reviewed commit by the rule that a commit after a review has not been reviewed.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
