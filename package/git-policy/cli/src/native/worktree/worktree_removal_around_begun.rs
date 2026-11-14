@@ -18,6 +18,10 @@
 //!  The record names the registration and the worktree it was written for,
 //! so a worktree a
 //!  person removed and added again at the same path never matches it.
+//!  It is published over the name in one rename,
+//! so a pass run again writes the same record rather than failing on the one
+//!  that is already there,
+//! and a kill at any instruction leaves either the record that was there or this complete one.
 //!  It lies in a folder of its own and in a file of this build's shape,
 //! so a release that does not know it reads
 //!  nothing of it and removes nothing because of it.
@@ -32,7 +36,7 @@
 use crate::fs_beneath::ObjectId;
 use crate::path_bytes_in_records::{hex_of_path, path_of_hex};
 use crate::plain_file::read_plain_file;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::create_private_directory_all;
 use crate::process_identity::current_birth_identity;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -132,7 +136,13 @@ pub fn record_around_begun(common_dir: &Path, which: WhichRemoval<'_>) -> Result
         worktree = which.worktree.encode(),
         target = hex_of_path(which.target)
     );
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    // Published over whatever the name holds, in one rename:
+    // a removal killed in its pass leaves the record this name holds, and the same command run again
+    // writes the same record over it instead of failing `EEXIST` and reading as unrecorded;
+    // a kill at any instruction leaves either the record that was there or this complete one;
+    // and a record a reused registration name left behind is replaced by the identities of the worktree
+    // this pass emptied, which is the record every later reader of it needs.
+    return match crate::private_storage::replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("the record {} of a removal that goes around a volume cannot be written ({error})", path.display())),
     };
