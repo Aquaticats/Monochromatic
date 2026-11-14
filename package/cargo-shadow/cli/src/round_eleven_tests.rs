@@ -205,12 +205,8 @@ fn assert_entry_points_refuse(root: &Path, journal: &Path, label: &str) {
 /// the two round 10 schedules of 9a D1.
 #[test]
 fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    let route = delegated_route();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let inside: Route = route_inside(holder.group.directory(), &route);
     let directory = scratch();
     let held: HeldLauncher = HeldLauncher::start(directory.path());
@@ -251,12 +247,8 @@ fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
 /// the record's start time may be on another time basis.
 #[test]
 fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    let route = delegated_route();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let inside: Route = route_inside(holder.group.directory(), &route);
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
@@ -296,12 +288,8 @@ fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
 /// The scope directory is still there when the recovery runs.
 #[test]
 fn a_gone_launcher_with_an_existing_empty_scope_is_settled_by_the_real_recovery_and_admission() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    let route = delegated_route();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let inside: Route = route_inside(holder.group.directory(), &route);
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
@@ -329,12 +317,8 @@ fn a_gone_launcher_with_an_existing_empty_scope_is_settled_by_the_real_recovery_
 /// the descendants of a program that ended are still in the scope.
 #[test]
 fn a_gone_launcher_does_not_clear_a_scope_with_a_member() {
-    if delegated_route().is_none() {
-        return;
-    }
-    let Some(scope) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let scope = start_in_scope(Command::new("sleep").arg("600"));
     let directory = scratch();
     let mut stand_in: HeldLauncher = HeldLauncher::start(directory.path());
     let record: Record = stand_in.record(scope.group.directory());
@@ -401,9 +385,7 @@ fn assert_entry_points_hold_for_uncertainty(root: &Path, journal: &Path, label: 
 /// Each is cleared by `cargo-shadow acknowledge` and not otherwise.
 #[test]
 fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
@@ -446,9 +428,7 @@ fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
 /// none reads as a gone launcher (11b 2.6).
 #[test]
 fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
@@ -510,9 +490,7 @@ fn wrapper_running_a_program_fixture() {
 /// journal with no acknowledgement.
 #[test]
 fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
     let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
         .args(["--ignored", "--exact", "round_eleven_tests::wrapper_running_a_program_fixture", "--nocapture"])

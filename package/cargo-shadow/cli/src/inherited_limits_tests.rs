@@ -265,9 +265,7 @@ fn a_caller_without_limits_gets_no_limit_properties() {
 /// and names the limits in the reason.
 #[test]
 fn a_route_is_refused_when_the_callers_limits_cannot_be_read() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = scratch();
     let own = root.path().join("own-cgroup");
     fs::write(&own, "no unified line here\n").expect("the cgroup file");
@@ -300,9 +298,7 @@ const SCOPE_IO_WEIGHT: u64 = 7;
 /// `pids.max` and `io.weight`.
 #[test]
 fn a_real_scope_carries_the_limits_of_its_route() {
-    let Some(found) = delegated_route() else {
-        return;
-    };
+    let found = delegated_route();
     let route = Route {
         limits: Arc::new(InheritedLimits { memory_max: Some(SCOPE_MEMORY_MAX), cpu_quota_per_sec_usec: Some(SCOPE_CPU_QUOTA), tasks_max: Some(SCOPE_TASKS_MAX), io_weight: Some(SCOPE_IO_WEIGHT) }),
         ..found

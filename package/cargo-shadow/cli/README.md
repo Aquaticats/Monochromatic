@@ -1546,39 +1546,54 @@ and it takes no arguments:
 Most of these tests need a delegated control group,
 which every run of the shadow makes for its child with
 `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect`.
+A test that needs one **never passes without it**:
+it asks the route first, and where the host has none it panics with a line that names the test,
+so a run outside this task, by name, on such a host fails instead of passing quietly:
+
+```text
+cargo-shadow tests: not run [bounded_contain_tests::nested_transactions_keep_their_own_records]: this host cannot give it a delegated control group (...)
+```
+
 Before it starts the suite,
-the test task asks this host whether it can give one:
-it runs `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope` alone,
-which is the same guard every test that needs a scope begins with,
-with nothing acknowledged.
+the task asks that question alone,
+through `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope`,
+and reads the answer from the exit status.
 Where the answer is yes,
 the suite runs as the gate always did,
-and a test that needs a scope and finds none fails the run.
+and every test runs.
+
 Where it is no,
 the answer a container or a check without a user manager gives,
-the task recognizes that from the exit status alone and parses no text,
-and runs the suite with `CARGO_SHADOW_ALLOW_NO_CGROUP=1`:
-every test that needs a scope prints one line naming itself and the reason it could not run,
-`--success-output=final` brings that line of a passing test into the log,
-and the task closes by naming the reason and the command that runs them:
+a run that let those tests in would count them as passed,
+because a test runner has no status for a test that did not run.
+So the task runs the suite **twice**:
+the first run finds them by their own `not run [<name>]` lines and its output is not reported,
+and the second run leaves them out by nextest's own filter,
+so its total is of the tests that ran,
+and the task prints the reason, every name, and this closing line:
+
+```text
+cargo-shadow tests: 805 tests ran here (805 passed, 0 failed), and nextest counted the 67 that did not run as skipped, not as passed.
+cargo-shadow tests: this run is a degraded run: it is no evidence for the tests named above.
+```
+
+The task then checks that accounting before it exits:
+no per-test line may name a test that did not run,
+and the report run's ran, passed, failed and skipped counts must be the first run's minus the tests left out.
+A run that fails that check exits non-zero rather than reporting a pass nobody earned.
+`cargo nextest list` cannot be asked which tests need a scope, so there is nothing cheaper than the first run,
+and the cost is one more pass over the suite on a host that cannot delegate.
+The tests run where this account has a user manager on a cgroup v2 mount:
 
 ```sh
 # package/cargo-shadow/cli/README.md
 systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test
 ```
 
-Nothing in that run is reported as a failure of cargo-shadow,
-and it ends with one line that calls itself a degraded run,
-so a reader of the log and a scan of it both see it.
-A gate that must not accept a degraded run starts
-`cargo nextest run --release` directly with `CARGO_SHADOW_ALLOW_NO_CGROUP` unset,
-where each of those tests fails instead of skipping;
-the task itself always asks the question,
-so on a host that can delegate it never accepts a skip.
 Measured 2026-11-14 in a scope without `Delegate=yes` and with `$DBUS_SESSION_BUS_ADDRESS` and `$XDG_RUNTIME_DIR` unset:
-the run ended green with `872 tests run: 872 passed, 21 skipped`,
-and the one line per test that needed a scope named all 66 of them plus the question;
-the run before the change had 66 failures there.
+exit status 0, `Summary [  20.375s] 805 tests run: 805 passed, 88 skipped`,
+67 names listed, and no per-test line naming any of them.
+Before this change that host reported `872 tests run: 872 passed` with the same 67 tests never executed.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store

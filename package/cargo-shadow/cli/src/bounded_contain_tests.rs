@@ -67,9 +67,7 @@ fn writer_pid(directory: &Path) -> i32 {
 /// a descendant that left the process group and closed the pipes is stopped before a normal exit returns.
 #[test]
 fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
     let script = script_with_escaped_writer(directory.path(), "echo done");
     let (workspace, transaction) = recorded_transaction();
@@ -90,9 +88,7 @@ fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
 /// the same at the bound.
 #[test]
 fn a_writer_in_another_session_is_stopped_at_the_bound() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
     let script = script_with_escaped_writer(directory.path(), "sleep 30");
     let (workspace, transaction) = recorded_transaction();
@@ -143,9 +139,7 @@ fn a_child_whose_group_cannot_be_recorded_is_not_started() {
 /// so this test asks for the route first like every other test that needs a scope.
 #[test]
 fn nested_transactions_keep_their_own_records() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let first = scratch();
     let second = scratch();
     for root in [&first, &second] {
