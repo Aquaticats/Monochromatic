@@ -128,17 +128,51 @@ fn is_under(path: &Path, store_roots: &[PathBuf]) -> bool {
 }
 
 /// The canonical form of every store root,
-/// so a path the process table resolved compares equal.
-fn canonical_roots(store_roots: &[PathBuf]) -> Vec<PathBuf> {
+/// so a path the process table resolved compares equal,
+/// or why one of them cannot be resolved.
+fn canonical_roots(store_roots: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
     let mut roots: Vec<PathBuf> = Vec::new();
     for store_root in store_roots {
         match std::fs::canonicalize(store_root) {
             Ok(canonical) => roots.push(canonical),
-            // A store that cannot be resolved is compared by the path it was given as.
-            Err(_) => roots.push(store_root.clone()),
+            // What: a root that cannot be resolved stops the scan from telling.
+            // Why: every held path is compared against these,
+            // so an unresolved root would match nothing and read as "no process holds anything",
+            // which is the fail-open direction.
+            Err(error) => {
+                return Err(format!("the store {} cannot be resolved: {error}", store_root.display()));
+            }
         }
     }
-    return roots;
+    return Ok(roots);
+}
+
+/// What:
+/// `directory` as the kernel spells it,
+/// so it compares with the paths `/proc` reports.
+/// Why:
+/// A store root is spelled as `HOME` spells it,
+/// and on this machine `/home` is a link to `var/home`,
+/// while `/proc/<pid>/exe`, `<pid>/cwd` and `<pid>/maps` are always the resolved path:
+/// comparing the two spellings keeps nothing.
+/// A directory that is gone already (a version moved aside, or a name a pass deleted) is resolved through its
+/// parent, which stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function resolvedForComparison(directory: string): string
+/// ```
+pub fn resolved_for_comparison(directory: &Path) -> PathBuf {
+    if let Ok(canonical) = std::fs::canonicalize(directory) {
+        return canonical;
+    }
+    let (Some(parent), Some(name)) = (directory.parent(), directory.file_name()) else {
+        return directory.to_path_buf();
+    };
+    return match std::fs::canonicalize(parent) {
+        Ok(canonical_parent) => canonical_parent.join(name),
+        Err(_) => directory.to_path_buf(),
+    };
 }
 
 /// What:
@@ -157,8 +191,14 @@ fn canonical_roots(store_roots: &[PathBuf]) -> Vec<PathBuf> {
 pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
     use std::os::unix::fs::MetadataExt;
 
-    let roots: Vec<PathBuf> = canonical_roots(store_roots);
     let mut holders: StoreHolders = StoreHolders::default();
+    let roots: Vec<PathBuf> = match canonical_roots(store_roots) {
+        Ok(resolved) => resolved,
+        Err(reason) => {
+            holders.incomplete = Some(reason);
+            return holders;
+        }
+    };
     let Ok(entries) = std::fs::read_dir("/proc") else {
         holders.incomplete = Some("the process table at /proc cannot be read".to_string());
         return holders;
@@ -274,11 +314,14 @@ pub fn holders_of(_store_roots: &[PathBuf], _deadline: Instant) -> StoreHolders 
 /// export function heldReason(holders: StoreHolders, versionDirectory: string): string | undefined
 /// ```
 pub fn held_reason(holders: &StoreHolders, version_directory: &Path) -> Option<String> {
+    // What: the directory is compared in the spelling the process table uses.
+    // Why: `starts_with` is a text comparison, and the two sides come from different spellings of one path.
+    let resolved: PathBuf = resolved_for_comparison(version_directory);
     for held in &holders.held {
-        if !held.path.starts_with(version_directory) {
+        if !held.path.starts_with(&resolved) {
             continue;
         }
-        let others: usize = holders.held.iter().filter(|other| return other.path.starts_with(version_directory)).count();
+        let others: usize = holders.held.iter().filter(|other| return other.path.starts_with(&resolved)).count();
         let more: String = if others > 1 { format!(" and {} more process(es)", others - 1) } else { String::new() };
         return Some(format!("pid {} {} {}{more}", held.pid, held.kind.words(), held.path.display()));
     }

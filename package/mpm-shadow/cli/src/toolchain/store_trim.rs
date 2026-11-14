@@ -144,6 +144,35 @@ pub const DEFAULT_AGE_FLOOR_SECONDS: u64 = 60 * 60;
 /// ```
 pub const DEFAULT_WORK_LIMIT_MILLIS: u64 = 2_000;
 
+/// What:
+/// The longest one pass may spend removing:
+/// one year.
+/// Why:
+/// `MPM_SHADOW_STORE_WORK_LIMIT` is read into a `Duration` and added to an `Instant`,
+/// which panics rather than wrapping when the sum leaves what an `Instant` can hold
+/// (`18446744073709551615` seconds did, and took the whole install down with it).
+/// A year is longer than any pass, so a value above it already means "no limit".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const MAX_WORK_LIMIT = 365 * 24 * 3600;
+/// ```
+pub const MAX_WORK_LIMIT: Duration = Duration::from_secs(365 * 24 * 3600);
+
+/// What:
+/// The longest age floor the pass accepts:
+/// one hundred years.
+/// Why:
+/// The floor is subtracted from a `SystemTime` for its line,
+/// and an unbounded value panicked the install the same way the work limit did.
+/// A hundred years is older than anything a store holds, so a value above it already means "keep everything".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const MAX_AGE_FLOOR = 100 * 365 * 24 * 3600;
+/// ```
+pub const MAX_AGE_FLOOR: Duration = Duration::from_secs(100 * 365 * 24 * 3600);
+
 /// The environment variable holding the space the stores may keep,
 /// in bytes or with a `KiB`/`MiB`/`GiB`/`TiB` suffix (`32GiB`).
 pub const SIZE_BOUND_ENV: &str = "MPM_SHADOW_STORE_SIZE_BOUND";
@@ -181,14 +210,19 @@ impl TrimBounds {
                 .get(SIZE_BOUND_ENV)
                 .and_then(parse_size)
                 .unwrap_or(DEFAULT_SIZE_BOUND_BYTES),
+            // What: a span above its maximum is read as the maximum.
+            // Why: both maxima already mean "effectively no limit", and neither can overflow an `Instant` or a
+            // `SystemTime` when it is used, which an unbounded value did.
             age_floor: env
                 .get(AGE_FLOOR_ENV)
                 .and_then(parse_duration)
-                .unwrap_or(Duration::from_secs(DEFAULT_AGE_FLOOR_SECONDS)),
+                .unwrap_or(Duration::from_secs(DEFAULT_AGE_FLOOR_SECONDS))
+                .min(MAX_AGE_FLOOR),
             work_limit: env
                 .get(WORK_LIMIT_ENV)
                 .and_then(parse_duration)
-                .unwrap_or(Duration::from_millis(DEFAULT_WORK_LIMIT_MILLIS)),
+                .unwrap_or(Duration::from_millis(DEFAULT_WORK_LIMIT_MILLIS))
+                .min(MAX_WORK_LIMIT),
         };
     }
 }
@@ -250,6 +284,31 @@ pub fn parse_duration(text: &str) -> Option<Duration> {
 }
 
 /// What:
+/// What:
+/// A span in the words a person reads (`41 h`, `3 d`, `12 min`).
+/// Why:
+/// The rules' lines say how long a floor is,
+/// and a span is read from the span itself rather than from two moments,
+/// which cannot overflow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function formatSpan(span: Duration): string
+/// ```
+pub fn format_span(span: Duration) -> String {
+    let seconds: u64 = span.as_secs();
+    if seconds < SECONDS_PER_MINUTE {
+        return format!("{seconds} s");
+    }
+    if seconds < SECONDS_PER_HOUR {
+        return format!("{} min", seconds / SECONDS_PER_MINUTE);
+    }
+    if seconds < SECONDS_PER_DAY {
+        return format!("{} h", seconds / SECONDS_PER_HOUR);
+    }
+    return format!("{} d", seconds / SECONDS_PER_DAY);
+}
+
 /// A span in the words a person reads (`41 h`, `3 d`, `12 min`).
 /// Why:
 /// The lines say when a version was last written,
@@ -525,7 +584,11 @@ pub fn plan_trim(
         if age < bounds.age_floor {
             steps.push(TrimStep::Keep(
                 candidate.clone(),
-                format!("it was written {} ago, inside the {} floor", format_age(now, candidate.written), format_age(now, now - bounds.age_floor)),
+                format!(
+                    "it was written {} ago, inside the {} floor",
+                    format_age(now, candidate.written),
+                    format_span(bounds.age_floor)
+                ),
             ));
             continue;
         }
@@ -557,7 +620,9 @@ pub struct TrimRun {
 impl TrimRun {
     /// The moment this pass's work limit runs out.
     pub fn deadline(&self) -> Instant {
-        return self.started + self.bounds.work_limit;
+        // What: a limit that does not fit after the start is read as the longest one the pass allows.
+        // Why: `Instant + Duration` panics on overflow, and a pass's bound must never end an install.
+        return self.started.checked_add(self.bounds.work_limit).unwrap_or(self.started + MAX_WORK_LIMIT);
     }
 
     /// What the process table says now about the roots this pass trims.
@@ -958,7 +1023,30 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
         }
         let version_present: bool = fs::symlink_metadata(&marker.version_marker).is_ok();
         if !version_present {
-            // Only the downloads were moved aside: the version's own removal finished, or never started.
+            // What: a marker for the downloads alone, with the version still under its name, is a removal that
+            // never got past its first rename: `move_aside` moves the downloads first, `put_back` restores the
+            // version first. The version is live, and what it was downloaded as belongs to it.
+            // Why: reading "no marker for the version" as "condemned" deleted the archives of a version every
+            // protection keeps.
+            if fs::symlink_metadata(&marker.version_directory).is_ok() {
+                match restore_downloads(&marker) {
+                    None => outcome.lines.push(format!(
+                        "mpm-shadow: kept {} ({}): the version it belongs to is still there, so what a removal \
+                         moved aside is put back",
+                        marker.downloads_directory.as_ref().map(|path| return path.display().to_string()).unwrap_or_default(),
+                        format_size(removal_marker_size(&marker))
+                    )),
+                    Some(failure) => {
+                        outcome.unfinished.insert(marker.root.clone());
+                        outcome.lines.push(format!(
+                            "mpm-shadow: kept {}: it is still being removed: {failure}",
+                            marker.version_directory.display()
+                        ));
+                    }
+                }
+                continue;
+            }
+            // The version is gone: only what it was downloaded as is left, and that goes.
             outcome.lines.push(finish_downloads_line(&marker));
             continue;
         }
@@ -1027,6 +1115,32 @@ fn removal_marker_size(marker: &RemovalMarker) -> u64 {
         bytes = bytes.saturating_add(tree_size(downloads));
     }
     return bytes;
+}
+
+/// What:
+/// Puts the downloads a marker holds back under the name the version keeps them at.
+/// Why:
+/// They belong to a version that is still there,
+/// and a newer install may have written its own archives under that name already,
+/// in which case this copy is the older one and goes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function restoreDownloads(marker: RemovalMarker): string | undefined  // the failure, if any
+/// ```
+fn restore_downloads(marker: &RemovalMarker) -> Option<String> {
+    let (Some(downloads_marker), Some(downloads_directory)) = (&marker.downloads_marker, &marker.downloads_directory)
+    else {
+        return None;
+    };
+    if fs::symlink_metadata(downloads_directory).is_ok() {
+        return remove_dir_or_file(downloads_marker);
+    }
+    return match fs::rename(downloads_marker, downloads_directory) {
+        Ok(()) => None,
+        Err(error) if error.kind() == ErrorKind::NotFound => None,
+        Err(error) => Some(format!("{} could not be put back: {error}", downloads_directory.display())),
+    };
 }
 
 /// The line for a marker whose version is gone and whose downloads were left aside.
@@ -1112,13 +1226,16 @@ pub fn settle_markers(roots: &[PathBuf], unfinished: &BTreeSet<PathBuf>) {
 /// What:
 /// The lock files a pass reads:
 /// this scope's own,
-/// the lock of every worktree of this repository,
+/// the lock of every worktree of this repository when this is a repository scope,
 /// and the machine-global scope's,
 /// or why one of them cannot be found.
 /// Why:
-/// A version any of these pins is in use by some tree,
-/// and the global store holds versions a repository lock pins,
-/// so both scopes' locks are read from either scope.
+/// A version any of these pins is in use by some tree.
+/// A repository scope reads the worktrees' locks and the machine scope's,
+/// so it protects versions in either store;
+/// the machine scope reads only its own lock,
+/// because it knows no repository to list worktrees from and is given no path to one,
+/// so a global-store version that only a worktree's lock names can be removed by a global pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -31,7 +31,9 @@ use crate::toolchain::store_trim::{
     DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
     parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
 };
-use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
+use crate::toolchain::scope::EnvMap;
+use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span};
+use crate::toolchain::store_versions::{removal_markers, TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
 
 /// A mebibyte, so a test's bound reads as a fixture size.
@@ -540,7 +542,7 @@ fn keeps_a_version_a_process_starts_in_between_the_look_and_the_removal() {
         return held_reason(&first_look, &found.directory).map(|held| return format!("it is in use: {held}"));
     });
     let planned: Vec<String> = removed_by(&plan);
-    assert!(planned.contains(&"node-26.11.0".to_string()), "the victim must be planned for removal: {planned:?}");
+    assert!(planned.iter().any(|name| return name == "node-26.11.0"), "the victim must be planned for removal: {planned:?}");
 
     let mut child = std::process::Command::new("sleep")
         .arg("60")
@@ -608,6 +610,142 @@ fn deletes_a_held_copy_whose_name_another_run_took() {
     );
     assert!(crate::toolchain::store_versions::removal_markers(&fixture.root).is_empty());
 }
+
+//region the path spelling, a live version's downloads, and a bound at the largest number
+
+/// Gives `path` a write time `seconds` before now.
+fn written_ago(path: &std::path::Path, seconds: u64) {
+    let when: SystemTime = SystemTime::now() - Duration::from_secs(seconds);
+    fs::File::open(path)
+        .expect("open the version directory")
+        .set_times(FileTimes::new().set_modified(when))
+        .expect("set the version's write time");
+}
+
+/// What:
+/// A version a live process uses is kept when the store's path has a symbolic link in it.
+/// Why:
+/// `HOME` spells the store, and on this machine `/home` is a link to `var/home`,
+/// while the process table reports resolved paths:
+/// a comparison of the two spellings keeps nothing,
+/// and a version a process runs was removed under it.
+#[test]
+fn keeps_a_version_a_process_uses_when_the_store_path_is_a_symlink() {
+    let directory = scratch();
+    let real: PathBuf = directory.path().join("real");
+    for (version, age) in [("26.11.0", 2 * 24 * 3600), ("26.13.1", 60)] {
+        let version_directory: PathBuf = real.join("store/node").join(version);
+        fs::create_dir_all(&version_directory).expect("make a version directory");
+        fs::write(version_directory.join("program"), vec![b'a'; 1000]).expect("write the program");
+        written_ago(&version_directory, age);
+    }
+    let link: PathBuf = directory.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).expect("link the real directory");
+    // What: the store is reached through a link, the way `HOME` reaches it on this machine.
+    // Why: the candidate paths the rule builds then carry the link's spelling.
+    let store: PathBuf = link.join("store");
+    let victim: PathBuf = store.join("node/26.11.0");
+    let mut child = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&victim)
+        .spawn()
+        .expect("start a process working inside the version");
+    let run: TrimRun = TrimRun {
+        bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::from_secs(60) },
+        started: Instant::now(),
+        roots: vec![store.clone()],
+    };
+    let look: StoreHolders = run.look();
+    let held: Option<String> = held_reason(&look, &victim);
+
+    let tools: std::collections::BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&store), &tools), &run.bounds, SystemTime::now(), &|found| {
+        return held_reason(&look, &found.directory).map(|reason| return format!("it is in use: {reason}"));
+    });
+    let outcome: TrimOutcome = apply_trim(&plan, &run);
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(held.is_some(), "the look found no holder of a version a process runs: {look:?}");
+    assert!(victim.join("program").exists(), "the version a process runs was removed: {:?}", outcome.lines);
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("node/26.11.0") && line.contains("it is in use")),
+        "{:?}",
+        outcome.lines
+    );
+}
+
+/// What:
+/// The archives of a version that is still there are put back when a removal was cut short after moving them aside.
+/// Why:
+/// `move_aside` moves the downloads aside before the version and `put_back` restores the version before them,
+/// so a kill between the two leaves a downloads marker and a live version;
+/// reading that as "condemned" deleted the archives of a version every protection keeps.
+#[test]
+fn puts_back_the_downloads_of_a_version_that_is_still_there() {
+    let fixture = Fixture::new();
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    fs::write(downloads.join("node.tar.gz"), vec![b'z'; 40]).expect("write the archive");
+    let marker: PathBuf = tombstone_of(&downloads);
+    // The state a kill between the two renames leaves: downloads moved aside, version still under its name.
+    fs::rename(&downloads, &marker).expect("move the downloads aside");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
+
+    let finished = finish_removals(&fixture.run());
+
+    assert!(
+        downloads.join("node.tar.gz").exists(),
+        "the archives of a version that is still there were deleted: {:?}",
+        finished.lines
+    );
+    assert!(!marker.exists(), "the downloads marker outlived the removal it stood for: {:?}", finished.lines);
+    assert!(finished.unfinished.is_empty(), "{:?}", finished.lines);
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("kept") && line.contains("still there")),
+        "{:?}",
+        finished.lines
+    );
+    assert!(removal_markers(&fixture.root).is_empty());
+}
+
+/// What:
+/// An age floor at the largest number is read as the longest floor the pass allows, and nothing panics.
+/// Why:
+/// The floor was subtracted from the current time for its line,
+/// and `18446744073709551615` seconds overflowed, which panicked `install` (exit 101) out of a commit hook.
+#[test]
+fn keeps_a_version_when_the_age_floor_is_the_largest_number() {
+    let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_AGE_FLOOR", "18446744073709551615")]);
+    // The size bound is taken out of the way so the age floor is what the rule reads.
+    let bounds: TrimBounds = TrimBounds { size_bound_bytes: 0, ..TrimBounds::from_env(&env) };
+    assert_eq!(bounds.age_floor, MAX_AGE_FLOOR);
+    let candidates = vec![candidate("node", "26.12.0", MIB, 40 * 3600)];
+
+    let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|_found| return None);
+
+    let kept: Vec<String> = kept_by(&plan).into_iter().map(|(name, _reason)| return name).collect();
+    assert_eq!(kept, vec!["node-26.12.0".to_string()]);
+    assert_eq!(format_span(MAX_AGE_FLOOR), "36500 d");
+}
+
+/// What:
+/// A work limit at the largest number is read as the longest limit the pass allows, and the deadline is finite.
+/// Why:
+/// The limit was added to `Instant::now` and overflowed, panicking the whole install.
+#[test]
+fn keeps_the_deadline_when_the_work_limit_is_the_largest_number() {
+    let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_WORK_LIMIT", "18446744073709551615")]);
+    let bounds: TrimBounds = TrimBounds::from_env(&env);
+
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: vec![PathBuf::from("/store")] };
+
+    assert_eq!(run.bounds.work_limit, MAX_WORK_LIMIT);
+    assert!(run.deadline() > run.started, "the deadline is not after the start");
+    assert!(run.deadline() <= run.started + MAX_WORK_LIMIT);
+}
+
+//endregion the path spelling, a live version's downloads, and a bound at the largest number
 
 //region replaying a real store's listing
 
