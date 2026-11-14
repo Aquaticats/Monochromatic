@@ -1236,6 +1236,94 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The first minutes of `0.6.1-alpha.30` are clean; the killed-Git lock's author answered a second time (2026-11-14T13:44:22-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+and what one author reports of itself.
+
+- **`0.6.1-alpha.30`**,
+  the user journal from 13:38:00 until 13:44:00:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  four services saying `0.6.1-alpha.30` at their start.
+  One more line says `0.6.1-alpha.23`:
+  its program is the debug build in the worktree of issue 6293's author,
+  run inside a `systemd-run` scope of that agent,
+  so it is a fixture's service and not one of this machine's.
+  It shows that a fixture's service writes into the real user journal,
+  and that the count of releases at start includes agents' fixtures.
+- **The lock a killed Git left** (tip `1ee73d2728`, ended 13:39:21):
+  the author reports the pair of pin and record replaced by one record published in one step,
+  the race of the second review answered,
+  `git add` and `git status` within the spread of the commit before
+  (`git status` at a ratio of 0.984),
+  and names what it left:
+  one small file for each lock path ever taken,
+  and three stash entries in its worktree that hold other work.
+  Review queued second (range `main...1ee73d2728`, ten code files).
+- The queue held 59 entries at 13:44:22.
+
+##### `0.6.1-alpha.30` is installed (2026-11-14T13:38:16-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.30`** (pass 40):
+  published at 13:38:05,
+  installed here from 13:38:05 to 13:38:16,
+  sample commit 1,130 ms,
+  `--version` answering `0.6.1-alpha.30`.
+  The four checks of the user journal for its first minutes are still to run.
+  The next wrapper release is `0.6.1-alpha.31`.
+- Three wrapper releases went out today after the owner's return:
+  `0.6.1-alpha.28` (pass 37) at 10:34:55,
+  `0.6.1-alpha.29` (pass 39) at 12:30:46,
+  `0.6.1-alpha.30` (pass 40) at 13:38:05;
+  and mpm-shadow `0.2.7-alpha.11` at 12:35:14.
+
+##### The queue-filling change loses an update when two writers meet, back to its author; no entry this session queued today is missing (2026-11-14T13:36:40-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+what the coordinating session measured,
+and what it queued.
+
+- **The queue of runs filled from the package** (`9a778654e9`):
+  one reproduced with two processes on disposable queue files:
+  a put,
+  a take and a move each read the queue,
+  change it and write it with nothing holding the three steps together,
+  so of two puts at once one is lost
+  (60 of 200 rounds,
+  none in the sequential control),
+  and a take after a start against a put brings the started entry back or drops the new one
+  (30 and 24 of 200 rounds);
+  every failure ends with status 0.
+  The author is resumed second,
+  asked to weigh a queue held with no lock
+  (one file for each entry,
+  made with `O_EXCL`)
+  against a lock over the read,
+  change and write,
+  as the project's rule on concurrency reads
+  (`~/temp/agent/pi-runs/queue-of-runs-filled-from-the-package-answers-its-review-of-2026-11-14-prompt.md`).
+- **The same shape is in use now**:
+  the scratch scripts this session queues with read,
+  change and write the same file beside the filling unit's take every round.
+  Measured at 13:36 with a script kept beside them
+  (`check-every-entry-this-session-queued-today-is-in-the-queue-or-was-started.ts`):
+  of the 60 names this session queued since 08:54,
+  each is in the queue,
+  was started or asked for by the filling unit,
+  or has a run folder of today;
+  none is missing and none stands twice in the queue.
+  The one entry lost today was lost by a launcher that failed,
+  not by this race.
+  The check runs again at each round until the package's filling is in.
+- The queue held 59 entries at 13:36:40.
+
 ##### Pass 40 is in `main` and `0.6.1-alpha.30` is dispatched; the watch note's write ceiling goes to review (2026-11-14T13:31:08-05:00)
 
 Not final and not approved:
