@@ -955,7 +955,7 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
     let missing: Vec<&str> = EXCLUDED_STAGING_PATTERNS
         .iter()
         .copied()
-        .filter(|pattern| !lines.iter().any(|line| *line == pattern.as_bytes()))
+        .filter(|pattern| return !lines.contains(&pattern.as_bytes()))
         .collect();
     if missing.is_empty() {
         return Ok(());
@@ -964,7 +964,7 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
         return Err(format!("{} could not be made ({error})", info.display()));
     }
     // A last line the file does not end with would otherwise carry the first pattern this job writes, so a line end comes first.
-    let mut text: Vec<u8> = Vec::with_capacity(missing.iter().map(|pattern| pattern.len() + 1).sum::<usize>() + 1);
+    let mut text: Vec<u8> = Vec::with_capacity(missing.iter().map(|pattern| return pattern.len() + 1).sum::<usize>() + 1);
     if !already.is_empty() && !already.ends_with(b"\n") {
         text.push(b'\n');
     }

@@ -155,15 +155,16 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     // The file is opened for appending and for nothing else: a write that fails or is killed leaves every byte that was there
     //  where it was, and the worst a half-written addition can leave is a truncated pattern of the wrapper's own that ignores
     //  nothing.
-    let mut opened: std::fs::File = match {
+    // A link is not this step's to write through, and a named pipe must refuse rather than wait for a reader.
+    let attempt: std::io::Result<std::fs::File> = {
         use std::os::unix::fs::OpenOptionsExt as _;
         std::fs::OpenOptions::new()
             .append(true)
             .create(true)
-            // A link is not this step's to write through, and a named pipe must refuse rather than wait for a reader.
             .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
             .open(path.as_path())
-    } {
+    };
+    let mut opened: std::fs::File = match attempt {
         Ok(file) => file,
         Err(error) => return Err(format!("{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
     };
