@@ -1236,6 +1236,24 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.30` is installed (2026-11-14T13:38:16-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.30`** (pass 40):
+  published at 13:38:05,
+  installed here from 13:38:05 to 13:38:16,
+  sample commit 1,130 ms,
+  `--version` answering `0.6.1-alpha.30`.
+  The four checks of the user journal for its first minutes are still to run.
+  The next wrapper release is `0.6.1-alpha.31`.
+- Three wrapper releases went out today after the owner's return:
+  `0.6.1-alpha.28` (pass 37) at 10:34:55,
+  `0.6.1-alpha.29` (pass 39) at 12:30:46,
+  `0.6.1-alpha.30` (pass 40) at 13:38:05;
+  and mpm-shadow `0.2.7-alpha.11` at 12:35:14.
+
 ##### The queue-filling change loses an update when two writers meet, back to its author; no entry this session queued today is missing (2026-11-14T13:36:40-05:00)
 
 Not final and not approved:
