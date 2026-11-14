@@ -8949,6 +8949,11 @@ in-process reader can) gives every value of the multi-valued keys.
   the merge and the push,
   at most `MAX_RECONCILE_ATTEMPTS` (10) times in all,
   because sibling worktrees that keep pushing are contention and not a conflict.
+  A merge push whose own command reported a failure can have landed all the same
+  (a kill or a connection dropped after the remote took it):
+  the next attempt then finds the remote's tip to be that very merge,
+  and the run answers zero with a line saying the remote holds the merge this push made
+  (`published` in `integrate_and_push_awaiting`).
   The merge is computed without reading or writing the local branch,
   the index,
   the worktree or the untracked files,
@@ -8993,7 +8998,14 @@ in-process reader can) gives every value of the multi-valued keys.
   and writes the tree of the branch the checkout shows over the paths this move wrote and nowhere else:
   the merge's content for the pushed branch,
   and that branch's own content for any other, a path the branch does not have being removed.
-  A path a person has changed since is left as it is and named,
+  The write is a `git read-tree -u -m` from the tree of the branch the checkout shows,
+  and it replaces a path only while the index holds that from-tree's content and the worktree still matches the index there:
+  a staged edit, a worktree edit and an untracked file each make it refuse,
+  which is what proves the bytes it writes are the move's own or a switch's own
+  (a review of commit `6c39c3719a`,
+  its defect 1:
+  the `git restore` before it wrote over a person's staged edit made in that instant).
+  A path it cannot prove is left as it is and named,
   and no lock is taken (`AGENTS.md`,
   rule `NLK`):
   the reference's compare-and-swap decides who moves the branch,
@@ -9001,8 +9013,16 @@ in-process reader can) gives every value of the multi-valued keys.
   The report says which of these it found:
   the checkout followed,
   it went to another branch and holds nothing of the merge,
-  or it still holds some of the merge and which paths those are
+  or it still differs from the branch it shows on named paths, was left as it is,
+  and which step finishes it
   (`bring_the_checkout_to_its_branch_awaiting` in `src/native/push/auto_push_reconcile_branch_checkout.rs`).
+  A checkout that took the branch inside the reference's own window is not a branch that stayed behind:
+  the branch is at the merge,
+  and the report says that, names the worktree and its paths,
+  and prints the per-path checkout of the commit whose tree that checkout must hold,
+  which runs as printed there and overwrites those files, so it tells the person to keep a copy first
+  (`WorktreeHolding`,
+  `followed_sentence` in `src/native/push/auto_push_reconcile_awaiting.rs`).
   An empty status passes trivially;
   uncommitted work in files the move does not write is left exactly as it was,
   and the report says so,

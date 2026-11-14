@@ -595,6 +595,11 @@ Read-only commands,
   A `git switch` in the worktree a branch is moved in is treated the same way:
   the branch follows its merge, the worktree stays on the branch that switch chose,
   and the report says which.
+  That last write replaces only files it can prove are the move's own:
+  an edit you stage or make in the moment the branch moves is kept byte for byte,
+  and the report names the files and the step that brings them to the branch when you decide to.
+  When a merge push's own command says it failed but the remote took it,
+  the push ends with status 0 and says the remote holds the merge it made.
    Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;
