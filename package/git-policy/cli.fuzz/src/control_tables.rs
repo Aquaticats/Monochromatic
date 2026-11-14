@@ -50,7 +50,9 @@ pub(crate) const WRAPPER_SPELLINGS: &[&[u8]] = &[
 ///  separators,
 ///  values and every wrapper spelling,
 ///  plus
-///       near-misses of the spellings and bytes that are not UTF-8.
+///       near-misses of the spellings and bytes that are not UTF-8,
+///  the forms that end the operation a conflict stopped,
+///  and the writes of the settings every worktree shares.
 /// Why:
 ///   One byte of fuzz input selects one token,
 ///  so short inputs already place a
@@ -148,6 +150,20 @@ pub(crate) const CONTROL_TOKENS: &[&[u8]] = &[
     b"--no-such-option",
     b"-nq",
     b"--message=--no-enforce-only",
+    // The words of the forms that end the operation a conflict stopped, and the tokens that make one:
+    //  without them the generator spells no abort and no skip, so the answers those forms read are never asked.
+    b"merge",
+    b"rebase",
+    b"cherry-pick",
+    b"revert",
+    b"am",
+    b"--abort",
+    b"--skip",
+    // The two writes of the settings every worktree shares, one per command word that makes one:
+    //  `git remote set-url` and a key under `remote.` in `git config`.
+    b"remote",
+    b"set-url",
+    b"remote.origin.url",
     // Positional words, including the worktree and stash subcommands.
     b".",
     b"file",

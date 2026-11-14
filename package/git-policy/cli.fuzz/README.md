@@ -53,8 +53,11 @@ value options,
 every wrapper control and hatch,
 and near-misses of their spellings,
 a `<command> <valueless options> -- <tokens>` list whose `--` is certainly Git's separator,
-and the same tokens behind a first byte that selects a linked worktree or no repository
-and the answers to the repository questions.
+and the same tokens behind the first two bytes,
+little endian,
+which choose a linked worktree or no repository
+and the eleven other answers to the repository questions,
+one bit each.
 Removal must leave its input unchanged and be repeatable,
 delete only whole tokens that spell a control or the commit hatch,
 record exactly the effects the deleted tokens asked for,
@@ -70,6 +73,14 @@ or a `git add` in a worktree while that policy is on
 so that policy cannot read them).
 A worktree creation or possible alias run from a linked worktree is forwarded:
 the executable settles the worktree copy around it.
+An abort or skip form is judged by the operation its own word ends:
+the fixed answers say whether that operation waits,
+and whether the person's own work or an ignored or untracked file the restored tree tracks stands where its reset
+writes,
+so every answer its guard can give is reached.
+A write of the settings every worktree shares is refused in a linked worktree,
+naming the main checkout the fixed location puts beside it,
+and left to Git where no other checkout shares them.
 The dry-run options are restated from Git's documentation instead of read from the subject's tables.
 
 ### `batch_reply`
