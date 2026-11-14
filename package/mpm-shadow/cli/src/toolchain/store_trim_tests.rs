@@ -31,7 +31,12 @@ use crate::toolchain::store_trim::{
     DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
     parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
 };
+use crate::toolchain::context::{Context, Host};
+use crate::toolchain::fakes::FakeRunner;
+use crate::toolchain::fixtures::sample_scope_on_disk;
+use crate::toolchain::http::NoNetwork;
 use crate::toolchain::scope::EnvMap;
+use crate::toolchain::store_trim::trim_after_install;
 use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span};
 use crate::toolchain::store_versions::{removal_markers, TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
@@ -761,6 +766,200 @@ fn keeps_the_deadline_when_the_work_limit_is_the_largest_number() {
 }
 
 //endregion the path spelling, a live version's downloads, and a bound at the largest number
+
+//region every path a version owns, and the link that names it
+
+/// What:
+/// Starts a process that holds `path` open, and returns it.
+/// Why:
+/// The promise under test is about a file a live process has open,
+/// and a child whose standard input is that file holds the only descriptor of it.
+fn holder_of(path: &std::path::Path) -> std::process::Child {
+    let file: std::fs::File = fs::File::open(path).expect("open the file a process will hold");
+    return std::process::Command::new("sleep")
+        .arg("60")
+        .stdin(std::process::Stdio::from(file))
+        .spawn()
+        .expect("start a process holding the file");
+}
+
+/// Gives the fixture's tool a `current` link at `version`.
+fn point_current(root: &std::path::Path, tool: &str, version: &str) {
+    let link: PathBuf = root.join(tool).join("current");
+    let _ = fs::remove_file(&link);
+    std::os::unix::fs::symlink(version, &link).expect("point the current link");
+}
+
+/// The version a tool's `current` link names, as the pass's snapshot reads it.
+fn current_snapshot(root: &std::path::Path, tool: &str) -> String {
+    let target: PathBuf = fs::read_link(root.join(tool).join("current")).expect("read the current link");
+    return target.file_name().expect("a name").to_string_lossy().to_string();
+}
+
+/// What:
+/// A version whose downloads a live process holds open is kept, through the pass a sync runs.
+/// Why:
+/// The cleanup promises it never removes a version a running process uses,
+/// and a version owns two trees: its directory and the archives downloaded for it.
+/// A hold on the archive used to be invisible to every check, and the install that was downloading it failed.
+#[test]
+fn keeps_a_version_whose_downloads_a_process_holds_open() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"26.13.1","route":"archive"}}}"#)
+        .expect("write a lock naming the tool");
+    let stale: PathBuf = store.join("node/26.12.0");
+    fs::create_dir_all(&stale).expect("make the old version");
+    fs::write(stale.join("program"), vec![b'a'; 1000]).expect("write the program");
+    written_ago(&stale, 2 * 24 * 3600);
+    let downloads: PathBuf = store.join("downloads/node/26.12.0");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    fs::write(downloads.join("node.tar.gz"), vec![b'z'; 40]).expect("write the archive");
+    fs::write(unfinished_marker(&store), b"").expect("write the unfinished-removal marker");
+    let mut child = holder_of(&downloads.join("node.tar.gz"));
+    let runner = FakeRunner::new();
+    let host = Host::current();
+    // The pass reads its bounds from the environment it is given.
+    let env_holding: EnvMap = env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    let context = Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+
+    trim_after_install(&context, &[]);
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(stale.join("program").exists(), "the version a process holds its archive of was removed");
+    assert!(downloads.join("node.tar.gz").exists(), "the archive a live process holds open was removed");
+}
+
+/// What:
+/// A version whose downloads are held open is kept when it is already moved aside, and both come back.
+/// Why:
+/// The removal's second look asks about the same trees the plan does;
+/// a hold on the archives used to be answered by neither, and the archive was deleted.
+#[test]
+fn keeps_its_downloads_when_a_moved_aside_version_is_held() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    fs::write(downloads.join("node.tar.gz"), vec![b'z'; 40]).expect("write the archive");
+    let plan: TrimPlan = plan_trim(&fixture.candidates(), &fixture.run().bounds, SystemTime::now(), &|_found| {
+        return None;
+    });
+    let mut child = holder_of(&downloads.join("node.tar.gz"));
+
+    let outcome: TrimOutcome = apply_trim(&plan, &fixture.run());
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(version.join("program").exists(), "the version was removed: {:?}", outcome.lines);
+    assert!(downloads.join("node.tar.gz").exists(), "the archive a live process holds was removed: {:?}", outcome.lines);
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("node/26.11.0") && line.contains("it is in use")),
+        "{:?}",
+        outcome.lines
+    );
+}
+
+/// What:
+/// A removal an earlier run left, whose archives a live process holds, is undone and the archives come back.
+/// Why:
+/// The finish pass asks about the paths a version owns,
+/// and a hold on the archives marker used to be answered by neither of its two checks.
+#[test]
+fn puts_back_a_held_marker_and_its_downloads() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    fs::write(downloads.join("node.tar.gz"), vec![b'z'; 40]).expect("write the archive");
+    let downloads_marker: PathBuf = tombstone_of(&downloads);
+    let version_marker: PathBuf = tombstone_of(&version);
+    fs::rename(&downloads, &downloads_marker).expect("move the downloads aside");
+    fs::rename(&version, &version_marker).expect("move the version aside");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
+    let mut child = holder_of(&downloads_marker.join("node.tar.gz"));
+
+    let finished = finish_removals(&fixture.run());
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(version.join("program").exists(), "the version was not put back: {:?}", finished.lines);
+    assert!(
+        downloads.join("node.tar.gz").exists(),
+        "the archives a live process holds were not put back: {:?}",
+        finished.lines
+    );
+    assert!(!downloads_marker.exists() && !version_marker.exists(), "{:?}", finished.lines);
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("it is in use") && line.contains("undone")),
+        "{:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// A version the tool's `current` link came to name after the pass's snapshot is kept.
+/// Why:
+/// Another command can repoint `current` between the pass's read and its removal,
+/// and a version the link names at that moment must never be removed:
+/// a link left naming a deleted version dangles every worktree's exposed link.
+#[test]
+fn keeps_a_version_current_came_to_name_before_its_removal() {
+    let fixture = Fixture::new();
+    let victim: PathBuf = fixture.root.join("node/26.11.0");
+    point_current(&fixture.root, "node", "26.13.1");
+    let snapshot: String = current_snapshot(&fixture.root, "node");
+    let plan: TrimPlan = plan_trim(&fixture.candidates(), &fixture.run().bounds, SystemTime::now(), &|found| {
+        if found.tool == "node" && found.version == snapshot {
+            return Some("the tool's current link names it".to_string());
+        }
+        return None;
+    });
+    assert!(removed_by(&plan).iter().any(|name| return name == "node-26.11.0"), "{:?}", removed_by(&plan));
+    // What: the stand-in for another command repointing the link between the snapshot and the removal.
+    point_current(&fixture.root, "node", "26.11.0");
+
+    let outcome: TrimOutcome = apply_trim(&plan, &fixture.run());
+
+    assert!(victim.join("program").exists(), "the version current came to name was removed: {:?}", outcome.lines);
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("node/26.11.0") && line.contains("current link names it")),
+        "{:?}",
+        outcome.lines
+    );
+    let named: String = current_snapshot(&fixture.root, "node");
+    assert!(fixture.root.join("node").join(named).is_dir(), "the current link names a version that is gone");
+}
+
+/// What:
+/// A removal an earlier run left, whose version the `current` link came to name, is undone.
+/// Why:
+/// The finish pass runs before any lock is read and used not to look at the link at all,
+/// so a marker the link named was deleted and the link dangled.
+#[test]
+fn puts_back_a_marker_whose_version_current_names() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let marker: PathBuf = tombstone_of(&version);
+    fs::rename(&version, &marker).expect("move the version aside");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
+    point_current(&fixture.root, "node", "26.11.0");
+
+    let finished = finish_removals(&fixture.run());
+
+    assert!(version.join("program").exists(), "the version current names was not put back: {:?}", finished.lines);
+    assert!(!marker.exists(), "{:?}", finished.lines);
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("current link names it") && line.contains("undone")),
+        "{:?}",
+        finished.lines
+    );
+}
+
+//endregion every path a version owns, and the link that names it
 
 //region replaying a real store's listing
 

@@ -67,8 +67,8 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    RemovalMarker, VersionDirectory, install_directory_name, leftover_downloads, removal_markers, tombstone_of,
-    tree_size, version_directories,
+    RemovalMarker, VersionDirectory, downloads_of, install_directory_name, leftover_downloads, removal_markers,
+    tombstone_of, tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -702,6 +702,91 @@ struct MovedAside {
     downloads_marker: Option<PathBuf>,
 }
 
+/// Where a version's own trees stand.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Trees {
+    /// Under their own names.
+    InPlace,
+    /// Moved aside by a removal,
+    /// so each tree stands under a marker and its own name is free.
+    MovedAside,
+}
+
+/// What:
+/// Every path one version of a tool owns in a store:
+/// its directory and the archives downloaded for it,
+/// and, while a removal holds them aside, the markers that hold them with the names they take back.
+/// Why:
+/// A hold can name any of these,
+/// and the checks that keep a version a live process uses are only as good as the list they consult.
+/// One list answers for all of them, so no check can forget a tree.
+/// The two trees are the whole of what an install writes for a version:
+/// `install_archive` downloads into `<root>/downloads/<tool>/<version>` and unpacks into
+/// `<root>/<tool>/<version>`, `install_cargo` and `install_rust_android` write only under the version directory,
+/// and a `cargo binstall` crate keeps its record inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownedPaths(root: string, tool: string, version: string, trees: Trees): string[]
+/// ```
+fn owned_paths(root: &Path, tool: &str, version: &str, trees: Trees) -> Vec<PathBuf> {
+    let version_directory: PathBuf = root.join(tool).join(version);
+    let downloads_directory: PathBuf = downloads_of(root, tool, version);
+    return match trees {
+        Trees::InPlace => vec![version_directory, downloads_directory],
+        // Both the markers and the names they take back: a hold recorded before the rename keeps its descriptor,
+        // and the path the descriptor reports is the one the tree stands under now or the one it left.
+        Trees::MovedAside => vec![
+            tombstone_of(&version_directory),
+            version_directory,
+            tombstone_of(&downloads_directory),
+            downloads_directory,
+        ],
+    };
+}
+
+/// What:
+/// The reason a live process keeps `version` of `tool`, or `None` when nothing below the paths it owns is held.
+/// Why:
+/// Every check that decides whether a version may be removed asks this,
+/// so both of its trees and every marker are asked about, once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownedHoldReason(root: string, tool: string, version: string, trees: Trees, holders: StoreHolders): string | undefined
+/// ```
+fn owned_hold_reason(holders: &StoreHolders, root: &Path, tool: &str, version: &str, trees: Trees) -> Option<String> {
+    for path in owned_paths(root, tool, version, trees) {
+        if let Some(reason) = held_reason(holders, &path) {
+            return Some(reason);
+        }
+    }
+    return None;
+}
+
+/// What:
+/// Whether the tool's `current` link names `version` right now.
+/// Why:
+/// A pass reads every `current` once, before it plans,
+/// and another command can repoint the link between that read and the removal:
+/// a version the link names at the moment of removal is never removed,
+/// so the link is read again right then, and again after the move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function currentNames(root: string, tool: string, version: string): boolean
+/// ```
+fn current_names(root: &Path, tool: &str, version: &str) -> bool {
+    let link: PathBuf = root.join(tool).join(CURRENT_LINK_NAME);
+    let Ok(target) = fs::read_link(&link) else {
+        return false;
+    };
+    let Some(name) = target.file_name() else {
+        return false;
+    };
+    return name.to_string_lossy() == version;
+}
+
 /// What:
 /// Moves one version's downloads and then the version itself out of their names,
 /// which is the atomic step that condemns them,
@@ -723,6 +808,12 @@ fn move_aside(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
     };
     if metadata.modified().ok() != Some(candidate.written) {
         return Err("another run wrote it while the cleanup ran".to_string());
+    }
+    // What: the tool's `current` link is read again here, at the moment of the removal.
+    // Why: the pass read every link before it planned, and another command can repoint one in between;
+    // a version the link names now must not be moved aside.
+    if current_names(&candidate.root, &candidate.tool, &candidate.version) {
+        return Err("the tool's current link names it".to_string());
     }
     // What: the marker is written before the first rename.
     // Why: a run killed inside `remove_dir_all` leaves the marker, and the next install finishes the removal.
@@ -934,12 +1025,26 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
         for (index, candidate, aside) in moved {
             let reason: Option<String> = match &holders.incomplete {
                 Some(failed) => Some(format!("the process table could not be read: {failed}")),
-                None => match held_reason(&holders, &aside.version_marker)
-                    .or_else(|| return held_reason(&holders, &candidate.directory))
-                {
-                    Some(held) => Some(format!("it is in use: {held}")),
-                    None => opaque_reason(&holders, &candidate.tool).map(|found| return format!("it may be in use: {found}")),
-                },
+                None => {
+                    // What: the link is read again after the move, with the holders.
+                    // Why: a repoint that landed between the refusal in `move_aside` and the move itself is seen
+                    // here, and the version goes back under its name.
+                    if current_names(&candidate.root, &candidate.tool, &candidate.version) {
+                        Some("the tool's current link names it".to_string())
+                    } else {
+                        match owned_hold_reason(
+                            &holders,
+                            &candidate.root,
+                            &candidate.tool,
+                            &candidate.version,
+                            Trees::MovedAside,
+                        ) {
+                            Some(held) => Some(format!("it is in use: {held}")),
+                            None => opaque_reason(&holders, &candidate.tool)
+                                .map(|found| return format!("it may be in use: {found}")),
+                        }
+                    }
+                }
             };
             match reason {
                 Some(why) => match put_back(&candidate, &aside) {
@@ -1072,12 +1177,17 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
         let bytes: u64 = removal_marker_size(&marker);
         let reason: Option<String> = match &holders.incomplete {
             Some(failed) => Some(format!("the process table could not be read: {failed}")),
-            None => match held_reason(&holders, &marker.version_marker)
-                .or_else(|| return held_reason(&holders, &marker.version_directory))
-            {
-                Some(held) => Some(format!("it is in use: {held}")),
-                None => opaque_reason(&holders, &marker.tool).map(|found| return format!("it may be in use: {found}")),
-            },
+            None => {
+                if current_names(&marker.root, &marker.tool, &marker.version) {
+                    Some("the tool's current link names it".to_string())
+                } else {
+                    match owned_hold_reason(&holders, &marker.root, &marker.tool, &marker.version, Trees::MovedAside) {
+                        Some(held) => Some(format!("it is in use: {held}")),
+                        None => opaque_reason(&holders, &marker.tool)
+                            .map(|found| return format!("it may be in use: {found}")),
+                    }
+                }
+            }
         };
         let candidate_reason: String = match reason {
             Some(why) => why,
@@ -1315,7 +1425,8 @@ fn protection_of(
     {
         return Some("the tool's current link names it".to_string());
     }
-    if let Some(reason) = held_reason(holders, &candidate.directory) {
+    if let Some(reason) = owned_hold_reason(holders, &candidate.root, &candidate.tool, &candidate.version, Trees::InPlace)
+    {
         return Some(format!("it is in use: {reason}"));
     }
     if let Some(reason) = opaque_reason(holders, &candidate.tool) {
