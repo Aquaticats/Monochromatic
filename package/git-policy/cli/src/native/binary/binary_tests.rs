@@ -860,3 +860,8 @@ mod package_repair;
 /// how long each waited, measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
+
+/// A commit made while every other kind of work the service does is held open:
+/// two prewarm clones, the background sync of a landing, the removal of a scratch tree and a push.
+#[path = "binary_a_commit_lands_while_every_kind_of_work_is_held_tests.rs"]
+mod a_commit_lands_while_every_kind_of_work_is_held;

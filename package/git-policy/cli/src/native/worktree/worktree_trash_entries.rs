@@ -367,9 +367,11 @@ pub(crate) fn entries_a_wave_may_remove(host: &HostResources) -> usize {
 pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entries: &[usize]) -> Vec<String> {
     let indices: Arc<[usize]> = Arc::from(entries.to_vec());
     // One lane per entry, so no entry waits for another.
+    // A lane names the *position* of an item and not the entry's own number, which differ once a trash is emptied a wave at
+    //  a time (`remove_these_entries_awaiting`).
     let mut lanes: Vec<Vec<usize>> = Vec::new();
-    for index in indices.iter() {
-        lanes.push(vec![*index]);
+    for position in 0..indices.len() {
+        lanes.push(vec![position]);
     }
     // The entries of one trash are swept for the service's after-commit round, which runs beside the connections that answer
     //  clients: one place of the pool stays free for those, so a client's own storage read (which instance its commit belongs

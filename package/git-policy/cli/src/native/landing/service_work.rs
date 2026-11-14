@@ -452,6 +452,7 @@ impl WorkHandlers for GitHandlers {
 
     fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
+        crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_A_PUSH).await;
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git_awaiting(newest).await;
         // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
@@ -551,7 +552,10 @@ impl WorkHandlers for GitHandlers {
     /// trashAwaiting(item) { return emptyTrashAwaiting(item); }
     /// ```
     fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move { return crate::worktree_trash::empty_trash_awaiting(item).await; });
+        return Box::pin(async move {
+            crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_A_TRASH).await;
+            return crate::worktree_trash::empty_trash_awaiting(item).await;
+        });
     }
 
     /// What:
@@ -570,7 +574,10 @@ impl WorkHandlers for GitHandlers {
     /// ```
     #[cfg(target_os = "linux")]
     fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move { return crate::package_repair_prewarm_job::prewarm_awaiting(item).await; });
+        return Box::pin(async move {
+            crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_A_PREWARM).await;
+            return crate::package_repair_prewarm_job::prewarm_awaiting(item).await;
+        });
     }
 
     /// What:
@@ -588,7 +595,10 @@ impl WorkHandlers for GitHandlers {
     /// ```
     #[cfg(target_os = "linux")]
     fn relink_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move { return crate::package_repair_relink_job::relink_awaiting(item).await; });
+        return Box::pin(async move {
+            crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_A_RELINK).await;
+            return crate::package_repair_relink_job::relink_awaiting(item).await;
+        });
     }
 
     /// What:
@@ -629,6 +639,7 @@ impl WorkHandlers for GitHandlers {
     /// ```
     fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
+            crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_A_SUBVOLUME_DELETE).await;
             let held: WorkItem = item.clone();
             let (sender, receiver): (tokio::sync::oneshot::Sender<Verdict>, tokio::sync::oneshot::Receiver<Verdict>) = tokio::sync::oneshot::channel::<Verdict>();
             let started = std::thread::Builder::new().name(String::from(REMOVAL_THREAD_NAME)).spawn(move || {
@@ -703,6 +714,7 @@ impl WorkHandlers for GitHandlers {
 
     fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
+            crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_THE_UPKEEP).await;
             return match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
                 Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
                 Ok(_) => Verdict::Done,
@@ -747,6 +759,7 @@ impl WorkHandlers for GitHandlers {
             if let Some(endpoint) = self.review_endpoint.as_ref() {
                 options.endpoint = endpoint.clone();
             }
+            crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::INSIDE_A_REVIEW).await;
             return review_item_awaiting(&self.context, item, options).await;
         });
     }

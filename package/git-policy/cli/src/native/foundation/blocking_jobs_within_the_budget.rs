@@ -470,6 +470,7 @@ fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWor
 /// ```ts
 /// type AnswerOfAJob<T> = { ran: T } | 'notRun' | 'noAnswer';
 /// ```
+#[derive(Debug)]
 pub enum TheAnswerOfAJobAwaited<T> {
     /// The job ran and gave this.
     Ran(T),

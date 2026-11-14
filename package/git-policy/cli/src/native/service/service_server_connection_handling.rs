@@ -279,7 +279,8 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
 /// `is_foreign`'s read,
 /// as the job of the pool takes it.
 fn look_up_the_directory((mine, git_dir): (String, PathBuf)) -> bool {
-    // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+    // A control holds this read here, on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+    crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::IN_THE_ROUTING_LOOK);
     #[cfg(test)]
     crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
     return instance_of(git_dir.as_path()) != mine;
