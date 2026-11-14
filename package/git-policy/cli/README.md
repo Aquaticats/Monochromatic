@@ -2334,8 +2334,10 @@ the two tools that rewrite link layouts in place are the commit service's work w
    and can retire tool copies another checkout still links (both accepted by the owner),
    and its summary of what was installed is part of the success line.
   The install answers only for the launcher names your `toolchain.lock.json` declares,
-   so a launcher record for any other name is a copy of an older release's layout: it is removed,
-   with the launcher beside it, instead of being reported as package state that was never relinked.
+   so a launcher record for any other name is a copy of an older release's layout:
+  it is removed,
+   with the launcher beside it,
+  instead of being reported as package state that was never relinked.
 
 What the hand-over costs you:
 for as long as the service has not run the record,
@@ -2353,16 +2355,22 @@ When a relink does not finish:
 the service tries a tool that failed again on its next round (the record allows three tries),
  so two installers meeting in one `node_modules` costs a wait rather than the relink.
 A record whose tries run out leaves one line for the next command in that worktree,
- which says how many times the wrapper tried, what the last try failed with, and the command that finishes
+ which says how many times the wrapper tried,
+what the last try failed with,
+and the command that finishes
  the job,
- and says that something only you can change has to come first, because the wrapper already ran that command:
+ and says that something only you can change has to come first,
+because the wrapper already ran that command:
 
 ```text
 monochromatic-git-policy-cli: the package state of <worktree> was not relinked, so its links still name the checkout it was copied from. The wrapper tried 3 times and gave up. The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE. Running the same command again would fail the same way, so something only you can change has to come first; after that, `pnpm --dir <worktree> install --offline --frozen-lockfile` or `cd -- <worktree> && mise run toolchain:install` finishes the job.
 ```
 
-The line waits in that worktree's own Git directory, so only a command run there shows it, and one command shows it once.
-A record whose service was killed on every try has no answer to quote, and its line says the service stopped that many
+The line waits in that worktree's own Git directory,
+so only a command run there shows it,
+and one command shows it once.
+A record whose service was killed on every try has no answer to quote,
+and its line says the service stopped that many
  times instead.
 
 Nothing runs for `--no-worktree-copy` or `--no-checkout`.
