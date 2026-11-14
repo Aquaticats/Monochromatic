@@ -86,6 +86,12 @@ because pnpm has none.
   Nothing gets written to the `node_modules` directory")
   and `--offline`.
   It replaces `sync`.
+  It also takes tools,
+  as `pnpm i -g <package>` does
+  (read with pnpm 12.18.0 on 2026-11-13:
+  `pnpm i -g is-odd` printed `+ is-odd 3.0.1`),
+  which is the only way a new tool is declared by this command
+  (see "Adding a tool with install").
 - `install --lockfile-only --offline`:
   replaces `lock`.
   pnpm's `--offline` resolves from its metadata cache;
@@ -147,6 +153,9 @@ because pnpm has none.
 
 People edit `toolchain.plan.jsonc` (JSONC:
 comments and trailing commas are allowed).
+The one exception is `install <tool>`,
+which appends the entry a request describes and writes nothing else in the file
+(see "Adding a tool with install").
 mpm-shadow is the only writer and the only checker of `toolchain.lock.json`,
 which stays strict JSON because `jq` readers in CI and Dockerfiles select
 `.tools.<id>.version`,
@@ -620,8 +629,12 @@ llama-cpu-cli \
   writes nothing,
   installs nothing,
   and exits 1 when something would move.
-- `mpm-shadow install [--frozen-lockfile | --no-frozen-lockfile]`:
-  first resolves the plan entries the lock lacks or holds for an older request
+- `mpm-shadow install [<tool>...] [--frozen-lockfile | --no-frozen-lockfile]`:
+  with a tool,
+  first adds the ones the plan does not hold yet and then installs,
+  as `pnpm i -g <package>` does
+  (see "Adding a tool with install");
+  then resolves the plan entries the lock lacks or holds for an older request
   (see "Installing a plan that is ahead of the lock"),
   then installs every locked tool that is not at its locked version,
   makes the postinstall links and removes the ones an earlier run made that the lock no longer declares
@@ -783,6 +796,124 @@ the way `pnpm install` after adding one dependency resolves only that dependency
 - `install --lockfile-only --offline` stays offline.
   `install` resolves a plan that is ahead of the lock,
   as the next section says.
+
+### Adding a tool with install
+
+`mpm-shadow install <tool>...` (alias `i`) declares a tool and installs it in one command,
+the way `pnpm i -g <package>` adds a global package
+(read with pnpm 12.18.0 on 2026-11-13 in a disposable home:
+`pnpm i -g is-odd` printed `+ is-odd 3.0.1` and `pnpm ls -g` then listed it).
+There is no separate `add` verb.
+With `--global` the command writes the machine's plan and lock;
+without it,
+this repository's.
+With no tool the command keeps its meaning:
+it brings everything the plan holds to its lock.
+
+- An argument is a tool id the plan already holds (`mpm i -g tokei`),
+  or a request the command adds to the plan first (`mpm i -g cargo:fastmod`).
+  An id the plan holds is installed as it is and the plan is not written at all.
+- A request is `<prefix>:<name>` with an optional `@<version>`;
+  without a version it asks for the newest,
+  which the entry records as `@latest` so the plan keeps floating requests.
+  Several tools in one command are allowed.
+- A bare name that is neither an id of the plan nor a request is refused,
+  naming the prefixes it could take;
+  the command never guesses a route.
+
+The prefixes a request can add,
+and what names each route's binaries:
+
+- `cargo:<crate>` adds the `cargo-binstall` route,
+  which runs the `cargo` the machine has and needs no plan entry.
+  Its `bins` are crates.io's own `bin_names` for the version the request asks for
+  (`GET https://crates.io/api/v1/crates/<crate>`,
+  and `.../<crate>/<version>` for a pinned one).
+- `npm:<package>` adds the `mpm-pnpm` route,
+  whose installer is the plan's `pnpm` entry.
+  Its `bins` are the `bin` field's names from the registry's manifest
+  (`GET https://registry.npmjs.org/<package>/<version-or-tag>`),
+  or the package's own name when `bin` is one text.
+- `go:<module>` adds the `go-install` route,
+  whose installer is the plan's `go` entry.
+  Its `bins` are the module path's last segment,
+  which is the name `go install` writes;
+  a path that ends in a major-version suffix (`/v2`) names no program and is refused.
+
+A plan that lacks the installer a route runs holds no way to install what the
+command adds,
+so that request is refused before any lookup,
+naming the entry to add first.
+Both plans this repository ships hold `pnpm` and `go`.
+
+Every other route needs an entry a request cannot describe,
+so the command refuses it and names the plan file and this section:
+`github:` picks between `archive` and `bin-sourced` and names no binary (`github:owner/repo`),
+`pipx:` installs the entry points PyPI does not publish,
+`git:` needs `packageId`,
+the conda route carries `options`,
+and the named origins (`node`,
+`go`,
+`zig`,
+`rustup`,
+`aws`,
+`rust`,
+`android-sdk`,
+`java:temurin`) are products whose entries carry fields a request cannot name.
+Those entries are written by hand:
+"The plan" (above) lists every field,
+and "The `github:` resolver" shows how one release's assets are chosen.
+
+The entry the command writes carries the three fields a request and its route settle:
+
+```jsonc
+// toolchain.plan.jsonc, the entry `mpm-shadow install cargo:fastmod` writes
+"cargo:fastmod": {
+  "request": "cargo:fastmod@latest",
+  "route": "cargo-binstall",
+  "bins": [
+    "fastmod"
+  ]
+},
+```
+
+- It is appended after the last entry of `tools`,
+  in the order the command named the tools,
+  and every other byte of the file stays as the person wrote it:
+  comments,
+  trailing commas,
+  the indentation of the entry above it,
+  and the file's own order.
+  A comment beside the last entry stays with that entry:
+  the comma goes in front of it and the new entry after it.
+- **It lands without the comment that says why the tool is there.**
+  Only a person knows that,
+  so the command prints
+  `toolchain install: no comment says why <id> is there; write one beside its entry in <plan file>`;
+  write that comment above the entry.
+- The write is one temporary file renamed over the plan,
+  under the scope's OS lock,
+  and only when the plan still has the content the command read.
+  A file another mpm-shadow wrote meanwhile is not overwritten:
+  the command refuses and says to run it again.
+  The plan also keeps the permissions it had.
+- The plan is written first and the lock second.
+  A run killed in between leaves the new entry in the plan with no lock row,
+  which is exactly the state a plain `mpm-shadow install` finishes
+  (see "Installing a plan that is ahead of the lock").
+- With `--frozen-lockfile`,
+  or in a CI environment,
+  the entries the command line added are still resolved and locked,
+  as `pnpm add --frozen-lockfile <package>` writes `package.json` and the lockfile.
+  Nothing else moves:
+  if any other entry needs a lookup,
+  or the plan differs from the lock anywhere a run could write without one,
+  the frozen refusal stands and no lock is written.
+- `install --lockfile-only --frozen-lockfile` is the CI drift check,
+  so it adds nothing;
+  `install --lockfile-only --offline` resolves nothing,
+  so it adds nothing either.
+  Both refuse before the plan is touched and name the switch to drop.
 
 ### Installing a plan that is ahead of the lock
 
